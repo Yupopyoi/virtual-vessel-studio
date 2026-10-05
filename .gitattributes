@@ -1,0 +1,128 @@
+# Virtual Vessel Studio
+
+# Normalize text files automatically.
+* text=auto
+
+# ------------------------------------------------------------
+# Source code
+# ------------------------------------------------------------
+
+*.cs       text eol=lf
+
+*.c        text eol=lf
+*.cc       text eol=lf
+*.cpp      text eol=lf
+*.cxx      text eol=lf
+
+*.h        text eol=lf
+*.hh       text eol=lf
+*.hpp      text eol=lf
+*.hxx      text eol=lf
+
+*.py       text eol=lf
+
+# Windows scripts
+*.ps1      text eol=crlf
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+
+# Unix scripts
+*.sh       text eol=lf
+
+# ------------------------------------------------------------
+# Documentation / configuration
+# ------------------------------------------------------------
+
+*.md       text eol=lf
+*.txt      text eol=lf
+
+*.json     text eol=lf
+*.jsonc    text eol=lf
+*.xml      text eol=lf
+
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.toml     text eol=lf
+*.ini      text eol=lf
+
+.editorconfig   text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+
+# ------------------------------------------------------------
+# Unity text-serialized assets
+# ------------------------------------------------------------
+
+*.meta                 text eol=lf
+*.unity                text eol=lf
+*.prefab               text eol=lf
+*.asset                text eol=lf
+*.mat                  text eol=lf
+*.anim                 text eol=lf
+*.controller           text eol=lf
+*.overrideController   text eol=lf
+*.mask                 text eol=lf
+*.playable             text eol=lf
+
+*.shader               text eol=lf
+*.compute              text eol=lf
+*.cginc                text eol=lf
+*.hlsl                 text eol=lf
+
+*.uxml                 text eol=lf
+*.uss                  text eol=lf
+
+# ------------------------------------------------------------
+# Binary image assets
+# ------------------------------------------------------------
+
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.bmp      binary
+*.tga      binary
+*.psd      binary
+*.exr      binary
+*.hdr      binary
+
+# ------------------------------------------------------------
+# Binary audio assets
+# ------------------------------------------------------------
+
+*.wav      binary
+*.mp3      binary
+*.ogg      binary
+*.flac     binary
+
+# ------------------------------------------------------------
+# 3D assets
+# ------------------------------------------------------------
+
+*.fbx      binary
+*.blend    binary
+*.vrm      binary
+*.glb      binary
+
+*.gltf     text eol=lf
+
+# ------------------------------------------------------------
+# Compiled / model files
+# ------------------------------------------------------------
+
+*.dll      binary
+*.exe      binary
+*.pdb      binary
+*.lib      binary
+*.a        binary
+
+*.onnx     binary
+
+# ------------------------------------------------------------
+# Archives
+# ------------------------------------------------------------
+
+*.zip      binary
+*.7z       binary
+*.tar      binary
+*.gz       binary

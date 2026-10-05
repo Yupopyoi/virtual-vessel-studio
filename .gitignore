@@ -1,0 +1,117 @@
+# Virtual Vessel Studio
+
+# ------------------------------------------------------------
+# Unity generated files
+# ------------------------------------------------------------
+
+**/Library/
+**/Temp/
+**/Obj/
+**/Logs/
+**/MemoryCaptures/
+**/UserSettings/
+**/Build/
+**/Builds/
+
+# Unity-generated IDE/project files
+*.csproj
+*.csproj.user
+*.unityproj
+*.pidb
+*.booproj
+*.svd
+
+# Unity crash information
+sysinfo.txt
+
+# ------------------------------------------------------------
+# Visual Studio / IDE
+# ------------------------------------------------------------
+
+.vs/
+.idea/
+.vscode/
+
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+_ReSharper*/
+*.DotSettings.user
+
+# ------------------------------------------------------------
+# .NET / C#
+# ------------------------------------------------------------
+
+**/bin/
+**/obj/
+
+# ------------------------------------------------------------
+# C / C++
+# ------------------------------------------------------------
+
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/compile_commands.json
+
+**/out/
+**/x64/
+**/x86/
+**/Debug/
+**/Release/
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+
+**/.venv/
+**/venv/
+**/__pycache__/
+
+*.py[cod]
+*.pyd
+
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+**/.coverage
+**/htmlcov/
+
+**/*.egg-info/
+**/.eggs/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------------
+# Runtime / generated data
+# ------------------------------------------------------------
+
+*.log
+*.tmp
+*.temp
+
+/local-data/
+/runtime-data/
+
+# ------------------------------------------------------------
+# OS-generated files
+# ------------------------------------------------------------
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ------------------------------------------------------------
+# Backup / temporary files
+# ------------------------------------------------------------
+
+*~
+*.bak
+*.swp
+*.swo
