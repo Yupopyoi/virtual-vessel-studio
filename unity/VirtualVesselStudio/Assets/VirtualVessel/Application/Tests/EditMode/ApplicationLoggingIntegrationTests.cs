@@ -10,6 +10,7 @@ using VirtualVessel.Application.Startup;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
 
 namespace VirtualVessel.Application.Tests
@@ -44,6 +45,23 @@ namespace VirtualVessel.Application.Tests
 
             Assert.That(descriptors[0].Name, Is.EqualTo(LoggingService.ServiceName));
             Assert.That(descriptors[0].Criticality, Is.EqualTo(ServiceCriticality.Required));
+        }
+
+        [Test]
+        public void Composition_AddsOptionalPerformanceMetricsAfterLogging()
+        {
+            var descriptors = ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor));
+
+            Assert.That(descriptors[1].Name, Is.EqualTo(PerformanceMetricsService.ServiceName));
+            Assert.That(descriptors[1].Criticality, Is.EqualTo(ServiceCriticality.Optional));
+            Assert.That(descriptors[1].DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+        }
+
+        [TestCase(RuntimeEnvironment.Editor, true)]
+        [TestCase(RuntimeEnvironment.Player, false)]
+        public void PerformanceSettings_DetailedDefaultsByEnvironment(RuntimeEnvironment environment, bool expected)
+        {
+            Assert.That(ApplicationComposition.CreatePerformanceSettings(environment).DetailedEnabled, Is.EqualTo(expected));
         }
 
         [TestCase(RuntimeEnvironment.Editor, "Editor")]
@@ -84,6 +102,7 @@ namespace VirtualVessel.Application.Tests
             Assert.That(lines[0], Does.Contain(runtime.Session.SessionId));
             Assert.That(lines.Any(l => l.Contains("\"mod\":\"Application\"") && l.Contains("Data Root:")), Is.True, "Entries from before logging started are replayed.");
             Assert.That(lines.Any(l => l.Contains("Application started in")), Is.True, "Entries after logging started are forwarded.");
+            Assert.That(lines.Any(l => l.Contains("Performance metrics started.")), Is.True, "Metrics start after logging and log through it.");
             Assert.That(lines.Last(), Does.Contain("Logging stopped."));
         }
 
