@@ -1148,7 +1148,7 @@ External OSS itself is not mixed with project-owned code.
 
 Manages unit, integration, and system tests by purpose.
 
-Product performance measurements such as RVC latency, capture performance, and long-run operation are placed under `tests/performance/`.
+For product performance measurements such as RVC latency, capture performance, and long-run operation, the performance tests that run in Unity are placed in each module's `Tests/Performance/`, and `tests/performance/` holds the scripts for hardware CI, baselines for comparison, and result history.
 
 Historical benchmark / prototype implementations are reference snapshots outside the repository and are not copied into this repository.
 
@@ -11960,7 +11960,7 @@ Measures the performance of real-time processing, such as RVC latency, capture p
 
 In addition to the performance regression tests in 15.21, hardware-dependent measurements run in the nightly / hardware CI (self-hosted runner) defined in the development workflow.
 
-Historical benchmark / prototype implementations are kept outside the repository as references; `tests/performance/` contains only tests that measure product code.
+Because Unity tests can only be placed inside the Unity project, the performance tests that run in Unity are placed in each module's `Tests/Performance/`. `tests/performance/` holds the scripts for hardware CI, baselines for comparison, and result history. Historical benchmark / prototype implementations are kept outside the repository as references.
 
 ### Rationale
 

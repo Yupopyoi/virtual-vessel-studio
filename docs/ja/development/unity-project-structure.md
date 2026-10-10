@@ -81,8 +81,12 @@ Assets/VirtualVessel/<Module>/
    │  ├─ VirtualVessel.<Module>.Tests.EditMode.asmdef
    │  └─ ...
    │
-   └─ PlayMode/
-      ├─ VirtualVessel.<Module>.Tests.PlayMode.asmdef
+   ├─ PlayMode/
+   │  ├─ VirtualVessel.<Module>.Tests.PlayMode.asmdef
+   │  └─ ...
+   │
+   └─ Performance/
+      ├─ VirtualVessel.<Module>.Tests.Performance.asmdef
       └─ ...
 ```
 
@@ -100,6 +104,7 @@ Assets/VirtualVessel/<Module>/
 | Editor | `VirtualVessel.<Module>.Editor` |
 | EditMode Test | `VirtualVessel.<Module>.Tests.EditMode` |
 | PlayMode Test | `VirtualVessel.<Module>.Tests.PlayMode` |
+| Performance Test | `VirtualVessel.<Module>.Tests.Performance` |
 
 ### 4.2 参照方向
 
@@ -173,6 +178,7 @@ Namespace名は方式設計2.4のModule名と対応させる。`Project / Data`�
 - 特定Moduleに属するUnity TestはそのModuleの`Tests/`へ配置する。
 - 特定Moduleに属さないテストは、Repository直下の`tests/`へ配置する（方式設計3.3、15.20）。
 - テストはUnity Test Framework（NUnit）を使用する。
+- 性能テストはUnity Performance Testing Extension（`com.unity.test-framework.performance`）を使用し、各Moduleの`Tests/Performance/`へ配置する。Unity上のTestはUnity Project内にのみ配置できるため、Repository直下の`tests/performance/`には実機CI用の実行Script、比較用の基準値、結果の履歴のみを置く。
 
 ---
 

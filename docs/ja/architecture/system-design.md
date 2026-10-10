@@ -1178,7 +1178,7 @@ Unity Projectのルートは`unity/VirtualVesselStudio/`とする。
 
 Unit、Integration、System Testを目的別に管理する。
 
-RVC Latency、Capture性能、長時間運用等の製品の性能計測は`tests/performance/`へ配置する。
+RVC Latency、Capture性能、長時間運用等の製品の性能計測について、Unity上で実行する性能テスト本体は各Moduleの`Tests/Performance/`へ配置し、`tests/performance/`にはHardware CI用の実行Script、比較用の基準値、結果の履歴を置く。
 
 過去のBenchmark / Prototype実装はRepository外の参照用Snapshotとし、本Repositoryへコピーしない。
 
@@ -12170,7 +12170,7 @@ RVC Latency、Capture性能、Frame Time、長時間運用等、リアルタイ�
 
 15.21の性能回帰テストに加え、実機依存の計測は開発運用方針で定義する夜間・実機CI（Self-hosted Runner）で実行する。
 
-過去のBenchmark / Prototype実装は参照用としてRepository外に置き、`tests/performance/`には製品コードを計測するテストのみを置く。
+UnityのTestはUnity Project内にのみ配置できるため、Unity上で実行する性能テスト本体は各Moduleの`Tests/Performance/`へ配置する。`tests/performance/`にはHardware CI用の実行Script、比較用の基準値、結果の履歴を置く。過去のBenchmark / Prototype実装は参照用としてRepository外に置く。
 
 ### 採用理由
 

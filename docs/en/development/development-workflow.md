@@ -174,7 +174,7 @@ The completed system design is placed at `docs/ja/architecture/system-design.md`
 
 This document is placed at `docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`.
 
-Product performance measurements (benchmarks executed by nightly / hardware CI, etc.) are placed under `tests/performance/`.
+For product performance measurements (benchmarks executed by nightly / hardware CI, etc.), the performance tests that run in Unity are placed in each module's `Tests/Performance/`, and `tests/performance/` holds the scripts for hardware CI, baselines for comparison, and result history.
 
 Historical benchmark / prototype implementations are treated as reference snapshots outside the repository and are not copied into this repository (see Chapter 12).
 

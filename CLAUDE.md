@@ -564,7 +564,7 @@ Development, build, setup, conversion, and maintenance tooling.
 
 Tests that do not naturally belong inside a specific component or Unity assembly.
 
-Product performance measurements, such as RVC latency, capture throughput, and long-run stability tests executed by hardware CI, belong under `tests/performance/`.
+Product performance tests that run in Unity (RVC latency, capture throughput, long-run stability, etc.) belong in each module's `Tests/Performance/` assembly, because Unity tests must live inside the Unity project. `tests/performance/` holds hardware CI scripts, baselines, and result history.
 
 Historical benchmark and prototype implementations do not belong in this repository. See section 12.
 
