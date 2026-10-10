@@ -119,8 +119,9 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
                 MaskProperties(properties),
                 context,
                 exception?.GetType().FullName,
-                exception == null ? null : SecretMasker.MaskText(exception.ToString()),
-                Thread.CurrentThread.ManagedThreadId);
+                null,
+                Thread.CurrentThread.ManagedThreadId,
+                sourceException: exception);
 
             Submit(entry, now);
         }

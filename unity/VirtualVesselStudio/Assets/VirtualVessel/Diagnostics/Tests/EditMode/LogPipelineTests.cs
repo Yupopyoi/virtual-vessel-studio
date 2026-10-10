@@ -96,6 +96,47 @@ namespace VirtualVessel.Diagnostics.Tests
         }
 
         [Test]
+        public void Write_FormatsExceptionOnlyWhenTextIsRead()
+        {
+            LogPipeline pipeline = CreatePipeline(new LoggingSettings());
+            ILog log = new PipelineLogProvider(pipeline).GetLog("Test");
+            var exception = new CountingException("password=hunter2");
+
+            log.Error("failed", exception);
+            LogEntry entry = Drain(pipeline).Single();
+
+            Assert.That(exception.ToStringCalls, Is.Zero, "The caller must not pay for formatting the exception.");
+            Assert.That(entry.ExceptionText, Does.Contain("CountingException").And.Not.Contain("hunter2"));
+            Assert.That(entry.ExceptionText, Is.SameAs(entry.ExceptionText));
+            Assert.That(exception.ToStringCalls, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Write_SummaryOfRepeatedException_KeepsExceptionText()
+        {
+            LogPipeline pipeline = CreatePipeline(new LoggingSettings());
+            ILog log = new PipelineLogProvider(pipeline).GetLog("Test");
+
+            log.Error("failed", new InvalidOperationException("first"));
+            log.Error("failed", new InvalidOperationException("second"));
+            var summaries = new List<LogEntry>();
+            pipeline.FlushRepeatSummaries(long.MaxValue, summaries);
+
+            Assert.That(summaries.Single().ExceptionText, Does.Contain("second"));
+        }
+
+        [Test]
+        public void ExceptionText_WhenToStringThrows_DescribesTheFailure()
+        {
+            LogPipeline pipeline = CreatePipeline(new LoggingSettings());
+            ILog log = new PipelineLogProvider(pipeline).GetLog("Test");
+
+            log.Error("failed", new ThrowingToStringException());
+
+            Assert.That(Drain(pipeline).Single().ExceptionText, Does.Contain("ToString failed"));
+        }
+
+        [Test]
         public void Write_CopiesAndMasksProperties()
         {
             LogPipeline pipeline = CreatePipeline(new LoggingSettings());
@@ -198,6 +239,30 @@ namespace VirtualVessel.Diagnostics.Tests
 
             Assert.That(checkLevel, UnityIs.Not.AllocatingGCMemory(), "IsEnabled must not allocate.");
             Assert.That(writeDisabled, UnityIs.Not.AllocatingGCMemory(), "Writing at a disabled level must not allocate.");
+        }
+
+        private sealed class CountingException : Exception
+        {
+            public CountingException(string message)
+                : base(message)
+            {
+            }
+
+            public int ToStringCalls { get; private set; }
+
+            public override string ToString()
+            {
+                ToStringCalls++;
+                return base.ToString();
+            }
+        }
+
+        private sealed class ThrowingToStringException : Exception
+        {
+            public override string ToString()
+            {
+                throw new InvalidOperationException("Broken ToString.");
+            }
         }
 
         private LogPipeline CreatePipeline(LoggingSettings settings)
