@@ -452,3 +452,9 @@ Editor上でPersistent Scene以外のSceneからPlay Modeを開始した場合�
 | Build識別子（Git Commit等）の埋め込み | CI導入時 |
 | 複数Instance同時起動の防止（同一Data Rootの競合） | 必要性を確認後に別途設計 |
 | Data Root変更・移行 | Project / Data詳細設計 |
+| 初回セットアップでのData Root選択（既定値を表示し、変更可能とする。容量についても説明する） | UI基盤およびProject / Data詳細設計（方式設計14.32） |
+| Setup画面からData Rootをエクスプローラーで開く機能 | UI基盤およびProject / Data詳細設計 |
+
+既定のData Rootは`%LOCALAPPDATA%`配下（隠しフォルダ）であり、利用者が場所を見つけにくい。そのため、既定値は変更せず、上記2機能によって利用者が保存場所を意識・確認できるようにする。
+
+「ドキュメント」フォルダはOneDrive等と同期されている場合があり、大容量のDatasetやSQLiteの同期による問題が生じ得るため、既定値としない。

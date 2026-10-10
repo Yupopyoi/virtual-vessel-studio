@@ -452,3 +452,9 @@ When Play Mode is started in the Editor from a scene other than the persistent s
 | Embedding the build identifier (Git commit, etc.) | When CI is introduced |
 | Preventing multiple instances from running at the same time (conflicting use of the same Data Root) | Designed separately after confirming the need |
 | Changing and migrating the Data Root | Project / Data detailed design |
+| Choosing the Data Root during first-time setup (show the default, allow changing it, and explain the storage size) | UI foundation and Project / Data detailed designs (system design 14.32) |
+| Opening the Data Root in Explorer from the setup screen | UI foundation and Project / Data detailed designs |
+
+The default Data Root is under `%LOCALAPPDATA%` (a hidden folder), which makes it hard for users to find. Therefore, the default is kept unchanged, and the two functions above let users notice and check the storage location.
+
+The Documents folder is not used as the default because it may be synchronized with OneDrive, etc., which can cause problems with large datasets and synchronized SQLite files.
