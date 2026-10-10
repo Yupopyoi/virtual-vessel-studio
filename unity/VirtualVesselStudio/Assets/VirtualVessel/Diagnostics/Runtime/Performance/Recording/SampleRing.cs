@@ -45,29 +45,7 @@ namespace VirtualVessel.Diagnostics.Performance.Recording
 
             var copy = new double[count];
             Array.Copy(_samples, copy, count);
-            Array.Sort(copy);
-
-            double sum = 0;
-            foreach (double value in copy)
-            {
-                sum += value;
-            }
-
-            return new SampleStatistics(
-                Volatile.Read(ref _last),
-                sum / count,
-                copy[count - 1],
-                Percentile(copy, 0.95),
-                Percentile(copy, 0.99),
-                count,
-                written);
-        }
-
-        private static double Percentile(double[] sorted, double fraction)
-        {
-            // Nearest-rank percentile: simple and adequate for diagnostics.
-            int rank = (int)Math.Ceiling(fraction * sorted.Length) - 1;
-            return sorted[Math.Max(0, Math.Min(rank, sorted.Length - 1))];
+            return SampleStatistics.FromSamples(copy, Volatile.Read(ref _last), written);
         }
     }
 
@@ -99,5 +77,38 @@ namespace VirtualVessel.Diagnostics.Performance.Recording
         public int SampleCount { get; }
 
         public long TotalCount { get; }
+
+        /// <summary>Computes statistics over <paramref name="samples"/>, which is sorted in place.</summary>
+        public static SampleStatistics FromSamples(double[] samples, double last, long totalCount)
+        {
+            if (samples.Length == 0)
+            {
+                return Empty;
+            }
+
+            Array.Sort(samples);
+
+            double sum = 0;
+            foreach (double value in samples)
+            {
+                sum += value;
+            }
+
+            return new SampleStatistics(
+                last,
+                sum / samples.Length,
+                samples[samples.Length - 1],
+                Percentile(samples, 0.95),
+                Percentile(samples, 0.99),
+                samples.Length,
+                totalCount);
+        }
+
+        private static double Percentile(double[] sorted, double fraction)
+        {
+            // Nearest-rank percentile: simple and adequate for diagnostics.
+            int rank = (int)Math.Ceiling(fraction * sorted.Length) - 1;
+            return sorted[Math.Max(0, Math.Min(rank, sorted.Length - 1))];
+        }
     }
 }
