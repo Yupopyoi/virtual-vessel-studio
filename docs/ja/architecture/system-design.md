@@ -1,4 +1,4 @@
-# VTuber統合環境 方式設計
+# Virtual Vessel Studio 方式設計
 
 ## 目次
 
@@ -42,7 +42,7 @@
 
 その場合、利用者は複数Applicationの起動、設定、Device Routing、Window管理、外部Process管理等を行う必要がある。
 
-本システムではこれらを可能な限り統合し、利用者から見た操作対象を**単一のVTuber Application**へ集約する。
+本システムではこれらを可能な限り統合し、利用者から見た操作対象を**単一のVTuber Application（Virtual Vessel Studio）**へ集約する。
 
 また、単に複数機能を1つのApplicationへ詰め込むのではなく、
 
@@ -1087,36 +1087,46 @@ Repositoryは、機能責務およびRuntime / External Serviceの境界が分�
 概念例を以下に示す。
 
 ```text
-VTuberStudio/
+virtual-vessel-studio/
 ├─ CLAUDE.md
 ├─ README.md
 │
 ├─ docs/
-│  ├─ architecture/
-│  ├─ specifications/
-│  ├─ decisions/
+│  ├─ ja/
+│  │  ├─ architecture/
+│  │  ├─ detailed-design/
+│  │  ├─ development/
+│  │  ├─ decisions/
+│  │  └─ ui/
+│  │     ├─ design-system.md
+│  │     ├─ ui-guidelines.md
+│  │     ├─ components.md
+│  │     └─ screens/
 │  │
-│  └─ ui/
-│     ├─ design-system.md
-│     ├─ ui-guidelines.md
-│     ├─ components.md
-│     └─ screens/
+│  └─ en/
+│     └─ (jaと同一の構成)
 │
 ├─ unity/
-│  ├─ Application/
-│  ├─ Project/
-│  ├─ Avatar/
-│  ├─ Tracking/
-│  ├─ Voice/
-│  ├─ Audio/
-│  ├─ Capture/
-│  ├─ Stage/
-│  ├─ Video/
-│  ├─ Streaming/
-│  ├─ VoiceLab/
-│  ├─ ExternalServices/
-│  ├─ Diagnostics/
-│  └─ UI/
+│  └─ VirtualVesselStudio/
+│     ├─ Assets/
+│     │  ├─ Application/
+│     │  ├─ Project/
+│     │  ├─ Avatar/
+│     │  ├─ Tracking/
+│     │  ├─ Voice/
+│     │  ├─ Audio/
+│     │  ├─ Capture/
+│     │  ├─ Stage/
+│     │  ├─ Video/
+│     │  ├─ Streaming/
+│     │  ├─ VoiceLab/
+│     │  ├─ ExternalServices/
+│     │  ├─ Diagnostics/
+│     │  └─ UI/
+│     ├─ Packages/
+│     └─ ProjectSettings/
+│
+├─ native/
 │
 ├─ services/
 │  ├─ voxcpm/
@@ -1126,7 +1136,8 @@ VTuberStudio/
 ├─ tests/
 │  ├─ unit/
 │  ├─ integration/
-│  └─ system/
+│  ├─ system/
+│  └─ performance/
 │
 └─ tools/
 ```
@@ -1141,11 +1152,19 @@ VTuberStudio/
 
 設計・仕様・判断理由等を保持する。
 
+日本語版を`docs/ja/`、英語版を`docs/en/`へ配置し、同じ文書は同じRelative Pathを使用する。
+
 ### unity
 
 Unity Applicationの本体を保持する。
 
+Unity Projectのルートは`unity/VirtualVesselStudio/`とする。
+
 機能Moduleごとに責務を分離する。
+
+### native
+
+本システムが所有するNative Windowsコード、Native Pluginを保持する。
 
 ### services
 
@@ -1156,6 +1175,10 @@ Unity Applicationの本体を保持する。
 ### tests
 
 Unit、Integration、System Testを目的別に管理する。
+
+RVC Latency、Capture性能、長時間運用等の製品の性能計測は`tests/performance/`へ配置する。
+
+過去のBenchmark / Prototype実装はRepository外の参照用Snapshotとし、本Repositoryへコピーしない。
 
 ### tools
 
@@ -1519,7 +1542,7 @@ Application Runtimeでも秘密情報を通常設定FileやLogへ保存しない
 重要なArchitecture変更については必要に応じて、
 
 ```text
-docs/decisions/
+docs/<lang>/decisions/
 ```
 
 等へ設計判断を記録する。
@@ -2197,15 +2220,25 @@ Process実行では少なくとも以下を管理する。
 
 ## 4.18 Python実行環境
 
-Pythonを利用するExternal Service / Processは、13章で管理される専用venvのPythonを明示的に指定して起動する。
+Pythonを利用するExternal Service / Processは、13章で管理される実行環境を明示的に指定して起動する。
 
 OSのGlobal Pythonや、Shellで現在Activateされている環境へ依存しない。
 
-概念的には以下とする。
+通常利用者向けの配布環境では、Runtime Packageの`manifest.json`が示すLauncher / Executableを起動する（13.6、13.7参照）。
 
 ```text
-<ExternalComponent>/<Version>/.venv/.../python
+External/<Component>/<RuntimePackageVersion>/manifest.json
+        ↓
+Launcher / Executable
 ```
+
+開発環境では、Componentごと・Versionごとの開発用venvのPythonを明示的に指定して起動できる。
+
+```text
+<ExternalComponent>/<Version>/.venv/Scripts/python.exe
+```
+
+どちらの場合も、起動に使用した実行環境のPathおよびVersionをDiagnosticsから確認可能とする。
 
 ### 採用理由
 
@@ -4163,7 +4196,7 @@ Windowsを主対象とする場合、初期配置先として以下を想定す�
 
 ```text
 %LOCALAPPDATA%/
-└─ VCBM/
+└─ VirtualVesselStudio/
    ├─ bootstrap.json
    └─ Config/
       ├─ app-settings.json
@@ -4200,7 +4233,7 @@ Project、Avatar、Stage、Voice Model、Dataset等のユーザーデータに�
 初期値は例えば以下とする。
 
 ```text
-%LOCALAPPDATA%\VCBM\Data
+%LOCALAPPDATA%\VirtualVesselStudio\Data
 ```
 
 ただし、Data Rootはユーザーが変更可能とする。
@@ -4208,7 +4241,7 @@ Project、Avatar、Stage、Voice Model、Dataset等のユーザーデータに�
 例：
 
 ```text
-D:\VCBMData
+D:\VirtualVesselStudioData
 ```
 
 Data Rootの実際の場所は、OS標準領域に配置した`bootstrap.json`等から参照する。
@@ -4216,13 +4249,13 @@ Data Rootの実際の場所は、OS標準領域に配置した`bootstrap.json`�
 概念的には以下とする。
 
 ```text
-%LOCALAPPDATA%\VCBM\
+%LOCALAPPDATA%\VirtualVesselStudio\
         ↓
 bootstrap.json
         ↓
 Data Root
         ↓
-D:\VCBMData
+D:\VirtualVesselStudioData
 ```
 
 ### 採用理由
@@ -6714,7 +6747,7 @@ RVCの有効・無効によってAudio I/Oそのものを作り直す構造に�
 
 Unity側では推論用モデルを読み込み、必要な前処理、特徴量抽出、F0推定、RVC推論等を実行する。
 
-現行構成では、Unity Sentisによる推論を基本とする。
+現行構成では、Unity Inference Engine（旧Unity Sentis）による推論を基本とする。
 
 ### 採用理由
 
@@ -9271,7 +9304,7 @@ pip install ...
 
 ### 採用理由
 
-本システムの目的はVTuber統合環境を提供することであり、一般利用者へGitやPython環境構築の知識を要求することは望ましくない。
+本システムの目的はVTuber統合環境（Virtual Vessel Studio）を提供することであり、一般利用者へGitやPython環境構築の知識を要求することは望ましくない。
 
 また、利用者環境でSourceからDependencyを毎回構築すると、
 
@@ -10003,7 +10036,7 @@ Voice Labから明示的に**Runtime用モデルとして登録**する。
 - 必須ファイル確認
 - Index確認
 - Runtime用形式への変換
-- Unity Sentis用モデル変換
+- Unity Inference Engine（旧Unity Sentis）用モデル変換
 - メタデータ生成
 - 推奨Pitch等の設定
 - Runtime管理領域へのコピー
@@ -11272,7 +11305,7 @@ UIデザインルールはUnity実装だけに保持せず、リポジトリ内�
 概念例：
 
 ```text
-docs/
+docs/<lang>/
 └─ ui/
    ├─ design-system.md
    ├─ ui-guidelines.md
