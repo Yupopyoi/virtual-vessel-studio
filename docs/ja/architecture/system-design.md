@@ -1239,7 +1239,7 @@ Repository Rootに`CLAUDE.md`を配置し、Claude Codeが開発時に必ず従�
 
 - Design Systemへ従う
 - 既存Componentを優先して利用する
-- Unity Localizationを利用する
+- Project独自の多言語対応（文字列表）を利用する
 - 日本語 / Englishで確認する
 - Fontを個別指定しない
 - ScreenshotによるVisual Reviewを行う
@@ -10570,7 +10570,7 @@ UIは初期対応言語として以下を提供する。
 - 日本語
 - English
 
-多言語対応には**Unity Localization package**を使用する。
+多言語対応には、言語ごとの文字列表（JSON）を用いる**Project独自の軽量な仕組み**を使用する。Unity Localization packageは、Addressablesと追加のBuild手順を伴う一方、本Applicationに必要なのは文字列の取得、差し込み、実行中の言語切り替えのみであるため使用しない（UI基盤詳細設計12.1）。
 
 実装上は日本語と英語のみを前提とはせず、将来新しいLocaleを追加可能な構成とする。
 
@@ -11651,7 +11651,7 @@ SetupとLiveを分離することで、配信中の操作を簡潔に保つ。
 6. Visual Designは共通Design Systemによって管理する。
 7. 共通Componentを優先して再利用する。
 8. 日本語および英語を初期対応言語とする。
-9. 多言語対応にはUnity Localization packageを利用する。
+9. 多言語対応にはProject独自の文字列表を利用する。
 10. 将来のLocale追加を考慮した構造とする。
 11. FontはUI ToolkitのFont AssetおよびUSS / Theme Style Sheetで一括管理する。
 12. LocaleやThemeに応じてFontを切り替え可能とする。
@@ -13084,7 +13084,7 @@ Runtime
 
 とする。
 
-将来的な言語追加については、14章で定義したUnity LocalizationによるLocale追加で対応する。
+将来的な言語追加については、14章で定義した文字列表をLocaleごとに追加して対応する。
 
 新規言語追加時にRuntime処理や画面ロジックを変更しない構成とする。
 

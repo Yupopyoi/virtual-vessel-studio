@@ -1209,7 +1209,7 @@ A `CLAUDE.md` is placed at the repository root to define common rules that Claud
 
 - follow the design system
 - prefer existing components
-- use Unity Localization
+- use the project localization mechanism (string tables)
 - check in Japanese / English
 - do not specify fonts individually
 - perform visual review with screenshots
@@ -10368,7 +10368,7 @@ The UI provides the following as initial languages:
 - Japanese
 - English
 
-The **Unity Localization package** is used for localization.
+Localization uses a **lightweight project-owned mechanism** with one string table (JSON) per language. The Unity Localization package is not used, because it brings Addressables and extra build steps while this application only needs string lookup, placeholders, and switching the language while running (UI foundation detailed design 12.1).
 
 The implementation does not assume only Japanese and English, and the structure allows new locales to be added in the future.
 
@@ -11445,7 +11445,7 @@ This system adopts the following basic principles for UI and operation.
 6. Manage visual design with a common design system.
 7. Prefer reusing common components.
 8. Japanese and English are the initial languages.
-9. Use the Unity Localization package for localization.
+9. Use the project-owned string tables for localization.
 10. Use a structure that considers adding locales in the future.
 11. Manage fonts collectively with UI Toolkit font assets and USS / theme style sheets.
 12. Allow fonts to be switched per locale or theme.
@@ -12858,7 +12858,7 @@ The initial UI languages are
 - Japanese
 - English
 
-Future languages are supported by adding locales with Unity Localization as defined in Chapter 14.
+Future languages are supported by adding a string table for the locale as defined in Chapter 14.
 
 The structure does not require changing runtime processing or screen logic when adding a new language.
 
