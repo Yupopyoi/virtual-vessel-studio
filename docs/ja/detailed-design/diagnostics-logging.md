@@ -28,6 +28,84 @@
 - 5.35 診断機能のRuntime影響抑制
 - 15.7 Main Thread負荷抑制
 
+### 全体像
+
+ログは「入口」「Pipeline」「Queue」「書き出しThread」「出力先」の順に流れる。
+
+```mermaid
+flowchart LR
+    subgraph Sources["入口（任意のThread）"]
+        Modules["各Module<br/>ILog.Write"]
+        UnityLogs["Unity自身のログ<br/>Debug.Log等"]
+        Unhandled["未処理例外"]
+        Early["起動時ログ<br/>（Logging起動前に<br/>Applicationが保持）"]
+    end
+
+    subgraph Pipeline["LogPipeline（呼び出し元Threadで実行）"]
+        Level["1. Level判定<br/>無効ならここで終了"]
+        Mask["2. 秘密情報のMasking"]
+        Repeat["3. 同一ログの集約"]
+    end
+
+    Queue[("Queue<br/>上限10,000件<br/>満杯なら破棄して件数を記録")]
+
+    Writer["書き出し専用Thread"]
+
+    subgraph Sinks["出力先"]
+        File["ログファイル<br/>Logs/Application<br/>Logs/Editor"]
+        Console["Unity Console"]
+        Recent["最近のログ<br/>（Memory、2,000件）"]
+    end
+
+    Viewer["将来：Log Viewer<br/>Diagnostics Snapshot"]
+
+    Modules --> Level
+    UnityLogs --> Level
+    Unhandled --> Level
+    Early --> Level
+    Level --> Mask --> Repeat --> Queue
+    Queue --> Writer
+    Writer --> File
+    Writer --> Console
+    Writer --> Recent
+    Recent -.-> Viewer
+```
+
+呼び出し元が行うのはQueueへの投入までであり、ファイル書き込みを待たない。音声やTracking等のThreadから呼んでも処理が止まらないのはこのためである。
+
+```mermaid
+sequenceDiagram
+    participant Audio as Audio Thread等
+    participant Pipeline as LogPipeline
+    participant Queue as Queue
+    participant Writer as 書き出しThread
+    participant File as ログファイル
+
+    Audio->>Pipeline: log.Warning("Buffer underrun")
+    Pipeline->>Queue: 投入
+    Pipeline-->>Audio: すぐ戻る
+    Note over Audio: 音声処理を継続
+    Writer->>Queue: 取り出し
+    Writer->>File: 書き込み
+```
+
+Application全体の中では、Logging Serviceは最初に起動し最後に終了する。
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Logging as Logging Service
+    participant Others as 他のService
+
+    App->>App: Data Root解決、Session開始（ログはMemoryへ保持）
+    App->>Logging: 起動（ファイル作成、書き出しThread開始）
+    App->>Logging: 保持していた起動時ログを元の時刻のまま引き継ぐ
+    App->>Others: 起動（ILogProviderを渡す）
+    Note over App,Others: 実行中：すべてのログがファイルへ
+    App->>Others: 終了
+    App->>Logging: 終了（残りを書き出してファイルを閉じる）
+```
+
 ---
 
 ## 2. 責務
@@ -76,7 +154,7 @@ Static Loggerは便利だが、テスト時の差し替えが難しく、Domain 
 | `ILogProvider` | Interface | Module・Categoryを指定して`ILog`を取得する |
 | `ILog` | Interface | ログ出力API |
 | `LogProperty` | Struct | 構造化ログのKey / Value |
-| `LoggingService` | Internal Class | `IApplicationService`。Logging全体の起動・Flush・終了 |
+| `LoggingService` | Public Class | `IApplicationService`。Logging全体の起動・Flush・終了 |
 | `LogPipeline` | Internal Class | Level判定 → Masking → 同一ログ抑制 → Queue投入 |
 | `LogWriterThread` | Internal Class | 専用ThreadでQueueからSinkへ書き出す |
 | `ILogSink` | Internal Interface | 出力先 |
@@ -87,6 +165,8 @@ Static Loggerは便利だが、テスト時の差し替えが難しく、Domain 
 | `RepeatSuppressor` | Internal Class | 短時間に繰り返される同一ログの集約 |
 | `UnityLogCapture` | Internal Class | Unityログ、未処理例外の取り込み |
 | `LogFileRetention` | Internal Class | 古いログファイルの削除 |
+| `LogSessionHeader` | Public Class | ログファイル先頭に記録するSession情報 |
+| `LoggingStatistics` | Public Class | 書き出し件数、破棄件数等の診断用Snapshot |
 
 `ILogger`という名称はUnityEngineの`ILogger`と衝突するため使用しない。
 
@@ -400,16 +480,26 @@ Logging Service自身の状態をDiagnosticsから参照可能とする。
 Assets/VirtualVessel/Diagnostics/
 ├─ Runtime/                         VirtualVessel.Diagnostics
 │  └─ Logging/                      VirtualVessel.Diagnostics.Logging
-│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs
-│     ├─ LoggingService.cs, LoggingSettings.cs
-│     ├─ Pipeline/LogEntry.cs, LogPipeline.cs, RepeatSuppressor.cs, SecretMasker.cs
-│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, JsonWriter.cs
-│     ├─ Unity/UnityConsoleSink.cs, UnityLogCapture.cs
+│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs, LogEntry.cs
+│     ├─ LoggingService.cs（LoggingStatisticsを含む）, LoggingSettings.cs, LogSessionHeader.cs
+│     ├─ Pipeline/LogPipeline.cs, PipelineLog.cs, RepeatSuppressor.cs, SecretMasker.cs
+│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, LogLineFormatter.cs, JsonWriter.cs
+│     ├─ UnityIntegration/UnityConsoleSink.cs, UnityLogCapture.cs
 │     └─ Recent/RecentLogBuffer.cs
-└─ Tests/EditMode/, Tests/PlayMode/
+└─ Tests/EditMode/
 ```
 
-ApplicationはComposition内で`LoggingService`を生成し、`ILogProvider`を後続のServiceへ渡す。Application基盤の`IApplicationLog`は、Logging起動後に`ILog`へ転送するAdapterへ切り替える。
+Unity連携のNamespaceを`Unity`ではなく`UnityIntegration`とするのは、Unityのルート名前空間`Unity.*`をLogging内で隠さないためである。
+
+DiagnosticsはApplicationより下位のため、Session情報はDiagnostics側の`LogSessionHeader`としてApplicationが生成して渡す。
+
+Application側の構成は以下とする。
+
+- `ApplicationComposition`は、Logging ServiceをRequiredの最初のServiceとして生成する。
+- 出力先Directoryは、Unity Entry Pointが判定した`RuntimeEnvironment`（Editor / Player）により`Logs/Editor`または`Logs/Application`とする。
+- `ApplicationLoggingService`が`LoggingService`を包み、起動直後に`BufferedApplicationLog`の保持内容を元のTimestampで引き継ぎ、以降のApplication基盤のログを転送する。Logging終了直前には転送を解除し、Unity Consoleへの直接出力へ戻す。
+
+`LoggingStatistics`および`GetRecentEntries`は、Diagnostics UIからの参照用にPublicとする。
 
 ---
 

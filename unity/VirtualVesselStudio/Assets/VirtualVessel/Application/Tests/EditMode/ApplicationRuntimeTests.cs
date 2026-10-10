@@ -204,6 +204,7 @@ namespace VirtualVessel.Application.Tests
             return new ApplicationRuntime(
                 options,
                 buildInfo,
+                RuntimeEnvironment.Editor,
                 new DataRootResolver(Path.Combine(_tempDirectory, "LocalAppData")),
                 new StopwatchMonotonicClock(),
                 new UtcSystemClock(),

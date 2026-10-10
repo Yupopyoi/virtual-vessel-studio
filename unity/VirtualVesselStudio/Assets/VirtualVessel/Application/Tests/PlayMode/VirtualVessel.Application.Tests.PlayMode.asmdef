@@ -4,6 +4,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
         "VirtualVessel.Application"
     ],

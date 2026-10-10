@@ -56,6 +56,7 @@ namespace VirtualVessel.Application
             _runtime = new ApplicationRuntime(
                 options,
                 BuildInfo.FromUnity(),
+                UnityEngine.Application.isEditor ? RuntimeEnvironment.Editor : RuntimeEnvironment.Player,
                 DataRootResolver.ForCurrentUser(),
                 new StopwatchMonotonicClock(),
                 systemClock,

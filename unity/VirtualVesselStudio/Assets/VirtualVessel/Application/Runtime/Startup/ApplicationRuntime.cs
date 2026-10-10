@@ -27,7 +27,8 @@ namespace VirtualVessel.Application.Startup
         private readonly IMonotonicClock _monotonicClock;
         private readonly ISystemClock _systemClock;
         private readonly IMainThreadDispatcher _mainThreadDispatcher;
-        private readonly IApplicationLog _log;
+        private readonly RuntimeEnvironment _environment;
+        private readonly BufferedApplicationLog _log;
         private readonly Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> _compose;
 
         private SessionMarker _sessionMarker;
@@ -37,15 +38,17 @@ namespace VirtualVessel.Application.Startup
         public ApplicationRuntime(
             ApplicationStartupOptions options,
             BuildInfo buildInfo,
+            RuntimeEnvironment environment,
             DataRootResolver dataRootResolver,
             IMonotonicClock monotonicClock,
             ISystemClock systemClock,
             IMainThreadDispatcher mainThreadDispatcher,
-            IApplicationLog log,
+            BufferedApplicationLog log,
             Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> compose)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _buildInfo = buildInfo ?? throw new ArgumentNullException(nameof(buildInfo));
+            _environment = environment;
             _dataRootResolver = dataRootResolver ?? throw new ArgumentNullException(nameof(dataRootResolver));
             _monotonicClock = monotonicClock ?? throw new ArgumentNullException(nameof(monotonicClock));
             _systemClock = systemClock ?? throw new ArgumentNullException(nameof(systemClock));
@@ -80,7 +83,7 @@ namespace VirtualVessel.Application.Startup
 
             StartSession();
 
-            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _monotonicClock, _systemClock, _mainThreadDispatcher);
+            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log);
             IReadOnlyList<ApplicationServiceDescriptor> descriptors;
             try
             {

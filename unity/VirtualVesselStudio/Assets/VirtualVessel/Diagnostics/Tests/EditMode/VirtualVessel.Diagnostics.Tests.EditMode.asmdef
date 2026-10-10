@@ -1,13 +1,11 @@
 {
-    "name": "VirtualVessel.Application.Tests.EditMode",
-    "rootNamespace": "VirtualVessel.Application.Tests",
+    "name": "VirtualVessel.Diagnostics.Tests.EditMode",
+    "rootNamespace": "VirtualVessel.Diagnostics.Tests",
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "VirtualVessel.Core",
-        "VirtualVessel.Diagnostics",
-        "VirtualVessel.ProjectData",
-        "VirtualVessel.Application"
+        "VirtualVessel.Diagnostics"
     ],
     "includePlatforms": [
         "Editor"

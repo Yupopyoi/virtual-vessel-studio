@@ -1,10 +1,8 @@
 {
-    "name": "VirtualVessel.Application",
-    "rootNamespace": "VirtualVessel.Application",
+    "name": "VirtualVessel.Diagnostics",
+    "rootNamespace": "VirtualVessel.Diagnostics",
     "references": [
-        "VirtualVessel.Core",
-        "VirtualVessel.Diagnostics",
-        "VirtualVessel.ProjectData"
+        "VirtualVessel.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

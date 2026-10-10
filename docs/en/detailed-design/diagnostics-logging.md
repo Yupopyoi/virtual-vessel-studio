@@ -28,6 +28,84 @@ Related system design sections:
 - 5.35 Limiting the runtime impact of diagnostics
 - 15.7 Limiting main thread load
 
+### Overview
+
+Logs flow through "sources", "pipeline", "queue", "writer thread", and "sinks" in that order.
+
+```mermaid
+flowchart LR
+    subgraph Sources["Sources (any thread)"]
+        Modules["Each module<br/>ILog.Write"]
+        UnityLogs["Unity's own logs<br/>Debug.Log, etc."]
+        Unhandled["Unhandled exceptions"]
+        Early["Startup logs<br/>(kept by Application<br/>before logging starts)"]
+    end
+
+    subgraph Pipeline["LogPipeline (runs on the calling thread)"]
+        Level["1. Level check<br/>stop here if disabled"]
+        Mask["2. Secret masking"]
+        Repeat["3. Repeat aggregation"]
+    end
+
+    Queue[("Queue<br/>limit 10,000 entries<br/>discard and count when full")]
+
+    Writer["Dedicated writer thread"]
+
+    subgraph Sinks["Sinks"]
+        File["Log files<br/>Logs/Application<br/>Logs/Editor"]
+        Console["Unity console"]
+        Recent["Recent logs<br/>(memory, 2,000 entries)"]
+    end
+
+    Viewer["Future: log viewer<br/>diagnostics snapshot"]
+
+    Modules --> Level
+    UnityLogs --> Level
+    Unhandled --> Level
+    Early --> Level
+    Level --> Mask --> Repeat --> Queue
+    Queue --> Writer
+    Writer --> File
+    Writer --> Console
+    Writer --> Recent
+    Recent -.-> Viewer
+```
+
+The caller only enqueues and does not wait for file writes. This is why calling from audio, tracking, or similar threads does not stall their processing.
+
+```mermaid
+sequenceDiagram
+    participant Audio as Audio thread, etc.
+    participant Pipeline as LogPipeline
+    participant Queue as Queue
+    participant Writer as Writer thread
+    participant File as Log file
+
+    Audio->>Pipeline: log.Warning("Buffer underrun")
+    Pipeline->>Queue: Enqueue
+    Pipeline-->>Audio: Return immediately
+    Note over Audio: Audio processing continues
+    Writer->>Queue: Dequeue
+    Writer->>File: Write
+```
+
+Within the whole application, the logging service starts first and stops last.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Logging as Logging service
+    participant Others as Other services
+
+    App->>App: Resolve Data Root, start session (logs kept in memory)
+    App->>Logging: Start (create file, start writer thread)
+    App->>Logging: Take over kept startup logs with original timestamps
+    App->>Others: Start (pass ILogProvider)
+    Note over App,Others: While running: all logs go to the file
+    App->>Others: Stop
+    App->>Logging: Stop (write the rest and close the file)
+```
+
 ---
 
 ## 2. Responsibilities
@@ -76,7 +154,7 @@ A static logger is convenient but hard to replace in tests and keeps state when 
 | `ILogProvider` | Interface | Obtains an `ILog` for a module and category |
 | `ILog` | Interface | Logging API |
 | `LogProperty` | Struct | Key / value of a structured log |
-| `LoggingService` | Internal class | `IApplicationService`. Starts, flushes, and stops logging as a whole |
+| `LoggingService` | Public class | `IApplicationService`. Starts, flushes, and stops logging as a whole |
 | `LogPipeline` | Internal class | Level check → masking → repeat suppression → enqueue |
 | `LogWriterThread` | Internal class | Writes from the queue to sinks on a dedicated thread |
 | `ILogSink` | Internal interface | Output destination |
@@ -87,6 +165,8 @@ A static logger is convenient but hard to replace in tests and keeps state when 
 | `RepeatSuppressor` | Internal class | Aggregates the same log repeated within a short time |
 | `UnityLogCapture` | Internal class | Captures Unity logs and unhandled exceptions |
 | `LogFileRetention` | Internal class | Deletes old log files |
+| `LogSessionHeader` | Public class | Session information written at the top of log files |
+| `LoggingStatistics` | Public class | Diagnostic snapshot of counts such as written and discarded entries |
 
 The name `ILogger` is not used because it collides with UnityEngine's `ILogger`.
 
@@ -400,16 +480,26 @@ The logging service's own state is available to diagnostics:
 Assets/VirtualVessel/Diagnostics/
 ├─ Runtime/                         VirtualVessel.Diagnostics
 │  └─ Logging/                      VirtualVessel.Diagnostics.Logging
-│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs
-│     ├─ LoggingService.cs, LoggingSettings.cs
-│     ├─ Pipeline/LogEntry.cs, LogPipeline.cs, RepeatSuppressor.cs, SecretMasker.cs
-│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, JsonWriter.cs
-│     ├─ Unity/UnityConsoleSink.cs, UnityLogCapture.cs
+│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs, LogEntry.cs
+│     ├─ LoggingService.cs (includes LoggingStatistics), LoggingSettings.cs, LogSessionHeader.cs
+│     ├─ Pipeline/LogPipeline.cs, PipelineLog.cs, RepeatSuppressor.cs, SecretMasker.cs
+│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, LogLineFormatter.cs, JsonWriter.cs
+│     ├─ UnityIntegration/UnityConsoleSink.cs, UnityLogCapture.cs
 │     └─ Recent/RecentLogBuffer.cs
-└─ Tests/EditMode/, Tests/PlayMode/
+└─ Tests/EditMode/
 ```
 
-Application creates `LoggingService` in the composition and passes `ILogProvider` to subsequent services. After logging starts, the application foundation's `IApplicationLog` is switched to an adapter that forwards to `ILog`.
+The Unity integration namespace is `UnityIntegration` rather than `Unity` so that it does not hide Unity's root `Unity.*` namespaces inside logging code.
+
+Because Diagnostics is below Application, Application creates the session information as the Diagnostics-side `LogSessionHeader` and passes it in.
+
+The Application side is structured as follows.
+
+- `ApplicationComposition` creates the logging service as the first required service.
+- The output directory is `Logs/Editor` or `Logs/Application`, depending on the `RuntimeEnvironment` (Editor / Player) decided by the Unity entry point.
+- `ApplicationLoggingService` wraps `LoggingService`. Right after startup it takes over the contents of `BufferedApplicationLog` with their original timestamps, and then forwards the application foundation's later logs. Just before logging stops, forwarding is removed and output returns directly to the Unity console.
+
+`LoggingStatistics` and `GetRecentEntries` are public so that the diagnostics UI can reference them.
 
 ---
 
