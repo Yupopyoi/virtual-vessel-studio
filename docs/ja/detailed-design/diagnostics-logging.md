@@ -154,7 +154,7 @@ Static Loggerは便利だが、テスト時の差し替えが難しく、Domain 
 | `ILogProvider` | Interface | Module・Categoryを指定して`ILog`を取得する |
 | `ILog` | Interface | ログ出力API |
 | `LogProperty` | Struct | 構造化ログのKey / Value |
-| `LoggingService` | Internal Class | `IApplicationService`。Logging全体の起動・Flush・終了 |
+| `LoggingService` | Public Class | `IApplicationService`。Logging全体の起動・Flush・終了 |
 | `LogPipeline` | Internal Class | Level判定 → Masking → 同一ログ抑制 → Queue投入 |
 | `LogWriterThread` | Internal Class | 専用ThreadでQueueからSinkへ書き出す |
 | `ILogSink` | Internal Interface | 出力先 |
@@ -165,6 +165,8 @@ Static Loggerは便利だが、テスト時の差し替えが難しく、Domain 
 | `RepeatSuppressor` | Internal Class | 短時間に繰り返される同一ログの集約 |
 | `UnityLogCapture` | Internal Class | Unityログ、未処理例外の取り込み |
 | `LogFileRetention` | Internal Class | 古いログファイルの削除 |
+| `LogSessionHeader` | Public Class | ログファイル先頭に記録するSession情報 |
+| `LoggingStatistics` | Public Class | 書き出し件数、破棄件数等の診断用Snapshot |
 
 `ILogger`という名称はUnityEngineの`ILogger`と衝突するため使用しない。
 
@@ -478,16 +480,26 @@ Logging Service自身の状態をDiagnosticsから参照可能とする。
 Assets/VirtualVessel/Diagnostics/
 ├─ Runtime/                         VirtualVessel.Diagnostics
 │  └─ Logging/                      VirtualVessel.Diagnostics.Logging
-│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs
-│     ├─ LoggingService.cs, LoggingSettings.cs
-│     ├─ Pipeline/LogEntry.cs, LogPipeline.cs, RepeatSuppressor.cs, SecretMasker.cs
-│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, JsonWriter.cs
-│     ├─ Unity/UnityConsoleSink.cs, UnityLogCapture.cs
+│     ├─ LogLevel.cs, ILog.cs, ILogProvider.cs, LogProperty.cs, LogExtensions.cs, LogEntry.cs
+│     ├─ LoggingService.cs（LoggingStatisticsを含む）, LoggingSettings.cs, LogSessionHeader.cs
+│     ├─ Pipeline/LogPipeline.cs, PipelineLog.cs, RepeatSuppressor.cs, SecretMasker.cs
+│     ├─ Writing/LogWriterThread.cs, ILogSink.cs, JsonLinesFileSink.cs, LogFileRetention.cs, LogLineFormatter.cs, JsonWriter.cs
+│     ├─ UnityIntegration/UnityConsoleSink.cs, UnityLogCapture.cs
 │     └─ Recent/RecentLogBuffer.cs
-└─ Tests/EditMode/, Tests/PlayMode/
+└─ Tests/EditMode/
 ```
 
-ApplicationはComposition内で`LoggingService`を生成し、`ILogProvider`を後続のServiceへ渡す。Application基盤の`IApplicationLog`は、Logging起動後に`ILog`へ転送するAdapterへ切り替える。
+Unity連携のNamespaceを`Unity`ではなく`UnityIntegration`とするのは、Unityのルート名前空間`Unity.*`をLogging内で隠さないためである。
+
+DiagnosticsはApplicationより下位のため、Session情報はDiagnostics側の`LogSessionHeader`としてApplicationが生成して渡す。
+
+Application側の構成は以下とする。
+
+- `ApplicationComposition`は、Logging ServiceをRequiredの最初のServiceとして生成する。
+- 出力先Directoryは、Unity Entry Pointが判定した`RuntimeEnvironment`（Editor / Player）により`Logs/Editor`または`Logs/Application`とする。
+- `ApplicationLoggingService`が`LoggingService`を包み、起動直後に`BufferedApplicationLog`の保持内容を元のTimestampで引き継ぎ、以降のApplication基盤のログを転送する。Logging終了直前には転送を解除し、Unity Consoleへの直接出力へ戻す。
+
+`LoggingStatistics`および`GetRecentEntries`は、Diagnostics UIからの参照用にPublicとする。
 
 ---
 
