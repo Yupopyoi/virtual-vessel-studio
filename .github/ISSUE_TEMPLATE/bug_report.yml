@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a problem with Virtual Vessel Studio.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem.
+        Do not include stream keys, OAuth tokens, passwords, API keys, or other secrets.
+        Do not attach private audio, camera video, or voice datasets.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Application
+        - Project / Data
+        - Avatar
+        - Tracking
+        - Voice
+        - Audio
+        - Capture
+        - Stage
+        - Video
+        - Streaming
+        - Voice Lab
+        - External Services
+        - Diagnostics
+        - UI
+        - Unknown
+
+  - type: input
+    id: version
+    attributes:
+      label: Application version
+      placeholder: e.g. v0.1.0 or commit hash
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, GPU, audio / capture devices, and anything else relevant.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Logs or diagnostics
+      description: Relevant log excerpts or a diagnostics export. Check that no secrets are included.
+      render: text
