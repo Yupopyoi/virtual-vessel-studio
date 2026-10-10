@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Virtual Vessel Studio UI styleboard: the visual reference for docs/<lang>/ui/design-system.md and components.md.
+  Open this file directly in a browser. Keep it in sync with those documents when tokens or components change.
+-->
+<style>body { margin: 0; } [hidden] { display: none !important; }</style>
+<title>Vessel Studio Styleboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Sans+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: control bar, then a live-screen mockup, then the token and component sheets it is built from.
+   Dark-first. Neutrals are tinted by the palette hue (--h); accents are pastel so dark text sits on them in both modes. */
+:root {
+  color-scheme: dark;
+  --h: 268;
+  --primary: #c3a6ff;
+  --secondary: #ff9ccf;
+  --on-accent: hsl(var(--h) 45% 14%);
+  /* Thin accent lines and small accent text. Pastel works on dark; light needs a deeper tone for 3:1. */
+  --accent-line: var(--primary);
+
+  --bg: hsl(var(--h) 26% 8%);
+  --surface: hsl(var(--h) 22% 12%);
+  --surface-2: hsl(var(--h) 20% 16%);
+  --surface-3: hsl(var(--h) 18% 21%);
+  --border: hsl(var(--h) 18% 26%);
+  --text: hsl(var(--h) 40% 95%);
+  --text-2: hsl(var(--h) 14% 74%);
+  --text-3: hsl(var(--h) 12% 62%);
+  --disabled: hsl(var(--h) 10% 40%);
+  --glow: color-mix(in srgb, var(--primary) 35%, transparent);
+  --tint: color-mix(in srgb, var(--primary) 14%, var(--surface));
+
+  --success: #52d6bd;
+  --warning: #ffc864;
+  --error: #ff6f8e;
+  --live: #ff4f84;
+
+  --font-ui: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  --font-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --space-xs: 4px; --space-s: 8px; --space-m: 16px; --space-l: 24px; --space-xl: 40px;
+  --radius-s: 8px; --radius-m: 14px; --radius-l: 22px; --radius-pill: 999px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: hsl(var(--h) 60% 97%);
+    --surface: hsl(var(--h) 40% 99%);
+    --surface-2: hsl(var(--h) 45% 95%);
+    --surface-3: hsl(var(--h) 40% 91%);
+    --border: hsl(var(--h) 30% 86%);
+    --text: hsl(var(--h) 30% 16%);
+    --text-2: hsl(var(--h) 16% 34%);
+    --text-3: hsl(var(--h) 12% 42%);
+    --disabled: hsl(var(--h) 10% 72%);
+    --accent-line: hsl(var(--h) 55% 42%);
+    --success: #0e7d68;
+    --warning: #8f5c00;
+    --error: #c41f4b;
+    --live: #b80f4a;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: hsl(var(--h) 60% 97%);
+  --surface: hsl(var(--h) 40% 99%);
+  --surface-2: hsl(var(--h) 45% 95%);
+  --surface-3: hsl(var(--h) 40% 91%);
+  --border: hsl(var(--h) 30% 86%);
+  --text: hsl(var(--h) 30% 16%);
+  --text-2: hsl(var(--h) 16% 34%);
+  --text-3: hsl(var(--h) 12% 42%);
+  --disabled: hsl(var(--h) 10% 72%);
+  --accent-line: hsl(var(--h) 55% 42%);
+  --success: #0e7d68;
+  --warning: #8f5c00;
+  --error: #c41f4b;
+  --live: #b80f4a;
+}
+:root[data-palette="sakura"] { --h: 335; --primary: #ffa3c4; --secondary: #c9a8ff; }
+:root[data-palette="mint"]   { --h: 165; --primary: #7fe0c1; --secondary: #a9d8ff; }
+:root[data-palette="sky"]    { --h: 212; --primary: #8cc4ff; --secondary: #c7b2ff; }
+:root[data-palette="peach"]  { --h: 18;  --primary: #ffb08f; --secondary: #ffd88a; }
+:root[data-palette="lemon"]  { --h: 48;  --primary: #ffe07a; --secondary: #ffb3cf; }
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1180px; margin-inline: auto; display: grid; gap: var(--space-xl); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Control bar */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-m);
+  padding-block: var(--space-m);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 10px;
+  background: radial-gradient(circle at 30% 30%, var(--secondary), var(--primary));
+  box-shadow: 0 0 18px var(--glow);
+}
+.brand b { font-weight: 900; letter-spacing: .02em; }
+.brand span { color: var(--text-3); font-size: 12px; }
+.ctrl { display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; }
+.ctrl-label { font-size: 11px; color: var(--text-3); letter-spacing: .08em; text-transform: uppercase; }
+.swatch-btn {
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border);
+  cursor: pointer; padding: 0; position: relative;
+}
+.swatch-btn[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--text); }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: var(--radius-pill); padding: 3px; border: 1px solid var(--border); }
+.seg button {
+  border: 0; background: transparent; padding: 4px 12px; border-radius: var(--radius-pill);
+  cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500;
+}
+.seg button[aria-pressed="true"] { background: var(--primary); color: var(--on-accent); }
+
+.section-head { display: grid; gap: 4px; margin-bottom: var(--space-m); }
+.section-head h2 { font-size: 20px; font-weight: 700; }
+.section-head p { color: var(--text-2); max-width: 68ch; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-line); font-weight: 700; }
+
+/* App mockup */
+.app {
+  display: grid; grid-template-columns: 200px minmax(0, 1fr);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l);
+  overflow: hidden; min-height: 560px;
+}
+.nav { background: var(--bg); border-right: 1px solid var(--border); padding: var(--space-m) var(--space-s); display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-m);
+  color: var(--text-2); font-weight: 500; cursor: pointer; border: 0; background: transparent; text-align: left;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item[aria-current="page"] { background: var(--tint); color: var(--text); box-shadow: inset 3px 0 0 var(--accent-line); }
+.nav-ico { width: 18px; height: 18px; flex: none; }
+.nav-foot { margin-top: auto; padding: 10px 12px; font-size: 12px; color: var(--text-3); display: grid; gap: 2px; }
+
+.main { padding: var(--space-l); display: grid; gap: var(--space-m); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-content: start; }
+.topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; }
+.topline h3 { font-size: 18px; font-weight: 700; margin-right: auto; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-pill);
+  font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
+}
+/* Status icons: every status has its own shape so it never depends on color alone. */
+.chip .dot, .notice .bullet, .field.error .help::before {
+  width: 11px; height: 11px; flex: none; background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat;
+}
+:root {
+  --icon-idle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Ccircle cx='6' cy='6' r='4.2' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E");
+  --icon-live: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Ccircle cx='6' cy='6' r='5'/%3E%3C/svg%3E");
+  --icon-ok: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.8 6.4 4.6 9.2 10.4 3' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --icon-warn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 .8 11.6 11H.4Z'/%3E%3Cpath d='M6 4.2v3.2M6 8.9v.4' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --icon-err: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 2.2l7.6 7.6M9.8 2.2 2.2 9.8' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.chip .dot { --icon: var(--icon-idle); }
+.chip.live .dot { --icon: var(--icon-live); }
+.chip.ok .dot { --icon: var(--icon-ok); }
+.chip.warn .dot { --icon: var(--icon-warn); }
+.chip.err .dot { --icon: var(--icon-err); }
+.chip.live { background: color-mix(in srgb, var(--live) 18%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
+.chip.live .dot { animation: pulse 1.6s ease-in-out infinite; }
+.chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
+.chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+.chip.err { color: var(--error); background: color-mix(in srgb, var(--error) 14%, transparent); border-color: color-mix(in srgb, var(--error) 35%, transparent); }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .chip.live .dot { animation: none; } }
+
+.preview {
+  aspect-ratio: 16 / 9; max-width: 100%; border-radius: var(--radius-m); position: relative; overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--primary) 45%, transparent), transparent 70%),
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--secondary) 35%, transparent), transparent 40%),
+    linear-gradient(160deg, hsl(var(--h) 35% 18%), hsl(var(--h) 40% 10%));
+  border: 1px solid var(--border);
+}
+.preview canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.preview-meta { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: hsl(var(--h) 30% 92%); opacity: .85; }
+.preview-tag { position: absolute; right: 12px; top: 10px; }
+
+.card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-m); padding: var(--space-m); display: grid; gap: 12px; }
+.card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text-2); letter-spacing: .04em; }
+.card-title .chip { margin-left: auto; }
+.row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.row .label { flex: 1; min-width: 0; }
+.row .label small { display: block; color: var(--text-3); font-size: 12px; }
+.side { display: grid; gap: var(--space-m); align-content: start; }
+.quick { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-m); }
+
+/* Components */
+.btn {
+  border: 0; cursor: pointer; border-radius: var(--radius-pill); padding: 9px 18px; font-weight: 700; font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--primary); color: var(--on-accent); box-shadow: 0 4px 16px var(--glow); }
+.btn-primary:hover { box-shadow: 0 6px 22px var(--glow); }
+.btn-secondary { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--primary) 18%, var(--surface-3)); }
+.btn-danger { background: color-mix(in srgb, var(--live) 20%, transparent); color: var(--live); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--live) 50%, transparent); }
+.btn:disabled { background: var(--surface-2); color: var(--disabled); box-shadow: none; cursor: not-allowed; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center;
+  background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border);
+}
+.icon-btn[aria-pressed="true"] { background: var(--secondary); color: var(--on-accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--secondary) 40%, transparent); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+.toggle { position: relative; width: 44px; height: 26px; flex: none; border: 0; padding: 0; cursor: pointer; border-radius: var(--radius-pill); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border); transition: background .15s ease; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--text-2); transition: transform .15s ease, background .15s ease; }
+.toggle[aria-checked="true"] { background: var(--primary); box-shadow: 0 0 12px var(--glow); }
+.toggle[aria-checked="true"]::after { transform: translateX(18px); background: var(--on-accent); }
+.toggle:disabled { background: var(--surface-2); cursor: not-allowed; }
+.toggle:disabled::after { background: var(--disabled); }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent-line) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--primary); cursor: pointer; }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--primary); cursor: pointer; }
+.meter { display: flex; gap: 2px; height: 6px; }
+.meter i { flex: 1; border-radius: 2px; background: var(--surface-3); }
+.meter i.on { background: var(--success); }
+.meter i.on.hot { background: var(--warning); }
+
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+.input, .select {
+  width: 100%; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-s);
+  padding: 8px 12px; color: var(--text);
+}
+.select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%); background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+.input:focus, .select:focus { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--glow); outline: none; }
+.numeric { display: flex; align-items: stretch; }
+.numeric .input { border-radius: var(--radius-s) 0 0 var(--radius-s); text-align: right; }
+.numeric .unit { padding: 8px 10px; border: 1px solid var(--border); border-left: 0; border-radius: 0 var(--radius-s) var(--radius-s) 0; background: var(--surface-3); color: var(--text-2); font-size: 12px; }
+.field .help { font-size: 12px; color: var(--text-3); }
+.field.error .input { border-color: var(--error); border-width: 2px; padding: 7px 11px; }
+.field.error .help { color: var(--error); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.field.error .help::before { content: ""; --icon: var(--icon-warn); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab { border: 0; background: transparent; padding: 8px 14px; cursor: pointer; color: var(--text-2); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-line); }
+
+.setting-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 260px); gap: var(--space-m); align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.setting-row:last-child { border-bottom: 0; }
+.setting-row .name { font-weight: 500; }
+.setting-row .desc { font-size: 12px; color: var(--text-3); }
+
+.notice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-m); border: 1px solid var(--border); background: var(--surface-2); }
+.notice .bullet { width: 14px; height: 14px; margin-top: 4px; }
+.notice.success .bullet { --icon: var(--icon-ok); background: var(--success); }
+.notice.error { border-color: color-mix(in srgb, var(--error) 45%, transparent); background: color-mix(in srgb, var(--error) 8%, var(--surface-2)); }
+.notice.error .bullet { --icon: var(--icon-err); background: var(--error); }
+.notice b { display: block; }
+.notice span { color: var(--text-2); font-size: 13px; }
+
+.progress { height: 8px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
+.progress i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--secondary)); }
+
+.dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); padding: var(--space-l); display: grid; gap: var(--space-m); box-shadow: 0 20px 50px hsl(var(--h) 50% 3% / .45); max-width: 420px; }
+.dialog h3 { font-size: 17px; }
+.dialog p { color: var(--text-2); }
+.dialog .actions { display: flex; justify-content: flex-end; gap: var(--space-s); flex-wrap: wrap; }
+
+/* Sheets */
+.sheets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-l); }
+.sheet { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); padding: var(--space-l); display: grid; gap: var(--space-m); align-content: start; min-width: 0; }
+.sheet h3 { font-size: 15px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
+.sheet h3 small { font-weight: 400; color: var(--text-3); font-size: 12px; }
+.sheet.wide { grid-column: 1 / -1; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.sw { border-radius: var(--radius-m); border: 1px solid var(--border); overflow: hidden; background: var(--surface-2); }
+.sw i { display: block; height: 52px; }
+.sw div { padding: 6px 10px; display: grid; }
+.sw b { font-size: 12px; }
+.sw code { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+
+.type-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--space-m); align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.type-row:last-child { border-bottom: 0; }
+.type-row .meta { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.t-heading { font-size: 22px; font-weight: 700; line-height: 1.3; }
+.t-subhead { font-size: 16px; font-weight: 700; }
+.t-body { font-size: 14px; }
+.t-caption { font-size: 12px; color: var(--text-2); }
+.t-button { font-size: 13px; font-weight: 700; }
+.t-numeric { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; }
+.t-mono { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
+
+.spacing { display: grid; gap: 8px; }
+.spacing div { display: grid; grid-template-columns: 40px 60px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; }
+.spacing i { display: block; height: 14px; background: var(--primary); border-radius: 3px; }
+.radii { display: flex; gap: 12px; flex-wrap: wrap; }
+.radii div { width: 72px; height: 56px; background: var(--tint); border: 1px solid var(--primary); display: grid; place-items: center; font-size: 11px; color: var(--text-2); }
+
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-m); }
+.gallery .cell { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.gallery .cell > .cap { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.note { color: var(--text-3); font-size: 12px; }
+
+/* Tooltip: one floating element shared by everything that has data-tip. */
+.tooltip {
+  position: fixed; z-index: 100; pointer-events: none; max-width: 260px;
+  padding: 7px 11px; border-radius: var(--radius-s);
+  background: var(--surface-3); color: var(--text); font-size: 12px; line-height: 1.5;
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: 0 8px 24px hsl(var(--h) 50% 3% / .35);
+  opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease;
+}
+.tooltip.show { opacity: 1; transform: translateY(0); }
+.tooltip kbd {
+  font-family: var(--font-mono); font-size: 11px; padding: 0 5px; margin-left: 6px; border-radius: 4px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-2);
+}
+@media (prefers-reduced-motion: reduce) { .tooltip { transition: none; transform: none; } }
+.tip-demo { display: inline-flex; padding: 6px 10px; border-radius: var(--radius-s); border: 1px dashed var(--border); color: var(--text-2); font-size: 12px; }
+
+/* Preview full screen */
+.fs-btn {
+  position: absolute; right: 10px; bottom: 10px; width: 34px; height: 34px; border-radius: 10px; border: 0; cursor: pointer;
+  display: grid; place-items: center; color: hsl(var(--h) 30% 96%);
+  background: hsl(var(--h) 40% 8% / .55); backdrop-filter: blur(6px);
+  box-shadow: inset 0 0 0 1px hsl(var(--h) 40% 90% / .2);
+}
+.fs-btn:hover { background: hsl(var(--h) 40% 8% / .75); }
+.fs-btn svg { width: 18px; height: 18px; }
+.fs-backdrop { position: fixed; inset: 0; z-index: 80; background: #050308; }
+.preview.is-full {
+  position: fixed; z-index: 90; inset: 0; margin: auto; border-radius: 0; border: 0;
+  width: min(100vw, calc(100vh * 16 / 9)); height: auto;
+}
+.preview.is-full .fs-btn { width: 40px; height: 40px; }
+.fs-hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); font-size: 12px; color: hsl(var(--h) 30% 92%); background: hsl(var(--h) 40% 8% / .6); padding: 4px 12px; border-radius: var(--radius-pill); }
+
+@media (max-width: 960px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  .nav-foot { display: none; }
+  .main { grid-template-columns: minmax(0, 1fr); padding: var(--space-m); }
+  .quick { grid-template-columns: minmax(0, 1fr); }
+  .sheets { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .setting-row { grid-template-columns: minmax(0, 1fr); }
+  .type-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .brand span { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="bar" aria-label="Preview controls">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div><b>Virtual Vessel Studio</b><br><span data-i18n="subtitle">デザインシステム見本</span></div>
+    </div>
+    <div class="ctrl" role="group" aria-label="Palette">
+      <span class="ctrl-label" data-i18n="palette">パレット</span>
+      <button class="swatch-btn" data-palette="lavender" title="Lavender" style="background:linear-gradient(135deg,#c3a6ff 50%,#ff9ccf 50%)"></button>
+      <button class="swatch-btn" data-palette="sakura" title="Sakura" style="background:linear-gradient(135deg,#ffa3c4 50%,#c9a8ff 50%)"></button>
+      <button class="swatch-btn" data-palette="mint" title="Mint" style="background:linear-gradient(135deg,#7fe0c1 50%,#a9d8ff 50%)"></button>
+      <button class="swatch-btn" data-palette="sky" title="Sky" style="background:linear-gradient(135deg,#8cc4ff 50%,#c7b2ff 50%)"></button>
+      <button class="swatch-btn" data-palette="peach" title="Peach" style="background:linear-gradient(135deg,#ffb08f 50%,#ffd88a 50%)"></button>
+      <button class="swatch-btn" data-palette="lemon" title="Lemon" style="background:linear-gradient(135deg,#ffe07a 50%,#ffb3cf 50%)"></button>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label" data-i18n="base">背景</span>
+      <div class="seg" role="group" aria-label="Theme">
+        <button id="mode-dark" data-mode="dark" data-i18n="dark">ダーク</button>
+        <button id="mode-light" data-mode="light" data-i18n="light">ライト</button>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label" data-i18n="vision">色の見え方</span>
+      <div class="seg" role="group" aria-label="Color vision check">
+        <button data-vision="none" data-i18n="v.none">ふつう</button>
+        <button data-vision="deutan" data-i18n="v.rg" data-tip="tip.v.rg">赤緑</button>
+        <button data-vision="tritan" data-i18n="v.by" data-tip="tip.v.by">青黄</button>
+        <button data-vision="gray" data-i18n="v.gray" data-tip="tip.v.gray">白黒</button>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label" data-i18n="lang">言語</span>
+      <div class="seg" role="group" aria-label="Language">
+        <button id="lang-ja" data-lang="ja">日本語</button>
+        <button id="lang-en" data-lang="en">English</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live screen mockup -->
+  <section>
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="s1.eyebrow">画面の見本</span>
+      <h2 data-i18n="s1.title">配信中の画面（Live UI）</h2>
+      <p data-i18n="s1.desc">配信中によく触る操作だけを並べた画面です。下の色・文字・部品の定義だけで組み立てています。トグルやスライダーは実際に動かせます。</p>
+    </div>
+
+    <div class="app">
+      <nav class="nav" aria-label="Main">
+        <button class="nav-item" aria-current="page" data-tip="tip.nav.live">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
+          <span data-i18n="nav.live">ライブ</span>
+        </button>
+        <button class="nav-item" data-tip="tip.nav.setup">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+          <span data-i18n="nav.setup">セットアップ</span>
+        </button>
+        <button class="nav-item" data-tip="tip.nav.lab">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5 9a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9V3M8 3h8"/></svg>
+          <span>Voice Lab</span>
+        </button>
+        <button class="nav-item" data-tip="tip.nav.diag">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+          <span data-i18n="nav.diag">診断</span>
+        </button>
+        <div class="nav-foot">
+          <span class="mono">v0.1.0</span>
+          <span data-i18n="nav.project">プロジェクト: 夜カフェ雑談</span>
+        </div>
+      </nav>
+
+      <div class="main">
+        <div class="topline">
+          <h3 data-i18n="live.title">ライブ</h3>
+          <span class="chip live" data-tip="tip.onair"><span class="dot"></span><span data-i18n="live.onair">配信中</span> <span class="num">01:24:36</span></span>
+          <span class="chip" data-tip="tip.rec"><span class="dot"></span>REC <span class="num">00:42:10</span></span>
+        </div>
+
+        <div class="preview" id="preview">
+          <canvas id="avatar" aria-hidden="true"></canvas>
+          <span class="chip ok preview-tag" data-tip="tip.fps"><span class="num">60.0 fps</span></span>
+          <span class="preview-meta mono"><span data-i18n="live.preview">配信プレビュー</span> · 1920×1080 · 6,000 kbps</span>
+          <span class="fs-hint" hidden data-i18n="fs.hint">Esc で全画面を終了</span>
+          <button class="fs-btn" id="fs-btn" data-tip="tip.fs" aria-label="Full screen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="fs-ico"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+        </div>
+
+        <div class="side">
+          <div class="card">
+            <div class="card-title"><span data-i18n="voice.title">ボイスチェンジ</span><span class="chip ok" data-tip="tip.latency"><span class="num">38 ms</span></span></div>
+            <div class="row">
+              <div class="label"><span data-i18n="voice.toggle">声を変換する</span><small data-i18n="voice.model">モデル: Kirara v3（RVC）</small></div>
+              <button class="toggle" role="switch" aria-checked="true" aria-label="Voice conversion" data-tip="tip.voice"></button>
+            </div>
+            <div class="field">
+              <label for="pitch"><span data-i18n="voice.pitch">ピッチ</span> <span class="num" id="pitch-out">+4</span></label>
+              <input id="pitch" type="range" min="-12" max="12" value="4" data-out="pitch-out" data-signed data-tip="tip.pitch">
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span data-i18n="audio.title">音声</span></div>
+            <div class="row">
+              <div class="label"><span data-i18n="audio.mic">マイク</span><small class="num" id="mic-out">−12 dB</small></div>
+              <button class="icon-btn" aria-pressed="false" aria-label="Mute" id="mute" data-tip="tip.mute">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+              </button>
+            </div>
+            <input id="mic" type="range" min="-60" max="0" value="-12" data-out="mic-out" data-db aria-label="Mic level">
+            <div class="meter" aria-hidden="true" id="meter"></div>
+            <div class="row">
+              <div class="label"><span>BGM</span><small class="num" id="bgm-out">−24 dB</small></div>
+            </div>
+            <input id="bgm" type="range" min="-60" max="0" value="-24" data-out="bgm-out" data-db aria-label="BGM level">
+          </div>
+        </div>
+
+        <div class="quick">
+          <div class="card">
+            <div class="card-title"><span data-i18n="scene.title">シーン</span></div>
+            <div class="field"><label for="q-avatar" data-i18n="scene.avatar">アバター</label>
+              <select id="q-avatar" class="select"><option>Yuki（VRM 1.0）</option><option>Mio（VRM 0.x）</option></select></div>
+            <div class="field"><label for="q-stage" data-i18n="scene.stage">ステージ</label>
+              <select id="q-stage" class="select"><option data-i18n="scene.stage1">夜カフェ</option><option data-i18n="scene.stage2">ゲーム部屋</option></select></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span data-i18n="cap.title">キャプチャ</span></div>
+            <div class="row"><div class="label"><span data-i18n="cap.game">ゲーム画面</span><small>Elgato HD60 X</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Game capture" data-tip="tip.game"></button></div>
+            <div class="row"><div class="label"><span data-i18n="cap.sub">サブモニター</span><small data-i18n="cap.subnote">ディスプレイ 2</small></div><button class="toggle" role="switch" aria-checked="false" aria-label="Sub screen capture" data-tip="tip.sub"></button></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span data-i18n="trk.title">トラッキング</span></div>
+            <div class="row"><div class="label"><span data-i18n="trk.face">顔</span></div><span class="chip ok"><span class="dot"></span><span data-i18n="trk.good">良好</span></span></div>
+            <div class="row"><div class="label"><span data-i18n="trk.hand">手</span><small data-i18n="trk.handnote">手元が暗いようです</small></div><span class="chip warn" data-tip="tip.hand"><span class="dot"></span><span data-i18n="trk.low">不安定</span></span></div>
+            <div class="inline" style="justify-content:flex-end">
+              <button class="btn btn-danger" data-i18n="live.end" data-tip="tip.end">配信を終了</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Foundations -->
+  <section>
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="s2.eyebrow">基礎</span>
+      <h2 data-i18n="s2.title">色・文字・余白</h2>
+      <p data-i18n="s2.desc">どの画面もこの値だけを使います。パレットを切り替えると、アクセント色と、背景にほんのり混ぜた色味がまとめて変わります。状態の色（成功・注意・エラー・配信中）はパレットに関係なく固定です。</p>
+    </div>
+    <div class="sheets">
+      <div class="sheet wide">
+        <h3><span data-i18n="color.title">色</span><small>Color</small></h3>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="sheet">
+        <h3><span data-i18n="type.title">文字</span><small>Noto Sans JP / Noto Sans Mono</small></h3>
+        <div>
+          <div class="type-row"><span class="meta">Heading 22/700</span><span class="t-heading" data-i18n="type.h">配信の準備をしましょう</span></div>
+          <div class="type-row"><span class="meta">Subhead 16/700</span><span class="t-subhead" data-i18n="type.s">マイクの入力デバイス</span></div>
+          <div class="type-row"><span class="meta">Body 14/400</span><span class="t-body" data-i18n="type.b">声の変換は配信中もアプリの中だけで動き、外部のサービスを必要としません。</span></div>
+          <div class="type-row"><span class="meta">Caption 12/400</span><span class="t-caption" data-i18n="type.c">最終保存 2026/10/11 21:04</span></div>
+          <div class="type-row"><span class="meta">Button 13/700</span><span class="t-button" data-i18n="type.btn">配信を開始</span></div>
+          <div class="type-row"><span class="meta">Numeric Mono 20</span><span class="t-numeric">48,000 Hz · 38.2 ms</span></div>
+          <div class="type-row"><span class="meta">Monospace 12</span><span class="t-mono">Voice/RvcInference p99 41.7 ms</span></div>
+        </div>
+      </div>
+      <div class="sheet wide">
+        <h3><span data-i18n="a11y.title">だれにでも使いやすく</span><small>Universal design</small></h3>
+        <div class="gallery">
+          <div class="cell">
+            <span class="cap" data-i18n="a11y.c1">状態は色だけで伝えない</span>
+            <div class="inline">
+              <span class="chip ok"><span class="dot"></span><span data-i18n="c.connected">接続済み</span></span>
+              <span class="chip warn"><span class="dot"></span><span data-i18n="trk.low">不安定</span></span>
+              <span class="chip err"><span class="dot"></span><span data-i18n="c.failed">失敗</span></span>
+              <span class="chip live"><span class="dot"></span><span data-i18n="live.onair">配信中</span></span>
+              <span class="chip"><span class="dot"></span><span data-i18n="c.idle">停止中</span></span>
+            </div>
+            <p class="note" data-i18n="a11y.c1d">成功は ✓、注意は △、失敗は ×、配信中は ●、停止中は ○。形と文字を必ず色と一緒に出すので、色の見え方が人によって違っても区別できます。</p>
+          </div>
+          <div class="cell">
+            <span class="cap" data-i18n="a11y.c2">読みやすさ</span>
+            <p class="note" data-i18n="a11y.c2d">本文と背景のコントラストは 4.5:1 以上、大きな文字やアイコンは 3:1 以上。アクセント色の上の文字は濃い色にします。文字は 12px 未満にしません。</p>
+          </div>
+          <div class="cell">
+            <span class="cap" data-i18n="a11y.c3">操作しやすさ</span>
+            <p class="note" data-i18n="a11y.c3d">押せる部品は 24px 以上。キーボードだけで全操作でき、選択中の部品には必ず枠を出します。説明はホバーだけでなくキーボードで選んだときにも出します。</p>
+          </div>
+          <div class="cell">
+            <span class="cap" data-i18n="a11y.c4">設定で変えられること</span>
+            <p class="note" data-i18n="a11y.c4d">UI の拡大縮小、パレット、ダーク／ライト、動きを減らす設定に対応します。拡大しても文字が切れないよう、幅は固定せず中身に合わせます。</p>
+          </div>
+        </div>
+      </div>
+      <div class="sheet">
+        <h3><span data-i18n="space.title">余白と角丸</span><small>Spacing / Shape</small></h3>
+        <div class="spacing">
+          <div><b>XS</b><span class="mono">4 px</span><i style="width:4px"></i></div>
+          <div><b>S</b><span class="mono">8 px</span><i style="width:8px"></i></div>
+          <div><b>M</b><span class="mono">16 px</span><i style="width:16px"></i></div>
+          <div><b>L</b><span class="mono">24 px</span><i style="width:24px"></i></div>
+          <div><b>XL</b><span class="mono">40 px</span><i style="width:40px"></i></div>
+        </div>
+        <div class="radii">
+          <div style="border-radius:var(--radius-s)">S 8</div>
+          <div style="border-radius:var(--radius-m)">M 14</div>
+          <div style="border-radius:var(--radius-l)">L 22</div>
+          <div style="border-radius:var(--radius-pill)">Pill</div>
+        </div>
+        <p class="note" data-i18n="space.note">ボタンとトグルは丸いピル形、カードは角丸 M、画面とダイアログは角丸 L。かわいさは形の丸みと淡いアクセント色で出し、文字と余白は落ち着かせます。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Components -->
+  <section>
+    <div class="section-head">
+      <span class="eyebrow" data-i18n="s3.eyebrow">部品</span>
+      <h2 data-i18n="s3.title">共通コンポーネント</h2>
+      <p data-i18n="s3.desc">各画面はこの部品を組み合わせて作ります。無効状態やエラー状態もここで決めておきます。</p>
+    </div>
+    <div class="sheet">
+      <div class="gallery">
+        <div class="cell">
+          <span class="cap" data-i18n="c.buttons">ボタン</span>
+          <div class="inline">
+            <button class="btn btn-primary" data-i18n="c.start" data-tip="tip.start">配信を開始</button>
+            <button class="btn btn-secondary" data-i18n="c.test" data-tip="tip.test">テスト録画</button>
+          </div>
+          <div class="inline">
+            <button class="btn btn-danger" data-i18n="live.end" data-tip="tip.end">配信を終了</button>
+            <span data-tip="tip.disabled"><button class="btn btn-primary" disabled data-i18n="c.disabled">準備中…</button></span>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.tooltip">ツールチップ</span>
+          <div class="inline">
+            <span class="tip-demo" tabindex="0" data-tip="tip.demo" data-i18n="c.tipdemo">ここにカーソルを合わせる</span>
+          </div>
+          <p class="note" data-i18n="c.tipnote">0.5 秒ほど止めると出ます。キーボードで選んだときも出ます。操作の説明とショートカットだけを短く書き、無効なボタンには押せない理由を出します。</p>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.toggles">トグルとアイコンボタン</span>
+          <div class="inline">
+            <button class="toggle" role="switch" aria-checked="true" aria-label="On"></button>
+            <button class="toggle" role="switch" aria-checked="false" aria-label="Off"></button>
+            <button class="toggle" role="switch" aria-checked="false" disabled aria-label="Disabled"></button>
+            <button class="icon-btn" aria-pressed="false" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+            <button class="icon-btn" aria-pressed="true" aria-label="Muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M9 9v2a3 3 0 0 0 5 2M15 9V6a3 3 0 0 0-6 0M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.6 2.8M12 18v3"/></svg></button>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.status">状態の表示</span>
+          <div class="inline">
+            <span class="chip live"><span class="dot"></span><span data-i18n="live.onair">配信中</span></span>
+            <span class="chip ok"><span class="dot"></span><span data-i18n="c.connected">接続済み</span></span>
+            <span class="chip warn"><span class="dot"></span><span data-i18n="trk.low">不安定</span></span>
+            <span class="chip err"><span class="dot"></span><span data-i18n="c.failed">失敗</span></span>
+            <span class="chip"><span class="dot"></span><span data-i18n="c.idle">停止中</span></span>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.fields">入力欄</span>
+          <div class="field"><label for="f-title" data-i18n="c.titlefield">配信タイトル</label><input id="f-title" class="input" value="【雑談】夜カフェでまったり"></div>
+          <div class="field"><label for="f-rate" data-i18n="c.rate">サンプルレート</label><div class="numeric"><input id="f-rate" class="input num" value="48000"><span class="unit">Hz</span></div></div>
+          <div class="field error"><label for="f-key" data-i18n="c.key">ストリームキー</label><input id="f-key" class="input" type="password" value=""><span class="help" data-i18n="c.keyerr">ストリームキーを入力してください。</span></div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.tabs">タブと設定行</span>
+          <div class="tabs" role="tablist">
+            <button class="tab" role="tab" aria-selected="true" data-i18n="c.tab1">全般</button>
+            <button class="tab" role="tab" aria-selected="false" data-i18n="c.tab2">音声</button>
+            <button class="tab" role="tab" aria-selected="false" data-i18n="c.tab3">映像</button>
+          </div>
+          <div>
+            <div class="setting-row">
+              <div><div class="name" data-i18n="c.row1">マイクの入力デバイス</div><div class="desc" data-i18n="c.row1d">声を拾うマイクを選びます</div></div>
+              <select class="select" aria-label="Mic device"><option>USB Audio Interface (2ch)</option><option>Realtek Audio</option></select>
+            </div>
+            <div class="setting-row">
+              <div><div class="name" data-i18n="c.row2">ノイズ抑制</div><div class="desc" data-i18n="c.row2d">キーボードの音やエアコンの音を減らします</div></div>
+              <div style="justify-self:end"><button class="toggle" role="switch" aria-checked="true" aria-label="Noise suppression"></button></div>
+            </div>
+          </div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.notices">お知らせと進捗</span>
+          <div class="notice success"><span class="bullet"></span><div><b data-i18n="c.ok">音声モデルを登録しました</b><span data-i18n="c.okd">Kirara v3 がライブ画面で選べるようになりました。</span></div></div>
+          <div class="notice error"><span class="bullet"></span><div><b data-i18n="c.err">カメラが見つかりません</b><span data-i18n="c.errd">USB の接続を確認してから、もう一度お試しください。</span></div></div>
+          <div class="field"><label data-i18n="c.progress">RVC 学習 · エポック 120 / 300</label><div class="progress"><i></i></div></div>
+        </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.dialog">確認ダイアログ</span>
+          <div class="dialog" role="dialog" aria-label="Confirm">
+            <h3 data-i18n="c.dtitle">配信を終了しますか？</h3>
+            <p data-i18n="c.dbody">視聴者への配信が止まります。録画は続けたままにできます。</p>
+            <div class="actions">
+              <button class="btn btn-secondary" data-i18n="c.cancel">キャンセル</button>
+              <button class="btn btn-danger" data-i18n="live.end">配信を終了</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const root = document.documentElement;
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  const en = {
+    "subtitle": "Design system preview", "palette": "Palette", "base": "Base", "dark": "Dark", "light": "Light", "lang": "Language",
+    "s1.eyebrow": "Screen sample", "s1.title": "The live screen (Live UI)",
+    "s1.desc": "Only the controls you touch while streaming. It is built entirely from the colors, type and parts defined below. Toggles and sliders work.",
+    "nav.live": "Live", "nav.setup": "Setup", "nav.diag": "Diagnostics", "nav.project": "Project: Night café chat",
+    "live.title": "Live", "live.onair": "LIVE", "live.preview": "Stream preview", "live.end": "End stream",
+    "voice.title": "Voice changer", "voice.toggle": "Convert my voice", "voice.model": "Model: Kirara v3 (RVC)", "voice.pitch": "Pitch",
+    "audio.title": "Audio", "audio.mic": "Microphone",
+    "scene.title": "Scene", "scene.avatar": "Avatar", "scene.stage": "Stage", "scene.stage1": "Night café", "scene.stage2": "Game room",
+    "cap.title": "Capture", "cap.game": "Game screen", "cap.sub": "Second monitor", "cap.subnote": "Display 2",
+    "trk.title": "Tracking", "trk.face": "Face", "trk.good": "Good", "trk.hand": "Hands", "trk.handnote": "Your hands look too dark", "trk.low": "Unstable",
+    "s2.eyebrow": "Foundations", "s2.title": "Color, type and spacing",
+    "s2.desc": "Every screen uses only these values. Switching the palette changes the accent colors and the faint tint mixed into the backgrounds. Status colors (success, warning, error, live) stay the same in every palette.",
+    "color.title": "Color", "type.title": "Type",
+    "type.h": "Let's get ready to stream", "type.s": "Microphone input device",
+    "type.b": "Voice conversion runs inside the app while you stream and needs no outside service.",
+    "type.c": "Last saved 2026/10/11 21:04", "type.btn": "Start streaming",
+    "space.title": "Spacing and shape",
+    "space.note": "Buttons and toggles are round pills, cards use radius M, screens and dialogs use radius L. The cuteness comes from rounded shapes and soft accents; text and spacing stay calm.",
+    "s3.eyebrow": "Parts", "s3.title": "Shared components", "s3.desc": "Every screen is assembled from these parts. Disabled and error states are decided here too.",
+    "c.buttons": "Buttons", "c.start": "Start streaming", "c.test": "Test recording", "c.disabled": "Preparing…",
+    "c.toggles": "Toggles and icon buttons", "c.status": "Status", "c.connected": "Connected", "c.failed": "Failed", "c.idle": "Stopped",
+    "c.fields": "Fields", "c.titlefield": "Stream title", "c.rate": "Sample rate", "c.key": "Stream key", "c.keyerr": "Enter your stream key.",
+    "c.tabs": "Tabs and setting rows", "c.tab1": "General", "c.tab2": "Audio", "c.tab3": "Video",
+    "c.row1": "Microphone input device", "c.row1d": "Choose the microphone that picks up your voice",
+    "c.row2": "Noise suppression", "c.row2d": "Reduces keyboard and air-conditioner noise",
+    "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",
+    "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
+    "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
+    "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
+    "c.tipnote": "Appears after resting about half a second, and on keyboard focus. Keep it to what the control does and its shortcut; on a disabled button, say why it cannot be pressed.",
+    "fs.hint": "Press Esc to exit full screen",
+    "vision": "Color view", "v.none": "Typical", "v.rg": "Red–green", "v.by": "Blue–yellow", "v.gray": "Gray",
+    "a11y.title": "Easy for everyone to use",
+    "a11y.c1": "Never use color alone for status",
+    "a11y.c1d": "Success is ✓, warning △, failure ×, live ●, stopped ○. Shape and text always come with the color, so they stay distinguishable however a person sees color.",
+    "a11y.c2": "Readability",
+    "a11y.c2d": "Body text has at least 4.5:1 contrast with its background, large text and icons at least 3:1. Text on accent colors is dark. No text smaller than 12px.",
+    "a11y.c3": "Easy to operate",
+    "a11y.c3d": "Anything you can press is at least 24px. Everything works from the keyboard, and the focused part always shows an outline. Descriptions appear on keyboard focus as well as on hover.",
+    "a11y.c4": "What settings can change",
+    "a11y.c4d": "UI scale, palette, dark or light, and reduced motion. Widths follow their content instead of being fixed, so text is not cut off when scaled up."
+  };
+
+  // Tooltip text. [text, shortcut]
+  const tips = {
+    ja: {
+      "tip.nav.live": ["配信中に使う操作をまとめた画面"],
+      "tip.nav.setup": ["アバターや機材を配信前に設定します"],
+      "tip.nav.lab": ["自分用の声のモデルを作ります"],
+      "tip.nav.diag": ["動作の詳細を確認します（開発者向け）"],
+      "tip.onair": ["配信を始めてからの経過時間"],
+      "tip.rec": ["録画を始めてからの経過時間"],
+      "tip.fps": ["配信映像のフレームレート。60 を下回ると映像がカクつきます"],
+      "tip.fs": ["プレビューを全画面で表示", "F"],
+      "tip.latency": ["声の変換にかかっている時間。短いほど口の動きとずれません"],
+      "tip.voice": ["オフにすると地声のまま配信されます", "Ctrl+V"],
+      "tip.pitch": ["声の高さを半音単位で変えます"],
+      "tip.mute": ["マイクをミュート", "Ctrl+M"],
+      "tip.game": ["キャプチャボードの映像と音を配信に使います"],
+      "tip.sub": ["2 台目のモニターの画面を取り込みます"],
+      "tip.hand": ["手元を明るくすると安定します"],
+      "tip.end": ["視聴者への配信を止めます。押すと確認が出ます"],
+      "tip.start": ["配信サイトへの送信を始めます", "Ctrl+Enter"],
+      "tip.test": ["配信せずに録画だけして、映りと音を確認します"],
+      "tip.disabled": ["アバターとマイクの準備が終わると押せます"],
+      "tip.demo": ["説明はこのように表示されます", "Ctrl+K"],
+      "tip.v.rg": ["赤と緑が近い色に見える場合の見え方です"],
+      "tip.v.by": ["青と黄が近い色に見える場合の見え方です"],
+      "tip.v.gray": ["色をなくして、明るさだけで見た場合です"]
+    },
+    en: {
+      "tip.nav.live": ["Everything you use while streaming"],
+      "tip.nav.setup": ["Set up avatars and devices before you stream"],
+      "tip.nav.lab": ["Create your own voice models"],
+      "tip.nav.diag": ["Inspect how things are running (for developers)"],
+      "tip.onair": ["Time since the stream started"],
+      "tip.rec": ["Time since recording started"],
+      "tip.fps": ["Stream frame rate. Below 60 the video looks choppy"],
+      "tip.fs": ["Show the preview full screen", "F"],
+      "tip.latency": ["Time taken to convert your voice. Shorter keeps it in sync with your mouth"],
+      "tip.voice": ["When off, your natural voice is streamed", "Ctrl+V"],
+      "tip.pitch": ["Changes your pitch in semitones"],
+      "tip.mute": ["Mute the microphone", "Ctrl+M"],
+      "tip.game": ["Use video and sound from the capture card"],
+      "tip.sub": ["Bring in the screen of your second monitor"],
+      "tip.hand": ["More light on your hands makes this steadier"],
+      "tip.end": ["Stops the stream for viewers. You will be asked to confirm"],
+      "tip.start": ["Starts sending to the streaming site", "Ctrl+Enter"],
+      "tip.test": ["Records without streaming so you can check picture and sound"],
+      "tip.disabled": ["Available once your avatar and microphone are ready"],
+      "tip.demo": ["Descriptions appear like this", "Ctrl+K"],
+      "tip.v.rg": ["How it looks when red and green appear similar"],
+      "tip.v.by": ["How it looks when blue and yellow appear similar"],
+      "tip.v.gray": ["Brightness only, with no color"]
+    }
+  };
+  let lang = "ja";
+  const ja = {};
+  document.querySelectorAll("[data-i18n]").forEach(el => { ja[el.dataset.i18n] = el.textContent; });
+  const titleField = document.getElementById("f-title");
+  const titles = { ja: titleField.value, en: "[Chat] Chilling at the night café" };
+
+  function setLang(next) {
+    lang = next;
+    const dict = lang === "en" ? en : ja;
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const v = dict[el.dataset.i18n];
+      if (v !== undefined) el.textContent = v;
+    });
+    titleField.value = titles[lang];
+    root.lang = lang;
+    document.querySelectorAll("[data-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    store.set("vvs-lang", lang);
+  }
+
+  function currentMode() {
+    const t = root.getAttribute("data-theme");
+    if (t) return t;
+    return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  function setMode(mode) {
+    root.setAttribute("data-theme", mode);
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    renderSwatches();
+  }
+  function setPalette(name) {
+    if (name === "lavender") root.removeAttribute("data-palette"); else root.setAttribute("data-palette", name);
+    document.querySelectorAll(".swatch-btn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.palette === name)));
+    store.set("vvs-palette", name);
+    renderSwatches();
+  }
+
+  const tokens = [
+    ["Primary", "--primary"], ["Secondary", "--secondary"], ["Accent line", "--accent-line"], ["On accent", "--on-accent"], ["Background", "--bg"], ["Surface", "--surface"],
+    ["Surface 2", "--surface-2"], ["Border", "--border"], ["Text", "--text"], ["Text 2", "--text-2"],
+    ["Disabled", "--disabled"], ["Success", "--success"], ["Warning", "--warning"], ["Error", "--error"], ["Live", "--live"]
+  ];
+  const probe = document.createElement("i");
+  document.body.appendChild(probe);
+  function resolve(varName) {
+    probe.style.color = "var(" + varName + ")";
+    const c = getComputedStyle(probe).color;
+    const m = c.match(/\d+(\.\d+)?/g);
+    if (!m) return c;
+    return "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("");
+  }
+  function renderSwatches() {
+    const host = document.getElementById("swatches");
+    host.innerHTML = "";
+    tokens.forEach(([name, v]) => {
+      const d = document.createElement("div");
+      d.className = "sw";
+      d.innerHTML = '<i style="background:var(' + v + ')"></i><div><b>' + name + '</b><code>' + resolve(v) + '</code></div>';
+      host.appendChild(d);
+    });
+  }
+
+  document.querySelectorAll(".swatch-btn").forEach(b => b.addEventListener("click", () => setPalette(b.dataset.palette)));
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  document.querySelectorAll("[data-lang]").forEach(b => b.addEventListener("click", () => setLang(b.dataset.lang)));
+  document.querySelectorAll(".toggle:not(:disabled)").forEach(t => t.addEventListener("click", () => t.setAttribute("aria-checked", String(t.getAttribute("aria-checked") !== "true"))));
+  document.querySelectorAll(".icon-btn").forEach(b => b.addEventListener("click", () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"))));
+  document.querySelectorAll(".tabs").forEach(list => list.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => {
+    list.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+  })));
+  document.querySelectorAll('input[type="range"]').forEach(r => {
+    const update = () => {
+      const pct = (r.value - r.min) / (r.max - r.min) * 100;
+      r.style.setProperty("--fill", pct + "%");
+      const out = r.dataset.out && document.getElementById(r.dataset.out);
+      if (!out) return;
+      if (r.hasAttribute("data-db")) out.textContent = (r.value < 0 ? "−" + Math.abs(r.value) : r.value) + " dB";
+      else out.textContent = (r.value > 0 ? "+" : r.value < 0 ? "−" : "") + Math.abs(r.value);
+    };
+    r.addEventListener("input", update);
+    update();
+  });
+
+  // Mic level meter: a gentle fake signal so the mockup reads as live.
+  const meter = document.getElementById("meter");
+  for (let i = 0; i < 24; i++) meter.appendChild(document.createElement("i"));
+  const bars = meter.children;
+  const mute = document.getElementById("mute");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let t = 0;
+  function tickMeter() {
+    t += 0.12;
+    const muted = mute.getAttribute("aria-pressed") === "true";
+    const level = muted ? 0 : Math.round(9 + 6 * Math.sin(t) + 4 * Math.sin(t * 2.7));
+    for (let i = 0; i < bars.length; i++) bars[i].className = i < level ? (i >= 18 ? "on hot" : "on") : "";
+  }
+  tickMeter();
+  if (!reduce) setInterval(tickMeter, 90);
+
+  // Avatar silhouette on the preview canvas.
+  const canvas = document.getElementById("avatar");
+  const ctx = canvas.getContext("2d");
+  function drawAvatar() {
+    const r = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, r.width * dpr); canvas.height = Math.max(1, r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const w = r.width, h = r.height, cx = w * 0.5;
+    const cs = getComputedStyle(root);
+    const p = cs.getPropertyValue("--primary").trim() || "#c3a6ff";
+    const s = cs.getPropertyValue("--secondary").trim() || "#ff9ccf";
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalAlpha = 0.95;
+    const body = ctx.createLinearGradient(0, h * 0.45, 0, h);
+    body.addColorStop(0, s); body.addColorStop(1, p);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.2, h); ctx.quadraticCurveTo(cx - w * 0.18, h * 0.66, cx, h * 0.64);
+    ctx.quadraticCurveTo(cx + w * 0.18, h * 0.66, cx + w * 0.2, h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#fbe9f0";
+    ctx.beginPath(); ctx.ellipse(cx, h * 0.43, w * 0.085, h * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = p;
+    ctx.beginPath(); ctx.ellipse(cx, h * 0.36, w * 0.105, h * 0.15, 0, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx - w * 0.1, h * 0.47, w * 0.03, h * 0.16, 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + w * 0.1, h * 0.47, w * 0.03, h * 0.16, -0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#3a2550";
+    ctx.beginPath(); ctx.ellipse(cx - w * 0.032, h * 0.45, w * 0.011, h * 0.03, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + w * 0.032, h * 0.45, w * 0.011, h * 0.03, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = s; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.ellipse(cx - w * 0.05, h * 0.5, w * 0.016, h * 0.015, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + w * 0.05, h * 0.5, w * 0.016, h * 0.015, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  new ResizeObserver(drawAvatar).observe(canvas);
+  new MutationObserver(drawAvatar).observe(root, { attributes: true, attributeFilter: ["data-palette", "data-theme"] });
+
+  // Tooltip behaviour: show after a short rest, hide on leave, keep inside the viewport.
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  tip.setAttribute("role", "tooltip");
+  document.body.appendChild(tip);
+  let tipTimer = 0, tipTarget = null;
+  function showTip(el) {
+    const entry = tips[lang][el.dataset.tip];
+    if (!entry) return;
+    tip.textContent = entry[0];
+    if (entry[1]) { const k = document.createElement("kbd"); k.textContent = entry[1]; tip.appendChild(k); }
+    tip.style.left = "0px"; tip.style.top = "0px";
+    const r = el.getBoundingClientRect(), t = tip.getBoundingClientRect();
+    let x = r.left + r.width / 2 - t.width / 2;
+    x = Math.max(8, Math.min(x, window.innerWidth - t.width - 8));
+    let y = r.top - t.height - 8;
+    if (y < 8) y = r.bottom + 8;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+    tip.classList.add("show");
+  }
+  function hideTip() { clearTimeout(tipTimer); tip.classList.remove("show"); tipTarget = null; }
+  document.addEventListener("pointerover", e => {
+    const el = e.target.closest("[data-tip]");
+    if (el === tipTarget) return;
+    hideTip();
+    if (!el) return;
+    tipTarget = el;
+    tipTimer = setTimeout(() => showTip(el), 450);
+  });
+  document.addEventListener("focusin", e => {
+    const el = e.target.closest("[data-tip]");
+    hideTip();
+    if (el && el.matches(":focus-visible")) { tipTarget = el; showTip(el); }
+  });
+  document.addEventListener("focusout", hideTip);
+  document.addEventListener("pointerdown", hideTip);
+  window.addEventListener("scroll", hideTip, { passive: true });
+
+  // Preview full screen: an in-page overlay, plus the browser's full screen where the frame allows it.
+  const preview = document.getElementById("preview");
+  const fsBtn = document.getElementById("fs-btn");
+  const fsHint = preview.querySelector(".fs-hint");
+  const enterIco = '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>';
+  const exitIco = '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>';
+  let backdrop = null;
+  function setFull(on) {
+    if (on === preview.classList.contains("is-full")) return;
+    hideTip();
+    preview.classList.toggle("is-full", on);
+    document.getElementById("fs-ico").innerHTML = on ? exitIco : enterIco;
+    fsBtn.dataset.tip = "tip.fs";
+    fsHint.hidden = !on;
+    if (on) {
+      backdrop = document.createElement("div");
+      backdrop.className = "fs-backdrop";
+      backdrop.addEventListener("click", () => setFull(false));
+      document.body.appendChild(backdrop);
+      document.body.style.overflow = "hidden";
+      const req = document.documentElement.requestFullscreen;
+      if (req) document.documentElement.requestFullscreen().catch(() => {});
+      fsBtn.focus({ preventScroll: true });
+    } else {
+      if (backdrop) backdrop.remove();
+      backdrop = null;
+      document.body.style.overflow = "";
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }
+  }
+  fsBtn.addEventListener("click", () => setFull(!preview.classList.contains("is-full")));
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) setFull(false); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") setFull(false);
+    const typing = e.target.closest("input, select, textarea");
+    if (!typing && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) setFull(!preview.classList.contains("is-full"));
+  });
+
+  // Color vision simulation (Viénot/Brettel-style matrices). Applied to the root element so that
+  // fixed elements such as the tooltip and the full-screen preview are simulated too.
+  const svgNS = "http://www.w3.org/2000/svg";
+  const defs = document.createElementNS(svgNS, "svg");
+  defs.setAttribute("width", "0"); defs.setAttribute("height", "0"); defs.setAttribute("aria-hidden", "true");
+  defs.style.position = "absolute";
+  const matrices = {
+    protan: "0.152 1.053 -0.205 0 0  0.115 0.786 0.099 0 0  -0.004 -0.048 1.052 0 0  0 0 0 1 0",
+    deutan: "0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0",
+    tritan: "1.256 -0.077 -0.179 0 0  -0.078 0.931 0.148 0 0  0.005 0.691 0.304 0 0  0 0 0 1 0"
+  };
+  Object.keys(matrices).forEach(k => {
+    const f = document.createElementNS(svgNS, "filter");
+    f.id = "cvd-" + k;
+    f.setAttribute("color-interpolation-filters", "linearRGB");
+    const m = document.createElementNS(svgNS, "feColorMatrix");
+    m.setAttribute("type", "matrix"); m.setAttribute("values", matrices[k]);
+    f.appendChild(m); defs.appendChild(f);
+  });
+  document.body.appendChild(defs);
+  function setVision(v) {
+    root.style.filter = v === "none" ? "" : v === "gray" ? "grayscale(1)" : "url(#cvd-" + v + ")";
+    document.querySelectorAll("[data-vision]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.vision === v)));
+  }
+  document.querySelectorAll("[data-vision]").forEach(b => b.addEventListener("click", () => setVision(b.dataset.vision)));
+  setVision("none");
+
+  setPalette(store.get("vvs-palette") || "lavender");
+  setMode(currentMode());
+  setLang(store.get("vvs-lang") === "en" ? "en" : "ja");
+})();
+</script>
+</body>
+</html>
