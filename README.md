@@ -33,3 +33,11 @@ Open `unity/VirtualVesselStudio` from Unity Hub.
 English versions are maintained under `docs/en/` with the same relative paths.
 
 Development agents and contributors should read `CLAUDE.md` before making changes.
+
+## License
+
+Virtual Vessel Studio is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.
+
+The name "Virtual Vessel Studio" and its logos are not covered by the license. See [TRADEMARKS.md](TRADEMARKS.md).
+
+Third-party components, models, and runtimes distributed with the application are subject to their own licenses.
