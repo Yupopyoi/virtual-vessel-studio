@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -16,6 +17,14 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
 
         private const string SensitiveKeyPattern =
             @"stream[\s_-]?key|password|passwd|pwd|(?:access[\s_-]?|refresh[\s_-]?|auth[\s_-]?)?token|api[\s_-]?key|client[\s_-]?secret|secret|credential";
+
+        // Every pattern below needs one of these words to match. Checking for them first keeps
+        // ordinary messages off the regexes, which cost tens of microseconds per call on Unity's
+        // runtime and run on the caller's thread. Lower-case ASCII only; keep in sync with the patterns.
+        private static readonly string[] s_triggerWords =
+        {
+            "key", "pass", "pwd", "token", "secret", "credential", "bearer", "rtmp",
+        };
 
         private static readonly Regex s_bearer = new Regex(
             @"(authorization\s*[:=]\s*bearer\s+)[^\s""',;]+",
@@ -42,7 +51,7 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
         /// </summary>
         public static string MaskText(string text)
         {
-            if (string.IsNullOrEmpty(text))
+            if (string.IsNullOrEmpty(text) || !ContainsTriggerWord(text))
             {
                 return text;
             }
@@ -58,12 +67,56 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
         /// </summary>
         public static bool IsSensitiveKey(string key)
         {
-            if (string.IsNullOrEmpty(key))
+            if (string.IsNullOrEmpty(key) || !ContainsTriggerWord(key))
             {
                 return false;
             }
 
             return s_sensitiveKeyName.IsMatch(key) || s_sensitiveKeyName.IsMatch(RemoveSeparators(key));
+        }
+
+        /// <summary>
+        /// Returns whether <paramref name="text"/> contains a trigger word, ignoring ASCII case.
+        /// </summary>
+        /// <remarks>
+        /// Hand-written because <c>IndexOf(..., OrdinalIgnoreCase)</c> takes over a microsecond per
+        /// call on Unity's runtime. Only ASCII letters are folded; the regexes would match non-ASCII
+        /// case variants (such as the Kelvin sign), which is not a realistic way to write a key name.
+        /// </remarks>
+        internal static bool ContainsTriggerWord(string text)
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                // Setting bit 5 lower-cases ASCII letters and never turns a non-letter into a letter.
+                char c = (char)(text[i] | 0x20);
+                foreach (string word in s_triggerWords)
+                {
+                    if (word[0] == c && MatchesAt(text, i, word))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool MatchesAt(string text, int start, string word)
+        {
+            if (start + word.Length > text.Length)
+            {
+                return false;
+            }
+
+            for (int j = 1; j < word.Length; j++)
+            {
+                if ((char)(text[start + j] | 0x20) != word[j])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string RemoveSeparators(string key)
