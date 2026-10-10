@@ -961,6 +961,20 @@ where practical.
 
 Use the established project UI architecture.
 
+Before building or changing UI, read:
+
+```text
+docs/<lang>/ui/design-system.md
+docs/<lang>/ui/components.md
+docs/<lang>/ui/ui-guidelines.md
+```
+
+and open the visual reference `docs/assets/ui/styleboard.html` in a browser.
+
+Use only the design tokens defined there. Keep the documents and the styleboard in sync when tokens or components change.
+
+Never convey status by color alone; always pair it with a shape icon and text.
+
 Prefer Unity UI Toolkit unless an approved design requires another approach.
 
 Do not hardcode user-facing text.
@@ -988,7 +1002,10 @@ Review:
 - different text lengths,
 - enabled/disabled states,
 - loading states,
-- error states.
+- error states,
+- dark and light backgrounds,
+- color-view checks (red–green, blue–yellow, gray),
+- keyboard-only operation.
 
 Do not expose developer-only implementation details in normal UI.
 
