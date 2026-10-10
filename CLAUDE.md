@@ -1754,6 +1754,14 @@ Pin external component versions where reproducibility matters.
 
 Do not automatically track upstream latest versions for critical components.
 
+Project-owned code is licensed under the Apache License 2.0 (see `LICENSE`).
+
+A new dependency, bundled component, or model must have a license that allows distribution in combination with Apache-2.0 code and the Unity runtime.
+
+Do not add copyleft (GPL, AGPL) or non-commercial-only dependencies without explicit user approval.
+
+The name "Virtual Vessel Studio" and its logos are covered by `TRADEMARKS.md`, not by the code license.
+
 ---
 
 # 36. Completion Criteria
