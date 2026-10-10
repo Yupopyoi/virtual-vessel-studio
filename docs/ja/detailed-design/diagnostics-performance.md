@@ -368,8 +368,9 @@ GPU使用率、GPU Memory等、環境依存の計測は、対応するModuleの�
 
 性能テストにはUnity公式の**Performance Testing Extension**（`com.unity.test-framework.performance`）を使用する。
 
-- 開発・テスト時のみ使用するPackageであり、ビルドしたApplicationには含まれない。
-- 導入時にVersionを固定し、Licenseを確認する。
+- 開発・テスト時のみ使用するPackageであり、Test Assemblyからのみ参照する。ビルドしたApplicationには含まれない。
+- Unity 6.6ではUnity Editorに同梱されたCore Package（`6.6.0`）である。Versionは`ProjectVersion.txt`のUnity Editor Versionで固定される。
+- LicenseはUnity Companion License（同梱のPerfolizerはMIT）である。
 
 本書の範囲では、以下を計測する。
 
@@ -401,10 +402,10 @@ UnityのTestはUnity Project内のAssemblyにのみ配置できる。そのた�
 Assets/VirtualVessel/Diagnostics/
 ├─ Runtime/
 │  └─ Performance/                  VirtualVessel.Diagnostics.Performance
-│     ├─ IPerformanceMetrics.cs, PerfTimer.cs, PerfCounter.cs, PerfGauge.cs
+│     ├─ IPerformanceMetrics.cs, Metric.cs, PerfTimer.cs, PerfCounter.cs, PerfGauge.cs
 │     ├─ MetricSnapshot.cs, PerformanceSnapshot.cs
 │     ├─ PerformanceMetricsService.cs, PerformanceSettings.cs
-│     ├─ Recording/SampleRing.cs, MetricRegistry.cs
+│     ├─ Recording/SampleRing.cs, MetricRegistry.cs, DetailedSwitch.cs
 │     └─ Builtin/BuiltinMetricsCollector.cs
 └─ Tests/
    ├─ EditMode/

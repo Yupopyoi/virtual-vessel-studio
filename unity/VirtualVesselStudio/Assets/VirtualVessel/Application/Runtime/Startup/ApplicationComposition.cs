@@ -8,6 +8,7 @@ using VirtualVessel.Application.Session;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
 
 namespace VirtualVessel.Application.Startup
@@ -92,10 +93,24 @@ namespace VirtualVessel.Application.Startup
             // Logging starts first and stops last so that every other service's lifecycle is recorded.
             // Services added later keep the created instance in a local, receive its Provider in their
             // factories, and list LoggingService.ServiceName in their dependencies.
+            ApplicationLoggingService logging = null;
             descriptors.Add(new ApplicationServiceDescriptor(
                 LoggingService.ServiceName,
                 ServiceCriticality.Required,
-                () => CreateLogging(context)));
+                () => logging = CreateLogging(context)));
+
+            // Metrics come right after logging so that they stop before it and their totals reach the log.
+            // Services that measure will keep this instance in a local, as with logging, and pass it
+            // to their factories as IPerformanceMetrics.
+            descriptors.Add(new ApplicationServiceDescriptor(
+                PerformanceMetricsService.ServiceName,
+                ServiceCriticality.Optional,
+                () => new PerformanceMetricsService(
+                    CreatePerformanceSettings(context.Environment),
+                    context.MonotonicClock,
+                    context.SystemClock,
+                    logging.Provider.GetLog("Diagnostics", "Performance")),
+                new[] { LoggingService.ServiceName }));
 
             return descriptors;
         }
@@ -106,6 +121,18 @@ namespace VirtualVessel.Application.Startup
             // from pushing logs of real use out of retention (logging detailed design 7.3).
             string folder = environment == RuntimeEnvironment.Editor ? EditorLogFolder : ApplicationLogFolder;
             return Path.Combine(dataRoot.GetDirectory(DataRootDirectory.Logs), folder);
+        }
+
+        /// <summary>
+        /// Detailed metrics default to on in the Editor and off in built applications until the
+        /// Developer Mode setting exists (performance metrics detailed design 7.1).
+        /// </summary>
+        public static PerformanceSettings CreatePerformanceSettings(RuntimeEnvironment environment)
+        {
+            return new PerformanceSettings
+            {
+                DetailedEnabled = environment == RuntimeEnvironment.Editor,
+            };
         }
 
         private static ApplicationLoggingService CreateLogging(ApplicationCompositionContext context)
