@@ -1,0 +1,16 @@
+{
+    "name": "VirtualVessel.Diagnostics",
+    "rootNamespace": "VirtualVessel.Diagnostics",
+    "references": [
+        "VirtualVessel.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
