@@ -7722,15 +7722,6 @@ Conceptually, the following structure is assumed.
 
 ```text
 Video/
-├─ InputCapture/
-│  ├─ IVideoCaptureSource
-│  ├─ IAudioCaptureSource
-│  ├─ CaptureSourceManager
-│  ├─ GameCaptureSource
-│  ├─ GameCaptureAdapter
-│  ├─ SubScreenCaptureSource
-│  └─ DesktopDuplicationAdapter
-│
 ├─ Camera/
 │  ├─ CameraManager
 │  ├─ MainCameraController
@@ -7778,6 +7769,39 @@ Consolidating everything from camera control to YouTube communication into a sin
 and so on affect each other.
 
 Separating each as an independent responsibility limits the impact of adding or changing functions.
+
+Video / audio acquisition such as GameCapture / SubScreenCapture is the responsibility of the independent **Capture module** defined in 2.4, not the Video module.
+
+The Capture module is conceptually assumed to have the following structure.
+
+```text
+Capture/
+├─ Core/
+│  ├─ IVideoCaptureSource
+│  ├─ IAudioCaptureSource
+│  ├─ CaptureSourceInfo
+│  ├─ CaptureFrameInfo
+│  └─ CaptureState
+│
+├─ Sources/
+│  ├─ GameCaptureSource
+│  └─ SubScreenCaptureSource
+│
+├─ Adapters/
+│  ├─ GameCaptureAdapter
+│  └─ DesktopDuplicationAdapter
+│
+├─ Runtime/
+│  └─ CaptureSourceManager
+│
+├─ Diagnostics/
+│  └─ CaptureDiagnostics
+│
+└─ Setup/
+   └─ CaptureSetupController
+```
+
+The Video module does not reference capture sources directly; it handles only the result of rendering the Unity scene, including screen surfaces on the stage, from the main camera (see 10.23).
 
 The class names and directory structure shown here illustrate the approach to dividing responsibilities, and the detailed implementation structure is decided in later design and implementation.
 
@@ -11900,11 +11924,14 @@ Each module is structured to be testable independently as far as practical.
 Tests are broadly classified as follows.
 
 ```text
-Tests/
-├─ Unit/
-├─ Integration/
-└─ System/
+tests/
+├─ unit/
+├─ integration/
+├─ system/
+└─ performance/
 ```
+
+Tests that naturally belong to a specific component or Unity assembly may be placed with that component. The tree above shows where other tests are placed (see 3.3).
 
 ### Unit Test
 
@@ -11925,9 +11952,19 @@ Verifies, as the actual Unity application, an integration of
 
 and so on.
 
+### Performance Test
+
+Measures the performance of real-time processing, such as RVC latency, capture performance, frame time, and long-run operation.
+
+In addition to the performance regression tests in 15.21, hardware-dependent measurements run in the nightly / hardware CI (self-hosted runner) defined in the development workflow.
+
+Historical benchmark / prototype implementations are kept outside the repository as references; `tests/performance/` contains only tests that measure product code.
+
 ### Rationale
 
 A structure that can only be verified with the entire Unity application makes isolating the causes of failures difficult.
+
+Separating performance measurement from correctness tests also allows normal PR CI and performance measurements that require real hardware to run separately.
 
 ---
 

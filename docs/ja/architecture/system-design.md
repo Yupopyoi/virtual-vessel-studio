@@ -7882,15 +7882,6 @@ Stream Key等の秘密情報は出力しない。
 
 ```text
 Video/
-├─ InputCapture/
-│  ├─ IVideoCaptureSource
-│  ├─ IAudioCaptureSource
-│  ├─ CaptureSourceManager
-│  ├─ GameCaptureSource
-│  ├─ GameCaptureAdapter
-│  ├─ SubScreenCaptureSource
-│  └─ DesktopDuplicationAdapter
-│
 ├─ Camera/
 │  ├─ CameraManager
 │  ├─ MainCameraController
@@ -7938,6 +7929,39 @@ Video/
 等が相互に影響する。
 
 それぞれを独立した責務として分離することで、機能の追加・変更による影響範囲を限定する。
+
+GameCapture / SubScreenCapture等の映像・音声取得は、Video Moduleではなく、2.4で定義した独立した**Capture Module**が担当する。
+
+Capture Moduleは概念的に以下の構成を想定する。
+
+```text
+Capture/
+├─ Core/
+│  ├─ IVideoCaptureSource
+│  ├─ IAudioCaptureSource
+│  ├─ CaptureSourceInfo
+│  ├─ CaptureFrameInfo
+│  └─ CaptureState
+│
+├─ Sources/
+│  ├─ GameCaptureSource
+│  └─ SubScreenCaptureSource
+│
+├─ Adapters/
+│  ├─ GameCaptureAdapter
+│  └─ DesktopDuplicationAdapter
+│
+├─ Runtime/
+│  └─ CaptureSourceManager
+│
+├─ Diagnostics/
+│  └─ CaptureDiagnostics
+│
+└─ Setup/
+   └─ CaptureSetupController
+```
+
+Video ModuleはCapture Sourceを直接参照せず、Stage上のScreen Surfaceを含むUnity SceneをMain Cameraから描画した結果のみを扱う（10.23参照）。
 
 なお、ここで示すクラス名やディレクトリ構造は責務分割の考え方を示すものであり、詳細な実装構造については後続の設計および実装時に決定する。
 
@@ -12110,11 +12134,14 @@ OSSとして複数の開発者がコードを読む可能性があり、自動�
 テストを大きく以下に分類する。
 
 ```text
-Tests/
-├─ Unit/
-├─ Integration/
-└─ System/
+tests/
+├─ unit/
+├─ integration/
+├─ system/
+└─ performance/
 ```
+
+特定のComponentやUnity Assemblyへ自然に属するテストは、そのComponent側へ配置してもよい。上記はそれ以外のテストの配置先を示す（3.3参照）。
 
 ### Unit Test
 
@@ -12135,9 +12162,19 @@ Tests/
 
 等を統合して検証する。
 
+### Performance Test
+
+RVC Latency、Capture性能、Frame Time、長時間運用等、リアルタイム処理の性能を計測する。
+
+15.21の性能回帰テストに加え、実機依存の計測は開発運用方針で定義する夜間・実機CI（Self-hosted Runner）で実行する。
+
+過去のBenchmark / Prototype実装は参照用としてRepository外に置き、`tests/performance/`には製品コードを計測するテストのみを置く。
+
 ### 採用理由
 
 すべてをUnityアプリケーション全体でしか検証できない構造では、障害原因の切り分けが困難になる。
+
+また、性能計測を正しさのテストと分離することで、通常のPR CIと実機を必要とする性能計測を別々に実行できる。
 
 ---
 
