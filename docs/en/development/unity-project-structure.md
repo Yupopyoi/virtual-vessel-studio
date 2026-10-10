@@ -79,8 +79,12 @@ Assets/VirtualVessel/<Module>/
    │  ├─ VirtualVessel.<Module>.Tests.EditMode.asmdef
    │  └─ ...
    │
-   └─ PlayMode/
-      ├─ VirtualVessel.<Module>.Tests.PlayMode.asmdef
+   ├─ PlayMode/
+   │  ├─ VirtualVessel.<Module>.Tests.PlayMode.asmdef
+   │  └─ ...
+   │
+   └─ Performance/
+      ├─ VirtualVessel.<Module>.Tests.Performance.asmdef
       └─ ...
 ```
 
@@ -98,6 +102,7 @@ Assets/VirtualVessel/<Module>/
 | Editor | `VirtualVessel.<Module>.Editor` |
 | EditMode test | `VirtualVessel.<Module>.Tests.EditMode` |
 | PlayMode test | `VirtualVessel.<Module>.Tests.PlayMode` |
+| Performance test | `VirtualVessel.<Module>.Tests.Performance` |
 
 ### 4.2 Reference Direction
 
@@ -171,6 +176,7 @@ Namespace names correspond to the module names in system design 2.4. `Project / 
 - Unity tests that belong to a specific module are placed in that module's `Tests/`.
 - Tests that do not belong to a specific module are placed in `tests/` at the repository root (system design 3.3, 15.20).
 - Tests use the Unity Test Framework (NUnit).
+- Performance tests use the Unity Performance Testing Extension (`com.unity.test-framework.performance`) and are placed in each module's `Tests/Performance/`. Because Unity tests can only live inside the Unity project, `tests/performance/` at the repository root holds only hardware CI scripts, baselines for comparison, and result history.
 
 ---
 

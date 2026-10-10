@@ -176,7 +176,7 @@ virtual-vessel-studio/
 
 本書は、`docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`として配置する。
 
-製品の性能計測（夜間・実機CIで実行するBenchmark等）は`tests/performance/`へ配置する。
+製品の性能計測（夜間・実機CIで実行するBenchmark等）について、Unity上で実行する性能テスト本体は各Moduleの`Tests/Performance/`へ配置し、`tests/performance/`には実機CI用の実行Script、比較用の基準値、結果の履歴を置く。
 
 過去のBenchmark / Prototype実装はRepository外の参照用Snapshotとして扱い、本Repositoryへコピーしない（12章参照）。
 
