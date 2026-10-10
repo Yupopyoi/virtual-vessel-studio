@@ -1,0 +1,26 @@
+{
+    "name": "VirtualVessel.Application.Tests.EditMode",
+    "rootNamespace": "VirtualVessel.Application.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "VirtualVessel.Core",
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.Application"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -4,14 +4,19 @@
 # Unity generated files
 # ------------------------------------------------------------
 
-**/Library/
-**/Temp/
-**/Obj/
-**/Logs/
-**/MemoryCaptures/
-**/UserSettings/
-**/Build/
-**/Builds/
+# Anchored to Unity project roots so that source folders with the same
+# names inside Assets/ (for example Application/Runtime/Build) are not ignored.
+/unity/*/Library/
+/unity/*/Temp/
+/unity/*/Obj/
+/unity/*/Logs/
+/unity/*/MemoryCaptures/
+/unity/*/UserSettings/
+/unity/*/Build/
+/unity/*/Builds/
+
+# Logs left at the repository root by Unity Hub before the project moved.
+/Logs/
 
 # Unity-generated IDE/project files
 *.sln

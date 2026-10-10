@@ -76,20 +76,27 @@ Static Service Locatorや、全Serviceを保持して任意に取得できるGlo
 | `IMonotonicClock` | Interface | 単調増加する高分解能時刻 |
 | `ISystemClock` | Interface | 壁時計（UTC） |
 | `IMainThreadDispatcher` | Interface | 任意のThreadからMain Threadへ処理を渡す |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装 |
+| `MainThreadDispatcher` | Class | Queueによる`IMainThreadDispatcher`の実装。Main Threadの所有者が毎Frame`Drain`を呼ぶ |
+
+Clockおよび`MainThreadDispatcher`はUnityEngineに依存しない純粋な.NETコードであり、特定Moduleにも属さないためCoreへ配置する。これにより、EditModeでの高速なテストおよび他Moduleのテストでの再利用が可能となる。
 
 ### 4.2 Application
 
 | 名称 | 種別 | 概要 |
 |---|---|---|
-| `ApplicationBootstrap` | MonoBehaviour | Persistent Sceneに1つだけ配置する入口。Unity Lifecycleと`ApplicationHost`を接続する |
+| `ApplicationBootstrap` | MonoBehaviour | Persistent Sceneに1つだけ配置する入口。Unity Lifecycleと`ApplicationRuntime`を接続し、毎Frame`MainThreadDispatcher.Drain`を呼ぶ |
+| `ApplicationRuntime` | Internal Class | 起動・終了の一連の手順（Data Root解決、Session、Composition、Host）を実行する。UnityEngineに依存しない部分をEditModeでテストするために`ApplicationBootstrap`から分離する |
 | `ApplicationHost` | Internal Class | Serviceの起動・終了順序と状態を管理する |
 | `ApplicationComposition` | Internal Class | どのServiceをどの順序で、どの依存関係で生成するかを明示的に記述する |
-| `ApplicationServiceDescriptor` | Internal Class | Service名、重要度、生成処理 |
+| `ApplicationServiceDescriptor` | Internal Class | Service名、重要度、依存Service、初期化Timeout、生成処理 |
+| `ApplicationStartupOptions` | Public Class | Data Root Override、終了Timeout等の開発者向け起動設定 |
+| `BufferedApplicationLog` | Internal Class | Logging Service起動前後の基盤ログをMemoryへ保持し、Unity Consoleへも出力する |
 | `ApplicationState` | Enum | Application全体の状態 |
 | `SessionInfo` | Public Class | Session ID、開始時刻、前回異常終了の有無 |
+| `SessionMarker` | Internal Class | Session Markerの読み書き |
 | `BuildInfo` | Public Class | Application Version、Unity Version、Build識別子 |
-| `UnityMainThreadDispatcher` | Internal Class | `IMainThreadDispatcher`のUnity実装 |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Internal Class | Clockの実装 |
+| `PersistentScenePlayModeStarter` | Editor | Editor上で常にPersistent SceneからPlay Modeを開始する |
 
 ### 4.3 ProjectData
 
@@ -118,6 +125,8 @@ public interface IApplicationService : IDisposable
 - `InitializeAsync`はApplication起動時に1回だけ呼ばれる。
 - `ShutdownAsync`は起動に成功したServiceに対してのみ、起動と逆順で呼ばれる。
 - `Dispose`は`ShutdownAsync`の成否にかかわらず最後に呼ばれる。
+- 両MethodはMain Thread上で開始される。
+- Editor上でPlay Modeを終了する場合、HostはMain Thread上で`ShutdownAsync`の完了を同期的に待つ（7.2参照）。そのため、`ShutdownAsync`は終了処理の開始後にMain Threadへ戻る処理をawaitしてはならない。Main Threadでの後始末を先に同期的に行い、残りの待機には`ConfigureAwait(false)`を使用する。
 
 ### 5.2 Clock
 
@@ -268,7 +277,9 @@ sequenceDiagram
 
 終了処理全体にTimeoutを設け、超過した場合は残りの処理を中断して終了する。Timeoutが発生したServiceは記録する。
 
-Editor上でPlay Modeを終了した場合も同じ終了処理を行う。
+Editor上でPlay Modeを終了した場合、Unityは`Application.wantsToQuit`を発生させず、非同期処理の完了も待たない。そのため`OnApplicationQuit`で同じ手順を同期的に実行する。このとき各Serviceの`ShutdownAsync`はMain Thread上で同期的に待機され、終了Timeoutの範囲で打ち切られる。
+
+起動処理の途中で終了した場合、初期化中のServiceは`ShutdownAsync`を呼ばれずに`Dispose`される。
 
 ### 7.3 状態遷移
 
@@ -339,7 +350,12 @@ stateDiagram-v2
 | Service Initialize Timeout | Serviceごとに指定（既定10秒） | 起動の無期限待機防止 |
 | Shutdown Timeout | 10秒 | 終了の無期限待機防止 |
 
-Data Root Overrideは、Command Line引数`--data-root <path>`からも指定可能とする。通常利用者向けUIには表示しない。
+Data Root Overrideは以下から指定可能とする。通常利用者向けUIには表示しない。
+
+1. Command Line引数`--data-root <path>`
+2. 環境変数`VIRTUAL_VESSEL_DATA_ROOT`
+
+両方が指定された場合はCommand Line引数を優先する。環境変数は、PlayMode TestやCIが開発者の実際のData Rootを使用しないために利用する。
 
 ---
 
@@ -413,25 +429,27 @@ Logging Serviceの起動前に発生した記録は、Memory上に保持し、Lo
 ```text
 Assets/VirtualVessel/
 ├─ Core/
-│  ├─ Runtime/                      VirtualVessel.Core
+│  ├─ Runtime/                      VirtualVessel.Core（noEngineReferences）
 │  │  ├─ Lifecycle/IApplicationService.cs
-│  │  ├─ Time/IMonotonicClock.cs, ISystemClock.cs
-│  │  └─ Threading/IMainThreadDispatcher.cs
+│  │  ├─ Time/IMonotonicClock.cs, ISystemClock.cs, StopwatchMonotonicClock.cs, UtcSystemClock.cs
+│  │  └─ Threading/IMainThreadDispatcher.cs, MainThreadDispatcher.cs
 │  └─ Tests/EditMode/
 │
 ├─ Application/
 │  ├─ Runtime/                      VirtualVessel.Application
 │  │  ├─ ApplicationBootstrap.cs
-│  │  ├─ Hosting/ApplicationHost.cs, ApplicationComposition.cs, ...
+│  │  ├─ Hosting/ApplicationHost.cs, ApplicationServiceDescriptor.cs, ...
+│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs, ApplicationStartupOptions.cs
+│  │  ├─ Logging/ApplicationLog.cs
 │  │  ├─ Session/SessionInfo.cs, SessionMarker.cs
-│  │  ├─ Build/BuildInfo.cs
-│  │  ├─ Time/StopwatchMonotonicClock.cs, UtcSystemClock.cs
-│  │  └─ Threading/UnityMainThreadDispatcher.cs
+│  │  └─ Build/BuildInfo.cs
+│  ├─ Editor/                       VirtualVessel.Application.Editor
+│  │  └─ PersistentScenePlayModeStarter.cs
 │  └─ Tests/EditMode/, Tests/PlayMode/
 │
 └─ ProjectData/
    ├─ Runtime/                      VirtualVessel.ProjectData
-   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs
+   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
    └─ Tests/EditMode/
 
 Assets/Scenes/
@@ -440,7 +458,9 @@ Assets/Scenes/
 
 URP Templateから残っている`SampleScene`は、`Persistent.unity`作成時にBuild Settingsから外し削除する。
 
-Editor上でPersistent Scene以外のSceneからPlay Modeを開始した場合は、開発用のEditor処理によりPersistent Sceneを先に読み込む。
+Editor上でPersistent Scene以外のSceneからPlay Modeを開始した場合も、`PersistentScenePlayModeStarter`が`EditorSceneManager.playModeStartScene`を設定し、Persistent Sceneから開始する。
+
+PlayMode TestもPlay Modeへ入るため、Test実行中およびBatch Modeではこの設定を解除する。テストが実際のApplicationを開発者のData Rootで起動することを防ぐためである。
 
 ---
 
