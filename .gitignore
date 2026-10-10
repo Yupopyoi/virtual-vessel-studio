@@ -14,6 +14,8 @@
 **/Builds/
 
 # Unity-generated IDE/project files
+*.sln
+*.slnx
 *.csproj
 *.csproj.user
 *.unityproj

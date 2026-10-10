@@ -1,8 +1,8 @@
-# VTuber統合環境 開発運用方針
+# Virtual Vessel Studio 開発運用方針
 
 ## 1. 目的
 
-本書は、VTuber統合環境を今後どのように開発・管理・検証・リリースしていくかを定義する。
+本書は、Virtual Vessel Studioを今後どのように開発・管理・検証・リリースしていくかを定義する。
 
 方式設計では「システムをどのような構成にするか」を定義した。本書では、その方式設計を前提として、
 
@@ -139,9 +139,10 @@ CIは「Claude Codeが完了と言ったか」ではなく、Repositoryとして
 概念的に以下の構成とする。
 
 ```text
-Repository/
+virtual-vessel-studio/
 ├─ CLAUDE.md
 ├─ README.md
+├─ .editorconfig
 ├─ .gitignore
 ├─ .gitattributes
 │
@@ -151,24 +152,33 @@ Repository/
 │  └─ pull_request_template.md
 │
 ├─ docs/
-│  ├─ architecture/
-│  │  └─ system-design.md
-│  ├─ detailed-design/
-│  ├─ development/
-│  │  └─ development-workflow.md
-│  ├─ decisions/
-│  └─ ui/
+│  ├─ ja/
+│  │  ├─ architecture/
+│  │  │  └─ system-design.md
+│  │  ├─ detailed-design/
+│  │  ├─ development/
+│  │  │  └─ development-workflow.md
+│  │  ├─ decisions/
+│  │  └─ ui/
+│  └─ en/
+│     └─ (jaと同一の構成)
 │
 ├─ unity/
+│  └─ VirtualVesselStudio/
+├─ native/
 ├─ services/
 ├─ tools/
-├─ tests/
-└─ benchmarks/
+└─ tests/
+   └─ performance/
 ```
 
 `docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`には、完成した方式設計書を配置する。
 
-本書は、`docs/development/development-workflow.md`として配置する。
+本書は、`docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`として配置する。
+
+製品の性能計測（夜間・実機CIで実行するBenchmark等）は`tests/performance/`へ配置する。
+
+過去のBenchmark / Prototype実装はRepository外の参照用Snapshotとして扱い、本Repositoryへコピーしない（12章参照）。
 
 ---
 
@@ -176,7 +186,10 @@ Repository/
 
 Repository Rootの`CLAUDE.md`は、Claude Codeに毎回説明し直したくない**Project共通の固定ルール**を記載する。
 
-ただし、`CLAUDE.md`を巨大な詳細設計書にはしない。
+`CLAUDE.md`と本書は、以下のように役割を分ける。
+
+- `CLAUDE.md`: Claude Codeが常に守る必要があるルール。Git操作の手順や制約、Commit / Push / Pull Requestの扱い等、Claude Codeの行動を直接拘束する内容を含む。
+- 本書: 人間向けの背景・理由、役割分担、CI / Release構成、運用の段階的な導入計画等。
 
 Rootの`CLAUDE.md`には主に以下を置く。
 
@@ -184,15 +197,15 @@ Rootの`CLAUDE.md`には主に以下を置く。
 - 参照すべき文書
 - Task開始時の標準手順
 - Benchmarkの扱い
-- Gitの禁止事項
+- Git Workflow（Branch、Commit、Push、禁止操作）
 - Test / Reviewの最低条件
 - ユーザー確認が必要な変更
 
-詳細なModule設計は`docs/detailed-design/`へ分離する。
+ただし、`CLAUDE.md`を巨大な詳細設計書にはしない。
 
-詳細な開発フローは本書へ分離する。
+詳細なModule設計は`docs/<lang>/detailed-design/`へ分離する。
 
-これにより、Claude Codeへ常時渡すContextを必要以上に大きくしない。
+これにより、Claude Codeが必ず守るべきルールを確実に読み込ませつつ、Module固有の詳細でContextを必要以上に大きくしない。
 
 ---
 
@@ -244,25 +257,33 @@ Pull Request経由でMergeする。
 
 1 Pull Requestは原則として1つの目的に限定する。
 
-Pull Requestには最低限以下を記載する。
+Pull Requestには最低限以下を記載する（`CLAUDE.md` 30章と同一）。
 
 ```text
-変更概要
-関連する方式設計
-関連する詳細設計
-主な変更
-Test結果
-Benchmark結果
-UI確認
-互換性への影響
-残課題
+Summary
+Related issue
+Design
+Changes
+Commits
+Tests
+Benchmarks
+UI verification
+Compatibility / Migration
+Documentation
+Remaining issues
 ```
+
+関連する方式設計・詳細設計は`Design`へ記載する。
+
+Templateは`.github/pull_request_template.md`とする。
 
 ## 6.5 Merge方式
 
-基本的にはSquash Mergeを推奨する。
+通常のMerge（Merge Commit）を基本とする。
 
-Feature Branch内でClaude Codeが細かい修正Commitを多数作成しても、`main`上では1 Taskを1つの意味のあるCommitとして残しやすいためである。
+Branch内のCommitは、`CLAUDE.md` 29章に従って検証済みの論理単位として作成する。それらを`main`上にもそのまま残し、機能がどのような手順で構築されたかをCommit履歴から追えるようにする。
+
+Branch内のCommit履歴が分かりにくくなった場合は、Push前に整理を提案する。公開済みの履歴は、ユーザーの明示的な承認なしに書き換えない。
 
 ---
 
@@ -547,7 +568,7 @@ Capture Moduleの実装を開始します。
 以下を確認してください。
 
 - CLAUDE.md
-- docs/architecture/system-design.md
+- docs/ja/architecture/system-design.md
 - 関係する既存コード
 - GameCaptureのBenchmark / Prototype
 - SubScreenCaptureのBenchmark / Prototype
@@ -581,7 +602,8 @@ Capture Moduleの実装を開始します。
 保存先:
 
 ```text
-docs/detailed-design/<module>.md
+docs/ja/detailed-design/<module>.md
+docs/en/detailed-design/<module>.md
 ```
 
 ## 11.2 詳細設計に含める内容
@@ -666,7 +688,7 @@ Architectureを綺麗にすることだけを理由として、成立済みの�
 依頼例:
 
 ```text
-docs/detailed-design/capture.md に従って実装してください。
+docs/ja/detailed-design/capture.md に従って実装してください。
 
 - CLAUDE.mdを厳守してください。
 - Benchmarkで成立している性能特性を維持してください。
@@ -947,7 +969,7 @@ flowchart LR
 生成物例:
 
 ```text
-VCBM-v0.3.0-win-x64.zip
+VirtualVesselStudio-v0.1.0-win-x64.zip
 SHA256SUMS.txt
 ```
 
@@ -1012,9 +1034,10 @@ Taskが完了したら、新しいModuleでは新しいSessionを開始してよ
 - 必ず読むDocument
 - Benchmarkの扱い
 - Task開始手順
-- Git上の禁止事項
+- Git Workflow（Branch、Commit、Push、禁止操作）
 - Test / Review原則
 - User confirmationが必要な条件
+- Coding Style、Documentation等、Claude Codeが常に守るべき規約
 
 ## 書かない
 
@@ -1023,6 +1046,7 @@ Taskが完了したら、新しいModuleでは新しいSessionを開始してよ
 - 個別Task専用の指示
 - 一時的なBugの内容
 - Benchmark結果の全履歴
+- 人間向けの背景説明、CI / Release構成の詳細
 
 詳細情報は適切な文書へ分離する。
 
@@ -1200,26 +1224,30 @@ Documentation:
 
 # 付録A. 推奨Pull Request Template
 
+実際のTemplateは`.github/pull_request_template.md`とし、`CLAUDE.md` 30章の項目に合わせる。
+
 ```markdown
-## 変更概要
+## Summary
 
-## 関連Issue
+## Related issue
 
-## 関連する方式設計・詳細設計
+## Design
 
-## 主な変更
+## Changes
 
-## Test
+## Commits
 
-## Benchmark
+## Tests
 
-## UI確認
+## Benchmarks
+
+## UI verification
 
 ## Compatibility / Migration
 
 ## Documentation
 
-## 残課題
+## Remaining issues
 ```
 
 ---
