@@ -16,6 +16,11 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
     /// </remarks>
     internal sealed class LogPipeline
     {
+        // Reused per thread so that submitting an entry does not allocate a list each time.
+        // Submit never re-enters itself on the same thread, so one list per thread is enough.
+        [ThreadStatic]
+        private static List<LogEntry> t_summaries;
+
         private readonly ISystemClock _systemClock;
         private readonly IMonotonicClock _monotonicClock;
         private readonly long _sessionStartTimestamp;
@@ -119,8 +124,9 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
                 MaskProperties(properties),
                 context,
                 exception?.GetType().FullName,
-                exception == null ? null : SecretMasker.MaskText(exception.ToString()),
-                Thread.CurrentThread.ManagedThreadId);
+                null,
+                Thread.CurrentThread.ManagedThreadId,
+                sourceException: exception);
 
             Submit(entry, now);
         }
@@ -211,13 +217,15 @@ namespace VirtualVessel.Diagnostics.Logging.Pipeline
 
         private void Submit(LogEntry entry, long now)
         {
-            var summaries = new List<LogEntry>(0);
+            List<LogEntry> summaries = t_summaries ??= new List<LogEntry>();
             bool write = _repeatSuppressor.ShouldWrite(entry, now, summaries);
 
-            foreach (LogEntry summary in summaries)
+            for (int i = 0; i < summaries.Count; i++)
             {
-                Enqueue(summary);
+                Enqueue(summaries[i]);
             }
+
+            summaries.Clear();
 
             if (write)
             {

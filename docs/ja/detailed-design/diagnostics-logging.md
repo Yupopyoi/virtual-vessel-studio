@@ -43,7 +43,7 @@ flowchart LR
 
     subgraph Pipeline["LogPipeline（呼び出し元Threadで実行）"]
         Level["1. Level判定<br/>無効ならここで終了"]
-        Mask["2. 秘密情報のMasking"]
+        Mask["2. 秘密情報のMasking<br/>（例外のStack Traceを除く）"]
         Repeat["3. 同一ログの集約"]
     end
 
@@ -70,6 +70,8 @@ flowchart LR
     Writer --> Recent
     Recent -.-> Viewer
 ```
+
+例外のStack Traceの文字列化とMaskingは数十µsかかるため、呼び出し元ではなく書き出しThreadで行う（16章）。
 
 呼び出し元が行うのはQueueへの投入までであり、ファイル書き込みを待たない。音声やTracking等のThreadから呼んでも処理が止まらないのはこのためである。
 
@@ -341,6 +343,7 @@ sequenceDiagram
     Pipeline->>Queue: Enqueue（満杯なら破棄し件数を記録）
     Pipeline-->>Caller: Return（Blockしない）
     Writer->>Queue: Dequeue
+    Writer->>Writer: 例外があればStack Traceを文字列化しMasking
     Writer->>Sinks: 書き出し
 ```
 
@@ -453,7 +456,8 @@ Logging Service自身の状態をDiagnosticsから参照可能とする。
 | EditMode | Level判定、Module別Level、`IsEnabled` |
 | EditMode | `WithContext`の不変性とContextの付与 |
 | EditMode | JSON Linesの出力内容、文字列Escape |
-| EditMode | `SecretMasker`の各パターン |
+| EditMode | `SecretMasker`の各パターン、事前判定の語が全パターンを網羅していること |
+| EditMode | 例外の文字列化が呼び出し元で行われないこと |
 | EditMode | 同一ログ抑制（Fake Clockを使用） |
 | EditMode | Queue上限と破棄件数 |
 | EditMode | ファイルサイズによる切り替え、保持設定による削除 |
@@ -468,6 +472,9 @@ Logging Service自身の状態をDiagnosticsから参照可能とする。
 ## 16. 性能
 
 - `Write`の呼び出し元のコストは、Level判定、Masking、Queue投入のみとし、File I/Oを含めない。
+- Maskingの正規表現はUnityのRuntime上で1回数十µsかかる。そのため、どのパターンにも必要な語（`key`、`pass`、`pwd`、`token`、`secret`、`credential`、`bearer`、`rtmp`）を大文字小文字を区別せずに先に探し、含まれる場合のみ正規表現を適用する。パターンを追加するときは、この語の一覧も更新する。
+- 例外の`ToString()`とそのMaskingは呼び出し元で行わない。`LogEntry`は例外を保持し、`ExceptionText`が最初に参照された時点（通常は書き出しThread）で文字列化し、例外への参照を解放する。
+- 呼び出しコストは`VirtualVessel.Diagnostics.Tests.Performance`の`MeasurementCostTests`で測定する。開発機のEditorでの参考値は、1回あたり約4µs（例外付きを含む）、Allocation 2回である。
 - Level無効時はAllocationを発生させない。
 - 書き出しThreadはQueueが空の間は待機し、CPUを消費しない。
 - 書き出しはBufferingし、1件ごとにFlushしない。ただしError以上は即時Flushし、異常終了直前のログを失いにくくする。
