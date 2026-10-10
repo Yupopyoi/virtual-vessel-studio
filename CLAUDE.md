@@ -1284,7 +1284,14 @@ Do not mix unrelated features, fixes, refactoring, or documentation work into th
 
 Before modifying files, confirm the current branch.
 
-If the current branch is `main`, create an appropriate task branch before implementation unless the current operation is explicitly limited to repository administration or another user-approved exception.
+If the current branch is `main`, create an appropriate task branch before modifying any tracked file.
+
+The only exceptions are:
+
+- operations that do not change repository contents, such as GitHub repository settings, branch protection rules, labels, or issue management,
+- work that the user has explicitly instructed to perform directly on `main` for the current task.
+
+Documentation, `CLAUDE.md`, configuration, and repository-structure changes are not exceptions and use a task branch.
 
 ---
 
@@ -1297,13 +1304,11 @@ Each step should have a clear purpose and an independently understandable result
 Prefer development sequences such as:
 
 ```text
-Define interface
+Define interface and contract tests
     ↓
-Add core implementation
+Add core implementation with unit tests
     ↓
-Add integration
-    ↓
-Add tests
+Add integration with integration tests
     ↓
 Add diagnostics
     ↓
@@ -1311,6 +1316,8 @@ Update documentation
 ```
 
 rather than implementing the entire subsystem as one large change.
+
+Each step includes the tests that verify it. Do not defer all tests to a final step.
 
 A development step should be small enough that:
 
