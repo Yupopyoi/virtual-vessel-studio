@@ -28,6 +28,84 @@ Related system design sections:
 - 5.35 Limiting the runtime impact of diagnostics
 - 15.7 Limiting main thread load
 
+### Overview
+
+Logs flow through "sources", "pipeline", "queue", "writer thread", and "sinks" in that order.
+
+```mermaid
+flowchart LR
+    subgraph Sources["Sources (any thread)"]
+        Modules["Each module<br/>ILog.Write"]
+        UnityLogs["Unity's own logs<br/>Debug.Log, etc."]
+        Unhandled["Unhandled exceptions"]
+        Early["Startup logs<br/>(kept by Application<br/>before logging starts)"]
+    end
+
+    subgraph Pipeline["LogPipeline (runs on the calling thread)"]
+        Level["1. Level check<br/>stop here if disabled"]
+        Mask["2. Secret masking"]
+        Repeat["3. Repeat aggregation"]
+    end
+
+    Queue[("Queue<br/>limit 10,000 entries<br/>discard and count when full")]
+
+    Writer["Dedicated writer thread"]
+
+    subgraph Sinks["Sinks"]
+        File["Log files<br/>Logs/Application<br/>Logs/Editor"]
+        Console["Unity console"]
+        Recent["Recent logs<br/>(memory, 2,000 entries)"]
+    end
+
+    Viewer["Future: log viewer<br/>diagnostics snapshot"]
+
+    Modules --> Level
+    UnityLogs --> Level
+    Unhandled --> Level
+    Early --> Level
+    Level --> Mask --> Repeat --> Queue
+    Queue --> Writer
+    Writer --> File
+    Writer --> Console
+    Writer --> Recent
+    Recent -.-> Viewer
+```
+
+The caller only enqueues and does not wait for file writes. This is why calling from audio, tracking, or similar threads does not stall their processing.
+
+```mermaid
+sequenceDiagram
+    participant Audio as Audio thread, etc.
+    participant Pipeline as LogPipeline
+    participant Queue as Queue
+    participant Writer as Writer thread
+    participant File as Log file
+
+    Audio->>Pipeline: log.Warning("Buffer underrun")
+    Pipeline->>Queue: Enqueue
+    Pipeline-->>Audio: Return immediately
+    Note over Audio: Audio processing continues
+    Writer->>Queue: Dequeue
+    Writer->>File: Write
+```
+
+Within the whole application, the logging service starts first and stops last.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Logging as Logging service
+    participant Others as Other services
+
+    App->>App: Resolve Data Root, start session (logs kept in memory)
+    App->>Logging: Start (create file, start writer thread)
+    App->>Logging: Take over kept startup logs with original timestamps
+    App->>Others: Start (pass ILogProvider)
+    Note over App,Others: While running: all logs go to the file
+    App->>Others: Stop
+    App->>Logging: Stop (write the rest and close the file)
+```
+
 ---
 
 ## 2. Responsibilities
