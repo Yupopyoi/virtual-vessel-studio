@@ -1240,57 +1240,354 @@ If documentation cannot be updated within the current task, report the mismatch 
 
 ---
 
-# 29. Git Rules
+# 29. Git Workflow
 
-Use Git conservatively.
+Git history should reflect the actual development process.
 
-Normal feature development should use short-lived task branches.
+Work must be divided into small, reviewable, logically coherent steps.
 
-Typical names include:
+Do not accumulate a large amount of unrelated implementation before committing.
+
+---
+
+## 29.1 Branch Policy
+
+Do not perform normal feature development directly on `main`.
+
+Before starting implementation work, create or switch to a dedicated short-lived task branch.
+
+Typical branch prefixes are:
 
 ```text
-feature/<name>
-fix/<name>
-refactor/<name>
-docs/<name>
-chore/<name>
+feature/<task-name>
+fix/<task-name>
+refactor/<task-name>
+docs/<task-name>
+chore/<task-name>
 ```
 
-Keep one logical purpose per change.
+Examples:
 
-Do not:
+```text
+feature/capture-source-abstraction
+feature/voice-model-management
+fix/external-service-startup
+refactor/audio-routing
+docs/english-architecture
+```
 
-- rewrite unrelated user changes,
-- discard uncommitted user work,
-- force-push without explicit approval,
-- reset history destructively without explicit approval,
-- mix unrelated refactoring into feature changes.
+One branch should represent one clearly defined task or closely related unit of work.
 
-Inspect the final diff before completion.
+If a task becomes too broad, split it into multiple branches or explicitly defined follow-up tasks.
 
-Commit messages are English.
+Do not mix unrelated features, fixes, refactoring, or documentation work into the same branch unless they are required to complete the same logical task.
 
-Prefer clear, concise commit messages such as:
+Before modifying files, confirm the current branch.
+
+If the current branch is `main`, create an appropriate task branch before implementation unless the current operation is explicitly limited to repository administration or another user-approved exception.
+
+---
+
+## 29.2 Task Decomposition
+
+Before implementation, divide substantial work into small logical steps.
+
+Each step should have a clear purpose and an independently understandable result.
+
+Prefer development sequences such as:
+
+```text
+Define interface
+    ↓
+Add core implementation
+    ↓
+Add integration
+    ↓
+Add tests
+    ↓
+Add diagnostics
+    ↓
+Update documentation
+```
+
+rather than implementing the entire subsystem as one large change.
+
+A development step should be small enough that:
+
+- its purpose is easy to explain,
+- its diff can be reviewed independently,
+- failures can be isolated,
+- the code can be reverted without discarding unrelated work,
+- the associated verification can be clearly identified.
+
+Do not artificially split changes into meaningless tiny commits.
+
+The goal is small logical units, not commits for every file or every few lines.
+
+---
+
+## 29.3 Commit Policy
+
+Create commits at verified logical checkpoints.
+
+A commit should represent a coherent unit of work whose relevant behavior has been checked.
+
+Examples of appropriate commit boundaries include:
+
+```text
+Add capture source interfaces
+Add GameCapture adapter implementation
+Add capture lifecycle tests
+Add capture diagnostics
+Update capture detailed design
+```
+
+A commit should not contain multiple unrelated purposes.
+
+Before committing:
+
+1. Review `git status`.
+2. Review the relevant diff.
+3. Confirm that only intended files are included.
+4. Run the checks appropriate for that logical unit.
+5. Confirm that the code is in a usable intermediate state.
+6. Stage only the intended files.
+7. Review the staged diff.
+8. Create the commit.
+
+Do not knowingly commit code that is in the middle of an incomplete edit, does not compile where compilation is expected, or breaks already working behavior without an explicit reason.
+
+The repository should remain reasonably usable at each commit boundary.
+
+---
+
+## 29.4 Verification Before Commit
+
+The verification required before each commit depends on the change.
+
+Examples include:
+
+- compilation,
+- unit tests,
+- integration tests,
+- Unity EditMode tests,
+- Unity PlayMode tests,
+- Python tests,
+- native builds,
+- manual runtime checks,
+- focused performance benchmarks.
+
+Run the smallest sufficient verification for the current logical unit.
+
+Do not delay all verification until the end of the entire branch.
+
+When practical, detect problems immediately after the step that introduced them.
+
+If a check cannot be run, explicitly record that fact before committing and describe the remaining risk.
+
+Never claim that a check passed if it was not actually executed.
+
+---
+
+## 29.5 Commit Size
+
+Prefer multiple small, meaningful commits over one large final commit.
+
+A typical substantial task may contain several commits such as:
+
+```text
+feat: add capture source contracts
+feat: add game capture adapter
+test: add capture lifecycle tests
+feat: add capture diagnostics
+docs: add capture detailed design
+```
+
+Each commit should be understandable from its message and diff.
+
+Avoid commits such as:
+
+```text
+feat: implement capture module
+```
+
+when that commit contains hundreds of unrelated design, implementation, test, UI, and documentation changes that could have been separated into meaningful checkpoints.
+
+Also avoid meaningless fragmentation such as:
+
+```text
+fix typo
+update file
+more changes
+test
+final fix
+```
+
+Commit history should communicate how the feature was built.
+
+---
+
+## 29.6 Commit Messages
+
+Commit messages must be written in English.
+
+Prefer Conventional Commit-style prefixes where appropriate:
+
+```text
+feat:
+fix:
+refactor:
+test:
+docs:
+chore:
+perf:
+build:
+ci:
+```
+
+Examples:
 
 ```text
 feat: add capture source abstraction
+feat: add GameCapture adapter
+test: add capture source lifecycle tests
+perf: reduce capture frame copies
 fix: handle capture device disconnect
 refactor: isolate external service lifecycle
-docs: update voice lab runtime packaging
+docs: add capture detailed design
 chore: update editor configuration
 ```
+
+Messages should describe the logical result of the commit rather than the mechanical action performed.
+
+---
+
+## 29.7 Claude Code Commit Authority
+
+Claude Code may create local commits as part of an approved implementation task.
+
+Claude Code should create commits when a logical unit of work:
+
+- is complete,
+- has been reviewed,
+- has received the appropriate verification,
+- and is useful as an independent development checkpoint.
+
+Claude Code does not need to ask for approval before every local commit when the user has already delegated implementation of the task.
+
+However, Claude Code must not create commits merely to save temporary or broken intermediate states.
+
+If a commit contains known limitations, failed checks, or intentionally incomplete behavior, make that clear to the user.
+
+---
+
+## 29.8 Push Policy
+
+Remote push is user-controlled.
+
+Claude Code must not execute:
+
+```text
+git push
+```
+
+without explicit user approval.
+
+This includes:
+
+- the first push of a branch,
+- subsequent pushes,
+- force pushes,
+- pushing tags.
+
+When the branch is ready to push, stop and report:
+
+- the current branch,
+- commits that would be pushed,
+- a short summary of each commit,
+- verification performed,
+- known issues or unverified items.
+
+Then wait for explicit user approval before pushing.
+
+Example:
+
+```text
+Branch:
+feature/capture-source-abstraction
+
+Commits:
+1. feat: add capture source contracts
+2. feat: add GameCapture adapter
+3. test: add capture lifecycle tests
+
+Verification:
+- Unity compilation: passed
+- EditMode tests: passed
+- Hardware capture test: not run
+
+Ready to push when approved.
+```
+
+Only after explicit approval may Claude Code perform the push.
+
+---
+
+## 29.9 Prohibited Git Operations
+
+Claude Code must not perform the following without explicit user approval:
+
+- `git push --force`
+- `git push --force-with-lease`
+- destructive history rewriting
+- interactive rebase of already shared commits
+- deleting remote branches
+- deleting tags
+- `git reset --hard`
+- discarding uncommitted user changes
+- overwriting unrelated user work
+- merging into `main`
+- merging or closing a Pull Request
+
+Do not use destructive Git operations merely to simplify implementation.
+
+Preserve user work.
+
+---
+
+## 29.10 Final Branch Review
+
+Before declaring a branch complete:
+
+1. Review the complete branch diff against its base branch.
+2. Confirm that no unrelated changes are included.
+3. Run the required final tests.
+4. Run applicable performance checks.
+5. Update required Japanese and English documentation.
+6. Check for temporary debug code.
+7. Check for secrets or local environment paths.
+8. Review commit history for logical structure.
+
+If commits have become confusing during development, propose cleanup before push.
+
+Do not rewrite already published history without explicit approval.
 
 ---
 
 # 30. Pull Requests
 
-Pull requests should clearly explain:
+A Pull Request represents a completed reviewable branch.
+
+Do not merge directly into `main` as part of normal feature development.
+
+A Pull Request should clearly explain:
 
 ```text
 Summary
 Related issue
 Design
 Changes
+Commits
 Tests
 Benchmarks
 UI verification
@@ -1299,9 +1596,20 @@ Documentation
 Remaining issues
 ```
 
-Do not describe tests or benchmarks as passing unless they were actually executed.
+The PR description must reflect checks that were actually performed.
 
-Keep pull requests focused enough to review.
+Do not describe tests, benchmarks, or runtime validation as successful unless they were executed.
+
+Push, Pull Request creation, and merge remain user-controlled unless explicitly delegated.
+
+Claude Code may prepare:
+
+- the proposed PR title,
+- the proposed PR description,
+- the branch summary,
+- the verification summary,
+
+before asking the user whether to push or create the Pull Request.
 
 ---
 
