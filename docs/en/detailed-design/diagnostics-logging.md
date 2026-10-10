@@ -43,7 +43,7 @@ flowchart LR
 
     subgraph Pipeline["LogPipeline (runs on the calling thread)"]
         Level["1. Level check<br/>stop here if disabled"]
-        Mask["2. Secret masking"]
+        Mask["2. Secret masking<br/>(except exception stack traces)"]
         Repeat["3. Repeat aggregation"]
     end
 
@@ -70,6 +70,8 @@ flowchart LR
     Writer --> Recent
     Recent -.-> Viewer
 ```
+
+Converting an exception's stack trace to text and masking it takes tens of microseconds, so it is done on the writer thread, not by the caller (Chapter 16).
 
 The caller only enqueues and does not wait for file writes. This is why calling from audio, tracking, or similar threads does not stall their processing.
 
@@ -341,6 +343,7 @@ sequenceDiagram
     Pipeline->>Queue: Enqueue (discard and count if full)
     Pipeline-->>Caller: Return (does not block)
     Writer->>Queue: Dequeue
+    Writer->>Writer: Convert any exception's stack trace to text and mask it
     Writer->>Sinks: Write
 ```
 
@@ -453,7 +456,8 @@ The logging service's own state is available to diagnostics:
 | EditMode | Level checks, per-module levels, `IsEnabled` |
 | EditMode | Immutability of `WithContext` and attaching context |
 | EditMode | JSON Lines output content, string escaping |
-| EditMode | Each `SecretMasker` pattern |
+| EditMode | Each `SecretMasker` pattern, and that the pre-check words cover every pattern |
+| EditMode | Exceptions are not converted to text by the caller |
 | EditMode | Repeat suppression (using a fake clock) |
 | EditMode | Queue limit and discard count |
 | EditMode | Switching files by size, deletion by retention settings |
@@ -468,6 +472,9 @@ The logging service's own state is available to diagnostics:
 ## 16. Performance
 
 - The caller's cost of `Write` is limited to the level check, masking, and enqueueing; it does not include file I/O.
+- The masking regexes take tens of microseconds per call on Unity's runtime. Therefore, the words that every pattern needs (`key`, `pass`, `pwd`, `token`, `secret`, `credential`, `bearer`, `rtmp`) are searched for first, ignoring case, and the regexes are applied only when one is present. When adding a pattern, update this word list as well.
+- The caller does not call the exception's `ToString()` or mask it. `LogEntry` keeps the exception, converts it to text when `ExceptionText` is first read (normally by the writer thread), and then releases the reference to the exception.
+- The calling cost is measured by `MeasurementCostTests` in `VirtualVessel.Diagnostics.Tests.Performance`. Reference values in the Editor on the development machine are about 4 µs per call (including with an exception) and 2 allocations.
 - Nothing is allocated when the level is disabled.
 - The writer thread waits while the queue is empty and does not consume CPU.
 - Writes are buffered and not flushed per entry. However, Error and above are flushed immediately so that logs just before an abnormal termination are less likely to be lost.
