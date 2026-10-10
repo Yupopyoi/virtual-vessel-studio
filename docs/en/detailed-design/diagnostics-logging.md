@@ -312,6 +312,8 @@ Old files are deleted, oldest first, as soon as any retention limit is exceeded.
 
 In the initial stage these are code defaults; a settings UI is added after the UI foundation.
 
+All of these values are consolidated in `LoggingSettings` and are not scattered through the code as literals. Because Application passes `LoggingSettings` when creating the logging service, values can later come from the basic application settings (`app-settings.json`, system design 6.8) or a settings UI without changing the logging implementation.
+
 ---
 
 ## 11. Storage

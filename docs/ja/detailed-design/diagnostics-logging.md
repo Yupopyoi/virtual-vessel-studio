@@ -312,6 +312,8 @@ sequenceDiagram
 
 初期段階ではCode上の既定値とし、設定UIはUI基盤以降で追加する。
 
+これらの値はすべて`LoggingSettings`に集約し、Code中へ数値を分散させない。`LoggingSettings`はLogging Service生成時にApplicationから渡すため、将来アプリケーション基本設定（方式設計6.8の`app-settings.json`）や設定UIから値を与える場合も、Logging実装を変更せずに拡張できる。
+
 ---
 
 ## 11. 保存
