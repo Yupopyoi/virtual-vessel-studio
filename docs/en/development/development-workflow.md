@@ -892,6 +892,25 @@ At minimum, the policy is to configure:
 
 In the early stage of solo development, requiring "one approval from someone else" may prevent merging one's own work, so requiring review approval may be introduced once there are more contributors.
 
+The current settings are:
+
+- require pull requests (required approvals: 0)
+- apply protection to administrators as well (administrators also do not push directly to `main`)
+- prohibit force pushes
+- prohibit branch deletion
+- require conversation resolution
+- required status checks are added when CI is introduced
+
+## 19.1 Merge Permission
+
+Only people with write access (Write or higher) to the repository can merge pull requests.
+
+Currently, only the repository owner has write access, and this state is maintained so that no one other than the owner can merge pull requests.
+
+When adding collaborators, they are, as a rule, given Triage or lower permission.
+
+If it becomes necessary to grant Write or higher permission, CODEOWNERS and required reviews are considered together.
+
 ---
 
 # 20. Difference Between CI and Performance Testing

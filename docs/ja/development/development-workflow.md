@@ -900,6 +900,25 @@ GitHub側で`main`を保護する。
 
 一人開発の初期段階では「他者から1 Approval必須」とすると自分でMergeできなくなる場合があるため、Review Approvalの必須化はContributorが増えてから導入してもよい。
 
+現在の設定は以下とする。
+
+- Pull Request必須（必要Approval数は0）
+- 管理者にも保護を適用する（管理者も`main`へ直接Pushしない）
+- Force Push禁止
+- Branch削除禁止
+- Conversation Resolution必須
+- Required Status ChecksはCI導入時に追加する
+
+## 19.1 Merge権限
+
+Pull RequestをMergeできるのは、Repositoryへの書き込み権限（Write以上）を持つ者に限られる。
+
+現在の書き込み権限保持者はRepository Ownerのみとし、Owner以外がPull RequestをMergeできない状態を維持する。
+
+Collaboratorを追加する場合は、原則としてTriage以下の権限を付与する。
+
+Write以上の権限を付与する必要が生じた場合は、CODEOWNERSおよびReview必須化を併せて検討する。
+
 ---
 
 # 20. CIと性能試験の違い
