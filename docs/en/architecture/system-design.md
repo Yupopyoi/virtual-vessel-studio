@@ -1079,20 +1079,22 @@ virtual-vessel-studio/
 ├─ unity/
 │  └─ VirtualVesselStudio/
 │     ├─ Assets/
-│     │  ├─ Application/
-│     │  ├─ Project/
-│     │  ├─ Avatar/
-│     │  ├─ Tracking/
-│     │  ├─ Voice/
-│     │  ├─ Audio/
-│     │  ├─ Capture/
-│     │  ├─ Stage/
-│     │  ├─ Video/
-│     │  ├─ Streaming/
-│     │  ├─ VoiceLab/
-│     │  ├─ ExternalServices/
-│     │  ├─ Diagnostics/
-│     │  └─ UI/
+│     │  └─ VirtualVessel/
+│     │     ├─ Core/
+│     │     ├─ Application/
+│     │     ├─ ProjectData/
+│     │     ├─ Avatar/
+│     │     ├─ Tracking/
+│     │     ├─ Voice/
+│     │     ├─ Audio/
+│     │     ├─ Capture/
+│     │     ├─ Stage/
+│     │     ├─ Video/
+│     │     ├─ Streaming/
+│     │     ├─ VoiceLab/
+│     │     ├─ ExternalServices/
+│     │     ├─ Diagnostics/
+│     │     └─ UI/
 │     ├─ Packages/
 │     └─ ProjectSettings/
 │
