@@ -368,8 +368,9 @@ Environment-dependent measurements such as GPU usage and GPU memory are added in
 
 Performance tests use Unity's official **Performance Testing Extension** (`com.unity.test-framework.performance`).
 
-- It is a package used only during development and testing and is not included in built applications.
-- Its version is pinned and its license checked when it is introduced.
+- It is a package used only during development and testing, referenced only from test assemblies, and is not included in built applications.
+- In Unity 6.6 it is a core package bundled with the Unity Editor (`6.6.0`). Its version is pinned by the Unity Editor version in `ProjectVersion.txt`.
+- Its license is the Unity Companion License (the bundled Perfolizer is MIT).
 
 Within the scope of this document, the following are measured:
 
@@ -401,10 +402,10 @@ Unity tests can only be placed in assemblies inside the Unity project. Therefore
 Assets/VirtualVessel/Diagnostics/
 ├─ Runtime/
 │  └─ Performance/                  VirtualVessel.Diagnostics.Performance
-│     ├─ IPerformanceMetrics.cs, PerfTimer.cs, PerfCounter.cs, PerfGauge.cs
+│     ├─ IPerformanceMetrics.cs, Metric.cs, PerfTimer.cs, PerfCounter.cs, PerfGauge.cs
 │     ├─ MetricSnapshot.cs, PerformanceSnapshot.cs
 │     ├─ PerformanceMetricsService.cs, PerformanceSettings.cs
-│     ├─ Recording/SampleRing.cs, MetricRegistry.cs
+│     ├─ Recording/SampleRing.cs, MetricRegistry.cs, DetailedSwitch.cs
 │     └─ Builtin/BuiltinMetricsCollector.cs
 └─ Tests/
    ├─ EditMode/
