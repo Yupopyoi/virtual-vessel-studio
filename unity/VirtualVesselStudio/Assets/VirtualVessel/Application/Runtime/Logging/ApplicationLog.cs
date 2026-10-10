@@ -54,6 +54,7 @@ namespace VirtualVessel.Application.Logging
         private readonly List<ApplicationLogEntry> _entries = new List<ApplicationLogEntry>();
         private readonly Func<DateTimeOffset> _utcNow;
         private readonly Action<ApplicationLogEntry> _sink;
+        private Action<ApplicationLogEntry, bool> _forwarder;
         private int _droppedCount;
 
         public BufferedApplicationLog(Func<DateTimeOffset> utcNow, Action<ApplicationLogEntry> sink)
@@ -78,6 +79,13 @@ namespace VirtualVessel.Application.Logging
             var entry = new ApplicationLogEntry(_utcNow(), level, message, exception);
             lock (_gate)
             {
+                if (_forwarder != null)
+                {
+                    // The logging service now owns console output and files; do not echo or buffer.
+                    _forwarder(entry, false);
+                    return;
+                }
+
                 if (_entries.Count < Capacity)
                 {
                     _entries.Add(entry);
@@ -89,6 +97,37 @@ namespace VirtualVessel.Application.Logging
             }
 
             _sink?.Invoke(entry);
+        }
+
+        /// <summary>
+        /// Replays every buffered entry to <paramref name="forwarder"/>, then sends all later entries
+        /// there instead of the immediate sink. The second argument is true for replayed entries,
+        /// which were already shown by the immediate sink.
+        /// </summary>
+        /// <remarks>
+        /// Replay and switch-over happen under the lock so that no entry is lost or reordered between them.
+        /// </remarks>
+        public void AttachForwarder(Action<ApplicationLogEntry, bool> forwarder)
+        {
+            lock (_gate)
+            {
+                _forwarder = forwarder ?? throw new ArgumentNullException(nameof(forwarder));
+                foreach (ApplicationLogEntry entry in _entries)
+                {
+                    forwarder(entry, true);
+                }
+
+                _entries.Clear();
+            }
+        }
+
+        /// <summary>Returns to buffering and the immediate sink, for example when logging stops.</summary>
+        public void DetachForwarder()
+        {
+            lock (_gate)
+            {
+                _forwarder = null;
+            }
         }
 
         public IReadOnlyList<ApplicationLogEntry> Snapshot()

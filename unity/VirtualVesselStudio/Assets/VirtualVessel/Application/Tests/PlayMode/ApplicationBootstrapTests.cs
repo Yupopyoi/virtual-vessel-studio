@@ -75,6 +75,15 @@ namespace VirtualVessel.Application.Tests
             Assert.That(stop.IsCompleted, Is.True, "Shutdown did not finish in time.");
             Assert.That(bootstrap.State, Is.EqualTo(ApplicationState.Stopped));
             Assert.That(File.Exists(markerPath), Is.False);
+
+            // Play Mode in the Editor logs to Logs/Editor, separate from built-application logs.
+            string editorLogs = Path.Combine(bootstrap.Runtime.DataRoot.GetDirectory(DataRootDirectory.Logs), ApplicationComposition.EditorLogFolder);
+            string[] logFiles = Directory.GetFiles(editorLogs, "*.jsonl");
+            Assert.That(logFiles, Has.Length.EqualTo(1));
+            string logText = File.ReadAllText(logFiles[0]);
+            Assert.That(logText, Does.Contain(bootstrap.Runtime.Session.SessionId));
+            Assert.That(logText, Does.Contain("Application started in"));
+            Assert.That(logText, Does.Contain("Logging stopped."));
         }
 
         [UnityTest]

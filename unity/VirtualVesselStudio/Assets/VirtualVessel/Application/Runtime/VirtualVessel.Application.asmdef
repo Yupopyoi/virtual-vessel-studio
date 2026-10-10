@@ -3,6 +3,7 @@
     "rootNamespace": "VirtualVessel.Application",
     "references": [
         "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData"
     ],
     "includePlatforms": [],
