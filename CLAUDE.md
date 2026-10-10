@@ -979,7 +979,7 @@ Prefer Unity UI Toolkit unless an approved design requires another approach.
 
 Do not hardcode user-facing text.
 
-Use Unity Localization.
+Use the project localization mechanism (per-language string tables; see `docs/<lang>/detailed-design/ui-foundation.md`). Do not add the Unity Localization package.
 
 At minimum, support:
 
