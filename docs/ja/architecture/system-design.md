@@ -11342,7 +11342,12 @@ docs/<lang>/
       ├─ setup-ui.md
       ├─ voice-lab-ui.md
       └─ diagnostics-ui.md
+
+docs/assets/ui/
+└─ styleboard.html
 ```
+
+`styleboard.html`は、Design SystemおよびComponentの見た目の基準となる見本ページ（ブラウザで開くページ）であり、言語に依存しない。ページ内で日本語と英語を切り替えられるため、言語ごとのDirectoryではなく`docs/assets/`に置く。
 
 ### design-system.md
 

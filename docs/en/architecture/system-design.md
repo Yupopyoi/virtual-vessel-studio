@@ -11138,7 +11138,12 @@ docs/<lang>/
       ├─ setup-ui.md
       ├─ voice-lab-ui.md
       └─ diagnostics-ui.md
+
+docs/assets/ui/
+└─ styleboard.html
 ```
+
+`styleboard.html` is a language-independent visual reference (a preview page that opens in a browser) for the design system and components. It switches between Japanese and English itself, so it is placed in `docs/assets/` instead of under each language.
 
 ### design-system.md
 
