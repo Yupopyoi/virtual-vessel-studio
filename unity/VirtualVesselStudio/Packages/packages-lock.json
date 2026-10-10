@@ -144,7 +144,7 @@
     },
     "com.unity.test-framework.performance": {
       "version": "6.6.0",
-      "depth": 3,
+      "depth": 0,
       "source": "builtin",
       "dependencies": {
         "com.unity.test-framework": "1.1.33",
