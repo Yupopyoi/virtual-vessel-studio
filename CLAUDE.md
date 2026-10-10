@@ -517,6 +517,8 @@ The product repository is:
 virtual-vessel-studio/
 ```
 
+The local working-copy directory name may differ (for example `VirtualVesselStudio`). Paths in this file are relative to the repository root.
+
 Expected high-level structure:
 
 ```text
@@ -542,6 +544,8 @@ Responsibilities:
 
 Unity application.
 
+The Unity project root is `unity/VirtualVesselStudio/` and contains `Assets/`, `Packages/`, and `ProjectSettings/`.
+
 ## `native/`
 
 Project-owned native Windows code and native plugins.
@@ -560,6 +564,10 @@ Development, build, setup, conversion, and maintenance tooling.
 
 Tests that do not naturally belong inside a specific component or Unity assembly.
 
+Product performance measurements, such as RVC latency, capture throughput, and long-run stability tests executed by hardware CI, belong under `tests/performance/`.
+
+Historical benchmark and prototype implementations do not belong in this repository. See section 12.
+
 ## `docs/`
 
 Project documentation.
@@ -574,13 +582,21 @@ Do not create directories or abstraction layers only for appearance.
 
 Historical benchmarks and prototypes may exist outside this repository.
 
-Typical local reference directories may include:
+The local reference directories are:
 
 ```text
-E:\VirtualVessel\VCBM
-E:\VirtualVessel\GameCaptureUnityPlugin
-E:\VirtualVessel\SubScreenCapturePrototype
-E:\VirtualVessel\OtherBenchmarks
+E:\VirtualVessel\benchmarks\VCBM
+    Voice: VoxCPM voice generation driven from Unity, RVC training and conversion.
+
+E:\VirtualVessel\benchmarks\GameCaptureUnityPlugin
+    Capture: capture-board video and audio input into Unity.
+
+E:\VirtualVessel\benchmarks\SubScreenCapture
+    Capture: sub-monitor capture using DXGI Desktop Duplication.
+
+E:\VirtualVessel\benchmarks\Voom
+    Tracking: MediaPipe-based 3D tracking applied to a 3D avatar.
+    Temporary reference; remove from this list once the product Tracking → Avatar path is mature.
 ```
 
 These are reference snapshots.
