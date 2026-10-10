@@ -1,0 +1,17 @@
+{
+    "name": "VirtualVessel.Application",
+    "rootNamespace": "VirtualVessel.Application",
+    "references": [
+        "VirtualVessel.Core",
+        "VirtualVessel.ProjectData"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
