@@ -2738,7 +2738,7 @@ Process起動、Port管理、Health Check、Service固有API、Version管理等�
 12. Port競合時に他Applicationを勝手に終了しない。
 13. 自分が起動したProcessと再利用Processを区別する。
 14. 所有していないProcessを勝手に停止しない。
-15. PythonはApplication管理venvのInterpreterを明示して実行する。
+15. PythonはApplicationが管理する実行環境（配布時はRuntime Package、開発時は開発用venv）を明示して実行する。
 16. External Componentの取得・更新とService Lifecycleを分離する。
 17. Service VersionとAdapter Versionの互換性を確認する。
 18. Process存在とService Healthを区別する。
