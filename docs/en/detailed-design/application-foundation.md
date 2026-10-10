@@ -76,20 +76,27 @@ No static service locator or global context that holds all services and allows a
 | `IMonotonicClock` | Interface | Monotonically increasing high-resolution time |
 | `ISystemClock` | Interface | Wall-clock time (UTC) |
 | `IMainThreadDispatcher` | Interface | Passes work from any thread to the main thread |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations |
+| `MainThreadDispatcher` | Class | Queue-based implementation of `IMainThreadDispatcher`. The owner of the main thread calls `Drain` every frame |
+
+The clocks and `MainThreadDispatcher` are pure .NET code that does not depend on UnityEngine and do not belong to a specific module, so they are placed in Core. This allows fast EditMode tests and reuse in other modules' tests.
 
 ### 4.2 Application
 
 | Name | Kind | Summary |
 |---|---|---|
-| `ApplicationBootstrap` | MonoBehaviour | The single entry point placed in the persistent scene. Connects the Unity lifecycle with `ApplicationHost` |
+| `ApplicationBootstrap` | MonoBehaviour | The single entry point placed in the persistent scene. Connects the Unity lifecycle with `ApplicationRuntime` and calls `MainThreadDispatcher.Drain` every frame |
+| `ApplicationRuntime` | Internal class | Runs the startup / shutdown sequence (Data Root resolution, session, composition, host). Separated from `ApplicationBootstrap` so that the parts that do not depend on UnityEngine can be tested in EditMode |
 | `ApplicationHost` | Internal class | Manages the startup / shutdown order and state of services |
 | `ApplicationComposition` | Internal class | Explicitly describes which services are created, in what order, and with which dependencies |
-| `ApplicationServiceDescriptor` | Internal class | Service name, criticality, and creation logic |
+| `ApplicationServiceDescriptor` | Internal class | Service name, criticality, dependencies, initialization timeout, and creation logic |
+| `ApplicationStartupOptions` | Public class | Developer-facing startup settings such as the Data Root override and shutdown timeout |
+| `BufferedApplicationLog` | Internal class | Keeps foundation log entries from before and around the logging service in memory, and also writes them to the Unity console |
 | `ApplicationState` | Enum | State of the whole application |
 | `SessionInfo` | Public class | Session ID, start time, and whether the previous session terminated abnormally |
+| `SessionMarker` | Internal class | Reads and writes the session marker |
 | `BuildInfo` | Public class | Application version, Unity version, build identifier |
-| `UnityMainThreadDispatcher` | Internal class | Unity implementation of `IMainThreadDispatcher` |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Internal class | Clock implementations |
+| `PersistentScenePlayModeStarter` | Editor | Always starts Play Mode from the persistent scene in the Editor |
 
 ### 4.3 ProjectData
 
@@ -118,6 +125,8 @@ public interface IApplicationService : IDisposable
 - `InitializeAsync` is called exactly once at application startup.
 - `ShutdownAsync` is called only for services that started successfully, in reverse startup order.
 - `Dispose` is called last regardless of whether `ShutdownAsync` succeeded.
+- Both methods are started on the main thread.
+- When Play Mode is exited in the Editor, the host waits synchronously on the main thread for `ShutdownAsync` to complete (see 7.2). Therefore, `ShutdownAsync` must not await work that resumes on the main thread after shutdown starts. Main-thread cleanup is done synchronously first, and `ConfigureAwait(false)` is used for any remaining waits.
 
 ### 5.2 Clock
 
@@ -268,7 +277,9 @@ sequenceDiagram
 
 A timeout is set for the whole shutdown; if exceeded, the remaining processing is abandoned and the application exits. Services that timed out are recorded.
 
-The same shutdown is performed when exiting Play Mode in the Editor.
+When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout.
+
+If shutdown happens in the middle of startup, services that are still initializing are disposed without `ShutdownAsync` being called.
 
 ### 7.3 State Transitions
 
@@ -339,7 +350,12 @@ Startup behavior is specified with `ApplicationStartupOptions`.
 | Service initialize timeout | Per service (default 10 seconds) | Prevent indefinite waiting at startup |
 | Shutdown timeout | 10 seconds | Prevent indefinite waiting at shutdown |
 
-The Data Root override can also be specified with the command-line argument `--data-root <path>`. It is not shown in the normal user UI.
+The Data Root override can be specified from the following. It is not shown in the normal user UI.
+
+1. The command-line argument `--data-root <path>`
+2. The environment variable `VIRTUAL_VESSEL_DATA_ROOT`
+
+If both are specified, the command-line argument takes precedence. The environment variable is used so that PlayMode tests and CI do not use the developer's real Data Root.
 
 ---
 
@@ -413,25 +429,27 @@ Records produced before the logging service starts are kept in memory and output
 ```text
 Assets/VirtualVessel/
 ├─ Core/
-│  ├─ Runtime/                      VirtualVessel.Core
+│  ├─ Runtime/                      VirtualVessel.Core (noEngineReferences)
 │  │  ├─ Lifecycle/IApplicationService.cs
-│  │  ├─ Time/IMonotonicClock.cs, ISystemClock.cs
-│  │  └─ Threading/IMainThreadDispatcher.cs
+│  │  ├─ Time/IMonotonicClock.cs, ISystemClock.cs, StopwatchMonotonicClock.cs, UtcSystemClock.cs
+│  │  └─ Threading/IMainThreadDispatcher.cs, MainThreadDispatcher.cs
 │  └─ Tests/EditMode/
 │
 ├─ Application/
 │  ├─ Runtime/                      VirtualVessel.Application
 │  │  ├─ ApplicationBootstrap.cs
-│  │  ├─ Hosting/ApplicationHost.cs, ApplicationComposition.cs, ...
+│  │  ├─ Hosting/ApplicationHost.cs, ApplicationServiceDescriptor.cs, ...
+│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs, ApplicationStartupOptions.cs
+│  │  ├─ Logging/ApplicationLog.cs
 │  │  ├─ Session/SessionInfo.cs, SessionMarker.cs
-│  │  ├─ Build/BuildInfo.cs
-│  │  ├─ Time/StopwatchMonotonicClock.cs, UtcSystemClock.cs
-│  │  └─ Threading/UnityMainThreadDispatcher.cs
+│  │  └─ Build/BuildInfo.cs
+│  ├─ Editor/                       VirtualVessel.Application.Editor
+│  │  └─ PersistentScenePlayModeStarter.cs
 │  └─ Tests/EditMode/, Tests/PlayMode/
 │
 └─ ProjectData/
    ├─ Runtime/                      VirtualVessel.ProjectData
-   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs
+   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
    └─ Tests/EditMode/
 
 Assets/Scenes/
@@ -440,7 +458,9 @@ Assets/Scenes/
 
 The `SampleScene` remaining from the URP template is removed from the build settings and deleted when `Persistent.unity` is created.
 
-When Play Mode is started in the Editor from a scene other than the persistent scene, a development-only editor process loads the persistent scene first.
+Even when Play Mode is started in the Editor from a scene other than the persistent scene, `PersistentScenePlayModeStarter` sets `EditorSceneManager.playModeStartScene` so that Play Mode starts from the persistent scene.
+
+Because PlayMode tests also enter Play Mode, this setting is cleared while tests run and in batch mode. This prevents tests from starting the real application against the developer's Data Root.
 
 ---
 
