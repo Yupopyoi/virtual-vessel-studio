@@ -226,10 +226,18 @@ Logging Serviceは最初に起動するため、終了は最後になる。他Se
 ```text
 <Data Root>/Logs/
 ├─ session.lock
-└─ Application/
-   ├─ 20261010-120000_3f2a9c1b_001.jsonl
-   └─ 20261010-120000_3f2a9c1b_002.jsonl
+├─ Application/                       ビルドしたApplicationの実行
+│  ├─ 20261010-120000_3f2a9c1b_001.jsonl
+│  └─ 20261010-120000_3f2a9c1b_002.jsonl
+└─ Editor/                            Unity Editor上のPlay Mode
+   └─ 20261010-130512_9b04d2e7_001.jsonl
 ```
+
+Unity Editor上のPlay Modeによる実行は`Logs/Editor/`、ビルドしたApplicationの実行は`Logs/Application/`へ出力し、保持設定（10章）もDirectoryごとに適用する。
+
+開発中は頻繁にPlay Modeを開始するため、同一Directoryへ出力すると、実際の利用時のログが開発中のログによって保持上限から押し出される。また、両者が混在すると調査時に目的のログを探しにくい。
+
+どちらのDirectoryへ出力するかはApplicationが判定し、Logging ServiceにはDirectoryのPathのみを渡す。LoggingはEditorかどうかを認識しない。
 
 External Process、Voice Lab Training Run固有のログ（方式設計5.8、5.9）は、それぞれの詳細設計で`Logs/`配下の別Directoryとして定義する。
 
@@ -308,7 +316,7 @@ sequenceDiagram
 
 ## 11. 保存
 
-- ログは`<Data Root>/Logs/Application/`へ保存する（方式設計5.8、6.25）。
+- ログは`<Data Root>/Logs/Application/`へ保存する（方式設計5.8、6.25）。Unity Editor上のPlay Modeによる実行は`<Data Root>/Logs/Editor/`へ保存する（7.3）。
 - 保持設定（10章）に従い、起動時に古いファイルを削除する（方式設計5.25）。
 - 現在のSessionのファイルは削除対象としない。
 

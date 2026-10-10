@@ -226,10 +226,18 @@ Because the logging service starts first, it stops last. Logs produced while oth
 ```text
 <Data Root>/Logs/
 ├─ session.lock
-└─ Application/
-   ├─ 20261010-120000_3f2a9c1b_001.jsonl
-   └─ 20261010-120000_3f2a9c1b_002.jsonl
+├─ Application/                       Runs of the built application
+│  ├─ 20261010-120000_3f2a9c1b_001.jsonl
+│  └─ 20261010-120000_3f2a9c1b_002.jsonl
+└─ Editor/                            Play Mode in the Unity Editor
+   └─ 20261010-130512_9b04d2e7_001.jsonl
 ```
+
+Runs in Play Mode in the Unity Editor write to `Logs/Editor/`, and runs of the built application write to `Logs/Application/`. The retention settings (Chapter 10) apply per directory.
+
+Play Mode is started frequently during development, so writing to the same directory would push logs from real use out of the retention limits. Mixing both also makes the relevant logs hard to find during investigation.
+
+Application decides which directory to use and passes only the directory path to the logging service. Logging is not aware of whether it runs in the Editor.
 
 Logs specific to external processes and Voice Lab training runs (system design 5.8, 5.9) are defined as separate directories under `Logs/` in their respective detailed designs.
 
@@ -308,7 +316,7 @@ In the initial stage these are code defaults; a settings UI is added after the U
 
 ## 11. Storage
 
-- Logs are saved in `<Data Root>/Logs/Application/` (system design 5.8, 6.25).
+- Logs are saved in `<Data Root>/Logs/Application/` (system design 5.8, 6.25). Runs in Play Mode in the Unity Editor are saved in `<Data Root>/Logs/Editor/` (7.3).
 - Old files are deleted at startup according to the retention settings (Chapter 10) (system design 5.25).
 - The current session's files are never deleted.
 
