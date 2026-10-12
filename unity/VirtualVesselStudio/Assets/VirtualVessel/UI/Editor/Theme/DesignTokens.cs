@@ -19,6 +19,7 @@ namespace VirtualVessel.UI.Editor.Theme
         public StatusToken[] status;
         public float statusLineAlpha;
         public float glowAlpha;
+        public float washAlpha;
         public float tintAmount;
         public float errorSurfaceAmount;
         public ShadowToken shadow;

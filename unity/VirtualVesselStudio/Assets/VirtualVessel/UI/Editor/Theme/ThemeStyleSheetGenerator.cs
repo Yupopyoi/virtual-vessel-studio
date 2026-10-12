@@ -66,11 +66,16 @@ namespace VirtualVessel.UI.Editor.Theme
 
             ThemeColor primary = ThemeColor.FromHex(palette.primary);
             Add("primary", primary);
-            Add("secondary", ThemeColor.FromHex(palette.secondary));
+            ThemeColor secondary = ThemeColor.FromHex(palette.secondary);
+            Add("secondary", secondary);
 
             // Pastel lines are too faint on light backgrounds, so light uses a deeper tone of the hue.
             Add("accent-line", light ? ThemeColor.FromHsl(palette.hue, tokens.accentLineLight[0], tokens.accentLineLight[1]) : primary);
             Add("glow", primary.WithAlpha(tokens.glowAlpha));
+
+            // Washes carry the palette into card headers while the neutrals stay almost colorless.
+            Add("primary-wash", primary.WithAlpha(tokens.washAlpha));
+            Add("secondary-wash", secondary.WithAlpha(tokens.washAlpha));
             Add("tint", primary.Mix(byName["surface"], tokens.tintAmount));
             Add("shadow", ThemeColor.FromHsl(palette.hue, tokens.shadow.saturation, tokens.shadow.lightness).WithAlpha(tokens.shadow.alpha));
 

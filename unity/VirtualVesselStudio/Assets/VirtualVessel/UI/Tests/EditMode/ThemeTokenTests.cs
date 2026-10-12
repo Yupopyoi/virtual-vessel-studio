@@ -94,6 +94,16 @@ namespace VirtualVessel.UI.Tests
             Check("accent-line", "bg", 3);
             Check("accent-line", "surface", 3);
             Check("accent-line", "surface-2", 3);
+            foreach (string wash in new[] { "primary-wash", "secondary-wash" })
+            {
+                // Card titles sit on a wash over the card.
+                double ratio = ThemeColor.Contrast(c["text-2"], c[wash].Over(c["surface-2"]));
+                if (ratio < 4.5)
+                {
+                    failures.Add($"text-2 on {wash}: {ratio:0.00} < 4.5");
+                }
+            }
+
             foreach (string status in new[] { "success", "warning", "error", "live" })
             {
                 // Status text sits on its soft tint over a card.
