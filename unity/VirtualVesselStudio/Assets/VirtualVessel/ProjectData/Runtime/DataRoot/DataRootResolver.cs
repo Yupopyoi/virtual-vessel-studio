@@ -18,6 +18,8 @@ namespace VirtualVessel.ProjectData.DataRoot
 
         public const string DefaultDataFolderName = "Data";
 
+        public const string ConfigFolderName = "Config";
+
         private static readonly DataRootDirectory[] s_foundationDirectories =
         {
             DataRootDirectory.Logs,
@@ -49,6 +51,12 @@ namespace VirtualVessel.ProjectData.DataRoot
         public string BootstrapFilePath => Path.Combine(_applicationDataDirectory, BootstrapSettings.FileName);
 
         public string DefaultDataRootPath => Path.Combine(_applicationDataDirectory, DefaultDataFolderName);
+
+        /// <summary>
+        /// Folder for small application settings such as ui-settings.json (system design 6.8). It stays
+        /// in the OS user data area, separate from the Data Root.
+        /// </summary>
+        public string ConfigDirectory => Path.Combine(_applicationDataDirectory, ConfigFolderName);
 
         /// <exception cref="DataRootUnavailableException">
         /// The resolved location cannot be created or written to.
