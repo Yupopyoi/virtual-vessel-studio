@@ -472,7 +472,7 @@ public interface IUiCommand
 |---|---|
 | 中央付近をドラッグして移動 | 枠の内側をドラッグして移動 |
 | 端をドラッグして縦横比を保って拡大縮小、反対側の角を固定 | 角と辺のハンドルで拡大縮小。既定で縦横比を保ち、反対側を固定 |
-| 最小幅（200px） | 最小幅は配信画面の幅の5% |
+| 最小幅（200px） | 最小の幅と高さは配信画面の5%（解像度に依存しない） |
 | 画面外へのはみ出しの可否（`CanStickOutScreen`） | `AllowOutside` |
 | 左右反転 | `FlipHorizontal` |
 | 操作のロック | `Locked` |
@@ -697,7 +697,7 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 Assets/VirtualVessel/
 ├─ Core/Runtime/
 │  ├─ State/IReadOnlyObservable.cs, ObservableValue.cs          VirtualVessel.Core.State
-│  └─ Geometry/NormalizedRect.cs, FrameLayout.cs, FrameEditMath.cs  VirtualVessel.Core.Geometry
+│  └─ Geometry/NormalizedRect.cs, FrameLayout.cs, FrameEditTypes.cs, FrameEditMath.cs  VirtualVessel.Core.Geometry
 ├─ ProjectData/Runtime/
 │  └─ Config/ConfigFileStore.cs                                  VirtualVessel.ProjectData.Config
 └─ UI/

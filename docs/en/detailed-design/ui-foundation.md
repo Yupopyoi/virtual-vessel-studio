@@ -472,7 +472,7 @@ It carries over the operations whose usability was confirmed in the earlier prot
 |---|---|
 | Drag near the center to move | Drag inside the frame to move |
 | Drag an edge to resize keeping the aspect ratio, with the opposite side fixed | Resize with corner and edge handles; keeps the aspect ratio and fixes the opposite side by default |
-| Minimum width (200px) | Minimum width is 5% of the stream screen width |
+| Minimum width (200px) | Minimum width and height are 5% of the stream screen (independent of resolution) |
 | Whether it may extend off screen (`CanStickOutScreen`) | `AllowOutside` |
 | Horizontal flip | `FlipHorizontal` |
 | Locking operations | `Locked` |
@@ -697,7 +697,7 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 Assets/VirtualVessel/
 ├─ Core/Runtime/
 │  ├─ State/IReadOnlyObservable.cs, ObservableValue.cs          VirtualVessel.Core.State
-│  └─ Geometry/NormalizedRect.cs, FrameLayout.cs, FrameEditMath.cs  VirtualVessel.Core.Geometry
+│  └─ Geometry/NormalizedRect.cs, FrameLayout.cs, FrameEditTypes.cs, FrameEditMath.cs  VirtualVessel.Core.Geometry
 ├─ ProjectData/Runtime/
 │  └─ Config/ConfigFileStore.cs                                  VirtualVessel.ProjectData.Config
 └─ UI/
