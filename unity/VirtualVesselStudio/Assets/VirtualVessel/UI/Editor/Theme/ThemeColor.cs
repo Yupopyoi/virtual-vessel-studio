@@ -54,6 +54,44 @@ namespace VirtualVessel.UI.Editor.Theme
             return new ThemeColor(ToByte(HueToRgb(p, q, h + 1.0 / 3)), ToByte(HueToRgb(p, q, h)), ToByte(HueToRgb(p, q, h - 1.0 / 3)));
         }
 
+        /// <summary>
+        /// This color with its HSL saturation and lightness moved by the given percent, clamped to
+        /// 0-100, like CSS hsl(from color h calc(s + saturation) calc(l + lightness)).
+        /// </summary>
+        public ThemeColor Shift(double saturation, double lightness)
+        {
+            double r = R / 255.0;
+            double g = G / 255.0;
+            double b = B / 255.0;
+            double max = Math.Max(r, Math.Max(g, b));
+            double min = Math.Min(r, Math.Min(g, b));
+            double l = (max + min) / 2;
+            double h = 0;
+            double s = 0;
+            double d = max - min;
+            if (d > 0)
+            {
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                if (max == r)
+                {
+                    h = (g - b) / d + (g < b ? 6 : 0);
+                }
+                else if (max == g)
+                {
+                    h = (b - r) / d + 2;
+                }
+                else
+                {
+                    h = (r - g) / d + 4;
+                }
+
+                h *= 60;
+            }
+
+            ThemeColor shifted = FromHsl(h, Clamp(s * 100 + saturation), Clamp(l * 100 + lightness));
+            return shifted.WithAlpha(A);
+        }
+
         /// <summary>CSS color-mix in sRGB: <paramref name="amount"/> of this color over <paramref name="other"/>.</summary>
         public ThemeColor Mix(ThemeColor other, double amount)
         {
@@ -153,6 +191,11 @@ namespace VirtualVessel.UI.Editor.Theme
             }
 
             return p;
+        }
+
+        private static double Clamp(double percent)
+        {
+            return Math.Max(0, Math.Min(100, percent));
         }
 
         private static byte ToByte(double unit)

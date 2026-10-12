@@ -64,9 +64,12 @@ namespace VirtualVessel.UI.Editor.Theme
                 Add(neutral.token, ThemeColor.FromHsl(palette.hue, sl[0], sl[1]));
             }
 
-            ThemeColor primary = ThemeColor.FromHex(palette.primary);
+            // The palette defines one pastel pair; a deeper tone reads better on light backgrounds
+            // and a slightly brighter one on dark backgrounds.
+            int[] shift = light ? tokens.accentShift.light : tokens.accentShift.dark;
+            ThemeColor primary = ThemeColor.FromHex(palette.primary).Shift(shift[0], shift[1]);
             Add("primary", primary);
-            ThemeColor secondary = ThemeColor.FromHex(palette.secondary);
+            ThemeColor secondary = ThemeColor.FromHex(palette.secondary).Shift(shift[0], shift[1]);
             Add("secondary", secondary);
 
             // Pastel lines are too faint on light backgrounds, so light uses a deeper tone of the hue.
@@ -74,8 +77,9 @@ namespace VirtualVessel.UI.Editor.Theme
             Add("glow", primary.WithAlpha(tokens.glowAlpha));
 
             // Washes carry the palette into card headers while the neutrals stay almost colorless.
-            Add("primary-wash", primary.WithAlpha(tokens.washAlpha));
-            Add("secondary-wash", secondary.WithAlpha(tokens.washAlpha));
+            float washAlpha = light ? tokens.washAlpha.light : tokens.washAlpha.dark;
+            Add("primary-wash", primary.WithAlpha(washAlpha));
+            Add("secondary-wash", secondary.WithAlpha(washAlpha));
             Add("tint", primary.Mix(byName["surface"], tokens.tintAmount));
             Add("shadow", ThemeColor.FromHsl(palette.hue, tokens.shadow.saturation, tokens.shadow.lightness).WithAlpha(tokens.shadow.alpha));
 

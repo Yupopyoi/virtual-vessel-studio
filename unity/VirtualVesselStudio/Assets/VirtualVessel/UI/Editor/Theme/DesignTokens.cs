@@ -15,11 +15,12 @@ namespace VirtualVessel.UI.Editor.Theme
         public string defaultPalette;
         public PaletteToken[] palettes;
         public NeutralToken[] neutrals;
+        public AccentShiftToken accentShift;
         public int[] accentLineLight;
         public StatusToken[] status;
         public float statusLineAlpha;
         public float glowAlpha;
-        public float washAlpha;
+        public ModeAlphaToken washAlpha;
         public float tintAmount;
         public float errorSurfaceAmount;
         public ShadowToken shadow;
@@ -55,6 +56,21 @@ namespace VirtualVessel.UI.Editor.Theme
             public string token;
             public int[] dark;
             public int[] light;
+        }
+
+        /// <summary>Saturation and lightness deltas (percent) applied to Primary and Secondary per background.</summary>
+        [Serializable]
+        internal sealed class AccentShiftToken
+        {
+            public int[] dark;
+            public int[] light;
+        }
+
+        [Serializable]
+        internal sealed class ModeAlphaToken
+        {
+            public float dark;
+            public float light;
         }
 
         [Serializable]

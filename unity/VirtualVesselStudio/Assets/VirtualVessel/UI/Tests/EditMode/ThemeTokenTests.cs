@@ -143,6 +143,13 @@ namespace VirtualVessel.UI.Tests
             Assert.That(ThemeColor.FromHsl(268, 26, 8).ToUss(), Is.EqualTo("#140f1a"), "Lavender dark background, as the browser computes it.");
             Assert.That(ThemeColor.Contrast(ThemeColor.FromHex("#000000"), ThemeColor.FromHex("#ffffff")), Is.EqualTo(21).Within(0.01));
             Assert.That(ThemeColor.FromHex("#c3a6ff").WithAlpha(0.35f).ToUss(), Is.EqualTo("rgba(195, 166, 255, 0.35)"));
+            Assert.That(ThemeColor.FromHex("#c3a6ff").Shift(0, 0).ToUss(), Is.EqualTo("#c3a6ff"), "A zero shift keeps the color.");
+            // Shifting goes through 8-bit channels, so allow one step of rounding per channel.
+            ThemeColor shifted = ThemeColor.FromHsl(200, 50, 50).Shift(10, -10);
+            ThemeColor expected = ThemeColor.FromHsl(200, 60, 40);
+            Assert.That(shifted.R, Is.EqualTo(expected.R).Within(1));
+            Assert.That(shifted.G, Is.EqualTo(expected.G).Within(1));
+            Assert.That(shifted.B, Is.EqualTo(expected.B).Within(1));
             Assert.That(ThemeColor.FromHex("#ffffff").Mix(ThemeColor.FromHex("#000000"), 0.5).ToUss(), Is.EqualTo("#808080"));
         }
     }
