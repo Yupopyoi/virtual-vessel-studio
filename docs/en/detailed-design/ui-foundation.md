@@ -214,76 +214,87 @@ A command registered as a `DangerCommand` shows the confirmation dialog automati
 
 **Source of tokens**
 
-`Assets/VirtualVessel/UI/Theme/design-tokens.json` holds the values from `design-system.md` (palettes, neutral S/L, status colors, type, spacing, radius). It is the single source on the Unity side.
+`Assets/VirtualVessel/UI/Theme/design-tokens.json` holds the values from `design-system.md` (palettes, neutral S/L, status colors, derived color ratios, spacing, radius, text sizes and roles). It is the single source on the Unity side. It is read with Unity's built-in `JsonUtility`, because its fields are fixed and Newtonsoft.Json is not used outside ProjectData.
 
 **Generating USS**
 
-USS cannot compute colors with `color-mix()` or HSL. The editor tool `ThemeGenerator` therefore generates the following USS from the tokens.
+USS cannot compute colors with `color-mix()` or HSL. The editor tool `ThemeGenerator` (menu: Virtual Vessel > UI > Generate Theme; batch mode: `-executeMethod VirtualVessel.UI.Editor.Theme.ThemeGenerator.Generate`) therefore generates the following USS from the tokens.
 
 ```text
-Assets/VirtualVessel/UI/Theme/Generated/
-├─ tokens-common.uss              spacing, radius, text sizes (theme-independent values)
-├─ theme-lavender-dark.uss         color custom properties (precomputed values)
-├─ theme-lavender-light.uss
-├─ …                               6 palettes × 2 backgrounds = 12 files
+Assets/VirtualVessel/UI/Theme/
+├─ design-tokens.json
+├─ ThemeAssets.asset                references to the generated USS and font sets (used by the runtime to switch)
+└─ Generated/
+   ├─ tokens-common.uss             --vv-space-*, --vv-radius-*, text sizes (.vv-text-*)
+   ├─ theme-lavender-dark.uss       --vv-color-* (precomputed values)
+   ├─ theme-lavender-light.uss
+   ├─ …                             6 palettes × 2 backgrounds = 12 files
+   └─ fonts-notosans.uss            font mapping per font set (7.2)
 ```
 
-- The generated USS is committed to the repository. Builds do not need to generate it.
-- An EditMode test confirms that the generated output matches the tokens (end of 7.1).
+- Variables are defined on `.vv-root` and named `--vv-color-*`, `--vv-space-*`, and `--vv-radius-*`. The `vv-` prefix keeps them apart from the variables of Unity's default theme.
+- `ThemeColor` does the color math (HSL, mixing, contrast ratios), and `ThemeStyleSheetGenerator` writes the USS text. Both are pure and do not touch files, so tests use them directly.
+- The generated USS and `ThemeAssets.asset` are committed to the repository. Builds do not need to generate them.
 
 **Applying a theme**
 
-`ThemeService` swaps the theme USS attached to the root `VisualElement`. Every part refers to `var(--color-primary)` and similar, so swapping changes the colors everywhere.
+`ThemeService` adds the `vv-root` class and `tokens-common.uss` to the root `VisualElement` and swaps only the theme USS. Every part refers to `var(--vv-color-primary)` and similar, so swapping changes the colors everywhere.
 
 | Setting | How it is applied |
 |---|---|
-| Palette, background | Swap the theme USS |
-| UI scale | `PanelSettings.scale` (100%, 110%, 125%, 150%) |
+| Palette, background | Swap the theme USS. An unknown palette falls back to the default (Lavender) and a warning is recorded |
+| UI scale | Done through `PanelSettings` by `UiRoot` (implementation step 7) |
 | Reduced motion | Add the `vv-reduced-motion` class to the root; each part's USS stops transitions and blinking |
 
-**Token tests**
+**Token tests (`ThemeTokenTests`)**
 
-- The committed USS matches the result of regenerating from `design-tokens.json`.
-- Every palette and background meets the contrast in `design-system.md` 9.2 (body text at least 4.5:1, `On Accent` on Primary at least 4.5:1, `Accent Line` on backgrounds at least 3:1).
+- The committed USS matches the result of regenerating from `design-tokens.json`, with no stale files.
+- `ThemeAssets.asset` references every palette, background, and the default font set.
+- Every palette and background meets the contrast in `design-system.md` 9.2. This covers each text level on backgrounds and surfaces, `On Accent` on Primary and Secondary, `Accent Line` on backgrounds and surfaces, status text on its soft background (composited over a card), status colors on surfaces, and Text 2 on a wash (composited over a card).
 - The palette values written in `docs/assets/ui/styleboard.html` match `design-tokens.json`.
+
+During the first implementation, this test showed that the original status colors and some light-background colors fell short of the rules. The values in `design-system.md` were therefore adjusted (soft status background, Error, Live, light Success and Warning, Text 3, Accent Line). Later, after a visual review in a sandbox, neutral saturation was lowered so that backgrounds are close to colorless, and washes and accent decoration (`design-system.md` 3.6) were added instead. Primary and Secondary are also adjusted per background (deeper on light, brighter on dark; `accentShift` in `design-tokens.json`). The light adjustment stays within the range that keeps 4.5:1 for On Accent.
 
 ### 7.2 Fonts
 
 **FontSet**
 
-Fonts are handled as a set in a `FontSet` (ScriptableObject).
+Fonts are handled as a set in a `FontSet` (ScriptableObject, `Assets/VirtualVessel/UI/Fonts/`).
 
 | Item | Contents |
 |---|---|
-| UI font | Font assets for body, headings, buttons (Regular, Medium, Bold) |
-| Mono font | Font asset for numbers and logs |
-| Fallback | Order of font assets used when glyphs are missing |
+| Id | Identifier stored in `ui-settings.json` (for example `NotoSans`) |
+| Regular | Body text, labels, captions |
+| Bold | Headings, buttons, bold text |
+| Mono | Numbers, logs, identifiers |
 
-The default font set is `NotoSans` (Noto Sans JP + Noto Sans Mono).
+The default font set is `NotoSans` (Noto Sans JP Regular and Bold + Noto Sans Mono). `ThemeGenerator` creates it if it is missing.
 
 **How bulk changes work**
 
-- All text decides its font through typography classes (`vv-text-heading`, `vv-text-body`, `vv-text-mono`, and so on).
-- Typography classes refer to the font through a custom property, as in `-unity-font-definition: var(--font-ui)`.
-- For each font set, `ThemeGenerator` generates a small USS (`fonts-<FontSet>.uss`) that defines `--font-ui` and `--font-mono`.
-- `FontService` swaps this USS. Swapping it changes the font of the whole application at once.
+- All text decides its font through typography classes (`vv-text-heading`, `vv-text-body`, `vv-text-mono`, and so on) or `vv-bold` and `vv-mono`. Root text uses Regular.
+- For each font set, `ThemeGenerator` generates `fonts-<id>.uss`. Only this USS maps the classes and `.vv-root` to font files (`-unity-font: url("project://database/...")`). `-unity-font-definition` is reset to `initial` so that it wins over the font of Unity's default theme.
+- `FontService` swaps this USS. Swapping it changes the font of the whole application at once. An unknown font set falls back to the default and a warning is recorded.
+- Which font (Regular, Bold, Mono) each typography class uses is set in `typography` of `design-tokens.json`.
+
+The first plan referred to fonts through a custom property (`var(--font-ui)`). Passing fonts through USS variables has not been confirmed to work, so the class approach verified in the sandbox is used instead. Swapping a single USS is unchanged.
 
 This enables two kinds of bulk change.
 
 | Situation | Method |
 |---|---|
-| Changing the default font during development | Replace the contents of the default font set. Screen UXML and USS do not change |
+| Changing the default font during development | Replace the fonts of the default font set and run `ThemeGenerator`. Screen UXML and USS do not change |
 | A user changes it in settings | Change `fontSet` in `ui-settings.json`. It switches while running |
 
 **Language and fonts**
 
 - Each language in the string tables (7.4) can name a preferred font set. This is for future languages that the Japanese font cannot display.
-- Fallback is set in the PanelSettings text settings so that no glyphs are missing (system design 14.9).
-- Japanese has many characters, so font assets are dynamic (glyphs are added to the atlas at runtime as needed).
+- Fallback is set in the PanelSettings text settings so that no glyphs are missing (system design 14.9). `UiRoot` (implementation step 7) does this.
+- Japanese has many characters, so fonts are treated as dynamic (glyphs are added to the atlas at runtime as needed). Referring to a TTF with `-unity-font` makes Unity create a dynamic font asset.
 
 **Font files**
 
-- Font files are placed unmodified in `Assets/ThirdParty/NotoSansJP/` and `Assets/ThirdParty/NotoSansMono/`, together with the OFL license text.
+- Font files are placed unmodified in `Assets/ThirdParty/NotoSansJP/` and `Assets/ThirdParty/NotoSansMono/`, together with the OFL license text (`OFL.txt`) and a `README.md` recording the source.
 - `*.ttf` and `*.otf` are added to `.gitattributes` as binary.
 
 ### 7.3 Binding and Runtime State
@@ -706,15 +717,16 @@ Assets/VirtualVessel/
    │  ├─ Controls/          shared components                    VirtualVessel.UI.Controls
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
-   │  ├─ Theme/             ThemeService, FontService, FontSet
+   │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      Localizer
    │  ├─ Screens/           ScreenHost, screens
    │  └─ Settings/          UiSettings, DeveloperModeService
    ├─ Styles/Components/    USS of each part
-   ├─ Theme/                design-tokens.json, Generated/*.uss
+   ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
+   ├─ Fonts/                FontSet (NotoSans.asset)
    ├─ Strings/              ja.json, en.json
    ├─ Uxml/                 screen UXML
-   ├─ Editor/               ThemeGenerator, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiScreenshotCapture   VirtualVessel.UI.Editor
    └─ Tests/
       ├─ EditMode/
       ├─ PlayMode/

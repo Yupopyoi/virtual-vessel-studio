@@ -14,32 +14,35 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Sans+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: control bar, then a live-screen mockup, then the token and component sheets it is built from.
-   Dark-first. Neutrals are tinted by the palette hue (--h); accents are pastel so dark text sits on them in both modes. */
+   Dark-first. Neutrals are almost colorless (low saturation of the palette hue --h); the palette shows through accents and decoration; accents are pastel so dark text sits on them in both modes. */
 :root {
   color-scheme: dark;
   --h: 268;
   --primary: #c3a6ff;
   --secondary: #ff9ccf;
+  /* The palette pair above is the base; each background adjusts it (design-system 3.2). */
+  --accent-1: hsl(from var(--primary) h s calc(l + 6));
+  --accent-2: hsl(from var(--secondary) h s calc(l + 6));
   --on-accent: hsl(var(--h) 45% 14%);
   /* Thin accent lines and small accent text. Pastel works on dark; light needs a deeper tone for 3:1. */
-  --accent-line: var(--primary);
+  --accent-line: var(--accent-1);
 
-  --bg: hsl(var(--h) 26% 8%);
-  --surface: hsl(var(--h) 22% 12%);
-  --surface-2: hsl(var(--h) 20% 16%);
-  --surface-3: hsl(var(--h) 18% 21%);
-  --border: hsl(var(--h) 18% 26%);
-  --text: hsl(var(--h) 40% 95%);
-  --text-2: hsl(var(--h) 14% 74%);
-  --text-3: hsl(var(--h) 12% 62%);
-  --disabled: hsl(var(--h) 10% 40%);
-  --glow: color-mix(in srgb, var(--primary) 35%, transparent);
-  --tint: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  --bg: hsl(var(--h) 8% 8%);
+  --surface: hsl(var(--h) 7% 12%);
+  --surface-2: hsl(var(--h) 6% 16%);
+  --surface-3: hsl(var(--h) 6% 21%);
+  --border: hsl(var(--h) 6% 26%);
+  --text: hsl(var(--h) 15% 95%);
+  --text-2: hsl(var(--h) 5% 74%);
+  --text-3: hsl(var(--h) 4% 62%);
+  --disabled: hsl(var(--h) 3% 40%);
+  --glow: color-mix(in srgb, var(--accent-1) 35%, transparent);
+  --tint: color-mix(in srgb, var(--accent-1) 14%, var(--surface));
 
   --success: #52d6bd;
   --warning: #ffc864;
-  --error: #ff6f8e;
-  --live: #ff4f84;
+  --error: #ff8aa3;
+  --live: #ff86ab;
 
   --font-ui: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
   --font-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -50,38 +53,42 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-    --bg: hsl(var(--h) 60% 97%);
-    --surface: hsl(var(--h) 40% 99%);
-    --surface-2: hsl(var(--h) 45% 95%);
-    --surface-3: hsl(var(--h) 40% 91%);
-    --border: hsl(var(--h) 30% 86%);
-    --text: hsl(var(--h) 30% 16%);
-    --text-2: hsl(var(--h) 16% 34%);
-    --text-3: hsl(var(--h) 12% 42%);
-    --disabled: hsl(var(--h) 10% 72%);
-    --accent-line: hsl(var(--h) 55% 42%);
-    --success: #0e7d68;
-    --warning: #8f5c00;
-    --error: #c41f4b;
-    --live: #b80f4a;
+    --bg: hsl(var(--h) 20% 97%);
+    --surface: hsl(var(--h) 10% 99%);
+    --surface-2: hsl(var(--h) 15% 95%);
+    --surface-3: hsl(var(--h) 14% 91%);
+    --border: hsl(var(--h) 10% 86%);
+    --text: hsl(var(--h) 12% 16%);
+    --text-2: hsl(var(--h) 8% 34%);
+    --text-3: hsl(var(--h) 6% 40%);
+    --disabled: hsl(var(--h) 4% 72%);
+    --accent-line: hsl(var(--h) 58% 38%);
+    --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
+    --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
+    --success: #0a6656;
+    --warning: #774c00;
+    --error: #a8173f;
+    --live: #9e0c41;
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: hsl(var(--h) 60% 97%);
-  --surface: hsl(var(--h) 40% 99%);
-  --surface-2: hsl(var(--h) 45% 95%);
-  --surface-3: hsl(var(--h) 40% 91%);
-  --border: hsl(var(--h) 30% 86%);
-  --text: hsl(var(--h) 30% 16%);
-  --text-2: hsl(var(--h) 16% 34%);
-  --text-3: hsl(var(--h) 12% 42%);
-  --disabled: hsl(var(--h) 10% 72%);
-  --accent-line: hsl(var(--h) 55% 42%);
-  --success: #0e7d68;
-  --warning: #8f5c00;
-  --error: #c41f4b;
-  --live: #b80f4a;
+  --bg: hsl(var(--h) 20% 97%);
+  --surface: hsl(var(--h) 10% 99%);
+  --surface-2: hsl(var(--h) 15% 95%);
+  --surface-3: hsl(var(--h) 14% 91%);
+  --border: hsl(var(--h) 10% 86%);
+  --text: hsl(var(--h) 12% 16%);
+  --text-2: hsl(var(--h) 8% 34%);
+  --text-3: hsl(var(--h) 6% 40%);
+  --disabled: hsl(var(--h) 4% 72%);
+  --accent-line: hsl(var(--h) 58% 38%);
+  --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
+  --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
+  --success: #0a6656;
+  --warning: #774c00;
+  --error: #a8173f;
+  --live: #9e0c41;
 }
 :root[data-palette="sakura"] { --h: 335; --primary: #ffa3c4; --secondary: #c9a8ff; }
 :root[data-palette="mint"]   { --h: 165; --primary: #7fe0c1; --secondary: #a9d8ff; }
@@ -118,7 +125,7 @@ button, input, select { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
 .brand-mark {
   width: 30px; height: 30px; border-radius: 10px;
-  background: radial-gradient(circle at 30% 30%, var(--secondary), var(--primary));
+  background: radial-gradient(circle at 30% 30%, var(--accent-2), var(--accent-1));
   box-shadow: 0 0 18px var(--glow);
 }
 .brand b { font-weight: 900; letter-spacing: .02em; }
@@ -135,7 +142,7 @@ button, input, select { font: inherit; color: inherit; }
   border: 0; background: transparent; padding: 4px 12px; border-radius: 7px;
   cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500;
 }
-.seg button[aria-pressed="true"] { background: var(--primary); color: var(--on-accent); }
+.seg button[aria-pressed="true"] { background: var(--accent-1); color: var(--on-accent); }
 
 .section-head { display: grid; gap: 4px; margin-bottom: var(--space-m); }
 .section-head h2 { font-size: 20px; font-weight: 700; }
@@ -159,7 +166,8 @@ button, input, select { font: inherit; color: inherit; }
 .nav-foot { margin-top: auto; padding: 10px 12px; font-size: 12px; color: var(--text-3); display: grid; gap: 2px; }
 
 .main { padding: var(--space-l); display: grid; gap: var(--space-m); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-content: start; }
-.topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; }
+.topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; position: relative; padding-bottom: var(--space-s); }
+.topline::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
 .topline h3 { font-size: 18px; font-weight: 700; margin-right: auto; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-s);
@@ -182,7 +190,7 @@ button, input, select { font: inherit; color: inherit; }
 .chip.ok .dot { --icon: var(--icon-ok); }
 .chip.warn .dot { --icon: var(--icon-warn); }
 .chip.err .dot { --icon: var(--icon-err); }
-.chip.live { background: color-mix(in srgb, var(--live) 18%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
+.chip.live { background: color-mix(in srgb, var(--live) 14%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
 .chip.live .dot { animation: pulse 1.6s ease-in-out infinite; }
 .chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
 .chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
@@ -193,8 +201,8 @@ button, input, select { font: inherit; color: inherit; }
 .preview {
   aspect-ratio: 16 / 9; max-width: 100%; border-radius: var(--radius-m); position: relative; overflow: hidden;
   background:
-    radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--primary) 45%, transparent), transparent 70%),
-    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--secondary) 35%, transparent), transparent 40%),
+    radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--accent-1) 45%, transparent), transparent 70%),
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--accent-2) 35%, transparent), transparent 40%),
     linear-gradient(160deg, hsl(var(--h) 35% 18%), hsl(var(--h) 40% 10%));
   border: 1px solid var(--border);
 }
@@ -202,8 +210,15 @@ button, input, select { font: inherit; color: inherit; }
 .preview-meta { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: hsl(var(--h) 30% 92%); opacity: .85; }
 .preview-tag { position: absolute; right: 12px; top: 10px; }
 
-.card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-m); padding: var(--space-m); display: grid; gap: 12px; }
+/* Accent decoration (design-system 3.6): top line, title bar, and a wash behind the title; every other card uses Secondary. */
+.card {
+  --deco: var(--accent-1);
+  background: linear-gradient(color-mix(in srgb, var(--deco) 9%, transparent) 0 46px, transparent 46px), var(--surface-2);
+  border: 1px solid var(--border); border-top: 3px solid var(--deco); border-radius: var(--radius-m); padding: var(--space-m); display: grid; gap: 12px;
+}
+.card.alt { --deco: var(--accent-2); }
 .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text-2); letter-spacing: .04em; }
+.card-title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--deco); flex: none; }
 .card-title .chip { margin-left: auto; }
 .row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .row .label { flex: 1; min-width: 0; }
@@ -218,29 +233,29 @@ button, input, select { font: inherit; color: inherit; }
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--primary); color: var(--on-accent); box-shadow: 0 4px 16px var(--glow); }
+.btn-primary { background: var(--accent-1); color: var(--on-accent); box-shadow: 0 4px 16px var(--glow); }
 .btn-primary:hover { box-shadow: 0 6px 22px var(--glow); }
 .btn-secondary { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
-.btn-secondary:hover { background: color-mix(in srgb, var(--primary) 18%, var(--surface-3)); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--accent-1) 18%, var(--surface-3)); }
 .btn-danger { background: color-mix(in srgb, var(--live) 20%, transparent); color: var(--live); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--live) 50%, transparent); }
 .btn:disabled { background: var(--surface-2); color: var(--disabled); box-shadow: none; cursor: not-allowed; }
 .icon-btn {
   width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer; display: grid; place-items: center;
   background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border);
 }
-.icon-btn[aria-pressed="true"] { background: var(--secondary); color: var(--on-accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--secondary) 40%, transparent); }
+.icon-btn[aria-pressed="true"] { background: var(--accent-2); color: var(--on-accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-2) 40%, transparent); }
 .icon-btn svg { width: 18px; height: 18px; }
 
 .toggle { position: relative; width: 44px; height: 26px; flex: none; border: 0; padding: 0; cursor: pointer; border-radius: var(--radius-pill); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border); transition: background .15s ease; }
 .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--text-2); transition: transform .15s ease, background .15s ease; }
-.toggle[aria-checked="true"] { background: var(--primary); box-shadow: 0 0 12px var(--glow); }
+.toggle[aria-checked="true"] { background: var(--accent-1); box-shadow: 0 0 12px var(--glow); }
 .toggle[aria-checked="true"]::after { transform: translateX(18px); background: var(--on-accent); }
 .toggle:disabled { background: var(--surface-2); cursor: not-allowed; }
 .toggle:disabled::after { background: var(--disabled); }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent-line) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--primary); cursor: pointer; }
-input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--primary); cursor: pointer; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--accent-1); cursor: pointer; }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--accent-1); cursor: pointer; }
 .meter { display: flex; gap: 2px; height: 6px; }
 .meter i { flex: 1; border-radius: 2px; background: var(--surface-3); }
 .meter i.on { background: var(--success); }
@@ -280,7 +295,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .notice span { color: var(--text-2); font-size: 13px; }
 
 .progress { height: 8px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
-.progress i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--secondary)); }
+.progress i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
 
 .dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); padding: var(--space-l); display: grid; gap: var(--space-m); box-shadow: 0 20px 50px hsl(var(--h) 50% 3% / .45); max-width: 420px; }
 .dialog h3 { font-size: 17px; }
@@ -313,9 +328,9 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 
 .spacing { display: grid; gap: 8px; }
 .spacing div { display: grid; grid-template-columns: 40px 60px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 12px; }
-.spacing i { display: block; height: 14px; background: var(--primary); border-radius: 3px; }
+.spacing i { display: block; height: 14px; background: var(--accent-1); border-radius: 3px; }
 .radii { display: flex; gap: 12px; flex-wrap: wrap; }
-.radii div { width: 72px; height: 56px; background: var(--tint); border: 1px solid var(--primary); display: grid; place-items: center; font-size: 11px; color: var(--text-2); }
+.radii div { width: 72px; height: 56px; background: var(--tint); border: 1px solid var(--accent-1); display: grid; place-items: center; font-size: 11px; color: var(--text-2); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-m); }
 .gallery .cell { display: grid; gap: 10px; align-content: start; min-width: 0; }
@@ -329,7 +344,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
   position: fixed; z-index: 100; pointer-events: none; max-width: 260px;
   padding: 7px 11px; border-radius: var(--radius-s);
   background: var(--surface-3); color: var(--text); font-size: 12px; line-height: 1.5;
-  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--accent-1) 45%, var(--border));
   box-shadow: 0 8px 24px hsl(var(--h) 50% 3% / .35);
   opacity: 0; transform: translateY(4px); transition: opacity .12s ease, transform .12s ease;
 }
@@ -476,7 +491,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
               <input id="pitch" type="range" min="-12" max="12" value="4" data-out="pitch-out" data-signed data-tip="tip.pitch">
             </div>
           </div>
-          <div class="card">
+          <div class="card alt">
             <div class="card-title"><span data-i18n="audio.title">音声</span></div>
             <div class="row">
               <div class="label"><span data-i18n="audio.mic">マイク</span><small class="num" id="mic-out">−12 dB</small></div>
@@ -501,7 +516,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
             <div class="field"><label for="q-stage" data-i18n="scene.stage">ステージ</label>
               <select id="q-stage" class="select"><option data-i18n="scene.stage1">夜カフェ</option><option data-i18n="scene.stage2">ゲーム部屋</option></select></div>
           </div>
-          <div class="card">
+          <div class="card alt">
             <div class="card-title"><span data-i18n="cap.title">キャプチャ</span></div>
             <div class="row"><div class="label"><span data-i18n="cap.game">ゲーム画面</span><small>Elgato HD60 X</small></div><button class="toggle" role="switch" aria-checked="true" aria-label="Game capture" data-tip="tip.game"></button></div>
             <div class="row"><div class="label"><span data-i18n="cap.sub">サブモニター</span><small data-i18n="cap.subnote">ディスプレイ 2</small></div><button class="toggle" role="switch" aria-checked="false" aria-label="Sub screen capture" data-tip="tip.sub"></button></div>
@@ -524,7 +539,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     <div class="section-head">
       <span class="eyebrow" data-i18n="s2.eyebrow">基礎</span>
       <h2 data-i18n="s2.title">色・文字・余白</h2>
-      <p data-i18n="s2.desc">どの画面もこの値だけを使います。パレットを切り替えると、アクセント色と、背景にほんのり混ぜた色味がまとめて変わります。状態の色（成功・注意・エラー・配信中）はパレットに関係なく固定です。</p>
+      <p data-i18n="s2.desc">どの画面もこの値だけを使います。パレットを切り替えると、アクセント色と、カードの線や見出しの装飾がまとめて変わります。背景はほぼ無彩色です。状態の色（成功・注意・エラー・配信中）はパレットに関係なく固定です。</p>
     </div>
     <div class="sheets">
       <div class="sheet wide">
@@ -704,7 +719,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "cap.title": "Capture", "cap.game": "Game screen", "cap.sub": "Second monitor", "cap.subnote": "Display 2",
     "trk.title": "Tracking", "trk.face": "Face", "trk.good": "Good", "trk.hand": "Hands", "trk.handnote": "Your hands look too dark", "trk.low": "Unstable",
     "s2.eyebrow": "Foundations", "s2.title": "Color, type and spacing",
-    "s2.desc": "Every screen uses only these values. Switching the palette changes the accent colors and the faint tint mixed into the backgrounds. Status colors (success, warning, error, live) stay the same in every palette.",
+    "s2.desc": "Every screen uses only these values. Switching the palette changes the accent colors and the decoration on card lines and titles. Backgrounds are almost colorless. Status colors (success, warning, error, live) stay the same in every palette.",
     "color.title": "Color", "type.title": "Type",
     "type.h": "Let's get ready to stream", "type.s": "Microphone input device",
     "type.b": "Voice conversion runs inside the app while you stream and needs no outside service.",
@@ -826,7 +841,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
   }
 
   const tokens = [
-    ["Primary", "--primary"], ["Secondary", "--secondary"], ["Accent line", "--accent-line"], ["On accent", "--on-accent"], ["Background", "--bg"], ["Surface", "--surface"],
+    ["Primary", "--accent-1"], ["Secondary", "--accent-2"], ["Accent line", "--accent-line"], ["On accent", "--on-accent"], ["Background", "--bg"], ["Surface", "--surface"],
     ["Surface 2", "--surface-2"], ["Border", "--border"], ["Text", "--text"], ["Text 2", "--text-2"],
     ["Disabled", "--disabled"], ["Success", "--success"], ["Warning", "--warning"], ["Error", "--error"], ["Live", "--live"]
   ];
@@ -837,7 +852,9 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     const c = getComputedStyle(probe).color;
     const m = c.match(/\d+(\.\d+)?/g);
     if (!m) return c;
-    return "#" + m.slice(0, 3).map(n => Math.round(+n).toString(16).padStart(2, "0")).join("");
+    // Relative colors serialize as color(srgb r g b) with 0-1 channels.
+    const scale = c.startsWith("color(") ? 255 : 1;
+    return "#" + m.slice(0, 3).map(n => Math.round(+n * scale).toString(16).padStart(2, "0")).join("");
   }
   function renderSwatches() {
     const host = document.getElementById("swatches");

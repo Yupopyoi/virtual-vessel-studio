@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1fc25edea81f05f42b67604eedaed1a4, type: 3}
+  m_Name: ThemeAssets
+  m_EditorClassIdentifier: VirtualVessel.UI::VirtualVessel.UI.Theme.ThemeAssets
+  _common: {fileID: 7433441132597879392, guid: 333d3eef32b1d4b47a179a2f2a150023, type: 3}
+  _palettes:
+  - _id: lavender
+    _displayName: Lavender
+    _dark: {fileID: 7433441132597879392, guid: 8b0f0d75b4f14a14592c9a4d2b46f4a4, type: 3}
+    _light: {fileID: 7433441132597879392, guid: 9bb29566a1c8e3c45a4fd9d0ce9cabf5, type: 3}
+  - _id: sakura
+    _displayName: Sakura
+    _dark: {fileID: 7433441132597879392, guid: 9b9a0dc03a0ff7a47ae674173a99631d, type: 3}
+    _light: {fileID: 7433441132597879392, guid: 947db92d922a7be42a4daeacfca5114b, type: 3}
+  - _id: mint
+    _displayName: Mint
+    _dark: {fileID: 7433441132597879392, guid: f09293499362b9846b2afe616a478ede, type: 3}
+    _light: {fileID: 7433441132597879392, guid: 13373195358d25948b5bef17500475aa, type: 3}
+  - _id: sky
+    _displayName: Sky
+    _dark: {fileID: 7433441132597879392, guid: 64c3de32e08f44b40a17ef761f7a8da2, type: 3}
+    _light: {fileID: 7433441132597879392, guid: 20bea554c3f04b9448ad643501107188, type: 3}
+  - _id: peach
+    _displayName: Peach
+    _dark: {fileID: 7433441132597879392, guid: 1194626f7b5bee24bb4ca29544822277, type: 3}
+    _light: {fileID: 7433441132597879392, guid: 6cfed94266fde04418440c8c7f762dd2, type: 3}
+  - _id: lemon
+    _displayName: Lemon
+    _dark: {fileID: 7433441132597879392, guid: 93d509f40e78fad45847a9ca449fa932, type: 3}
+    _light: {fileID: 7433441132597879392, guid: f95613251ce460b4398abaf7e310134a, type: 3}
+  _fontSets:
+  - _fontSet: {fileID: 11400000, guid: 1f9842bc693149741adf43f92e8b2e72, type: 2}
+    _sheet: {fileID: 7433441132597879392, guid: 1579d562fff55e84189079db314eea81, type: 3}

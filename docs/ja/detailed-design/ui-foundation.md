@@ -214,76 +214,87 @@ bool confirmed = await _dialogs.ConfirmAsync(
 
 **Tokenの定義元**
 
-`Assets/VirtualVessel/UI/Theme/design-tokens.json`に、`design-system.md`の値（パレット、ニュートラルのS/L、状態色、文字、余白、角丸）を記述する。これがUnity側の唯一の定義元である。
+`Assets/VirtualVessel/UI/Theme/design-tokens.json`に、`design-system.md`の値（パレット、ニュートラルのS/L、状態色、派生色の割合、余白、角丸、文字の大きさと役割）を記述する。これがUnity側の唯一の定義元である。読み込みにはUnity標準の`JsonUtility`を使う（項目が固定であり、ProjectData以外でNewtonsoft.Jsonを使わないため）。
 
 **USSの生成**
 
-USSは`color-mix()`やHSLの計算に対応しない。そこで、Editor Toolの`ThemeGenerator`が、Tokenから次のUSSを生成する。
+USSは`color-mix()`やHSLの計算に対応しない。そこで、Editor Toolの`ThemeGenerator`（メニュー：Virtual Vessel > UI > Generate Theme、Batch Mode：`-executeMethod VirtualVessel.UI.Editor.Theme.ThemeGenerator.Generate`）が、Tokenから次のUSSを生成する。
 
 ```text
-Assets/VirtualVessel/UI/Theme/Generated/
-├─ tokens-common.uss              余白、角丸、文字サイズ（Themeに依存しない値）
-├─ theme-lavender-dark.uss         色のCustom Property（計算済みの値）
-├─ theme-lavender-light.uss
-├─ …                               6パレット × 2背景 = 12ファイル
+Assets/VirtualVessel/UI/Theme/
+├─ design-tokens.json
+├─ ThemeAssets.asset                生成したUSSとFontSetへの参照（Runtimeが切り替えに使う）
+└─ Generated/
+   ├─ tokens-common.uss             --vv-space-*、--vv-radius-*、文字の大きさ（.vv-text-*）
+   ├─ theme-lavender-dark.uss       --vv-color-*（計算済みの値）
+   ├─ theme-lavender-light.uss
+   ├─ …                             6パレット × 2背景 = 12ファイル
+   └─ fonts-notosans.uss            FontSetごとのFont指定（7.2）
 ```
 
-- 生成したUSSはRepositoryに含める。Build時に生成を必要としない。
-- 生成結果がTokenと一致していることをEditMode Testで確認する（7.1の最後）。
+- 変数は`.vv-root`に定義し、名前は`--vv-color-*`、`--vv-space-*`、`--vv-radius-*`とする。Unity標準Themeの変数と区別するため、`vv-`を付ける。
+- 色の計算（HSL、混色、コントラスト比）は`ThemeColor`、USSの文章化は`ThemeStyleSheetGenerator`が行う。どちらもファイルを触らない純粋な処理で、Testから直接使う。
+- 生成したUSSと`ThemeAssets.asset`はRepositoryに含める。Build時に生成を必要としない。
 
 **Themeの適用**
 
-`ThemeService`は、Rootの`VisualElement`に付けたTheme用USSを差し替える。各部品は`var(--color-primary)`等を参照しているため、差し替えるだけで全体の色が変わる。
+`ThemeService`は、Rootの`VisualElement`に`vv-root` Classと`tokens-common.uss`を付け、Theme用USSだけを差し替える。各部品は`var(--vv-color-primary)`等を参照しているため、差し替えるだけで全体の色が変わる。
 
 | 設定 | 適用方法 |
 |---|---|
-| パレット、背景 | Theme用USSの差し替え |
-| UIの拡大縮小 | `PanelSettings.scale`（100%、110%、125%、150%） |
+| パレット、背景 | Theme用USSの差し替え。存在しないパレットは既定（Lavender）にしてWarningを記録する |
+| UIの拡大縮小 | `PanelSettings`で行う。`UiRoot`（実装順序7）が担当する |
 | 動きを減らす | Rootに`vv-reduced-motion` Classを付け、各部品のUSSで遷移と点滅を止める |
 
-**Tokenに関するTest**
+**Tokenに関するTest（`ThemeTokenTests`）**
 
-- 生成済みUSSが`design-tokens.json`から再生成した結果と一致すること。
-- すべてのパレットと背景で、`design-system.md` 9.2のコントラスト比を満たすこと（本文4.5:1以上、`On Accent`とPrimaryの組み合わせ4.5:1以上、`Accent Line`と背景3:1以上）。
+- 生成済みUSSが`design-tokens.json`から再生成した結果と一致し、余分なファイルがないこと。
+- `ThemeAssets.asset`がすべてのパレット、背景、既定のFontSetを参照していること。
+- すべてのパレットと背景で、`design-system.md` 9.2のコントラスト比を満たすこと。対象は、Textの各段階と背景・面、`On Accent`とPrimary・Secondary、`Accent Line`と背景・面、状態の文字とその淡い背景（カードの上に重ねた色）、状態の色と面、Text 2とWash（カードの上に重ねた色）。
 - `docs/assets/ui/styleboard.html`に書かれたパレットの値が`design-tokens.json`と一致すること。
+
+最初の実装時、このTestにより、当初の状態色とライト背景の一部の色が基準に届かないことが分かった。そのため`design-system.md`の値を調整した（状態の淡い背景、Error、Live、ライトのSuccess・Warning、Text 3、Accent Line）。その後、サンドボックスで見た目を確認した結果、ニュートラルの彩度を下げて背景を無彩色に近づけ、代わりにWashとアクセントの装飾（`design-system.md` 3.6）を加えた。あわせて、Primary・Secondaryを背景ごとに調整するようにした（ライトは濃く、ダークは明るく。ライトの濃さは、On Accentとのコントラスト4.5:1を保てる範囲にとどめる。`design-tokens.json`の`accentShift`）。
 
 ### 7.2 Font
 
 **FontSet**
 
-Fontは`FontSet`（ScriptableObject）で一組として扱う。
+Fontは`FontSet`（ScriptableObject、`Assets/VirtualVessel/UI/Fonts/`）で一組として扱う。
 
 | 項目 | 内容 |
 |---|---|
-| UI Font | 本文、見出し、ボタン用のFont Asset（Regular、Medium、Bold） |
-| Mono Font | 数値、ログ用のFont Asset |
-| Fallback | 文字が足りない場合に使うFont Assetの順序 |
+| Id | `ui-settings.json`に保存する識別子（例：`NotoSans`） |
+| Regular | 本文、ラベル、注記 |
+| Bold | 見出し、ボタン、太字 |
+| Mono | 数値、ログ、識別子 |
 
-既定のFontSetは`NotoSans`（Noto Sans JP + Noto Sans Mono）とする。
+既定のFontSetは`NotoSans`（Noto Sans JP Regular・Bold + Noto Sans Mono）とする。`ThemeGenerator`は、既定のFontSetがなければ作成する。
 
 **一括変更の仕組み**
 
-- すべての文字は、Typography Class（`vv-text-heading`、`vv-text-body`、`vv-text-mono`等）を通してFontを決める。
-- Typography Classは`-unity-font-definition: var(--font-ui)`のように、FontをCustom Propertyで参照する。
-- FontSetごとに、`--font-ui`と`--font-mono`を定義した小さなUSS（`fonts-<FontSet>.uss`）を`ThemeGenerator`が生成する。
-- `FontService`はこのUSSを差し替える。差し替えるだけで、Application全体のFontが一度に変わる。
+- すべての文字は、Typography Class（`vv-text-heading`、`vv-text-body`、`vv-text-mono`等）または`vv-bold`、`vv-mono`を通してFontを決める。Rootの文字はRegularになる。
+- `ThemeGenerator`は、FontSetごとに`fonts-<id>.uss`を生成する。このUSSだけが、各Classと`.vv-root`をFontのファイルへ対応づける（`-unity-font: url("project://database/...")`）。Unity標準ThemeのFont指定より優先させるため、`-unity-font-definition`は`initial`に戻す。
+- `FontService`はこのUSSを差し替える。差し替えるだけで、Application全体のFontが一度に変わる。存在しないFontSetは既定にしてWarningを記録する。
+- Typography ClassとFontの対応（Regular、Bold、Mono）は`design-tokens.json`の`typography`で決める。
+
+当初はFontをCustom Property（`var(--font-ui)`）で参照する案だったが、USS変数でFontを渡せることが確認できていないため、サンドボックスで動作を確認したClassの方式とした。差し替えるUSSが1つである点は変わらない。
 
 これにより、次の2つの一括変更ができる。
 
 | 場面 | 方法 |
 |---|---|
-| 開発時に既定のFontを変える | 既定のFontSetの中身を差し替える。各画面のUXMLやUSSは変更しない |
+| 開発時に既定のFontを変える | 既定のFontSetのFontを差し替えて`ThemeGenerator`を実行する。各画面のUXMLやUSSは変更しない |
 | 利用者が設定で変える | `ui-settings.json`の`fontSet`を変える。実行中に切り替わる |
 
 **言語とFont**
 
 - 文字列表（7.4）の各言語は、推奨するFontSetを指定できる。将来、日本語Fontで表示できない言語を追加する場合に使う。
-- FallbackはPanelSettingsのText Settingsに設定し、文字が欠けないようにする（方式設計14.9）。
-- 日本語は文字数が多いため、Font AssetはDynamic（必要な文字を実行時にAtlasへ追加）とする。
+- FallbackはPanelSettingsのText Settingsに設定し、文字が欠けないようにする（方式設計14.9）。`UiRoot`（実装順序7）で行う。
+- 日本語は文字数が多いため、FontはDynamic（必要な文字を実行時にAtlasへ追加）として扱う。TTFを`-unity-font`で指定すると、UnityがDynamicなFont Assetを作る。
 
 **Fontファイル**
 
-- Font本体は`Assets/ThirdParty/NotoSansJP/`、`Assets/ThirdParty/NotoSansMono/`に改変せずに置き、OFLのLicense文を同梱する。
+- Font本体は`Assets/ThirdParty/NotoSansJP/`、`Assets/ThirdParty/NotoSansMono/`に改変せずに置き、OFLのLicense文（`OFL.txt`）と入手元を書いた`README.md`を同梱する。
 - `.gitattributes`に`*.ttf`、`*.otf`をBinaryとして追加する。
 
 ### 7.3 BindingとRuntime State
@@ -706,15 +717,16 @@ Assets/VirtualVessel/
    │  ├─ Controls/          共通Component                         VirtualVessel.UI.Controls
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
-   │  ├─ Theme/             ThemeService, FontService, FontSet
+   │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      Localizer
    │  ├─ Screens/           ScreenHost, 各画面
    │  └─ Settings/          UiSettings, DeveloperModeService
    ├─ Styles/Components/    各部品のUSS
-   ├─ Theme/                design-tokens.json, Generated/*.uss
+   ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
+   ├─ Fonts/                FontSet（NotoSans.asset）
    ├─ Strings/              ja.json, en.json
    ├─ Uxml/                 画面のUXML
-   ├─ Editor/               ThemeGenerator, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiScreenshotCapture   VirtualVessel.UI.Editor
    └─ Tests/
       ├─ EditMode/
       ├─ PlayMode/

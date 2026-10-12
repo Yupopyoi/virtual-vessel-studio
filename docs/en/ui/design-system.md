@@ -40,7 +40,7 @@ Colors fall into three groups.
 | Group | Contents | Change with the palette |
 |---|---|---|
 | Accent | Primary, Secondary | Change per palette |
-| Neutral | Backgrounds, surfaces, borders, text | Slightly tinted with the palette hue |
+| Neutral | Backgrounds, surfaces, borders, text | Very slightly tinted with the palette hue |
 | Status | Success, warning, error, live | Fixed regardless of the palette |
 
 Status colors do not follow the palette so that "green-ish means success, red-ish means error" keeps its meaning in every palette.
@@ -56,28 +56,29 @@ Status colors do not follow the palette so that "green-ish means success, red-is
 | Peach | 18 | `#ffb08f` | `#ffd88a` |
 | Lemon | 48 | `#ffe07a` | `#ffb3cf` |
 
-- Primary and Secondary use the same values in dark and light. Both are soft colors, and text placed on them is always `On Accent` (a dark color).
+- The table values are base values. When shown, they are adjusted to the background (computed in HSL). Dark raises lightness by 6% for a brighter tone; light raises saturation by 25% and lowers lightness by 12% for a deeper tone, so the colors stay visible on pale backgrounds.
+- Both are soft colors, and text placed on them is always `On Accent` (a dark color).
 - When adding a palette, confirm that `On Accent` on Primary has a contrast of at least 4.5:1.
 
 ### 3.3 Neutrals
 
-Neutrals are defined in HSL using the palette hue H. Switching the palette also gives backgrounds and surfaces a faint tint.
+Neutrals are defined in HSL using the palette hue H. Saturation is kept low so that backgrounds and surfaces are close to colorless, because too much color in the background makes the whole screen look muddy. The palette shows through accents and decoration (3.6), not through the background.
 
 | Token | Use | Dark (S / L) | Light (S / L) |
 |---|---|---|---|
-| Background | Whole-screen background | 26% / 8% | 60% / 97% |
-| Surface | Screens, panels | 22% / 12% | 40% / 99% |
-| Surface 2 | Cards, input backgrounds | 20% / 16% | 45% / 95% |
-| Surface 3 | Pressable surfaces, tracks | 18% / 21% | 40% / 91% |
-| Border | Borders, dividers | 18% / 26% | 30% / 86% |
-| Text | Body text | 40% / 95% | 30% / 16% |
-| Text 2 | Supporting text, labels | 14% / 74% | 16% / 34% |
-| Text 3 | Notes, metadata | 12% / 62% | 12% / 42% |
-| Disabled | Text and thumbs of disabled parts | 10% / 40% | 10% / 72% |
+| Background | Whole-screen background | 8% / 8% | 20% / 97% |
+| Surface | Screens, panels | 7% / 12% | 10% / 99% |
+| Surface 2 | Cards, input backgrounds | 6% / 16% | 15% / 95% |
+| Surface 3 | Pressable surfaces, tracks | 6% / 21% | 14% / 91% |
+| Border | Borders, dividers | 6% / 26% | 10% / 86% |
+| Text | Body text | 15% / 95% | 12% / 16% |
+| Text 2 | Supporting text, labels | 5% / 74% | 8% / 34% |
+| Text 3 | Notes, metadata | 4% / 62% | 6% / 40% |
+| Disabled | Text and thumbs of disabled parts | 3% / 40% | 4% / 72% |
 | On Accent | Text on accent colors | 45% / 14% | 45% / 14% |
-| Accent Line | Thin lines, small accent text | Same as Primary | 55% / 42% |
+| Accent Line | Thin lines, small accent text | Same as Primary | 58% / 38% |
 
-Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
+Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 
 `Accent Line` is used for the focus outline, tab underlines, the navigation selection marker, slider fills, and small heading text. On light backgrounds a soft Primary is hard to tell apart from the background, so a deeper tone is used.
 
@@ -85,10 +86,10 @@ Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 
 | Token | Meaning | Dark | Light | Shape (9.1) |
 |---|---|---|---|---|
-| Success | Succeeded, connected, good | `#52d6bd` | `#0e7d68` | ✓ |
-| Warning | Caution, unstable | `#ffc864` | `#8f5c00` | △ (with !) |
-| Error | Failed, not found | `#ff6f8e` | `#c41f4b` | × |
-| Live | Streaming | `#ff4f84` | `#b80f4a` | ● (filled) |
+| Success | Succeeded, connected, good | `#52d6bd` | `#0a6656` | ✓ |
+| Warning | Caution, unstable | `#ffc864` | `#774c00` | △ (with !) |
+| Error | Failed, not found | `#ff8aa3` | `#a8173f` | × |
+| Live | Streaming | `#ff86ab` | `#9e0c41` | ● (filled) |
 | (none) | Stopped, not connected | Text 2 | Text 2 | ○ (outline) |
 
 - Success leans toward blue-green instead of green so that it is easier to tell apart from Error.
@@ -100,7 +101,23 @@ Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 |---|---|---|
 | Glow | Primary at 35% opacity | Glow of the primary button and toggles |
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
-| Soft status background | Status color at 14% opacity (18% for Live) | Background of status chips |
+| Soft status background | Status color at 14% opacity | Background of status chips |
+| Primary Wash / Secondary Wash | Primary or Secondary at 16% (dark) or 15% (light) opacity | Background of card titles (3.6) |
+
+### 3.6 Accent decoration
+
+With near-colorless backgrounds, the palette shows through the following decoration. It adds flair but stays within a range that does not become noisy.
+
+| Place | Decoration |
+|---|---|
+| Card | A 3px line along the top edge (Primary). A vertical bar left of the title, 4px wide, 16px tall, radius 2px (same color as the line). `Primary Wash` behind the title area |
+| Cards in a row | Every other card uses Secondary for the line and bar and `Secondary Wash` for the background |
+| Screen header | A 2px line along the bottom edge, as a horizontal gradient from Primary to Secondary |
+
+- Gradients use only Primary to Secondary and are limited to thin lines and small ornaments. Do not use them behind body text or controls.
+- Decorative lines, bars, and washes are ornaments and carry no meaning. Status and selection are still shown by shape, text, and `Accent Line`.
+- Text on a wash is Text 2 or stronger, and an automated test confirms at least 4.5:1 (9.2).
+- Decoration does not move, regardless of the reduce motion setting.
 
 ---
 
@@ -194,6 +211,8 @@ Users can choose the following appearance settings. All are saved as UI-specific
 
 ### 9.2 Readability
 
+An automated test on the Unity side (`ThemeTokenTests`) confirms these rules for every palette and both backgrounds. Status text must reach 4.5:1 against its soft background composited over a card.
+
 - Body text has a contrast of at least 4.5:1 with its background; large text, icons, and component boundaries at least 3:1.
 - Text on accent colors uses `On Accent`.
 
@@ -214,9 +233,11 @@ Users can choose the following appearance settings. All are saved as UI-specific
 
 Details are defined in the UI foundation detailed design. Within the scope of this document, the following is assumed.
 
-- Tokens are defined as USS custom properties (such as `--color-primary`), and each component's USS refers to them with `var()`.
-- USS supports neither `color-mix()` nor HSL calculations. Therefore, neutrals and derived colors are prepared as precomputed values for each combination of palette and background. How they are generated is decided in the detailed design.
-- Fonts are set from the theme style sheet using font assets of Noto Sans JP and Noto Sans Mono.
+- Token values live in `unity/VirtualVesselStudio/Assets/VirtualVessel/UI/Theme/design-tokens.json`. When this document changes, that file gets the same values.
+- Tokens are defined as USS custom properties (such as `--vv-color-primary`, `--vv-space-m`, `--vv-radius-control`), and each component's USS refers to them with `var()`.
+- USS supports neither `color-mix()` nor HSL calculations. Therefore, neutrals and derived colors are generated as precomputed values for each combination of palette and background (UI foundation detailed design 7.1).
+- Fonts are set by a USS generated per font set (UI foundation detailed design 7.2).
+- USS has no line-height. The line heights in 4.2 apply to the preview page (browser); in Unity each font's default line height is used.
 
 ---
 
@@ -224,5 +245,6 @@ Details are defined in the UI foundation detailed design. Within the scope of th
 
 1. Update this document and `docs/ja/ui/design-system.md`.
 2. Update `docs/assets/ui/styleboard.html` with the same content.
-3. Update the tokens on the Unity side (after implementation).
-4. Check the display in dark, light, Japanese, English, and each color view.
+3. Update `design-tokens.json` and run "Virtual Vessel > UI > Generate Theme" in Unity.
+4. Run `ThemeTokenTests` to check contrast ratios and agreement with the preview page.
+5. Check the display in dark, light, Japanese, English, and each color view.

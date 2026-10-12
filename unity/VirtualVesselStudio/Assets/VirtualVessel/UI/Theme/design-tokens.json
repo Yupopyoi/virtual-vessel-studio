@@ -1,0 +1,60 @@
+{
+    "schemaVersion": 1,
+    "defaultPalette": "lavender",
+    "palettes": [
+        { "id": "lavender", "name": "Lavender", "hue": 268, "primary": "#c3a6ff", "secondary": "#ff9ccf" },
+        { "id": "sakura", "name": "Sakura", "hue": 335, "primary": "#ffa3c4", "secondary": "#c9a8ff" },
+        { "id": "mint", "name": "Mint", "hue": 165, "primary": "#7fe0c1", "secondary": "#a9d8ff" },
+        { "id": "sky", "name": "Sky", "hue": 212, "primary": "#8cc4ff", "secondary": "#c7b2ff" },
+        { "id": "peach", "name": "Peach", "hue": 18, "primary": "#ffb08f", "secondary": "#ffd88a" },
+        { "id": "lemon", "name": "Lemon", "hue": 48, "primary": "#ffe07a", "secondary": "#ffb3cf" }
+    ],
+    "neutrals": [
+        { "token": "bg", "dark": [8, 8], "light": [20, 97] },
+        { "token": "surface", "dark": [7, 12], "light": [10, 99] },
+        { "token": "surface-2", "dark": [6, 16], "light": [15, 95] },
+        { "token": "surface-3", "dark": [6, 21], "light": [14, 91] },
+        { "token": "border", "dark": [6, 26], "light": [10, 86] },
+        { "token": "text", "dark": [15, 95], "light": [12, 16] },
+        { "token": "text-2", "dark": [5, 74], "light": [8, 34] },
+        { "token": "text-3", "dark": [4, 62], "light": [6, 40] },
+        { "token": "disabled", "dark": [3, 40], "light": [4, 72] },
+        { "token": "on-accent", "dark": [45, 14], "light": [45, 14] }
+    ],
+    "accentShift": { "dark": [0, 6], "light": [25, -12] },
+    "accentLineLight": [58, 38],
+    "status": [
+        { "token": "success", "dark": "#52d6bd", "light": "#0a6656", "softAlpha": 0.14 },
+        { "token": "warning", "dark": "#ffc864", "light": "#774c00", "softAlpha": 0.14 },
+        { "token": "error", "dark": "#ff8aa3", "light": "#a8173f", "softAlpha": 0.14 },
+        { "token": "live", "dark": "#ff86ab", "light": "#9e0c41", "softAlpha": 0.14 }
+    ],
+    "statusLineAlpha": 0.40,
+    "glowAlpha": 0.35,
+    "washAlpha": { "dark": 0.16, "light": 0.15 },
+    "tintAmount": 0.14,
+    "errorSurfaceAmount": 0.08,
+    "shadow": { "saturation": 50, "lightness": 3, "alpha": 0.45 },
+    "spacing": [
+        { "token": "xs", "px": 4 },
+        { "token": "s", "px": 8 },
+        { "token": "m", "px": 16 },
+        { "token": "l", "px": 24 },
+        { "token": "xl", "px": 40 }
+    ],
+    "radius": [
+        { "token": "s", "px": 8 },
+        { "token": "control", "px": 10 },
+        { "token": "m", "px": 14 },
+        { "token": "l", "px": 22 }
+    ],
+    "typography": [
+        { "token": "heading", "size": 22, "font": "bold" },
+        { "token": "subhead", "size": 16, "font": "bold" },
+        { "token": "body", "size": 14, "font": "regular" },
+        { "token": "caption", "size": 12, "font": "regular" },
+        { "token": "button", "size": 13, "font": "bold" },
+        { "token": "numeric", "size": 20, "font": "mono" },
+        { "token": "mono", "size": 12, "font": "mono" }
+    ]
+}
