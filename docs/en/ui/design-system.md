@@ -40,7 +40,7 @@ Colors fall into three groups.
 | Group | Contents | Change with the palette |
 |---|---|---|
 | Accent | Primary, Secondary | Change per palette |
-| Neutral | Backgrounds, surfaces, borders, text | Slightly tinted with the palette hue |
+| Neutral | Backgrounds, surfaces, borders, text | Very slightly tinted with the palette hue |
 | Status | Success, warning, error, live | Fixed regardless of the palette |
 
 Status colors do not follow the palette so that "green-ish means success, red-ish means error" keeps its meaning in every palette.
@@ -61,23 +61,23 @@ Status colors do not follow the palette so that "green-ish means success, red-is
 
 ### 3.3 Neutrals
 
-Neutrals are defined in HSL using the palette hue H. Switching the palette also gives backgrounds and surfaces a faint tint.
+Neutrals are defined in HSL using the palette hue H. Saturation is kept low so that backgrounds and surfaces are close to colorless, because too much color in the background makes the whole screen look muddy. The palette shows through accents and decoration (3.6), not through the background.
 
 | Token | Use | Dark (S / L) | Light (S / L) |
 |---|---|---|---|
-| Background | Whole-screen background | 26% / 8% | 60% / 97% |
-| Surface | Screens, panels | 22% / 12% | 40% / 99% |
-| Surface 2 | Cards, input backgrounds | 20% / 16% | 45% / 95% |
-| Surface 3 | Pressable surfaces, tracks | 18% / 21% | 40% / 91% |
-| Border | Borders, dividers | 18% / 26% | 30% / 86% |
-| Text | Body text | 40% / 95% | 30% / 16% |
-| Text 2 | Supporting text, labels | 14% / 74% | 16% / 34% |
-| Text 3 | Notes, metadata | 12% / 62% | 14% / 40% |
-| Disabled | Text and thumbs of disabled parts | 10% / 40% | 10% / 72% |
+| Background | Whole-screen background | 8% / 8% | 20% / 97% |
+| Surface | Screens, panels | 7% / 12% | 10% / 99% |
+| Surface 2 | Cards, input backgrounds | 6% / 16% | 15% / 95% |
+| Surface 3 | Pressable surfaces, tracks | 6% / 21% | 14% / 91% |
+| Border | Borders, dividers | 6% / 26% | 10% / 86% |
+| Text | Body text | 15% / 95% | 12% / 16% |
+| Text 2 | Supporting text, labels | 5% / 74% | 8% / 34% |
+| Text 3 | Notes, metadata | 4% / 62% | 6% / 40% |
+| Disabled | Text and thumbs of disabled parts | 3% / 40% | 4% / 72% |
 | On Accent | Text on accent colors | 45% / 14% | 45% / 14% |
 | Accent Line | Thin lines, small accent text | Same as Primary | 58% / 38% |
 
-Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
+Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 
 `Accent Line` is used for the focus outline, tab underlines, the navigation selection marker, slider fills, and small heading text. On light backgrounds a soft Primary is hard to tell apart from the background, so a deeper tone is used.
 
@@ -101,6 +101,22 @@ Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 | Glow | Primary at 35% opacity | Glow of the primary button and toggles |
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
 | Soft status background | Status color at 14% opacity | Background of status chips |
+| Primary Wash / Secondary Wash | Primary or Secondary at 9% opacity | Background of card titles (3.6) |
+
+### 3.6 Accent decoration
+
+With near-colorless backgrounds, the palette shows through the following decoration. It adds flair but stays within a range that does not become noisy.
+
+| Place | Decoration |
+|---|---|
+| Card | A 3px line along the top edge (Primary). A vertical bar left of the title, 4px wide, 16px tall, radius 2px (same color as the line). `Primary Wash` behind the title area |
+| Cards in a row | Every other card uses Secondary for the line and bar and `Secondary Wash` for the background |
+| Screen header | A 2px line along the bottom edge, as a horizontal gradient from Primary to Secondary |
+
+- Gradients use only Primary to Secondary and are limited to thin lines and small ornaments. Do not use them behind body text or controls.
+- Decorative lines, bars, and washes are ornaments and carry no meaning. Status and selection are still shown by shape, text, and `Accent Line`.
+- Text on a wash is Text 2 or stronger, and an automated test confirms at least 4.5:1 (9.2).
+- Decoration does not move, regardless of the reduce motion setting.
 
 ---
 

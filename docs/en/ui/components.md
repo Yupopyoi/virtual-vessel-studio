@@ -96,6 +96,7 @@ For each component, the following states are defined:
 - Background Surface 2, 1px border, Radius M, padding M.
 - A title at the top (13px, weight 700, Text 2). A status chip (3.13) can sit at its right end.
 - Cards in the same row share padding and layout.
+- Add the top line, the title bar, and the wash behind the title. Every other card in a row uses Secondary (`design-system.md` 3.6).
 
 ### 3.11 Dialog
 

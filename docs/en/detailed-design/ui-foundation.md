@@ -250,10 +250,10 @@ Assets/VirtualVessel/UI/Theme/
 
 - The committed USS matches the result of regenerating from `design-tokens.json`, with no stale files.
 - `ThemeAssets.asset` references every palette, background, and the default font set.
-- Every palette and background meets the contrast in `design-system.md` 9.2. This covers each text level on backgrounds and surfaces, `On Accent` on Primary and Secondary, `Accent Line` on backgrounds and surfaces, status text on its soft background (composited over a card), and status colors on surfaces.
+- Every palette and background meets the contrast in `design-system.md` 9.2. This covers each text level on backgrounds and surfaces, `On Accent` on Primary and Secondary, `Accent Line` on backgrounds and surfaces, status text on its soft background (composited over a card), status colors on surfaces, and Text 2 on a wash (composited over a card).
 - The palette values written in `docs/assets/ui/styleboard.html` match `design-tokens.json`.
 
-During the first implementation, this test showed that the original status colors and some light-background colors fell short of the rules. The values in `design-system.md` were therefore adjusted (soft status background, Error, Live, light Success and Warning, Text 3, Accent Line).
+During the first implementation, this test showed that the original status colors and some light-background colors fell short of the rules. The values in `design-system.md` were therefore adjusted (soft status background, Error, Live, light Success and Warning, Text 3, Accent Line). Later, after a visual review in a sandbox, neutral saturation was lowered so that backgrounds are close to colorless, and washes and accent decoration (`design-system.md` 3.6) were added instead.
 
 ### 7.2 Fonts
 
