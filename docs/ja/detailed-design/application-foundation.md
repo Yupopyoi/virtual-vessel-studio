@@ -103,7 +103,10 @@ Clockおよび`MainThreadDispatcher`はUnityEngineに依存しない純粋な.NE
 | 名称 | 種別 | 概要 |
 |---|---|---|
 | `IDataRoot` | Interface | 解決済みData RootのPathと標準Sub Directoryを提供する |
-| `DataRootResolver` | Internal Class | `bootstrap.json`等からData Rootを決定し、作成・書き込み可否を確認する |
+| `DataRootResolver` | Internal Class | `bootstrap.json`等からData Rootを決定し、作成・書き込み可否を確認する。設定ファイルの置き場所（`ConfigDirectory`）も提供する |
+| `ConfigFileStore<T>` | Class | 設定ファイル1つを読み書きする（11.1） |
+| `ConfigDocument` / `ConfigMigration` | Class | 移行処理が設定の項目を名前で操作するための型と、1段分の移行 |
+| `ConfigLoadResult<T>` | Class | 読み込み結果（状態と、Logに記録すべき注意点） |
 
 ---
 
@@ -364,6 +367,7 @@ Data Root Overrideは以下から指定可能とする。通常利用者向けUI
 | 対象 | 保存先 |
 |---|---|
 | `bootstrap.json` | `%LOCALAPPDATA%\VirtualVesselStudio\` |
+| 設定ファイル（`ui-settings.json`等） | `%LOCALAPPDATA%\VirtualVesselStudio\Config\`（方式設計6.8） |
 | Session Marker | `<Data Root>/Logs/session.lock` |
 
 ### Data Root解決順序
@@ -375,6 +379,43 @@ Data Root Overrideは以下から指定可能とする。通常利用者向けUI
 解決後、方式設計6.10の標準Directoryのうち、基盤が使用するもの（Logs、Cache）を作成し、書き込み可能か確認する。
 
 Data Rootの変更・移行機能（方式設計6.26）は本書の対象外とする。
+
+### 11.1 設定ファイルの読み書き（ConfigFileStore）
+
+設定ファイルは利用者の資産として扱う（CLAUDE.md 25章）。`ConfigFileStore<T>`は、設定1種類につき1つ作り、`Load()`と`Save()`で読み書きする。
+
+```csharp
+var store = new ConfigFileStore<UiSettings>(
+    resolver.ConfigDirectory, "ui-settings.json", currentVersion: 1,
+    createDefault: () => new UiSettings(), clock: systemClock, migrations: null);
+ConfigLoadResult<UiSettings> result = store.Load();
+store.Save(result.Value);
+```
+
+| 状況 | 動作 |
+|---|---|
+| ファイルがない | 既定値を返す（`Created`） |
+| 古いVersion | 移行を1段ずつ適用する（`Migrated`、方式設計6.15） |
+| 新しいVersion | 分かる項目だけ読む。保存時は分からない項目とVersion番号を保つ（`NewerVersion`）。新しいVersionが同じファイルを二重に移行しないためである |
+| 現在のVersionが知らない項目 | 読み込んだまま保持し、保存時に書き戻す。入れ子の項目も保つ |
+| 一部の項目の型が違う | その項目だけ既定値にし、注意点を返す |
+| JSONとして読めない、`schemaVersion`がない、移行が失敗した | `<name>.broken-<日時>.json`へ退避し、既定値で続行する（`Recovered`） |
+| 保存 | 一時ファイル（`<name>.tmp`）へ書いてDiskへ反映してから、元のファイルと置き換える。失敗した場合、元のファイルは変わらない |
+
+- ProjectDataはLogに依存しない。読み込み結果の注意点（`Warnings`）は呼び出し側がLogへ記録する。
+- 移行処理は`ConfigDocument`で項目を名前（`"audio.inputDevice"`のようなドット区切り）で操作する。JSON LibraryのTypeをModule外へ出さないためである。
+- 項目名はC#のProperty名をcamelCaseにしたものとする。
+
+**JSON Library**
+
+| 項目 | 内容 |
+|---|---|
+| Package | `com.unity.nuget.newtonsoft-json` 3.2.2（Unity Technologies管理。Newtonsoft.Json 13.0.2相当） |
+| License | Package全体はUnity Companion License。同梱の`Newtonsoft.Json.dll`と`Json.Net.Unity3D`はMIT |
+| 配布時の対応 | MITの著作権表示とLicense文を、配布物の第三者License一覧へ含める |
+| 利用範囲 | ProjectDataの`Config/`のみ。DLLはすべてのAssemblyから自動で参照できてしまうため、`JsonLibraryBoundaryTests`で他のModuleからの使用を検出する |
+
+Unity標準の`JsonUtility`は、Classに定義した項目しか扱えず、知らない項目を保持して書き戻すことができないため使用しない。既存の`bootstrap.json`の読み込みは、項目が固定で書き込みも行わないため`JsonUtility`のままとする。
 
 ---
 
@@ -449,7 +490,8 @@ Assets/VirtualVessel/
 │
 └─ ProjectData/
    ├─ Runtime/                      VirtualVessel.ProjectData
-   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
+   │  ├─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
+   │  └─ Config/ConfigFileStore.cs, ConfigDocument.cs, ConfigLoadResult.cs
    └─ Tests/EditMode/
 
 Assets/Scenes/
