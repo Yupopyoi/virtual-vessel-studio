@@ -1,11 +1,14 @@
 using System;
+using System.IO;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace VirtualVessel.ProjectData.Config
 {
     /// <summary>
     /// A settings file's contents as a tree of named values, given to migrations so that they can
-    /// rename, move, or remove fields without knowing the JSON library.
+    /// rename, move, or remove fields without knowing the JSON library. <see cref="Parse"/> also reads
+    /// bundled read-only data, such as UI string tables, without exposing the JSON library.
     /// </summary>
     /// <remarks>
     /// Paths use dots for nesting, such as <c>"audio.inputDevice"</c>. Values are JSON primitives,
@@ -18,6 +21,48 @@ namespace VirtualVessel.ProjectData.Config
         internal ConfigDocument(JObject root)
         {
             _root = root ?? throw new ArgumentNullException(nameof(root));
+        }
+
+        /// <summary>Reads a JSON object from text.</summary>
+        /// <exception cref="FormatException">The text is not a single JSON object.</exception>
+        public static ConfigDocument Parse(string json)
+        {
+            if (json == null)
+            {
+                throw new ArgumentNullException(nameof(json));
+            }
+
+            try
+            {
+                return new ConfigDocument(ParseObject(json));
+            }
+            catch (JsonException exception)
+            {
+                throw new FormatException($"Not a valid JSON object: {exception.Message}", exception);
+            }
+        }
+
+        /// <summary>
+        /// Parses a JSON object. Strings that look like dates stay strings; the default reader would
+        /// turn them into dates and change their text.
+        /// </summary>
+        internal static JObject ParseObject(string json)
+        {
+            using (var reader = new JsonTextReader(new StringReader(json)) { DateParseHandling = DateParseHandling.None, FloatParseHandling = FloatParseHandling.Double })
+            {
+                JObject root = JObject.Load(reader);
+
+                // JObject.Load stops after the object; reject trailing content as JObject.Parse does.
+                while (reader.Read())
+                {
+                    if (reader.TokenType != JsonToken.Comment)
+                    {
+                        throw new JsonReaderException("Unexpected content after the JSON object.");
+                    }
+                }
+
+                return root;
+            }
         }
 
         public bool Contains(string path)

@@ -105,7 +105,7 @@ The clocks and `MainThreadDispatcher` are pure .NET code that does not depend on
 | `IDataRoot` | Interface | Provides the resolved Data Root path and standard subdirectories |
 | `DataRootResolver` | Internal class | Determines the Data Root from `bootstrap.json`, etc., and checks creation and writability. Also provides the settings folder (`ConfigDirectory`) |
 | `ConfigFileStore<T>` | Class | Reads and writes one settings file (11.1) |
-| `ConfigDocument` / `ConfigMigration` | Class | Named access to settings fields for migrations, and one migration step |
+| `ConfigDocument` / `ConfigMigration` | Class | Named access to settings fields for migrations, and one migration step. `ConfigDocument.Parse` also reads bundled read-only data, such as UI string tables |
 | `ConfigLoadResult<T>` | Class | Load result (status and notes for the log) |
 
 ---
@@ -404,6 +404,8 @@ store.Save(result.Value);
 
 - ProjectData does not depend on logging. The caller records the load result's notes (`Warnings`) in the log.
 - Migrations work on fields by name (dot-separated, such as `"audio.inputDevice"`) through `ConfigDocument`, so the JSON library's types do not leave the module.
+- Other modules that read bundled JSON data use `ConfigDocument.Parse(text)`. It throws `FormatException` unless the text is a JSON object.
+- Strings that look like dates (such as `"2026-10-13"`) stay strings and are not read as dates, because reading them as dates would change their text when written back.
 - Field names are the C# property names in camelCase.
 
 **JSON library**

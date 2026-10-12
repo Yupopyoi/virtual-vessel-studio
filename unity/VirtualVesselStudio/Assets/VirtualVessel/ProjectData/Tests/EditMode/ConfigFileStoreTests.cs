@@ -217,6 +217,34 @@ namespace VirtualVessel.ProjectData.Tests
         }
 
         [Test]
+        public void Load_DateLikeString_KeepsItsText()
+        {
+            // Regression: the default JSON reader turned this into a date and Palette became "10/13/2026 12:00:00".
+            Write("{ \"schemaVersion\": 1, \"palette\": \"2026-10-13T12:00:00Z\", \"note\": \"2026-10-13\" }");
+            ConfigFileStore<SampleSettings> store = CreateStore();
+
+            ConfigLoadResult<SampleSettings> result = store.Load();
+            store.Save(result.Value);
+
+            Assert.That(result.Value.Palette, Is.EqualTo("2026-10-13T12:00:00Z"));
+            Assert.That(ConfigDocument.Parse(File.ReadAllText(Path.Combine(_directory, "settings.json"))).Get<string>("note"), Is.EqualTo("2026-10-13"), "Unknown fields are written back unchanged.");
+        }
+
+        [Test]
+        public void ConfigDocument_Parse_ReadsObjectsOnly()
+        {
+            ConfigDocument document = ConfigDocument.Parse("{ \"strings\": { \"live.start\": \"Go live\", \"day\": \"2026-10-13\" } }");
+            Dictionary<string, string> strings = document.Get<Dictionary<string, string>>("strings");
+
+            Assert.That(strings["live.start"], Is.EqualTo("Go live"), "Keys may contain dots when read as a whole object.");
+            Assert.That(strings["day"], Is.EqualTo("2026-10-13"));
+            Assert.Throws<FormatException>(() => ConfigDocument.Parse("[1, 2]"));
+            Assert.Throws<FormatException>(() => ConfigDocument.Parse("{ \"a\": 1 } trailing"));
+            Assert.Throws<FormatException>(() => ConfigDocument.Parse(""));
+            Assert.Throws<ArgumentNullException>(() => ConfigDocument.Parse(null));
+        }
+
+        [Test]
         public void ConfigDocument_GetSetRemoveRename()
         {
             var document = new ConfigDocument(JObject.Parse("{ \"a\": { \"b\": 3 }, \"s\": \"x\" }"));
