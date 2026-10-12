@@ -394,6 +394,7 @@ public interface IUiCommand
 - `ScreenHost` switches between the Live, Setup, Voice Lab, and Diagnostics screens. A screen is created the first time it opens and kept afterwards.
 - The Diagnostics navigation item is shown only while Developer Mode is enabled (system design 14.22).
 - `DeveloperModeService` propagates Developer Mode changes to related functions such as `PerformanceMetricsService.SetDetailedEnabled`.
+- Language, palette, background, UI size, and reduced motion are in "App settings" on the Setup screen, not on the Live screen.
 - The first screens built are:
   - Diagnostics: a table of performance metrics (`PerformanceSnapshot`).
   - Component Gallery (Developer Mode only): the same parts as `styleboard.html`, laid out in Unity for display checks.
@@ -476,7 +477,7 @@ It carries over the operations whose usability was confirmed in the earlier prot
 | Horizontal flip | `FlipHorizontal` |
 | Locking operations | `Locked` |
 | Settings panel on right click | Right-click menu (9.4) |
-| Slider for stacking order | Bring to front, send to back (9.4) |
+| Slider for stacking order | Drag in the layer list to reorder (9.7); bring to front, send to back (9.4) |
 
 The prototype was written with uGUI `RectTransform` and `Input`, reading the mouse every frame. This design receives operations through UI Toolkit pointer events and separates the math into `FrameEditMath`.
 
@@ -533,8 +534,11 @@ flowchart LR
 
 - Turning the mouse wheel over a selected frame zooms the video inside without changing the frame size, centered on the pointer.
 - A zoomed video can be panned by dragging with the middle button, or by dragging while holding `Space`.
-- Dragging an edge handle with `Alt` crops that edge (the same as OBS).
+- To crop edges, switch to "crop mode". It can be switched with the mode switch at the top left of the preview, the `C` key, a double-click on the frame, or the right-click menu.
+- In crop mode, dragging a handle crops that edge and dragging inside the frame pans. `Enter`, `Esc`, or switching again returns to layout mode.
 - The crop range never goes outside the video.
+
+`Alt` is used only for resizing around the fixed center. `Alt` + edge drag was first assigned to cropping as well, but the two conflicted, so after review in the sandbox it was replaced by the mode switch. The mode is always shown on screen and does not rely on double-click alone.
 
 **Feedback during operations**
 
@@ -543,8 +547,13 @@ flowchart LR
 
 **Undo**
 
-- Each drag or key operation is recorded as one unit; `Ctrl+Z` undoes and `Ctrl+Y` redoes.
+- Each drag or key operation is recorded as one unit; `Ctrl+Z` undoes and `Ctrl+Y` redoes. Consecutive mouse wheel steps form one unit.
 - The history is kept only while the placement editing screen is open.
+
+**Cursors**
+
+- Over handles the cursor is ↔ ↕ ⤡ ⤢; inside a frame it is the move shape; over a locked frame it is the not-allowed shape (`components.md` 3.19).
+- The USS `cursor` property works only in Editor UI, not in runtime panels. `CursorService` therefore draws cursor images and sets them with `Cursor.SetCursor`. Horizontal and vertical arrows look heavier than diagonal ones, so their shafts and heads are slimmer.
 
 ### 9.4 Right-click Menu
 
@@ -556,10 +565,13 @@ flowchart LR
 | Fit to screen | Largest size that fits in the stream screen, keeping the aspect ratio |
 | Fill screen | Size that covers the stream screen, keeping the aspect ratio |
 | Center | Moves to the center of the stream screen |
-| Reset crop | Returns `Crop` to the whole video |
+| Crop mode | Switches between layout mode and crop mode |
+| Reset crop | Returns `Crop` to the whole video. The video keeps its on-screen scale and the frame grows to the whole video |
 | Bring to front / Send to back | Changes `Order` |
 
 Each menu item also shows a tooltip and its shortcut.
+
+The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring to front), `[` (send to back), and `F` (full-screen preview).
 
 ### 9.5 Commit and Runtime State
 
@@ -579,6 +591,12 @@ Each menu item also shows a tooltip and its shortcut.
 - fit to screen, fill screen
 
 This allows the results of operations to be checked thoroughly with EditMode tests.
+
+### 9.7 Layer List
+
+- The placement editing screen has a list of the videos on the stream screen from front to back (`components.md` 3.20).
+- Dragging a row changes the stacking order. After reordering, `Order` is renumbered from front to back. One reorder is one undo unit.
+- Selection in the list and selection in the preview refer to the same frame.
 
 ---
 

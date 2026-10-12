@@ -151,14 +151,17 @@ Spacing is chosen only from these five steps.
 
 | Token | Value | Use |
 |---|---|---|
-| Radius S | 8px | Input fields, small parts |
+| Radius S | 8px | Input fields, status chips, small parts |
+| Radius Control | 10px | Buttons, segmented controls |
 | Radius M | 14px | Cards, navigation items, notifications |
 | Radius L | 22px | Screens, dialogs |
-| Radius Pill | 999px | Buttons, toggles, status chips |
+| Radius Round | Half the height | Toggles, round icon buttons |
 | Border | 1px | Normal borders |
 | Border (error) | 2px | Input fields in the error state |
 
-Round pill-shaped buttons and toggles are the center of the visual impression.
+Buttons and status chips are rounded rectangles; toggles and icon buttons are round. Rounded corners and soft accent colors are the center of the visual impression.
+
+In Unity UI Toolkit, a corner radius larger than half the element's height is drawn as an ellipse. Large values such as `999px` are therefore not used. Round parts (Radius Round) set the radius to exactly half the height.
 
 ---
 

@@ -45,7 +45,7 @@
   --font-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
   --space-xs: 4px; --space-s: 8px; --space-m: 16px; --space-l: 24px; --space-xl: 40px;
-  --radius-s: 8px; --radius-m: 14px; --radius-l: 22px; --radius-pill: 999px;
+  --radius-s: 8px; --radius-control: 10px; --radius-m: 14px; --radius-l: 22px; --radius-pill: 999px;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -130,9 +130,9 @@ button, input, select { font: inherit; color: inherit; }
   cursor: pointer; padding: 0; position: relative;
 }
 .swatch-btn[aria-pressed="true"] { border-color: var(--text); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--text); }
-.seg { display: inline-flex; background: var(--surface-2); border-radius: var(--radius-pill); padding: 3px; border: 1px solid var(--border); }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: var(--radius-control); padding: 3px; border: 1px solid var(--border); }
 .seg button {
-  border: 0; background: transparent; padding: 4px 12px; border-radius: var(--radius-pill);
+  border: 0; background: transparent; padding: 4px 12px; border-radius: 7px;
   cursor: pointer; color: var(--text-2); font-size: 12px; font-weight: 500;
 }
 .seg button[aria-pressed="true"] { background: var(--primary); color: var(--on-accent); }
@@ -162,7 +162,7 @@ button, input, select { font: inherit; color: inherit; }
 .topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; }
 .topline h3 { font-size: 18px; font-weight: 700; margin-right: auto; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-s);
   font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
 }
 /* Status icons: every status has its own shape so it never depends on color alone. */
@@ -213,7 +213,7 @@ button, input, select { font: inherit; color: inherit; }
 
 /* Components */
 .btn {
-  border: 0; cursor: pointer; border-radius: var(--radius-pill); padding: 9px 18px; font-weight: 700; font-size: 13px;
+  border: 0; cursor: pointer; border-radius: var(--radius-control); padding: 8px 18px; font-weight: 700; font-size: 13px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
@@ -584,9 +584,9 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
           <div style="border-radius:var(--radius-s)">S 8</div>
           <div style="border-radius:var(--radius-m)">M 14</div>
           <div style="border-radius:var(--radius-l)">L 22</div>
-          <div style="border-radius:var(--radius-pill)">Pill</div>
+          <div style="border-radius:var(--radius-control)">Control 10</div>
         </div>
-        <p class="note" data-i18n="space.note">ボタンとトグルは丸いピル形、カードは角丸 M、画面とダイアログは角丸 L。かわいさは形の丸みと淡いアクセント色で出し、文字と余白は落ち着かせます。</p>
+        <p class="note" data-i18n="space.note">ボタンと状態表示は角丸四角形、トグルは丸、カードは角丸 M、画面とダイアログは角丸 L。かわいさは形の丸みと淡いアクセント色で出し、文字と余白は落ち着かせます。</p>
       </div>
     </div>
   </section>
@@ -710,7 +710,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "type.b": "Voice conversion runs inside the app while you stream and needs no outside service.",
     "type.c": "Last saved 2026/10/11 21:04", "type.btn": "Start streaming",
     "space.title": "Spacing and shape",
-    "space.note": "Buttons and toggles are round pills, cards use radius M, screens and dialogs use radius L. The cuteness comes from rounded shapes and soft accents; text and spacing stay calm.",
+    "space.note": "Buttons and status chips are rounded rectangles, toggles are round, cards use radius M, screens and dialogs use radius L. The cuteness comes from rounded shapes and soft accents; text and spacing stay calm.",
     "s3.eyebrow": "Parts", "s3.title": "Shared components", "s3.desc": "Every screen is assembled from these parts. Disabled and error states are decided here too.",
     "c.buttons": "Buttons", "c.start": "Start streaming", "c.test": "Test recording", "c.disabled": "Preparing…",
     "c.toggles": "Toggles and icon buttons", "c.status": "Status", "c.connected": "Connected", "c.failed": "Failed", "c.idle": "Stopped",

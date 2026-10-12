@@ -39,7 +39,7 @@ For each component, the following states are defined:
 | Secondary | Background Surface 3, text Text, 1px border | Other actions |
 | Danger | Soft Live background, text Live, Live border | Actions that are hard to undo, such as ending the stream |
 
-- Shape Radius Pill, text Button style, padding 9px vertical and 18px horizontal.
+- Shape Radius Control (rounded rectangle), text Button style, padding 8px vertical and 18px horizontal.
 - Moves down 1px while pressed.
 - A Danger action runs only after a confirmation dialog (3.11).
 
@@ -51,7 +51,7 @@ For each component, the following states are defined:
 
 ### 3.3 Toggle
 
-- A 44×26px pill with a 20px round thumb.
+- 44×26px with Radius Round (13px, half the height) and a 20px round thumb.
 - Off: background Surface 3, thumb Text 2. On: background Primary, thumb On Accent, Glow.
 - On and off differ by thumb position as well as color.
 - Always placed with its label text.
@@ -115,7 +115,7 @@ For each component, the following states are defined:
 
 ### 3.13 Status Indicator (Chip)
 
-- A pill with an icon, text, and optionally a number (tabular).
+- A rounded rectangle with Radius S holding an icon, text, and optionally a number (tabular).
 - Colors and shapes per status follow `design-system.md` 3.4.
 - Only the live indicator blinks its icon slowly. With reduced motion it does not blink.
 
@@ -127,7 +127,7 @@ For each component, the following states are defined:
 
 ### 3.15 Progress Bar
 
-- An 8px pill. Progress is filled with a gradient from Primary to Secondary.
+- 8px high with Radius Round. Progress is filled with a gradient from Primary to Secondary.
 - Above it, show what is progressing and the current value (for example "RVC training · epoch 120 / 300").
 
 ### 3.16 Navigation Item
@@ -142,6 +142,36 @@ For each component, the following states are defined:
 - The frame rate is shown at the top right, and resolution and bitrate at the bottom left.
 - A full-screen icon button sits at the bottom right. In full screen, only the video fills the screen; `Esc`, the same button, or the `F` key returns.
 - Full screen is a way of showing the preview and does not affect the stream output (Stream Render Target) (system design 14.23).
+- While a video is selected, the mode switch (3.18) is shown at the top left.
+
+### 3.18 Segmented
+
+- Picks one of two to four options. Used for language, background, UI size, the placement editing mode, and similar.
+- The outer box uses Radius Control and each item about Radius S (7px). The selected item has background Primary and text On Accent.
+- With five or more options, or long text, use a Dropdown instead.
+
+### 3.19 Media Frame
+
+The frame for editing the placement of a video (game screen, second monitor, and so on) on the stream screen. Operation details are in Chapter 9 of the UI foundation detailed design.
+
+- A selected frame shows a 2px Primary outline and eight handles (12px circles) at the corners and edges.
+- Placement editing has two modes, "Layout" and "Crop". The current mode is always shown as "Mode [Layout | Crop]" at the top left of the preview, where it can also be switched.
+- In crop mode, the outline and handles turn Secondary and the handles become bars along the edges. The whole video is shown faintly to indicate how far it can be uncropped.
+- Pointing at a handle changes the cursor to ↔ ↕ ⤡ ⤢. Inside the frame it becomes the move shape, and over a locked frame the not-allowed shape.
+- While operating, position and size (or zoom) are shown small above the frame.
+- A locked frame shows "Locked" and no handles.
+
+### 3.20 Layer List
+
+- Lists the videos on the stream screen from front to back. The top is in front.
+- Each row shows "≡" to indicate it can be grabbed, a color swatch, the name, and its state (locked, hidden).
+- Clicking a row selects it; dragging it up or down changes the stacking order. While dragging, an Accent Line shows where it will land.
+- Reordering can be undone (`Ctrl+Z`).
+
+### 3.21 Key Hint
+
+- A small box showing a shortcut or operation. Background Background, 1px border, radius 5px, Monospace 11px.
+- The box fits the text height and is vertically centered with the text next to it. It does not stretch to the row height.
 
 ---
 
