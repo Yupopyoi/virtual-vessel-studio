@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "locale": "ja",
+    "displayName": "日本語",
+    "fontSet": "NotoSans",
+    "strings": {
+        "common.ok": "OK",
+        "common.cancel": "キャンセル",
+        "common.close": "閉じる",
+        "common.retry": "もう一度試す",
+        "common.items.one": "{count} 件",
+        "common.items.other": "{count} 件",
+        "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。"
+    }
+}

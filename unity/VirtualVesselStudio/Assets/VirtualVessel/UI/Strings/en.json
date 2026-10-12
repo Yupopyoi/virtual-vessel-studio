@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "locale": "en",
+    "displayName": "English",
+    "fontSet": "NotoSans",
+    "strings": {
+        "common.ok": "OK",
+        "common.cancel": "Cancel",
+        "common.close": "Close",
+        "common.retry": "Try again",
+        "common.items.one": "{count} item",
+        "common.items.other": "{count} items",
+        "error.unexpected": "Something went wrong and the action could not be completed. Please try again."
+    }
+}
