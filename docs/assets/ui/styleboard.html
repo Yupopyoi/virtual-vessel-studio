@@ -38,8 +38,8 @@
 
   --success: #52d6bd;
   --warning: #ffc864;
-  --error: #ff6f8e;
-  --live: #ff4f84;
+  --error: #ff8aa3;
+  --live: #ff86ab;
 
   --font-ui: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
   --font-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -57,13 +57,13 @@
     --border: hsl(var(--h) 30% 86%);
     --text: hsl(var(--h) 30% 16%);
     --text-2: hsl(var(--h) 16% 34%);
-    --text-3: hsl(var(--h) 12% 42%);
+    --text-3: hsl(var(--h) 14% 40%);
     --disabled: hsl(var(--h) 10% 72%);
-    --accent-line: hsl(var(--h) 55% 42%);
-    --success: #0e7d68;
-    --warning: #8f5c00;
-    --error: #c41f4b;
-    --live: #b80f4a;
+    --accent-line: hsl(var(--h) 58% 38%);
+    --success: #0a6656;
+    --warning: #774c00;
+    --error: #a8173f;
+    --live: #9e0c41;
   }
 }
 :root[data-theme="light"] {
@@ -75,13 +75,13 @@
   --border: hsl(var(--h) 30% 86%);
   --text: hsl(var(--h) 30% 16%);
   --text-2: hsl(var(--h) 16% 34%);
-  --text-3: hsl(var(--h) 12% 42%);
+  --text-3: hsl(var(--h) 14% 40%);
   --disabled: hsl(var(--h) 10% 72%);
-  --accent-line: hsl(var(--h) 55% 42%);
-  --success: #0e7d68;
-  --warning: #8f5c00;
-  --error: #c41f4b;
-  --live: #b80f4a;
+  --accent-line: hsl(var(--h) 58% 38%);
+  --success: #0a6656;
+  --warning: #774c00;
+  --error: #a8173f;
+  --live: #9e0c41;
 }
 :root[data-palette="sakura"] { --h: 335; --primary: #ffa3c4; --secondary: #c9a8ff; }
 :root[data-palette="mint"]   { --h: 165; --primary: #7fe0c1; --secondary: #a9d8ff; }
@@ -182,7 +182,7 @@ button, input, select { font: inherit; color: inherit; }
 .chip.ok .dot { --icon: var(--icon-ok); }
 .chip.warn .dot { --icon: var(--icon-warn); }
 .chip.err .dot { --icon: var(--icon-err); }
-.chip.live { background: color-mix(in srgb, var(--live) 18%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
+.chip.live { background: color-mix(in srgb, var(--live) 14%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
 .chip.live .dot { animation: pulse 1.6s ease-in-out infinite; }
 .chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
 .chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }

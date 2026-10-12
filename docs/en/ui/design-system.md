@@ -72,10 +72,10 @@ Neutrals are defined in HSL using the palette hue H. Switching the palette also 
 | Border | Borders, dividers | 18% / 26% | 30% / 86% |
 | Text | Body text | 40% / 95% | 30% / 16% |
 | Text 2 | Supporting text, labels | 14% / 74% | 16% / 34% |
-| Text 3 | Notes, metadata | 12% / 62% | 12% / 42% |
+| Text 3 | Notes, metadata | 12% / 62% | 14% / 40% |
 | Disabled | Text and thumbs of disabled parts | 10% / 40% | 10% / 72% |
 | On Accent | Text on accent colors | 45% / 14% | 45% / 14% |
-| Accent Line | Thin lines, small accent text | Same as Primary | 55% / 42% |
+| Accent Line | Thin lines, small accent text | Same as Primary | 58% / 38% |
 
 Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 
@@ -85,10 +85,10 @@ Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 
 | Token | Meaning | Dark | Light | Shape (9.1) |
 |---|---|---|---|---|
-| Success | Succeeded, connected, good | `#52d6bd` | `#0e7d68` | ✓ |
-| Warning | Caution, unstable | `#ffc864` | `#8f5c00` | △ (with !) |
-| Error | Failed, not found | `#ff6f8e` | `#c41f4b` | × |
-| Live | Streaming | `#ff4f84` | `#b80f4a` | ● (filled) |
+| Success | Succeeded, connected, good | `#52d6bd` | `#0a6656` | ✓ |
+| Warning | Caution, unstable | `#ffc864` | `#774c00` | △ (with !) |
+| Error | Failed, not found | `#ff8aa3` | `#a8173f` | × |
+| Live | Streaming | `#ff86ab` | `#9e0c41` | ● (filled) |
 | (none) | Stopped, not connected | Text 2 | Text 2 | ○ (outline) |
 
 - Success leans toward blue-green instead of green so that it is easier to tell apart from Error.
@@ -100,7 +100,7 @@ Example: Lavender's dark `Background` is `hsl(268, 26%, 8%)`.
 |---|---|---|
 | Glow | Primary at 35% opacity | Glow of the primary button and toggles |
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
-| Soft status background | Status color at 14% opacity (18% for Live) | Background of status chips |
+| Soft status background | Status color at 14% opacity | Background of status chips |
 
 ---
 
@@ -194,6 +194,8 @@ Users can choose the following appearance settings. All are saved as UI-specific
 
 ### 9.2 Readability
 
+An automated test on the Unity side (`ThemeTokenTests`) confirms these rules for every palette and both backgrounds. Status text must reach 4.5:1 against its soft background composited over a card.
+
 - Body text has a contrast of at least 4.5:1 with its background; large text, icons, and component boundaries at least 3:1.
 - Text on accent colors uses `On Accent`.
 
@@ -214,9 +216,11 @@ Users can choose the following appearance settings. All are saved as UI-specific
 
 Details are defined in the UI foundation detailed design. Within the scope of this document, the following is assumed.
 
-- Tokens are defined as USS custom properties (such as `--color-primary`), and each component's USS refers to them with `var()`.
-- USS supports neither `color-mix()` nor HSL calculations. Therefore, neutrals and derived colors are prepared as precomputed values for each combination of palette and background. How they are generated is decided in the detailed design.
-- Fonts are set from the theme style sheet using font assets of Noto Sans JP and Noto Sans Mono.
+- Token values live in `unity/VirtualVesselStudio/Assets/VirtualVessel/UI/Theme/design-tokens.json`. When this document changes, that file gets the same values.
+- Tokens are defined as USS custom properties (such as `--vv-color-primary`, `--vv-space-m`, `--vv-radius-control`), and each component's USS refers to them with `var()`.
+- USS supports neither `color-mix()` nor HSL calculations. Therefore, neutrals and derived colors are generated as precomputed values for each combination of palette and background (UI foundation detailed design 7.1).
+- Fonts are set by a USS generated per font set (UI foundation detailed design 7.2).
+- USS has no line-height. The line heights in 4.2 apply to the preview page (browser); in Unity each font's default line height is used.
 
 ---
 
@@ -224,5 +228,6 @@ Details are defined in the UI foundation detailed design. Within the scope of th
 
 1. Update this document and `docs/ja/ui/design-system.md`.
 2. Update `docs/assets/ui/styleboard.html` with the same content.
-3. Update the tokens on the Unity side (after implementation).
-4. Check the display in dark, light, Japanese, English, and each color view.
+3. Update `design-tokens.json` and run "Virtual Vessel > UI > Generate Theme" in Unity.
+4. Run `ThemeTokenTests` to check contrast ratios and agreement with the preview page.
+5. Check the display in dark, light, Japanese, English, and each color view.

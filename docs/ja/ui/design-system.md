@@ -72,10 +72,10 @@ docs/assets/ui/styleboard.html
 | Border | 枠線、区切り線 | 18% / 26% | 30% / 86% |
 | Text | 本文 | 40% / 95% | 30% / 16% |
 | Text 2 | 補足、ラベル | 14% / 74% | 16% / 34% |
-| Text 3 | 注記、メタ情報 | 12% / 62% | 12% / 42% |
+| Text 3 | 注記、メタ情報 | 12% / 62% | 14% / 40% |
 | Disabled | 無効な部品の文字・つまみ | 10% / 40% | 10% / 72% |
 | On Accent | アクセント色の上の文字 | 45% / 14% | 45% / 14% |
-| Accent Line | 細い線、小さなアクセント文字 | Primaryと同じ | 55% / 42% |
+| Accent Line | 細い線、小さなアクセント文字 | Primaryと同じ | 58% / 38% |
 
 例：Lavenderのダークの`Background`は`hsl(268, 26%, 8%)`となる。
 
@@ -85,10 +85,10 @@ docs/assets/ui/styleboard.html
 
 | Token | 意味 | ダーク | ライト | 形（9.1） |
 |---|---|---|---|---|
-| Success | 成功、接続済み、良好 | `#52d6bd` | `#0e7d68` | ✓ |
-| Warning | 注意、不安定 | `#ffc864` | `#8f5c00` | △（中に !） |
-| Error | 失敗、見つからない | `#ff6f8e` | `#c41f4b` | × |
-| Live | 配信中 | `#ff4f84` | `#b80f4a` | ●（塗りつぶし） |
+| Success | 成功、接続済み、良好 | `#52d6bd` | `#0a6656` | ✓ |
+| Warning | 注意、不安定 | `#ffc864` | `#774c00` | △（中に !） |
+| Error | 失敗、見つからない | `#ff8aa3` | `#a8173f` | × |
+| Live | 配信中 | `#ff86ab` | `#9e0c41` | ●（塗りつぶし） |
 | （なし） | 停止中、未接続 | Text 2 | Text 2 | ○（輪郭） |
 
 - Successは、Errorとの区別がつきやすいよう、緑ではなく青緑寄りとする。
@@ -100,7 +100,7 @@ docs/assets/ui/styleboard.html
 |---|---|---|
 | Glow | Primaryの不透明度35% | Primary Buttonやトグルの光彩 |
 | Tint | SurfaceにPrimaryを14%混ぜた色 | ナビゲーションの選択背景 |
-| 状態の淡い背景 | 状態色の不透明度14%（Liveは18%） | 状態表示（Chip）の背景 |
+| 状態の淡い背景 | 状態色の不透明度14% | 状態表示（Chip）の背景 |
 
 ---
 
@@ -194,6 +194,8 @@ Unity UI Toolkitでは、角丸の半径が要素の高さの半分を超える�
 
 ### 9.2 読みやすさ
 
+全パレット・両背景でこの基準を満たすことを、Unity側の自動テスト（`ThemeTokenTests`）で確認する。状態表示の文字は、その状態の淡い背景をカードの上に重ねた色に対して4.5:1以上とする。
+
 - 本文と背景のコントラストは4.5:1以上、大きな文字、アイコン、部品の境界は3:1以上とする。
 - アクセント色の上の文字は`On Accent`とする。
 
@@ -214,9 +216,11 @@ Unity UI Toolkitでは、角丸の半径が要素の高さの半分を超える�
 
 詳細はUI基盤の詳細設計で定める。本書の範囲では次を前提とする。
 
-- TokenはUSSのCustom Property（`--color-primary`等）として定義し、各ComponentのUSSは`var()`で参照する。
-- USSは`color-mix()`やHSLの計算に対応しない。そのため、ニュートラルと派生色はパレット・背景の組み合わせごとに計算済みの値として用意する。生成方法は詳細設計で決める。
-- Fontは、Noto Sans JPとNoto Sans MonoのFont AssetをTheme Style Sheetから指定する。
+- Tokenの値は`unity/VirtualVesselStudio/Assets/VirtualVessel/UI/Theme/design-tokens.json`に置く。本書を変更したら、このファイルも同じ値にする。
+- TokenはUSSのCustom Property（`--vv-color-primary`、`--vv-space-m`、`--vv-radius-control`等）として定義し、各ComponentのUSSは`var()`で参照する。
+- USSは`color-mix()`やHSLの計算に対応しない。そのため、ニュートラルと派生色はパレット・背景の組み合わせごとに計算済みの値を生成する（UI基盤詳細設計7.1）。
+- Fontは、FontSetごとに生成したUSSが指定する（UI基盤詳細設計7.2）。
+- USSには行間（line-height）の指定がない。4.2の行間は見本ページ（ブラウザ）での値であり、Unityでは各Fontの既定の行間となる。
 
 ---
 
@@ -224,5 +228,6 @@ Unity UI Toolkitでは、角丸の半径が要素の高さの半分を超える�
 
 1. 本書と`docs/en/ui/design-system.md`を更新する。
 2. `docs/assets/ui/styleboard.html`を同じ内容に更新する。
-3. Unity側のTokenを更新する（実装後）。
-4. ダーク、ライト、日本語、英語、色の見え方の各表示で確認する。
+3. `design-tokens.json`を更新し、Unityで「Virtual Vessel > UI > Generate Theme」を実行する。
+4. `ThemeTokenTests`を実行し、コントラスト比と見本ページとの一致を確認する。
+5. ダーク、ライト、日本語、英語、色の見え方の各表示で確認する。
