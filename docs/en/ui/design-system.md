@@ -56,7 +56,8 @@ Status colors do not follow the palette so that "green-ish means success, red-is
 | Peach | 18 | `#ffb08f` | `#ffd88a` |
 | Lemon | 48 | `#ffe07a` | `#ffb3cf` |
 
-- Primary and Secondary use the same values in dark and light. Both are soft colors, and text placed on them is always `On Accent` (a dark color).
+- The table values are base values. When shown, they are adjusted to the background (computed in HSL). Dark raises lightness by 3% for a slightly brighter tone; light raises saturation by 15% and lowers lightness by 8% for a slightly deeper tone, so the colors stay visible on pale backgrounds.
+- Both are soft colors, and text placed on them is always `On Accent` (a dark color).
 - When adding a palette, confirm that `On Accent` on Primary has a contrast of at least 4.5:1.
 
 ### 3.3 Neutrals
@@ -101,7 +102,7 @@ Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 | Glow | Primary at 35% opacity | Glow of the primary button and toggles |
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
 | Soft status background | Status color at 14% opacity | Background of status chips |
-| Primary Wash / Secondary Wash | Primary or Secondary at 9% opacity | Background of card titles (3.6) |
+| Primary Wash / Secondary Wash | Primary or Secondary at 13% (dark) or 12% (light) opacity | Background of card titles (3.6) |
 
 ### 3.6 Accent decoration
 
