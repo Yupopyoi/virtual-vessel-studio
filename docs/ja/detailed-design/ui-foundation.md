@@ -456,7 +456,7 @@ public interface IUiCommand
 - 書き込みは一時ファイルへ書いてから置き換える（Atomic Write）。
 - 現在のVersionが知らない項目は、読み込んだまま保持して書き戻す。
 - 壊れたファイルは`<name>.broken-<日時>.json`へ退避し、既定値で起動する。退避したことはWarningで記録する。
-- JSONの読み書きにはJSONのDOMを扱えるLibraryが必要である。候補は`com.unity.nuget.newtonsoft-json`（Unity管理、MIT License）とする。導入時に利用者の承認を得る。
+- JSONの読み書きには`com.unity.nuget.newtonsoft-json` 3.2.2を使用する（利用者承認済み）。詳細はアプリケーション基盤詳細設計の11.1を参照する。
 
 ---
 
@@ -732,7 +732,7 @@ Assets/ThirdParty/
 各段階を1つのBranchとし、それぞれにTestを含める（CLAUDE.md 29.2）。
 
 1. Core：`IReadOnlyObservable<T>`、`NormalizedRect`、`FrameLayout`、`FrameEditMath`
-2. ProjectData：`ConfigFileStore`（JSON Libraryの導入について承認を得る）
+2. ProjectData：`ConfigFileStore`（`com.unity.nuget.newtonsoft-json`を導入する）
 3. UI：Assembly、Token、`ThemeGenerator`、`ThemeService`、Font、`FontService`
 4. UI：`Localizer`と文字列表
 5. UI：共通Component、Binding、Command、Tooltip、Dialog、Notification
@@ -745,7 +745,6 @@ Assets/ThirdParty/
 
 | 項目 | 対応予定 |
 |---|---|
-| JSON Library（`com.unity.nuget.newtonsoft-json`）の導入 | 実装順序2の着手時に承認を得る |
 | アイコンの入手元（自作のSVGか、License互換のIcon Setか） | 実装順序5の着手時に決める |
 | `FrameLayout`をStageがどう保存し、配信映像へ反映するか | Stageの詳細設計 |
 | 回転（`MediaFrame`の回転操作） | 必要になった時点で検討する |

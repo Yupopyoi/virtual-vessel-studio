@@ -456,7 +456,7 @@ Position and size are stored as ratios so that the values do not depend on the s
 - Writes go to a temporary file that then replaces the original (atomic write).
 - Fields unknown to the current version are kept as read and written back.
 - A broken file is moved aside to `<name>.broken-<timestamp>.json`, and the application starts with defaults. Moving it aside is recorded as a warning.
-- Reading and writing JSON requires a library that handles a JSON DOM. The candidate is `com.unity.nuget.newtonsoft-json` (maintained by Unity, MIT License). User approval is obtained when it is introduced.
+- JSON is read and written with `com.unity.nuget.newtonsoft-json` 3.2.2 (approved by the user). See 11.1 of the application foundation detailed design for details.
 
 ---
 
@@ -732,7 +732,7 @@ Assets/ThirdParty/
 Each step is one branch and includes its tests (CLAUDE.md 29.2).
 
 1. Core: `IReadOnlyObservable<T>`, `NormalizedRect`, `FrameLayout`, `FrameEditMath`
-2. ProjectData: `ConfigFileStore` (obtain approval for introducing the JSON library)
+2. ProjectData: `ConfigFileStore` (introduces `com.unity.nuget.newtonsoft-json`)
 3. UI: assembly, tokens, `ThemeGenerator`, `ThemeService`, fonts, `FontService`
 4. UI: `Localizer` and string tables
 5. UI: shared components, binding, commands, tooltips, dialogs, notifications
@@ -745,7 +745,6 @@ Each step is one branch and includes its tests (CLAUDE.md 29.2).
 
 | Item | Planned handling |
 |---|---|
-| Introducing the JSON library (`com.unity.nuget.newtonsoft-json`) | Obtain approval when starting implementation step 2 |
 | Source of icons (own SVGs or a license-compatible icon set) | Decide when starting implementation step 5 |
 | How Stage stores `FrameLayout` and applies it to the stream video | Stage detailed design |
 | Rotation (rotating a `MediaFrame`) | Consider when needed |

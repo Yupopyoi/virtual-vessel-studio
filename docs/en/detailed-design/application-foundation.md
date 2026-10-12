@@ -103,7 +103,10 @@ The clocks and `MainThreadDispatcher` are pure .NET code that does not depend on
 | Name | Kind | Summary |
 |---|---|---|
 | `IDataRoot` | Interface | Provides the resolved Data Root path and standard subdirectories |
-| `DataRootResolver` | Internal class | Determines the Data Root from `bootstrap.json`, etc., and checks creation and writability |
+| `DataRootResolver` | Internal class | Determines the Data Root from `bootstrap.json`, etc., and checks creation and writability. Also provides the settings folder (`ConfigDirectory`) |
+| `ConfigFileStore<T>` | Class | Reads and writes one settings file (11.1) |
+| `ConfigDocument` / `ConfigMigration` | Class | Named access to settings fields for migrations, and one migration step |
+| `ConfigLoadResult<T>` | Class | Load result (status and notes for the log) |
 
 ---
 
@@ -364,6 +367,7 @@ If both are specified, the command-line argument takes precedence. The environme
 | Target | Location |
 |---|---|
 | `bootstrap.json` | `%LOCALAPPDATA%\VirtualVesselStudio\` |
+| Settings files (`ui-settings.json`, etc.) | `%LOCALAPPDATA%\VirtualVesselStudio\Config\` (system design 6.8) |
 | Session marker | `<Data Root>/Logs/session.lock` |
 
 ### Data Root Resolution Order
@@ -375,6 +379,43 @@ If both are specified, the command-line argument takes precedence. The environme
 After resolution, the standard directories of system design 6.10 that the foundation uses (Logs, Cache) are created, and writability is checked.
 
 Changing and migrating the Data Root (system design 6.26) is out of scope for this document.
+
+### 11.1 Reading and Writing Settings Files (ConfigFileStore)
+
+Settings files are user assets (CLAUDE.md Chapter 25). One `ConfigFileStore<T>` is created per kind of settings and read and written with `Load()` and `Save()`.
+
+```csharp
+var store = new ConfigFileStore<UiSettings>(
+    resolver.ConfigDirectory, "ui-settings.json", currentVersion: 1,
+    createDefault: () => new UiSettings(), clock: systemClock, migrations: null);
+ConfigLoadResult<UiSettings> result = store.Load();
+store.Save(result.Value);
+```
+
+| Situation | Behavior |
+|---|---|
+| No file | Returns the default (`Created`) |
+| Older version | Applies migrations one step at a time (`Migrated`, system design 6.15) |
+| Newer version | Reads the known fields. On save, keeps unknown fields and the version number (`NewerVersion`), so the newer version does not migrate the file twice |
+| Fields unknown to this version | Kept as read and written back on save, including nested ones |
+| Some field has the wrong type | Only that field falls back to its default, and a note is returned |
+| Not valid JSON, no `schemaVersion`, or a failed migration | Moved aside to `<name>.broken-<timestamp>.json`; continues with defaults (`Recovered`) |
+| Save | Writes a temporary file (`<name>.tmp`), flushes it to disk, then replaces the original. On failure the original is unchanged |
+
+- ProjectData does not depend on logging. The caller records the load result's notes (`Warnings`) in the log.
+- Migrations work on fields by name (dot-separated, such as `"audio.inputDevice"`) through `ConfigDocument`, so the JSON library's types do not leave the module.
+- Field names are the C# property names in camelCase.
+
+**JSON library**
+
+| Item | Contents |
+|---|---|
+| Package | `com.unity.nuget.newtonsoft-json` 3.2.2 (maintained by Unity Technologies; Newtonsoft.Json 13.0.2) |
+| License | The package as a whole is under the Unity Companion License. The bundled `Newtonsoft.Json.dll` and `Json.Net.Unity3D` are MIT |
+| Distribution | Include the MIT copyright notices and license text in the third-party license list of the distribution |
+| Scope | Only ProjectData's `Config/`. The DLL is automatically referenceable from every assembly, so `JsonLibraryBoundaryTests` detects use from other modules |
+
+Unity's built-in `JsonUtility` handles only fields defined on the class and cannot keep unknown fields to write them back, so it is not used. Reading the existing `bootstrap.json` stays on `JsonUtility`, because its fields are fixed and it is never written.
 
 ---
 
@@ -449,7 +490,8 @@ Assets/VirtualVessel/
 │
 └─ ProjectData/
    ├─ Runtime/                      VirtualVessel.ProjectData
-   │  └─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
+   │  ├─ DataRoot/IDataRoot.cs, DataRootResolver.cs, BootstrapSettings.cs, ...
+   │  └─ Config/ConfigFileStore.cs, ConfigDocument.cs, ConfigLoadResult.cs
    └─ Tests/EditMode/
 
 Assets/Scenes/
