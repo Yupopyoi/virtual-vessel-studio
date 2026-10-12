@@ -350,9 +350,10 @@ Assets/VirtualVessel/UI/Strings/
 }
 ```
 
-- Keyは`<領域>.<項目>`の形で、小文字とドットを使う。Tooltipは`tip.`で始める。
-- 値の中の`{name}`は名前付きの差し込みとする。
-- 英語の単数・複数が必要な場合は、`.one`と`.other`のKeyを用意し、`Localizer.Plural(key, count)`で選ぶ。
+- Keyは`<領域>.<項目>`の形とし、小文字の英字・数字・ハイフンをドットで区切る。Tooltipは`tip.`で始める。
+- 値の中の`{name}`は名前付きの差し込みとする。`{{`と`}}`は波かっこそのものを表す。対応する引数がない差し込みは、そのまま残す。数値は、その言語の書式で表示する。
+- 単数と複数で表現が変わる場合は、`.one`と`.other`のKeyを用意し、`Localizer.Plural(key, count)`で選ぶ。`{count}`も差し込まれる。2つの形は同じ言語の表から取る。すべての言語でKeyをそろえるため、単数形のない言語では`.one`に`.other`と同じ文を書く。
+- 文字列表は`StringTable.Parse`で読む。内部ではProjectDataの`ConfigDocument.Parse`（アプリケーション基盤詳細設計11.1）を使い、JSON Libraryを使うのはProjectDataだけとする。文字列表はApplicationに同梱するため、`schemaVersion`が異なる表はBuildの誤りとみなし、読み込みに失敗させる。
 
 **取得と切り替え**
 
@@ -361,15 +362,19 @@ string text = _localizer.Get("live.elapsed", ("time", elapsed));
 ```
 
 - `ILocalizer.LocaleChanged`で言語の変更を通知する。`*-key`属性を持つ部品は自動で表示を更新する。
-- Keyが見つからない場合は、英語の文字列を使う。英語にもない場合は`[live.start]`のようにKeyを表示し、開発者向けに1回だけWarningを記録する。
+- Keyが見つからない場合は、英語の文字列を使う。英語にもない場合は`[live.start]`のようにKeyを表示し、開発者向けにKeyごとに1回だけWarningを記録する。
+- 知らない言語コード（手で書き換えた設定ファイルなど）は、Warningを記録して英語にする。言語が未設定の場合の初期値は`Localizer.ChooseInitialLocale`で決める（8.1）。
+- 差し込みのない取得ではAllocationしない。Main Threadから呼ぶ。
+- C#から使うKeyの定数は、`[StringKeys]`を付けたstatic classの`const string`として定義する（例：`CommonStrings`）。
 
 **言語の追加**
 
-`<locale>.json`を追加するだけで、言語の選択肢に現れる。コードの変更は不要とする（方式設計16.14）。
+`<locale>.json`を追加するだけで、言語の選択肢に現れる。コードの変更は不要とする（方式設計16.14）。`Localizer`は文字列表を文字列として受け取る。`UiAssets`（実装順序7）が`Strings/*.json`をすべて集めることで、ファイルの追加だけで済むようにする。
 
 **Test**
 
-- すべての言語で、Keyの集合が一致すること。
+- `ja`と`en`があり、ファイル名と`locale`が一致すること。
+- すべての言語で、Keyの集合が一致すること。Keyが上記の形式に従い、空の値がないこと。
 - 同じKeyの差し込み（`{name}`）が、すべての言語で一致すること。
 - UXMLの`*-key`属性とC#の文字列Key定数が、文字列表に存在すること。
 
@@ -718,7 +723,7 @@ Assets/VirtualVessel/
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
-   │  ├─ Localization/      Localizer
+   │  ├─ Localization/      ILocalizer, Localizer, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, 各画面
    │  └─ Settings/          UiSettings, DeveloperModeService
    ├─ Styles/Components/    各部品のUSS

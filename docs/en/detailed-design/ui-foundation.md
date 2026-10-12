@@ -350,9 +350,10 @@ Assets/VirtualVessel/UI/Strings/
 }
 ```
 
-- Keys have the form `<area>.<item>` in lowercase with dots. Tooltip keys start with `tip.`.
-- `{name}` in a value is a named placeholder.
-- When English needs singular and plural, provide `.one` and `.other` keys and pick with `Localizer.Plural(key, count)`.
+- Keys have the form `<area>.<item>`: lowercase letters, digits, and hyphens, separated by dots. Tooltip keys start with `tip.`.
+- `{name}` in a value is a named placeholder. `{{` and `}}` are literal braces. A placeholder without a matching argument is left as is. Numbers are formatted with the language's culture.
+- When singular and plural differ, provide `.one` and `.other` keys and pick with `Localizer.Plural(key, count)`, which also fills in `{count}`. Both forms come from the same language. Because every language has the same keys, a language without a singular form gives `.one` the same text as `.other`.
+- Tables are read with `StringTable.Parse`, which uses ProjectData's `ConfigDocument.Parse` (application foundation detailed design 11.1), so only ProjectData uses the JSON library. Tables ship with the application, so a table with another `schemaVersion` is a build mistake and fails to load.
 
 **Getting and switching**
 
@@ -361,15 +362,19 @@ string text = _localizer.Get("live.elapsed", ("time", elapsed));
 ```
 
 - `ILocalizer.LocaleChanged` notifies language changes. Parts with `*-key` attributes update automatically.
-- When a key is missing, the English string is used. If English also lacks it, the key is shown as `[live.start]` and a developer warning is recorded once.
+- When a key is missing, the English string is used. If English also lacks it, the key is shown as `[live.start]` and a developer warning is recorded once per key.
+- An unknown language code, such as one from a hand-edited settings file, falls back to English with a warning. `Localizer.ChooseInitialLocale` picks the starting language when none is set (8.1).
+- Lookups without placeholders do not allocate. Call from the main thread.
+- Key constants used from C# are `const string` fields of static classes marked `[StringKeys]`, such as `CommonStrings`.
 
 **Adding a language**
 
-Adding `<locale>.json` is enough for it to appear in the language options. No code changes are needed (system design 16.14).
+Adding `<locale>.json` is enough for it to appear in the language options. No code changes are needed (system design 16.14). `Localizer` receives the tables as text; `UiAssets` (implementation step 7) collects every `Strings/*.json` so that adding the file is enough.
 
 **Tests**
 
-- Every language has the same set of keys.
+- `ja` and `en` exist, and each file name matches its `locale`.
+- Every language has the same set of keys. Keys follow the format above, and no value is empty.
 - Placeholders (`{name}`) of each key match across languages.
 - `*-key` attributes in UXML and string key constants in C# exist in the string tables.
 
@@ -718,7 +723,7 @@ Assets/VirtualVessel/
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
-   │  ├─ Localization/      Localizer
+   │  ├─ Localization/      ILocalizer, Localizer, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, screens
    │  └─ Settings/          UiSettings, DeveloperModeService
    ├─ Styles/Components/    USS of each part
