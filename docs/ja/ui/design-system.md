@@ -56,7 +56,7 @@ docs/assets/ui/styleboard.html
 | Peach | 18 | `#ffb08f` | `#ffd88a` |
 | Lemon | 48 | `#ffe07a` | `#ffb3cf` |
 
-- 表の値は基準値である。表示するときは背景に合わせて調整する（HSLで計算）。ダークでは明度を3%上げて少し明るく、ライトでは彩度を15%上げ、明度を8%下げて少し濃くする。淡い背景の上でも色が見えるようにするためである。
+- 表の値は基準値である。表示するときは背景に合わせて調整する（HSLで計算）。ダークでは明度を6%上げて明るく、ライトでは彩度を25%上げ、明度を12%下げて濃くする。淡い背景の上でも色が見えるようにするためである。
 - どちらも淡い色であり、その上に置く文字は常に`On Accent`（濃い色）とする。
 - パレットを追加する場合は、Primaryの上で`On Accent`が4.5:1以上になることを確認する。
 
@@ -102,7 +102,7 @@ docs/assets/ui/styleboard.html
 | Glow | Primaryの不透明度35% | Primary Buttonやトグルの光彩 |
 | Tint | SurfaceにPrimaryを14%混ぜた色 | ナビゲーションの選択背景 |
 | 状態の淡い背景 | 状態色の不透明度14% | 状態表示（Chip）の背景 |
-| Primary Wash / Secondary Wash | Primary、Secondaryの不透明度13%（ダーク）、12%（ライト） | Cardのタイトル部分の背景（3.6） |
+| Primary Wash / Secondary Wash | Primary、Secondaryの不透明度16%（ダーク）、15%（ライト） | Cardのタイトル部分の背景（3.6） |
 
 ### 3.6 アクセントの装飾
 

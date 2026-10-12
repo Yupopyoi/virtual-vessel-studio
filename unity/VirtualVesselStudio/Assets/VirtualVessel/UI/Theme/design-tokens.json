@@ -21,7 +21,7 @@
         { "token": "disabled", "dark": [3, 40], "light": [4, 72] },
         { "token": "on-accent", "dark": [45, 14], "light": [45, 14] }
     ],
-    "accentShift": { "dark": [0, 3], "light": [15, -8] },
+    "accentShift": { "dark": [0, 6], "light": [25, -12] },
     "accentLineLight": [58, 38],
     "status": [
         { "token": "success", "dark": "#52d6bd", "light": "#0a6656", "softAlpha": 0.14 },
@@ -31,7 +31,7 @@
     ],
     "statusLineAlpha": 0.40,
     "glowAlpha": 0.35,
-    "washAlpha": { "dark": 0.13, "light": 0.12 },
+    "washAlpha": { "dark": 0.16, "light": 0.15 },
     "tintAmount": 0.14,
     "errorSurfaceAmount": 0.08,
     "shadow": { "saturation": 50, "lightness": 3, "alpha": 0.45 },
