@@ -105,7 +105,7 @@ Clockおよび`MainThreadDispatcher`はUnityEngineに依存しない純粋な.NE
 | `IDataRoot` | Interface | 解決済みData RootのPathと標準Sub Directoryを提供する |
 | `DataRootResolver` | Internal Class | `bootstrap.json`等からData Rootを決定し、作成・書き込み可否を確認する。設定ファイルの置き場所（`ConfigDirectory`）も提供する |
 | `ConfigFileStore<T>` | Class | 設定ファイル1つを読み書きする（11.1） |
-| `ConfigDocument` / `ConfigMigration` | Class | 移行処理が設定の項目を名前で操作するための型と、1段分の移行 |
+| `ConfigDocument` / `ConfigMigration` | Class | 移行処理が設定の項目を名前で操作するための型と、1段分の移行。`ConfigDocument.Parse`は、同梱の読み取り専用データ（UIの文字列表など）の読み込みにも使う |
 | `ConfigLoadResult<T>` | Class | 読み込み結果（状態と、Logに記録すべき注意点） |
 
 ---
@@ -404,6 +404,8 @@ store.Save(result.Value);
 
 - ProjectDataはLogに依存しない。読み込み結果の注意点（`Warnings`）は呼び出し側がLogへ記録する。
 - 移行処理は`ConfigDocument`で項目を名前（`"audio.inputDevice"`のようなドット区切り）で操作する。JSON LibraryのTypeをModule外へ出さないためである。
+- 他のModuleが同梱のJSONデータを読む場合は`ConfigDocument.Parse(text)`を使う。JSONのObjectでなければ`FormatException`を投げる。
+- 日付のように見える文字列（`"2026-10-13"`など）は、日付として解釈せず文字列のまま扱う。解釈すると、書き戻したときに文字が変わってしまうためである。
 - 項目名はC#のProperty名をcamelCaseにしたものとする。
 
 **JSON Library**

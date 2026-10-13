@@ -129,7 +129,7 @@ namespace VirtualVessel.ProjectData.Config
                 try
                 {
                     string text = File.ReadAllText(FilePath, s_encoding);
-                    root = JObject.Parse(text);
+                    root = ConfigDocument.ParseObject(text);
                 }
                 catch (JsonException exception)
                 {
