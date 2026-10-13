@@ -51,10 +51,10 @@ Status colors do not follow the palette so that "green-ish means success, red-is
 |---|---|---|---|
 | Lavender (default) | 268 | `#c3a6ff` | `#ff9ccf` |
 | Sakura | 335 | `#ffa3c4` | `#c9a8ff` |
-| Mint | 165 | `#7fe0c1` | `#a9d8ff` |
-| Sky | 212 | `#8cc4ff` | `#c7b2ff` |
-| Peach | 18 | `#ffb08f` | `#ffd88a` |
-| Lemon | 48 | `#ffe07a` | `#ffb3cf` |
+| Mint | 165 | `#34e8b8` | `#6cc4ff` |
+| Sky | 212 | `#6bb5ff` | `#c7b2ff` |
+| Peach | 18 | `#ff8a5c` | `#ffc04d` |
+| Lemon | 48 | `#ffd23f` | `#ff9ec4` |
 
 - The table values are base values. When shown, they are adjusted to the background (computed in HSL). Dark raises lightness by 6% for a brighter tone; light raises saturation by 25% and lowers lightness by 12% for a deeper tone, so the colors stay visible on pale backgrounds.
 - Both are soft colors, and text placed on them is always `On Accent` (a dark color).
@@ -86,10 +86,10 @@ Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 
 | Token | Meaning | Dark | Light | Shape (9.1) |
 |---|---|---|---|---|
-| Success | Succeeded, connected, good | `#52d6bd` | `#0a6656` | ✓ |
-| Warning | Caution, unstable | `#ffc864` | `#774c00` | △ (with !) |
-| Error | Failed, not found | `#ff8aa3` | `#a8173f` | × |
-| Live | Streaming | `#ff86ab` | `#9e0c41` | ● (filled) |
+| Success | Succeeded, connected, good | `#1affcc` | `#006652` | ✓ |
+| Warning | Caution, unstable | `#ffb31a` | `#7a5200` | △ (with !) |
+| Error | Failed, not found | `#ff8a9d` | `#b2001e` | × |
+| Live | Streaming | `#ff85b1` | `#ad0040` | ● (filled) |
 | (none) | Stopped, not connected | Text 2 | Text 2 | ○ (outline) |
 
 - Success leans toward blue-green instead of green so that it is easier to tell apart from Error.
@@ -101,8 +101,10 @@ Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 |---|---|---|
 | Glow | Primary at 35% opacity | Glow of the primary button and toggles |
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
-| Soft status background | Status color at 14% opacity | Background of status chips |
-| Primary Wash / Secondary Wash | Primary or Secondary at 16% (dark) or 15% (light) opacity | Background of card titles (3.6) |
+| Soft status background | Status color at 18% opacity | Background of status chips |
+| Status line | Status color at 65% opacity | Border of status chips |
+| Status surface | The soft status background composited over Surface 2, as an opaque color | Background of status chips, which stay readable on a colored band |
+| Primary Wash / Secondary Wash | Primary or Secondary at 28% (dark) or 24% (light) opacity | Background of card titles (3.6) |
 
 ### 3.6 Accent decoration
 
@@ -116,7 +118,8 @@ With near-colorless backgrounds, the palette shows through the following decorat
 
 - Gradients use only Primary to Secondary and are limited to thin lines and small ornaments. Do not use them behind body text or controls.
 - Decorative lines, bars, and washes are ornaments and carry no meaning. Status and selection are still shown by shape, text, and `Accent Line`.
-- Text on a wash is Text 2 or stronger, and an automated test confirms at least 4.5:1 (9.2).
+- Card titles on a wash use Text, and an automated test confirms at least 4.5:1 (9.2). Status chips at the right end of a title have an opaque background (status surface), so they stay readable on the band.
+- The band is the header's background, so its height follows what the header holds, such as a chip.
 - Decoration does not move, regardless of the reduce motion setting.
 
 ---

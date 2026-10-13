@@ -19,6 +19,7 @@ namespace VirtualVessel.UI.Tests
             var fontSet = Create<FontSet>();
             _assets.Set(
                 Create<StyleSheet>(),
+                Create<StyleSheet>(),
                 new[]
                 {
                     new ThemeAssets.PaletteSheets("lavender", "Lavender", Create<StyleSheet>(), Create<StyleSheet>()),
@@ -47,6 +48,7 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(root.ClassListContains(ThemeService.RootClass), Is.True);
             Assert.That(root.styleSheets.Contains(_assets.Common), Is.True);
+            Assert.That(root.styleSheets.Contains(_assets.Components), Is.True);
             Assert.That(root.styleSheets.Contains(_assets.GetThemeSheet("lavender", ThemeBackground.Dark)), Is.True);
         }
 
@@ -64,7 +66,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(root.styleSheets.Contains(_assets.GetThemeSheet("lavender", ThemeBackground.Dark)), Is.False);
             Assert.That(root.styleSheets.Contains(_assets.GetThemeSheet("mint", ThemeBackground.Light)), Is.True);
             Assert.That(root.styleSheets.Contains(_assets.Common), Is.True);
-            Assert.That(root.styleSheets.count, Is.EqualTo(2));
+            Assert.That(root.styleSheets.count, Is.EqualTo(3), "Common, components, and one theme sheet.");
             Assert.That(root.ClassListContains(ThemeService.ReducedMotionClass), Is.True);
             Assert.That(changed?.Palette, Is.EqualTo("mint"));
         }

@@ -88,6 +88,10 @@ namespace VirtualVessel.UI.Editor.Theme
                 ThemeColor color = ThemeColor.FromHex(light ? status.light : status.dark);
                 Add(status.token, color);
                 Add(status.token + "-soft", color.WithAlpha(status.softAlpha));
+
+                // Opaque chip background: the soft tint already composited over a card, so a chip reads
+                // the same on a card, on a colored title band, or anywhere else.
+                Add(status.token + "-chip", color.WithAlpha(status.softAlpha).Over(byName["surface-2"]));
                 Add(status.token + "-line", color.WithAlpha(tokens.statusLineAlpha));
             }
 

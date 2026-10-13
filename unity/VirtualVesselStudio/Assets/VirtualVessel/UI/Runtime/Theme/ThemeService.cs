@@ -35,14 +35,17 @@ namespace VirtualVessel.UI.Theme
 
         public ThemeSettings Current { get; private set; }
 
-        /// <summary>Starts styling <paramref name="root"/> with the common sheet and the current theme.</summary>
+        /// <summary>Starts styling <paramref name="root"/> with the common and component sheets and the current theme.</summary>
         public void Attach(VisualElement root)
         {
             _root = root ?? throw new ArgumentNullException(nameof(root));
             _root.AddToClassList(RootClass);
-            if (_assets.Common != null && !_root.styleSheets.Contains(_assets.Common))
+            foreach (StyleSheet sheet in new[] { _assets.Common, _assets.Components })
             {
-                _root.styleSheets.Add(_assets.Common);
+                if (sheet != null && !_root.styleSheets.Contains(sheet))
+                {
+                    _root.styleSheets.Add(sheet);
+                }
             }
 
             _applied = null;

@@ -94,7 +94,7 @@ For each component, the following states are defined:
 ### 3.10 Card
 
 - Background Surface 2, 1px border, Radius M, padding M.
-- A title at the top (13px, weight 700, Text 2). A status chip (3.13) can sit at its right end.
+- A title at the top (13px, weight 700, Text). A status chip (3.13) can sit at its right end.
 - Cards in the same row share padding and layout.
 - Add the top line, the title bar, and the wash behind the title. Every other card in a row uses Secondary (`design-system.md` 3.6).
 
@@ -118,6 +118,7 @@ For each component, the following states are defined:
 
 - A rounded rectangle with Radius S holding an icon, text, and optionally a number (tabular).
 - Colors and shapes per status follow `design-system.md` 3.4.
+- The text is bold in a vivid status color, so it reads clearly like a lit LED. The background is the status surface (opaque) and the border is the status line.
 - Only the live indicator blinks its icon slowly. With reduced motion it does not blink.
 
 ### 3.14 Notification
@@ -173,6 +174,12 @@ The frame for editing the placement of a video (game screen, second monitor, and
 
 - A small box showing a shortcut or operation. Background Background, 1px border, radius 5px, Monospace 11px.
 - The box fits the text height and is vertically centered with the text next to it. It does not stretch to the row height.
+
+### 3.22 Scroll Bar
+
+- No arrow buttons. An 8px-wide thumb with 4px radius sits in a 12px-wide bar.
+- The thumb is Primary at 55% opacity, and 90% while hovered. The track is a rounded Surface 2.
+- It stays quiet against the screen while the palette color keeps it cute.
 
 ---
 

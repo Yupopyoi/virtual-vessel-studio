@@ -1,0 +1,88 @@
+/*
+ * Scroll Bar (components.md 3.22): a thin rounded thumb in the palette color, no arrow buttons.
+ * Restyles Unity's ScrollView scroller. Selectors start with .vv-root so that they outrank the
+ * default theme, which uses the same class chain.
+ */
+.vv-root .unity-scroller--vertical {
+    width: 12px;
+    background-color: transparent;
+    border-width: 0;
+}
+
+.vv-root .unity-scroller--horizontal {
+    height: 12px;
+    background-color: transparent;
+    border-width: 0;
+}
+
+.vv-root .unity-scroller > .unity-scroller__low-button,
+.vv-root .unity-scroller > .unity-scroller__high-button {
+    display: none;
+}
+
+/* The default slider is 24px wide; without these sizes it overflows the bar and leaves the screen. */
+.vv-root .unity-scroller--vertical > .unity-scroller__slider {
+    width: 12px;
+    min-width: 0;
+    margin: 4px 0;
+    padding: 0;
+    flex-grow: 1;
+}
+
+.vv-root .unity-scroller--horizontal > .unity-scroller__slider {
+    height: 12px;
+    min-height: 0;
+    margin: 0 4px;
+    padding: 0;
+    flex-grow: 1;
+}
+
+.vv-root .unity-scroller--vertical .unity-base-slider__tracker {
+    background-color: var(--vv-color-surface-2);
+    border-width: 0;
+    border-radius: 4px;
+    left: 2px;
+    width: 8px;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+}
+
+.vv-root .unity-scroller--horizontal .unity-base-slider__tracker {
+    background-color: var(--vv-color-surface-2);
+    border-width: 0;
+    border-radius: 4px;
+    top: 2px;
+    height: 8px;
+    left: 0;
+    right: 0;
+    margin: 0;
+}
+
+.vv-root .unity-scroller .unity-base-slider__dragger-border {
+    display: none;
+}
+
+.vv-root .unity-scroller--vertical > .unity-scroller__slider .unity-base-slider__dragger {
+    left: 2px;
+    width: 8px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--vv-color-primary);
+    opacity: 0.55;
+    margin: 0;
+}
+
+.vv-root .unity-scroller--horizontal > .unity-scroller__slider .unity-base-slider__dragger {
+    top: 2px;
+    height: 8px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--vv-color-primary);
+    opacity: 0.55;
+    margin: 0;
+}
+
+.vv-root .unity-scroller:hover .unity-base-slider__dragger {
+    opacity: 0.9;
+}

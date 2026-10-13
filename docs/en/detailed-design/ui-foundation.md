@@ -161,6 +161,9 @@ Each part in `components.md` is implemented as a class derived from `VisualEleme
 | Progress Bar | `ProgressMeter` | `<vv:ProgressMeter label-key="lab.training" />` |
 | Navigation Item | `NavItem` | `<vv:NavItem icon="Live" text-key="nav.live" />` |
 | Preview | `StreamPreview` | `<vv:StreamPreview />` |
+| Segmented | `Segmented` | `<vv:Segmented item-keys="settings.dark,settings.light" />` |
+| Key Hint | `KeyHint` | `<vv:KeyHint keys="Ctrl+M" />` |
+| Icon | `Icon` | `<vv:Icon icon="Live" />` (6.6) |
 | Panel | `MediaFrame` | Chapter 9 |
 
 The UXML namespace is `VirtualVessel.UI.Controls` with the prefix `vv`. Classes are defined with `[UxmlElement]` and `[UxmlAttribute]` (Unity 6).
@@ -176,6 +179,12 @@ Every shared component has the following attributes.
 | `shortcut` | Shortcut notation shown with the tooltip |
 
 Attributes that set display text directly (such as `text`) are not used on user-facing screens.
+
+**How components find services**
+
+- A component receives `UiServices` (`ILocalizer`, `IMainThreadDispatcher`, `ILog`, and where to show failures) from the nearest `UiServicesScope` above it. UiRoot (implementation step 7) puts a `UiServicesScope` at the top of the screen. There is no global instance.
+- `KeyedText` handles `*-key` text. It looks the text up when the component joins a panel and again whenever the language changes, and unsubscribes when the component leaves the panel.
+- Outside a scope, such as while editing in the UI Builder, the key is shown as `[live.start]`, so that it is still clear which text goes where.
 
 ### 6.3 Building from C#
 
@@ -204,7 +213,19 @@ A command registered as a `DangerCommand` shows the confirmation dialog automati
 ### 6.5 Style
 
 - Each part's USS lives in `Assets/VirtualVessel/UI/Styles/Components/`, and every color, spacing, and radius refers to tokens with `var()`.
-- States are expressed with USS pseudo-classes (`:hover`, `:focus`, `:disabled`, `:checked`) and classes added by the part (such as `vv-status-success`).
+- States are expressed with USS pseudo-classes (`:hover`, `:active`, `:disabled`) and classes added by the part (such as `vv-chip--success` and `vv-switch--on`).
+- `Styles/components.uss` gathers the USS of every part with `@import`. `ThemeGenerator` registers it as `ThemeAssets.Components`, and `ThemeService.Attach` adds the common tokens, the components, and the theme to the root in that order.
+- Unity's default button look (`unity-button`) is removed, and every state is set from tokens.
+- USS has no `:focus-visible`. `FocusRing` therefore adds `vv-focus-visible` only when focus comes from the keyboard (when the focus change has a direction), which shows the 2px outline.
+
+### 6.6 Icons
+
+The project uses its own icons, without an external icon set or an SVG import package.
+
+- Shapes are written in `IconLibrary` as SVG path data (such as `M4 7h10M18 7h2`) on a 24×24 grid with 2-unit strokes and round ends and joins, the same rules as the `styleboard.html` icons. Because they are written as SVG, any viewer can show them.
+- `IconGeometry.ParsePath` (a pure function) turns path data into polylines. It supports M, L, H, V, C, Q, A, and Z, and splits curves into short segments.
+- The `Icon` element draws the polylines with Painter2D in the element's text color, so it follows hover, disabled, theme, and dark/light automatically and stays sharp at any size.
+- To add an icon, add it to `IconName` and `IconLibrary`. A test checks that every icon parses and stays inside the grid.
 
 ---
 
@@ -253,7 +274,7 @@ Assets/VirtualVessel/UI/Theme/
 - Every palette and background meets the contrast in `design-system.md` 9.2. This covers each text level on backgrounds and surfaces, `On Accent` on Primary and Secondary, `Accent Line` on backgrounds and surfaces, status text on its soft background (composited over a card), status colors on surfaces, and Text 2 on a wash (composited over a card).
 - The palette values written in `docs/assets/ui/styleboard.html` match `design-tokens.json`.
 
-During the first implementation, this test showed that the original status colors and some light-background colors fell short of the rules. The values in `design-system.md` were therefore adjusted (soft status background, Error, Live, light Success and Warning, Text 3, Accent Line). Later, after a visual review in a sandbox, neutral saturation was lowered so that backgrounds are close to colorless, and washes and accent decoration (`design-system.md` 3.6) were added instead. Primary and Secondary are also adjusted per background (deeper on light, brighter on dark; `accentShift` in `design-tokens.json`). The light adjustment stays within the range that keeps 4.5:1 for On Accent.
+During the first implementation, this test showed that the original status colors and some light-background colors fell short of the rules. The values in `design-system.md` were therefore adjusted (soft status background, Error, Live, light Success and Warning, Text 3, Accent Line). Later, after a visual review in a sandbox, neutral saturation was lowered so that backgrounds are close to colorless, and washes and accent decoration (`design-system.md` 3.6) were added instead. Primary and Secondary are also adjusted per background (deeper on light, brighter on dark; `accentShift` in `design-tokens.json`). The light adjustment stays within the range that keeps 4.5:1 for On Accent. Later, Mint and Peach looked dull in the component demo, so their base colors were made more vivid.
 
 ### 7.2 Fonts
 
@@ -396,7 +417,9 @@ public interface IUiCommand
 
 - `ActionButton.Bind(command)` handles the enabled state, the tooltip with the disabled reason, and preventing double presses while running.
 - While running, the part is disabled, and a loading indication appears when it takes time (system design 14.30).
-- Exceptions are split into a user-facing notification and a developer log. If a command throws an exception carrying a user-facing string key (`UserFacingException`), that text is shown; otherwise a generic failure text is shown.
+- Exceptions are split into a user-facing notification and a developer log. If a command throws an exception carrying a user-facing string key (`UserFacingException`), that text is shown; otherwise a generic failure text (`error.unexpected`) is shown. A cancellation (`OperationCanceledException`) is not treated as a failure. `CommandRunner.MessageKeyFor` (a pure function) decides which text is shown.
+- `UiCommand` is built from a delegate and an `IReadOnlyObservable<string>` holding the reason it cannot run. It can run while the reason is null. Changes of the reason are watched only while `CanExecuteChanged` has subscribers.
+- Commands run from buttons receive `CancellationToken.None`. Screens are kept once created (7.7), so a running operation is not stopped when its component leaves the panel.
 
 ### 7.6 Tooltip
 
@@ -719,14 +742,15 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          shared components                    VirtualVessel.UI.Controls
+   │  ├─ Controls/          shared components, UiServices, KeyedText, FocusRing   VirtualVessel.UI.Controls
+   │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, screens
    │  └─ Settings/          UiSettings, DeveloperModeService
-   ├─ Styles/Components/    USS of each part
+   ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
    ├─ Fonts/                FontSet (NotoSans.asset)
    ├─ Strings/              ja.json, en.json
@@ -752,7 +776,10 @@ Each step is one branch and includes its tests (CLAUDE.md 29.2).
 2. ProjectData: `ConfigFileStore` (introduces `com.unity.nuget.newtonsoft-json`)
 3. UI: assembly, tokens, `ThemeGenerator`, `ThemeService`, fonts, `FontService`
 4. UI: `Localizer` and string tables
-5. UI: shared components, binding, commands, tooltips, dialogs, notifications
+5. UI: shared components, binding, commands, tooltips, dialogs, notifications, split into three parts:
+   1. The component foundation (`UiServices`, `KeyedText`, binding, commands, icons) and the basic parts (Button, Icon Button, Toggle, Segmented, Card, Status Indicator, Key Hint)
+   2. The remaining input and display parts (Slider, Dropdown, Text Field, Numeric Field, Tab, Setting Row, Level Meter, Progress Bar, Navigation Item)
+   3. Tooltip, Dialog, Notification
 6. UI: `MediaFrame` and `FrameCanvas`
 7. UI: `UiRoot`, `ScreenHost`, Developer Mode, Diagnostics screen, Component Gallery, `UiScreenshotCapture`
 
@@ -762,7 +789,6 @@ Each step is one branch and includes its tests (CLAUDE.md 29.2).
 
 | Item | Planned handling |
 |---|---|
-| Source of icons (own SVGs or a license-compatible icon set) | Decide when starting implementation step 5 |
 | How Stage stores `FrameLayout` and applies it to the stream video | Stage detailed design |
 | Rotation (rotating a `MediaFrame`) | Consider when needed |
 | Specifications of each screen (`docs/<lang>/ui/screens/`) | When each screen is designed |
