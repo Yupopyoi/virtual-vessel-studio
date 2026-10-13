@@ -115,7 +115,8 @@ namespace VirtualVessel.UI.Localization
 
         public string Get(string key)
         {
-            return TryFind(key, out string text) ? text : Missing(key);
+            // Still unescape {{ and }}, so a text reads the same with or without arguments.
+            return TryFind(key, out string text) ? Fill(text, null, hasCount: false, count: 0) : Missing(key);
         }
 
         public string Get(string key, params (string Name, object Value)[] args)

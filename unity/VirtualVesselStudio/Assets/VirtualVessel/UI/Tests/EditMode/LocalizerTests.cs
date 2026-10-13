@@ -64,7 +64,8 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(localizer.Get("live.elapsed", ("time", "01:24:36")), Is.EqualTo("Live 01:24:36"));
             Assert.That(localizer.Get("format.braces", ("name", 3)), Is.EqualTo("{literal} 3 {unknown}"));
-            Assert.That(localizer.Get("live.elapsed"), Is.EqualTo("Live {time}"), "Without arguments the template is returned as is.");
+            Assert.That(localizer.Get("live.elapsed"), Is.EqualTo("Live {time}"), "Without arguments placeholders stay visible.");
+            Assert.That(localizer.Get("format.braces"), Is.EqualTo("{literal} {name} {unknown}"), "Braces are unescaped even without arguments.");
         }
 
         [Test]
