@@ -830,6 +830,19 @@ Do not introduce a different naming convention in individual modules.
 
 Use language features and APIs that are compatible with the Unity project's supported C#/.NET environment.
 
+## 15.1 Functions without side effects
+
+As a rule, write functions without side effects: the result is determined only by the arguments.
+
+- Put computation, decisions, parsing, and formatting in pure functions, usually `static`.
+- Keep state changes and side effects in thin outer methods. Side effects include file and network I/O, logging, events, reading clocks, and random values.
+- Do not read mutable fields or shared scratch buffers inside a computation. Pass the values in as arguments.
+- Do not modify arguments to return a result. Return a new value instead.
+- Classes whose purpose is to hold state may keep it, such as a service's current setting, a queue, or a cache. Isolate that state and keep the computations around it pure.
+- An exception for measured performance reasons is allowed in real-time paths (section 23). An example is reusing a buffer passed in by the caller. Explain the reason in a comment.
+
+Pure functions can be tested with plain inputs and outputs, so test them directly.
+
 ---
 
 # 16. Source Code Language

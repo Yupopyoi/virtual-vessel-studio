@@ -245,6 +245,52 @@ namespace VirtualVessel.ProjectData.Tests
         }
 
         [Test]
+        public void WithUnknownFields_MergesWithoutChangingArguments()
+        {
+            JObject written = JObject.Parse("{ \"palette\": \"mint\", \"audio\": { \"gain\": 1 } }");
+            JObject previous = JObject.Parse("{ \"palette\": \"sky\", \"future\": true, \"audio\": { \"gain\": 0, \"device\": \"x\" } }");
+            string writtenBefore = written.ToString();
+            string previousBefore = previous.ToString();
+
+            JObject merged = ConfigFileStore<SampleSettings>.WithUnknownFields(written, previous);
+
+            Assert.That((string)merged["palette"], Is.EqualTo("mint"), "Known fields come from the new value.");
+            Assert.That((bool)merged["future"], Is.True);
+            Assert.That((string)merged["audio"]["device"], Is.EqualTo("x"), "Nested unknown fields are kept.");
+            Assert.That((int)merged["audio"]["gain"], Is.EqualTo(1));
+            Assert.That(written.ToString(), Is.EqualTo(writtenBefore));
+            Assert.That(previous.ToString(), Is.EqualTo(previousBefore));
+        }
+
+        [Test]
+        public void TryParseFile_And_ToFileText_AreInverse()
+        {
+            string text = ConfigFileStore<SampleSettings>.ToFileText(JObject.Parse("{ \"palette\": \"mint\" }"), 3);
+
+            string error = ConfigFileStore<SampleSettings>.TryParseFile(text, "settings.json", out JObject root, out int version);
+            string missingVersion = ConfigFileStore<SampleSettings>.TryParseFile("{ \"palette\": \"mint\" }", "settings.json", out _, out _);
+            string notJson = ConfigFileStore<SampleSettings>.TryParseFile("{", "settings.json", out _, out _);
+
+            Assert.That(error, Is.Null);
+            Assert.That(version, Is.EqualTo(3));
+            Assert.That(root.ContainsKey("schemaVersion"), Is.False);
+            Assert.That((string)root["palette"], Is.EqualTo("mint"));
+            Assert.That(text.IndexOf("schemaVersion", StringComparison.Ordinal), Is.LessThan(text.IndexOf("palette", StringComparison.Ordinal)), "The version is written first.");
+            Assert.That(missingVersion, Does.Contain("schemaVersion"));
+            Assert.That(notJson, Does.Contain("not valid JSON"));
+        }
+
+        [Test]
+        public void BrokenFilePath_AddsStampAndCounter()
+        {
+            string path = Path.Combine("dir", "settings.json");
+            var time = new DateTimeOffset(2026, 10, 13, 21, 5, 9, TimeSpan.FromHours(9));
+
+            Assert.That(ConfigFileStore<SampleSettings>.BrokenFilePath(path, time, 0), Is.EqualTo(Path.Combine("dir", "settings.broken-20261013-210509.json")));
+            Assert.That(ConfigFileStore<SampleSettings>.BrokenFilePath(path, time, 2), Is.EqualTo(Path.Combine("dir", "settings.broken-20261013-210509-2.json")));
+        }
+
+        [Test]
         public void ConfigDocument_GetSetRemoveRename()
         {
             var document = new ConfigDocument(JObject.Parse("{ \"a\": { \"b\": 3 }, \"s\": \"x\" }"));

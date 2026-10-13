@@ -313,6 +313,19 @@ External OSS, third-party source, and similar code keep their upstream style.
 
 Do not reformat entire external sources merely to match this project's conventions.
 
+**Functions without side effects**
+
+As a rule, functions are written without side effects, so that the result is determined only by the arguments.
+
+- Computation, decisions, parsing, and formatting are pure functions, usually `static`.
+- State changes and side effects stay in thin outer methods. Side effects include file and network I/O, logging, events, reading clocks, and random values.
+- A computation does not read mutable fields or shared scratch buffers. The values it needs are passed in as arguments.
+- Arguments are not modified to return a result. A new value is returned instead.
+- Classes whose purpose is to hold state may keep it, such as a service's current setting, a queue, or a cache. That state is isolated, and the computations around it stay pure.
+- An exception for measured performance reasons is allowed in real-time paths (CLAUDE.md section 23). An example is reusing a buffer passed in by the caller. The reason is explained in a comment.
+
+Pure functions can be tested with plain inputs and outputs, so they are tested directly.
+
 ---
 
 ## 7.2 EditorConfig

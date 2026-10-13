@@ -125,24 +125,12 @@ namespace VirtualVessel.ProjectData.Config
                     return new ConfigLoadResult<T>(_createDefault(), ConfigLoadStatus.Created, 0, null, null);
                 }
 
-                JObject root;
-                try
+                string error = TryParseFile(File.ReadAllText(FilePath, s_encoding), FilePath, out JObject root, out int fileVersion);
+                if (error != null)
                 {
-                    string text = File.ReadAllText(FilePath, s_encoding);
-                    root = ConfigDocument.ParseObject(text);
-                }
-                catch (JsonException exception)
-                {
-                    return Recover($"Settings file {FilePath} is not valid JSON: {exception.Message}");
+                    return Recover(error);
                 }
 
-                if (!(root[VersionKey] is JValue versionValue) || versionValue.Type != JTokenType.Integer || versionValue.Value<int>() < 1)
-                {
-                    return Recover($"Settings file {FilePath} has no valid {VersionKey}.");
-                }
-
-                int fileVersion = versionValue.Value<int>();
-                root.Remove(VersionKey);
                 ConfigLoadStatus status = ConfigLoadStatus.Loaded;
                 if (fileVersion < _currentVersion)
                 {
@@ -166,8 +154,7 @@ namespace VirtualVessel.ProjectData.Config
                     status = ConfigLoadStatus.NewerVersion;
                 }
 
-                var warnings = new List<string>();
-                T value = Deserialize(root, warnings);
+                (T value, List<string> warnings) = Deserialize(root, _createDefault, FilePath);
                 if (status == ConfigLoadStatus.NewerVersion)
                 {
                     warnings.Add($"Settings file {FilePath} is version {fileVersion}, newer than {_currentVersion}. Unknown fields are kept.");
@@ -195,28 +182,103 @@ namespace VirtualVessel.ProjectData.Config
             lock (_gate)
             {
                 JObject written = JObject.FromObject(value, s_serializer);
-                if (_known != null)
-                {
-                    KeepUnknown(written, _known);
-                }
+                JObject kept = _known == null ? written : WithUnknownFields(written, _known);
 
                 // A file from a newer version keeps its version, so that version does not migrate it again.
                 int version = Math.Max(_currentVersion, _fileVersion);
-                var output = new JObject { [VersionKey] = version };
-                foreach (JProperty property in written.Properties())
-                {
-                    output.Add(property.Name, property.Value.DeepClone());
-                }
-
-                WriteAtomically(output.ToString(Formatting.Indented));
-                _known = written;
+                WriteAtomically(ToFileText(kept, version));
+                _known = kept;
                 _fileVersion = version;
             }
         }
 
-        private T Deserialize(JObject root, List<string> warnings)
+        /// <summary>
+        /// Reads the text of a settings file. Returns null on success, or the reason the file cannot be used.
+        /// <paramref name="root"/> is the content without the version field.
+        /// </summary>
+        internal static string TryParseFile(string text, string filePath, out JObject root, out int version)
         {
-            // A field with the wrong type falls back to its default instead of discarding the whole file.
+            root = null;
+            version = 0;
+            JObject parsed;
+            try
+            {
+                parsed = ConfigDocument.ParseObject(text);
+            }
+            catch (JsonException exception)
+            {
+                return $"Settings file {filePath} is not valid JSON: {exception.Message}";
+            }
+
+            if (!(parsed[VersionKey] is JValue versionValue) || versionValue.Type != JTokenType.Integer || versionValue.Value<int>() < 1)
+            {
+                return $"Settings file {filePath} has no valid {VersionKey}.";
+            }
+
+            version = versionValue.Value<int>();
+            parsed.Remove(VersionKey);
+            root = parsed;
+            return null;
+        }
+
+        /// <summary>The file text: the version first, then the fields.</summary>
+        internal static string ToFileText(JObject fields, int version)
+        {
+            var output = new JObject { [VersionKey] = version };
+            foreach (JProperty property in fields.Properties())
+            {
+                output.Add(property.Name, property.Value.DeepClone());
+            }
+
+            return output.ToString(Formatting.Indented);
+        }
+
+        /// <summary>
+        /// Returns a copy of <paramref name="written"/> with the properties of <paramref name="previous"/>
+        /// that it lacks, recursively. Neither argument is changed.
+        /// </summary>
+        internal static JObject WithUnknownFields(JObject written, JObject previous)
+        {
+            var merged = (JObject)written.DeepClone();
+            AddMissing(merged, previous);
+            return merged;
+
+            // Only touches the copy made above.
+            static void AddMissing(JObject target, JObject source)
+            {
+                foreach (JProperty property in source.Properties())
+                {
+                    JToken current = target[property.Name];
+                    if (current == null)
+                    {
+                        target[property.Name] = property.Value.DeepClone();
+                    }
+                    else if (current is JObject currentObject && property.Value is JObject sourceObject)
+                    {
+                        AddMissing(currentObject, sourceObject);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Where a broken file is moved. Attempt 0 has no counter.</summary>
+        internal static string BrokenFilePath(string filePath, DateTimeOffset localTime, int attempt)
+        {
+            string directory = Path.GetDirectoryName(filePath);
+            string name = Path.GetFileNameWithoutExtension(filePath);
+            string extension = Path.GetExtension(filePath);
+            string stamp = localTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            string counter = attempt == 0 ? string.Empty : "-" + attempt.ToString(CultureInfo.InvariantCulture);
+            return Path.Combine(directory, $"{name}.broken-{stamp}{counter}{extension}");
+        }
+
+        /// <summary>
+        /// Builds the value from <paramref name="root"/> over a fresh default. A field with the wrong
+        /// type falls back to its default instead of discarding the whole file, and is reported.
+        /// </summary>
+        private static (T Value, List<string> Warnings) Deserialize(JObject root, Func<T> createDefault, string filePath)
+        {
+            var warnings = new List<string>();
             var settings = new JsonSerializerSettings
             {
                 ContractResolver = s_serializer.ContractResolver,
@@ -227,18 +289,18 @@ namespace VirtualVessel.ProjectData.Config
                 Culture = CultureInfo.InvariantCulture,
                 Error = (_, args) =>
                 {
-                    warnings.Add($"Settings file {FilePath}: ignored {args.ErrorContext.Path}: {args.ErrorContext.Error.Message}");
+                    warnings.Add($"Settings file {filePath}: ignored {args.ErrorContext.Path}: {args.ErrorContext.Error.Message}");
                     args.ErrorContext.Handled = true;
                 },
             };
 
-            T value = _createDefault();
+            T value = createDefault();
             using (JsonReader reader = root.CreateReader())
             {
                 JsonSerializer.Create(settings).Populate(reader, value);
             }
 
-            return value;
+            return (value, warnings);
         }
 
         private ConfigLoadResult<T> Recover(string reason)
@@ -253,14 +315,11 @@ namespace VirtualVessel.ProjectData.Config
 
         private string MoveAside()
         {
-            string directory = Path.GetDirectoryName(FilePath);
-            string name = Path.GetFileNameWithoutExtension(FilePath);
-            string extension = Path.GetExtension(FilePath);
-            string stamp = _clock.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            string target = Path.Combine(directory, $"{name}.broken-{stamp}{extension}");
+            DateTimeOffset now = _clock.UtcNow.ToLocalTime();
+            string target = BrokenFilePath(FilePath, now, 0);
             for (int i = 1; File.Exists(target); i++)
             {
-                target = Path.Combine(directory, $"{name}.broken-{stamp}-{i}{extension}");
+                target = BrokenFilePath(FilePath, now, i);
             }
 
             try
@@ -318,23 +377,6 @@ namespace VirtualVessel.ProjectData.Config
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
             {
                 // A leftover temporary file is harmless: the next save overwrites it.
-            }
-        }
-
-        /// <summary>Adds properties of <paramref name="previous"/> that <paramref name="written"/> lacks, recursively.</summary>
-        private static void KeepUnknown(JObject written, JObject previous)
-        {
-            foreach (JProperty property in previous.Properties())
-            {
-                JToken current = written[property.Name];
-                if (current == null)
-                {
-                    written[property.Name] = property.Value.DeepClone();
-                }
-                else if (current is JObject currentObject && property.Value is JObject previousObject)
-                {
-                    KeepUnknown(currentObject, previousObject);
-                }
             }
         }
     }
