@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.Diagnostics.Logging;
@@ -105,6 +106,31 @@ namespace VirtualVessel.UI.Tests
             Assert.That(localizer.Get("a.b"), Is.EqualTo("first"));
             Assert.That(_log.Warnings, Has.Count.EqualTo(1));
             Assert.Throws<ArgumentException>(() => new Localizer(Array.Empty<StringTable>(), "en", _log));
+        }
+
+        [Test]
+        public void StringTemplate_Fill_DependsOnlyOnItsArguments()
+        {
+            (string, object)[] args = { ("value", 1.5), ("name", "A") };
+
+            Assert.That(StringTemplate.Fill("{value} {name}", args, CultureInfo.GetCultureInfo("en")), Is.EqualTo("1.5 A"));
+            Assert.That(StringTemplate.Fill("{value} {name}", args, CultureInfo.GetCultureInfo("de")), Is.EqualTo("1,5 A"), "Numbers use the given culture.");
+            Assert.That(StringTemplate.Fill("{count}/{{x}}", null, CultureInfo.InvariantCulture, count: 4), Is.EqualTo("4/{x}"));
+            Assert.That(StringTemplate.Fill("{count}", new (string, object)[] { ("count", "many") }, CultureInfo.InvariantCulture, count: 4), Is.EqualTo("many"), "An argument wins over the plural count.");
+            string plain = "no braces";
+            Assert.That(StringTemplate.Fill(plain, args, CultureInfo.InvariantCulture), Is.SameAs(plain), "Text without braces is returned without allocating.");
+        }
+
+        [Test]
+        public void TryFindPlural_TakesBothFormsFromOneTable()
+        {
+            StringTable ja = Table("ja", ("files.other", "{count} 個"));
+            StringTable en = Table("en", ("files.one", "{count} file"), ("files.other", "{count} files"), ("only.en.other", "x"));
+
+            Assert.That(Localizer.TryFindPlural(ja, en, "files", 1, out string jaOne) && jaOne == "{count} 個", Is.True);
+            Assert.That(Localizer.TryFindPlural(en, en, "files", 1, out string enOne) && enOne == "{count} file", Is.True);
+            Assert.That(Localizer.TryFindPlural(ja, en, "only.en", 2, out string fallback) && fallback == "x", Is.True);
+            Assert.That(Localizer.TryFindPlural(ja, null, "only.en", 2, out _), Is.False);
         }
 
         [Test]

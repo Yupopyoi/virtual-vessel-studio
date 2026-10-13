@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using UnityEngine;
 using VirtualVessel.Diagnostics.Logging;
 
@@ -12,7 +11,9 @@ namespace VirtualVessel.UI.Localization
     /// string table per language, named <c>{placeholders}</c>, and runtime language switching.
     /// </summary>
     /// <remarks>
-    /// Lookups do not allocate unless placeholders are filled in. Not thread-safe; call from the main thread.
+    /// The lookups and text filling are pure static functions; this class only holds the current
+    /// language and does the side effects (the change event and log entries). Lookups do not
+    /// allocate unless placeholders are filled in. Not thread-safe; call from the main thread.
     /// </remarks>
     public sealed class Localizer : ILocalizer
     {
@@ -24,7 +25,6 @@ namespace VirtualVessel.UI.Localization
         private readonly Dictionary<string, StringTable> _tables = new Dictionary<string, StringTable>(StringComparer.Ordinal);
         private readonly List<LocaleInfo> _locales = new List<LocaleInfo>();
         private readonly HashSet<string> _reportedMissing = new HashSet<string>(StringComparer.Ordinal);
-        private readonly StringBuilder _builder = new StringBuilder();
         private readonly ILog _log;
         private readonly StringTable _fallback;
         private StringTable _current;
@@ -64,7 +64,7 @@ namespace VirtualVessel.UI.Localization
             }
 
             _tables.TryGetValue(FallbackLocale, out _fallback);
-            _current = Resolve(locale);
+            _current = ResolveAndReport(locale);
             _culture = CultureFor(_current.Locale.Code);
         }
 
@@ -96,7 +96,7 @@ namespace VirtualVessel.UI.Localization
 
         public void SetLocale(string code)
         {
-            StringTable next = Resolve(code);
+            StringTable next = ResolveAndReport(code);
             if (next == _current)
             {
                 return;
@@ -110,48 +110,70 @@ namespace VirtualVessel.UI.Localization
 
         public bool Contains(string key)
         {
-            return key != null && TryFind(key, out _);
+            return TryFind(_current, _fallback, key, out _);
         }
 
         public string Get(string key)
         {
             // Still unescape {{ and }}, so a text reads the same with or without arguments.
-            return TryFind(key, out string text) ? Fill(text, null, hasCount: false, count: 0) : Missing(key);
+            return TryFind(_current, _fallback, key, out string text) ? StringTemplate.Fill(text, null, _culture) : ReportMissing(key);
         }
 
         public string Get(string key, params (string Name, object Value)[] args)
         {
-            if (!TryFind(key, out string template))
-            {
-                return Missing(key);
-            }
-
-            return Fill(template, args, hasCount: false, count: 0);
+            return TryFind(_current, _fallback, key, out string template) ? StringTemplate.Fill(template, args, _culture) : ReportMissing(key);
         }
 
         public string Plural(string key, int count, params (string Name, object Value)[] args)
         {
-            string otherKey = key + OtherSuffix;
+            return TryFindPlural(_current, _fallback, key, count, out string template)
+                ? StringTemplate.Fill(template, args, _culture, count)
+                : ReportMissing(key + OtherSuffix);
+        }
 
-            // Take both forms from the same table, so that a language without a .one form does not
-            // borrow the English one.
-            StringTable source = _current.Strings.ContainsKey(otherKey) ? _current
-                : _fallback != null && _fallback.Strings.ContainsKey(otherKey) ? _fallback
+        /// <summary>Looks up <paramref name="key"/> in <paramref name="current"/>, then in <paramref name="fallback"/>.</summary>
+        internal static bool TryFind(StringTable current, StringTable fallback, string key, out string text)
+        {
+            text = null;
+            if (key == null)
+            {
+                return false;
+            }
+
+            return current.Strings.TryGetValue(key, out text)
+                || (fallback != null && fallback != current && fallback.Strings.TryGetValue(key, out text));
+        }
+
+        /// <summary>
+        /// Picks <c>key.one</c> for a count of 1 and <c>key.other</c> otherwise. Both forms come from
+        /// the same table, so that a language without a .one form does not borrow the English one.
+        /// </summary>
+        internal static bool TryFindPlural(StringTable current, StringTable fallback, string key, int count, out string template)
+        {
+            template = null;
+            if (key == null)
+            {
+                return false;
+            }
+
+            string otherKey = key + OtherSuffix;
+            StringTable source = current.Strings.ContainsKey(otherKey) ? current
+                : fallback != null && fallback.Strings.ContainsKey(otherKey) ? fallback
                 : null;
             if (source == null)
             {
-                return Missing(otherKey);
+                return false;
             }
 
-            if (count != 1 || !source.Strings.TryGetValue(key + OneSuffix, out string template))
+            if (count != 1 || !source.Strings.TryGetValue(key + OneSuffix, out template))
             {
                 template = source.Strings[otherKey];
             }
 
-            return Fill(template, args, hasCount: true, count);
+            return true;
         }
 
-        private StringTable Resolve(string code)
+        private StringTable ResolveAndReport(string code)
         {
             if (code != null && _tables.TryGetValue(code, out StringTable table))
             {
@@ -164,23 +186,7 @@ namespace VirtualVessel.UI.Localization
             return fallback;
         }
 
-        private bool TryFind(string key, out string text)
-        {
-            if (key == null)
-            {
-                text = null;
-                return false;
-            }
-
-            if (_current.Strings.TryGetValue(key, out text))
-            {
-                return true;
-            }
-
-            return _fallback != null && _fallback != _current && _fallback.Strings.TryGetValue(key, out text);
-        }
-
-        private string Missing(string key)
+        private string ReportMissing(string key)
         {
             // Report each key once so that a missing string in a list or a refresh loop does not flood the log.
             if (_reportedMissing.Add(key ?? string.Empty))
@@ -189,75 +195,6 @@ namespace VirtualVessel.UI.Localization
             }
 
             return "[" + key + "]";
-        }
-
-        /// <summary>Replaces <c>{name}</c> with the matching argument; <c>{{</c> and <c>}}</c> are literal braces.</summary>
-        private string Fill(string template, (string Name, object Value)[] args, bool hasCount, int count)
-        {
-            if (template.IndexOf('{') < 0 && template.IndexOf('}') < 0)
-            {
-                return template;
-            }
-
-            _builder.Clear();
-            int i = 0;
-            while (i < template.Length)
-            {
-                char c = template[i];
-                if ((c == '{' || c == '}') && i + 1 < template.Length && template[i + 1] == c)
-                {
-                    _builder.Append(c);
-                    i += 2;
-                    continue;
-                }
-
-                int end = c == '{' ? template.IndexOf('}', i + 1) : -1;
-                if (end < 0)
-                {
-                    _builder.Append(c);
-                    i++;
-                    continue;
-                }
-
-                string name = template.Substring(i + 1, end - i - 1);
-                if (TryGetArgument(name, args, hasCount, count, out object value))
-                {
-                    _builder.Append(value is IFormattable formattable ? formattable.ToString(null, _culture) : value?.ToString());
-                }
-                else
-                {
-                    // Leave unknown placeholders visible; the string table tests catch mismatches.
-                    _builder.Append(template, i, end - i + 1);
-                }
-
-                i = end + 1;
-            }
-
-            return _builder.ToString();
-        }
-
-        private static bool TryGetArgument(string name, (string Name, object Value)[] args, bool hasCount, int count, out object value)
-        {
-            if (args != null)
-            {
-                foreach ((string argName, object argValue) in args)
-                {
-                    if (string.Equals(argName, name, StringComparison.Ordinal))
-                    {
-                        value = argValue;
-                        return true;
-                    }
-                }
-            }
-
-            if (hasCount && name == "count")
-            {
-                value = count;
-                return true;
-            }
-
-            value = null;
-            return false;
         }
 
         private static CultureInfo CultureFor(string code)

@@ -723,7 +723,7 @@ Assets/VirtualVessel/
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
-   │  ├─ Localization/      ILocalizer, Localizer, StringTable, LocaleInfo, CommonStrings
+   │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, screens
    │  └─ Settings/          UiSettings, DeveloperModeService
    ├─ Styles/Components/    USS of each part
