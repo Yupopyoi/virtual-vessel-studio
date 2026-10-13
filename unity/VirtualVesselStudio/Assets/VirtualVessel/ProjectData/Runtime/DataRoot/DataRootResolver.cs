@@ -63,39 +63,11 @@ namespace VirtualVessel.ProjectData.DataRoot
         /// </exception>
         public DataRootResolution Resolve(string overridePath)
         {
-            var warnings = new List<string>();
-            string rootPath;
-            DataRootSource source;
-
-            if (!string.IsNullOrWhiteSpace(overridePath))
-            {
-                rootPath = overridePath;
-                source = DataRootSource.Override;
-            }
-            else
-            {
-                BootstrapReadResult bootstrap = BootstrapSettings.Read(BootstrapFilePath);
-                if (bootstrap.Warning != null)
-                {
-                    warnings.Add(bootstrap.Warning);
-                }
-
-                if (bootstrap.IsValid && bootstrap.DataRoot != null)
-                {
-                    rootPath = bootstrap.DataRoot;
-                    source = DataRootSource.BootstrapFile;
-                }
-                else
-                {
-                    if (!bootstrap.IsValid)
-                    {
-                        warnings.Add($"Using the default Data Root because {BootstrapSettings.FileName} could not be used. The file was left unchanged.");
-                    }
-
-                    rootPath = DefaultDataRootPath;
-                    source = DataRootSource.Default;
-                }
-            }
+            // The file is read only when there is no override, so a broken file cannot affect an explicit choice.
+            BootstrapReadResult? bootstrap = string.IsNullOrWhiteSpace(overridePath)
+                ? BootstrapSettings.Read(BootstrapFilePath)
+                : (BootstrapReadResult?)null;
+            (string rootPath, DataRootSource source, List<string> warnings) = Choose(overridePath, bootstrap, DefaultDataRootPath);
 
             DataRootPaths dataRoot;
             try
@@ -109,6 +81,37 @@ namespace VirtualVessel.ProjectData.DataRoot
 
             EnsureWritable(dataRoot);
             return new DataRootResolution(dataRoot, source, warnings);
+        }
+
+        /// <summary>
+        /// Picks the Data Root: the override, then bootstrap.json, then the default. Pure; reading the
+        /// file and checking the folder are done by <see cref="Resolve"/>.
+        /// </summary>
+        internal static (string RootPath, DataRootSource Source, List<string> Warnings) Choose(string overridePath, BootstrapReadResult? bootstrap, string defaultPath)
+        {
+            var warnings = new List<string>();
+            if (!string.IsNullOrWhiteSpace(overridePath))
+            {
+                return (overridePath, DataRootSource.Override, warnings);
+            }
+
+            BootstrapReadResult file = bootstrap ?? BootstrapReadResult.Missing();
+            if (file.Warning != null)
+            {
+                warnings.Add(file.Warning);
+            }
+
+            if (file.IsValid && file.DataRoot != null)
+            {
+                return (file.DataRoot, DataRootSource.BootstrapFile, warnings);
+            }
+
+            if (!file.IsValid)
+            {
+                warnings.Add($"Using the default Data Root because {BootstrapSettings.FileName} could not be used. The file was left unchanged.");
+            }
+
+            return (defaultPath, DataRootSource.Default, warnings);
         }
 
         private static void EnsureWritable(DataRootPaths dataRoot)

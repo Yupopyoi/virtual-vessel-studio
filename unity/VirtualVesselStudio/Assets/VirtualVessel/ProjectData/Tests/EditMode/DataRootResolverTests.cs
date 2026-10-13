@@ -127,6 +127,24 @@ namespace VirtualVessel.ProjectData.Tests
             Assert.That(Directory.GetFiles(cache), Is.Empty);
         }
 
+        [Test]
+        public void Choose_UsesOnlyItsArguments()
+        {
+            BootstrapReadResult configured = BootstrapSettings.Parse("{ \"schemaVersion\": 1, \"dataRoot\": \"D:/Data\" }", "bootstrap.json");
+            BootstrapReadResult broken = BootstrapSettings.Parse("{ not json", "bootstrap.json");
+
+            var overridden = DataRootResolver.Choose("E:/Override", configured, "C:/Default");
+            var fromFile = DataRootResolver.Choose(null, configured, "C:/Default");
+            var fromBroken = DataRootResolver.Choose(null, broken, "C:/Default");
+            var noFile = DataRootResolver.Choose(null, null, "C:/Default");
+
+            Assert.That((overridden.RootPath, overridden.Source), Is.EqualTo(("E:/Override", DataRootSource.Override)));
+            Assert.That((fromFile.RootPath, fromFile.Source), Is.EqualTo(("D:/Data", DataRootSource.BootstrapFile)));
+            Assert.That((fromBroken.RootPath, fromBroken.Source), Is.EqualTo(("C:/Default", DataRootSource.Default)));
+            Assert.That(fromBroken.Warnings, Has.Count.EqualTo(2), "The parse problem and the fallback are both reported.");
+            Assert.That((noFile.RootPath, noFile.Source, noFile.Warnings.Count), Is.EqualTo(("C:/Default", DataRootSource.Default, 0)));
+        }
+
         private void WriteBootstrap(string json)
         {
             Directory.CreateDirectory(_resolver.ApplicationDataDirectory);

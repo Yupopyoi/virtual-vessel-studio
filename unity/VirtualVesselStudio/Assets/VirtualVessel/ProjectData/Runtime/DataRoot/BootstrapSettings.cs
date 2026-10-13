@@ -35,6 +35,12 @@ namespace VirtualVessel.ProjectData.DataRoot
                 return BootstrapReadResult.Invalid($"Failed to read {filePath}: {exception.Message}");
             }
 
+            return Parse(json, filePath);
+        }
+
+        /// <summary>Interprets the text of bootstrap.json. <paramref name="filePath"/> is used only in warnings.</summary>
+        public static BootstrapReadResult Parse(string json, string filePath)
+        {
             BootstrapFile data;
             try
             {
