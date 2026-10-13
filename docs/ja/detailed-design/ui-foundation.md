@@ -161,6 +161,9 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Progress Bar | `ProgressMeter` | `<vv:ProgressMeter label-key="lab.training" />` |
 | Navigation Item | `NavItem` | `<vv:NavItem icon="Live" text-key="nav.live" />` |
 | Preview | `StreamPreview` | `<vv:StreamPreview />` |
+| Segmented | `Segmented` | `<vv:Segmented item-keys="settings.dark,settings.light" />` |
+| Key Hint | `KeyHint` | `<vv:KeyHint keys="Ctrl+M" />` |
+| Icon | `Icon` | `<vv:Icon icon="Live" />`（6.6） |
 | Panel | `MediaFrame` | 9章 |
 
 UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。Classは`[UxmlElement]`と`[UxmlAttribute]`（Unity 6）で定義する。
@@ -176,6 +179,12 @@ UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。
 | `shortcut` | Tooltipに添えるショートカット表記 |
 
 表示文字を直接指定する属性（`text`等）は、利用者向けの画面では使わない。
+
+**Serviceの見つけ方**
+
+- 部品は、自分より上にある最も近い`UiServicesScope`から`UiServices`（`ILocalizer`、`IMainThreadDispatcher`、`ILog`、失敗の通知先）を受け取る。UiRoot（実装順序7）が画面の一番外側に`UiServicesScope`を置く。全体で1つのGlobal Instanceは使わない。
+- `*-key`の文字は`KeyedText`が扱う。部品がPanelに追加されたときに文字を取得し、言語が変わるたびに更新する。Panelから外れると購読を解除する。
+- Scopeの外（UI Builderでの編集中など）では、`[live.start]`のようにKeyを表示する。どこにどの文字が入るかを確かめられるようにするためである。
 
 ### 6.3 C#から組み立てる場合
 
@@ -204,7 +213,19 @@ bool confirmed = await _dialogs.ConfirmAsync(
 ### 6.5 Style
 
 - 各部品のUSSは`Assets/VirtualVessel/UI/Styles/Components/`に置き、色・余白・角丸はすべてTokenの`var()`で参照する。
-- 状態はUSSの擬似Class（`:hover`、`:focus`、`:disabled`、`:checked`）と、部品が付けるClass（`vv-status-success`等）で表す。
+- 状態はUSSの擬似Class（`:hover`、`:active`、`:disabled`）と、部品が付けるClass（`vv-chip--success`、`vv-switch--on`等）で表す。
+- 各部品のUSSは`Styles/components.uss`から`@import`でまとめる。`ThemeGenerator`が`ThemeAssets.Components`に登録し、`ThemeService.Attach`が共通Token、部品、Themeの順にRootへ追加する。
+- Unity標準のButtonの見た目（`unity-button`）は外し、すべての状態をTokenで指定する。
+- USSには`:focus-visible`がない。そのため`FocusRing`が、キーボードでFocusしたとき（Focusの移動方向がある場合）だけ`vv-focus-visible`を付け、2pxの枠を表示する。
+
+### 6.6 アイコン
+
+外部のIcon Setや、SVGを取り込むPackageは使わず、Project独自のアイコンを使う。
+
+- 形は`IconLibrary`に、SVGのPath Data（例：`M4 7h10M18 7h2`）として書く。24×24の枠、線の太さ2、端と角を丸める。`styleboard.html`のアイコンと同じ規則である。SVGとして書くため、どのViewerでも形を確認できる。
+- `IconGeometry.ParsePath`（純粋関数）が、Path Dataを折れ線に変える。対応する命令はM、L、H、V、C、Q、A、Zで、曲線は短い線分に分ける。
+- `Icon`要素は、Painter2Dで折れ線を描く。色は要素の文字色を使うため、Hover、無効、Theme、ダーク・ライトに自動で追従する。拡大しても形は崩れない。
+- アイコンを追加するときは、`IconName`と`IconLibrary`に追加する。Testが、すべてのアイコンを読み取れることと、枠の中に収まることを確認する。
 
 ---
 
@@ -253,7 +274,7 @@ Assets/VirtualVessel/UI/Theme/
 - すべてのパレットと背景で、`design-system.md` 9.2のコントラスト比を満たすこと。対象は、Textの各段階と背景・面、`On Accent`とPrimary・Secondary、`Accent Line`と背景・面、状態の文字とその淡い背景（カードの上に重ねた色）、状態の色と面、Text 2とWash（カードの上に重ねた色）。
 - `docs/assets/ui/styleboard.html`に書かれたパレットの値が`design-tokens.json`と一致すること。
 
-最初の実装時、このTestにより、当初の状態色とライト背景の一部の色が基準に届かないことが分かった。そのため`design-system.md`の値を調整した（状態の淡い背景、Error、Live、ライトのSuccess・Warning、Text 3、Accent Line）。その後、サンドボックスで見た目を確認した結果、ニュートラルの彩度を下げて背景を無彩色に近づけ、代わりにWashとアクセントの装飾（`design-system.md` 3.6）を加えた。あわせて、Primary・Secondaryを背景ごとに調整するようにした（ライトは濃く、ダークは明るく。ライトの濃さは、On Accentとのコントラスト4.5:1を保てる範囲にとどめる。`design-tokens.json`の`accentShift`）。
+最初の実装時、このTestにより、当初の状態色とライト背景の一部の色が基準に届かないことが分かった。そのため`design-system.md`の値を調整した（状態の淡い背景、Error、Live、ライトのSuccess・Warning、Text 3、Accent Line）。その後、サンドボックスで見た目を確認した結果、ニュートラルの彩度を下げて背景を無彩色に近づけ、代わりにWashとアクセントの装飾（`design-system.md` 3.6）を加えた。あわせて、Primary・Secondaryを背景ごとに調整するようにした（ライトは濃く、ダークは明るく。ライトの濃さは、On Accentとのコントラスト4.5:1を保てる範囲にとどめる。その後、部品のデモで地味に見えたため、MintとPeachの基準色を鮮やかにした。`design-tokens.json`の`accentShift`）。
 
 ### 7.2 Font
 
@@ -396,7 +417,9 @@ public interface IUiCommand
 
 - `ActionButton.Bind(command)`で、押せる・押せないの表示、押せない理由のTooltip、実行中の二重押し防止をまとめて行う。
 - 実行中は部品を無効にし、時間がかかる場合は読み込み中の表示を出す（方式設計14.30）。
-- 例外は利用者向けのNotificationと開発者向けのLogに分けて扱う。Commandが利用者向けの文字列Keyを持つ例外（`UserFacingException`）を投げた場合はその文を表示し、それ以外は一般的な失敗の文を表示する。
+- 例外は利用者向けのNotificationと開発者向けのLogに分けて扱う。Commandが利用者向けの文字列Keyを持つ例外（`UserFacingException`）を投げた場合はその文を表示し、それ以外は一般的な失敗の文（`error.unexpected`）を表示する。取り消し（`OperationCanceledException`）は失敗として扱わない。表示する文の選び方は`CommandRunner.MessageKeyFor`（純粋関数）で決める。
+- `UiCommand`は、Delegateと「押せない理由」の`IReadOnlyObservable<string>`から作る。理由がnullのときに押せる。理由の変化は、`CanExecuteChanged`を購読している間だけ監視する。
+- ボタンから実行するCommandには`CancellationToken.None`を渡す。画面は一度作ると保持されるため（7.7）、部品がPanelから外れても実行中の操作は止めない。
 
 ### 7.6 Tooltip
 
@@ -719,14 +742,15 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          共通Component                         VirtualVessel.UI.Controls
+   │  ├─ Controls/          共通Component、UiServices、KeyedText、FocusRing   VirtualVessel.UI.Controls
+   │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, 各画面
    │  └─ Settings/          UiSettings, DeveloperModeService
-   ├─ Styles/Components/    各部品のUSS
+   ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
    ├─ Fonts/                FontSet（NotoSans.asset）
    ├─ Strings/              ja.json, en.json
@@ -752,7 +776,10 @@ Assets/ThirdParty/
 2. ProjectData：`ConfigFileStore`（`com.unity.nuget.newtonsoft-json`を導入する）
 3. UI：Assembly、Token、`ThemeGenerator`、`ThemeService`、Font、`FontService`
 4. UI：`Localizer`と文字列表
-5. UI：共通Component、Binding、Command、Tooltip、Dialog、Notification
+5. UI：共通Component、Binding、Command、Tooltip、Dialog、Notification。次の3つに分ける。
+   1. 部品の土台（`UiServices`、`KeyedText`、Binding、Command、アイコン）と基本の部品（Button、Icon Button、Toggle、Segmented、Card、Status Indicator、Key Hint）
+   2. 残りの入力・表示の部品（Slider、Dropdown、Text Field、Numeric Field、Tab、Setting Row、Level Meter、Progress Bar、Navigation Item）
+   3. Tooltip、Dialog、Notification
 6. UI：`MediaFrame`と`FrameCanvas`
 7. UI：`UiRoot`、`ScreenHost`、Developer Mode、Diagnostics画面、Component Gallery、`UiScreenshotCapture`
 
@@ -762,7 +789,6 @@ Assets/ThirdParty/
 
 | 項目 | 対応予定 |
 |---|---|
-| アイコンの入手元（自作のSVGか、License互換のIcon Setか） | 実装順序5の着手時に決める |
 | `FrameLayout`をStageがどう保存し、配信映像へ反映するか | Stageの詳細設計 |
 | 回転（`MediaFrame`の回転操作） | 必要になった時点で検討する |
 | 各画面の仕様（`docs/<lang>/ui/screens/`） | 各画面の設計時 |
