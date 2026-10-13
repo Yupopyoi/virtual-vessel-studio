@@ -1,0 +1,36 @@
+/* Segmented (components.md 3.18). */
+.vv-segmented {
+    flex-direction: row;
+    align-self: flex-start;
+    flex-shrink: 0;
+    padding: 3px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-control);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-2);
+}
+
+.vv-segmented__item {
+    padding: 3px var(--vv-space-s);
+    border-radius: 7px;
+    color: var(--vv-color-text-2);
+    white-space: nowrap;
+}
+
+.vv-segmented__item:hover {
+    color: var(--vv-color-text);
+}
+
+.vv-segmented__item--selected,
+.vv-segmented__item--selected:hover {
+    background-color: var(--vv-color-primary);
+    color: var(--vv-color-on-accent);
+}
+
+.vv-segmented:disabled .vv-segmented__item {
+    color: var(--vv-color-disabled);
+}
+
+.vv-segmented:disabled .vv-segmented__item--selected {
+    background-color: var(--vv-color-surface-3);
+}

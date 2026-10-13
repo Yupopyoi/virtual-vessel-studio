@@ -1,0 +1,57 @@
+/* Card (components.md 3.10) with the accent decoration (design-system.md 3.6). */
+.vv-card {
+    padding: 0 var(--vv-space-m) var(--vv-space-m) var(--vv-space-m);
+    border-width: 1px;
+    border-top-width: 3px;
+    border-radius: var(--vv-radius-m);
+    border-color: var(--vv-color-border);
+    border-top-color: var(--vv-color-primary);
+    background-color: var(--vv-color-surface-2);
+}
+
+/*
+ * The title band is the header's own background, stretched to the card edges with negative
+ * margins, so it grows with whatever the header holds (such as a status chip).
+ */
+.vv-card__header {
+    flex-direction: row;
+    align-items: center;
+    min-height: 24px;
+    margin: 0 -16px var(--vv-space-m) -16px;
+    padding: 10px var(--vv-space-m);
+    background-color: var(--vv-color-primary-wash);
+    border-top-left-radius: 11px;
+    border-top-right-radius: 11px;
+}
+
+.vv-card__bar {
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    margin-right: var(--vv-space-s);
+    background-color: var(--vv-color-primary);
+}
+
+/* 13px, weight 700, Text (components.md 3.10): Text stays readable on the colored band. */
+.vv-card__title {
+    flex-grow: 1;
+    font-size: 13px;
+    color: var(--vv-color-text);
+}
+
+.vv-card__header-end {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-card--alt {
+    border-top-color: var(--vv-color-secondary);
+}
+
+.vv-card--alt > .vv-card__header {
+    background-color: var(--vv-color-secondary-wash);
+}
+
+.vv-card--alt .vv-card__bar {
+    background-color: var(--vv-color-secondary);
+}

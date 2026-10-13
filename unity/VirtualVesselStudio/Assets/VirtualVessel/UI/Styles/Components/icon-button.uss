@@ -1,0 +1,38 @@
+/* Icon Button (components.md 3.2): 38px circle. */
+.vv-icon-button {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    margin: 0;
+    border-width: 1px;
+    border-radius: 19px;
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-3);
+    color: var(--vv-color-text);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.vv-icon-button:hover {
+    border-color: var(--vv-color-accent-line);
+}
+
+.vv-icon-button:active {
+    translate: 0 1px;
+}
+
+.vv-icon-button--on {
+    background-color: var(--vv-color-secondary);
+    border-color: var(--vv-color-secondary);
+    color: var(--vv-color-on-accent);
+}
+
+.vv-icon-button:disabled {
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-disabled);
+}
+
+.vv-icon-button > .vv-focus-ring {
+    border-radius: 23px;
+}

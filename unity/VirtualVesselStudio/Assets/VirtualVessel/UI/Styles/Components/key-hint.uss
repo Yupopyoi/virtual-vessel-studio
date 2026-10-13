@@ -1,0 +1,13 @@
+/* Key Hint (components.md 3.21): sized to the text, not stretched to the row. */
+.vv-key-hint {
+    align-self: center;
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0 5px;
+    border-width: 1px;
+    border-radius: 5px;
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-bg);
+    color: var(--vv-color-text-2);
+    font-size: 11px;
+}

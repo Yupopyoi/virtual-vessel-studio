@@ -22,6 +22,7 @@ namespace VirtualVessel.UI.Editor.Theme
         public const string ThemeAssetsPath = ThemeFolder + "/ThemeAssets.asset";
         public const string FontSetFolder = "Assets/VirtualVessel/UI/Fonts";
         public const string DefaultFontSetPath = FontSetFolder + "/NotoSans.asset";
+        public const string ComponentsStylePath = "Assets/VirtualVessel/UI/Styles/components.uss";
 
         private static readonly UTF8Encoding s_encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
@@ -105,6 +106,7 @@ namespace VirtualVessel.UI.Editor.Theme
 
             assets.Set(
                 Load(ThemeStyleSheetGenerator.CommonFileName),
+                AssetDatabase.LoadAssetAtPath<StyleSheet>(ComponentsStylePath),
                 tokens.palettes.Select(p => new ThemeAssets.PaletteSheets(
                     p.id,
                     p.name,

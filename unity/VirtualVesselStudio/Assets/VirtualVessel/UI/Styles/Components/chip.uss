@@ -1,0 +1,55 @@
+/* Status Indicator (components.md 3.13). Shape, text, and color together (design-system.md 9.1). */
+.vv-chip {
+    flex-direction: row;
+    align-items: center;
+    align-self: flex-start;
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-text-2);
+    font-size: 12px;
+}
+
+.vv-chip__icon {
+    width: 12px;
+    height: 12px;
+    transition-property: opacity;
+    transition-duration: 0.6s;
+}
+
+.vv-chip__label,
+.vv-chip__number {
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+.vv-chip--success {
+    color: var(--vv-color-success);
+    background-color: var(--vv-color-success-chip);
+    border-color: var(--vv-color-success-line);
+}
+
+.vv-chip--warning {
+    color: var(--vv-color-warning);
+    background-color: var(--vv-color-warning-chip);
+    border-color: var(--vv-color-warning-line);
+}
+
+.vv-chip--error {
+    color: var(--vv-color-error);
+    background-color: var(--vv-color-error-chip);
+    border-color: var(--vv-color-error-line);
+}
+
+.vv-chip--live {
+    color: var(--vv-color-live);
+    background-color: var(--vv-color-live-chip);
+    border-color: var(--vv-color-live-line);
+}
+
+.vv-chip--dim {
+    opacity: 0.35;
+}

@@ -1,0 +1,72 @@
+/* Button (components.md 3.1). */
+.vv-button {
+    padding: 8px 18px;
+    margin: 0;
+    border-width: 1px;
+    border-radius: var(--vv-radius-control);
+    min-height: 24px;
+    align-items: center;
+    justify-content: center;
+
+    /* A row of buttons must not squeeze them narrower than their text. */
+    flex-shrink: 0;
+    transition-property: translate, background-color;
+    transition-duration: 0.12s;
+}
+
+.vv-button__label {
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    -unity-text-align: middle-center;
+}
+
+.vv-button:active {
+    translate: 0 1px;
+}
+
+.vv-button--primary {
+    background-color: var(--vv-color-primary);
+    border-color: var(--vv-color-primary);
+    color: var(--vv-color-on-accent);
+}
+
+.vv-button--primary:hover {
+    border-color: var(--vv-color-secondary);
+}
+
+.vv-button--secondary {
+    background-color: var(--vv-color-surface-3);
+    border-color: var(--vv-color-border);
+    color: var(--vv-color-text);
+}
+
+.vv-button--secondary:hover {
+    border-color: var(--vv-color-accent-line);
+}
+
+.vv-button--danger {
+    background-color: var(--vv-color-live-soft);
+    border-color: var(--vv-color-live-line);
+    color: var(--vv-color-live);
+}
+
+.vv-button--danger:hover {
+    border-color: var(--vv-color-live);
+}
+
+/* Disabled (components.md 2): Surface 2 background, Disabled text, no glow. */
+.vv-button:disabled {
+    background-color: var(--vv-color-surface-2);
+    border-color: var(--vv-color-border);
+    color: var(--vv-color-disabled);
+    translate: 0 0;
+}
+
+.vv-busy {
+    opacity: 0.7;
+}
+
+.vv-reduced-motion .vv-button {
+    transition-duration: 0s;
+}

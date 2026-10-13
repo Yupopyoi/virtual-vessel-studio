@@ -15,6 +15,9 @@ namespace VirtualVessel.UI.Theme
         private StyleSheet _common;
 
         [SerializeField]
+        private StyleSheet _components;
+
+        [SerializeField]
         private List<PaletteSheets> _palettes = new List<PaletteSheets>();
 
         [SerializeField]
@@ -22,6 +25,9 @@ namespace VirtualVessel.UI.Theme
 
         /// <summary>Spacing, radius, and text size variables shared by every theme.</summary>
         public StyleSheet Common => _common;
+
+        /// <summary>The styles of the common components (Styles/components.uss), which use only token variables.</summary>
+        public StyleSheet Components => _components;
 
         public IEnumerable<string> PaletteIds
         {
@@ -75,9 +81,10 @@ namespace VirtualVessel.UI.Theme
         }
 
         /// <summary>Used by the generator to fill the asset.</summary>
-        internal void Set(StyleSheet common, IEnumerable<PaletteSheets> palettes, IEnumerable<FontSheet> fontSets)
+        internal void Set(StyleSheet common, StyleSheet components, IEnumerable<PaletteSheets> palettes, IEnumerable<FontSheet> fontSets)
         {
             _common = common;
+            _components = components;
             _palettes = new List<PaletteSheets>(palettes);
             _fontSets = new List<FontSheet>(fontSets);
         }

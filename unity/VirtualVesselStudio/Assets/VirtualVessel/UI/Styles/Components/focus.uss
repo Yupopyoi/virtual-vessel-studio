@@ -1,0 +1,16 @@
+/* Keyboard focus: 2px Accent Line, 2px outside the part (components.md 2). Shown only for keyboard focus. */
+.vv-focus-ring {
+    position: absolute;
+    left: -4px;
+    top: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-width: 2px;
+    border-color: var(--vv-color-accent-line);
+    border-radius: 14px;
+    display: none;
+}
+
+.vv-focus-visible > .vv-focus-ring {
+    display: flex;
+}

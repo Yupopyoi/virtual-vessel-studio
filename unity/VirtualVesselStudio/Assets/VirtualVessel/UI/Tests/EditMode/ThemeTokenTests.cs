@@ -52,6 +52,7 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(assets, Is.Not.Null);
             Assert.That(assets.Common, Is.Not.Null);
+            Assert.That(assets.Components, Is.Not.Null);
             foreach (DesignTokens.PaletteToken palette in Tokens.palettes)
             {
                 Assert.That(assets.GetThemeSheet(palette.id, ThemeBackground.Dark), Is.Not.Null, palette.id);
