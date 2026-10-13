@@ -40,23 +40,26 @@ namespace VirtualVessel.Application.Session
                 return null;
             }
 
+            string text;
             try
             {
-                MarkerFile data = JsonUtility.FromJson<MarkerFile>(File.ReadAllText(_path));
-                if (data != null)
-                {
-                    return new PreviousSession(data.sessionId, data.startedAtUtc, data.applicationVersion);
-                }
+                text = File.ReadAllText(_path);
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is ArgumentException)
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
             {
-                // The marker still proves the previous run did not exit normally, even if its content is unreadable.
+                text = null;
             }
 
-            return new PreviousSession(null, null, null);
+            return Parse(text);
         }
 
         public void Write(SessionInfo session, string applicationVersion)
+        {
+            File.WriteAllText(_path, Format(session, applicationVersion));
+        }
+
+        /// <summary>The marker text for <paramref name="session"/>.</summary>
+        internal static string Format(SessionInfo session, string applicationVersion)
         {
             var data = new MarkerFile
             {
@@ -65,7 +68,32 @@ namespace VirtualVessel.Application.Session
                 applicationVersion = applicationVersion,
             };
 
-            File.WriteAllText(_path, JsonUtility.ToJson(data, prettyPrint: true));
+            return JsonUtility.ToJson(data, prettyPrint: true);
+        }
+
+        /// <summary>
+        /// Reads a leftover marker. Unreadable or missing content still means an abnormal exit, so the
+        /// result is never null; its fields are null when unknown.
+        /// </summary>
+        internal static PreviousSession Parse(string text)
+        {
+            if (!string.IsNullOrEmpty(text))
+            {
+                try
+                {
+                    MarkerFile data = JsonUtility.FromJson<MarkerFile>(text);
+                    if (data != null)
+                    {
+                        return new PreviousSession(data.sessionId, data.startedAtUtc, data.applicationVersion);
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Not JSON: fall through to an unknown session.
+                }
+            }
+
+            return new PreviousSession(null, null, null);
         }
 
         public void Delete()
