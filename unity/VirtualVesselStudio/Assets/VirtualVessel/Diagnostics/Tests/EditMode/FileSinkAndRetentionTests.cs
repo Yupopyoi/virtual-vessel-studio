@@ -126,6 +126,20 @@ namespace VirtualVessel.Diagnostics.Tests
             Assert.That(Directory.GetFiles(_temp.Path).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "current_001.jsonl", "notes.txt" }));
         }
 
+        [Test]
+        public void Retention_SelectForDeletion_UsesOnlyItsArguments()
+        {
+            var now = new DateTimeOffset(2026, 10, 13, 12, 0, 0, TimeSpan.Zero);
+            LogFile Make(string name, int ageDays, long length) => new LogFile("dir/" + name, name, now.UtcDateTime.AddDays(-ageDays), length);
+            LogFile[] files = { Make("a.jsonl", 3, 10), Make("current_1.jsonl", 0, 10), Make("b.jsonl", 1, 10), Make("c.jsonl", 20, 10), Make("d.jsonl", 2, 10) };
+
+            string[] byCount = LogFileRetention.SelectForDeletion(files, "current_", 2, TimeSpan.FromDays(14), long.MaxValue, now).Select(f => f.Name).ToArray();
+            string[] bySize = LogFileRetention.SelectForDeletion(files, "current_", 50, TimeSpan.FromDays(30), 25, now).Select(f => f.Name).ToArray();
+
+            Assert.That(byCount, Is.EquivalentTo(new[] { "a.jsonl", "c.jsonl" }), "Newest two kept; the current session is never selected.");
+            Assert.That(bySize, Is.EquivalentTo(new[] { "a.jsonl", "c.jsonl" }), "Two 10-byte files fit in 25 bytes.");
+        }
+
         private void CreateOldFile(string name, int ageDays, int sizeBytes)
         {
             string path = Path.Combine(_temp.Path, name);
