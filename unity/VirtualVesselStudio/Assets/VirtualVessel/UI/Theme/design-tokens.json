@@ -4,10 +4,10 @@
     "palettes": [
         { "id": "lavender", "name": "Lavender", "hue": 268, "primary": "#c3a6ff", "secondary": "#ff9ccf" },
         { "id": "sakura", "name": "Sakura", "hue": 335, "primary": "#ffa3c4", "secondary": "#c9a8ff" },
-        { "id": "mint", "name": "Mint", "hue": 165, "primary": "#7fe0c1", "secondary": "#a9d8ff" },
-        { "id": "sky", "name": "Sky", "hue": 212, "primary": "#8cc4ff", "secondary": "#c7b2ff" },
-        { "id": "peach", "name": "Peach", "hue": 18, "primary": "#ffb08f", "secondary": "#ffd88a" },
-        { "id": "lemon", "name": "Lemon", "hue": 48, "primary": "#ffe07a", "secondary": "#ffb3cf" }
+        { "id": "mint", "name": "Mint", "hue": 165, "primary": "#34e8b8", "secondary": "#6cc4ff" },
+        { "id": "sky", "name": "Sky", "hue": 212, "primary": "#6bb5ff", "secondary": "#c7b2ff" },
+        { "id": "peach", "name": "Peach", "hue": 18, "primary": "#ff8a5c", "secondary": "#ffc04d" },
+        { "id": "lemon", "name": "Lemon", "hue": 48, "primary": "#ffd23f", "secondary": "#ff9ec4" }
     ],
     "neutrals": [
         { "token": "bg", "dark": [8, 8], "light": [20, 97] },
@@ -24,14 +24,14 @@
     "accentShift": { "dark": [0, 6], "light": [25, -12] },
     "accentLineLight": [58, 38],
     "status": [
-        { "token": "success", "dark": "#52d6bd", "light": "#0a6656", "softAlpha": 0.14 },
-        { "token": "warning", "dark": "#ffc864", "light": "#774c00", "softAlpha": 0.14 },
-        { "token": "error", "dark": "#ff8aa3", "light": "#a8173f", "softAlpha": 0.14 },
-        { "token": "live", "dark": "#ff86ab", "light": "#9e0c41", "softAlpha": 0.14 }
+        { "token": "success", "dark": "#1affcc", "light": "#006652", "softAlpha": 0.18 },
+        { "token": "warning", "dark": "#ffb31a", "light": "#7a5200", "softAlpha": 0.18 },
+        { "token": "error", "dark": "#ff8a9d", "light": "#b2001e", "softAlpha": 0.18 },
+        { "token": "live", "dark": "#ff85b1", "light": "#ad0040", "softAlpha": 0.18 }
     ],
-    "statusLineAlpha": 0.40,
+    "statusLineAlpha": 0.65,
     "glowAlpha": 0.35,
-    "washAlpha": { "dark": 0.16, "light": 0.15 },
+    "washAlpha": { "dark": 0.28, "light": 0.24 },
     "tintAmount": 0.14,
     "errorSurfaceAmount": 0.08,
     "shadow": { "saturation": 50, "lightness": 3, "alpha": 0.45 },

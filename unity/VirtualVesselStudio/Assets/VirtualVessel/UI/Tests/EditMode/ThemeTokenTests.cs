@@ -97,17 +97,18 @@ namespace VirtualVessel.UI.Tests
             foreach (string wash in new[] { "primary-wash", "secondary-wash" })
             {
                 // Card titles sit on a wash over the card.
-                double ratio = ThemeColor.Contrast(c["text-2"], c[wash].Over(c["surface-2"]));
+                // Card titles use Text on the band; chips on the band have an opaque background.
+                double ratio = ThemeColor.Contrast(c["text"], c[wash].Over(c["surface-2"]));
                 if (ratio < 4.5)
                 {
-                    failures.Add($"text-2 on {wash}: {ratio:0.00} < 4.5");
+                    failures.Add($"text on {wash}: {ratio:0.00} < 4.5");
                 }
             }
 
             foreach (string status in new[] { "success", "warning", "error", "live" })
             {
-                // Status text sits on its soft tint over a card.
-                ThemeColor chip = c[status + "-soft"].Over(c["surface-2"]);
+                // Status text sits on its opaque chip color, the soft tint over a card.
+                ThemeColor chip = c[status + "-chip"];
                 double ratio = ThemeColor.Contrast(c[status], chip);
                 if (ratio < 4.5)
                 {

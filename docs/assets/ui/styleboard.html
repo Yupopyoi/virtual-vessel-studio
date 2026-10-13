@@ -23,6 +23,7 @@
   /* The palette pair above is the base; each background adjusts it (design-system 3.2). */
   --accent-1: hsl(from var(--primary) h s calc(l + 6));
   --accent-2: hsl(from var(--secondary) h s calc(l + 6));
+  --wash: 28%;
   --on-accent: hsl(var(--h) 45% 14%);
   /* Thin accent lines and small accent text. Pastel works on dark; light needs a deeper tone for 3:1. */
   --accent-line: var(--accent-1);
@@ -39,10 +40,10 @@
   --glow: color-mix(in srgb, var(--accent-1) 35%, transparent);
   --tint: color-mix(in srgb, var(--accent-1) 14%, var(--surface));
 
-  --success: #52d6bd;
-  --warning: #ffc864;
-  --error: #ff8aa3;
-  --live: #ff86ab;
+  --success: #1affcc;
+  --warning: #ffb31a;
+  --error: #ff8a9d;
+  --live: #ff85b1;
 
   --font-ui: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
   --font-mono: "Noto Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -65,10 +66,11 @@
     --accent-line: hsl(var(--h) 58% 38%);
     --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
     --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
-    --success: #0a6656;
-    --warning: #774c00;
-    --error: #a8173f;
-    --live: #9e0c41;
+    --wash: 24%;
+    --success: #006652;
+    --warning: #7a5200;
+    --error: #b2001e;
+    --live: #ad0040;
   }
 }
 :root[data-theme="light"] {
@@ -85,18 +87,27 @@
   --accent-line: hsl(var(--h) 58% 38%);
   --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
   --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
-  --success: #0a6656;
-  --warning: #774c00;
-  --error: #a8173f;
-  --live: #9e0c41;
+  --wash: 24%;
+  --success: #006652;
+  --warning: #7a5200;
+  --error: #b2001e;
+  --live: #ad0040;
 }
 :root[data-palette="sakura"] { --h: 335; --primary: #ffa3c4; --secondary: #c9a8ff; }
-:root[data-palette="mint"]   { --h: 165; --primary: #7fe0c1; --secondary: #a9d8ff; }
-:root[data-palette="sky"]    { --h: 212; --primary: #8cc4ff; --secondary: #c7b2ff; }
-:root[data-palette="peach"]  { --h: 18;  --primary: #ffb08f; --secondary: #ffd88a; }
-:root[data-palette="lemon"]  { --h: 48;  --primary: #ffe07a; --secondary: #ffb3cf; }
+:root[data-palette="mint"]   { --h: 165; --primary: #34e8b8; --secondary: #6cc4ff; }
+:root[data-palette="sky"]    { --h: 212; --primary: #6bb5ff; --secondary: #c7b2ff; }
+:root[data-palette="peach"]  { --h: 18;  --primary: #ff8a5c; --secondary: #ffc04d; }
+:root[data-palette="lemon"]  { --h: 48;  --primary: #ffd23f; --secondary: #ff9ec4; }
 
 * { box-sizing: border-box; }
+/* Scroll Bar (components.md 3.22): thin rounded Primary thumb, no arrows. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent-1) 55%, transparent) var(--surface-2); }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent-1) 55%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent-1) 90%, transparent); }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -190,11 +201,13 @@ button, input, select { font: inherit; color: inherit; }
 .chip.ok .dot { --icon: var(--icon-ok); }
 .chip.warn .dot { --icon: var(--icon-warn); }
 .chip.err .dot { --icon: var(--icon-err); }
-.chip.live { background: color-mix(in srgb, var(--live) 14%, transparent); color: var(--live); border-color: color-mix(in srgb, var(--live) 40%, transparent); }
+.chip.live { background: color-mix(in srgb, var(--live) 18%, var(--surface-2)); color: var(--live); border-color: color-mix(in srgb, var(--live) 65%, transparent); }
+/* LED look: bold text in a vivid status color (components.md 3.13). */
+.chip.live, .chip.ok, .chip.warn, .chip.err { font-weight: 700; }
 .chip.live .dot { animation: pulse 1.6s ease-in-out infinite; }
-.chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); border-color: color-mix(in srgb, var(--success) 35%, transparent); }
-.chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
-.chip.err { color: var(--error); background: color-mix(in srgb, var(--error) 14%, transparent); border-color: color-mix(in srgb, var(--error) 35%, transparent); }
+.chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--success) 65%, transparent); }
+.chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--warning) 65%, transparent); }
+.chip.err { color: var(--error); background: color-mix(in srgb, var(--error) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--error) 65%, transparent); }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .chip.live .dot { animation: none; } }
 
@@ -213,11 +226,11 @@ button, input, select { font: inherit; color: inherit; }
 /* Accent decoration (design-system 3.6): top line, title bar, and a wash behind the title; every other card uses Secondary. */
 .card {
   --deco: var(--accent-1);
-  background: linear-gradient(color-mix(in srgb, var(--deco) 9%, transparent) 0 46px, transparent 46px), var(--surface-2);
+  background: linear-gradient(color-mix(in srgb, var(--deco) var(--wash), transparent) 0 46px, transparent 46px), var(--surface-2);
   border: 1px solid var(--border); border-top: 3px solid var(--deco); border-radius: var(--radius-m); padding: var(--space-m); display: grid; gap: 12px;
 }
 .card.alt { --deco: var(--accent-2); }
-.card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text-2); letter-spacing: .04em; }
+.card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text); letter-spacing: .04em; }
 .card-title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--deco); flex: none; }
 .card-title .chip { margin-left: auto; }
 .row { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -400,10 +413,10 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
       <span class="ctrl-label" data-i18n="palette">パレット</span>
       <button class="swatch-btn" data-palette="lavender" title="Lavender" style="background:linear-gradient(135deg,#c3a6ff 50%,#ff9ccf 50%)"></button>
       <button class="swatch-btn" data-palette="sakura" title="Sakura" style="background:linear-gradient(135deg,#ffa3c4 50%,#c9a8ff 50%)"></button>
-      <button class="swatch-btn" data-palette="mint" title="Mint" style="background:linear-gradient(135deg,#7fe0c1 50%,#a9d8ff 50%)"></button>
-      <button class="swatch-btn" data-palette="sky" title="Sky" style="background:linear-gradient(135deg,#8cc4ff 50%,#c7b2ff 50%)"></button>
-      <button class="swatch-btn" data-palette="peach" title="Peach" style="background:linear-gradient(135deg,#ffb08f 50%,#ffd88a 50%)"></button>
-      <button class="swatch-btn" data-palette="lemon" title="Lemon" style="background:linear-gradient(135deg,#ffe07a 50%,#ffb3cf 50%)"></button>
+      <button class="swatch-btn" data-palette="mint" title="Mint" style="background:linear-gradient(135deg,#34e8b8 50%,#6cc4ff 50%)"></button>
+      <button class="swatch-btn" data-palette="sky" title="Sky" style="background:linear-gradient(135deg,#6bb5ff 50%,#c7b2ff 50%)"></button>
+      <button class="swatch-btn" data-palette="peach" title="Peach" style="background:linear-gradient(135deg,#ff8a5c 50%,#ffc04d 50%)"></button>
+      <button class="swatch-btn" data-palette="lemon" title="Lemon" style="background:linear-gradient(135deg,#ffd23f 50%,#ff9ec4 50%)"></button>
     </div>
     <div class="ctrl">
       <span class="ctrl-label" data-i18n="base">背景</span>
