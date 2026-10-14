@@ -624,6 +624,7 @@ flowchart LR
 
 - Drag inside the frame.
 - Arrow keys move by 1px, `Shift`+arrow keys by 10px (1px at the stream resolution).
+- Even when a frame may go beyond the stream screen, 10% of the screen (or half the frame, if that is smaller) stays on it (`FrameEditMath.ReachableFraction`). The part off screen cannot be grabbed, so a frame moved further could no longer be edited.
 
 **Resizing**
 

@@ -21,6 +21,13 @@ namespace VirtualVessel.Core.Geometry
         /// </summary>
         public const double MinimumSizeFraction = 0.05;
 
+        /// <summary>
+        /// How much of a frame stays on the stream screen when it may go beyond it (AllowOutside): this
+        /// fraction of the screen, or half the frame if that is smaller. Only the part on screen can be
+        /// grabbed, so a frame moved further would be lost.
+        /// </summary>
+        public const double ReachableFraction = 0.1;
+
         /// <summary>Largest zoom into a video while cropping.</summary>
         public const double MaximumCropZoom = 16;
 
@@ -29,12 +36,12 @@ namespace VirtualVessel.Core.Geometry
 
         /// <summary>
         /// Moves <paramref name="start"/> by a normalized delta. Without <paramref name="allowOutside"/>,
-        /// the frame stays on the stream screen.
+        /// the frame stays on the stream screen; with it, enough stays on screen to grab it again.
         /// </summary>
         public static NormalizedRect Move(NormalizedRect start, double dx, double dy, bool allowOutside)
         {
             var moved = start.WithPosition(start.X + dx, start.Y + dy);
-            return allowOutside ? moved : KeepInside(moved);
+            return allowOutside ? KeepReachable(moved) : KeepInside(moved);
         }
 
         /// <summary>Moves by whole output pixels, as the arrow keys do.</summary>
@@ -60,15 +67,12 @@ namespace VirtualVessel.Core.Geometry
             double? guideY = FindSnap(snap.Horizontal, snap.ThresholdY, moved.Top, moved.CenterY, moved.Bottom, out double offsetY);
             NormalizedRect snapped = moved.WithPosition(moved.X + offsetX, moved.Y + offsetY);
 
-            if (!allowOutside)
-            {
-                NormalizedRect inside = KeepInside(snapped);
+            NormalizedRect kept = allowOutside ? KeepReachable(snapped) : KeepInside(snapped);
 
-                // Clamping can move the frame off the line; then the guide would be misleading.
-                guideX = SameValue(inside.X, snapped.X) ? guideX : null;
-                guideY = SameValue(inside.Y, snapped.Y) ? guideY : null;
-                snapped = inside;
-            }
+            // Clamping can move the frame off the line; then the guide would be misleading.
+            guideX = SameValue(kept.X, snapped.X) ? guideX : null;
+            guideY = SameValue(kept.Y, snapped.Y) ? guideY : null;
+            snapped = kept;
 
             return new FrameEditResult(snapped, guideX, guideY);
         }
@@ -176,6 +180,12 @@ namespace VirtualVessel.Core.Geometry
             double newLeft = options.FromCenter || hx == 0 ? anchorX - width * 0.5 : hx > 0 ? anchorX : anchorX - width;
             double newTop = options.FromCenter || hy == 0 ? anchorY - height * 0.5 : hy > 0 ? anchorY : anchorY - height;
             var result = new NormalizedRect(newLeft / w, newTop / h, width / w, height / h);
+            if (allowOutside)
+            {
+                // Only matters for a frame already mostly off screen; there, staying reachable wins
+                // over keeping the opposite side exactly in place.
+                result = KeepReachable(result);
+            }
 
             // Report a guide only when the dragged edge really ended on the line, not when the aspect
             // ratio or a limit moved it away.
@@ -401,6 +411,16 @@ namespace VirtualVessel.Core.Geometry
         {
             double x = Clamp(rect.X, Math.Min(0, 1 - rect.Width), Math.Max(0, 1 - rect.Width));
             double y = Clamp(rect.Y, Math.Min(0, 1 - rect.Height), Math.Max(0, 1 - rect.Height));
+            return rect.WithPosition(x, y);
+        }
+
+        /// <summary>Keeps <see cref="ReachableFraction"/> of the screen (or half the frame) on screen on each axis.</summary>
+        private static NormalizedRect KeepReachable(NormalizedRect rect)
+        {
+            double keepX = Math.Min(ReachableFraction, rect.Width * 0.5);
+            double keepY = Math.Min(ReachableFraction, rect.Height * 0.5);
+            double x = Clamp(rect.X, keepX - rect.Width, 1 - keepX);
+            double y = Clamp(rect.Y, keepY - rect.Height, 1 - keepY);
             return rect.WithPosition(x, y);
         }
 
