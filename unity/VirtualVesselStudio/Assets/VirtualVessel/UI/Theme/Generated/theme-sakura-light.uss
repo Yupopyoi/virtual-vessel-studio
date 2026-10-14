@@ -36,4 +36,8 @@
     --vv-color-live-chip: #e7c5d2;
     --vv-color-live-line: rgba(173, 0, 64, 0.65);
     --vv-color-error-surface: #efdde1;
+    --vv-color-success-fill: #2ed3a4;
+    --vv-color-warning-fill: #ffb224;
+    --vv-color-error-fill: #ff3d68;
+    --vv-color-knob: #fdfcfc;
 }

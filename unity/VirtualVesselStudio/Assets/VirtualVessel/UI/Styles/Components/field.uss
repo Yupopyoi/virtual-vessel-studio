@@ -1,0 +1,101 @@
+/*
+ * Text Field / Numeric Field (components.md 3.7). Restyles Unity's TextField; selectors start with
+ * .vv-root so that they outrank the default theme.
+ */
+.vv-field__label {
+    color: var(--vv-color-text-2);
+    margin-bottom: 4px;
+}
+
+.vv-field__input {
+    margin: 0;
+}
+
+.vv-root .vv-field__input > .unity-base-text-field__input {
+    min-height: 32px;
+    margin: 0;
+    padding: 4px 10px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-bg);
+    color: var(--vv-color-text);
+}
+
+.vv-root .vv-field__input:hover > .unity-base-text-field__input {
+    border-color: var(--vv-color-accent-line);
+}
+
+/* Placeholder: example text is Text 3, so it reads as an example and not as a value. */
+.vv-root .vv-field__input > .unity-base-text-field__input--placeholder {
+    color: var(--vv-color-text-3);
+}
+
+.vv-root .vv-field__input > .unity-base-text-field__input--placeholder > .unity-text-element {
+    color: var(--vv-color-text-3);
+}
+
+/* Focus: Accent Line border. USS has no outer glow, so the border alone marks focus. */
+.vv-root .vv-field__input:focus > .unity-base-text-field__input {
+    border-color: var(--vv-color-accent-line);
+}
+
+/* Error: a 2px Error border and the message line below (components.md 3.7). */
+.vv-root .vv-field--error .vv-field__input > .unity-base-text-field__input {
+    border-width: 2px;
+    border-color: var(--vv-color-error);
+}
+
+.vv-field__error {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 4px;
+    color: var(--vv-color-error);
+}
+
+.vv-field__error > .vv-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+}
+
+.vv-field__error > Label {
+    white-space: normal;
+    flex-shrink: 1;
+}
+
+.vv-root .vv-field__input:disabled > .unity-base-text-field__input {
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-disabled);
+}
+
+/* Numeric Field: right-aligned monospace digits and a unit cell on the right. */
+.vv-number-input__row {
+    flex-direction: row;
+}
+
+.vv-number-input__input {
+    flex-grow: 1;
+}
+
+.vv-root .vv-number-input__input > .unity-base-text-field__input {
+    -unity-text-align: middle-right;
+}
+
+.vv-root .vv-number-input--unit .vv-number-input__input > .unity-base-text-field__input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.vv-number-input__unit {
+    margin: 0;
+    padding: 0 10px;
+    border-width: 1px;
+    border-left-width: 0;
+    border-color: var(--vv-color-border);
+    border-top-right-radius: var(--vv-radius-s);
+    border-bottom-right-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    color: var(--vv-color-text-2);
+    -unity-text-align: middle-center;
+}

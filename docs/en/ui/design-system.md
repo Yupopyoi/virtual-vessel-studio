@@ -103,6 +103,8 @@ Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 | Tint | Surface mixed with 14% Primary | Navigation selection background |
 | Soft status background | Status color at 18% opacity | Background of status chips |
 | Status line | Status color at 65% opacity | Border of status chips |
+| Status fill (Success Fill / Warning Fill / Error Fill) | Vivid colors for graphics such as the level meter. Success and Warning use the status color on dark, and `#2ed3a4` and `#ffb224` on light. Error is `#ff5c7a` on dark and `#ff3d68` on light | Graphics such as the level meter |
+| Knob | Text on dark; Surface on light | Inside of slider thumbs |
 | Status surface | The soft status background composited over Surface 2, as an opaque color | Background of status chips, which stay readable on a colored band |
 | Primary Wash / Secondary Wash | Primary or Secondary at 28% (dark) or 24% (light) opacity | Background of card titles (3.6) |
 

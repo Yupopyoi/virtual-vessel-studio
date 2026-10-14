@@ -9,3 +9,10 @@
 @import url("Components/chip.uss");
 @import url("Components/key-hint.uss");
 @import url("Components/scrollbar.uss");
+@import url("Components/slider.uss");
+@import url("Components/select.uss");
+@import url("Components/field.uss");
+@import url("Components/tabs.uss");
+@import url("Components/setting-row.uss");
+@import url("Components/meters.uss");
+@import url("Components/nav-item.uss");

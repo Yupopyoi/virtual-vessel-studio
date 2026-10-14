@@ -1,0 +1,48 @@
+/*
+ * Level Meter (components.md 3.5) and Progress Bar (components.md 3.15). Both are drawn in code; the
+ * colors reach the drawing through these custom properties.
+ */
+.vv-level-meter {
+    height: 12px;
+    min-width: 120px;
+    --meter-on: var(--vv-color-success-fill);
+    --meter-warn: var(--vv-color-warning-fill);
+    --meter-peak: var(--vv-color-error-fill);
+    --meter-off: var(--vv-color-surface-3);
+}
+
+.vv-progress {
+    --progress-start: var(--vv-color-primary);
+    --progress-end: var(--vv-color-secondary);
+}
+
+.vv-progress__header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.vv-progress__label {
+    color: var(--vv-color-text);
+}
+
+.vv-progress__separator {
+    margin: 0 6px;
+    color: var(--vv-color-text-3);
+}
+
+.vv-progress__detail {
+    color: var(--vv-color-text-2);
+}
+
+/* Radius Round: the track clips the gradient to its rounded shape. */
+.vv-progress__track {
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-progress__fill {
+    height: 100%;
+}

@@ -1,0 +1,79 @@
+/* Slider (components.md 3.4): 6px rail, Accent Line up to the value, 18px thumb with an Accent Line rim. */
+.vv-slider {
+    min-width: 160px;
+}
+
+.vv-slider__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.vv-slider__label {
+    color: var(--vv-color-text-2);
+}
+
+.vv-slider__value {
+    color: var(--vv-color-text);
+    font-size: 12px;
+}
+
+/* 24px tall: pressable parts are at least 24px (components.md 2). */
+.vv-slider__track {
+    height: 24px;
+    margin: 0 9px;
+}
+
+.vv-slider__rail {
+    position: absolute;
+    left: -9px;
+    right: -9px;
+    top: 9px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: var(--vv-color-primary);
+}
+
+/* The part after the value; its left edge is set from code. */
+.vv-slider__rest {
+    position: absolute;
+    right: -9px;
+    top: 9px;
+    height: 6px;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-slider__thumb {
+    position: absolute;
+    top: 3px;
+    width: 18px;
+    height: 18px;
+    margin-left: -9px;
+    border-width: 3px;
+    border-radius: 9px;
+    border-color: var(--vv-color-primary);
+    background-color: var(--vv-color-knob);
+}
+
+.vv-slider__track > .vv-focus-ring {
+    left: -13px;
+    right: -13px;
+    border-radius: 13px;
+}
+
+.vv-slider:disabled .vv-slider__rail {
+    background-color: var(--vv-color-disabled);
+}
+
+.vv-slider:disabled .vv-slider__thumb {
+    border-color: var(--vv-color-disabled);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-slider:disabled .vv-slider__value,
+.vv-slider:disabled .vv-slider__label {
+    color: var(--vv-color-disabled);
+}

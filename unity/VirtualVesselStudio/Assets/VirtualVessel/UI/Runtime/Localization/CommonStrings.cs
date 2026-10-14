@@ -14,5 +14,8 @@ namespace VirtualVessel.UI.Localization
 
         /// <summary>Shown when a command fails without a user-facing explanation (UI foundation detailed design 7.5).</summary>
         public const string UnexpectedError = "error.unexpected";
+
+        /// <summary>Shown under a number field when the typed text is not a number.</summary>
+        public const string NumberInvalid = "field.number-invalid";
     }
 }

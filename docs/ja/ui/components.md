@@ -58,14 +58,15 @@
 
 ### 3.4 Slider
 
-- 高さ6pxのトラック。値までを`Accent Line`、残りをSurface 3で塗る。
-- つまみは18pxの円（中Text、縁Accent Line）。
+- 高さ6pxのトラック。値までをPrimary、残りをSurface 3で塗る。
+- つまみは18pxの円（中Knob、縁Primary）。Knobはダークでは明るい色、ライトでは白に近い色で、ライトでも重く見えないようにする。
 - 現在値を数値（Numericまたは等幅数字）で近くに表示する。単位も付ける（例：`−12 dB`、`+4`）。
 
 ### 3.5 Level Meter
 
 - 音量などを示す24個の区切られたバー。
-- 通常域はSuccess、上限付近（上位25%）はWarningとする。
+- 通常域はSuccess、上位25%はWarning、最上部（24個のうち上の2個）はError（赤）とする。音が割れる手前であることが分かるようにするためである。
+- 塗りには鮮やかな塗り色（Success Fill、Warning Fill、Error Fill）を使い、ライトでも重く・地味に見えないようにする。
 - 色に加えて、点灯している本数で量が分かる。
 
 ### 3.6 Dropdown
@@ -76,7 +77,8 @@
 ### 3.7 Text Field / Numeric Field
 
 - 背景Background、1pxの枠、Radius S、上にラベル（Caption相当、Text 2）。
-- フォーカス時：枠Accent Line、外側にGlowの3px。
+- 入力の例（プレースホルダー）はText 3で薄く表示し、入力された値ではなく例であることが分かるようにする。
+- フォーカス時：枠Accent Line、外側にGlowの3px。Unityでは外側の光を描けないため、枠のAccent Lineだけで示す（UI基盤詳細設計6.7）。
 - Numeric Fieldは右寄せの等幅数字とし、右側に単位の欄を付ける（例：`Hz`）。
 - エラー時：枠を2pxのError、下に△アイコンとエラー文を表示する。エラー文は何が問題で、どうすればよいかを書く。
 
@@ -87,7 +89,7 @@
 
 ### 3.9 Setting Row
 
-- 左に設定名（Body、太さ500）と説明（Caption、Text 3）、右に操作部品（最大260px）。
+- 左に設定名（Body、太さ500。Mediumのないフォントでは通常の太さ）と説明（Caption、Text 3）、右に操作部品（最大260px）。
 - 行の間は1pxの区切り線。
 - 狭い画面では、操作部品を説明の下へ回す。
 

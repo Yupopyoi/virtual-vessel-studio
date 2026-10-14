@@ -24,6 +24,10 @@
   --accent-1: hsl(from var(--primary) h s calc(l + 6));
   --accent-2: hsl(from var(--secondary) h s calc(l + 6));
   --wash: 28%;
+  --knob: var(--text);
+  --success-fill: var(--success);
+  --warning-fill: var(--warning);
+  --error-fill: #ff5c7a;
   --on-accent: hsl(var(--h) 45% 14%);
   /* Thin accent lines and small accent text. Pastel works on dark; light needs a deeper tone for 3:1. */
   --accent-line: var(--accent-1);
@@ -67,6 +71,10 @@
     --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
     --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
     --wash: 24%;
+    --knob: var(--surface);
+    --success-fill: #2ed3a4;
+    --warning-fill: #ffb224;
+    --error-fill: #ff3d68;
     --success: #006652;
     --warning: #7a5200;
     --error: #b2001e;
@@ -88,6 +96,10 @@
   --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
   --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
   --wash: 24%;
+  --knob: var(--surface);
+  --success-fill: #2ed3a4;
+  --warning-fill: #ffb224;
+  --error-fill: #ff3d68;
   --success: #006652;
   --warning: #7a5200;
   --error: #b2001e;
@@ -266,13 +278,14 @@ button, input, select { font: inherit; color: inherit; }
 .toggle:disabled { background: var(--surface-2); cursor: not-allowed; }
 .toggle:disabled::after { background: var(--disabled); }
 
-input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent-line) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--accent-1); cursor: pointer; }
-input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--accent-1); cursor: pointer; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent-1) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--knob); border: 3px solid var(--accent-1); cursor: pointer; }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--knob); border: 3px solid var(--accent-1); cursor: pointer; }
 .meter { display: flex; gap: 2px; height: 6px; }
 .meter i { flex: 1; border-radius: 2px; background: var(--surface-3); }
-.meter i.on { background: var(--success); }
-.meter i.on.hot { background: var(--warning); }
+.meter i.on { background: var(--success-fill); }
+.meter i.on.hot { background: var(--warning-fill); }
+.meter i.on.peak { background: var(--error-fill); }
 
 .field { display: grid; gap: 6px; min-width: 0; }
 .field label { font-size: 12px; color: var(--text-2); font-weight: 500; }
@@ -912,7 +925,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     t += 0.12;
     const muted = mute.getAttribute("aria-pressed") === "true";
     const level = muted ? 0 : Math.round(9 + 6 * Math.sin(t) + 4 * Math.sin(t * 2.7));
-    for (let i = 0; i < bars.length; i++) bars[i].className = i < level ? (i >= 18 ? "on hot" : "on") : "";
+    for (let i = 0; i < bars.length; i++) bars[i].className = i < level ? (i >= 22 ? "on peak" : i >= 18 ? "on hot" : "on") : "";
   }
   tickMeter();
   if (!reduce) setInterval(tickMeter, 90);

@@ -227,6 +227,20 @@ The project uses its own icons, without an external icon set or an SVG import pa
 - The `Icon` element draws the polylines with Painter2D in the element's text color, so it follows hover, disabled, theme, and dark/light automatically and stays sharp at any size.
 - To add an icon, add it to `IconName` and `IconLibrary`. A test checks that every icon parses and stays inside the grid.
 
+### 6.7 Implementing the Input and Display Parts
+
+| Part | Key points |
+|---|---|
+| `ValueSlider` | The grab area is 24px tall (pressable parts are at least 24px, `components.md` 2) around a 6px rail. Values snap to `step` (1/100 of the range when `step` is 0). Left and right keys move by one step. `ValueSlider.Format` (a pure function) shows negative numbers with "−" (U+2212) and, with `signed`, positive numbers with "+" |
+| `SelectField` | Options (`SelectChoice`) are either string keys or text from data, such as audio device names, which is not translated. The value is the option id. The list opens on the nearest `vv-root` element, so it uses the theme colors. Up and down keys move, Enter chooses, and Esc closes. It also closes on a press outside the list, when the part leaves the screen, or when the language changes |
+| `TextInput` / `NumberInput` | They wrap Unity's `TextField` and style it with tokens. USS cannot draw an outer glow, so focus is shown by an `Accent Line` border. `NumberInput` commits on Enter or when focus leaves: values outside the range are brought into it, and text that is not a number shows an error (`field.number-invalid`) and keeps the previous value. Full-width digits and "−" are accepted |
+| `LevelMeter` | The 24 segments are drawn in one pass. `LevelMeter.KindOf` (a pure function) decides each segment's range: normal, warning, or the red top. `BindLevel` does not subscribe to changes; while the meter is shown it reads the value at a fixed interval (33 ms by default, about 30 Hz), so the audio thread does no UI work or allocations. Setting `Level` and updating a binding do not allocate (checked by `UiAllocationTests` in `Tests/Performance`) |
+| `ProgressMeter` | USS has no gradients, so the fill is drawn as a quad with colored vertices. The gradient spans the whole track, so partial progress ends between the two colors. Text with numbers, such as "Epoch 120 / 300" (`Detail`), is built by the caller with the localizer |
+| `NavItem` | `ScreenHost` (implementation step 7) decides which item is selected; the item only shows it |
+| `SettingRow` | The setting name is specified as weight 500, but the font set has no medium weight, so it is shown in Regular |
+
+- String-valued parts (`SelectField`, `TextInput`, `NumberInput`) stop the text change events of their inner labels. Unity labels send a `ChangeEvent<string>` when their text changes, and it would bubble up and look like a change of the part's value.
+
 ---
 
 ## 7. Mechanisms

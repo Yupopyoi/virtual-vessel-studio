@@ -1,0 +1,32 @@
+/* Tab (components.md 3.8): underlined; the selected tab has Text and a 2px Accent Line underline. */
+.vv-tabs {
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+/* The tabs' own scroll area: no padding, so page-level scroll styles do not leak in. */
+.vv-tabs .unity-scroll-view__content-container {
+    padding: 0;
+}
+
+.vv-tabs__tab {
+    padding: 8px 12px 6px 12px;
+    border-bottom-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    color: var(--vv-color-text-2);
+    white-space: nowrap;
+}
+
+.vv-tabs__tab:hover {
+    color: var(--vv-color-text);
+}
+
+.vv-tabs__tab--selected,
+.vv-tabs__tab--selected:hover {
+    color: var(--vv-color-text);
+    border-color: var(--vv-color-accent-line);
+}
+
+.vv-tabs:disabled .vv-tabs__tab {
+    color: var(--vv-color-disabled);
+}
