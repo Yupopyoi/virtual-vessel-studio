@@ -24,6 +24,9 @@ namespace VirtualVessel.UI.Editor.Theme
         public float tintAmount;
         public float errorSurfaceAmount;
         public ShadowToken shadow;
+
+        /// <summary>The shadow color's opacity behind a dialog; dark pages need more to show the change.</summary>
+        public ModeAlphaToken scrimAlpha;
         public SizeToken[] spacing;
         public SizeToken[] radius;
         public TypographyToken[] typography;

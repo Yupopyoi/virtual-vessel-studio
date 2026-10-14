@@ -107,6 +107,7 @@ Example: Lavender's dark `Background` is `hsl(268, 8%, 8%)`.
 | Knob | Text on dark; Surface on light | Inside of slider thumbs |
 | Status surface | The soft status background composited over Surface 2, as an opaque color | Background of status chips, which stay readable on a colored band |
 | Primary Wash / Secondary Wash | Primary or Secondary at 28% (dark) or 24% (light) opacity | Background of card titles (3.6) |
+| Scrim | A very dark color of the palette hue (saturation 50%, lightness 3%) at 70% (dark) or 45% (light) opacity. Dark needs more, because the page is already dark and a lighter scrim barely shows | Darkens the whole screen behind a dialog |
 
 ### 3.6 Accent decoration
 

@@ -24,6 +24,8 @@
   --accent-1: hsl(from var(--primary) h s calc(l + 6));
   --accent-2: hsl(from var(--secondary) h s calc(l + 6));
   --wash: 28%;
+  /* Darkens the screen behind a dialog; dark needs more, since the page is already dark. */
+  --scrim: hsl(var(--h) 50% 3% / .7);
   --knob: var(--text);
   --success-fill: var(--success);
   --warning-fill: var(--warning);
@@ -71,6 +73,7 @@
     --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
     --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
     --wash: 24%;
+    --scrim: hsl(var(--h) 50% 3% / .45);
     --knob: var(--surface);
     --success-fill: #2ed3a4;
     --warning-fill: #ffb224;
@@ -96,6 +99,7 @@
   --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
   --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
   --wash: 24%;
+  --scrim: hsl(var(--h) 50% 3% / .45);
   --knob: var(--surface);
   --success-fill: #2ed3a4;
   --warning-fill: #ffb224;
@@ -323,6 +327,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .progress { height: 8px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
 .progress i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
 
+.scrim-sample { background: var(--scrim); padding: var(--space-l); border-radius: var(--radius-m); }
 .dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); padding: var(--space-l); display: grid; gap: var(--space-m); box-shadow: 0 20px 50px hsl(var(--h) 50% 3% / .45); max-width: 420px; }
 .dialog h3 { font-size: 17px; }
 .dialog p { color: var(--text-2); }
@@ -711,14 +716,14 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
         </div>
         <div class="cell">
           <span class="cap" data-i18n="c.dialog">確認ダイアログ</span>
-          <div class="dialog" role="dialog" aria-label="Confirm">
+          <div class="scrim-sample"><div class="dialog" role="dialog" aria-label="Confirm">
             <h3 data-i18n="c.dtitle">配信を終了しますか？</h3>
             <p data-i18n="c.dbody">視聴者への配信が止まります。録画は続けたままにできます。</p>
             <div class="actions">
               <button class="btn btn-secondary" data-i18n="c.cancel">キャンセル</button>
               <button class="btn btn-danger" data-i18n="live.end">配信を終了</button>
             </div>
-          </div>
+          </div></div>
         </div>
       </div>
     </div>
