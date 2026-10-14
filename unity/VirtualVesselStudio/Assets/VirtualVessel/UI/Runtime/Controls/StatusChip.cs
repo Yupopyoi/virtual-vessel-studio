@@ -2,7 +2,6 @@ using System;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Icons;
-using VirtualVessel.UI.Theme;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -141,21 +140,8 @@ namespace VirtualVessel.UI.Controls
 
         private void Blink()
         {
-            bool blink = ShouldBlink(_status, IsReducedMotion(this));
+            bool blink = ShouldBlink(_status, ReducedMotion.IsOn(this));
             _icon.EnableInClassList(DimClass, blink && !_icon.ClassListContains(DimClass));
-        }
-
-        private static bool IsReducedMotion(VisualElement element)
-        {
-            for (VisualElement current = element; current != null; current = current.hierarchy.parent)
-            {
-                if (current.ClassListContains(ThemeService.ReducedMotionClass))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }
