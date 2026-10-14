@@ -103,13 +103,14 @@ For each component, the following states are defined:
 ### 3.11 Dialog
 
 - Background Surface, 1px border, Radius L, padding L, a large shadow. Maximum width 420px.
+  - The Unity implementation uses a scrim that darkens the whole screen instead of a shadow (UI foundation detailed design 6.4).
 - Title (17px, weight 700), body (Text 2), buttons at the bottom right.
 - When confirming an action that is hard to undo, the action button is Danger and the other is a Secondary "Cancel".
 - The body says what will happen if the action runs.
 
 ### 3.12 Tooltip
 
-- Appears after the mouse rests on a part for about 0.5 seconds and disappears when it leaves. Also appears on keyboard focus.
+- Appears after the mouse rests on a part for about 0.5 seconds and disappears when it leaves. Also appears on keyboard focus. The time and position numbers are defaults and may change (UI foundation detailed design 7.6).
 - Background Surface 3, a 1px border tinted toward Primary, Radius S, Caption-like text. Maximum width 260px.
 - Shown above the part, or below it when there is no room above. Never extends beyond the screen edge.
 - The content is one sentence saying what the action does. A shortcut key, if any, is added to the right.
@@ -128,6 +129,8 @@ For each component, the following states are defined:
 - Background Surface 2, 1px border, Radius M. A status icon on the left, a bold heading and body on the right.
 - Errors mix a little Error into the border and background.
 - The body says what to do next (for example "Check the USB connection, then try again.").
+- By default notices appear at the bottom right; Info and Success hide after about 5 seconds and Warning after 8 seconds. Errors stay until closed. Up to 3 are shown at once. The position and times are defaults and may change (UI foundation detailed design 7.8).
+- Notices that do not fit are kept waiting, not dropped, and appear in turn with errors first. The number waiting is shown at the corner end of the stack as "N more notices". It looks different from the notices so that it is not overlooked (a plus icon, bold Caption, Text on Tint, an Accent Line border, Radius S).
 
 ### 3.15 Progress Bar
 

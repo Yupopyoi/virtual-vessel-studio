@@ -122,6 +122,8 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | `FontSet` | ScriptableObject | UI and monospace font assets, fallback |
 | `Localizer` / `ILocalizer` | Class / Interface | Gets display text and switches language |
 | `TooltipService` | Class | Shows tooltips |
+| `DialogService` / `IDialogService` | Class / Interface | Shows confirmation dialogs |
+| `NotificationService` / `INotificationService` | Class / Interface | Shows notifications |
 | `IUiCommand` | Interface | An operation run from the UI |
 | `IReadOnlyObservable<T>` / `ObservableValue<T>` | Interface / Class (Core) | A value that notifies changes |
 | Shared components | VisualElement | The parts in `components.md` (Chapter 6) |
@@ -182,7 +184,7 @@ Attributes that set display text directly (such as `text`) are not used on user-
 
 **How components find services**
 
-- A component receives `UiServices` (`ILocalizer`, `IMainThreadDispatcher`, `ILog`, and where to show failures) from the nearest `UiServicesScope` above it. UiRoot (implementation step 7) puts a `UiServicesScope` at the top of the screen. There is no global instance.
+- A component receives `UiServices` (`ILocalizer`, `IMainThreadDispatcher`, `ILog`, where to show failures, and confirmation dialogs) from the nearest `UiServicesScope` above it. UiRoot (implementation step 7) puts a `UiServicesScope` at the top of the screen. There is no global instance.
 - `KeyedText` handles `*-key` text. It looks the text up when the component joins a panel and again whenever the language changes, and unsubscribes when the component leaves the panel.
 - Outside a scope, such as while editing in the UI Builder, the key is shown as `[live.start]`, so that it is still clear which text goes where.
 
@@ -209,6 +211,14 @@ bool confirmed = await _dialogs.ConfirmAsync(
 ```
 
 A command registered as a `DangerCommand` shows the confirmation dialog automatically when run from an `ActionButton`.
+
+- The dialog is shown over the nearest `vv-root` element. While it is open, a layer over the whole screen stops interaction behind it.
+- USS cannot draw a blurred shadow, so the "large shadow" (`components.md` 3.11) is replaced by a scrim that darkens the whole screen with the `Shadow` color.
+- With `ConfirmStyle.Danger`, the action button is Danger and the other is a Secondary "Cancel", and focus starts on "Cancel", so that pressing Enter by mistake does not run the action. With `Normal`, focus starts on the action button. `DialogService.FocusCancelFirst` (a pure function) decides which.
+- While it is open, focus moved by Tab and the arrow keys stays between the two buttons. Esc and the navigation cancel act as "Cancel". When it closes, focus returns to the element that had it before.
+- If another confirmation is requested while one is open, it is shown after the first closes. A canceled `CancellationToken` acts as "Cancel".
+- A button shows its busy state as soon as it is pressed, so a second dialog does not open while the first is waiting for an answer.
+- If `UiServices` has no confirmation dialog, a `DangerCommand` does not run and an Error is recorded in the developer log, so that an action that is hard to undo never runs without confirmation.
 
 ### 6.5 Style
 
@@ -437,10 +447,23 @@ public interface IUiCommand
 
 ### 7.6 Tooltip
 
-- Each panel has one tooltip element shared by all parts.
-- It appears when the pointer rests on a part with `tooltip-key` for about 0.45 seconds, or on keyboard focus. It disappears when the pointer leaves, on press, and on scroll.
-- It is placed above the part, or below when there is no room above, and never extends beyond the screen edge.
-- On a disabled part, it shows the text of `DisabledReasonKey`.
+- Each panel has one tooltip element shared by all parts. `TooltipService` is attached once to the nearest `vv-root` element.
+- It appears when the pointer rests on a part with `tooltip-key` (0.5 seconds by default), or on keyboard focus. It disappears when the pointer leaves, on press, and on scroll.
+- Parts with a tooltip implement `ITooltipSource`. The service walks up from the element under the pointer and shows the text of the first such part (`TooltipService.FindSource`, a pure function), so resting on an icon shows its button's tooltip.
+- It is placed above the part, or below when there is no room above, and never extends beyond the screen edge. `TooltipPlacement.Place` (a pure function) decides the position.
+- On a disabled part, it shows the text of `DisabledReasonKey`. Disabled parts receive no events, so the root watches trickle-down events instead.
+- A shortcut, if any, is shown to the right of the text as a Key Hint.
+
+**Values that may change**
+
+The delay and the position numbers are current defaults and may change. The numbers live only in `TooltipOptions`, never in parts or screens.
+
+| Item | Default | Where |
+|---|---|---|
+| Delay before showing | 0.5 seconds | `TooltipOptions.ShowDelay` |
+| Gap to the part | 6px | `TooltipOptions.Gap` |
+| Margin to the screen edge | 8px | `TooltipOptions.EdgeMargin` |
+| Look (colors, radius, maximum width) | `components.md` 3.12 | `Styles/Components/tooltip.uss` |
 
 ### 7.7 Screens and Developer Mode
 
@@ -451,6 +474,35 @@ public interface IUiCommand
 - The first screens built are:
   - Diagnostics: a table of performance metrics (`PerformanceSnapshot`).
   - Component Gallery (Developer Mode only): the same parts as `styleboard.html`, laid out in Unity for display checks.
+
+### 7.8 Notifications
+
+- `NotificationService` is attached once to the nearest `vv-root` element. Notices stack vertically in a corner of the screen.
+- `Show(kind, titleKey, bodyKey)` shows a notice. Each kind (Info, Success, Warning, Error) has an icon of a different shape, so status is not conveyed by color alone (`design-system.md` 9.1).
+- Command failures (7.5) are shown with `ShowFailure`. The heading is "Couldn't complete the action" (`notice.failure.title`) and the body is the failure text. UiRoot connects `NotificationService.ShowFailure` as the failure target of `UiServices`.
+- The close button closes a notice at any time.
+- Notices are never dropped. Notices that do not fit wait in a queue and appear when a shown notice hides or is closed. The number waiting is shown at the corner end of the stack as "N more notices".
+- The queue shows the highest priority first (Error, Warning, Success, Info), and notices of the same priority in arrival order (`NotificationPolicy.NextToShow`).
+- When the stack is full and a notice arrives with a higher priority than one on screen, the lowest-priority notice on screen (the oldest if tied) goes back to the queue and the new notice appears at once (`NotificationPolicy.ToMakeRoomFor`). The notice sent back is not dropped; it appears again when its turn comes. An error is never sent back.
+- While the pointer is on a notice that hides by itself, its timer stops; when the pointer leaves, the count starts again from the beginning.
+- Notices appear and leave with a short change of opacity and position. With reduced motion, they do not animate.
+
+**Values that may change**
+
+The position and the times are current defaults and may change. The values live only in `NotificationOptions`, and `NotificationPolicy` (pure functions) makes the decisions. The corner is a USS class (such as `vv-notices--bottom-right`), so moving the stack changes no screen code.
+
+| Item | Default | Where |
+|---|---|---|
+| Position | Bottom right | `NotificationOptions.Corner` |
+| Time until Info and Success hide | 5 seconds | `InfoDuration`, `SuccessDuration` |
+| Time until Warning hides | 8 seconds | `WarningDuration` |
+| Error | Stays until closed, so it is not missed | `ErrorDuration` (null keeps it) |
+| Notices shown at once | 3; the rest wait in the queue | `MaxVisible` |
+| Priority | Error, Warning, Success, Info | `NotificationPolicy.Priority` |
+| While the pointer is on a notice | The timer stops | `PauseOnHover` |
+| Length of the appear and leave change | 0.15 seconds (`design-system.md` 7) | `TransitionDuration` |
+
+New notices go on the side nearest the corner: at the bottom for the bottom corners, at the top for the top corners (`NotificationPolicy.NewestFirst`).
 
 ---
 
@@ -727,7 +779,10 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | EditMode | Each calculation of `FrameEditMath` (9.6) |
 | EditMode | `ConfigFileStore` read/write, migration, keeping unknown fields, moving broken files aside (8.3) |
 | PlayMode | Pointer operations of `MediaFrame` (move, resize, snap, crop, undo), reproduced with the UI Test Framework bundled with Unity 6.6 |
-| PlayMode | Tooltip display and position, display on focus |
+| EditMode | Tooltip position; notice times, count, priority, queue order, corner, and icons; dialog focus; `DangerCommand` delegation (7.6, 7.8, 6.4) |
+| PlayMode | Tooltip delay, disabled reasons, finding the part with the tooltip |
+| PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
+| PlayMode | Notices hide on time, errors stay, the count limit and the queue, priority, the waiting count, order per corner, `ShowFailure` |
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
 | Performance | Binding updates and level meter updates do not allocate (performance tests) |
 
@@ -756,10 +811,13 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          shared components, UiServices, KeyedText, FocusRing   VirtualVessel.UI.Controls
+   │  ├─ Controls/          shared components, UiServices, KeyedText, FocusRing, ReducedMotion   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
-   │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
+   │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
+   │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
+   │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
+   │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, screens

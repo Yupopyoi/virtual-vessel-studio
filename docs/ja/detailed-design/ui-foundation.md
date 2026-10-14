@@ -122,6 +122,8 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | `FontSet` | ScriptableObject | UI用と等幅のFont Asset、Fallback |
 | `Localizer` / `ILocalizer` | Class / Interface | 表示文字の取得と言語の切り替え |
 | `TooltipService` | Class | Tooltipの表示 |
+| `DialogService` / `IDialogService` | Class / Interface | 確認Dialogの表示 |
+| `NotificationService` / `INotificationService` | Class / Interface | Notificationの表示 |
 | `IUiCommand` | Interface | UIから実行する操作 |
 | `IReadOnlyObservable<T>` / `ObservableValue<T>` | Interface / Class（Core） | 変化を通知する値 |
 | 共通Component | VisualElement | `components.md`の各部品（6章） |
@@ -182,7 +184,7 @@ UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。
 
 **Serviceの見つけ方**
 
-- 部品は、自分より上にある最も近い`UiServicesScope`から`UiServices`（`ILocalizer`、`IMainThreadDispatcher`、`ILog`、失敗の通知先）を受け取る。UiRoot（実装順序7）が画面の一番外側に`UiServicesScope`を置く。全体で1つのGlobal Instanceは使わない。
+- 部品は、自分より上にある最も近い`UiServicesScope`から`UiServices`（`ILocalizer`、`IMainThreadDispatcher`、`ILog`、失敗の通知先、確認Dialog）を受け取る。UiRoot（実装順序7）が画面の一番外側に`UiServicesScope`を置く。全体で1つのGlobal Instanceは使わない。
 - `*-key`の文字は`KeyedText`が扱う。部品がPanelに追加されたときに文字を取得し、言語が変わるたびに更新する。Panelから外れると購読を解除する。
 - Scopeの外（UI Builderでの編集中など）では、`[live.start]`のようにKeyを表示する。どこにどの文字が入るかを確かめられるようにするためである。
 
@@ -209,6 +211,14 @@ bool confirmed = await _dialogs.ConfirmAsync(
 ```
 
 `DangerCommand`として登録したCommandは、`ActionButton`から実行するときに自動で確認Dialogを出す。
+
+- Dialogは、最も近い`vv-root`の要素に重ねて表示する。表示中は画面全体を覆う幕で後ろの操作を止める。
+- 「大きな影」（`components.md` 3.11）は、USSでぼかした影を描けないため、画面全体を`Shadow`の色で暗くする幕で代える。
+- `ConfirmStyle.Danger`では、実行ボタンをDanger、もう一方をSecondaryの「キャンセル」とし、最初のFocusを「キャンセル」に置く。誤ってEnterを押しても実行されないようにするためである。`Normal`では実行ボタンにFocusを置く。どちらにするかは`DialogService.FocusCancelFirst`（純粋関数）で決める。
+- 表示中は、Tabと矢印キーによるFocusの移動を2つのボタンの間に限る。EscとNavigationのCancelは「キャンセル」と同じ扱いとする。閉じたら、開く前にFocusしていた要素へFocusを戻す。
+- 表示中に別の確認が求められた場合は、前のDialogが閉じてから順に表示する。`CancellationToken`が取り消された場合は「キャンセル」と同じ扱いとする。
+- ボタンは押されるとすぐ実行中の表示になるため、確認を待つ間に2つ目のDialogは開かない。
+- `UiServices`に確認Dialogがない場合、`DangerCommand`は実行せず、開発者向けLogにErrorを記録する。取り消しにくい操作を確認なしで実行しないためである。
 
 ### 6.5 Style
 
@@ -437,10 +447,23 @@ public interface IUiCommand
 
 ### 7.6 Tooltip
 
-- Panelごとに1つのTooltip要素を持ち、すべての部品で共有する。
-- `tooltip-key`を持つ部品にPointerが約0.45秒留まったとき、またはキーボードでFocusしたときに表示する。Pointerが離れたとき、押したとき、Scrollしたときに消す。
-- 表示位置は部品の上とし、上に余白がなければ下とする。画面の端からはみ出さない。
-- 部品が無効な場合は、`DisabledReasonKey`の文を表示する。
+- Panelごとに1つのTooltip要素を持ち、すべての部品で共有する。`TooltipService`を、最も近い`vv-root`の要素に1回だけ取り付ける。
+- `tooltip-key`を持つ部品にPointerが留まったとき（既定0.5秒）、またはキーボードでFocusしたときに表示する。Pointerが離れたとき、押したとき、Scrollしたときに消す。
+- Tooltipを出す部品は`ITooltipSource`を実装する。Pointerの下の要素から上へたどり、最初に見つかった部品の文を表示する（`TooltipService.FindSource`、純粋関数）。アイコンの上でも、そのボタンのTooltipが出る。
+- 表示位置は部品の上とし、上に余白がなければ下とする。画面の端からはみ出さない。位置は`TooltipPlacement.Place`（純粋関数）で決める。
+- 部品が無効な場合は、`DisabledReasonKey`の文を表示する。無効な部品はEventを受け取らないため、RootでTrickleDownのEventを見て判定する。
+- ショートカットがあれば、Key Hintで文の右に添える。
+
+**変更しうる値**
+
+表示までの時間と位置の数値は、現時点の既定値であり、今後変更しうる。数値は`TooltipOptions`だけに置き、部品や画面には書かない。
+
+| 項目 | 既定値 | 置き場所 |
+|---|---|---|
+| 表示までの時間 | 0.5秒 | `TooltipOptions.ShowDelay` |
+| 部品との間隔 | 6px | `TooltipOptions.Gap` |
+| 画面の端との間隔 | 8px | `TooltipOptions.EdgeMargin` |
+| 見た目（色、角丸、最大幅） | `components.md` 3.12 | `Styles/Components/tooltip.uss` |
 
 ### 7.7 画面とDeveloper Mode
 
@@ -451,6 +474,35 @@ public interface IUiCommand
 - 最初に作る画面は次の2つとする。
   - Diagnostics：性能計測（`PerformanceSnapshot`）の表。
   - Component Gallery（Developer Modeのみ）：`styleboard.html`と同じ部品をUnity上で並べ、表示確認に使う。
+
+### 7.8 Notification
+
+- `NotificationService`を、最も近い`vv-root`の要素に1回だけ取り付ける。通知は画面の隅に縦に積む。
+- `Show(kind, titleKey, bodyKey)`で表示する。種類（Info、Success、Warning、Error）ごとに形の異なるアイコンを付け、色だけで伝えない（`design-system.md` 9.1）。
+- Commandの失敗（7.5）は`ShowFailure`で表示する。見出しは「操作を完了できませんでした」（`notice.failure.title`）、本文は失敗の文とする。UiRootが`UiServices`の失敗の通知先に`NotificationService.ShowFailure`をつなぐ。
+- 閉じるボタンで、いつでも閉じられる。
+- 通知は捨てない。表示しきれない通知は待ち行列に入れ、表示中の通知が消えるか閉じられたら表示する。待っている件数を、スタックの隅側の端に「ほかに N 件の通知」と表示する。
+- 待ち行列は優先度の高い順（Error、Warning、Success、Info）、同じ優先度では来た順に表示する（`NotificationPolicy.NextToShow`）。
+- 枠が埋まっているときに、表示中のどれかより優先度の高い通知が来た場合は、表示中で最も優先度の低い通知（同じなら古いもの）を待ち行列に戻し、新しい通知をすぐ表示する（`NotificationPolicy.ToMakeRoomFor`）。戻した通知は消さず、順番が来たら表示し直す。Errorが戻されることはない。
+- 自動で消える通知は、Pointerが上にある間は時間を止め、離れたら最初から数え直す。
+- 表示と消去は、短い透明度と位置の変化で行う。動きを減らす設定では変化させない。
+
+**変更しうる値**
+
+位置と時間は、現時点の既定値であり、今後変更しうる。値は`NotificationOptions`だけに置き、判断は`NotificationPolicy`（純粋関数）で行う。隅の位置はUSSのClass（`vv-notices--bottom-right`等）で表すため、位置を変えても画面のコードは変わらない。
+
+| 項目 | 既定値 | 置き場所 |
+|---|---|---|
+| 位置 | 右下 | `NotificationOptions.Corner` |
+| Info、Successが消えるまでの時間 | 5秒 | `InfoDuration`、`SuccessDuration` |
+| Warningが消えるまでの時間 | 8秒 | `WarningDuration` |
+| Error | 閉じるまで残す（見落とさないため） | `ErrorDuration`（nullで残す） |
+| 同時に表示する数 | 3つ。超えた分は待ち行列に入れる | `MaxVisible` |
+| 優先度 | Error、Warning、Success、Infoの順 | `NotificationPolicy.Priority` |
+| Pointerが上にある間 | 時間を止める | `PauseOnHover` |
+| 表示と消去の変化の長さ | 0.15秒（`design-system.md` 7） | `TransitionDuration` |
+
+隅に近い側に新しい通知を置く。右下・左下では下、右上・左上では上に追加する（`NotificationPolicy.NewestFirst`）。
 
 ---
 
@@ -727,7 +779,10 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | EditMode | `FrameEditMath`の各計算（9.6） |
 | EditMode | `ConfigFileStore`の読み書き、移行、不明な項目の保持、壊れたファイルの退避（8.3） |
 | PlayMode | `MediaFrame`のPointer操作（移動、拡大縮小、吸着、切り抜き、元に戻す）。Unity 6.6同梱のUI Test Frameworkで操作を再現する |
-| PlayMode | Tooltipの表示と位置、Focusでの表示 |
+| EditMode | Tooltipの位置、Notificationの時間・数・優先度・待ち行列の順・位置・アイコン、確認DialogのFocus、`DangerCommand`の委譲（7.6、7.8、6.4） |
+| PlayMode | Tooltipの表示までの時間、無効な理由の表示、部品のたどり方 |
+| PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
+| PlayMode | Notificationの自動消去、Errorが残ること、数の上限と待ち行列、優先度、待ち件数の表示、隅ごとの並び順、`ShowFailure` |
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
 | 性能 | Bindingの更新とLevel Meterの更新でAllocationが発生しないこと（Performance Test） |
 
@@ -756,10 +811,13 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          共通Component、UiServices、KeyedText、FocusRing   VirtualVessel.UI.Controls
+   │  ├─ Controls/          共通Component、UiServices、KeyedText、FocusRing、ReducedMotion   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
    │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
-   │  ├─ Binding/, Commands/, Tooltips/, Dialogs/, Notifications/
+   │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
+   │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
+   │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
+   │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, 各画面

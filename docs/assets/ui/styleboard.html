@@ -994,7 +994,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     hideTip();
     if (!el) return;
     tipTarget = el;
-    tipTimer = setTimeout(() => showTip(el), 450);
+    tipTimer = setTimeout(() => showTip(el), 500);
   });
   document.addEventListener("focusin", e => {
     const el = e.target.closest("[data-tip]");
