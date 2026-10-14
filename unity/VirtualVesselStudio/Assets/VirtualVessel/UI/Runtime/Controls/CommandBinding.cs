@@ -1,7 +1,10 @@
 using System;
+using System.Threading.Tasks;
 using UnityEngine.UIElements;
+using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Dialogs;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -63,17 +66,48 @@ namespace VirtualVessel.UI.Controls
                 return;
             }
 
+            // Busy from the first press, so a second press cannot open a second confirmation.
             _running = true;
             Refresh();
             try
             {
-                await CommandRunner.RunAsync(command, UiServices.Find(_button));
+                UiServices services = UiServices.Find(_button);
+                if (command is IConfirmedCommand confirmed && !await ConfirmAsync(confirmed.Confirmation, services))
+                {
+                    return;
+                }
+
+                await CommandRunner.RunAsync(command, services);
             }
             finally
             {
                 _running = false;
                 Refresh();
             }
+        }
+
+        /// <summary>
+        /// Asks for confirmation. Without a dialog service the command does not run: a dangerous operation
+        /// must never run unconfirmed.
+        /// </summary>
+        private static async Task<bool> ConfirmAsync(ConfirmationRequest request, UiServices services)
+        {
+            if (services?.Dialogs == null)
+            {
+                string message = $"No dialog service to confirm '{request.TitleKey}'; the operation was not run.";
+                if (services?.Log != null)
+                {
+                    services.Log.Error(message);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogError(message);
+                }
+
+                return false;
+            }
+
+            return await services.Dialogs.ConfirmAsync(request.TitleKey, request.BodyKey, request.ConfirmKey, ConfirmStyle.Danger);
         }
     }
 }
