@@ -58,14 +58,15 @@ For each component, the following states are defined:
 
 ### 3.4 Slider
 
-- A 6px track. The part up to the value is `Accent Line`; the rest is Surface 3.
-- The thumb is an 18px circle (fill Text, edge Accent Line).
+- A 6px track. The part up to the value is Primary; the rest is Surface 3.
+- The thumb is an 18px circle (fill Knob, edge Primary). Knob is light on dark backgrounds and white-ish on light ones, so the thumb does not look heavy on light.
 - The current value is shown nearby as a number (Numeric or tabular digits) with its unit (for example `−12 dB`, `+4`).
 
 ### 3.5 Level Meter
 
 - 24 separated bars showing a level such as volume.
-- The normal range is Success; near the top (upper 25%) it is Warning.
+- The normal range is Success, the upper 25% is Warning, and the very top (the top 2 of 24) is Error red, so it is clear the signal is about to clip.
+- The lit segments use vivid fill colors (Success Fill, Warning Fill, Error Fill), so they do not look heavy or dull on light backgrounds.
 - The amount is readable from the number of lit bars as well as the color.
 
 ### 3.6 Dropdown
@@ -76,7 +77,8 @@ For each component, the following states are defined:
 ### 3.7 Text Field / Numeric Field
 
 - Background Background, 1px border, Radius S, label above (Caption-like, Text 2).
-- On focus: border Accent Line and a 3px Glow outside.
+- Example text (placeholder) is shown in Text 3, so it reads as an example and not as an entered value.
+- On focus: border Accent Line and a 3px Glow outside. Unity cannot draw an outer glow, so the Accent Line border alone shows focus (UI foundation detailed design 6.7).
 - A numeric field uses right-aligned tabular digits with a unit box on the right (for example `Hz`).
 - On error: a 2px Error border, and below it a △ icon and the error text. The error text says what is wrong and what to do.
 
@@ -87,7 +89,7 @@ For each component, the following states are defined:
 
 ### 3.9 Setting Row
 
-- On the left, the setting name (Body, weight 500) and its description (Caption, Text 3); on the right, the control (up to 260px).
+- On the left, the setting name (Body, weight 500; Regular when the font has no medium weight) and its description (Caption, Text 3); on the right, the control (up to 260px).
 - Rows are separated by a 1px divider.
 - On narrow screens the control moves below the description.
 

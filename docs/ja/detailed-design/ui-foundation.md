@@ -227,6 +227,20 @@ bool confirmed = await _dialogs.ConfirmAsync(
 - `Icon`要素は、Painter2Dで折れ線を描く。色は要素の文字色を使うため、Hover、無効、Theme、ダーク・ライトに自動で追従する。拡大しても形は崩れない。
 - アイコンを追加するときは、`IconName`と`IconLibrary`に追加する。Testが、すべてのアイコンを読み取れることと、枠の中に収まることを確認する。
 
+### 6.7 入力・表示の部品の実装
+
+| 部品 | 実装の要点 |
+|---|---|
+| `ValueSlider` | つかめる範囲は高さ24px（押せる部品は24px以上、`components.md` 2）、見た目の溝は6px。値は`step`に合わせて丸める（`step`が0なら範囲の1/100）。左右キーで1段ずつ動かす。値の表示は`ValueSlider.Format`（純粋関数）で、負の数は「−」（U+2212）、`signed`なら正の数に「+」を付ける |
+| `SelectField` | 選択肢（`SelectChoice`）は、文字列KeyまたはData由来の文字（音声機器の名前など。翻訳しない）とする。値は選択肢のID。一覧は、最も近い`vv-root`の要素に重ねて開くため、Themeの色がそのまま使われる。上下キーで選択、Enterで決定、Escで閉じる。一覧の外を押すか、部品が画面から外れるか、言語が変わると閉じる |
+| `TextInput` / `NumberInput` | Unity標準の`TextField`を中に使い、見た目をTokenで指定する。USSは外側の光（Glow）を描けないため、Focus中は枠を`Accent Line`にする。`NumberInput`は、Enterを押すかFocusが外れたときに確定する。範囲外の値は範囲内に収め、数として読めない文字はエラー（`field.number-invalid`）を表示して前の値を保つ。全角数字と「−」も受け付ける |
+| `LevelMeter` | 24個の区切りを1回の描画でまとめて描く。区切りの範囲（通常・注意・最上部の赤）は`LevelMeter.KindOf`（純粋関数）で決める。`BindLevel`は、値の変化を購読せず、画面に表示されている間だけ一定間隔（既定33ms、約30Hz）で値を読む。音声Threadで表示の処理やAllocationが起きないようにするためである。`Level`の設定と、Bindingの更新はAllocationしない（`Tests/Performance`の`UiAllocationTests`で確認） |
+| `ProgressMeter` | USSはGradientを描けないため、塗りを頂点色付きの四角形で描く。Gradientは溝全体にわたるため、途中までの進捗では塗りの終わりが2色の中間の色になる。「エポック 120 / 300」のような数を含む文（`Detail`）は、呼び出し側がLocalizerで作る |
+| `NavItem` | どの項目を選択中にするかは`ScreenHost`（実装順序7）が決め、項目は表示だけを行う |
+| `SettingRow` | 設定名は「太さ500」の指定だが、FontSetに中間の太さ（Medium）がないため、通常の太さ（Regular）で表示する |
+
+- 文字列を値に持つ部品（`SelectField`、`TextInput`、`NumberInput`）は、中のラベルが出す文字の変更Eventを止める。Unityのラベルは文字が変わると`ChangeEvent<string>`を出し、それが親へ伝わって、部品の値の変更に見えてしまうためである。
+
 ---
 
 ## 7. 仕組み

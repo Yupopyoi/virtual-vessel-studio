@@ -103,6 +103,8 @@ docs/assets/ui/styleboard.html
 | Tint | SurfaceにPrimaryを14%混ぜた色 | ナビゲーションの選択背景 |
 | 状態の淡い背景 | 状態色の不透明度18% | 状態表示（Chip）の背景 |
 | 状態の枠 | 状態色の不透明度65% | 状態表示（Chip）の枠 |
+| 状態の塗り（Success Fill / Warning Fill / Error Fill） | Level Meter等の図形のための鮮やかな色。Success・Warningはダークでは状態色そのまま、ライトは`#2ed3a4`・`#ffb224`。Errorはダーク`#ff5c7a`、ライト`#ff3d68` | Level Meter等の図形 |
+| Knob | ダークはText、ライトはSurface | Sliderのつまみの中 |
 | 状態の面 | 状態の淡い背景をSurface 2に重ねた不透明の色 | 状態表示（Chip）の背景。背景の帯の上でも読みやすさが変わらない |
 | Primary Wash / Secondary Wash | Primary、Secondaryの不透明度28%（ダーク）、24%（ライト） | Cardのタイトル部分の背景（3.6） |
 
