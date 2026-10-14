@@ -96,6 +96,20 @@ namespace VirtualVessel.UI.Editor.Theme
             }
 
             Add("error-surface", byName["error"].Mix(byName["surface-2"], tokens.errorSurfaceAmount));
+
+            // Graphics such as the level meter use vivid fill colors: the deep light-theme text colors
+            // look heavy and dull over large lit areas.
+            foreach (DesignTokens.StatusToken status in tokens.status)
+            {
+                string fill = light ? status.fillLight : status.fillDark;
+                if (status.token != "live")
+                {
+                    Add(status.token + "-fill", string.IsNullOrEmpty(fill) ? byName[status.token] : ThemeColor.FromHex(fill));
+                }
+            }
+
+            // Knobs of sliders: light on dark backgrounds, white-ish on light ones.
+            Add("knob", light ? byName["surface"] : byName["text"]);
             return colors;
         }
 

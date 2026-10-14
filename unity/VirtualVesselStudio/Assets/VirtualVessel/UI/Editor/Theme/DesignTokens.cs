@@ -80,6 +80,12 @@ namespace VirtualVessel.UI.Editor.Theme
             public string dark;
             public string light;
             public float softAlpha;
+
+            /// <summary>Optional graphic color (level meter) on dark backgrounds; the status color when empty.</summary>
+            public string fillDark;
+
+            /// <summary>Optional graphic color (level meter) on light backgrounds; the status color when empty.</summary>
+            public string fillLight;
         }
 
         [Serializable]

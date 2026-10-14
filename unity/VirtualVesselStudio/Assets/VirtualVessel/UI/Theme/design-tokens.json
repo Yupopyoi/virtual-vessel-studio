@@ -24,9 +24,9 @@
     "accentShift": { "dark": [0, 6], "light": [25, -12] },
     "accentLineLight": [58, 38],
     "status": [
-        { "token": "success", "dark": "#1affcc", "light": "#006652", "softAlpha": 0.18 },
-        { "token": "warning", "dark": "#ffb31a", "light": "#7a5200", "softAlpha": 0.18 },
-        { "token": "error", "dark": "#ff8a9d", "light": "#b2001e", "softAlpha": 0.18 },
+        { "token": "success", "dark": "#1affcc", "light": "#006652", "softAlpha": 0.18, "fillLight": "#2ed3a4" },
+        { "token": "warning", "dark": "#ffb31a", "light": "#7a5200", "softAlpha": 0.18, "fillLight": "#ffb224" },
+        { "token": "error", "dark": "#ff8a9d", "light": "#b2001e", "softAlpha": 0.18, "fillDark": "#ff5c7a", "fillLight": "#ff3d68" },
         { "token": "live", "dark": "#ff85b1", "light": "#ad0040", "softAlpha": 0.18 }
     ],
     "statusLineAlpha": 0.65,
