@@ -10,6 +10,7 @@
         "common.retry": "もう一度試す",
         "common.items.one": "{count} 件",
         "common.items.other": "{count} 件",
+        "frame.locked": "ロック中",
         "field.number-invalid": "数字を入力してください。",
         "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。",
         "notice.failure.title": "操作を完了できませんでした",

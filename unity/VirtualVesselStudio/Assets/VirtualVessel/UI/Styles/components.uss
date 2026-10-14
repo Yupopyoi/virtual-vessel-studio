@@ -19,3 +19,4 @@
 @import url("Components/tooltip.uss");
 @import url("Components/dialog.uss");
 @import url("Components/notice.uss");
+@import url("Components/frames.uss");

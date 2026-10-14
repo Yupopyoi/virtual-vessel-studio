@@ -28,6 +28,40 @@ namespace VirtualVessel.Core.Tests
         }
 
         [Test]
+        public void Move_Outside_KeepsEnoughOnScreenToGrab()
+        {
+            // A 960 px frame can go off the left edge until 192 px (10% of the screen) remains.
+            NormalizedRect left = FrameEditMath.Move(s_middle, -2, 0, allowOutside: true);
+            NormalizedRect down = FrameEditMath.Move(s_middle, 0, 2, allowOutside: true);
+            NormalizedRect nudged = FrameEditMath.Nudge(left, -50, 0, s_canvas, allowOutside: true);
+
+            AssertRect(left, 0.1 - 0.5, 0.25, 0.5, 0.5);
+            AssertRect(down, 0.25, 0.9, 0.5, 0.5);
+            AssertRect(nudged, 0.1 - 0.5, 0.25, 0.5, 0.5);
+        }
+
+        [Test]
+        public void Move_Outside_SmallFrame_KeepsHalfOnScreen()
+        {
+            // 96 px wide (5%): half of it, 48 px, is less than 10% of the screen.
+            var small = new NormalizedRect(0.5, 0.5, 0.05, 0.05);
+
+            NormalizedRect moved = FrameEditMath.Move(small, 2, 0, allowOutside: true);
+
+            AssertRect(moved, 1 - 0.025, 0.5, 0.05, 0.05);
+        }
+
+        [Test]
+        public void MoveWithSnap_Outside_StaysReachable()
+        {
+            SnapLines snap = FrameEditMath.CreateSnapLines(Array.Empty<NormalizedRect>(), 0.01, 0.01);
+
+            FrameEditResult moved = FrameEditMath.MoveWithSnap(s_middle, 2, 0, allowOutside: true, snap);
+
+            AssertRect(moved.Rect, 0.9, 0.25, 0.5, 0.5);
+        }
+
+        [Test]
         public void Move_FrameLargerThanScreen_KeepsCoveringIt()
         {
             var large = new NormalizedRect(-0.1, -0.1, 1.2, 1.2);

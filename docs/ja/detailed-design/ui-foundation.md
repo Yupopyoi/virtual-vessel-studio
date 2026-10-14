@@ -624,6 +624,7 @@ flowchart LR
 
 - 枠の内側をドラッグする。
 - 矢印キーで1px、`Shift`+矢印キーで10px動かす（配信画面の解像度での1px）。
+- 画面の外へのはみ出しを許可した枠でも、配信画面の10%（枠の半分のほうが小さければ枠の半分）は画面内に残す（`FrameEditMath.ReachableFraction`）。画面の外の部分はつかめないため、それ以上動かすと操作できなくなるからである。
 
 **拡大縮小**
 
@@ -706,6 +707,42 @@ Menuの各項目にもTooltipとショートカットを表示する。
 - 行のドラッグで重なり順を変える。並べ替えた結果は、手前から順に`Order`を振り直す。1回の並べ替えを元に戻すの1単位とする。
 - 一覧での選択とプレビュー上の選択は同じものを指す。
 
+### 9.8 実装（FrameCanvasとIFrameSource）
+
+**Stageとの窓口**
+
+UIとStageの間は`IFrameSource`（UI Module）でつなぐ。Stageが映像ごとに実装する。
+
+```csharp
+public interface IFrameSource
+{
+    string Id { get; }
+    IReadOnlyObservable<FrameLayout> Layout { get; }   // 確定した配置（Runtime State）
+    void PreviewLayout(FrameLayout layout);            // LayoutChanging：ドラッグの各段階
+    Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
+}
+```
+
+- 確定は`CommandRunner`で実行する。Stageが`UserFacingException`で拒否した場合は、その文をNotificationで表示する。確定の成否にかかわらず、終わったら`Layout`の値を表示する。拒否された場合は元の配置に戻る。
+- 確定を待つ間は、操作した配置を表示し続ける。確定より後に新しい操作が始まった場合は、その操作の表示を優先する。
+
+**FrameCanvas**
+
+- 配信画面を表す要素の中に置く。`FrameCanvas`は配信画面より上下左右に12px大きく、端のハンドルもつかめる。この大きさは見た目ではなく動作に関わるため、USSではなくコードで指定する。
+- 出力の解像度（`OutputSize`、既定1920×1080）を持ち、縦横比、最小の大きさ、矢印キーの1pxはこれを基準にする。
+- ハンドルは中心から12px以内でつかめる（24pxの的、`components.md` 2）。角と辺が近いときは角を優先する。
+- 判定と表示の計算（ハンドルと枠の当たり判定、カーソルの形、位置と大きさの文字、Tabの順序）は`FrameCanvasMath`（純粋関数）で行う。
+
+**キーボード**
+
+- 矢印キーの連続入力は、各段階を`PreviewLayout`で表示し、キーを離したとき（またはFocusが外れたとき）に1回だけ確定する。
+- `Tab`は手前の枠から順に選択する。最後の枠の次は選択を外してFocusをCanvasの外へ移す。キーボードを閉じ込めないためである。キーボードでCanvasに入ったときは、最も手前の枠を選択する。
+- `Esc`はドラッグ中なら操作を取り消し（`PreviewLayout`で元の配置に戻す）、それ以外は選択を外す。
+
+**カーソル**
+
+- `CursorService`は、アプリ全体で1つのマウスカーソルを扱うため静的なクラスとする。カーソルの画像は`CursorShapes`（純粋関数）が描き、初回に作って保持する。白い形に暗い縁を付け、明るい背景でも暗い背景でも見えるようにする。
+
 ---
 
 ## 10. 状態とライフサイクル
@@ -784,6 +821,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | PlayMode | `MediaFrame`のPointer操作（移動、拡大縮小、吸着、切り抜き、元に戻す）。Unity 6.6同梱のUI Test Frameworkで操作を再現する |
 | EditMode | Tooltipの位置、Notificationの時間・数・優先度・待ち行列の順・位置・アイコン、確認DialogのFocus、`DangerCommand`の委譲（7.6、7.8、6.4） |
 | PlayMode | Tooltipの表示までの時間、無効な理由の表示、部品のたどり方 |
+| EditMode | `FrameCanvasMath`の当たり判定、カーソルの形、位置と大きさの文字、Tabの順序、カーソルの画像（9.8） |
+| PlayMode | `FrameCanvas`のドラッグ（移動、拡大縮小、Shift、吸着、Ctrl）、拒否された確定、ロック、矢印キー、Esc、Tab（9.8） |
 | PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
 | PlayMode | Notificationの自動消去、Errorが残ること、数の上限と待ち行列、優先度、待ち件数の表示、隅ごとの並び順、`ShowFailure` |
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
@@ -816,7 +855,7 @@ Assets/VirtualVessel/
    │  ├─ UiRoot.cs, UiAssets.cs
    │  ├─ Controls/          共通Component、UiServices、KeyedText、FocusRing、ReducedMotion   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
-   │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
