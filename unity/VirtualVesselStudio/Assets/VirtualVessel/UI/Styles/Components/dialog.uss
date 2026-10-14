@@ -1,0 +1,52 @@
+/*
+ * Dialog (components.md 3.11). USS cannot draw a blurred shadow, so the "large shadow" is a scrim that
+ * darkens the whole screen behind the dialog (UI foundation detailed design 6.4). The scrim is darker on
+ * dark backgrounds, where the page is already dark (design-system.md 3.5).
+ */
+.vv-dialog-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding: var(--vv-space-l);
+    background-color: var(--vv-color-scrim);
+}
+
+.vv-dialog {
+    width: 100%;
+    max-width: 420px;
+    padding: var(--vv-space-l);
+    border-width: 1px;
+    border-radius: var(--vv-radius-l);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-dialog__title {
+    margin: 0 0 var(--vv-space-s) 0;
+    padding: 0;
+    white-space: normal;
+    font-size: 17px;
+    color: var(--vv-color-text);
+}
+
+.vv-dialog__body {
+    margin: 0;
+    padding: 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-dialog__buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-top: var(--vv-space-l);
+}
+
+.vv-dialog__buttons > .vv-button {
+    margin-left: var(--vv-space-s);
+}

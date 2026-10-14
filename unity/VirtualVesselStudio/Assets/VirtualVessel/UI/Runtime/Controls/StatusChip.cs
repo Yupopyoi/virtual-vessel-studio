@@ -2,7 +2,7 @@ using System;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Icons;
-using VirtualVessel.UI.Theme;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -22,7 +22,7 @@ namespace VirtualVessel.UI.Controls
 
     /// <summary>A status indicator with an icon, text, and an optional number (components.md 3.13).</summary>
     [UxmlElement]
-    public partial class StatusChip : VisualElement
+    public partial class StatusChip : VisualElement, ITooltipSource
     {
         public const string UssClass = "vv-chip";
 
@@ -115,6 +115,10 @@ namespace VirtualVessel.UI.Controls
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
 
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
+
         /// <summary>The shape for each status (design-system.md 3.4). Pure.</summary>
         public static IconName IconFor(StatusKind status)
         {
@@ -141,21 +145,8 @@ namespace VirtualVessel.UI.Controls
 
         private void Blink()
         {
-            bool blink = ShouldBlink(_status, IsReducedMotion(this));
+            bool blink = ShouldBlink(_status, ReducedMotion.IsOn(this));
             _icon.EnableInClassList(DimClass, blink && !_icon.ClassListContains(DimClass));
-        }
-
-        private static bool IsReducedMotion(VisualElement element)
-        {
-            for (VisualElement current = element; current != null; current = current.hierarchy.parent)
-            {
-                if (current.ClassListContains(ThemeService.ReducedMotionClass))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }

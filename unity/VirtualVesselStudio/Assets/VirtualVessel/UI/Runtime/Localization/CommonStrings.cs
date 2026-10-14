@@ -15,6 +15,12 @@ namespace VirtualVessel.UI.Localization
         /// <summary>Shown when a command fails without a user-facing explanation (UI foundation detailed design 7.5).</summary>
         public const string UnexpectedError = "error.unexpected";
 
+        /// <summary>Title of the error notice shown when a command fails (UI foundation detailed design 7.8).</summary>
+        public const string FailureTitle = "notice.failure.title";
+
+        /// <summary>Plural key: how many notices wait for room (UI foundation detailed design 7.8).</summary>
+        public const string MoreNotices = "notice.more";
+
         /// <summary>Shown under a number field when the typed text is not a number.</summary>
         public const string NumberInvalid = "field.number-invalid";
     }

@@ -1,5 +1,6 @@
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Icons;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -45,7 +46,7 @@ namespace VirtualVessel.UI.Controls
 
     /// <summary>A text field with its label and an error line (components.md 3.7).</summary>
     [UxmlElement]
-    public partial class TextInput : VisualElement, INotifyValueChanged<string>
+    public partial class TextInput : VisualElement, INotifyValueChanged<string>, ITooltipSource
     {
         public const string UssClass = "vv-text-input";
 
@@ -104,6 +105,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         /// <summary>The message key shown under the field, or null for no error.</summary>
         public string ErrorKey

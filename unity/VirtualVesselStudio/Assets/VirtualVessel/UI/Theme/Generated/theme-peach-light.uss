@@ -19,6 +19,7 @@
     --vv-color-secondary-wash: rgba(255, 170, 16, 0.24);
     --vv-color-tint: #fde6dd;
     --vv-color-shadow: rgba(11, 6, 4, 0.45);
+    --vv-color-scrim: rgba(11, 6, 4, 0.45);
     --vv-color-success: #006652;
     --vv-color-success-soft: rgba(0, 102, 82, 0.18);
     --vv-color-success-chip: #c8d8d4;

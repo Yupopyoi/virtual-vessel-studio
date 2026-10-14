@@ -3,6 +3,7 @@ using System.Globalization;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -12,7 +13,7 @@ namespace VirtualVessel.UI.Controls
     /// number shows an error and keeps the previous value.
     /// </summary>
     [UxmlElement]
-    public partial class NumberInput : VisualElement, INotifyValueChanged<double>
+    public partial class NumberInput : VisualElement, INotifyValueChanged<double>, ITooltipSource
     {
         public const string UssClass = "vv-number-input";
 
@@ -78,6 +79,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         /// <summary>Unit shown in its own cell to the right, such as "Hz". Units are not translated.</summary>
         [UxmlAttribute("unit")]

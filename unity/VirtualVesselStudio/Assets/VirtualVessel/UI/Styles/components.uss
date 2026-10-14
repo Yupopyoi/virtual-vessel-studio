@@ -16,3 +16,6 @@
 @import url("Components/setting-row.uss");
 @import url("Components/meters.uss");
 @import url("Components/nav-item.uss");
+@import url("Components/tooltip.uss");
+@import url("Components/dialog.uss");
+@import url("Components/notice.uss");

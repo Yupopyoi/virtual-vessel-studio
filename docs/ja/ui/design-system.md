@@ -107,6 +107,7 @@ docs/assets/ui/styleboard.html
 | Knob | ダークはText、ライトはSurface | Sliderのつまみの中 |
 | 状態の面 | 状態の淡い背景をSurface 2に重ねた不透明の色 | 状態表示（Chip）の背景。背景の帯の上でも読みやすさが変わらない |
 | Primary Wash / Secondary Wash | Primary、Secondaryの不透明度28%（ダーク）、24%（ライト） | Cardのタイトル部分の背景（3.6） |
+| Scrim | パレットの色相のごく暗い色（彩度50%、明度3%）の不透明度70%（ダーク）、45%（ライト）。ダークは画面がもともと暗いため、濃くしないと変化が見えない | Dialogの背後で画面全体を暗くする幕 |
 
 ### 3.6 アクセントの装飾
 

@@ -81,7 +81,9 @@ namespace VirtualVessel.UI.Editor.Theme
             Add("primary-wash", primary.WithAlpha(washAlpha));
             Add("secondary-wash", secondary.WithAlpha(washAlpha));
             Add("tint", primary.Mix(byName["surface"], tokens.tintAmount));
-            Add("shadow", ThemeColor.FromHsl(palette.hue, tokens.shadow.saturation, tokens.shadow.lightness).WithAlpha(tokens.shadow.alpha));
+            ThemeColor shadow = ThemeColor.FromHsl(palette.hue, tokens.shadow.saturation, tokens.shadow.lightness);
+            Add("shadow", shadow.WithAlpha(tokens.shadow.alpha));
+            Add("scrim", shadow.WithAlpha(light ? tokens.scrimAlpha.light : tokens.scrimAlpha.dark));
 
             foreach (DesignTokens.StatusToken status in tokens.status)
             {

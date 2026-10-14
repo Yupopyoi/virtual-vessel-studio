@@ -1,6 +1,7 @@
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Icons;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -9,7 +10,7 @@ namespace VirtualVessel.UI.Controls
     /// as mute, and reports changes like any field.
     /// </summary>
     [UxmlElement]
-    public partial class IconButton : Button, INotifyValueChanged<bool>
+    public partial class IconButton : Button, INotifyValueChanged<bool>, ITooltipSource
     {
         public const string UssClass = "vv-icon-button";
 

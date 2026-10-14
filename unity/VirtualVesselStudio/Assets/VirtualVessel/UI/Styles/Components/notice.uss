@@ -1,0 +1,169 @@
+/*
+ * Notification (components.md 3.14). The corner is chosen by a class from NotificationOptions, so moving
+ * the stack is a setting, not a screen change. The transition length is set from the options in code.
+ */
+.vv-notices {
+    position: absolute;
+    width: 360px;
+    max-width: 90%;
+}
+
+.vv-notices--bottom-right {
+    right: var(--vv-space-m);
+    bottom: var(--vv-space-m);
+}
+
+.vv-notices--bottom-left {
+    left: var(--vv-space-m);
+    bottom: var(--vv-space-m);
+}
+
+.vv-notices--top-right {
+    right: var(--vv-space-m);
+    top: var(--vv-space-m);
+}
+
+.vv-notices--top-left {
+    left: var(--vv-space-m);
+    top: var(--vv-space-m);
+}
+
+/*
+ * How many notices wait for room; it sits at the corner end of the stack. Accent colors and bold text
+ * make it stand out from the notices, so waiting notices are not overlooked.
+ */
+.vv-notices__waiting {
+    flex-direction: row;
+    align-items: center;
+    align-self: flex-end;
+    margin-top: var(--vv-space-s);
+    padding: 5px 12px 5px 10px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-accent-line);
+    background-color: var(--vv-color-tint);
+}
+
+.vv-notices__waiting > .vv-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    color: var(--vv-color-accent-line);
+}
+
+.vv-notices--bottom-left .vv-notices__waiting,
+.vv-notices--top-left .vv-notices__waiting {
+    align-self: flex-start;
+}
+
+.vv-notices__waiting > .unity-label {
+    margin: 0;
+    padding: 0;
+    color: var(--vv-color-text);
+}
+
+.vv-notice {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: var(--vv-space-s);
+    padding: 12px 8px 12px 14px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-m);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-2);
+    opacity: 1;
+    translate: 0 0;
+    transition-property: opacity, translate;
+    transition-timing-function: ease-out;
+}
+
+.vv-notice--entering,
+.vv-notice--leaving {
+    opacity: 0;
+    translate: 0 8px;
+}
+
+.vv-notices--top-right .vv-notice--entering,
+.vv-notices--top-left .vv-notice--entering,
+.vv-notices--top-right .vv-notice--leaving,
+.vv-notices--top-left .vv-notice--leaving {
+    translate: 0 -8px;
+}
+
+.vv-reduced-motion .vv-notice--entering,
+.vv-reduced-motion .vv-notice--leaving {
+    translate: 0 0;
+}
+
+.vv-notice__icon {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.vv-notice__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 0 var(--vv-space-s) 0 10px;
+}
+
+.vv-notice__title {
+    margin: 0;
+    padding: 0;
+    white-space: normal;
+    color: var(--vv-color-text);
+}
+
+.vv-notice__body {
+    margin: 2px 0 0 0;
+    padding: 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* A quiet close button: still a 28px target, but without the Icon Button surface. */
+.vv-notice__close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    border-color: transparent;
+    background-color: transparent;
+    color: var(--vv-color-text-2);
+}
+
+.vv-notice__close:hover {
+    border-color: var(--vv-color-accent-line);
+}
+
+.vv-notice__close > .vv-focus-ring {
+    border-radius: 18px;
+}
+
+.vv-notice__close > .vv-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.vv-notice--info .vv-notice__icon {
+    color: var(--vv-color-accent-line);
+}
+
+.vv-notice--success .vv-notice__icon {
+    color: var(--vv-color-success);
+}
+
+.vv-notice--warning .vv-notice__icon {
+    color: var(--vv-color-warning);
+}
+
+/* Errors mix Error into the border and the surface (components.md 3.14). */
+.vv-notice--error {
+    border-color: var(--vv-color-error-line);
+    background-color: var(--vv-color-error-surface);
+}
+
+.vv-notice--error .vv-notice__icon {
+    color: var(--vv-color-error);
+}

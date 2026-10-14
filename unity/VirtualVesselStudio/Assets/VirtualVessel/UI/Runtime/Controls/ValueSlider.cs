@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using UnityEngine;
 using UnityEngine.UIElements;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -10,7 +11,7 @@ namespace VirtualVessel.UI.Controls
     /// and right keys to move by one step.
     /// </summary>
     [UxmlElement]
-    public partial class ValueSlider : VisualElement, INotifyValueChanged<float>
+    public partial class ValueSlider : VisualElement, INotifyValueChanged<float>, ITooltipSource
     {
         public const string UssClass = "vv-slider";
 
@@ -82,6 +83,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         [UxmlAttribute("low-value")]
         public float LowValue

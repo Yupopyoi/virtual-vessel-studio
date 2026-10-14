@@ -2,6 +2,7 @@ using System;
 using UnityEngine.UIElements;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.Controls
@@ -15,11 +16,13 @@ namespace VirtualVessel.UI.Controls
         /// <param name="dispatcher">Optional; without it, observable changes are applied on the calling thread.</param>
         /// <param name="log">Optional; records command failures for developers.</param>
         /// <param name="showFailure">
-        /// Optional; shows a user-facing message (a string table key) when a command fails. The
-        /// notification component connects here (implementation step 5-3).
+        /// Optional; shows a user-facing message (a string table key) when a command fails, normally
+        /// <c>NotificationService.ShowFailure</c>.
         /// </param>
-        public UiServices(ILocalizer localizer, IMainThreadDispatcher dispatcher, ILog log, Action<string> showFailure = null)
+        /// <param name="dialogs">Optional; asks for confirmation before a <c>DangerCommand</c> runs.</param>
+        public UiServices(ILocalizer localizer, IMainThreadDispatcher dispatcher, ILog log, Action<string> showFailure = null, IDialogService dialogs = null)
         {
+            Dialogs = dialogs;
             Localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
             Dispatcher = dispatcher;
             Log = log;
@@ -33,6 +36,8 @@ namespace VirtualVessel.UI.Controls
         public ILog Log { get; }
 
         public Action<string> ShowFailure { get; }
+
+        public IDialogService Dialogs { get; }
 
         /// <summary>The services of the nearest scope above <paramref name="element"/>, or null outside any scope.</summary>
         public static UiServices Find(VisualElement element)
