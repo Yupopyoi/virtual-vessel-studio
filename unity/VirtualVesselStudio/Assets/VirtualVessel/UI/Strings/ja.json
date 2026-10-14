@@ -11,6 +11,9 @@
         "common.items.one": "{count} 件",
         "common.items.other": "{count} 件",
         "field.number-invalid": "数字を入力してください。",
-        "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。"
+        "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。",
+        "notice.failure.title": "操作を完了できませんでした",
+        "notice.more.one": "ほかに {count} 件の通知",
+        "notice.more.other": "ほかに {count} 件の通知"
     }
 }
