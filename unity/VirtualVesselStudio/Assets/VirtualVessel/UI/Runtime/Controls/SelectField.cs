@@ -6,6 +6,7 @@ using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Theme;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -51,7 +52,7 @@ namespace VirtualVessel.UI.Controls
     /// The list opens on the nearest themed root so that it sits above other parts.
     /// </summary>
     [UxmlElement]
-    public partial class SelectField : VisualElement, INotifyValueChanged<string>
+    public partial class SelectField : VisualElement, INotifyValueChanged<string>, ITooltipSource
     {
         public const string UssClass = "vv-select";
 
@@ -139,6 +140,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         /// <summary>Options given as text keys, comma-separated; each key is also the option id.</summary>
         [UxmlAttribute("choice-keys")]

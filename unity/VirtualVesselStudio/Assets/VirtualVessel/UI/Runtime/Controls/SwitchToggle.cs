@@ -1,10 +1,11 @@
 using UnityEngine.UIElements;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
     /// <summary>An on/off switch with its label (components.md 3.3).</summary>
     [UxmlElement]
-    public partial class SwitchToggle : VisualElement, INotifyValueChanged<bool>
+    public partial class SwitchToggle : VisualElement, INotifyValueChanged<bool>, ITooltipSource
     {
         public const string UssClass = "vv-switch";
 
@@ -51,6 +52,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         [UxmlAttribute("value")]
         public bool value

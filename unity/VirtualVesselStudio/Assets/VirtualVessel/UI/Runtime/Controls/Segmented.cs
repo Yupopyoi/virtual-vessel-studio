@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -9,7 +10,7 @@ namespace VirtualVessel.UI.Controls
     /// Left and right arrows move the selection when focused.
     /// </summary>
     [UxmlElement]
-    public partial class Segmented : VisualElement, INotifyValueChanged<int>
+    public partial class Segmented : VisualElement, INotifyValueChanged<int>, ITooltipSource
     {
         public const string UssClass = "vv-segmented";
 
@@ -44,6 +45,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         [UxmlAttribute("value")]
         public int value

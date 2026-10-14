@@ -1,0 +1,24 @@
+/* Tooltip (components.md 3.12). Placed by TooltipService; only its look is here. */
+.vv-tooltip {
+    position: absolute;
+    flex-direction: row;
+    align-items: center;
+    max-width: 260px;
+    padding: 5px 9px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-accent-line);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-tooltip__text {
+    flex-shrink: 1;
+    margin: 0;
+    padding: 0;
+    white-space: normal;
+    color: var(--vv-color-text);
+}
+
+.vv-tooltip__shortcut {
+    margin-left: var(--vv-space-s);
+}

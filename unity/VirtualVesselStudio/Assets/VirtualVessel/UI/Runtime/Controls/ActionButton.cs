@@ -1,5 +1,6 @@
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -14,7 +15,7 @@ namespace VirtualVessel.UI.Controls
 
     /// <summary>A text button (components.md 3.1).</summary>
     [UxmlElement]
-    public partial class ActionButton : Button
+    public partial class ActionButton : Button, ITooltipSource
     {
         public const string UssClass = "vv-button";
 

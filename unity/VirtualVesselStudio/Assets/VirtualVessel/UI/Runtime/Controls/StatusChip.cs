@@ -2,6 +2,7 @@ using System;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Icons;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -21,7 +22,7 @@ namespace VirtualVessel.UI.Controls
 
     /// <summary>A status indicator with an icon, text, and an optional number (components.md 3.13).</summary>
     [UxmlElement]
-    public partial class StatusChip : VisualElement
+    public partial class StatusChip : VisualElement, ITooltipSource
     {
         public const string UssClass = "vv-chip";
 
@@ -113,6 +114,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         /// <summary>The shape for each status (design-system.md 3.4). Pure.</summary>
         public static IconName IconFor(StatusKind status)

@@ -1,5 +1,6 @@
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Icons;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -8,7 +9,7 @@ namespace VirtualVessel.UI.Controls
     /// selected; the item only shows it.
     /// </summary>
     [UxmlElement]
-    public partial class NavItem : Button
+    public partial class NavItem : Button, ITooltipSource
     {
         public const string UssClass = "vv-nav-item";
 
@@ -55,6 +56,10 @@ namespace VirtualVessel.UI.Controls
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }
+
+        string ITooltipSource.CurrentTooltipKey => TooltipKey;
+
+        string ITooltipSource.Shortcut => null;
 
         [UxmlAttribute("selected")]
         public bool Selected
