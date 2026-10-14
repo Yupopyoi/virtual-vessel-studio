@@ -706,6 +706,42 @@ This allows the results of operations to be checked thoroughly with EditMode tes
 - Dragging a row changes the stacking order. After reordering, `Order` is renumbered from front to back. One reorder is one undo unit.
 - Selection in the list and selection in the preview refer to the same frame.
 
+### 9.8 Implementation (FrameCanvas and IFrameSource)
+
+**Boundary with Stage**
+
+The UI and Stage are connected through `IFrameSource` (UI module), which Stage implements for each video.
+
+```csharp
+public interface IFrameSource
+{
+    string Id { get; }
+    IReadOnlyObservable<FrameLayout> Layout { get; }   // the confirmed layout (runtime state)
+    void PreviewLayout(FrameLayout layout);            // LayoutChanging: each step of a drag
+    Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
+}
+```
+
+- Commits run through `CommandRunner`. If Stage rejects one with a `UserFacingException`, that text is shown as a notification. Whether the commit succeeds or not, the editor then shows the value of `Layout`, so a rejected edit returns to the previous layout.
+- While a commit is pending, the edited layout stays on screen. If a newer edit starts before the commit finishes, the newer edit is shown.
+
+**FrameCanvas**
+
+- Put it inside the element that shows the stream screen. `FrameCanvas` is 12px larger than the stream screen on every side, so handles on the edges can still be grabbed. That size is part of how the canvas works rather than its look, so it is set in code, not USS.
+- It holds the output resolution (`OutputSize`, 1920 × 1080 by default), which aspect ratios, minimum sizes, and the one-pixel arrow-key step are based on.
+- A handle can be grabbed within 12px of its center (a 24px target, `components.md` 2). Where a corner and an edge handle are close, the corner wins.
+- Hit testing and display decisions (handles and frames under the pointer, the cursor shape, the position and size text, the Tab order) are in `FrameCanvasMath` (pure functions).
+
+**Keyboard**
+
+- Repeated arrow keys preview each step with `PreviewLayout` and commit once, when the key is released (or focus leaves).
+- `Tab` selects the frames from front to back. After the last frame it clears the selection and lets focus leave the canvas, so keyboard users are not trapped. Entering the canvas from the keyboard selects the frontmost frame.
+- `Esc` cancels a drag in progress (returning the preview to the original layout with `PreviewLayout`); otherwise it clears the selection.
+
+**Cursor**
+
+- `CursorService` is a static class, because the mouse cursor is a single application-wide resource. `CursorShapes` (pure functions) draws the cursor images, which are made once and kept. They are white shapes with a dark outline, visible on light and dark backgrounds.
+
 ---
 
 ## 10. State and Lifecycle
@@ -784,6 +820,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | PlayMode | Pointer operations of `MediaFrame` (move, resize, snap, crop, undo), reproduced with the UI Test Framework bundled with Unity 6.6 |
 | EditMode | Tooltip position; notice times, count, priority, queue order, corner, and icons; dialog focus; `DangerCommand` delegation (7.6, 7.8, 6.4) |
 | PlayMode | Tooltip delay, disabled reasons, finding the part with the tooltip |
+| EditMode | `FrameCanvasMath` hit testing, cursor shapes, position and size text, Tab order, cursor images (9.8) |
+| PlayMode | `FrameCanvas` drags (move, resize, Shift, snapping, Ctrl), rejected commits, locking, arrow keys, Esc, Tab (9.8) |
 | PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
 | PlayMode | Notices hide on time, errors stay, the count limit and the queue, priority, the waiting count, order per corner, `ShowFailure` |
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
@@ -816,7 +854,7 @@ Assets/VirtualVessel/
    │  ├─ UiRoot.cs, UiAssets.cs
    │  ├─ Controls/          shared components, UiServices, KeyedText, FocusRing, ReducedMotion   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
-   │  ├─ Frames/            MediaFrame, FrameCanvas               VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs

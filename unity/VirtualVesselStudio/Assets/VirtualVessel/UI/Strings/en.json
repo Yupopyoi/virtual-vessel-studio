@@ -10,6 +10,7 @@
         "common.retry": "Try again",
         "common.items.one": "{count} item",
         "common.items.other": "{count} items",
+        "frame.locked": "Locked",
         "field.number-invalid": "Enter a number.",
         "error.unexpected": "Something went wrong and the action could not be completed. Please try again.",
         "notice.failure.title": "Couldn't complete the action",
