@@ -190,13 +190,16 @@ Attributes that set display text directly (such as `text`) are not used on user-
 
 ### 6.3 Building from C#
 
-For building without UXML, a short factory is provided.
+For building without UXML, a short factory (`Ui`) is provided.
 
 ```csharp
 var start = Ui.Button("live.start", ButtonVariant.Primary)
     .WithTooltip("tip.live.start", "Ctrl+Enter")
     .Bind(_startStreaming);
 ```
+
+- `Ui` has a method for each part (`Button`, `IconButton`, `Toggle`, `Segmented`, `Tabs`, `Card`, `SettingRow`, `Chip`, `NavItem`, `Slider`, `Select`, `TextField`, `NumberField`, `Progress`) and `Text`, which makes a label that follows the language. Every display text is passed as a string key.
+- Buttons and Icon Buttons chain `WithTooltip` and `Bind`.
 
 ### 6.4 Dialogs and Confirmation
 
@@ -213,7 +216,7 @@ bool confirmed = await _dialogs.ConfirmAsync(
 A command registered as a `DangerCommand` shows the confirmation dialog automatically when run from an `ActionButton`.
 
 - The dialog is shown over the nearest `vv-root` element. While it is open, a layer over the whole screen stops interaction behind it.
-- USS cannot draw a blurred shadow, so the "large shadow" (`components.md` 3.11) is replaced by a scrim that darkens the whole screen with the `Shadow` color.
+- USS cannot draw a blurred shadow, so the "large shadow" (`components.md` 3.11) is replaced by a scrim that darkens the whole screen with `Scrim` (`design-system.md` 3.5). The scrim is darker on dark backgrounds, so that the dialog still stands out from a page that is already dark.
 - With `ConfirmStyle.Danger`, the action button is Danger and the other is a Secondary "Cancel", and focus starts on "Cancel", so that pressing Enter by mistake does not run the action. With `Normal`, focus starts on the action button. `DialogService.FocusCancelFirst` (a pure function) decides which.
 - While it is open, focus moved by Tab and the arrow keys stays between the two buttons. Esc and the navigation cancel act as "Cancel". When it closes, focus returns to the element that had it before.
 - If another confirmation is requested while one is open, it is shown after the first closes. A canceled `CancellationToken` acts as "Cancel".

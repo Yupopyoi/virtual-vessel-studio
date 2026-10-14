@@ -190,13 +190,16 @@ UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。
 
 ### 6.3 C#から組み立てる場合
 
-UXMLを使わずに組み立てる場合のため、短く書けるFactoryを用意する。
+UXMLを使わずに組み立てる場合のため、短く書けるFactory（`Ui`）を用意する。
 
 ```csharp
 var start = Ui.Button("live.start", ButtonVariant.Primary)
     .WithTooltip("tip.live.start", "Ctrl+Enter")
     .Bind(_startStreaming);
 ```
+
+- `Ui`には、各部品を作るメソッド（`Button`、`IconButton`、`Toggle`、`Segmented`、`Tabs`、`Card`、`SettingRow`、`Chip`、`NavItem`、`Slider`、`Select`、`TextField`、`NumberField`、`Progress`）と、言語に追従するラベルを作る`Text`がある。表示文字はすべて文字列Keyで渡す。
+- ButtonとIcon Buttonは、`WithTooltip`と`Bind`をつなげて書ける。
 
 ### 6.4 Dialogと確認
 
@@ -213,7 +216,7 @@ bool confirmed = await _dialogs.ConfirmAsync(
 `DangerCommand`として登録したCommandは、`ActionButton`から実行するときに自動で確認Dialogを出す。
 
 - Dialogは、最も近い`vv-root`の要素に重ねて表示する。表示中は画面全体を覆う幕で後ろの操作を止める。
-- 「大きな影」（`components.md` 3.11）は、USSでぼかした影を描けないため、画面全体を`Shadow`の色で暗くする幕で代える。
+- 「大きな影」（`components.md` 3.11）は、USSでぼかした影を描けないため、画面全体を`Scrim`（`design-system.md` 3.5）で暗くする幕で代える。Scrimはダークで濃くし、もともと暗い画面でもDialogが浮いて見えるようにする。
 - `ConfirmStyle.Danger`では、実行ボタンをDanger、もう一方をSecondaryの「キャンセル」とし、最初のFocusを「キャンセル」に置く。誤ってEnterを押しても実行されないようにするためである。`Normal`では実行ボタンにFocusを置く。どちらにするかは`DialogService.FocusCancelFirst`（純粋関数）で決める。
 - 表示中は、Tabと矢印キーによるFocusの移動を2つのボタンの間に限る。EscとNavigationのCancelは「キャンセル」と同じ扱いとする。閉じたら、開く前にFocusしていた要素へFocusを戻す。
 - 表示中に別の確認が求められた場合は、前のDialogが閉じてから順に表示する。`CancellationToken`が取り消された場合は「キャンセル」と同じ扱いとする。
