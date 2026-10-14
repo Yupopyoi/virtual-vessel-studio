@@ -1,0 +1,40 @@
+/*
+ * Setting Row (components.md 3.9): name and description on the left, the control on the right (at most
+ * 260px). When the row is narrow, the control wraps below the description.
+ */
+.vv-setting-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+.vv-setting-row:last-child {
+    border-bottom-width: 0;
+}
+
+.vv-setting-row__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 240px;
+    margin-right: var(--vv-space-m);
+}
+
+.vv-setting-row__name {
+    color: var(--vv-color-text);
+    white-space: normal;
+}
+
+.vv-setting-row__description {
+    margin-top: 2px;
+    color: var(--vv-color-text-3);
+    white-space: normal;
+}
+
+.vv-setting-row__control {
+    max-width: 260px;
+    flex-shrink: 0;
+    margin: 4px 0;
+}

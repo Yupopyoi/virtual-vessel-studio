@@ -1,0 +1,39 @@
+/* Navigation Item (components.md 3.16): selected has Tint, Text, and a 3px Accent Line at the left. */
+.vv-nav-item {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 0 4px 0;
+    padding: 10px 12px;
+    border-width: 0;
+    border-radius: var(--vv-radius-m);
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--vv-color-text-2);
+}
+
+.vv-nav-item:hover {
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-text);
+}
+
+.vv-nav-item--selected,
+.vv-nav-item--selected:hover {
+    padding-left: 9px;
+    border-left-width: 3px;
+    border-left-color: var(--vv-color-accent-line);
+    background-color: var(--vv-color-tint);
+    color: var(--vv-color-text);
+}
+
+.vv-nav-item__icon {
+    width: 18px;
+    height: 18px;
+    margin-right: 10px;
+}
+
+.vv-nav-item__label {
+    white-space: nowrap;
+}
+
+.vv-nav-item:disabled {
+    color: var(--vv-color-disabled);
+}

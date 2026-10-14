@@ -1,0 +1,72 @@
+/* Dropdown (components.md 3.6): Background, 1px border, Radius S, a down arrow at the right. */
+.vv-select__label {
+    color: var(--vv-color-text-2);
+    margin-bottom: 4px;
+}
+
+.vv-select__box {
+    flex-direction: row;
+    align-items: center;
+    min-height: 32px;
+    padding: 4px 8px 4px 10px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-bg);
+}
+
+.vv-select__box:hover {
+    border-color: var(--vv-color-accent-line);
+}
+
+/* Long option text wraps instead of being cut (components.md 3.6). */
+.vv-select__current {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+    color: var(--vv-color-text);
+}
+
+.vv-select__chevron {
+    width: 16px;
+    height: 16px;
+    margin-left: var(--vv-space-s);
+    color: var(--vv-color-text-2);
+}
+
+.vv-select__box > .vv-focus-ring {
+    border-radius: 12px;
+}
+
+.vv-select:disabled .vv-select__box {
+    background-color: var(--vv-color-surface-2);
+}
+
+.vv-select:disabled .vv-select__current,
+.vv-select:disabled .vv-select__chevron {
+    color: var(--vv-color-disabled);
+}
+
+.vv-select__menu {
+    position: absolute;
+    padding: 4px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-select__option {
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: normal;
+    color: var(--vv-color-text);
+}
+
+.vv-select__option--selected {
+    color: var(--vv-color-accent-line);
+}
+
+.vv-select__option--highlight {
+    background-color: var(--vv-color-tint);
+}

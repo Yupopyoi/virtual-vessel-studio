@@ -45,14 +45,19 @@ namespace VirtualVessel.UI.Binding
             return PanelLifetime.WhileAttached(element, services =>
             {
                 apply(source.Value);
-                return source.Subscribe(_ => MainThread.Run(services, () =>
+
+                // Both delegates are made once per attach, so a change on the main thread does not
+                // allocate (UI foundation detailed design 16) without relying on the compiler caching
+                // nested lambdas. The latest value is read because posted updates can arrive out of
+                // order across threads.
+                Action update = () =>
                 {
-                    // Read the latest value: posted updates can arrive out of order across threads.
                     if (element.panel != null)
                     {
                         apply(source.Value);
                     }
-                }));
+                };
+                return source.Subscribe(_ => MainThread.Run(services, update));
             });
         }
 
