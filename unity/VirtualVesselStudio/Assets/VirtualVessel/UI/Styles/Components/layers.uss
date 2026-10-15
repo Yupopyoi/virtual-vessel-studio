@@ -1,0 +1,87 @@
+/* Layer List (components.md 3.20): front at the top; the selected row looks like a selected Nav Item. */
+.vv-layer-list__hint {
+    margin: 0 0 var(--vv-space-xs) 0;
+    padding: 0;
+    color: var(--vv-color-text-3);
+}
+
+.vv-layer-list__row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 36px;
+    margin-bottom: 2px;
+    padding: 4px 10px 4px 7px;
+    border-left-width: 3px;
+    border-color: transparent;
+    border-radius: var(--vv-radius-s);
+    color: var(--vv-color-text-2);
+}
+
+.vv-layer-list__row:hover {
+    background-color: var(--vv-color-surface-3);
+    color: var(--vv-color-text);
+}
+
+.vv-layer-list__row--selected {
+    background-color: var(--vv-color-tint);
+    border-color: var(--vv-color-accent-line);
+    color: var(--vv-color-text);
+}
+
+.vv-layer-list__row--dragging {
+    opacity: 0.45;
+}
+
+.vv-layer-list__grip {
+    width: 16px;
+    height: 16px;
+    margin-right: var(--vv-space-s);
+    flex-shrink: 0;
+    color: var(--vv-color-text-3);
+}
+
+/* A small picture of the video, so a row is easy to match with what is on the preview. */
+.vv-layer-list__thumbnail {
+    width: 40px;
+    height: 23px;
+    margin-right: 10px;
+    flex-shrink: 0;
+    border-width: 1px;
+    border-radius: 4px;
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-layer-list__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vv-layer-list__state {
+    margin: 0 0 0 var(--vv-space-s);
+    padding: 0;
+    flex-shrink: 0;
+    color: var(--vv-color-text-3);
+}
+
+.vv-layer-list__row--hidden > .vv-layer-list__name,
+.vv-layer-list__row--hidden > .vv-layer-list__thumbnail {
+    opacity: 0.35;
+}
+
+/* The landing line is placed over the rows by code, so the rows never move while dragging. */
+.vv-layer-list__drop {
+    left: 6px;
+    right: 6px;
+    height: 2px;
+    background-color: var(--vv-color-accent-line);
+}
+
+.vv-layer-list > .vv-focus-ring {
+    border-radius: var(--vv-radius-m);
+}

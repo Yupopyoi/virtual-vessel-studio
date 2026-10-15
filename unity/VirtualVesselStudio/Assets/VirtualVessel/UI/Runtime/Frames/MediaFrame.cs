@@ -35,6 +35,7 @@ namespace VirtualVessel.UI.Frames
         private FrameLayout? _pending;
         private int _pendingVersion;
         private FrameHandle? _hoverHandle;
+        private bool _visible;
 
         public MediaFrame(IFrameSource source)
         {
@@ -73,6 +74,18 @@ namespace VirtualVessel.UI.Frames
                 _confirmed = layout;
                 Refresh();
             });
+
+            _visible = source.Visible.Value;
+            ApplyVisible();
+            this.Bind(source.Visible, visible =>
+            {
+                if (visible != _visible)
+                {
+                    _visible = visible;
+                    ApplyVisible();
+                    VisibleChanged?.Invoke();
+                }
+            });
         }
 
         public IFrameSource Source { get; }
@@ -91,6 +104,12 @@ namespace VirtualVessel.UI.Frames
             get => ClassListContains(SelectedClass);
             set => EnableInClassList(SelectedClass, value);
         }
+
+        /// <summary>Whether the video is on the stream; a hidden frame is not drawn and cannot be grabbed.</summary>
+        public bool IsVisible => _visible;
+
+        /// <summary>Raised when <see cref="IsVisible"/> changes.</summary>
+        public event Action VisibleChanged;
 
         public bool CropMode
         {
@@ -152,6 +171,11 @@ namespace VirtualVessel.UI.Frames
                 FrameHandle.Left or FrameHandle.Right => "vertical",
                 _ => "corner",
             };
+        }
+
+        private void ApplyVisible()
+        {
+            style.display = _visible ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private void Refresh()

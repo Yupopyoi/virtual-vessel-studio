@@ -146,6 +146,44 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void MoveTo_PutsAFrameAtAnyPosition_AndRenumbers()
+        {
+            // Front to back: 2, 1, 0.
+            FrameLayout[] layouts = { s_a.WithOrder(0), s_b.WithOrder(1), s_c.WithOrder(2) };
+
+            Assert.That(FrameCommands.MoveTo(layouts, 0, 0), Is.EqualTo(new[] { 2, 0, 1 }), "The back one to the front.");
+            Assert.That(FrameCommands.MoveTo(layouts, 2, 1), Is.EqualTo(new[] { 0, 2, 1 }));
+            Assert.That(FrameCommands.MoveTo(layouts, 1, 1), Is.EqualTo(new[] { 0, 1, 2 }), "Already there: unchanged.");
+            Assert.That(FrameCommands.MoveTo(layouts, 2, 9), Is.EqualTo(new[] { 1, 2, 0 }), "Past the end: clamped to the back.");
+        }
+
+        [Test]
+        public void LayerList_DropAndTargetPositions()
+        {
+            float[] centers = { 10, 40, 70 };
+
+            Assert.That(LayerListMath.DropIndex(centers, 5), Is.EqualTo(0));
+            Assert.That(LayerListMath.DropIndex(centers, 50), Is.EqualTo(2));
+            Assert.That(LayerListMath.DropIndex(centers, 90), Is.EqualTo(3));
+            Assert.That(LayerListMath.TargetPosition(0, 3), Is.EqualTo(2), "Taking the row out shifts the rest up.");
+            Assert.That(LayerListMath.TargetPosition(2, 0), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void LayerList_KeysSkipHiddenRows_AndStatesPutHiddenFirst()
+        {
+            bool[] visible = { true, false, true };
+
+            Assert.That(LayerListMath.NextVisible(visible, 0, 1), Is.EqualTo(2));
+            Assert.That(LayerListMath.NextVisible(visible, 2, 1), Is.EqualTo(-1));
+            Assert.That(LayerListMath.NextVisible(visible, -1, 1), Is.EqualTo(0));
+            Assert.That(LayerListMath.NextVisible(visible, -1, -1), Is.EqualTo(2));
+            Assert.That(LayerListMath.StateKey(false, true), Is.EqualTo(FrameStrings.Hidden));
+            Assert.That(LayerListMath.StateKey(true, true), Is.EqualTo(FrameStrings.Locked));
+            Assert.That(LayerListMath.StateKey(true, false), Is.Null);
+        }
+
+        [Test]
         public void CropReadoutAndPivot()
         {
             var layout = new FrameLayout(new NormalizedRect(0.25, 0.25, 0.5, 0.5), new NormalizedRect(0.25, 0.25, 0.5, 0.5));
@@ -159,6 +197,10 @@ namespace VirtualVessel.UI.Tests
         private sealed class NullSource : IFrameSource
         {
             public string Id => "null";
+
+            public IReadOnlyObservable<string> DisplayName { get; } = new ObservableValue<string>("null");
+
+            public IReadOnlyObservable<bool> Visible { get; } = new ObservableValue<bool>(true);
 
             public double SourceAspect => 1;
 

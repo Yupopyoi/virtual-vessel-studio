@@ -116,12 +116,32 @@ namespace VirtualVessel.UI.Frames
             };
         }
 
+        /// <summary>
+        /// Moves a video to <paramref name="position"/> in the front-to-back order (0 is the front), as
+        /// one undoable step, as dragging a row of the layer list does (UI foundation detailed design 9.7).
+        /// </summary>
+        public void MoveInStack(IFrameSource source, int position)
+        {
+            MediaFrame frame = _frames.Find(f => f.Source == source);
+            if (frame == null || frame.Shown.Locked)
+            {
+                return;
+            }
+
+            CommitBursts();
+            List<FrameLayout> layouts = ShownLayouts();
+            ApplyOrders(frame, layouts, FrameCommands.MoveTo(layouts, _frames.IndexOf(frame), position));
+        }
+
         /// <summary>Changes the stacking order as one undoable step, which may renumber several frames.</summary>
         private void Restack(MediaFrame frame, StackMove move)
         {
             List<FrameLayout> layouts = ShownLayouts();
-            int[] orders = FrameCommands.Restack(layouts, _frames.IndexOf(frame), move);
+            ApplyOrders(frame, layouts, FrameCommands.Restack(layouts, _frames.IndexOf(frame), move));
+        }
 
+        private void ApplyOrders(MediaFrame frame, List<FrameLayout> layouts, int[] orders)
+        {
             // The moved frame first, so that undo selects it again.
             var edits = new List<FrameEdit>();
             for (int pass = 0; pass < 2; pass++)
