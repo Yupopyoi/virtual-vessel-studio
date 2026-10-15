@@ -146,8 +146,11 @@ For each component, the following states are defined:
 ### 3.17 Preview
 
 - The stream video preview. Keeps 16:9 and uses Radius M.
-- The frame rate is shown at the top right, and resolution and bitrate at the bottom left.
-- A full-screen icon button sits at the bottom right. In full screen, only the video fills the screen; `Esc`, the same button, or the `F` key returns.
+- The frame rate is shown at the top right as a status indicator (3.13): Success while it keeps the set frame rate, Warning below it, with a tooltip explaining what it means.
+- Resolution and bitrate are shown at the bottom left, such as "Stream preview · 1920×1080 · 6,000 kbps", on a pill with a Surface background and a 1px border so they read on any video. The bitrate is left out while nothing is being encoded.
+- While there is no stream video yet, "No stream video yet" is shown in the middle and the numbers are hidden.
+- A full-screen icon button sits at the bottom right. In full screen, only the video fills the screen; `Esc`, the same button, or the `F` key returns. The same button or `F` also enters it, so entering and leaving match. Right after entering, "Press Esc or F to return" shows for a moment.
+- While a video is selected, `Esc` first clears the selection (placement editing, UI foundation detailed design 9.8); with nothing selected it leaves full screen.
 - Full screen is a way of showing the preview and does not affect the stream output (Stream Render Target) (system design 14.23).
 - While a video is selected, the mode switch (3.18) is shown at the top left.
 

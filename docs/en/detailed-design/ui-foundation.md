@@ -780,6 +780,25 @@ public interface IFrameSource
 
 - `CursorService` is a static class, because the mouse cursor is a single application-wide resource. `CursorShapes` (pure functions) draws the cursor images, which are made once and kept. They are white shapes with a dark outline, visible on light and dark backgrounds.
 
+### 9.9 Preview (StreamPreview)
+
+The stream preview (`components.md` 3.17) is `StreamPreview`. The placement editor's `FrameCanvas` goes in `StreamPreview.Overlay` and works on top of the video.
+
+```csharp
+public interface IStreamPreviewSource
+{
+    IReadOnlyObservable<Texture> Video { get; }        // the stream render target (the same video as the stream, system design 10.6)
+    IReadOnlyObservable<PreviewStats> Stats { get; }   // frame rate, target frame rate, resolution, bitrate
+}
+```
+
+- The Video module implements it. Until it exists, a pretend implementation in the demo is used.
+- The video keeps 16:9 at the largest size that fits (`PreviewMath.Fit`, a pure function). The size and the layering are part of how it works, so they are set in code.
+- The video is clipped to the rounded screen, but `Overlay` is not, so placement handles can still be grabbed beyond the screen's edge.
+- In full screen, the screen moves to a layer at the top of the UI (the nearest `vv-root`) and moves back when leaving. The stream output is not affected (system design 14.23). `F` and `Esc` are handled on the screen, so they work in full screen too.
+- The placement editor gets `Esc` first. It steps back one layer at a time: the drag, crop mode, then the selection. Only when there is nothing left does `Esc` reach `StreamPreview`, which leaves full screen.
+- The number texts and the frame rate status (`PreviewMath.FrameRateText`, `FormatText`, `FrameRateStatus`) are pure functions. They contain only numbers and units, so they read the same in every language.
+
 ---
 
 ## 10. State and Lifecycle
@@ -862,6 +881,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | PlayMode | `FrameCanvas` drags (move, resize, Shift, snapping, Ctrl), rejected commits, locking, arrow keys, Esc, Tab (9.8) |
 | EditMode | `FrameHistory`, `FrameCommands`, shortcut mapping, crop readout and pivot, `PopupMenu` placement, `FrameEditMath.Uncrop` (9.8) |
 | EditMode | `FrameCommands.MoveTo`, `LayerListMath` (landing row, new position, key moves, state text) (9.7) |
+| EditMode | `PreviewMath` (16:9 size, number texts, frame rate status) (9.9) |
+| PlayMode | `StreamPreview` 16:9, video and numbers, the empty state, entering and leaving full screen (button, `F`, `Esc`), `Esc` clearing the selection first (9.9) |
 | PlayMode | `LayerList` order, names, states, and shared selection; reordering by drag and undoing it; keyboard; hidden videos; `ShowVideos` stacking and cropping (9.7, 9.8) |
 | PlayMode | Switching crop mode, cutting an edge, wheel zoom committed as one edit, panning with the middle button, undo and redo, the right-click menu, the menu on a locked frame, shortcuts (9.8) |
 | PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
@@ -898,6 +919,7 @@ Assets/VirtualVessel/
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
+   │  ├─ Preview/           StreamPreview, IStreamPreviewSource, PreviewMath   VirtualVessel.UI.Preview
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
@@ -935,7 +957,11 @@ Each step is one branch and includes its tests (CLAUDE.md 29.2).
    1. The component foundation (`UiServices`, `KeyedText`, binding, commands, icons) and the basic parts (Button, Icon Button, Toggle, Segmented, Card, Status Indicator, Key Hint)
    2. The remaining input and display parts (Slider, Dropdown, Text Field, Numeric Field, Tab, Setting Row, Level Meter, Progress Bar, Navigation Item)
    3. Tooltip, Dialog, Notification
-6. UI: `MediaFrame` and `FrameCanvas`
+6. UI: `MediaFrame` and `FrameCanvas`, split into four parts:
+   1. `FrameCanvas`, selection, moving, resizing, snapping, keyboard, cursors
+   2. Cropping, the right-click menu and shortcuts, undo
+   3. The layer list (`LayerList`), hidden videos, and showing videos without a preview
+   4. The preview (`StreamPreview`) and full screen
 7. UI: `UiRoot`, `ScreenHost`, Developer Mode, Diagnostics screen, Component Gallery, `UiScreenshotCapture`
 
 ---
