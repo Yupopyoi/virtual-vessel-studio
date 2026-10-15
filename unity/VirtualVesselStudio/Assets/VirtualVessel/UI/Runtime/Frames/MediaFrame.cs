@@ -19,6 +19,9 @@ namespace VirtualVessel.UI.Frames
 
         public const string LockedClass = UssClass + "--locked";
 
+        /// <summary>Crop mode: Secondary outline, and edge handles drawn as bars along the edge.</summary>
+        public const string CropClass = UssClass + "--crop";
+
         public const string OutlineClass = UssClass + "__outline";
 
         public const string HandleClass = UssClass + "__handle";
@@ -48,6 +51,7 @@ namespace VirtualVessel.UI.Frames
                 (double fx, double fy) = FrameCanvasMath.HandleFraction(FrameCanvasMath.Handles[i]);
                 var handle = new VisualElement { pickingMode = PickingMode.Ignore };
                 handle.AddToClassList(HandleClass);
+                handle.AddToClassList(HandleClass + "--" + HandleShape(FrameCanvasMath.Handles[i]));
                 handle.style.position = Position.Absolute;
                 handle.style.left = Length.Percent((float)(fx * 100));
                 handle.style.top = Length.Percent((float)(fy * 100));
@@ -73,6 +77,9 @@ namespace VirtualVessel.UI.Frames
 
         public IFrameSource Source { get; }
 
+        /// <summary>Raised whenever <see cref="Shown"/> changes, for parts drawn around the frame.</summary>
+        public event Action ShownChanged;
+
         /// <summary>The layout on screen: an edit in progress or waiting for Stage, else the confirmed one.</summary>
         public FrameLayout Shown => _pending ?? _confirmed;
 
@@ -83,6 +90,12 @@ namespace VirtualVessel.UI.Frames
         {
             get => ClassListContains(SelectedClass);
             set => EnableInClassList(SelectedClass, value);
+        }
+
+        public bool CropMode
+        {
+            get => ClassListContains(CropClass);
+            set => EnableInClassList(CropClass, value);
         }
 
         /// <summary>The handle under the pointer, drawn larger.</summary>
@@ -131,11 +144,22 @@ namespace VirtualVessel.UI.Frames
             Refresh();
         }
 
+        private static string HandleShape(FrameHandle handle)
+        {
+            return handle switch
+            {
+                FrameHandle.Top or FrameHandle.Bottom => "horizontal",
+                FrameHandle.Left or FrameHandle.Right => "vertical",
+                _ => "corner",
+            };
+        }
+
         private void Refresh()
         {
             FrameLayout shown = Shown;
             Place(this, shown.Placement);
             EnableInClassList(LockedClass, shown.Locked);
+            ShownChanged?.Invoke();
         }
     }
 }

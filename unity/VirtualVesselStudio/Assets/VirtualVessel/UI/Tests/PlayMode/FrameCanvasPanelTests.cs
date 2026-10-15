@@ -232,14 +232,306 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_canvas.Selected, Is.Null);
         }
 
+        [UnityTest]
+        public IEnumerator CropMode_TogglesByKeyDoubleClickAndSwitch_AndEndsWithEnterOrOutsideClick()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            _canvas.SetSources(new[] { game });
+            _canvas.Select(game);
+            _canvas.Focus();
+            yield return null;
+
+            VisualElement modeSwitch = _canvas.Q(className: FrameCanvas.ModeSwitchClass);
+            Assert.That(modeSwitch.style.display.value, Is.EqualTo(DisplayStyle.Flex), "The mode is always shown for an editable frame.");
+            Key(true, KeyCode.C);
+            Assert.That(_canvas.CropMode, Is.True);
+            Assert.That(_canvas.Frames[0].ClassListContains(MediaFrame.CropClass), Is.True);
+            Assert.That(_canvas.Q(className: FrameCanvas.GhostClass).style.display.value, Is.EqualTo(DisplayStyle.Flex), "The whole video shows faintly.");
+            Key(true, KeyCode.Return);
+            Assert.That(_canvas.CropMode, Is.False);
+            Assert.That(_canvas.Selected, Is.SameAs(game), "Enter ends crop mode but keeps the selection.");
+
+            DoubleClick(At(0.3, 0.3));
+            Assert.That(_canvas.CropMode, Is.True, "Double-click switches to crop mode...");
+            DoubleClick(At(0.3, 0.3));
+            Assert.That(_canvas.CropMode, Is.False, "...and back, the same way.");
+            DoubleClick(At(0.3, 0.3));
+            Assert.That(_canvas.CropMode, Is.True);
+            Pointer(EventType.MouseDown, At(0.9, 0.9));
+            Pointer(EventType.MouseUp, At(0.9, 0.9));
+            Assert.That(_canvas.CropMode, Is.False, "A click outside leaves crop mode...");
+            Assert.That(_canvas.Selected, Is.Null, "...and clears the selection in one go.");
+
+            _canvas.Select(game);
+            modeSwitch.Q<Segmented>().value = 1;
+            Assert.That(_canvas.CropMode, Is.True, "The switch changes the mode.");
+        }
+
+        [UnityTest]
+        public IEnumerator CropMode_EdgeHandleCutsTheVideo_KeepingItsScale()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            _canvas.SetSources(new[] { game });
+            _canvas.Select(game);
+            _canvas.SetCropMode(true);
+            yield return null;
+
+            // The right edge handle moved left by a quarter of the frame.
+            Vector2 right = At(0.5, 0.3);
+            Pointer(EventType.MouseDown, right);
+            Pointer(EventType.MouseDrag, right - new Vector2(0.1f * Width, 0));
+            Pointer(EventType.MouseUp, right - new Vector2(0.1f * Width, 0));
+            yield return null;
+
+            FrameLayout cut = game.Layout.Value;
+            Assert.That(cut.Crop.Right, Is.EqualTo(0.75).Within(1e-4));
+            AssertRect(cut.Placement, 0.1, 0.1, 0.3, 0.4);
+        }
+
+        [UnityTest]
+        public IEnumerator Wheel_ZoomsAsOneEdit_PanAndUndoRedo()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            _canvas.SetSources(new[] { game });
+            _canvas.Focus();
+            yield return null;
+
+            Wheel(At(0.3, 0.3), -5);
+            Wheel(At(0.3, 0.3), -5);
+            Wheel(At(0.3, 0.3), -5);
+            Assert.That(game.Previews.Count, Is.EqualTo(3));
+            Assert.That(game.Commits, Is.Empty, "Wheel steps are not committed one by one.");
+            Assert.That(_canvas.ReadoutText, Does.Contain("%"));
+            yield return new WaitForSecondsRealtime(0.7f);
+            Assert.That(game.Commits.Count, Is.EqualTo(1), "A burst is one edit.");
+            Assert.That(_canvas.History.UndoCount, Is.EqualTo(1));
+            NormalizedRect zoomed = game.Layout.Value.Crop;
+            Assert.That(zoomed.Width, Is.LessThan(1));
+
+            // The middle button pans the zoomed video without moving the frame.
+            Pointer(EventType.MouseDown, At(0.3, 0.3), button: 2);
+            Pointer(EventType.MouseDrag, At(0.35, 0.3), button: 2);
+            Pointer(EventType.MouseUp, At(0.35, 0.3), button: 2);
+            yield return null;
+            Assert.That(game.Layout.Value.Crop.X, Is.LessThan(zoomed.X), "Dragging right reveals the left.");
+            AssertRect(game.Layout.Value.Placement, 0.1, 0.1, 0.4, 0.4);
+
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            yield return null;
+            Assert.That(game.Layout.Value.Crop, Is.EqualTo(NormalizedRect.Full), "Two undos: the pan, then the zoom.");
+            Key(true, KeyCode.Y, EventModifiers.Control);
+            yield return null;
+            Assert.That(game.Layout.Value.Crop, Is.EqualTo(zoomed));
+        }
+
+        [UnityTest]
+        public IEnumerator RightClick_OpensTheMenu_AndAnEntryRunsAndCloses()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            _canvas.SetSources(new[] { game });
+            yield return null;
+
+            Pointer(EventType.MouseDown, At(0.3, 0.3), button: 1);
+            yield return null;
+            PopupMenu menu = _canvas.Menu;
+            Assert.That(menu, Is.Not.Null);
+            Assert.That(_canvas.Selected, Is.SameAs(game), "Right-click selects.");
+            Assert.That(menu.Items.Count, Is.EqualTo(12));
+            Assert.That(menu.HighlightIndex, Is.GreaterThanOrEqualTo(0), "An entry is ready for the keyboard.");
+
+            // On this small test screen the menu may open over the pointer, which highlights the entry
+            // under it; the up arrow walks back to the first entry.
+            while (menu.HighlightIndex > 0)
+            {
+                using (NavigationMoveEvent evt = NavigationMoveEvent.GetPooled(NavigationMoveEvent.Direction.Up))
+                {
+                    evt.target = menu;
+                    menu.SendEvent(evt);
+                }
+            }
+
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = menu;
+                menu.SendEvent(evt);
+            }
+
+            yield return null;
+            Assert.That(_canvas.Menu, Is.Null);
+            Assert.That(game.Layout.Value.FlipHorizontal, Is.True, "The first entry flips the video.");
+        }
+
+        [UnityTest]
+        public IEnumerator Menu_OnALockedFrame_OffersOnlyUnlockAndFlip()
+        {
+            var game = new FakeSource("game", new FrameLayout(new NormalizedRect(0.1, 0.1, 0.4, 0.4), NormalizedRect.Full, locked: true));
+            _canvas.SetSources(new[] { game });
+            _canvas.Select(game);
+            yield return null;
+
+            _canvas.ShowMenu(At(0.3, 0.3));
+            yield return null;
+            var enabled = new List<bool>();
+            foreach (VisualElement item in _canvas.Menu.Items)
+            {
+                enabled.Add(!item.ClassListContains(PopupMenu.ItemClass + "--disabled"));
+            }
+
+            Assert.That(enabled, Is.EqualTo(new[] { true, true, false, false, false, false, false, false, false, false, false, false }));
+            _canvas.Menu.Close();
+            Assert.That(_canvas.Menu, Is.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator Shortcuts_ChangeOrderFitAndFlip_AndAreUndoable()
+        {
+            var back = new FakeSource("back", new FrameLayout(new NormalizedRect(0.1, 0.1, 0.3, 0.3), NormalizedRect.Full, order: 0));
+            var front = new FakeSource("front", new FrameLayout(new NormalizedRect(0.5, 0.5, 0.3, 0.3), NormalizedRect.Full, order: 1));
+            _canvas.SetSources(new[] { back, front });
+            _canvas.Select(back);
+            _canvas.Focus();
+            yield return null;
+
+            Key(true, KeyCode.None, character: ']');
+            yield return null;
+            Assert.That(back.Layout.Value.Order, Is.GreaterThan(front.Layout.Value.Order), "] brings it one step forward, past the other.");
+
+            Key(true, KeyCode.Alpha1, EventModifiers.Shift);
+            yield return null;
+            AssertRect(back.Layout.Value.Placement, 0, 0, 1, 1);
+
+            Key(true, KeyCode.H);
+            yield return null;
+            Assert.That(back.Layout.Value.FlipHorizontal, Is.True);
+
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            yield return null;
+            Assert.That(back.Layout.Value, Is.EqualTo(new FrameLayout(new NormalizedRect(0.1, 0.1, 0.3, 0.3), NormalizedRect.Full, order: 0)));
+        }
+
+        [UnityTest]
+        public IEnumerator CropMode_DragInsideMovesTheWindow_NotTheVideo()
+        {
+            // The middle half of the video, zoomed: the whole video sits at 0 to 0.8 across.
+            var game = new FakeSource("game", new FrameLayout(new NormalizedRect(0.2, 0.2, 0.4, 0.4), new NormalizedRect(0.25, 0.25, 0.5, 0.5)));
+            _canvas.SetSources(new[] { game });
+            _canvas.Select(game);
+            _canvas.SetCropMode(true);
+            yield return null;
+
+            Pointer(EventType.MouseDown, At(0.4, 0.4));
+            Pointer(EventType.MouseDrag, At(0.5, 0.4));
+            Pointer(EventType.MouseUp, At(0.5, 0.4));
+            yield return null;
+
+            FrameLayout moved = game.Layout.Value;
+            AssertRect(moved.Placement, 0.3, 0.2, 0.4, 0.4);
+            Assert.That(moved.Crop.X, Is.EqualTo(0.375).Within(1e-4), "The window moved over the video.");
+            AssertRect(FrameEditMath.VideoPlacement(moved), 0, 0, 0.8, 0.8);
+        }
+
+        [UnityTest]
+        public IEnumerator SelectingAnotherFrame_StartsInPlacementMode()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.05, 0.05, 0.3, 0.3));
+            var desk = new FakeSource("desk", new NormalizedRect(0.6, 0.6, 0.3, 0.3));
+            _canvas.SetSources(new[] { game, desk });
+            _canvas.Select(game);
+            _canvas.SetCropMode(true);
+            yield return null;
+
+            Pointer(EventType.MouseDown, At(0.75, 0.75));
+            Pointer(EventType.MouseUp, At(0.75, 0.75));
+
+            Assert.That(_canvas.Selected, Is.SameAs(desk));
+            Assert.That(_canvas.CropMode, Is.False, "Crop mode does not carry over to another frame.");
+        }
+
+        [UnityTest]
+        public IEnumerator CropMode_StaysOnClicksOverTheCroppedFrameAndItsVideo()
+        {
+            // The game is zoomed (the whole video spans 0 to 0.8), and the camera sits in front of it.
+            var game = new FakeSource("game", new FrameLayout(new NormalizedRect(0.2, 0.2, 0.4, 0.4), new NormalizedRect(0.25, 0.25, 0.5, 0.5), order: 0));
+            var camera = new FakeSource("camera", new FrameLayout(new NormalizedRect(0.45, 0.45, 0.2, 0.2), NormalizedRect.Full, order: 1));
+            _canvas.SetSources(new[] { game, camera });
+            _canvas.Select(game);
+            yield return null;
+
+            // Switched with the mode switch, as a user would.
+            _canvas.Q(className: FrameCanvas.ModeSwitchClass).Q<Segmented>().value = 1;
+            Assert.That(_canvas.CropMode, Is.True);
+
+            Pointer(EventType.MouseDown, At(0.1, 0.1));
+            Pointer(EventType.MouseUp, At(0.1, 0.1));
+            Assert.That(_canvas.CropMode, Is.True, "A click on the faint whole video stays in crop mode.");
+
+            Pointer(EventType.MouseDown, At(0.5, 0.5));
+            Pointer(EventType.MouseUp, At(0.5, 0.5));
+            Assert.That(_canvas.Selected, Is.SameAs(game), "The frame being cropped wins over the camera in front.");
+            Assert.That(_canvas.CropMode, Is.True);
+
+            Pointer(EventType.MouseDown, At(0.95, 0.95));
+            Pointer(EventType.MouseUp, At(0.95, 0.95));
+            Assert.That(_canvas.CropMode, Is.False, "A click clearly outside does.");
+            Assert.That(_canvas.Selected, Is.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator AClickAfterTheModeSwitch_IsNotADoubleClick()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            var desk = new FakeSource("desk", new NormalizedRect(0.6, 0.6, 0.3, 0.3));
+            _canvas.SetSources(new[] { game, desk });
+            _canvas.Select(game);
+            yield return null;
+
+            Segmented modes = _canvas.Q(className: FrameCanvas.ModeSwitchClass).Q<Segmented>();
+            modes.value = 1;
+            modes.value = 0;
+
+            // The platform counts this press as the second click after the one on the switch.
+            Pointer(EventType.MouseDown, At(0.3, 0.3), clickCount: 2);
+            Pointer(EventType.MouseUp, At(0.3, 0.3), clickCount: 2);
+            Assert.That(_canvas.CropMode, Is.False, "One press on the frame is not a double-click.");
+
+            // Quick presses on two different frames are not a double-click either.
+            Pointer(EventType.MouseDown, At(0.75, 0.75));
+            Pointer(EventType.MouseUp, At(0.75, 0.75));
+            Assert.That(_canvas.Selected, Is.SameAs(desk));
+            Assert.That(_canvas.CropMode, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator Drag_IsUndoable()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.25, 0.25));
+            _canvas.SetSources(new[] { game });
+            _canvas.Focus();
+            yield return null;
+
+            Pointer(EventType.MouseDown, At(0.2, 0.2));
+            Pointer(EventType.MouseDrag, At(0.4, 0.2));
+            Pointer(EventType.MouseUp, At(0.4, 0.2));
+            yield return null;
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            yield return null;
+            AssertRect(game.Layout.Value.Placement, 0.1, 0.1, 0.25, 0.25);
+            Key(true, KeyCode.Z, EventModifiers.Control | EventModifiers.Shift);
+            yield return null;
+            AssertRect(game.Layout.Value.Placement, 0.3, 0.1, 0.25, 0.25);
+        }
+
         private Vector2 At(double x, double y)
         {
             return _streamArea.LocalToWorld(new Vector2((float)x * Width, (float)y * Height));
         }
 
-        private void Pointer(EventType type, Vector2 position, EventModifiers modifiers = EventModifiers.None)
+        private void Pointer(EventType type, Vector2 position, EventModifiers modifiers = EventModifiers.None, int button = 0, int clickCount = 1)
         {
-            var system = new Event { type = type, mousePosition = position, button = 0, modifiers = modifiers, clickCount = 1 };
+            var system = new Event { type = type, mousePosition = position, button = button, modifiers = modifiers, clickCount = clickCount };
             EventBase evt = type switch
             {
                 EventType.MouseDown => PointerDownEvent.GetPooled(system),
@@ -253,9 +545,27 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private void Key(bool down, KeyCode key, EventModifiers modifiers = EventModifiers.None)
+        private void DoubleClick(Vector2 position)
         {
-            EventBase evt = down ? KeyDownEvent.GetPooled('\0', key, modifiers) : KeyUpEvent.GetPooled('\0', key, modifiers);
+            Pointer(EventType.MouseDown, position);
+            Pointer(EventType.MouseUp, position);
+            Pointer(EventType.MouseDown, position, clickCount: 2);
+            Pointer(EventType.MouseUp, position, clickCount: 2);
+        }
+
+        private void Wheel(Vector2 position, float deltaY)
+        {
+            var system = new Event { type = EventType.ScrollWheel, mousePosition = position, delta = new Vector2(0, deltaY) };
+            using (WheelEvent evt = WheelEvent.GetPooled(system))
+            {
+                evt.target = _canvas;
+                _canvas.SendEvent(evt);
+            }
+        }
+
+        private void Key(bool down, KeyCode key, EventModifiers modifiers = EventModifiers.None, char character = '\0')
+        {
+            EventBase evt = down ? KeyDownEvent.GetPooled(character, key, modifiers) : KeyUpEvent.GetPooled(character, key, modifiers);
             using (evt)
             {
                 evt.target = _canvas;
@@ -297,6 +607,10 @@ namespace VirtualVessel.UI.Tests
             }
 
             public string Id { get; }
+
+            public double SourceAspect => 16.0 / 9.0;
+
+            public Texture Video => null;
 
             public IReadOnlyObservable<FrameLayout> Layout => _layout;
 
