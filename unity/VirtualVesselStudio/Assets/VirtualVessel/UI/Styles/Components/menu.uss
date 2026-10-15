@@ -1,0 +1,50 @@
+/* Popup Menu (components.md 3.23): Surface, 1px border, Radius M; rows with a check, text, and key hint. */
+.vv-menu {
+    min-width: 250px;
+    padding: 6px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-m);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-menu__item {
+    flex-direction: row;
+    align-items: center;
+    min-height: 32px;
+    padding: 4px 10px 4px 6px;
+    border-radius: var(--vv-radius-s);
+    color: var(--vv-color-text);
+}
+
+.vv-menu__item--highlight {
+    background-color: var(--vv-color-tint);
+}
+
+.vv-menu__item--disabled {
+    color: var(--vv-color-disabled);
+}
+
+.vv-menu__check {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    color: var(--vv-color-accent-line);
+}
+
+.vv-menu__text {
+    flex-grow: 1;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+}
+
+.vv-menu__shortcut {
+    margin-left: var(--vv-space-m);
+}
+
+.vv-menu__separator {
+    height: 1px;
+    margin: 4px 6px;
+    background-color: var(--vv-color-border);
+}
