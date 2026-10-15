@@ -16,6 +16,18 @@ namespace VirtualVessel.UI.Frames
         /// <summary>A stable identifier, such as the capture source's id.</summary>
         string Id { get; }
 
+        /// <summary>
+        /// The name shown in the layer list, such as a capture device's name. Data text: Stage provides it
+        /// in the user's language where it has one.
+        /// </summary>
+        IReadOnlyObservable<string> DisplayName { get; }
+
+        /// <summary>
+        /// Whether the video is on the stream now. A hidden video cannot be selected or grabbed in the
+        /// preview, and the layer list marks it as hidden.
+        /// </summary>
+        IReadOnlyObservable<bool> Visible { get; }
+
         /// <summary>Width / height of the whole video in pixels, for fitting it to the screen.</summary>
         double SourceAspect { get; }
 

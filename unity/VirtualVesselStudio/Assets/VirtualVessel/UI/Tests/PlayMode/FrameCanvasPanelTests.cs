@@ -34,7 +34,7 @@ namespace VirtualVessel.UI.Tests
             var localizer = new Localizer(
                 new[]
                 {
-                    new StringTable(new LocaleInfo("ja", "ja", null), new Dictionary<string, string> { { "frame.locked", "ロック中" } }),
+                    new StringTable(new LocaleInfo("ja", "ja", null), new Dictionary<string, string> { { "frame.locked", "ロック中" }, { "frame.hidden", "非表示" } }),
                 },
                 "ja",
                 null);
@@ -524,6 +524,164 @@ namespace VirtualVessel.UI.Tests
             AssertRect(game.Layout.Value.Placement, 0.3, 0.1, 0.25, 0.25);
         }
 
+        [UnityTest]
+        public IEnumerator LayerList_ShowsFrontToBack_WithNamesAndStates_AndSharesSelection()
+        {
+            var back = new FakeSource("back", new FrameLayout(new NormalizedRect(0, 0, 0.3, 0.3), NormalizedRect.Full, order: 0));
+            var middle = new FakeSource("middle", new FrameLayout(new NormalizedRect(0.3, 0.3, 0.3, 0.3), NormalizedRect.Full, locked: true, order: 1));
+            var front = new FakeSource("front", new FrameLayout(new NormalizedRect(0.6, 0.6, 0.3, 0.3), NormalizedRect.Full, order: 2));
+            back.Shown.Value = false;
+            _canvas.SetSources(new[] { back, middle, front });
+            var list = new LayerList(_canvas);
+            _streamArea.parent.Add(list);
+            yield return null;
+
+            Assert.That(RowNames(list), Is.EqualTo(new[] { "front", "middle", "back" }), "Top is the front.");
+            Assert.That(RowState(list, 1), Is.EqualTo("ロック中"));
+            Assert.That(RowState(list, 2), Is.EqualTo("非表示"));
+
+            ClickRow(list.Rows[0]);
+            Assert.That(_canvas.Selected, Is.SameAs(front), "Clicking a row selects its video.");
+            ClickRow(list.Rows[2]);
+            Assert.That(_canvas.Selected, Is.SameAs(front), "A hidden video cannot be selected.");
+            _canvas.Select(middle);
+            Assert.That(list.Rows[1].ClassListContains(LayerList.SelectedClass), Is.True, "The preview's selection shows in the list.");
+
+            front.Name.Value = "Game";
+            Assert.That(RowNames(list)[0], Is.EqualTo("Game"), "Names follow Stage.");
+        }
+
+        [UnityTest]
+        public IEnumerator LayerList_DragReorders_AsOneUndoableStep_AndKeysMatch()
+        {
+            var a = new FakeSource("a", new FrameLayout(new NormalizedRect(0, 0, 0.3, 0.3), NormalizedRect.Full, order: 0));
+            var b = new FakeSource("b", new FrameLayout(new NormalizedRect(0.3, 0.3, 0.3, 0.3), NormalizedRect.Full, order: 1));
+            var c = new FakeSource("c", new FrameLayout(new NormalizedRect(0.6, 0.6, 0.3, 0.3), NormalizedRect.Full, order: 2));
+            _canvas.SetSources(new[] { a, b, c });
+            var list = new LayerList(_canvas);
+            list.style.position = Position.Absolute;
+            list.style.left = 700;
+            list.style.top = 40;
+            list.style.width = 200;
+            _streamArea.parent.Add(list);
+            yield return null;
+            Assert.That(RowNames(list), Is.EqualTo(new[] { "c", "b", "a" }));
+
+            // Drag the back row (a) above the front row.
+            VisualElement row = list.Rows[2];
+            Vector2 from = row.worldBound.center;
+            Vector2 to = new Vector2(from.x, list.Rows[0].worldBound.yMin + 2);
+            RowPointer(row, EventType.MouseDown, from);
+            RowPointer(row, EventType.MouseDrag, to);
+            VisualElement drop = list.Q(className: LayerList.DropClass);
+            Assert.That(drop.style.display.value, Is.EqualTo(DisplayStyle.Flex), "The landing line shows.");
+            float firstRowTop = list.Rows[0].layout.yMin;
+            yield return null;
+            Assert.That(list.Rows[0].layout.yMin, Is.EqualTo(firstRowTop), "The line does not push the rows.");
+            RowPointer(row, EventType.MouseDrag, to + new Vector2(0, 1));
+            Assert.That(drop.style.top.value.value, Is.EqualTo(firstRowTop - 1), "The landing row stays put on a small move.");
+            RowPointer(row, EventType.MouseUp, to);
+            yield return null;
+
+            Assert.That(RowNames(list), Is.EqualTo(new[] { "a", "c", "b" }));
+            Assert.That(drop.style.display.value, Is.EqualTo(DisplayStyle.None));
+            _canvas.Focus();
+            Key(true, KeyCode.Z, EventModifiers.Control);
+            yield return null;
+            Assert.That(RowNames(list), Is.EqualTo(new[] { "c", "b", "a" }), "One undo puts every video back.");
+
+            // Keyboard: down moves the selection, Ctrl+Up moves the selected video toward the front.
+            _canvas.Select(null);
+            list.Focus();
+            ListKey(list, KeyCode.DownArrow);
+            Assert.That(_canvas.Selected, Is.SameAs(c));
+            ListKey(list, KeyCode.DownArrow);
+            Assert.That(_canvas.Selected, Is.SameAs(b));
+            ListKey(list, KeyCode.UpArrow, EventModifiers.Control);
+            yield return null;
+            Assert.That(RowNames(list), Is.EqualTo(new[] { "b", "c", "a" }));
+        }
+
+        [UnityTest]
+        public IEnumerator HiddenVideo_CannotBeGrabbed_AndLosesTheSelection()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4));
+            _canvas.SetSources(new[] { game });
+            _canvas.Select(game);
+            yield return null;
+
+            game.Shown.Value = false;
+            Assert.That(_canvas.Selected, Is.Null, "A video that leaves the stream loses the selection.");
+            Pointer(EventType.MouseDown, At(0.3, 0.3));
+            Pointer(EventType.MouseUp, At(0.3, 0.3));
+            Assert.That(_canvas.Selected, Is.Null, "It cannot be clicked either.");
+            Assert.That(_canvas.Frames[0].style.display.value, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
+        public IEnumerator ShowVideos_DrawsTheVideosInStackingOrder_WithCropAndFlip()
+        {
+            var back = new FakeSource("back", new FrameLayout(new NormalizedRect(0, 0, 0.5, 0.5), new NormalizedRect(0.25, 0, 0.5, 1), flipHorizontal: true, order: 5));
+            var front = new FakeSource("front", new FrameLayout(new NormalizedRect(0.2, 0.2, 0.5, 0.5), NormalizedRect.Full, order: 9));
+            _canvas.SetSources(new[] { front, back });
+            _canvas.ShowVideos = true;
+            yield return null;
+
+            List<Image> videos = _canvas.Query<Image>().Where(i => !i.ClassListContains(FrameCanvas.GhostClass)).ToList();
+            Assert.That(videos.Count, Is.EqualTo(2));
+            Image backVideo = videos[0];
+            Assert.That(backVideo.uv, Is.EqualTo(new Rect(0.25f, 0, 0.5f, 1)), "The crop is a UV rectangle, not a copy.");
+            Assert.That(backVideo.style.scale.value.value.x, Is.EqualTo(-1), "The flip is a scale.");
+            Assert.That(videos[1].style.left.value.value, Is.EqualTo(20).Within(1e-3), "The front video is drawn last.");
+        }
+
+        private static List<string> RowNames(LayerList list)
+        {
+            var names = new List<string>();
+            foreach (VisualElement row in list.Rows)
+            {
+                names.Add(row.Q<Label>(className: LayerList.UssClass + "__name").text);
+            }
+
+            return names;
+        }
+
+        private static string RowState(LayerList list, int index)
+        {
+            return list.Rows[index].Q<Label>(className: LayerList.UssClass + "__state").text;
+        }
+
+        private static void ClickRow(VisualElement row)
+        {
+            RowPointer(row, EventType.MouseDown, row.worldBound.center);
+            RowPointer(row, EventType.MouseUp, row.worldBound.center);
+        }
+
+        private static void RowPointer(VisualElement row, EventType type, Vector2 position)
+        {
+            var system = new Event { type = type, mousePosition = position, button = 0, clickCount = 1 };
+            EventBase evt = type switch
+            {
+                EventType.MouseDown => PointerDownEvent.GetPooled(system),
+                EventType.MouseUp => PointerUpEvent.GetPooled(system),
+                _ => PointerMoveEvent.GetPooled(system),
+            };
+            using (evt)
+            {
+                evt.target = row;
+                row.SendEvent(evt);
+            }
+        }
+
+        private static void ListKey(LayerList list, KeyCode key, EventModifiers modifiers = EventModifiers.None)
+        {
+            using (KeyDownEvent evt = KeyDownEvent.GetPooled('\0', key, modifiers))
+            {
+                evt.target = list;
+                list.SendEvent(evt);
+            }
+        }
+
         private Vector2 At(double x, double y)
         {
             return _streamArea.LocalToWorld(new Vector2((float)x * Width, (float)y * Height));
@@ -603,10 +761,19 @@ namespace VirtualVessel.UI.Tests
             public FakeSource(string id, FrameLayout layout)
             {
                 Id = id;
+                Name.Value = id;
                 _layout = new ObservableValue<FrameLayout>(layout);
             }
 
             public string Id { get; }
+
+            public ObservableValue<string> Name { get; } = new ObservableValue<string>(string.Empty);
+
+            public ObservableValue<bool> Shown { get; } = new ObservableValue<bool>(true);
+
+            public IReadOnlyObservable<string> DisplayName => Name;
+
+            public IReadOnlyObservable<bool> Visible => Shown;
 
             public double SourceAspect => 16.0 / 9.0;
 

@@ -49,6 +49,9 @@ namespace VirtualVessel.UI.Frames
         private const long WheelBurst = 400;
 
         private readonly VisualElement _stream;
+        private readonly VisualElement _videos;
+        private readonly List<Image> _videoImages = new List<Image>();
+        private bool _showVideos;
         private readonly Image _ghost;
         private readonly VisualElement _guideX;
         private readonly VisualElement _guideY;
@@ -86,6 +89,14 @@ namespace VirtualVessel.UI.Frames
             _stream.AddToClassList(StreamClass);
             Inset(_stream, HandleRadius);
             Add(_stream);
+
+            // Videos drawn by the canvas itself, for screens without a stream preview (9.2); clipped to
+            // the stream screen as the stream would be.
+            _videos = new VisualElement { pickingMode = PickingMode.Ignore };
+            Inset(_videos, 0);
+            _videos.style.overflow = Overflow.Hidden;
+            _videos.style.display = DisplayStyle.None;
+            _stream.Add(_videos);
 
             // Behind the frames: the whole video, faint, while cropping. A zoomed video can be many times
             // the screen, so it is clipped to the stream screen instead of covering the rest of the UI.
@@ -179,6 +190,25 @@ namespace VirtualVessel.UI.Frames
 
         public event Action<bool> CropModeChanged;
 
+        /// <summary>Raised after <see cref="SetSources"/> replaces the frames.</summary>
+        public event Action FramesChanged;
+
+        /// <summary>
+        /// Draws each video itself, in stacking order, for screens without a stream preview behind the
+        /// canvas (UI foundation detailed design 9.2). Crops are UVs and flips are scales; no video is
+        /// copied.
+        /// </summary>
+        public bool ShowVideos
+        {
+            get => _showVideos;
+            set
+            {
+                _showVideos = value;
+                _videos.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
+                RefreshVideos();
+            }
+        }
+
         /// <summary>The videos to edit. Frames that are no longer listed are removed with their selection.</summary>
         public void SetSources(IEnumerable<IFrameSource> sources)
         {
@@ -196,6 +226,8 @@ namespace VirtualVessel.UI.Frames
             }
 
             _frames.Clear();
+            _videos.Clear();
+            _videoImages.Clear();
             _selected = null;
             foreach (IFrameSource source in sources)
             {
@@ -206,18 +238,42 @@ namespace VirtualVessel.UI.Frames
                     {
                         RefreshSelectionParts();
                     }
+
+                    RefreshVideos();
+                };
+                frame.VisibleChanged += () =>
+                {
+                    // A video that leaves the stream cannot stay selected.
+                    if (frame == _selected && !frame.IsVisible)
+                    {
+                        Select(null);
+                    }
+
+                    RefreshVideos();
                 };
                 _frames.Add(frame);
                 _stream.Insert(_stream.IndexOf(_guideX), frame);
+                var video = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
+                video.style.position = Position.Absolute;
+                _videoImages.Add(video);
+                _videos.Add(video);
             }
 
             MediaFrame keep = _frames.Find(f => f.Source == selected);
             Select(keep?.Source);
+            RefreshVideos();
+            FramesChanged?.Invoke();
         }
 
         public void Select(IFrameSource source)
         {
             MediaFrame frame = source == null ? null : _frames.Find(f => f.Source == source);
+            if (frame != null && !frame.IsVisible)
+            {
+                // A hidden video cannot be selected; asking for it changes nothing.
+                return;
+            }
+
             if (frame == _selected)
             {
                 return;
@@ -308,6 +364,40 @@ namespace VirtualVessel.UI.Frames
             _ghost.style.display = DisplayStyle.Flex;
         }
 
+        private List<MediaFrame> VisibleFrames()
+        {
+            return _frames.FindAll(f => f.IsVisible);
+        }
+
+        /// <summary>The videos in stacking order, placed, cropped, and mirrored as the stream shows them.</summary>
+        private void RefreshVideos()
+        {
+            if (!_showVideos)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _frames.Count; i++)
+            {
+                FrameLayout shown = _frames[i].Shown;
+                Image video = _videoImages[i];
+                video.image = _frames[i].Source.Video;
+                video.style.display = _frames[i].IsVisible ? DisplayStyle.Flex : DisplayStyle.None;
+                MediaFrame.Place(video, shown.Placement);
+                NormalizedRect c = shown.Crop;
+
+                // Texture UVs start at the bottom left; crops start at the top left.
+                video.uv = new Rect((float)c.X, (float)(1 - c.Bottom), (float)c.Width, (float)c.Height);
+                video.style.scale = new Scale(new Vector3(shown.FlipHorizontal ? -1 : 1, 1, 1));
+            }
+
+            int[] frontToBack = FrameCanvasMath.FrontToBack(ShownLayouts());
+            for (int k = frontToBack.Length - 1; k >= 0; k--)
+            {
+                _videoImages[frontToBack[k]].BringToFront();
+            }
+        }
+
         private List<FrameLayout> ShownLayouts()
         {
             var layouts = new List<FrameLayout>(_frames.Count);
@@ -357,8 +447,9 @@ namespace VirtualVessel.UI.Frames
         {
             Vector2 p = StreamPixels(panelPosition);
             Vector2 size = StreamSize();
-            int index = FrameCanvasMath.FrameAt(ShownLayouts(), p.x / size.x, p.y / size.y);
-            return index < 0 ? null : _frames[index];
+            List<MediaFrame> visible = VisibleFrames();
+            int index = FrameCanvasMath.FrameAt(visible.ConvertAll(f => f.Shown), p.x / size.x, p.y / size.y);
+            return index < 0 ? null : visible[index];
         }
 
         /// <summary>
@@ -775,8 +866,9 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
-            int[] order = FrameCanvasMath.FrontToBack(ShownLayouts());
-            int current = _selected == null ? -1 : Array.IndexOf(order, _frames.IndexOf(_selected));
+            List<MediaFrame> visible = VisibleFrames();
+            int[] order = FrameCanvasMath.FrontToBack(visible.ConvertAll(f => f.Shown));
+            int current = _selected == null ? -1 : Array.IndexOf(order, visible.IndexOf(_selected));
             int next = FrameCanvasMath.NextSelection(current, order.Length, evt.direction == NavigationMoveEvent.Direction.Previous);
             if (next < 0)
             {
@@ -785,7 +877,7 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
-            Select(_frames[order[next]].Source);
+            Select(visible[order[next]].Source);
             evt.StopPropagation();
             focusController?.IgnoreEvent(evt);
         }
@@ -793,9 +885,10 @@ namespace VirtualVessel.UI.Frames
         private void OnFocusIn(FocusInEvent evt)
         {
             // Arriving from the keyboard selects the front frame, so the next keys act on something.
-            if (evt.target == this && _selected == null && _frames.Count > 0 && FocusRing.IsFromKeyboard(evt.direction))
+            List<MediaFrame> visible = VisibleFrames();
+            if (evt.target == this && _selected == null && visible.Count > 0 && FocusRing.IsFromKeyboard(evt.direction))
             {
-                Select(_frames[FrameCanvasMath.FrontToBack(ShownLayouts())[0]].Source);
+                Select(visible[FrameCanvasMath.FrontToBack(visible.ConvertAll(f => f.Shown))[0]].Source);
             }
         }
 

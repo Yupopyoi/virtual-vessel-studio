@@ -75,6 +75,22 @@ namespace VirtualVessel.UI.Frames
                 _ => last,
             };
 
+            return MoveTo(layouts, index, target);
+        }
+
+        /// <summary>
+        /// The stacking order after moving one frame to <paramref name="target"/> in the front-to-back
+        /// order (0 is the front), as dragging a row of the layer list does. Returns the new
+        /// <see cref="FrameLayout.Order"/> of every frame, renumbered from 0 at the back, or the current
+        /// orders when the frame is already there.
+        /// </summary>
+        public static int[] MoveTo(IReadOnlyList<FrameLayout> layouts, int index, int target)
+        {
+            int[] frontToBack = FrameCanvasMath.FrontToBack(layouts);
+            int position = System.Array.IndexOf(frontToBack, index);
+            int last = frontToBack.Length - 1;
+            target = System.Math.Max(0, System.Math.Min(last, target));
+
             var orders = new int[layouts.Count];
             if (target == position)
             {

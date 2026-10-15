@@ -168,6 +168,7 @@ Each part in `components.md` is implemented as a class derived from `VisualEleme
 | Icon | `Icon` | `<vv:Icon icon="Live" />` (6.6) |
 | Popup Menu | `PopupMenu` | Shown from C# with `PopupMenu.Show` (`components.md` 3.23) |
 | Panel | `MediaFrame` | Chapter 9 |
+| Layer List | `LayerList` | Created from C# with `new LayerList(canvas)` (9.7) |
 
 The UXML namespace is `VirtualVessel.UI.Controls` with the prefix `vv`. Classes are defined with `[UxmlElement]` and `[UxmlAttribute]` (Unity 6).
 
@@ -612,7 +613,7 @@ flowchart LR
 
 - `FrameCanvas` is a transparent layer over the stream preview (`StreamPreview`). It converts between stream screen coordinates and on-screen coordinates.
 - `MediaFrame` draws the outline, handles, and guides. The video itself already appears in the stream preview, so `MediaFrame` does not draw it.
-- When used on its own, for example on a setup screen, a `Texture` can be given to `MediaFrame` to show the video. Cropping is then expressed with UI Toolkit's `Image.uv` and flipping with `scale`, without copying the video.
+- Where there is no stream preview, for example on a setup screen, `FrameCanvas.ShowVideos` makes the canvas draw each video (`IFrameSource.Video`) itself, in stacking order and clipped to the stream screen. Cropping is expressed with UI Toolkit's `Image.uv` and flipping with `scale`, without copying the video. The videos sit in a video layer of the canvas rather than in `MediaFrame`, so that bringing the selected frame's outline to the top does not change the videos' stacking order.
 
 ### 9.3 Operations
 
@@ -710,6 +711,10 @@ This allows the results of operations to be checked thoroughly with EditMode tes
 - The placement editing screen has a list of the videos on the stream screen from front to back (`components.md` 3.20).
 - Dragging a row changes the stacking order. After reordering, `Order` is renumbered from front to back. One reorder is one undo unit.
 - Selection in the list and selection in the preview refer to the same frame.
+- The list is `LayerList`, used together with a `FrameCanvas`. It shares the canvas's selection and undo history. Reordering goes through `FrameCanvas.MoveInStack` (a front-to-back position), and `FrameCommands.MoveTo` renumbers `Order`, the same calculation as the menu's stacking commands (9.4).
+- `LayerListMath` (pure functions) computes where a row lands and its new position. A press becomes a drag after moving 4px; anything shorter is a click (select). The landing line is drawn over the rows rather than inserted between them: inserting it would shift the rows, move their centers, and make the landing row flicker at a boundary. Row positions are measured once, when the drag starts.
+- From the keyboard, up and down move the selection, and `Ctrl`+up or down moves the selected video one step forward or backward, the same as `]` and `[` in the preview, so the mouse and the keyboard can do the same things.
+- A locked video is not reordered (as in the menu). A hidden video is listed but cannot be selected.
 
 ### 9.8 Implementation (FrameCanvas and IFrameSource)
 
@@ -721,6 +726,8 @@ The UI and Stage are connected through `IFrameSource` (UI module), which Stage i
 public interface IFrameSource
 {
     string Id { get; }
+    IReadOnlyObservable<string> DisplayName { get; }   // the name in the layer list (Stage gives it in the user's language)
+    IReadOnlyObservable<bool> Visible { get; }         // whether it is on the stream
     double SourceAspect { get; }                       // aspect ratio of the whole video (for fitting)
     Texture Video { get; }                             // to show the whole video faintly while cropping; null shows an outline
     IReadOnlyObservable<FrameLayout> Layout { get; }   // the confirmed layout (runtime state)
@@ -731,6 +738,10 @@ public interface IFrameSource
 
 - Commits run through `CommandRunner`. If Stage rejects one with a `UserFacingException`, that text is shown as a notification. Whether the commit succeeds or not, the editor then shows the value of `Layout`, so a rejected edit returns to the previous layout.
 - While a commit is pending, the edited layout stays on screen. If a newer edit starts before the commit finishes, the newer edit is shown.
+
+**Hidden videos**
+
+- A video whose `IFrameSource.Visible` is false shows no frame in the preview, cannot be selected by pressing it, and is left out of the Tab order. If the selected video becomes hidden, the selection is cleared.
 
 **FrameCanvas**
 
@@ -850,6 +861,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | EditMode | `FrameCanvasMath` hit testing, cursor shapes, position and size text, Tab order, cursor images (9.8) |
 | PlayMode | `FrameCanvas` drags (move, resize, Shift, snapping, Ctrl), rejected commits, locking, arrow keys, Esc, Tab (9.8) |
 | EditMode | `FrameHistory`, `FrameCommands`, shortcut mapping, crop readout and pivot, `PopupMenu` placement, `FrameEditMath.Uncrop` (9.8) |
+| EditMode | `FrameCommands.MoveTo`, `LayerListMath` (landing row, new position, key moves, state text) (9.7) |
+| PlayMode | `LayerList` order, names, states, and shared selection; reordering by drag and undoing it; keyboard; hidden videos; `ShowVideos` stacking and cropping (9.7, 9.8) |
 | PlayMode | Switching crop mode, cutting an edge, wheel zoom committed as one edit, panning with the middle button, undo and redo, the right-click menu, the menu on a locked frame, shortcuts (9.8) |
 | PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
 | PlayMode | Notices hide on time, errors stay, the count limit and the queue, priority, the waiting count, order per corner, `ShowFailure` |
@@ -883,7 +896,7 @@ Assets/VirtualVessel/
    │  ├─ UiRoot.cs, UiAssets.cs
    │  ├─ Controls/          shared components (including PopupMenu), UiServices, KeyedText, FocusRing, ReducedMotion, Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
-   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, CursorService   VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs

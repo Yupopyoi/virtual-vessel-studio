@@ -171,9 +171,12 @@ The frame for editing the placement of a video (game screen, second monitor, and
 ### 3.20 Layer List
 
 - Lists the videos on the stream screen from front to back. The top is in front.
-- Each row shows "≡" to indicate it can be grabbed, a color swatch, the name, and its state (locked, hidden).
+- A small "Top is in front" note sits above the list.
+- Each row shows "≡" to indicate it can be grabbed, a small picture of the video (thumbnail, 40 × 23px, Radius 4px), the name, and its state (locked, hidden). The thumbnail makes it easy to match a row with the video on the preview; without the video it is plain (Surface 3).
 - Clicking a row selects it; dragging it up or down changes the stacking order. While dragging, an Accent Line shows where it will land.
 - Reordering can be undone (`Ctrl+Z`).
+- From the keyboard, up and down move the selection, and `Ctrl`+up or down moves the selected video one step forward or backward, the same as `]` and `[` in the preview.
+- The selected row has a Tint background and a 3px Accent Line on the left (as a Navigation Item). Hidden rows show a faint name and thumbnail and cannot be selected. A locked video cannot be reordered.
 
 ### 3.21 Key Hint
 

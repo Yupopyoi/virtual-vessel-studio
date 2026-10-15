@@ -29,6 +29,9 @@ namespace VirtualVessel.UI.Icons
 
         /// <summary>Outline circle: the "idle" status shape.</summary>
         Ring,
+
+        /// <summary>Three bars: something that can be dragged, such as a layer list row.</summary>
+        Grip,
     }
 
     /// <summary>One part of an icon: a line drawn with the text color, or a filled area.</summary>
@@ -77,6 +80,7 @@ namespace VirtualVessel.UI.Icons
             [IconName.Minus] = new[] { "M5 12h14" },
             [IconName.Dot] = new[] { "fill:M7 12a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z" },
             [IconName.Ring] = new[] { "M6.5 12a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0Z" },
+            [IconName.Grip] = new[] { "M6 8h12M6 12h12M6 16h12" },
         };
 
         // Declared after Sources: static initializers run in source order.

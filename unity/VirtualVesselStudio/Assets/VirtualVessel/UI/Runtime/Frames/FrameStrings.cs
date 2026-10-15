@@ -9,6 +9,11 @@ namespace VirtualVessel.UI.Frames
         /// <summary>Badge on a locked frame (components.md 3.19).</summary>
         public const string Locked = "frame.locked";
 
+        // The layer list (components.md 3.20).
+        public const string LayersHint = "frame.layers.hint";
+        public const string LayerTip = "frame.layers.tip";
+        public const string Hidden = "frame.hidden";
+
         public const string Mode = "frame.mode";
         public const string ModePlace = "frame.mode.place";
         public const string ModeCrop = "frame.mode.crop";

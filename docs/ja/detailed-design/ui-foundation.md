@@ -168,6 +168,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Icon | `Icon` | `<vv:Icon icon="Live" />`（6.6） |
 | Popup Menu | `PopupMenu` | C#から`PopupMenu.Show`で表示（`components.md` 3.23） |
 | Panel | `MediaFrame` | 9章 |
+| Layer List | `LayerList` | C#から`new LayerList(canvas)`で作る（9.7） |
 
 UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。Classは`[UxmlElement]`と`[UxmlAttribute]`（Unity 6）で定義する。
 
@@ -612,7 +613,7 @@ flowchart LR
 
 - `FrameCanvas`は、配信プレビュー（`StreamPreview`）の上に重ねる透明な層である。配信画面の座標と、画面上の座標を相互に変換する。
 - `MediaFrame`は枠、ハンドル、補助線を描く。映像そのものは配信プレビューに映っているため、`MediaFrame`は映像を描かない。
-- Setup画面などで単独で使う場合は、`MediaFrame`に`Texture`を渡して映像を表示できる。そのとき、切り抜きはUI Toolkitの`Image.uv`、左右反転は`scale`で表し、映像のCopyは行わない。
+- Setup画面など配信プレビューがない場所では、`FrameCanvas.ShowVideos`で各映像（`IFrameSource.Video`）をCanvas自身が描く。重なり順に並べ、配信画面の範囲で切り取る。切り抜きはUI Toolkitの`Image.uv`、左右反転は`scale`で表し、映像のCopyは行わない。映像は`MediaFrame`ではなくCanvasの映像の層に置く。選択中の枠を手前に出しても、映像の重なり順が変わらないようにするためである。
 
 ### 9.3 操作
 
@@ -710,6 +711,10 @@ Menuの各項目にもTooltipとショートカットを表示する。
 - 配置編集の画面に、配信画面上の映像を手前から順に並べた一覧を置く（`components.md` 3.20）。
 - 行のドラッグで重なり順を変える。並べ替えた結果は、手前から順に`Order`を振り直す。1回の並べ替えを元に戻すの1単位とする。
 - 一覧での選択とプレビュー上の選択は同じものを指す。
+- 一覧は`LayerList`で、`FrameCanvas`と組にして使う。選択と元に戻すの記録はCanvasと共有する。並べ替えは`FrameCanvas.MoveInStack`（手前からの位置を指定）で行い、`FrameCommands.MoveTo`で`Order`を振り直す。メニューの重ね順の操作（9.4）と同じ計算である。
+- 落ちる位置と移動先の計算は`LayerListMath`（純粋関数）で行う。押してから4px以上動かしたときにドラッグとし、それより短い操作はクリック（選択）とする。落ちる位置の線は行のあいだに挿入せず、行の上に重ねて描く。挿入すると行がずれて中心の位置が変わり、境目で落ちる位置が行ったり来たりするためである。行の位置はドラッグの開始時に1回だけ測る。
+- キーボードでは、上下キーで選択を移し、`Ctrl`+上下キーで選択中の映像を1つ前（後ろ）へ動かす。プレビューの`]`・`[`と同じ動きとし、マウスとキーボードのどちらでも同じことができるようにする。
+- ロック中の映像は並べ替えない（メニューと同じ）。非表示の映像は一覧に表示するが選べない。
 
 ### 9.8 実装（FrameCanvasとIFrameSource）
 
@@ -721,6 +726,8 @@ UIとStageの間は`IFrameSource`（UI Module）でつなぐ。Stageが映像ご
 public interface IFrameSource
 {
     string Id { get; }
+    IReadOnlyObservable<string> DisplayName { get; }   // 一覧に出す名前（Stageが利用者の言語で渡す）
+    IReadOnlyObservable<bool> Visible { get; }         // 配信に出ているか
     double SourceAspect { get; }                       // 映像全体の縦横比（画面に合わせる等で使う）
     Texture Video { get; }                             // 切り抜き中に映像全体を薄く表示するため。nullなら枠だけ
     IReadOnlyObservable<FrameLayout> Layout { get; }   // 確定した配置（Runtime State）
@@ -731,6 +738,10 @@ public interface IFrameSource
 
 - 確定は`CommandRunner`で実行する。Stageが`UserFacingException`で拒否した場合は、その文をNotificationで表示する。確定の成否にかかわらず、終わったら`Layout`の値を表示する。拒否された場合は元の配置に戻る。
 - 確定を待つ間は、操作した配置を表示し続ける。確定より後に新しい操作が始まった場合は、その操作の表示を優先する。
+
+**非表示の映像**
+
+- `IFrameSource.Visible`がfalseの映像は、プレビューに枠を出さず、押しても選べない。Tabの順番にも入れない。選択中の映像が非表示になったら選択を外す。
 
 **FrameCanvas**
 
@@ -850,6 +861,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | EditMode | `FrameCanvasMath`の当たり判定、カーソルの形、位置と大きさの文字、Tabの順序、カーソルの画像（9.8） |
 | PlayMode | `FrameCanvas`のドラッグ（移動、拡大縮小、Shift、吸着、Ctrl）、拒否された確定、ロック、矢印キー、Esc、Tab（9.8） |
 | EditMode | `FrameHistory`、`FrameCommands`、ショートカットの対応、切り抜きの表示と中心、`PopupMenu`の位置、`FrameEditMath.Uncrop`（9.8） |
+| EditMode | `FrameCommands.MoveTo`、`LayerListMath`（落ちる位置、移動先、キーでの移動、状態の表示）（9.7） |
+| PlayMode | `LayerList`の並び・名前・状態・選択の共有、ドラッグでの並べ替えと元に戻す、キーボード操作、非表示の映像、`ShowVideos`の重なり順と切り抜き（9.7、9.8） |
 | PlayMode | 切り抜きモードの切り替え、辺の切り取り、Wheelの拡大と確定のまとめ方、中ボタンでの移動、元に戻す・やり直す、右クリックMenu、ロック中のMenu、ショートカット（9.8） |
 | PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
 | PlayMode | Notificationの自動消去、Errorが残ること、数の上限と待ち行列、優先度、待ち件数の表示、隅ごとの並び順、`ShowFailure` |
@@ -883,7 +896,7 @@ Assets/VirtualVessel/
    │  ├─ UiRoot.cs, UiAssets.cs
    │  ├─ Controls/          共通Component（PopupMenuを含む）、UiServices、KeyedText、FocusRing、ReducedMotion、Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
-   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, CursorService   VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
