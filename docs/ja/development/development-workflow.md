@@ -849,6 +849,22 @@ Pull Requestごとに比較的軽量な確認を行う。
 
 PR CIが失敗している変更は原則Mergeしない。
 
+### 18.1.1 現在のPR CI
+
+現在は、Unityを使わない軽い確認だけを行う（Phase 2の一部）。Pull Requestごとと`main`へのPushごとに、GitHub Actionsの`Repository checks`（`.github/workflows/repository-checks.yml`）が実行する。
+
+| 確認 | 内容 |
+|---|---|
+| `.meta`ファイル | `Assets/`以下のすべてのファイルとフォルダに`.meta`があること、対応するファイルのない`.meta`がないこと |
+| GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
+| 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
+| 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
+
+- 確認はgitで追跡しているファイルに対して行う。手元にだけあるファイルは対象にしないため、コミットし忘れや`.meta`の抜けを見つけられる。
+- 確認処理は`tools/ci/repo_checks.py`にあり、確認処理自体の単体テスト（`tools/ci/test_repo_checks.py`）もCIで実行する。
+- 標準ライブラリだけを使うため、venvや`pip`は不要である。手元ではPython 3.10以上で、リポジトリの直下から`python tools/ci/repo_checks.py`を実行する。CIはPython 3.12を使う。
+- Unityのテスト（EditMode、PlayMode）は、実行環境とUnityのライセンスの扱いを決めてから追加する。
+
 ## 18.2 main Build
 
 `main`へMerge後、統合された状態でBuildする。
@@ -920,7 +936,7 @@ GitHub側で`main`を保護する。
 - Force Push禁止
 - Branch削除禁止
 - Conversation Resolution必須
-- Required Status ChecksはCI導入時に追加する
+- Required Status Checksに`Repository checks`を設定する（18.1.1）
 
 ## 19.1 Merge権限
 

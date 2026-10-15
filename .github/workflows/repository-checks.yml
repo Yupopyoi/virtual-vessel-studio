@@ -1,0 +1,28 @@
+# Checks that need no Unity, on every pull request and on main (development workflow 18.1).
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test the checks
+        run: python -m unittest discover -s tools/ci -v
+
+      - name: Check the repository
+        run: python tools/ci/repo_checks.py

@@ -841,6 +841,22 @@ Examples:
 
 As a rule, changes with failing PR CI are not merged.
 
+### 18.1.1 Current PR CI
+
+For now only light checks that need no Unity run (part of Phase 2). GitHub Actions runs `Repository checks` (`.github/workflows/repository-checks.yml`) on every pull request and every push to `main`.
+
+| Check | What it checks |
+|---|---|
+| `.meta` files | Every file and folder under `Assets/` has a `.meta`, and no `.meta` is left without its file |
+| Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
+| String tables | Each locale's JSON parses, and every locale has the same keys |
+| Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
+
+- The checks look at the files tracked by git, not files that exist only locally, so they catch files that were not committed and missing `.meta` files.
+- The checks are in `tools/ci/repo_checks.py`, and their own unit tests (`tools/ci/test_repo_checks.py`) also run in CI.
+- They use only the standard library, so no venv or `pip` is needed. Locally, run `python tools/ci/repo_checks.py` from the repository root with Python 3.10 or later. CI uses Python 3.12.
+- Unity tests (EditMode, PlayMode) will be added once the runner and the handling of the Unity license are decided.
+
 ## 18.2 main Build
 
 After merging into `main`, the integrated state is built.
@@ -912,7 +928,7 @@ The current settings are:
 - prohibit force pushes
 - prohibit branch deletion
 - require conversation resolution
-- required status checks are added when CI is introduced
+- `Repository checks` is a required status check (18.1.1)
 
 ## 19.1 Merge Permission
 
