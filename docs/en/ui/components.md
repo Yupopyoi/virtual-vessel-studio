@@ -186,6 +186,16 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - The thumb is Primary at 55% opacity, and 90% while hovered. The track is a rounded Surface 2.
 - It stays quiet against the screen while the palette color keeps it cute.
 
+### 3.23 Popup Menu (right-click menu)
+
+- A menu that opens where the user points. Background Surface, 1px border, Radius M, 6px padding, at least 250px wide.
+- Each row has a check showing whether it is on (Accent Line), the item name, and its shortcut (Key Hint). Rows are at least 32px high.
+- The row under the mouse and the row chosen with the keyboard get a Tint background. Items that cannot be used have Disabled text and cannot be chosen.
+- Separators are 1px Border lines.
+- Each item has a tooltip saying what it does.
+- When it opens it takes keyboard focus: up and down move, Enter runs, Esc closes. Running an item or pressing outside closes it. Focus then returns to where it was.
+- Near the edges of the screen it opens to the left or upwards so that it stays on screen.
+
 ---
 
 ## 4. Adding a Component
