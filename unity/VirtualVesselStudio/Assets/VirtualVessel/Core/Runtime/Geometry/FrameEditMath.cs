@@ -254,6 +254,43 @@ namespace VirtualVessel.Core.Geometry
             return KeepInside(crop.WithPosition(crop.X - dragFractionX * crop.Width, crop.Y - dragFractionY * crop.Height));
         }
 
+        /// <summary>
+        /// Moves the crop window over a video that stays still (crop mode): the frame and the shown part
+        /// move together, so the video does not move on the stream screen. The window stops at the
+        /// video's edges, and at the screen's edges (or the reachable limit) as moving a frame does.
+        /// </summary>
+        /// <param name="dx">Normalized horizontal pointer delta on the stream screen.</param>
+        /// <param name="dy">Normalized vertical pointer delta on the stream screen.</param>
+        public static FrameLayout MoveCropWindow(FrameLayout layout, double dx, double dy)
+        {
+            NormalizedRect p = layout.Placement;
+            NormalizedRect c = layout.Crop;
+            double scaleX = p.Width / c.Width;
+            double scaleY = p.Height / c.Height;
+            bool flip = layout.FlipHorizontal;
+
+            // How far the window can go before leaving the video. A flipped video shows its right edge
+            // on the left, so the limits swap.
+            double minX = -(flip ? 1 - c.Right : c.Left) * scaleX;
+            double maxX = (flip ? c.Left : 1 - c.Right) * scaleX;
+            double minY = -c.Top * scaleY;
+            double maxY = (1 - c.Bottom) * scaleY;
+
+            // How far the frame can go on the stream screen; never forces a move the user did not make.
+            double keepX = layout.AllowOutside ? Math.Min(ReachableFraction, p.Width * 0.5) : p.Width;
+            double keepY = layout.AllowOutside ? Math.Min(ReachableFraction, p.Height * 0.5) : p.Height;
+            minX = Math.Max(minX, Math.Min(0, keepX - p.Right));
+            maxX = Math.Min(maxX, Math.Max(0, 1 - keepX - p.Left));
+            minY = Math.Max(minY, Math.Min(0, keepY - p.Bottom));
+            maxY = Math.Min(maxY, Math.Max(0, 1 - keepY - p.Top));
+
+            double mx = Clamp(dx, minX, maxX);
+            double my = Clamp(dy, minY, maxY);
+            return layout
+                .WithPlacement(p.WithPosition(p.X + mx, p.Y + my))
+                .WithCrop(c.WithPosition(c.X + ((flip ? -mx : mx) / scaleX), c.Y + (my / scaleY)));
+        }
+
         /// <summary>Zoom level of a crop in percent, for display (100% is the whole video).</summary>
         public static double ZoomPercent(NormalizedRect crop)
         {
@@ -331,6 +368,33 @@ namespace VirtualVessel.Core.Geometry
             return layout
                 .WithPlacement(NormalizedRect.FromEdges(pl, pt, pr, pb))
                 .WithCrop(NormalizedRect.FromEdges(cl, ct, cr, cb));
+        }
+
+        /// <summary>
+        /// Where the whole video would be on the stream screen at the frame's current scale: the crop
+        /// extended back to the full video. Used to show what cropping can bring back.
+        /// </summary>
+        public static NormalizedRect VideoPlacement(FrameLayout layout)
+        {
+            NormalizedRect p = layout.Placement;
+            NormalizedRect c = layout.Crop;
+            double scaleX = p.Width / c.Width;
+            double scaleY = p.Height / c.Height;
+
+            // With a horizontal flip, the frame's left edge shows the video's right edge.
+            double hiddenLeft = layout.FlipHorizontal ? 1 - c.Right : c.Left;
+            return new NormalizedRect(p.X - (hiddenLeft * scaleX), p.Y - (c.Top * scaleY), scaleX, scaleY);
+        }
+
+        /// <summary>
+        /// Shows the whole video again: the crop becomes the full video and the frame grows to it, so the
+        /// video keeps its size on the stream screen (UI foundation detailed design 9.4).
+        /// </summary>
+        public static FrameLayout Uncrop(FrameLayout layout)
+        {
+            NormalizedRect placement = VideoPlacement(layout);
+            placement = layout.AllowOutside ? KeepReachable(placement) : KeepInside(placement);
+            return layout.WithPlacement(placement).WithCrop(NormalizedRect.Full);
         }
 
         /// <summary>The largest placement that fits on the stream screen, centered.</summary>

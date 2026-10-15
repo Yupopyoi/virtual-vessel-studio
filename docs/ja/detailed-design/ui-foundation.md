@@ -166,6 +166,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Segmented | `Segmented` | `<vv:Segmented item-keys="settings.dark,settings.light" />` |
 | Key Hint | `KeyHint` | `<vv:KeyHint keys="Ctrl+M" />` |
 | Icon | `Icon` | `<vv:Icon icon="Live" />`（6.6） |
+| Popup Menu | `PopupMenu` | C#から`PopupMenu.Show`で表示（`components.md` 3.23） |
 | Panel | `MediaFrame` | 9章 |
 
 UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。Classは`[UxmlElement]`と`[UxmlAttribute]`（Unity 6）で定義する。
@@ -643,8 +644,10 @@ flowchart LR
 
 - 選択した枠の上でMouse Wheelを回すと、枠の大きさを変えずに中の映像を拡大・縮小する。Pointerの位置を中心に拡大する。
 - 拡大している映像は、中ボタンでドラッグするか、`Space`を押しながらドラッグすると、見る位置を動かせる。
-- 辺を切り取るときは「切り抜きモード」に切り替える。切り替えは、プレビュー左上のモード切り替え、`C`キー、枠のダブルクリック、右クリックMenuのいずれでも行える。
-- 切り抜きモードでは、ハンドルのドラッグでその辺を切り取り、枠の内側のドラッグで見る位置を動かす。`Enter`、`Esc`、もう一度の切り替えで配置モードへ戻る。
+- 辺を切り取るときは「切り抜きモード」に切り替える。切り替えは、プレビュー左上のモード切り替え、`C`キー、枠のダブルクリック、右クリックMenuのいずれでも行える。切り抜き中にダブルクリックすると配置モードに戻る（入り方と戻り方をそろえる）。ダブルクリックは、同じ枠の上を0.5秒以内・6px以内で2回押したときとする（`FrameCanvasMath.IsDoubleClick`）。OSのクリック回数は、モード切り替えなど別の場所を押した直後の1回も数えるため使わない。
+- 切り抜きモードでは、切り抜き中の枠が手前の枠より優先され、薄く表示した映像全体の上を押しても切り抜きモードのままとする。意図せず配置モードに戻らないようにするためである（`FrameCanvasMath.CropPressAt`）。
+- 切り抜きモードでは、ハンドルのドラッグでその辺を切り取る。枠の内側のドラッグでは、映像は動かさず、切り抜く範囲（枠）を映像の上で動かす（`FrameEditMath.MoveCropWindow`）。`Enter`、`Esc`、もう一度の切り替えで配置モードへ戻る。このとき選択は残す。映像の外を押した場合は、配置モードで外を押したときと同じく選択を外し、切り抜きモードも終える。
+- 別の枠を選ぶと、必ず配置モードに戻る。クリックしたときに、ほかの枠のために選んだモードが続かないようにするためである。
 - 切り抜きの範囲は映像の外へ出ない。
 
 `Alt`は中心を固定した拡大縮小だけに使う。当初は`Alt`+辺のドラッグを切り抜きにも割り当てていたが、操作がぶつかるため、サンドボックスでの確認を経てモード切り替えに変更した。モードは常に画面上に表示し、ダブルクリックだけに頼らない。
@@ -676,11 +679,12 @@ flowchart LR
 | 中央に配置 | 配信画面の中央へ移動する |
 | 切り抜きモード | 配置モードと切り抜きモードを切り替える |
 | 切り抜きを元に戻す | `Crop`を映像全体に戻す。映像の画面上の大きさは保ち、枠を映像全体まで広げる |
-| 最前面へ／最背面へ | `Order`を変える |
+| 一つ前へ／一つ後ろへ | すぐ手前（奥）の枠と順番を入れ替える |
+| 最前面へ／最背面へ | いちばん手前（奥）に移す |
 
 Menuの各項目にもTooltipとショートカットを表示する。
 
-主なショートカットは次のとおりとする。`H`（左右反転）、`L`（ロック）、`O`（はみ出し許可）、`C`（切り抜きモード）、`R`（切り抜きを元に戻す）、`Shift+1`（画面に合わせる）、`Shift+2`（画面いっぱいに広げる）、`Shift+C`（中央に配置）、`]`（最前面へ）、`[`（最背面へ）、`F`（プレビューの全画面）。
+主なショートカットは次のとおりとする。`H`（左右反転）、`L`（ロック）、`O`（はみ出し許可）、`C`（切り抜きモード）、`R`（切り抜きを元に戻す）、`Shift+1`（画面に合わせる）、`Shift+2`（画面いっぱいに広げる）、`Shift+C`（中央に配置）、`]`（一つ前へ）、`[`（一つ後ろへ）、`Shift+]`（最前面へ）、`Shift+[`（最背面へ）、`F`（プレビューの全画面）。
 
 ### 9.5 確定とRuntime Stateの関係
 
@@ -717,6 +721,8 @@ UIとStageの間は`IFrameSource`（UI Module）でつなぐ。Stageが映像ご
 public interface IFrameSource
 {
     string Id { get; }
+    double SourceAspect { get; }                       // 映像全体の縦横比（画面に合わせる等で使う）
+    Texture Video { get; }                             // 切り抜き中に映像全体を薄く表示するため。nullなら枠だけ
     IReadOnlyObservable<FrameLayout> Layout { get; }   // 確定した配置（Runtime State）
     void PreviewLayout(FrameLayout layout);            // LayoutChanging：ドラッグの各段階
     Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
@@ -738,6 +744,26 @@ public interface IFrameSource
 - 矢印キーの連続入力は、各段階を`PreviewLayout`で表示し、キーを離したとき（またはFocusが外れたとき）に1回だけ確定する。
 - `Tab`は手前の枠から順に選択する。最後の枠の次は選択を外してFocusをCanvasの外へ移す。キーボードを閉じ込めないためである。キーボードでCanvasに入ったときは、最も手前の枠を選択する。
 - `Esc`はドラッグ中なら操作を取り消し（`PreviewLayout`で元の配置に戻す）、それ以外は選択を外す。
+
+**切り抜き**
+
+- 切り抜きモードは選択中の枠に対する状態で、`FrameCanvas.CropMode`で持つ。選択が変わるか、ロックすると配置モードに戻る。
+- 切り抜きモードでは、映像全体の位置（`FrameEditMath.VideoPlacement`）に映像を薄く表示する。`IFrameSource.Video`がない場合は枠だけを表示する。拡大した映像は配信画面より大きくなるため、配信画面の範囲だけを表示し、ほかの画面を覆わない。
+- 連続したMouse Wheelの操作は、各段階を`PreviewLayout`で表示し、0.4秒止まったときに1回だけ確定する。拡大の中心は`FrameCanvasMath.CropPivot`で求め、左右反転した枠では左右を入れ替える。
+- 「切り抜きを元に戻す」は`FrameEditMath.Uncrop`で、映像の画面上の大きさを保ったまま枠を映像全体に広げる。
+
+**元に戻す**
+
+- `FrameHistory`が、編集前と編集後の`FrameLayout`を記録する（最大100件）。重ね順の変更のように、1回の操作で複数の枠が変わる場合は、まとめて1件とする。元に戻すとやり直しは、記録した配置を確定として`IFrameSource`に送る。
+- 配置編集の画面がPanelから外れたときに記録を消す。
+
+**右クリックMenuとショートカット**
+
+- Menuは共通部品の`PopupMenu`（`components.md` 3.23）で表示する。
+- Menuの各項目とショートカットは、同じ`FrameAction`を実行する。キーと`FrameAction`の対応は`FrameCanvasMath.ActionFor`（純粋関数）で決める。`[`と`]`はキーボードの配列によって位置が違うため、キーの位置ではなく入力された文字で判定する。
+- 配置の変化は`FrameCommands`（純粋関数）で計算する。重ね順の変更（`FrameCommands.Restack`）は、手前からの並びの中で枠を動かし、奥から順に`Order`を0から振り直す。重なり順の一覧（9.7）の並べ替えも同じ考え方とする。
+- ロック中の枠で使えるのは、ロックの解除と左右反転だけとする（`FrameCanvasMath.AllowedWhenLocked`）。
+- はみ出しの許可を外すと、画面の外にある枠を画面内に戻す。
 
 **カーソル**
 
@@ -823,6 +849,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | PlayMode | Tooltipの表示までの時間、無効な理由の表示、部品のたどり方 |
 | EditMode | `FrameCanvasMath`の当たり判定、カーソルの形、位置と大きさの文字、Tabの順序、カーソルの画像（9.8） |
 | PlayMode | `FrameCanvas`のドラッグ（移動、拡大縮小、Shift、吸着、Ctrl）、拒否された確定、ロック、矢印キー、Esc、Tab（9.8） |
+| EditMode | `FrameHistory`、`FrameCommands`、ショートカットの対応、切り抜きの表示と中心、`PopupMenu`の位置、`FrameEditMath.Uncrop`（9.8） |
+| PlayMode | 切り抜きモードの切り替え、辺の切り取り、Wheelの拡大と確定のまとめ方、中ボタンでの移動、元に戻す・やり直す、右クリックMenu、ロック中のMenu、ショートカット（9.8） |
 | PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
 | PlayMode | Notificationの自動消去、Errorが残ること、数の上限と待ち行列、優先度、待ち件数の表示、隅ごとの並び順、`ShowFailure` |
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
@@ -853,9 +881,9 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          共通Component、UiServices、KeyedText、FocusRing、ReducedMotion   VirtualVessel.UI.Controls
+   │  ├─ Controls/          共通Component（PopupMenuを含む）、UiServices、KeyedText、FocusRing、ReducedMotion、Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
-   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, CursorService   VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs

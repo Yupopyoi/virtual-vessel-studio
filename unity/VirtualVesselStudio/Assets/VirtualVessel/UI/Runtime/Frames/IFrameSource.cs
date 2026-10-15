@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 using VirtualVessel.Core.Geometry;
 using VirtualVessel.Core.State;
 
@@ -14,6 +15,15 @@ namespace VirtualVessel.UI.Frames
     {
         /// <summary>A stable identifier, such as the capture source's id.</summary>
         string Id { get; }
+
+        /// <summary>Width / height of the whole video in pixels, for fitting it to the screen.</summary>
+        double SourceAspect { get; }
+
+        /// <summary>
+        /// The video, if the editor may show it: in crop mode it is drawn faintly at full size so that
+        /// it is clear what can be brought back. Null shows only an outline there.
+        /// </summary>
+        Texture Video { get; }
 
         /// <summary>The confirmed layout (runtime state). The editor shows it whenever no edit is pending.</summary>
         IReadOnlyObservable<FrameLayout> Layout { get; }

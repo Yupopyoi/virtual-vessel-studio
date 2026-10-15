@@ -166,6 +166,7 @@ Each part in `components.md` is implemented as a class derived from `VisualEleme
 | Segmented | `Segmented` | `<vv:Segmented item-keys="settings.dark,settings.light" />` |
 | Key Hint | `KeyHint` | `<vv:KeyHint keys="Ctrl+M" />` |
 | Icon | `Icon` | `<vv:Icon icon="Live" />` (6.6) |
+| Popup Menu | `PopupMenu` | Shown from C# with `PopupMenu.Show` (`components.md` 3.23) |
 | Panel | `MediaFrame` | Chapter 9 |
 
 The UXML namespace is `VirtualVessel.UI.Controls` with the prefix `vv`. Classes are defined with `[UxmlElement]` and `[UxmlAttribute]` (Unity 6).
@@ -643,8 +644,10 @@ flowchart LR
 
 - Turning the mouse wheel over a selected frame zooms the video inside without changing the frame size, centered on the pointer.
 - A zoomed video can be panned by dragging with the middle button, or by dragging while holding `Space`.
-- To crop edges, switch to "crop mode". It can be switched with the mode switch at the top left of the preview, the `C` key, a double-click on the frame, or the right-click menu.
-- In crop mode, dragging a handle crops that edge and dragging inside the frame pans. `Enter`, `Esc`, or switching again returns to layout mode.
+- To crop edges, switch to "crop mode". It can be switched with the mode switch at the top left of the preview, the `C` key, a double-click on the frame, or the right-click menu. A double-click while cropping returns to layout mode, the same way it entered. A double-click is two presses on the same frame within 0.5 seconds and 6px (`FrameCanvasMath.IsDoubleClick`). The platform click count is not used, because it also counts a single press right after a press elsewhere, such as on the mode switch.
+- In crop mode the frame being cropped wins over frames in front of it, and a press on its faint whole video keeps crop mode, so the mode never changes back by surprise (`FrameCanvasMath.CropPressAt`).
+- In crop mode, dragging a handle crops that edge. Dragging inside the frame leaves the video still and moves the crop window (the frame) over it (`FrameEditMath.MoveCropWindow`). `Enter`, `Esc`, or switching again returns to layout mode and keeps the selection. A press outside the video clears the selection and so ends crop mode, the same as a press outside in layout mode.
+- Selecting another frame always returns to layout mode, so a click never lands in a mode that was chosen for a different frame.
 - The crop range never goes outside the video.
 
 `Alt` is used only for resizing around the fixed center. `Alt` + edge drag was first assigned to cropping as well, but the two conflicted, so after review in the sandbox it was replaced by the mode switch. The mode is always shown on screen and does not rely on double-click alone.
@@ -676,11 +679,12 @@ flowchart LR
 | Center | Moves to the center of the stream screen |
 | Crop mode | Switches between layout mode and crop mode |
 | Reset crop | Returns `Crop` to the whole video. The video keeps its on-screen scale and the frame grows to the whole video |
-| Bring to front / Send to back | Changes `Order` |
+| Bring forward / Send backward | Swaps places with the frame just in front (behind) |
+| Bring to front / Send to back | Moves it all the way to the front (back) |
 
 Each menu item also shows a tooltip and its shortcut.
 
-The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring to front), `[` (send to back), and `F` (full-screen preview).
+The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring forward), `[` (send backward), `Shift+]` (bring to front), `Shift+[` (send to back), and `F` (full-screen preview).
 
 ### 9.5 Commit and Runtime State
 
@@ -717,6 +721,8 @@ The UI and Stage are connected through `IFrameSource` (UI module), which Stage i
 public interface IFrameSource
 {
     string Id { get; }
+    double SourceAspect { get; }                       // aspect ratio of the whole video (for fitting)
+    Texture Video { get; }                             // to show the whole video faintly while cropping; null shows an outline
     IReadOnlyObservable<FrameLayout> Layout { get; }   // the confirmed layout (runtime state)
     void PreviewLayout(FrameLayout layout);            // LayoutChanging: each step of a drag
     Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
@@ -738,6 +744,26 @@ public interface IFrameSource
 - Repeated arrow keys preview each step with `PreviewLayout` and commit once, when the key is released (or focus leaves).
 - `Tab` selects the frames from front to back. After the last frame it clears the selection and lets focus leave the canvas, so keyboard users are not trapped. Entering the canvas from the keyboard selects the frontmost frame.
 - `Esc` cancels a drag in progress (returning the preview to the original layout with `PreviewLayout`); otherwise it clears the selection.
+
+**Cropping**
+
+- Crop mode is a state of the selected frame, held in `FrameCanvas.CropMode`. A change of selection or locking the frame returns to placement mode.
+- In crop mode the video is shown faintly where the whole video would be (`FrameEditMath.VideoPlacement`). Without `IFrameSource.Video`, only an outline is shown there. A zoomed video can be larger than the stream screen, so only the part on the stream screen is shown, never covering the rest of the UI.
+- A burst of mouse-wheel steps previews each step with `PreviewLayout` and commits once when the wheel has been still for 0.4 seconds. `FrameCanvasMath.CropPivot` gives the zoom center, mirrored for a flipped frame.
+- "Reset crop" uses `FrameEditMath.Uncrop`: the frame grows to the whole video while the video keeps its size on the stream screen.
+
+**Undo**
+
+- `FrameHistory` records the `FrameLayout` before and after an edit (up to 100 edits). When one action changes several frames, as a stacking change does, they are recorded together as one edit. Undo and redo send the recorded layout to `IFrameSource` as a commit.
+- The history is cleared when the placement editor leaves its panel.
+
+**Right-click menu and shortcuts**
+
+- The menu is the shared `PopupMenu` part (`components.md` 3.23).
+- Each menu item and its shortcut run the same `FrameAction`. `FrameCanvasMath.ActionFor` (a pure function) maps keys to actions. `[` and `]` are read from the typed character rather than the key position, because their position differs between keyboard layouts.
+- `FrameCommands` (pure functions) computes the layout changes. A stacking change (`FrameCommands.Restack`) moves the frame within the front-to-back order and renumbers `Order` from 0 at the back. Reordering in the layer list (9.7) follows the same idea.
+- A locked frame accepts only unlocking and flipping (`FrameCanvasMath.AllowedWhenLocked`).
+- Turning off "allow going off screen" brings a frame that is outside back onto the stream screen.
 
 **Cursor**
 
@@ -823,6 +849,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | PlayMode | Tooltip delay, disabled reasons, finding the part with the tooltip |
 | EditMode | `FrameCanvasMath` hit testing, cursor shapes, position and size text, Tab order, cursor images (9.8) |
 | PlayMode | `FrameCanvas` drags (move, resize, Shift, snapping, Ctrl), rejected commits, locking, arrow keys, Esc, Tab (9.8) |
+| EditMode | `FrameHistory`, `FrameCommands`, shortcut mapping, crop readout and pivot, `PopupMenu` placement, `FrameEditMath.Uncrop` (9.8) |
+| PlayMode | Switching crop mode, cutting an edge, wheel zoom committed as one edit, panning with the middle button, undo and redo, the right-click menu, the menu on a locked frame, shortcuts (9.8) |
 | PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
 | PlayMode | Notices hide on time, errors stay, the count limit and the queue, priority, the waiting count, order per corner, `ShowFailure` |
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
@@ -853,9 +881,9 @@ Assets/VirtualVessel/
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
    │  ├─ UiRoot.cs, UiAssets.cs
-   │  ├─ Controls/          shared components, UiServices, KeyedText, FocusRing, ReducedMotion   VirtualVessel.UI.Controls
+   │  ├─ Controls/          shared components (including PopupMenu), UiServices, KeyedText, FocusRing, ReducedMotion, Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
-   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, CursorService   VirtualVessel.UI.Frames
+   │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs

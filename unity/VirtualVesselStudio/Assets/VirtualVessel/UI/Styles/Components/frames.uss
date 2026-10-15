@@ -109,3 +109,58 @@
 .vv-frame-canvas__readout--below {
     margin-top: 8px;
 }
+
+/* Crop mode (components.md 3.19): Secondary outline, square corners, and bars along the edges. */
+.vv-media-frame--crop > .vv-media-frame__outline {
+    border-color: var(--vv-color-secondary);
+}
+
+.vv-media-frame--crop > .vv-media-frame__handle {
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    margin-top: -6px;
+    border-width: 0;
+    border-radius: 2px;
+    background-color: var(--vv-color-secondary);
+}
+
+.vv-media-frame--crop > .vv-media-frame__handle--horizontal {
+    width: 26px;
+    height: 6px;
+    margin-left: -13px;
+    margin-top: -3px;
+}
+
+.vv-media-frame--crop > .vv-media-frame__handle--vertical {
+    width: 6px;
+    height: 26px;
+    margin-left: -3px;
+    margin-top: -13px;
+}
+
+/* The whole video, faint, so it is clear how much cropping can bring back. */
+.vv-frame-canvas__ghost {
+    opacity: 0.28;
+    border-width: 1px;
+    border-color: var(--vv-color-secondary);
+}
+
+/* The mode switch at the top left of the stream screen. */
+.vv-frame-canvas__mode {
+    left: 12px;
+    top: 10px;
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 4px 4px 10px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-control);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-frame-canvas__mode-label {
+    margin: 0 8px 0 0;
+    padding: 0;
+    color: var(--vv-color-text-2);
+}

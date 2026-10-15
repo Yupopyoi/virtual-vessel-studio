@@ -11,10 +11,10 @@ using VirtualVessel.UI.Controls;
 namespace VirtualVessel.UI.Frames
 {
     /// <summary>
-    /// A transparent layer over the stream preview for editing where videos are placed (UI foundation
-    /// detailed design 9). It turns pointer and key input into <see cref="FrameEditMath"/> calls, shows
-    /// each step through <see cref="IFrameSource.PreviewLayout"/>, and commits when a drag or key press
-    /// ends.
+    /// A transparent layer over the stream preview for editing where videos are placed and which part of
+    /// them is shown (UI foundation detailed design 9). It turns pointer and key input into
+    /// <see cref="FrameEditMath"/> calls, shows each step through <see cref="IFrameSource.PreviewLayout"/>,
+    /// and commits when a drag, key press, or burst of wheel steps ends.
     /// </summary>
     /// <remarks>
     /// Put it inside the element that shows the stream screen; the layer spans that element and reaches
@@ -32,6 +32,10 @@ namespace VirtualVessel.UI.Frames
 
         public const string ReadoutClass = UssClass + "__readout";
 
+        public const string GhostClass = UssClass + "__ghost";
+
+        public const string ModeSwitchClass = UssClass + "__mode";
+
         /// <summary>A handle can be grabbed this many pixels from its center: a 24px target (components.md 2).</summary>
         public const float HandleRadius = 12f;
 
@@ -41,16 +45,31 @@ namespace VirtualVessel.UI.Frames
         /// <summary>How long the readout stays after an edit ends, in milliseconds.</summary>
         private const long ReadoutLinger = 700;
 
+        /// <summary>Wheel steps closer together than this, in milliseconds, are one edit.</summary>
+        private const long WheelBurst = 400;
+
         private readonly VisualElement _stream;
+        private readonly Image _ghost;
         private readonly VisualElement _guideX;
         private readonly VisualElement _guideY;
         private readonly Label _readout;
+        private readonly VisualElement _modeSwitch;
+        private readonly Segmented _mode;
         private readonly List<MediaFrame> _frames = new List<MediaFrame>();
+        private readonly FrameHistory _history = new FrameHistory();
         private MediaFrame _selected;
+        private bool _cropMode;
+        private bool _spaceDown;
         private Gesture _gesture;
-        private MediaFrame _nudged;
-        private int _nudgeVersion;
+        private Burst _nudge;
+        private Burst _wheel;
         private IVisualElementScheduledItem _hideReadout;
+        private PopupMenu _menu;
+
+        // The last left press on a frame, for telling a double-click on the same frame.
+        private MediaFrame _lastPressFrame;
+        private long _lastPressTime;
+        private Vector2 _lastPressPosition;
 
         public FrameCanvas()
         {
@@ -67,6 +86,19 @@ namespace VirtualVessel.UI.Frames
             _stream.AddToClassList(StreamClass);
             Inset(_stream, HandleRadius);
             Add(_stream);
+
+            // Behind the frames: the whole video, faint, while cropping. A zoomed video can be many times
+            // the screen, so it is clipped to the stream screen instead of covering the rest of the UI.
+            var ghostClip = new VisualElement { pickingMode = PickingMode.Ignore };
+            Inset(ghostClip, 0);
+            ghostClip.style.overflow = Overflow.Hidden;
+            _ghost = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
+            _ghost.AddToClassList(GhostClass);
+            _ghost.style.position = Position.Absolute;
+            _ghost.style.display = DisplayStyle.None;
+            ghostClip.Add(_ghost);
+            _stream.Add(ghostClip);
+
             _guideX = Guide(vertical: true);
             _guideY = Guide(vertical: false);
             _readout = QuietText.Of(new Label { pickingMode = PickingMode.Ignore });
@@ -74,6 +106,21 @@ namespace VirtualVessel.UI.Frames
             _readout.AddToClassList("vv-text-mono");
             _readout.style.display = DisplayStyle.None;
             _stream.Add(_readout);
+
+            // The current mode is always visible and switchable, not only by double-click (9.3).
+            _modeSwitch = new VisualElement();
+            _modeSwitch.AddToClassList(ModeSwitchClass);
+            _modeSwitch.style.position = Position.Absolute;
+            Label modeLabel = QuietText.Of(new Label { pickingMode = PickingMode.Ignore });
+            modeLabel.AddToClassList(ModeSwitchClass + "-label");
+            modeLabel.AddToClassList("vv-text-caption");
+            new KeyedText(modeLabel, text => modeLabel.text = text) { Key = FrameStrings.Mode };
+            _modeSwitch.Add(modeLabel);
+            _mode = new Segmented(FrameStrings.ModePlace, FrameStrings.ModeCrop) { TooltipKey = FrameStrings.ModeTip };
+            _mode.RegisterValueChangedCallback(evt => SetCropMode(evt.newValue == 1));
+            _modeSwitch.Add(_mode);
+            _modeSwitch.style.display = DisplayStyle.None;
+            _stream.Add(_modeSwitch);
 
             RegisterCallback<PointerDownEvent>(OnPointerDown);
             RegisterCallback<PointerMoveEvent>(OnPointerMove);
@@ -86,16 +133,25 @@ namespace VirtualVessel.UI.Frames
                     CursorService.Reset();
                 }
             });
+            RegisterCallback<WheelEvent>(OnWheel);
             RegisterCallback<KeyDownEvent>(OnKeyDown);
             RegisterCallback<KeyUpEvent>(OnKeyUp);
             RegisterCallback<NavigationMoveEvent>(OnNavigationMove);
             RegisterCallback<FocusInEvent>(OnFocusIn);
-            RegisterCallback<FocusOutEvent>(_ => CommitNudge());
+            RegisterCallback<FocusOutEvent>(_ =>
+            {
+                _spaceDown = false;
+                CommitBursts();
+            });
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 EndGesture(-1, commit: true);
-                CommitNudge();
+                CommitBursts();
+                _menu?.Close();
                 CursorService.Reset();
+
+                // The history lives only while the editor is open (9.3).
+                _history.Clear();
             });
         }
 
@@ -106,12 +162,22 @@ namespace VirtualVessel.UI.Frames
 
         public IFrameSource Selected => _selected?.Source;
 
+        /// <summary>Crop mode: handles cut the edges and dragging inside moves the window over the video (9.3).</summary>
+        public bool CropMode => _cropMode;
+
+        public FrameHistory History => _history;
+
+        /// <summary>The open frame menu, or null.</summary>
+        public PopupMenu Menu => _menu != null && _menu.IsOpen ? _menu : null;
+
         /// <summary>Whether the readout of position and size is on screen.</summary>
         public bool ReadoutVisible => _readout.style.display == DisplayStyle.Flex;
 
         public string ReadoutText => _readout.text;
 
         public event Action<IFrameSource> SelectionChanged;
+
+        public event Action<bool> CropModeChanged;
 
         /// <summary>The videos to edit. Frames that are no longer listed are removed with their selection.</summary>
         public void SetSources(IEnumerable<IFrameSource> sources)
@@ -122,7 +188,7 @@ namespace VirtualVessel.UI.Frames
             }
 
             EndGesture(-1, commit: true);
-            CommitNudge();
+            CommitBursts();
             IFrameSource selected = Selected;
             foreach (MediaFrame frame in _frames)
             {
@@ -134,8 +200,15 @@ namespace VirtualVessel.UI.Frames
             foreach (IFrameSource source in sources)
             {
                 var frame = new MediaFrame(source);
+                frame.ShownChanged += () =>
+                {
+                    if (frame == _selected)
+                    {
+                        RefreshSelectionParts();
+                    }
+                };
                 _frames.Add(frame);
-                _stream.Insert(_stream.IndexOf(_readout), frame);
+                _stream.Insert(_stream.IndexOf(_guideX), frame);
             }
 
             MediaFrame keep = _frames.Find(f => f.Source == selected);
@@ -150,10 +223,11 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
-            CommitNudge();
+            CommitBursts();
             if (_selected != null)
             {
                 _selected.Selected = false;
+                _selected.CropMode = false;
                 _selected.HoverHandle = null;
             }
 
@@ -166,7 +240,29 @@ namespace VirtualVessel.UI.Frames
                 frame.PlaceBehind(_guideX);
             }
 
+            // A newly selected frame always starts in placement mode, so a click never lands in a mode
+            // that was chosen for another frame.
+            SetCropMode(false);
+
+            RefreshSelectionParts();
             SelectionChanged?.Invoke(Selected);
+        }
+
+        /// <summary>Switches between placement and crop mode for the selected frame.</summary>
+        public void SetCropMode(bool crop)
+        {
+            crop = crop && _selected != null && !_selected.Shown.Locked;
+            if (crop == _cropMode)
+            {
+                _mode.SetValueWithoutNotify(crop ? 1 : 0);
+                return;
+            }
+
+            CommitBursts();
+            _cropMode = crop;
+            _mode.SetValueWithoutNotify(crop ? 1 : 0);
+            RefreshSelectionParts();
+            CropModeChanged?.Invoke(crop);
         }
 
         private static void Inset(VisualElement element, float inset)
@@ -183,9 +279,33 @@ namespace VirtualVessel.UI.Frames
             var guide = new VisualElement { pickingMode = PickingMode.Ignore };
             guide.AddToClassList(GuideClass);
             guide.AddToClassList(GuideClass + (vertical ? "--x" : "--y"));
+            guide.style.position = Position.Absolute;
             guide.style.display = DisplayStyle.None;
             _stream.Add(guide);
             return guide;
+        }
+
+        /// <summary>The mode switch, the crop look, and the faint whole video follow the selection.</summary>
+        private void RefreshSelectionParts()
+        {
+            bool editable = _selected != null && !_selected.Shown.Locked;
+            _modeSwitch.style.display = editable ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_selected != null)
+            {
+                _selected.CropMode = _cropMode;
+            }
+
+            if (!_cropMode || _selected == null)
+            {
+                _ghost.style.display = DisplayStyle.None;
+                return;
+            }
+
+            FrameLayout shown = _selected.Shown;
+            MediaFrame.Place(_ghost, FrameEditMath.VideoPlacement(shown));
+            _ghost.image = _selected.Source.Video;
+            _ghost.style.scale = new Scale(new Vector3(shown.FlipHorizontal ? -1 : 1, 1, 1));
+            _ghost.style.display = DisplayStyle.Flex;
         }
 
         private List<FrameLayout> ShownLayouts()
@@ -197,6 +317,17 @@ namespace VirtualVessel.UI.Frames
             }
 
             return layouts;
+        }
+
+        private IEnumerable<FrameLayout> OtherLayouts(MediaFrame except)
+        {
+            foreach (MediaFrame frame in _frames)
+            {
+                if (frame != except)
+                {
+                    yield return frame.Shown;
+                }
+            }
         }
 
         private Vector2 StreamPixels(Vector2 panelPosition)
@@ -230,29 +361,117 @@ namespace VirtualVessel.UI.Frames
             return index < 0 ? null : _frames[index];
         }
 
+        /// <summary>
+        /// The frame a press acts on. In crop mode the frame being cropped wins over frames in front of
+        /// it; <paramref name="onVideo"/> tells a press on its faint whole video, outside the window.
+        /// </summary>
+        private MediaFrame PressTarget(Vector2 panelPosition, out bool onVideo)
+        {
+            onVideo = false;
+            if (_cropMode && _selected != null)
+            {
+                Vector2 p = StreamPixels(panelPosition);
+                Vector2 size = StreamSize();
+                CropPress press = FrameCanvasMath.CropPressAt(_selected.Shown, p.x / size.x, p.y / size.y);
+                if (press != CropPress.Outside)
+                {
+                    onVideo = press == CropPress.Video;
+                    return _selected;
+                }
+            }
+
+            return FrameUnder(panelPosition);
+        }
+
         // ------------------------------------------------------------------ Pointer
 
         private void OnPointerDown(PointerDownEvent evt)
         {
-            if (evt.button != 0)
+            // The mode switch handles its own clicks; a press there also ends any double-click.
+            if (evt.target != this)
             {
+                _lastPressFrame = null;
                 return;
             }
 
             Focus();
-            CommitNudge();
-            FrameHandle? handle = HandleUnder(evt.position);
-            if (handle.HasValue)
+            CommitBursts();
+            MediaFrame hit = PressTarget(evt.position, out bool onVideo);
+            if (evt.button == 1)
             {
-                Begin(evt, GestureKind.Resize, _selected, handle.Value);
+                if (hit != null)
+                {
+                    Select(hit.Source);
+                    ShowMenu(evt.position);
+                }
+
+                evt.StopPropagation();
                 return;
             }
 
-            MediaFrame hit = FrameUnder(evt.position);
-            Select(hit?.Source);
-            if (hit != null && !hit.Shown.Locked)
+            if (evt.button == 2)
             {
-                Begin(evt, GestureKind.Move, hit, FrameHandle.TopLeft);
+                // The middle button pans a zoomed video in either mode.
+                if (hit != null)
+                {
+                    Select(hit.Source);
+                    if (!hit.Shown.Locked)
+                    {
+                        Begin(evt, GestureKind.Pan, hit, FrameHandle.TopLeft);
+                    }
+                }
+
+                return;
+            }
+
+            if (evt.button != 0)
+            {
+                _lastPressFrame = null;
+                return;
+            }
+
+            // A double-click is two presses on the same frame, close in time and place. The platform's
+            // click count is not used: it also counts a press elsewhere, such as on the mode switch,
+            // and a click right after it would switch modes by surprise.
+            bool doubleClick = hit != null && hit == _lastPressFrame
+                && FrameCanvasMath.IsDoubleClick(_lastPressTime, _lastPressPosition, evt.timestamp, evt.position);
+            _lastPressFrame = doubleClick ? null : hit;
+            _lastPressTime = evt.timestamp;
+            _lastPressPosition = evt.position;
+
+            FrameHandle? handle = !doubleClick && !_spaceDown ? HandleUnder(evt.position) : null;
+            if (handle.HasValue)
+            {
+                Begin(evt, _cropMode ? GestureKind.Crop : GestureKind.Resize, _selected, handle.Value);
+                return;
+            }
+
+            if (onVideo)
+            {
+                // The faint whole video around the crop window: stay in crop mode, change nothing.
+                return;
+            }
+
+            if (hit == null)
+            {
+                // Clicking outside clears the selection, which also ends crop mode: one click, the same
+                // result in either mode. Enter and Esc end crop mode but keep the selection.
+                Select(null);
+                return;
+            }
+
+            Select(hit.Source);
+            if (doubleClick)
+            {
+                // Double-click enters crop mode, and leaves it the same way.
+                SetCropMode(!_cropMode);
+                return;
+            }
+
+            if (!hit.Shown.Locked)
+            {
+                GestureKind kind = _spaceDown ? GestureKind.Pan : _cropMode ? GestureKind.CropWindow : GestureKind.Move;
+                Begin(evt, kind, hit, FrameHandle.TopLeft);
             }
         }
 
@@ -260,7 +479,7 @@ namespace VirtualVessel.UI.Frames
         {
             _gesture = new Gesture(kind, frame, handle, evt.position, frame.Shown);
             this.CapturePointer(evt.pointerId);
-            ShowReadout(frame.Shown.Placement);
+            ShowReadout(frame.Shown, IsCropGesture(kind));
             evt.StopPropagation();
         }
 
@@ -268,13 +487,26 @@ namespace VirtualVessel.UI.Frames
         {
             if (_gesture == null)
             {
+                if (evt.target != this)
+                {
+                    CursorService.Reset();
+                    return;
+                }
+
                 FrameHandle? handle = HandleUnder(evt.position);
                 if (_selected != null)
                 {
                     _selected.HoverHandle = handle;
                 }
 
-                MediaFrame hit = handle.HasValue ? _selected : FrameUnder(evt.position);
+                MediaFrame hit = _selected;
+                if (!handle.HasValue)
+                {
+                    // Over the faint whole video in crop mode there is nothing to grab.
+                    hit = PressTarget(evt.position, out bool onVideo);
+                    hit = onVideo ? null : hit;
+                }
+
                 CursorService.Set(FrameCanvasMath.CursorFor(handle, hit != null, hit != null && hit.Shown.Locked));
                 return;
             }
@@ -282,31 +514,58 @@ namespace VirtualVessel.UI.Frames
             Vector2 size = StreamSize();
             Vector2 start = StreamPixels(_gesture.StartPointer);
             Vector2 now = StreamPixels(evt.position);
-            double dx = (now.x - start.x) / size.x;
-            double dy = (now.y - start.y) / size.y;
-            bool snapOff = evt.ctrlKey || evt.commandKey;
-            SnapLines snap = snapOff ? SnapLines.None : FrameEditMath.CreateSnapLines(OtherPlacements(_gesture.Frame), SnapDistance / size.x, SnapDistance / size.y);
+            float dxPixels = now.x - start.x;
+            float dyPixels = now.y - start.y;
+            double dx = dxPixels / size.x;
+            double dy = dyPixels / size.y;
             FrameLayout s = _gesture.Start;
-            FrameEditResult result = _gesture.Kind == GestureKind.Move
-                ? FrameEditMath.MoveWithSnap(s.Placement, dx, dy, s.AllowOutside, snap)
-                : FrameEditMath.Resize(s.Placement, _gesture.Handle, dx, dy, new ResizeOptions(keepAspect: !evt.shiftKey, fromCenter: evt.altKey), OutputSize, s.AllowOutside, snap);
+            FrameLayout next;
+            double? guideX = null;
+            double? guideY = null;
+            switch (_gesture.Kind)
+            {
+                case GestureKind.Move:
+                case GestureKind.Resize:
+                    bool snapOff = evt.ctrlKey || evt.commandKey;
+                    SnapLines snap = snapOff ? SnapLines.None : FrameEditMath.CreateSnapLines(OtherPlacements(_gesture.Frame), SnapDistance / size.x, SnapDistance / size.y);
+                    FrameEditResult result = _gesture.Kind == GestureKind.Move
+                        ? FrameEditMath.MoveWithSnap(s.Placement, dx, dy, s.AllowOutside, snap)
+                        : FrameEditMath.Resize(s.Placement, _gesture.Handle, dx, dy, new ResizeOptions(keepAspect: !evt.shiftKey, fromCenter: evt.altKey), OutputSize, s.AllowOutside, snap);
+                    next = s.WithPlacement(result.Rect);
+                    guideX = result.GuideX;
+                    guideY = result.GuideY;
+                    break;
+                case GestureKind.Crop:
+                    next = FrameEditMath.CropEdge(s, _gesture.Handle, dx, dy);
+                    break;
+                case GestureKind.CropWindow:
+                    next = FrameEditMath.MoveCropWindow(s, dx, dy);
+                    break;
+                default:
+                    // Pan: the drag as a fraction of the frame, mirrored for a flipped frame.
+                    double fx = dxPixels / Math.Max(1, s.Placement.Width * size.x);
+                    double fy = dyPixels / Math.Max(1, s.Placement.Height * size.y);
+                    next = s.WithCrop(FrameEditMath.PanCrop(s.Crop, s.FlipHorizontal ? -fx : fx, fy));
+                    break;
+            }
 
-            FrameLayout next = s.WithPlacement(result.Rect);
             _gesture.Last = next;
             _gesture.Version = _gesture.Frame.ShowPending(next);
             _gesture.Frame.Source.PreviewLayout(next);
-            SetGuides(result.GuideX, result.GuideY);
-            ShowReadout(next.Placement);
+            SetGuides(guideX, guideY);
+            ShowReadout(next, IsCropGesture(_gesture.Kind));
+        }
+
+        private static bool IsCropGesture(GestureKind kind)
+        {
+            return kind == GestureKind.Crop || kind == GestureKind.CropWindow || kind == GestureKind.Pan;
         }
 
         private IEnumerable<NormalizedRect> OtherPlacements(MediaFrame except)
         {
-            foreach (MediaFrame frame in _frames)
+            foreach (FrameLayout layout in OtherLayouts(except))
             {
-                if (frame != except)
-                {
-                    yield return frame.Shown.Placement;
-                }
+                yield return layout.Placement;
             }
         }
 
@@ -334,13 +593,53 @@ namespace VirtualVessel.UI.Frames
 
             if (commit)
             {
-                Commit(gesture.Frame, gesture.Last.Value);
+                Commit(gesture.Frame, gesture.Start, gesture.Last.Value, record: true);
             }
             else
             {
                 gesture.Frame.Source.PreviewLayout(gesture.Start);
                 gesture.Frame.EndPending(gesture.Version);
             }
+        }
+
+        private void OnWheel(WheelEvent evt)
+        {
+            if (evt.target != this)
+            {
+                return;
+            }
+
+            MediaFrame hit = PressTarget(evt.mousePosition, out _);
+            if (hit == null)
+            {
+                return;
+            }
+
+            evt.StopPropagation();
+            Select(hit.Source);
+            if (hit.Shown.Locked)
+            {
+                return;
+            }
+
+            // Wheel steps arrive one by one; a burst of them is previewed step by step and is one edit.
+            if (_wheel != null && _wheel.Frame != hit)
+            {
+                CommitWheel();
+            }
+
+            _wheel ??= new Burst(hit, hit.Shown);
+            FrameLayout shown = hit.Shown;
+            Vector2 p = StreamPixels(evt.mousePosition);
+            Vector2 size = StreamSize();
+            (double px, double py) = FrameCanvasMath.CropPivot(shown.Placement, p.x / size.x, p.y / size.y, shown.FlipHorizontal);
+            FrameLayout next = shown.WithCrop(FrameEditMath.ZoomCrop(shown.Crop, FrameCanvasMath.ZoomFactor(evt.delta.y), px, py));
+            hit.ShowPending(next);
+            hit.Source.PreviewLayout(next);
+            ShowReadout(next, crop: true);
+            HideReadoutLater();
+            _wheel.Timer?.Pause();
+            _wheel.Timer = schedule.Execute(CommitWheel).StartingIn(WheelBurst);
         }
 
         // ------------------------------------------------------------------ Keyboard
@@ -353,6 +652,10 @@ namespace VirtualVessel.UI.Frames
                 {
                     EndGesture(-1, commit: false);
                 }
+                else if (_cropMode)
+                {
+                    SetCropMode(false);
+                }
                 else
                 {
                     Select(null);
@@ -362,8 +665,50 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
+            if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && _cropMode)
+            {
+                SetCropMode(false);
+                evt.StopPropagation();
+                return;
+            }
+
+            if (evt.keyCode == KeyCode.Space)
+            {
+                _spaceDown = true;
+                return;
+            }
+
+            bool ctrl = evt.ctrlKey || evt.commandKey;
+            if (ctrl && (evt.keyCode == KeyCode.Z || evt.keyCode == KeyCode.Y))
+            {
+                if (evt.keyCode == KeyCode.Y || evt.shiftKey)
+                {
+                    Redo();
+                }
+                else
+                {
+                    Undo();
+                }
+
+                evt.StopPropagation();
+                return;
+            }
+
+            FrameAction action = FrameCanvasMath.ActionFor(evt.keyCode, evt.character, evt.shiftKey, ctrl);
+            if (action != FrameAction.None)
+            {
+                if (_selected != null)
+                {
+                    Run(action);
+                    evt.StopPropagation();
+                }
+
+                return;
+            }
+
+            // Arrow keys on the mode switch change the mode instead.
             (int x, int y) = NudgeFor(evt.keyCode, evt.shiftKey);
-            if ((x == 0 && y == 0) || _selected == null || _gesture != null)
+            if ((x == 0 && y == 0) || _selected == null || _gesture != null || evt.target != this)
             {
                 return;
             }
@@ -375,18 +720,27 @@ namespace VirtualVessel.UI.Frames
             }
 
             // Key repeats preview each step; the edit is committed once, when the key is released.
+            if (_nudge != null && _nudge.Frame != _selected)
+            {
+                CommitNudge();
+            }
+
+            _nudge ??= new Burst(_selected, _selected.Shown);
             FrameLayout shown = _selected.Shown;
             FrameLayout next = shown.WithPlacement(FrameEditMath.Nudge(shown.Placement, x, y, OutputSize, shown.AllowOutside));
-            _nudged = _selected;
-            _nudgeVersion = _selected.ShowPending(next);
+            _selected.ShowPending(next);
             _selected.Source.PreviewLayout(next);
-            ShowReadout(next.Placement);
+            ShowReadout(next, crop: false);
             HideReadoutLater();
         }
 
         private void OnKeyUp(KeyUpEvent evt)
         {
-            if (NudgeFor(evt.keyCode, false) != (0, 0))
+            if (evt.keyCode == KeyCode.Space)
+            {
+                _spaceDown = false;
+            }
+            else if (NudgeFor(evt.keyCode, false) != (0, 0))
             {
                 CommitNudge();
             }
@@ -406,25 +760,13 @@ namespace VirtualVessel.UI.Frames
             };
         }
 
-        private void CommitNudge()
-        {
-            MediaFrame frame = _nudged;
-            if (frame == null)
-            {
-                return;
-            }
-
-            _nudged = null;
-            Commit(frame, frame.Shown);
-        }
-
         private void OnNavigationMove(NavigationMoveEvent evt)
         {
             bool tab = evt.direction == NavigationMoveEvent.Direction.Next || evt.direction == NavigationMoveEvent.Direction.Previous;
             if (!tab)
             {
                 // Arrow keys nudge the selected frame (OnKeyDown) instead of moving focus.
-                if (_selected != null)
+                if (_selected != null && evt.target == this)
                 {
                     evt.StopPropagation();
                     focusController?.IgnoreEvent(evt);
@@ -451,7 +793,7 @@ namespace VirtualVessel.UI.Frames
         private void OnFocusIn(FocusInEvent evt)
         {
             // Arriving from the keyboard selects the front frame, so the next keys act on something.
-            if (_selected == null && _frames.Count > 0 && FocusRing.IsFromKeyboard(evt.direction))
+            if (evt.target == this && _selected == null && _frames.Count > 0 && FocusRing.IsFromKeyboard(evt.direction))
             {
                 Select(_frames[FrameCanvasMath.FrontToBack(ShownLayouts())[0]].Source);
             }
@@ -459,8 +801,40 @@ namespace VirtualVessel.UI.Frames
 
         // ------------------------------------------------------------------ Commit and display
 
-        private void Commit(MediaFrame frame, FrameLayout layout)
+        private void CommitBursts()
         {
+            CommitNudge();
+            CommitWheel();
+        }
+
+        private void CommitNudge()
+        {
+            Burst nudge = _nudge;
+            _nudge = null;
+            if (nudge != null)
+            {
+                Commit(nudge.Frame, nudge.Before, nudge.Frame.Shown, record: true);
+            }
+        }
+
+        private void CommitWheel()
+        {
+            Burst wheel = _wheel;
+            _wheel = null;
+            if (wheel != null)
+            {
+                wheel.Timer?.Pause();
+                Commit(wheel.Frame, wheel.Before, wheel.Frame.Shown, record: true);
+            }
+        }
+
+        private void Commit(MediaFrame frame, FrameLayout before, FrameLayout layout, bool record)
+        {
+            if (record)
+            {
+                _history.Record(frame.Source, before, layout);
+            }
+
             int version = frame.ShowPending(layout);
             _ = CommitAsync(frame, layout, version);
         }
@@ -487,11 +861,13 @@ namespace VirtualVessel.UI.Frames
             }
         }
 
-        private void ShowReadout(NormalizedRect placement)
+        private void ShowReadout(FrameLayout layout, bool crop)
         {
             _hideReadout?.Pause();
+            NormalizedRect placement = layout.Placement;
             bool below = FrameCanvasMath.ReadoutBelow(placement);
-            _readout.text = FrameCanvasMath.Readout(placement, OutputSize);
+            _readout.text = crop ? FrameCanvasMath.CropReadout(layout, OutputSize) : FrameCanvasMath.Readout(placement, OutputSize);
+            _readout.style.position = Position.Absolute;
             _readout.style.left = Length.Percent((float)(placement.CenterX * 100));
             _readout.style.top = Length.Percent((float)((below ? placement.Bottom : placement.Top) * 100));
             _readout.style.translate = new Translate(Length.Percent(-50), Length.Percent(below ? 0 : -100));
@@ -510,6 +886,15 @@ namespace VirtualVessel.UI.Frames
         {
             Move,
             Resize,
+
+            /// <summary>Crop mode: an edge or corner handle cuts the video.</summary>
+            Crop,
+
+            /// <summary>Crop mode: the window moves over the video, which stays still.</summary>
+            CropWindow,
+
+            /// <summary>Middle button or Space: the video moves under the frame, which stays still.</summary>
+            Pan,
         }
 
         private sealed class Gesture
@@ -537,6 +922,22 @@ namespace VirtualVessel.UI.Frames
             public FrameLayout? Last { get; set; }
 
             public int Version { get; set; }
+        }
+
+        /// <summary>Repeated key presses or wheel steps that become one edit when they stop.</summary>
+        private sealed class Burst
+        {
+            public Burst(MediaFrame frame, FrameLayout before)
+            {
+                Frame = frame;
+                Before = before;
+            }
+
+            public MediaFrame Frame { get; }
+
+            public FrameLayout Before { get; }
+
+            public IVisualElementScheduledItem Timer { get; set; }
         }
     }
 }

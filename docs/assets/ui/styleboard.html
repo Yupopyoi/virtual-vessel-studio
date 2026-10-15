@@ -330,6 +330,15 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .scrim-sample { background: var(--scrim); padding: var(--space-l); border-radius: var(--radius-m); }
 .dialog { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l); padding: var(--space-l); display: grid; gap: var(--space-m); box-shadow: 0 20px 50px hsl(var(--h) 50% 3% / .45); max-width: 420px; }
 .dialog h3 { font-size: 17px; }
+/* Popup menu (components.md 3.23) */
+.menu { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 6px; min-width: 250px; max-width: 320px; }
+.menu-item { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 10px 4px 6px; border-radius: var(--radius-s); color: var(--text); font-size: 13px; }
+.menu-item.hl { background: var(--tint); }
+.menu-item[aria-disabled="true"] { color: var(--disabled); }
+.menu-item .check { width: 16px; color: var(--accent-line); font-weight: 700; text-align: center; }
+.menu-item .label { flex: 1; }
+.menu-item kbd { font-family: var(--font-mono); font-size: 11px; padding: 0 5px; border-radius: 5px; background: var(--bg); border: 1px solid var(--border); color: var(--text-2); }
+.menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 .dialog p { color: var(--text-2); }
 .dialog .actions { display: flex; justify-content: flex-end; gap: var(--space-s); flex-wrap: wrap; }
 
@@ -725,6 +734,16 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
             </div>
           </div></div>
         </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.menu">右クリックメニュー</span>
+          <div class="menu" role="menu">
+            <div class="menu-item" role="menuitemcheckbox" aria-checked="true"><span class="check">✓</span><span class="label" data-i18n="c.mflip">左右反転</span><kbd>H</kbd></div>
+            <div class="menu-item hl" role="menuitemcheckbox" aria-checked="false"><span class="check"></span><span class="label" data-i18n="c.mlock">ロック</span><kbd>L</kbd></div>
+            <div class="menu-sep" role="separator"></div>
+            <div class="menu-item" role="menuitem"><span class="check"></span><span class="label" data-i18n="c.mfit">画面に合わせる</span><kbd>Shift+1</kbd></div>
+            <div class="menu-item" role="menuitem" aria-disabled="true"><span class="check"></span><span class="label" data-i18n="c.mreset">切り抜きを元に戻す</span><kbd>R</kbd></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -767,6 +786,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",
     "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
     "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
+    "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
     "c.tipnote": "Appears after resting about half a second, and on keyboard focus. Keep it to what the control does and its shortcut; on a disabled button, say why it cannot be pressed.",
     "fs.hint": "Press Esc to exit full screen",

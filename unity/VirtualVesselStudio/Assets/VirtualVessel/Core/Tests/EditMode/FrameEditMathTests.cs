@@ -62,6 +62,72 @@ namespace VirtualVessel.Core.Tests
         }
 
         [Test]
+        public void VideoPlacement_ExtendsTheCropToTheWholeVideo()
+        {
+            // The right half of the video, shown in the middle frame: the whole video is twice as wide,
+            // starting one frame width to the left.
+            var layout = new FrameLayout(s_middle, new NormalizedRect(0.5, 0, 0.5, 1));
+            NormalizedRect flipped = FrameEditMath.VideoPlacement(layout.WithFlipHorizontal(true));
+
+            AssertRect(FrameEditMath.VideoPlacement(layout), -0.25, 0.25, 1, 0.5);
+            AssertRect(flipped, 0.25, 0.25, 1, 0.5);
+        }
+
+        [Test]
+        public void Uncrop_ShowsTheWholeVideo_AtTheSameScale_OnScreen()
+        {
+            var cropped = new FrameLayout(new NormalizedRect(0.4, 0.4, 0.2, 0.2), new NormalizedRect(0.25, 0.25, 0.5, 0.5));
+
+            FrameLayout whole = FrameEditMath.Uncrop(cropped);
+            FrameLayout outside = FrameEditMath.Uncrop(cropped.WithPlacement(new NormalizedRect(0, 0, 0.2, 0.2)).WithAllowOutside(true));
+            FrameLayout inside = FrameEditMath.Uncrop(cropped.WithPlacement(new NormalizedRect(0, 0, 0.2, 0.2)));
+
+            Assert.That(whole.Crop, Is.EqualTo(NormalizedRect.Full));
+            AssertRect(whole.Placement, 0.3, 0.3, 0.4, 0.4);
+            AssertRect(outside.Placement, -0.1, -0.1, 0.4, 0.4);
+            AssertRect(inside.Placement, 0, 0, 0.4, 0.4);
+        }
+
+        [Test]
+        public void MoveCropWindow_MovesTheWindowOverAStillVideo()
+        {
+            // The middle half of the video, at 1:1 horizontally: the whole video spans 0 to 1.
+            var layout = new FrameLayout(s_middle, new NormalizedRect(0.25, 0, 0.5, 1));
+
+            FrameLayout moved = FrameEditMath.MoveCropWindow(layout, 0.1, 0);
+            FrameLayout far = FrameEditMath.MoveCropWindow(layout, 0.5, 0);
+
+            AssertRect(moved.Placement, 0.35, 0.25, 0.5, 0.5);
+            AssertRect(moved.Crop, 0.35, 0, 0.5, 1);
+            AssertRect(FrameEditMath.VideoPlacement(moved), 0, 0.25, 1, 0.5);
+            AssertRect(far.Crop, 0.5, 0, 0.5, 1);
+            AssertRect(far.Placement, 0.5, 0.25, 0.5, 0.5);
+        }
+
+        [Test]
+        public void MoveCropWindow_Flipped_MovesTheOtherWayInTheVideo()
+        {
+            var layout = new FrameLayout(s_middle, new NormalizedRect(0.25, 0, 0.5, 1), flipHorizontal: true);
+
+            FrameLayout moved = FrameEditMath.MoveCropWindow(layout, 0.1, 0);
+
+            AssertRect(moved.Placement, 0.35, 0.25, 0.5, 0.5);
+            AssertRect(moved.Crop, 0.15, 0, 0.5, 1);
+            AssertRect(FrameEditMath.VideoPlacement(moved), 0, 0.25, 1, 0.5);
+        }
+
+        [Test]
+        public void MoveCropWindow_StopsAtTheScreenEdge()
+        {
+            // A zoomed video larger than the screen: the window stops where the frame meets the edge.
+            var layout = new FrameLayout(new NormalizedRect(0.6, 0.25, 0.3, 0.3), new NormalizedRect(0.25, 0.25, 0.5, 0.5));
+
+            FrameLayout moved = FrameEditMath.MoveCropWindow(layout, 0.5, 0);
+
+            AssertRect(moved.Placement, 0.7, 0.25, 0.3, 0.3);
+        }
+
+        [Test]
         public void Move_FrameLargerThanScreen_KeepsCoveringIt()
         {
             var large = new NormalizedRect(-0.1, -0.1, 1.2, 1.2);
