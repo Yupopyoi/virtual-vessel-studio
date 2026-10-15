@@ -339,6 +339,17 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .menu-item .label { flex: 1; }
 .menu-item kbd { font-family: var(--font-mono); font-size: 11px; padding: 0 5px; border-radius: 5px; background: var(--bg); border: 1px solid var(--border); color: var(--text-2); }
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+/* Layer list (components.md 3.20) */
+.layers { display: grid; gap: 2px; min-width: 250px; max-width: 320px; }
+.layers .hint { color: var(--text-3); font-size: 12px; margin-bottom: 2px; }
+.layer { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px 4px 7px; border-left: 3px solid transparent; border-radius: var(--radius-s); color: var(--text-2); font-size: 13px; }
+.layer.sel { background: var(--tint); border-left-color: var(--accent-line); color: var(--text); }
+.layer .grip { color: var(--text-3); width: 16px; text-align: center; }
+.layer .thumb { width: 40px; height: 23px; border-radius: 4px; border: 1px solid var(--border); flex: none; }
+.layer .name { flex: 1; }
+.layer .state { color: var(--text-3); font-size: 12px; }
+.layer.hidden .name, .layer.hidden .thumb { opacity: .5; }
+.layer-drop { height: 2px; margin: 0 6px; background: var(--accent-line); }
 .dialog p { color: var(--text-2); }
 .dialog .actions { display: flex; justify-content: flex-end; gap: var(--space-s); flex-wrap: wrap; }
 
@@ -744,6 +755,16 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
             <div class="menu-item" role="menuitem" aria-disabled="true"><span class="check"></span><span class="label" data-i18n="c.mreset">切り抜きを元に戻す</span><kbd>R</kbd></div>
           </div>
         </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.layers">重なり順の一覧</span>
+          <div class="layers" role="list">
+            <span class="hint" data-i18n="c.lhint">上が手前</span>
+            <div class="layer sel" role="listitem"><span class="grip">≡</span><span class="thumb" style="background:linear-gradient(180deg,#ffd68a,#ff9ccf)"></span><span class="name" data-i18n="c.lcam">カメラ</span></div>
+            <div class="layer-drop" aria-hidden="true"></div>
+            <div class="layer" role="listitem"><span class="grip">≡</span><span class="thumb" style="background:linear-gradient(180deg,#8fd8ff,#7cc96b)"></span><span class="name" data-i18n="c.lgame">ゲーム画面</span><span class="state" data-i18n="c.locked">ロック中</span></div>
+            <div class="layer hidden" role="listitem"><span class="grip">≡</span><span class="thumb" style="background:linear-gradient(180deg,#2b2346,#4a2f5c)"></span><span class="name" data-i18n="c.ldesk">サブモニター</span><span class="state" data-i18n="c.hidden">非表示</span></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -786,6 +807,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",
     "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
     "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
+    "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
     "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
     "c.tipnote": "Appears after resting about half a second, and on keyboard focus. Keep it to what the control does and its shortcut; on a disabled button, say why it cannot be pressed.",
