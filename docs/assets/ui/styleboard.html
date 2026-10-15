@@ -24,6 +24,10 @@
   --accent-1: hsl(from var(--primary) h s calc(l + 6));
   --accent-2: hsl(from var(--secondary) h s calc(l + 6));
   --wash: 28%;
+  /* Status surfaces (design-system 3.5): dark tints with the status color, light with the vivid fill. */
+  --chip-ok: color-mix(in srgb, var(--success) 18%, var(--surface-2));
+  --chip-warn: color-mix(in srgb, var(--warning) 18%, var(--surface-2));
+  --chip-err: color-mix(in srgb, var(--error) 18%, var(--surface-2));
   /* Darkens the screen behind a dialog; dark needs more, since the page is already dark. */
   --scrim: hsl(var(--h) 50% 3% / .7);
   --knob: var(--text);
@@ -73,6 +77,9 @@
     --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
     --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
     --wash: 24%;
+    --chip-ok: color-mix(in srgb, var(--success-fill) 26%, var(--surface-2));
+    --chip-warn: color-mix(in srgb, var(--warning-fill) 26%, var(--surface-2));
+    --chip-err: color-mix(in srgb, var(--error-fill) 26%, var(--surface-2));
     --scrim: hsl(var(--h) 50% 3% / .45);
     --knob: var(--surface);
     --success-fill: #2ed3a4;
@@ -99,6 +106,9 @@
   --accent-1: hsl(from var(--primary) h calc(s + 25) calc(l - 12));
   --accent-2: hsl(from var(--secondary) h calc(s + 25) calc(l - 12));
   --wash: 24%;
+  --chip-ok: color-mix(in srgb, var(--success-fill) 26%, var(--surface-2));
+  --chip-warn: color-mix(in srgb, var(--warning-fill) 26%, var(--surface-2));
+  --chip-err: color-mix(in srgb, var(--error-fill) 26%, var(--surface-2));
   --scrim: hsl(var(--h) 50% 3% / .45);
   --knob: var(--surface);
   --success-fill: #2ed3a4;
@@ -221,9 +231,9 @@ button, input, select { font: inherit; color: inherit; }
 /* LED look: bold text in a vivid status color (components.md 3.13). */
 .chip.live, .chip.ok, .chip.warn, .chip.err { font-weight: 700; }
 .chip.live .dot { animation: pulse 1.6s ease-in-out infinite; }
-.chip.ok { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--success) 65%, transparent); }
-.chip.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--warning) 65%, transparent); }
-.chip.err { color: var(--error); background: color-mix(in srgb, var(--error) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--error) 65%, transparent); }
+.chip.ok { color: var(--success); background: var(--chip-ok); border-color: color-mix(in srgb, var(--success) 65%, transparent); }
+.chip.warn { color: var(--warning); background: var(--chip-warn); border-color: color-mix(in srgb, var(--warning) 65%, transparent); }
+.chip.err { color: var(--error); background: var(--chip-err); border-color: color-mix(in srgb, var(--error) 65%, transparent); }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .chip.live .dot { animation: none; } }
 

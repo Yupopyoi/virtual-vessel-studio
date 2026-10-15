@@ -105,7 +105,7 @@ docs/assets/ui/styleboard.html
 | 状態の枠 | 状態色の不透明度65% | 状態表示（Chip）の枠 |
 | 状態の塗り（Success Fill / Warning Fill / Error Fill） | Level Meter等の図形のための鮮やかな色。Success・Warningはダークでは状態色そのまま、ライトは`#2ed3a4`・`#ffb224`。Errorはダーク`#ff5c7a`、ライト`#ff3d68` | Level Meter等の図形 |
 | Knob | ダークはText、ライトはSurface | Sliderのつまみの中 |
-| 状態の面 | 状態の淡い背景をSurface 2に重ねた不透明の色 | 状態表示（Chip）の背景。背景の帯の上でも読みやすさが変わらない |
+| 状態の面 | ダークは状態の淡い背景をSurface 2に重ねた不透明の色。ライトは状態の塗り（Fill）を26%でSurface 2に重ねる（ライトの状態色は文字用の濃い色で、そのまま重ねると灰色がかって見えるため）。塗りのない配信中（Live）は、ライトでも状態の淡い背景を使う | 状態表示（Chip）の背景。背景の帯の上でも読みやすさが変わらない |
 | Primary Wash / Secondary Wash | Primary、Secondaryの不透明度28%（ダーク）、24%（ライト） | Cardのタイトル部分の背景（3.6） |
 | Scrim | パレットの色相のごく暗い色（彩度50%、明度3%）の不透明度70%（ダーク）、45%（ライト）。ダークは画面がもともと暗いため、濃くしないと変化が見えない | Dialogの背後で画面全体を暗くする幕 |
 

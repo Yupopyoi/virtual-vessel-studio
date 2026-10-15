@@ -22,15 +22,15 @@
     --vv-color-scrim: rgba(11, 4, 7, 0.45);
     --vv-color-success: #006652;
     --vv-color-success-soft: rgba(0, 102, 82, 0.18);
-    --vv-color-success-chip: #c8d7d5;
+    --vv-color-success-chip: #c1e8de;
     --vv-color-success-line: rgba(0, 102, 82, 0.65);
     --vv-color-warning: #7a5200;
     --vv-color-warning-soft: rgba(122, 82, 0, 0.18);
-    --vv-color-warning-chip: #ded4c6;
+    --vv-color-warning-chip: #f7e0bc;
     --vv-color-warning-line: rgba(122, 82, 0, 0.65);
     --vv-color-error: #b2001e;
     --vv-color-error-soft: rgba(178, 0, 30, 0.18);
-    --vv-color-error-chip: #e8c5cc;
+    --vv-color-error-chip: #f7c1ce;
     --vv-color-error-line: rgba(178, 0, 30, 0.65);
     --vv-color-live: #ad0040;
     --vv-color-live-soft: rgba(173, 0, 64, 0.18);

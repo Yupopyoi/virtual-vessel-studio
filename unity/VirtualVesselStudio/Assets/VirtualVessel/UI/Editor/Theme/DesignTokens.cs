@@ -27,6 +27,9 @@ namespace VirtualVessel.UI.Editor.Theme
 
         /// <summary>The shadow color's opacity behind a dialog; dark pages need more to show the change.</summary>
         public ModeAlphaToken scrimAlpha;
+
+        /// <summary>On light backgrounds, how much of the vivid fill color tints a chip surface.</summary>
+        public float chipFillAlphaLight;
         public SizeToken[] spacing;
         public SizeToken[] radius;
         public TypographyToken[] typography;

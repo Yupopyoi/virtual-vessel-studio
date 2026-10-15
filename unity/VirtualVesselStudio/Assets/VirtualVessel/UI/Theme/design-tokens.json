@@ -36,6 +36,7 @@
     "errorSurfaceAmount": 0.08,
     "shadow": { "saturation": 50, "lightness": 3, "alpha": 0.45 },
     "scrimAlpha": { "dark": 0.7, "light": 0.45 },
+    "chipFillAlphaLight": 0.26,
     "spacing": [
         { "token": "xs", "px": 4 },
         { "token": "s", "px": 8 },
