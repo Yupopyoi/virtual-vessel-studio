@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Icons;
-using VirtualVessel.UI.Theme;
 using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Controls
@@ -139,7 +138,7 @@ namespace VirtualVessel.UI.Controls
                 throw new ArgumentNullException(nameof(owner));
             }
 
-            VisualElement root = ThemedRoot(owner);
+            VisualElement root = Controls.ThemedRoot.Of(owner);
             var menu = new PopupMenu(entries ?? throw new ArgumentNullException(nameof(entries)))
             {
                 _root = root,
@@ -183,22 +182,6 @@ namespace VirtualVessel.UI.Controls
             Action closed = _closed;
             _closed = null;
             closed?.Invoke();
-        }
-
-        private static VisualElement ThemedRoot(VisualElement element)
-        {
-            VisualElement top = element;
-            for (VisualElement current = element; current != null; current = current.hierarchy.parent)
-            {
-                if (current.ClassListContains(ThemeService.RootClass))
-                {
-                    return current;
-                }
-
-                top = current;
-            }
-
-            return top;
         }
 
         private void Choose(Item item)
