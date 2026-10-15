@@ -1,0 +1,93 @@
+/*
+ * Preview (components.md 3.17). The 16:9 size and the layers are set in code (StreamPreview); the look
+ * is here. Readouts sit on opaque Surface pills so they read on any video.
+ */
+.vv-preview__screen {
+    border-radius: var(--vv-radius-m);
+    background-color: var(--vv-color-surface-2);
+}
+
+.vv-preview__clip {
+    border-radius: var(--vv-radius-m);
+}
+
+/* The frame rate is a Status Indicator (components.md 3.13): healthy or a warning when it drops. */
+.vv-preview__frame-rate {
+    top: 10px;
+    right: 12px;
+}
+
+/* "Stream preview · 1920×1080 · 6,000 kbps" on a Surface pill, readable on any video. */
+.vv-preview__format {
+    left: 12px;
+    bottom: 10px;
+    padding: 2px 8px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-preview__format > .unity-label {
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
+    color: var(--vv-color-text-2);
+}
+
+.vv-preview__format > .vv-preview__format-separator {
+    margin: 0 6px;
+}
+
+.vv-preview__fullscreen {
+    right: 10px;
+    bottom: 10px;
+}
+
+.vv-preview__no-video {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    margin: 0;
+    -unity-text-align: middle-center;
+    color: var(--vv-color-text-3);
+    display: none;
+}
+
+.vv-preview__screen--empty > .vv-preview__no-video {
+    display: flex;
+}
+
+.vv-preview__screen--empty > .vv-preview__frame-rate,
+.vv-preview__screen--empty > .vv-preview__format {
+    display: none;
+}
+
+/* Full screen: only the video, filling the window, with the button to return and a short hint. */
+.vv-preview-fullscreen {
+    background-color: var(--vv-color-bg);
+}
+
+.vv-preview__screen--fullscreen,
+.vv-preview__screen--fullscreen > .vv-preview__clip {
+    border-radius: 0;
+}
+
+.vv-preview__screen--fullscreen > .vv-preview__frame-rate,
+.vv-preview__screen--fullscreen > .vv-preview__format {
+    display: none;
+}
+
+.vv-preview__hint {
+    top: 14px;
+    left: 50%;
+    translate: -50% 0;
+    margin: 0;
+    padding: 4px 12px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-s);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+    color: var(--vv-color-text);
+}

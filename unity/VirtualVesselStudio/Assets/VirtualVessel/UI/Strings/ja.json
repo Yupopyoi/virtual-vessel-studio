@@ -44,6 +44,12 @@
         "frame.back.tip": "ほかの映像より奥に表示します",
         "field.number-invalid": "数字を入力してください。",
         "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。",
+        "preview.label": "配信プレビュー",
+        "preview.frame-rate.tip": "配信映像のフレームレート。設定した値を下回ると映像がカクつきます",
+        "preview.fullscreen": "プレビューを全画面で表示します",
+        "preview.exit-fullscreen": "全画面表示を終えて、元の表示に戻ります",
+        "preview.fullscreen-hint": "Esc か F で元に戻ります",
+        "preview.no-video": "配信映像はまだありません",
         "notice.failure.title": "操作を完了できませんでした",
         "notice.more.one": "ほかに {count} 件の通知",
         "notice.more.other": "ほかに {count} 件の通知"

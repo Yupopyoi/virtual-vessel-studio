@@ -739,6 +739,8 @@ namespace VirtualVessel.UI.Frames
         {
             if (evt.keyCode == KeyCode.Escape)
             {
+                // Esc steps back one layer at a time: the drag, then crop mode, then the selection. With
+                // nothing left it passes on, so the preview around the canvas can leave full screen.
                 if (_gesture != null)
                 {
                     EndGesture(-1, commit: false);
@@ -747,9 +749,13 @@ namespace VirtualVessel.UI.Frames
                 {
                     SetCropMode(false);
                 }
-                else
+                else if (_selected != null)
                 {
                     Select(null);
+                }
+                else
+                {
+                    return;
                 }
 
                 evt.StopPropagation();

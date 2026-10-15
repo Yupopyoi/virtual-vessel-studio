@@ -780,6 +780,25 @@ public interface IFrameSource
 
 - `CursorService`は、アプリ全体で1つのマウスカーソルを扱うため静的なクラスとする。カーソルの画像は`CursorShapes`（純粋関数）が描き、初回に作って保持する。白い形に暗い縁を付け、明るい背景でも暗い背景でも見えるようにする。
 
+### 9.9 プレビュー（StreamPreview）
+
+配信映像のプレビュー（`components.md` 3.17）は`StreamPreview`で表示する。配置編集の`FrameCanvas`は`StreamPreview.Overlay`に置き、映像の上で操作する。
+
+```csharp
+public interface IStreamPreviewSource
+{
+    IReadOnlyObservable<Texture> Video { get; }        // Stream Render Target（配信と同じ映像、方式設計10.6）
+    IReadOnlyObservable<PreviewStats> Stats { get; }   // フレームレート、目標フレームレート、解像度、ビットレート
+}
+```
+
+- Video Moduleが実装する。Video Moduleができるまでは、デモの仮の実装で確かめる。
+- 映像は16:9を保って、与えられた場所に収まる最大の大きさで表示する（`PreviewMath.Fit`、純粋関数）。大きさと重ねる層の配置は動作に関わるため、コードで指定する。
+- 映像は角丸の枠で切り取るが、`Overlay`は切り取らない。配置編集のハンドルが枠の外までつかめるようにするためである。
+- 全画面表示では、映像の枠をUIの一番外側（最も近い`vv-root`）の層へ移し、終えたら元に戻す。配信出力には影響しない（方式設計14.23）。`F`と`Esc`は映像の枠で受けるため、全画面中も効く。
+- `Esc`は配置編集が先に受け取る。ドラッグの取り消し、切り抜きモードの終了、選択の解除の順に1段ずつ戻り、どれもないときだけ`StreamPreview`へ渡り、全画面を終える。
+- 数値の文字とフレームレートの状態（`PreviewMath.FrameRateText`、`FormatText`、`FrameRateStatus`）は純粋関数で作る。数値と単位だけなので、言語によらず同じ表記とする。
+
 ---
 
 ## 10. 状態とライフサイクル
@@ -862,6 +881,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | PlayMode | `FrameCanvas`のドラッグ（移動、拡大縮小、Shift、吸着、Ctrl）、拒否された確定、ロック、矢印キー、Esc、Tab（9.8） |
 | EditMode | `FrameHistory`、`FrameCommands`、ショートカットの対応、切り抜きの表示と中心、`PopupMenu`の位置、`FrameEditMath.Uncrop`（9.8） |
 | EditMode | `FrameCommands.MoveTo`、`LayerListMath`（落ちる位置、移動先、キーでの移動、状態の表示）（9.7） |
+| EditMode | `PreviewMath`（16:9の大きさ、数値の文字、フレームレートの状態）（9.9） |
+| PlayMode | `StreamPreview`の16:9、映像と数値、映像がないときの表示、全画面の出入り（ボタン、`F`、`Esc`）、`Esc`が選択の解除を先にすること（9.9） |
 | PlayMode | `LayerList`の並び・名前・状態・選択の共有、ドラッグでの並べ替えと元に戻す、キーボード操作、非表示の映像、`ShowVideos`の重なり順と切り抜き（9.7、9.8） |
 | PlayMode | 切り抜きモードの切り替え、辺の切り取り、Wheelの拡大と確定のまとめ方、中ボタンでの移動、元に戻す・やり直す、右クリックMenu、ロック中のMenu、ショートカット（9.8） |
 | PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
@@ -898,6 +919,7 @@ Assets/VirtualVessel/
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
+   │  ├─ Preview/           StreamPreview, IStreamPreviewSource, PreviewMath   VirtualVessel.UI.Preview
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
@@ -935,7 +957,11 @@ Assets/ThirdParty/
    1. 部品の土台（`UiServices`、`KeyedText`、Binding、Command、アイコン）と基本の部品（Button、Icon Button、Toggle、Segmented、Card、Status Indicator、Key Hint）
    2. 残りの入力・表示の部品（Slider、Dropdown、Text Field、Numeric Field、Tab、Setting Row、Level Meter、Progress Bar、Navigation Item）
    3. Tooltip、Dialog、Notification
-6. UI：`MediaFrame`と`FrameCanvas`
+6. UI：`MediaFrame`と`FrameCanvas`。次の4つに分ける。
+   1. `FrameCanvas`、選択、移動、拡大縮小、吸着、キーボード操作、カーソル
+   2. 切り抜き、右クリックMenuとショートカット、元に戻す
+   3. 重なり順の一覧（`LayerList`）、非表示の映像、プレビューのない画面での表示
+   4. プレビュー（`StreamPreview`）と全画面表示
 7. UI：`UiRoot`、`ScreenHost`、Developer Mode、Diagnostics画面、Component Gallery、`UiScreenshotCapture`
 
 ---

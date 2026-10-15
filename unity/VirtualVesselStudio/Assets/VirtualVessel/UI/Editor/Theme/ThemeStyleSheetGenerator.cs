@@ -91,9 +91,13 @@ namespace VirtualVessel.UI.Editor.Theme
                 Add(status.token, color);
                 Add(status.token + "-soft", color.WithAlpha(status.softAlpha));
 
-                // Opaque chip background: the soft tint already composited over a card, so a chip reads
-                // the same on a card, on a colored title band, or anywhere else.
-                Add(status.token + "-chip", color.WithAlpha(status.softAlpha).Over(byName["surface-2"]));
+                // Opaque chip background: the tint already composited over a card, so a chip reads the
+                // same on a card, on a colored title band, or anywhere else. On light backgrounds the deep
+                // text color tints the chip a dull gray, so the vivid fill color tints it instead.
+                // Live has no fill color and keeps its soft tint.
+                bool vivid = light && !string.IsNullOrEmpty(status.fillLight);
+                ThemeColor tint = vivid ? ThemeColor.FromHex(status.fillLight) : color;
+                Add(status.token + "-chip", tint.WithAlpha(vivid ? tokens.chipFillAlphaLight : status.softAlpha).Over(byName["surface-2"]));
                 Add(status.token + "-line", color.WithAlpha(tokens.statusLineAlpha));
             }
 
