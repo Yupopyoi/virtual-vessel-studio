@@ -21,6 +21,8 @@ namespace VirtualVessel.ProjectData.Config
     /// <item>Fields this version does not know are kept from the last load and written back.</item>
     /// <item>Writes go to a temporary file that then replaces the original, so a crash never leaves a half-written file.</item>
     /// <item>A file that cannot be read is moved aside and the default is used, so one broken file never stops startup.</item>
+    /// <item>A file larger than <see cref="MaxFileBytes"/> counts as unreadable. Settings files are untrusted input
+    /// (any program running as the user can write them), and a huge one must not stall startup or exhaust memory.</item>
     /// </list>
     /// Thread-safe. Not for hot paths: every call touches the file system.
     /// </remarks>
@@ -28,6 +30,9 @@ namespace VirtualVessel.ProjectData.Config
         where T : class
     {
         public const string VersionKey = "schemaVersion";
+
+        /// <summary>Far above any real settings file (a few KB), so only a damaged or planted file reaches it.</summary>
+        public const long MaxFileBytes = 1024 * 1024;
 
         private const string TemporarySuffix = ".tmp";
 
@@ -123,6 +128,12 @@ namespace VirtualVessel.ProjectData.Config
                 if (!File.Exists(FilePath))
                 {
                     return new ConfigLoadResult<T>(_createDefault(), ConfigLoadStatus.Created, 0, null, null);
+                }
+
+                long length = new FileInfo(FilePath).Length;
+                if (length > MaxFileBytes)
+                {
+                    return Recover($"Settings file {FilePath} is {length} bytes, over the {MaxFileBytes}-byte limit.");
                 }
 
                 string error = TryParseFile(File.ReadAllText(FilePath, s_encoding), FilePath, out JObject root, out int fileVersion);

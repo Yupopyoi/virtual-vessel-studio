@@ -117,6 +117,7 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 |---|---|---|
 | `UiRoot` | MonoBehaviour | Entry point of the UI in the persistent scene. Holds the `UIDocument` and UI assets and connects the services |
 | `UiAssets` | ScriptableObject | References to PanelSettings, generated themes, font sets, string tables, and screen UXML |
+| `UiApplicationService` | Class | Starts and stops the UI as one application service (7.9) |
 | `ThemeService` | Class | Applies palette, background, scale, and reduced motion |
 | `FontService` | Class | Switches font sets |
 | `FontSet` | ScriptableObject | UI and monospace font assets, fallback |
@@ -131,7 +132,9 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | `FrameLayout` / `FrameEditMath` | Struct / static class (Core) | Placement data and editing math |
 | `ScreenHost` | VisualElement | Screen switching |
 | `DeveloperModeService` | Class | Switches Developer Mode and propagates it to related functions |
-| `UiSettings` | Class | Contents of the UI-specific settings |
+| `UiSettings` | Class | Contents of the UI-specific settings (the values as written in the file) |
+| `UiSettingsResolver` / `ResolvedUiSettings` | Static class / Struct | Checks the setting values against allowed lists and decides the values to use (8.1) |
+| `UiSettingsService` | Class | Reports setting changes and saves them together (7.9) |
 | `ConfigFileStore` | Class (ProjectData) | Reads and writes settings files |
 | `ThemeGenerator` | Editor | Generates USS for each theme from the tokens |
 | `UiScreenshotCapture` | Editor | Writes screens to PNG |
@@ -339,7 +342,7 @@ This enables two kinds of bulk change.
 **Language and fonts**
 
 - Each language in the string tables (7.4) can name a preferred font set. This is for future languages that the Japanese font cannot display.
-- Fallback is set in the PanelSettings text settings so that no glyphs are missing (system design 14.9). `UiRoot` (implementation step 7) does this.
+- Fallback is set in the PanelSettings text settings so that no glyphs are missing (system design 14.9). `UiRoot` does this (7.9).
 - Japanese has many characters, so fonts are treated as dynamic (glyphs are added to the atlas at runtime as needed). Referring to a TTF with `-unity-font` makes Unity create a dynamic font asset.
 
 **Font files**
@@ -509,6 +512,65 @@ The position and the times are current defaults and may change. The values live 
 
 New notices go on the side nearest the corner: at the bottom for the bottom corners, at the top for the top corners (`NotificationPolicy.NewestFirst`).
 
+### 7.9 UiRoot (the UI Entry Point)
+
+**Connection to the application**
+
+- `UiRoot` sits on the same GameObject as the `UIDocument` in the persistent scene. `ApplicationBootstrap` references it through a serialized field and hands it to the composition. There is no static instance (application foundation detailed design chapter 3).
+- The composition registers `UiApplicationService` last (service name `UI`, Optional, depends on Logging). So the UI is built after every other application service has started (chapter 10). A failure to build the UI does not stop the other services.
+- `UiApplicationService` receives the UI log, `IMainThreadDispatcher`, the monotonic clock, the system clock, and the settings folder (`DataRootResolver.ConfigDirectory`) through its constructor.
+
+**Build order** (`UiRoot.Build`)
+
+1. Read `ui-settings.json` and resolve its values (8.1).
+2. Copy the PanelSettings in `UiAssets` and set the copy on the `UIDocument`. Changing the asset itself at run time would leave the change in the asset in the Editor. The copy is destroyed with the UI.
+3. Create `Localizer`, `ThemeService`, and `FontService`. `UiAssets` holds the string tables (7.4).
+4. Put a `UiServicesScope` (`vv-root`) at the root and attach theme, font, notifications, dialogs, and tooltips. `UiServices` gets `NotificationService.ShowFailure` for failures and `DialogService` for confirmations.
+5. Apply the resolved settings (theme, font, language, UI scale).
+6. Add the screen area (`UiRoot.Content`). `ScreenHost` (implementation step 7-2) goes here.
+7. If the settings file was moved aside, tell the user with a notification (Warning).
+
+**UI scale**
+
+- PanelSettings use `ConstantPhysicalSize` (reference 96 DPI), so they follow the Windows display scale (125%, 150%, and so on). The `uiScale` setting is then applied through `scale`.
+
+**"system" for reduced motion**
+
+- The Windows "Animation effects" setting (`SPI_GETCLIENTAREAANIMATION` of `SystemParametersInfo`) is read once at startup. When it is off, motion is reduced. On other platforms, or when it cannot be read, motion is not reduced.
+
+**Font fallback** (system design 14.9)
+
+- A dynamic font asset is created at run time from the Regular font of the default font set (Noto Sans JP) and set as the fallback in the PanelSettings text settings. This keeps glyphs from going missing when the monospace Noto Sans Mono, or a font set added later, has no Japanese characters. The text settings copy is destroyed with the UI. The font asset is created once per font and reused, never destroyed, while the application runs: TextCore keeps referring to a font asset's atlas after its panel is gone, so destroying it breaks text in the next panel, such as the startup problem screen after a failed build.
+
+**Changing and saving settings** (`UiSettingsService`)
+
+- Operations that change a setting (`SetPalette` and so on) report the change through `Changed` right away, and `UiRoot` applies it to the screen.
+- Saving happens once, 0.5 seconds after the last change (`SaveDebounce`). `UiRoot.Update` calls `Tick` every frame to check.
+- Files are written on a worker thread, one at a time, so that file writes never stall the main thread (chapter 16).
+- On exit (`UiApplicationService.ShutdownAsync`), a pending save is completed.
+- When saving fails, a warning is recorded and a Warning notification "Couldn't save the settings" is shown. It is not repeated while the same failure continues, and it resets after a successful save.
+
+**Screen shown when the application cannot start** (application foundation detailed design 8.1, chapter 17)
+
+- After startup, `ApplicationBootstrap` calls `UiRoot.ShowStartupProblem` when the application is `Failed` or when the UI service is not running.
+- There are two kinds of content:
+
+| Kind | Heading | Body |
+|---|---|---|
+| The Data Root cannot be used | Can't use the data folder | Virtual Vessel Studio can't write to the data folder. Check the folder location and free space, then start again. (The folder path is shown below.) |
+| Anything else | Virtual Vessel Studio couldn't start | Start it again. If this keeps happening, report it with the logs. |
+
+- The "Quit" button runs the normal shutdown (application foundation detailed design 7.2).
+- This screen uses the default theme and the default font set, so it depends as little as possible on what may have caused the failure.
+- The language is the first one with a string table among: the language shown until now, `language` in `ui-settings.json`, and the OS language. `UiSettingsPeek` only reads the settings file; a broken file is neither moved aside nor written. This tells the user what happened in the language they chose.
+
+**Security considerations**
+
+- `ui-settings.json` can be changed by the user or by another program running with the same user rights. It is treated as untrusted input, and its values are checked against allowed lists (8.1).
+- The settings file holds no secrets (stream keys and so on). Secrets are handled as described in system design 6.13.
+- Developer Mode only shows more; it grants no rights. Anyone can turn it on by editing the settings file, so nothing that needs protection is placed behind it. Diagnostics shows no secrets either (7-2).
+- The startup problem screen and notifications show no internal details such as exception messages, service names, or stack traces. Details go to the developer log.
+
 ---
 
 ## 8. Data Model
@@ -544,6 +606,13 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
 
 - ProjectData's `ConfigFileStore` reads and writes the file (8.3).
 - Unknown values (such as a palette name that does not exist) are treated as the default, and the file keeps its value until overwritten.
+- `UiSettingsResolver.Resolve` (a pure function) checks the values against allowed lists. A value outside them is replaced by the default and recorded as a warning.
+  - `language`: a language that has a string table. An unknown language becomes English (7.4).
+  - `palette`, `fontSet`: those in `ThemeAssets`.
+  - `background`: `dark`, `light`. `reducedMotion`: `system`, `on`, `off`.
+  - `uiScale`: only the four steps in the table. Allowing any value would let an extreme value make the screen unusable.
+  - `lastScreen`: one of the screens (`ScreenHost`, implementation step 7-2).
+- When there is no file, `language` is chosen from the OS language and stored in the settings (`Localizer.ChooseInitialLocale`).
 
 ### 8.2 FrameLayout
 
@@ -566,6 +635,7 @@ Position and size are stored as ratios so that the values do not depend on the s
 - Writes go to a temporary file that then replaces the original (atomic write).
 - Fields unknown to the current version are kept as read and written back.
 - A broken file is moved aside to `<name>.broken-<timestamp>.json`, and the application starts with defaults. Moving it aside is recorded as a warning.
+- A file over 1 MiB is far too large for a settings file, so it is treated as broken without being read. This keeps startup from spending time and memory on a large file.
 - JSON is read and written with `com.unity.nuget.newtonsoft-json` 3.2.2 (approved by the user). See 11.1 of the application foundation detailed design for details.
 
 ---
@@ -803,12 +873,12 @@ public interface IStreamPreviewSource
 
 ## 10. State and Lifecycle
 
-1. After `ApplicationBootstrap` starts the application services, `UiRoot` builds the UI.
-2. `UiRoot` reads `ui-settings.json`, applies theme, font, and language, and then shows the first screen.
-3. Setting changes apply immediately and are saved to `ui-settings.json` after collecting them for about 0.5 seconds.
-4. On exit, unsaved settings are saved and then the UI is destroyed.
+1. `ApplicationBootstrap` starts the application services. `UiApplicationService` starts last, and `UiRoot` builds the UI (7.9).
+2. `UiRoot` reads `ui-settings.json`, applies theme, font, language, and UI scale, and then shows the first screen.
+3. Setting changes apply immediately and are saved to `ui-settings.json` 0.5 seconds after the last change.
+4. On exit, `UiApplicationService.ShutdownAsync` saves unsaved settings, and `Dispose` destroys the UI. The UI service starts after the other services, so it stops before them.
 
-A failure to build the UI does not stop the application services. It is recorded in the developer log, and a minimal error screen is shown.
+A failure to build the UI does not stop the application services. It is recorded in the developer log, and a minimal error screen (the startup problem screen in 7.9) is shown.
 
 ---
 
@@ -848,7 +918,9 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 
 | Situation | Handling |
 |---|---|
-| `ui-settings.json` is broken | Move it aside and start with defaults (8.3) |
+| `ui-settings.json` is broken | Move it aside, start with defaults, and tell the user with a Warning notification (7.9, 8.3) |
+| `ui-settings.json` cannot be saved | Record a warning and tell the user with a Warning notification, not repeated while the same failure continues (7.9) |
+| The application cannot start, or the UI cannot be built | Show the startup problem screen (7.9) |
 | A string key is missing | Show English, then the key, instead, and record a warning once |
 | A font asset cannot be loaded | Return to the default font set and record an error |
 | A command fails | Show a user-facing notification and record details in the developer log |
@@ -858,7 +930,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 
 ## 14. Logging and Diagnostics
 
-- Changes of theme, font, language, and Developer Mode are recorded at Information.
+- Changes of theme, font, language, UI scale, and Developer Mode are recorded at Information.
+- The result of reading `ui-settings.json` (created, loaded, migrated, moved aside, newer version) and values outside the allowed lists are recorded. Moving aside and values outside the lists are warnings.
 - Missing string keys and font loading failures are recorded as Warning or Error.
 - No log is written for each UI draw or operation (CLAUDE.md Chapter 20).
 
@@ -887,6 +960,11 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | PlayMode | Switching crop mode, cutting an edge, wheel zoom committed as one edit, panning with the middle button, undo and redo, the right-click menu, the menu on a locked frame, shortcuts (9.8) |
 | PlayMode | Dialog confirm, cancel, and Esc; focus trapping and return; `DangerCommand` runs only after confirmation |
 | PlayMode | Notices hide on time, errors stay, the count limit and the queue, priority, the waiting count, order per corner, `ShowFailure` |
+| EditMode | `UiSettingsResolver` (allowed values, defaults, keeping unknown values, UI scale, resolving reduced motion), `SaveDebounce` (7.9, 8.1) |
+| EditMode | `UiSettingsService` (change notification, saving 0.5 seconds after the last change, saving on exit, reporting a save failure only once) |
+| EditMode | `UiAssets` string tables match `Strings/*.json`, the persistent scene has one `UiRoot` that `ApplicationBootstrap` references, deciding the kind of startup problem screen |
+| EditMode | `ConfigFileStore` moves aside a file over 1 MiB (8.3) |
+| PlayMode | Building `UiRoot` (applying theme, font, language, and UI scale, the PanelSettings asset staying unchanged, font fallback, notifications connected), applying setting changes, the startup problem screen text, how its language is chosen, leaving the settings file untouched, and the Quit button (7.9) |
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
 | Performance | Binding updates and level meter updates do not allocate (performance tests) |
 
@@ -914,7 +992,7 @@ Assets/VirtualVessel/
 │  └─ Config/ConfigFileStore.cs                                  VirtualVessel.ProjectData.Config
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
-   │  ├─ UiRoot.cs, UiAssets.cs
+   │  ├─ UiRoot.cs, UiAssets.cs, UiApplicationService.cs, StartupProblemView.cs
    │  ├─ Controls/          shared components (including PopupMenu), UiServices, KeyedText, FocusRing, ReducedMotion, Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName, IconLibrary, IconGeometry   VirtualVessel.UI.Icons
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
@@ -926,13 +1004,14 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, screens
-   │  └─ Settings/          UiSettings, DeveloperModeService
+   │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
    ├─ Fonts/                FontSet (NotoSans.asset)
    ├─ Strings/              ja.json, en.json
    ├─ Uxml/                 screen UXML
-   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiAssetsUpdater, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ UiAssets.asset, PanelSettings.asset, RuntimeTheme.tss
    └─ Tests/
       ├─ EditMode/
       ├─ PlayMode/
@@ -962,7 +1041,12 @@ Each step is one branch and includes its tests (CLAUDE.md 29.2).
    2. Cropping, the right-click menu and shortcuts, undo
    3. The layer list (`LayerList`), hidden videos, and showing videos without a preview
    4. The preview (`StreamPreview`) and full screen
-7. UI: `UiRoot`, `ScreenHost`, Developer Mode, Diagnostics screen, Component Gallery, `UiScreenshotCapture`
+7. UI: `UiRoot`, `ScreenHost`, Developer Mode, Diagnostics screen, Component Gallery, `UiScreenshotCapture`, split into three parts:
+   1. `UiRoot`, `UiAssets`, reading, applying, and saving settings, UI scale, font fallback, the startup problem screen
+   2. `ScreenHost`, navigation, Developer Mode, the Diagnostics screen
+   3. Component Gallery, `UiScreenshotCapture`
+
+   The Diagnostics screen and Component Gallery start with minimal content and may be revised later.
 
 ---
 

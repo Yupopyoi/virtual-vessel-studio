@@ -117,6 +117,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 |---|---|---|
 | `UiRoot` | MonoBehaviour | Persistent Sceneに置くUIの入口。`UIDocument`とUI用Assetを保持し、Serviceを接続する |
 | `UiAssets` | ScriptableObject | PanelSettings、生成済みTheme、FontSet、文字列表、画面のUXMLへの参照 |
+| `UiApplicationService` | Class | UIを1つのApplication Serviceとして起動・終了する（7.9） |
 | `ThemeService` | Class | パレット、背景、拡大縮小、動きを減らす設定を適用する |
 | `FontService` | Class | FontSetを切り替える |
 | `FontSet` | ScriptableObject | UI用と等幅のFont Asset、Fallback |
@@ -131,7 +132,9 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | `FrameLayout` / `FrameEditMath` | Struct / Static Class（Core） | 配置データと編集の計算 |
 | `ScreenHost` | VisualElement | 画面の切り替え |
 | `DeveloperModeService` | Class | Developer Modeの切り替えと関連機能への反映 |
-| `UiSettings` | Class | UI固有設定の内容 |
+| `UiSettings` | Class | UI固有設定の内容（ファイルに書かれたままの値） |
+| `UiSettingsResolver` / `ResolvedUiSettings` | Static Class / Struct | 設定の値を許可した一覧に照らして、使う値を決める（8.1） |
+| `UiSettingsService` | Class | 設定の変更の通知と、まとめての保存（7.9） |
 | `ConfigFileStore` | Class（ProjectData） | 設定ファイルの読み書き |
 | `ThemeGenerator` | Editor | Tokenから各ThemeのUSSを生成する |
 | `UiScreenshotCapture` | Editor | 画面をPNGへ書き出す |
@@ -339,7 +342,7 @@ Fontは`FontSet`（ScriptableObject、`Assets/VirtualVessel/UI/Fonts/`）で一�
 **言語とFont**
 
 - 文字列表（7.4）の各言語は、推奨するFontSetを指定できる。将来、日本語Fontで表示できない言語を追加する場合に使う。
-- FallbackはPanelSettingsのText Settingsに設定し、文字が欠けないようにする（方式設計14.9）。`UiRoot`（実装順序7）で行う。
+- FallbackはPanelSettingsのText Settingsに設定し、文字が欠けないようにする（方式設計14.9）。`UiRoot`で行う（7.9）。
 - 日本語は文字数が多いため、FontはDynamic（必要な文字を実行時にAtlasへ追加）として扱う。TTFを`-unity-font`で指定すると、UnityがDynamicなFont Assetを作る。
 
 **Fontファイル**
@@ -509,6 +512,65 @@ public interface IUiCommand
 
 隅に近い側に新しい通知を置く。右下・左下では下、右上・左上では上に追加する（`NotificationPolicy.NewestFirst`）。
 
+### 7.9 UiRoot（UIの入口）
+
+**Applicationとの接続**
+
+- `UiRoot`は、Persistent Sceneの`UIDocument`と同じGameObjectに置く。`ApplicationBootstrap`がSerializeFieldで参照し、Compositionへ渡す。Static Instanceは使わない（アプリケーション基盤詳細設計3章）。
+- Compositionは、最後に`UiApplicationService`（Service名`UI`、Optional、Loggingに依存）を登録する。そのため、UIはほかのApplication Serviceがすべて起動した後に構築される（10章）。UIの構築に失敗しても、ほかのServiceは止まらない。
+- `UiApplicationService`は、UIのLog、`IMainThreadDispatcher`、Monotonic Clock、System Clock、設定ファイルの場所（`DataRootResolver.ConfigDirectory`）をConstructorで受け取る。
+
+**構築の順序**（`UiRoot.Build`）
+
+1. `ui-settings.json`を読み、値を解決する（8.1）。
+2. `UiAssets`のPanelSettingsを複製し、`UIDocument`に設定する。Asset本体を実行中に書き換えると、Editorではその変更がAssetに残ってしまうためである。複製はUIの破棄時に破棄する。
+3. `Localizer`、`ThemeService`、`FontService`を作る。文字列表は`UiAssets`が持つ（7.4）。
+4. Rootに`UiServicesScope`（`vv-root`）を置き、Theme、Font、Notification、Dialog、Tooltipを取り付ける。`UiServices`の失敗の通知先には`NotificationService.ShowFailure`、確認Dialogには`DialogService`を渡す。
+5. 解決した設定（Theme、Font、言語、UIの大きさ）を適用する。
+6. 画面の領域（`UiRoot.Content`）を置く。`ScreenHost`（実装順序7-2）はここに入る。
+7. 設定ファイルを退避した場合は、Notification（Warning）で利用者に知らせる。
+
+**UIの大きさ**
+
+- PanelSettingsは`ConstantPhysicalSize`（基準96 DPI）とし、Windowsの表示スケール（125%、150%等）に従う。そのうえで`scale`に設定の`uiScale`を掛ける。
+
+**動きを減らす設定の「system」**
+
+- Windowsの「アニメーション効果」（`SystemParametersInfo`の`SPI_GETCLIENTAREAANIMATION`）を起動時に1回読む。オフなら動きを減らす。Windows以外と、読めなかった場合はオフ（動きを減らさない）とする。
+
+**Font Fallback**（方式設計14.9）
+
+- 既定のFontSetのRegular（Noto Sans JP）から実行時に動的なFont Assetを作り、PanelSettingsのText SettingsのFallbackに設定する。等幅のNoto Sans Monoや、今後追加するFontSetに日本語の文字がなくても、文字が欠けないようにするためである。Text Settingsの複製はUIの破棄時に破棄する。Font Assetはフォントごとに1つだけ作り、実行中は使い回して破棄しない。TextCoreは、パネルを破棄した後もFont Assetの画像を参照し続けるため、破棄すると次に作る画面（UIの構築に失敗した後の起動できなかったときの画面など）の文字の描画が壊れるためである。
+
+**設定の変更と保存**（`UiSettingsService`）
+
+- 設定を変える操作（`SetPalette`等）は、すぐに`Changed`で知らせ、`UiRoot`が画面へ反映する。
+- 保存は、最後の変更から0.5秒後に1回だけ行う（`SaveDebounce`）。毎フレームの`UiRoot.Update`から`Tick`を呼んで判定する。
+- 書き込みはWorker Threadで、1件ずつ順に行う。ファイルの書き込みでMain Threadを止めないためである（16章）。
+- 終了時（`UiApplicationService.ShutdownAsync`）は、待っている保存を済ませる。
+- 保存に失敗したら、Warningを記録し、Notification（Warning）「設定を保存できませんでした」を表示する。同じ失敗が続く間は繰り返し表示せず、保存に成功したら元に戻す。
+
+**起動できなかったときの画面**（アプリケーション基盤詳細設計8.1、17章）
+
+- `ApplicationBootstrap`は起動処理の後、Applicationが`Failed`になった場合、またはUIのServiceが動いていない場合に、`UiRoot.ShowStartupProblem`を呼ぶ。
+- 表示する内容は次の2種類とする。
+
+| 種類 | 見出し | 本文 |
+|---|---|---|
+| Data Rootを使えない | データの保存先を使えません | 保存先のフォルダーに書き込めません。フォルダーの場所と空き容量を確認してから、もう一度起動してください。（下に保存先のPathを表示） |
+| その他 | Virtual Vessel Studioを起動できませんでした | もう一度起動してください。繰り返し起きる場合は、ログを添えて報告してください。 |
+
+- 「終了」ボタンで、通常の終了処理（アプリケーション基盤詳細設計7.2）を行う。
+- この画面は、既定のThemeと既定のFontSetで表示する。起動できない原因に関わるものへ、できるだけ依存しないためである。
+- 言語は、直前まで表示していた画面の言語、`ui-settings.json`の`language`、OSの言語の順に、文字列表があるものを使う。設定ファイルは`UiSettingsPeek`で読み取るだけとし、壊れていても退避や書き込みはしない。利用者が選んだ言語で、何が起きたかを伝えるためである。
+
+**セキュリティ上の考慮**
+
+- `ui-settings.json`は、利用者や同じユーザー権限で動く別のProgramが書き換えられる。信頼しない入力として扱い、値は許可した一覧に照らして使う（8.1）。
+- 設定ファイルには秘密情報（Stream Key等）を保存しない。秘密情報は方式設計6.13の方式で扱う。
+- Developer Modeは表示を増やすだけで、権限は与えない。設定ファイルを書き換えれば誰でも有効にできるため、Developer Modeの裏に守るべき機能を置かない。Diagnosticsにも秘密情報を表示しない（7-2）。
+- 起動できなかったときの画面とNotificationには、例外の文、Service名、Stack Traceなどの内部の情報を出さない。詳細は開発者向けのLogへ記録する。
+
 ---
 
 ## 8. データモデル
@@ -544,6 +606,13 @@ public interface IUiCommand
 
 - 読み書きはProjectDataの`ConfigFileStore`が行う（8.3）。
 - 知らない値（存在しないパレット名等）は既定値として扱い、ファイルの値は上書きするまで残す。
+- 値は`UiSettingsResolver.Resolve`（純粋関数）で、許可した一覧に照らして解決する。外れた値は既定値を使い、Warningを記録する。
+  - `language`：文字列表がある言語。知らない言語は英語にする（7.4）。
+  - `palette`、`fontSet`：`ThemeAssets`にあるもの。
+  - `background`：`dark`、`light`。`reducedMotion`：`system`、`on`、`off`。
+  - `uiScale`：表の4段階のみ。任意の値を許すと、極端な値で画面を操作できなくなるためである。
+  - `lastScreen`：画面の一覧にあるもの（`ScreenHost`、実装順序7-2）。
+- ファイルがないときの`language`は、OSの言語から決めて設定に入れる（`Localizer.ChooseInitialLocale`）。
 
 ### 8.2 FrameLayout
 
@@ -566,6 +635,7 @@ public interface IUiCommand
 - 書き込みは一時ファイルへ書いてから置き換える（Atomic Write）。
 - 現在のVersionが知らない項目は、読み込んだまま保持して書き戻す。
 - 壊れたファイルは`<name>.broken-<日時>.json`へ退避し、既定値で起動する。退避したことはWarningで記録する。
+- 1 MiBを超えるファイルは、設定ファイルとしてありえない大きさのため、読み込まずに壊れたファイルとして扱う。起動時に大きなファイルを読み込んで時間やMemoryを使わないためである。
 - JSONの読み書きには`com.unity.nuget.newtonsoft-json` 3.2.2を使用する（利用者承認済み）。詳細はアプリケーション基盤詳細設計の11.1を参照する。
 
 ---
@@ -803,12 +873,12 @@ public interface IStreamPreviewSource
 
 ## 10. 状態とライフサイクル
 
-1. `ApplicationBootstrap`がApplication Serviceを起動した後、`UiRoot`がUIを構築する。
-2. `UiRoot`は`ui-settings.json`を読み、Theme、Font、言語を適用してから最初の画面を表示する。
-3. 設定の変更は即座に反映し、0.5秒程度まとめてから`ui-settings.json`へ保存する。
-4. 終了時は、未保存の設定を保存してからUIを破棄する。
+1. `ApplicationBootstrap`がApplication Serviceを起動する。`UiApplicationService`は最後に起動し、`UiRoot`がUIを構築する（7.9）。
+2. `UiRoot`は`ui-settings.json`を読み、Theme、Font、言語、UIの大きさを適用してから最初の画面を表示する。
+3. 設定の変更は即座に反映し、最後の変更から0.5秒後に`ui-settings.json`へ保存する。
+4. 終了時は、`UiApplicationService.ShutdownAsync`で未保存の設定を保存し、`Dispose`でUIを破棄する。UIのServiceはほかのServiceより後に起動するため、ほかのServiceより先に終了する。
 
-UIの構築に失敗しても、Application Serviceの動作は止めない。開発者向けのLogへ記録し、最小限のエラー画面を表示する。
+UIの構築に失敗しても、Application Serviceの動作は止めない。開発者向けのLogへ記録し、最小限のエラー画面（7.9の起動できなかったときの画面）を表示する。
 
 ---
 
@@ -848,7 +918,9 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 
 | 状況 | 対応 |
 |---|---|
-| `ui-settings.json`が壊れている | 退避して既定値で起動する（8.3） |
+| `ui-settings.json`が壊れている | 退避して既定値で起動し、Notification（Warning）で知らせる（7.9、8.3） |
+| `ui-settings.json`を保存できない | Warningを記録し、Notification（Warning）で知らせる。同じ失敗が続く間は繰り返さない（7.9） |
+| Applicationが起動できない、UIを構築できない | 起動できなかったときの画面を表示する（7.9） |
 | 文字列Keyが見つからない | 英語、Keyの順で代わりに表示し、1回だけWarningを記録する |
 | Font Assetが読み込めない | 既定のFontSetへ戻し、Errorを記録する |
 | Commandが失敗した | 利用者向けのNotificationを出し、詳細を開発者向けLogへ記録する |
@@ -858,7 +930,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 
 ## 14. Logと診断
 
-- Theme、Font、言語、Developer Modeの変更をInformationで記録する。
+- Theme、Font、言語、UIの大きさ、Developer Modeの変更をInformationで記録する。
+- `ui-settings.json`の読み込み結果（新規、読み込み、移行、退避、新しいVersion）と、許可した一覧から外れた値を記録する。退避と外れた値はWarningとする。
 - 文字列Keyの不足、Fontの読み込み失敗をWarningまたはErrorで記録する。
 - UIの描画や操作の度にLogを出さない（CLAUDE.md 20章）。
 
@@ -887,6 +960,11 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | PlayMode | 切り抜きモードの切り替え、辺の切り取り、Wheelの拡大と確定のまとめ方、中ボタンでの移動、元に戻す・やり直す、右クリックMenu、ロック中のMenu、ショートカット（9.8） |
 | PlayMode | 確認Dialogの実行・キャンセル・Esc、Focusの移動と復帰、`DangerCommand`が確認後だけ実行されること |
 | PlayMode | Notificationの自動消去、Errorが残ること、数の上限と待ち行列、優先度、待ち件数の表示、隅ごとの並び順、`ShowFailure` |
+| EditMode | `UiSettingsResolver`（許可した値、既定値、知らない値の保持、UIの大きさ、動きを減らす設定の解決）、`SaveDebounce`（7.9、8.1） |
+| EditMode | `UiSettingsService`（変更の通知、最後の変更から0.5秒後の保存、終了時の保存、保存の失敗の通知が1回だけであること） |
+| EditMode | `UiAssets`の文字列表が`Strings/*.json`と一致すること、Persistent Sceneに`UiRoot`が1つあり`ApplicationBootstrap`が参照していること、起動できなかったときの画面の種類の判定 |
+| EditMode | `ConfigFileStore`が1 MiBを超えるファイルを退避すること（8.3） |
+| PlayMode | `UiRoot`の構築（Theme、Font、言語、UIの大きさの適用、PanelSettingsのAssetが変わらないこと、Font Fallback、Notificationの接続）、設定の変更の反映、起動できなかったときの画面の文字、言語の選び方、設定ファイルを変えないこと、終了ボタン（7.9） |
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
 | 性能 | Bindingの更新とLevel Meterの更新でAllocationが発生しないこと（Performance Test） |
 
@@ -914,7 +992,7 @@ Assets/VirtualVessel/
 │  └─ Config/ConfigFileStore.cs                                  VirtualVessel.ProjectData.Config
 └─ UI/
    ├─ Runtime/                                                    VirtualVessel.UI
-   │  ├─ UiRoot.cs, UiAssets.cs
+   │  ├─ UiRoot.cs, UiAssets.cs, UiApplicationService.cs, StartupProblemView.cs
    │  ├─ Controls/          共通Component（PopupMenuを含む）、UiServices、KeyedText、FocusRing、ReducedMotion、Ui   VirtualVessel.UI.Controls
    │  ├─ Icons/             IconName、IconLibrary、IconGeometry    VirtualVessel.UI.Icons
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
@@ -926,13 +1004,14 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Screens/           ScreenHost, 各画面
-   │  └─ Settings/          UiSettings, DeveloperModeService
+   │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
    ├─ Fonts/                FontSet（NotoSans.asset）
    ├─ Strings/              ja.json, en.json
    ├─ Uxml/                 画面のUXML
-   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ Editor/               ThemeGenerator, ThemeStyleSheetGenerator, ThemeColor, DesignTokens, UiAssetsUpdater, UiScreenshotCapture   VirtualVessel.UI.Editor
+   ├─ UiAssets.asset, PanelSettings.asset, RuntimeTheme.tss
    └─ Tests/
       ├─ EditMode/
       ├─ PlayMode/
@@ -962,7 +1041,12 @@ Assets/ThirdParty/
    2. 切り抜き、右クリックMenuとショートカット、元に戻す
    3. 重なり順の一覧（`LayerList`）、非表示の映像、プレビューのない画面での表示
    4. プレビュー（`StreamPreview`）と全画面表示
-7. UI：`UiRoot`、`ScreenHost`、Developer Mode、Diagnostics画面、Component Gallery、`UiScreenshotCapture`
+7. UI：`UiRoot`、`ScreenHost`、Developer Mode、Diagnostics画面、Component Gallery、`UiScreenshotCapture`。次の3つに分ける。
+   1. `UiRoot`、`UiAssets`、設定の読み込み・反映・保存、UIの大きさ、Font Fallback、起動できなかったときの画面
+   2. `ScreenHost`、ナビゲーション、Developer Mode、Diagnostics画面
+   3. Component Gallery、`UiScreenshotCapture`
+
+   Diagnostics画面とComponent Galleryは、まず最小限の内容で作る。後で見直す可能性がある。
 
 ---
 

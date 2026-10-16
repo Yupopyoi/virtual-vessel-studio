@@ -9,6 +9,7 @@ using VirtualVessel.Application.Session;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.UI;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -30,6 +31,7 @@ namespace VirtualVessel.Application.Startup
         private readonly RuntimeEnvironment _environment;
         private readonly BufferedApplicationLog _log;
         private readonly Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> _compose;
+        private readonly UiRoot _uiRoot;
 
         private SessionMarker _sessionMarker;
         private bool _sessionMarkerWritten;
@@ -44,7 +46,8 @@ namespace VirtualVessel.Application.Startup
             ISystemClock systemClock,
             IMainThreadDispatcher mainThreadDispatcher,
             BufferedApplicationLog log,
-            Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> compose)
+            Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> compose,
+            UiRoot uiRoot = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _buildInfo = buildInfo ?? throw new ArgumentNullException(nameof(buildInfo));
@@ -55,6 +58,7 @@ namespace VirtualVessel.Application.Startup
             _mainThreadDispatcher = mainThreadDispatcher ?? throw new ArgumentNullException(nameof(mainThreadDispatcher));
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _compose = compose ?? throw new ArgumentNullException(nameof(compose));
+            _uiRoot = uiRoot;
         }
 
         public ApplicationState State => Host?.State ?? _startupFailureState;
@@ -64,6 +68,12 @@ namespace VirtualVessel.Application.Startup
         public IDataRoot DataRoot { get; private set; }
 
         public SessionInfo Session { get; private set; }
+
+        /// <summary>Folder of the small settings files such as ui-settings.json (system design 6.8).</summary>
+        public string ConfigDirectory => _dataRootResolver.ConfigDirectory;
+
+        /// <summary>The Data Root that could not be used, when that stopped startup; otherwise null.</summary>
+        public string UnavailableDataRootPath { get; private set; }
 
         public async Task StartAsync()
         {
@@ -83,7 +93,7 @@ namespace VirtualVessel.Application.Startup
 
             StartSession();
 
-            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log);
+            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log, _dataRootResolver.ConfigDirectory, _uiRoot);
             IReadOnlyList<ApplicationServiceDescriptor> descriptors;
             try
             {
@@ -133,6 +143,7 @@ namespace VirtualVessel.Application.Startup
             }
             catch (DataRootUnavailableException exception)
             {
+                UnavailableDataRootPath = exception.Path;
                 _log.Write(ApplicationLogLevel.Error, $"The Data Root '{exception.Path}' cannot be used. The application cannot start.", exception);
                 return false;
             }
