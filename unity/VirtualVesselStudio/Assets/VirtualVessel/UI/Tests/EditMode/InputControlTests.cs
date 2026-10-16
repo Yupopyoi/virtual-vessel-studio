@@ -44,6 +44,18 @@ namespace VirtualVessel.UI.Tests
             Assert.That(SelectField.MoveHighlight(0, 1, 0), Is.EqualTo(-1));
         }
 
+        [TestCase(100f, 200f, 1000f, 100f)]
+        [TestCase(800f, 300f, 1000f, 600f)]
+        [TestCase(900f, 300f, 1000f, 692f)]
+        [TestCase(10f, 2000f, 1000f, 8f)]
+        public void SelectField_MenuLeft_StaysInsideTheWindow(float fieldLeft, float menuWidth, float hostWidth, float expected)
+        {
+            // A 100px wide field: the list opens at it, right-aligned with it near the right edge, never off screen.
+            var field = new Rect(fieldLeft, 50f, 100f, 32f);
+
+            Assert.That(SelectField.MenuLeft(field, menuWidth, hostWidth, 8f), Is.EqualTo(expected));
+        }
+
         [TestCase("48000", 48000.0)]
         [TestCase(" -3.5 ", -3.5)]
         [TestCase("−5", -5.0)]

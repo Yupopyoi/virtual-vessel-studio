@@ -73,6 +73,8 @@ For each component, the following states are defined:
 
 - Background Background, 1px border, Radius S, a down arrow at the right end.
 - Long option text is wrapped or the width grows; it is not truncated.
+- The field is as wide as its longest option, whatever is selected, so it keeps its width when the choice changes and the list opens as wide as the field.
+- The list opens below the field, above it when there is no room below, and right-aligned with the field when it would pass the right edge of the window; it never leaves the window.
 
 ### 3.7 Text Field / Numeric Field
 

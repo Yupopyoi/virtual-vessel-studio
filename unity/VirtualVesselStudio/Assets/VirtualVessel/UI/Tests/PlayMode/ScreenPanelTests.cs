@@ -372,6 +372,32 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Dropdown_IsAsWideAsItsLongestChoice_AndItsListNoWider()
+        {
+            Build();
+            yield return null;
+            _root.Settings.SetReducedMotion(ReducedMotionMode.On);
+            _root.Shell.Open("setup");
+            yield return null;
+            yield return null;
+            var card = _root.Shell.Host.GetScreen("setup").Q<AppSettingsCard>();
+            VisualElement box = card.Motion.Q(className: SelectField.UssClass + "__box");
+            float widthOn = box.worldBound.width;
+
+            _root.Settings.SetReducedMotion(ReducedMotionMode.System);
+            yield return null;
+            Assert.That(box.worldBound.width, Is.EqualTo(widthOn).Within(0.5f), "The field does not change width with the selection.");
+
+            _root.Settings.SetReducedMotion(ReducedMotionMode.On);
+            card.Motion.Open();
+            yield return null;
+            yield return null;
+            VisualElement menu = _root.Content.parent.Q(className: SelectField.MenuClass);
+            Assert.That(menu.worldBound.xMax, Is.LessThanOrEqualTo(box.worldBound.xMax + 0.5f), "With \"On\" selected, the list is no wider than the field.");
+            card.Motion.Close();
+        }
+
+        [UnityTest]
         public IEnumerator Diagnostics_WithoutMetrics_SaysSo()
         {
             WriteSettings("{ \"schemaVersion\": 1, \"developerMode\": true, \"lastScreen\": \"diagnostics\" }");

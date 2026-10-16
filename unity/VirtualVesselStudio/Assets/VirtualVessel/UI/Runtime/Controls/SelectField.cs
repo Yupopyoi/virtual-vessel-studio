@@ -62,9 +62,13 @@ namespace VirtualVessel.UI.Controls
 
         public const string HighlightClass = OptionClass + "--highlight";
 
+        // Keeps an open list off the window's edge, as the popup menu does.
+        private const float MenuEdgeMargin = 8f;
+
         private readonly KeyedText _label;
         private readonly VisualElement _box;
         private readonly Label _current;
+        private readonly VisualElement _sizer;
         private readonly List<SelectChoice> _choices = new List<SelectChoice>();
         private VisualElement _menu;
         private EventCallback<PointerDownEvent> _outsideClick;
@@ -86,9 +90,18 @@ namespace VirtualVessel.UI.Controls
             _current = QuietText.Of(new Label());
             _current.AddToClassList(UssClass + "__current");
             _current.AddToClassList("vv-text-body");
+
+            // Every choice, invisible and zero-high, under the current text: the field is as wide as its
+            // longest choice whatever is selected, so it does not jump, and the list opens no wider.
+            var text = new VisualElement();
+            text.AddToClassList(UssClass + "__text");
+            _sizer = new VisualElement { pickingMode = PickingMode.Ignore };
+            _sizer.AddToClassList(UssClass + "__sizer");
+            text.Add(_current);
+            text.Add(_sizer);
             var chevron = new Icon(IconName.ChevronDown);
             chevron.AddToClassList(UssClass + "__chevron");
-            _box.Add(_current);
+            _box.Add(text);
             _box.Add(chevron);
             Add(_box);
             FocusRing.Attach(_box);
@@ -258,7 +271,8 @@ namespace VirtualVessel.UI.Controls
                 _menu.Add(option);
             }
 
-            // Below the field, as wide as it; above it when there is no room below.
+            // Below the field, as wide as it; above it when there is no room below, and shifted left
+            // when it would pass the right edge of the window.
             Rect field = host.WorldToLocal(_box.worldBound);
             _menu.style.left = field.xMin;
             _menu.style.minWidth = field.width;
@@ -266,10 +280,17 @@ namespace VirtualVessel.UI.Controls
             host.Add(_menu);
             _menu.RegisterCallback<GeometryChangedEvent>(_ =>
             {
-                if (_menu != null && field.yMax + 4f + _menu.layout.height > host.layout.height && field.yMin - 4f - _menu.layout.height >= 0f)
+                if (_menu == null)
+                {
+                    return;
+                }
+
+                if (field.yMax + 4f + _menu.layout.height > host.layout.height && field.yMin - 4f - _menu.layout.height >= 0f)
                 {
                     _menu.style.top = field.yMin - 4f - _menu.layout.height;
                 }
+
+                _menu.style.left = MenuLeft(field, _menu.layout.width, host.layout.width, MenuEdgeMargin);
             });
 
             _highlight = IndexOf(_choices, _value);
@@ -289,6 +310,16 @@ namespace VirtualVessel.UI.Controls
                 _onLocaleChanged = _ => Close();
                 _menuLocalizer.LocaleChanged += _onLocaleChanged;
             }
+        }
+
+        /// <summary>
+        /// The left edge of a list <paramref name="menuWidth"/> wide under <paramref name="field"/>: at the
+        /// field, or right-aligned with it when that would pass the window's edge, never past the left. Pure.
+        /// </summary>
+        public static float MenuLeft(Rect field, float menuWidth, float hostWidth, float margin)
+        {
+            float left = field.xMin + menuWidth > hostWidth - margin ? field.xMax - menuWidth : field.xMin;
+            return Mathf.Max(margin, Mathf.Min(left, hostWidth - margin - menuWidth));
         }
 
         public void Close()
@@ -392,8 +423,19 @@ namespace VirtualVessel.UI.Controls
 
         private void RefreshCurrent()
         {
+            ILocalizer localizer = UiServices.Find(this)?.Localizer;
             int index = IndexOf(_choices, _value);
-            _current.text = index < 0 ? string.Empty : _choices[index].Resolve(UiServices.Find(this)?.Localizer);
+            _current.text = index < 0 ? string.Empty : _choices[index].Resolve(localizer);
+
+            // Rebuilt with the current texts, so the width follows the language too.
+            _sizer.Clear();
+            foreach (SelectChoice choice in _choices)
+            {
+                var sizing = new Label(choice.Resolve(localizer));
+                sizing.AddToClassList(UssClass + "__current");
+                sizing.AddToClassList("vv-text-body");
+                _sizer.Add(sizing);
+            }
         }
 
         private VisualElement MenuHost()

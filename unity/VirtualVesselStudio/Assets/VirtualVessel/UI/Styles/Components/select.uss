@@ -27,6 +27,18 @@
     color: var(--vv-color-text);
 }
 
+.vv-select__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+/* Sizes the field to its longest choice (SelectField); never seen and never takes height. */
+.vv-select__sizer {
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+}
+
 .vv-select__chevron {
     width: 16px;
     height: 16px;
