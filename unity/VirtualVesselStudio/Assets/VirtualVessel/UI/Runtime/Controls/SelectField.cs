@@ -370,6 +370,10 @@ namespace VirtualVessel.UI.Controls
             }
 
             evt.StopPropagation();
+
+            // StopPropagation alone leaves Unity's arrow-key focus navigation running, which would move
+            // focus to the next row while the value changes.
+            focusController?.IgnoreEvent(evt);
         }
 
         private void Highlight(int index)
