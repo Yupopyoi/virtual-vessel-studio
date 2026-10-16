@@ -73,6 +73,8 @@ For each component, the following states are defined:
 
 - Background Background, 1px border, Radius S, a down arrow at the right end.
 - Long option text is wrapped or the width grows; it is not truncated.
+- The field is as wide as its longest option, whatever is selected, so it keeps its width when the choice changes and the list opens as wide as the field.
+- The list opens below the field, above it when there is no room below, and right-aligned with the field when it would pass the right edge of the window; it never leaves the window.
 
 ### 3.7 Text Field / Numeric Field
 
@@ -142,6 +144,7 @@ For each component, the following states are defined:
 - A vertical menu on the left with an icon and text.
 - Selected: background Tint, text Text, a 3px Accent Line at the left edge.
 - Each item has a tooltip describing the screen's role.
+- Operated with Tab and Enter. The Up and Down keys also move between items.
 
 ### 3.17 Preview
 
@@ -156,7 +159,7 @@ For each component, the following states are defined:
 
 ### 3.18 Segmented
 
-- Picks one of two to four options. Used for language, background, UI size, the placement editing mode, and similar.
+- Picks one of two to four options. Used for background, the placement editing mode, and similar. Language (which grows with each string table) and UI size (six steps) use a Dropdown.
 - The outer box uses Radius Control and each item about Radius S (7px). The selected item has background Primary and text On Accent.
 - With five or more options, or long text, use a Dropdown instead.
 
@@ -201,6 +204,16 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - Each item has a tooltip saying what it does.
 - When it opens it takes keyboard focus: up and down move, Enter runs, Esc closes. Running an item or pressing outside closes it. Focus then returns to where it was.
 - Near the edges of the screen it opens to the left or upwards so that it stays on screen.
+
+### 3.24 Table
+
+- Each column sets its width, alignment (left or right), and kind of text. The header and every row use the same column definitions, so columns always line up.
+- Text is left-aligned; numbers are monospace and right-aligned so their digits line up.
+- Each cell has S (8px) padding on both sides, so neighbouring columns are always 16px apart.
+- Headers use Caption and Text 3. Rows are at least 36px high, separated by a 1px Border line.
+- A column can take the remaining width (such as a name). Text that does not fit ends with "…".
+- When the room is narrower than the columns together, the table scrolls sideways inside itself and never spills out. A vertical wheel still scrolls the whole screen.
+- Refreshing a table changes only the texts; rows are not rebuilt.
 
 ---
 

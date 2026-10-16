@@ -130,7 +130,9 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | 共通Component | VisualElement | `components.md`の各部品（6章） |
 | `MediaFrame` / `FrameCanvas` | VisualElement | 配置編集と切り抜き（9章） |
 | `FrameLayout` / `FrameEditMath` | Struct / Static Class（Core） | 配置データと編集の計算 |
-| `ScreenHost` | VisualElement | 画面の切り替え |
+| `AppShell` | VisualElement | ナビゲーションと画面の領域、版の表示（7.7） |
+| `ScreenHost` | VisualElement | 画面の切り替え（7.7） |
+| `ScreenDefinition` / `IScreen` | Class / Interface | 画面の登録内容と、表示・非表示の通知（7.7） |
 | `DeveloperModeService` | Class | Developer Modeの切り替えと関連機能への反映 |
 | `UiSettings` | Class | UI固有設定の内容（ファイルに書かれたままの値） |
 | `UiSettingsResolver` / `ResolvedUiSettings` | Static Class / Struct | 設定の値を許可した一覧に照らして、使う値を決める（8.1） |
@@ -172,6 +174,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Popup Menu | `PopupMenu` | C#から`PopupMenu.Show`で表示（`components.md` 3.23） |
 | Panel | `MediaFrame` | 9章 |
 | Layer List | `LayerList` | C#から`new LayerList(canvas)`で作る（9.7） |
+| Table | `DataTable` / `TableColumn` | C#から`Ui.Table(TableColumn.Number(...), ...)`で作る（`components.md` 3.24） |
 
 UXMLの名前空間は`VirtualVessel.UI.Controls`、接頭辞は`vv`とする。Classは`[UxmlElement]`と`[UxmlAttribute]`（Unity 6）で定義する。
 
@@ -475,13 +478,59 @@ public interface IUiCommand
 
 ### 7.7 画面とDeveloper Mode
 
-- `ScreenHost`は、Live、Setup、Voice Lab、Diagnosticsの各画面を切り替える。画面は初めて開いたときに作り、以後は保持する。
-- Diagnosticsのナビゲーション項目は、Developer Modeが有効なときだけ表示する（方式設計14.22）。
-- `DeveloperModeService`は、Developer Modeの切り替えを`PerformanceMetricsService.SetDetailedEnabled`等の関連機能へ伝える。
+**画面の構成**（`styleboard.html`の「画面の見本」）
+
+- 左に幅200pxのナビゲーション（背景Bg、右端に1pxのBorder）、右に画面の領域を置く（`AppShell`）。
+- ナビゲーションの項目は、ライブ、セットアップ、Voice Lab、診断の順とする。各項目のTooltipで、その画面の役割を示す。
+- ナビゲーションの下端に、Applicationの版（例：`v0.1.0`、等幅、Text 3）を表示する。プロジェクト名は、Projectの機能を作るときに加える。
+- 各画面の上端に、画面の名前を見出しとして置く。
+- 画面の内側の余白はXL（40px）、中身の幅は最大960px（診断は1200px）とし、ナビゲーション側に寄せる（`design-system.md` 5章）。
+
+**ScreenHost**
+
+- 画面は`ScreenDefinition`（Id、アイコン、名前のKey、TooltipのKey、Developer Modeのときだけ表示するか、画面を作る処理）として登録する。Idは`live`、`setup`、`lab`、`diagnostics`とし、`lastScreen`に保存する。
+- 画面は初めて開いたときに作り、以後は保持する。表示していない画面は`display: none`にする。
+- 画面が`IScreen`を実装していれば、表示したときに`OnShown`、隠したときに`OnHidden`を呼ぶ。表示中だけ行う処理（Diagnosticsの更新など）に使う。
+- 開いた画面を`lastScreen`へ保存し、次の起動ではその画面を開く。知らないIdや、Developer Modeがオフで表示できない画面の場合は、ライブを開く（`ScreenNavigation.Choose`、純粋関数）。
+- 診断を開いている間にDeveloper Modeをオフにしたら、ライブへ移る。
+- 画面を作る処理が失敗したら、その画面の領域に「この画面を表示できませんでした」と表示し、Errorを記録する。ほかの画面は使える（13章）。
+- ナビゲーションの項目はButtonであり、TabとEnterで操作できる。項目の間は上下キーでも移れる（`components.md` 3.16）。
+
+**Developer Mode**
+
+- `DeveloperModeService`は、`UiSettingsService`の`developerMode`が変わるたびに、Compositionが登録した相手へ伝える。UIの構築時にも1回伝える。UIは`PerformanceMetricsService`の具体的なClassに依存せず、Compositionが`SetDetailedEnabled`を渡す。
+- 詳細計測は、UIの構築後はDeveloper Modeに従う（性能計測詳細設計7.1）。
+- Developer Modeの変更はInformationで記録する。
+- Developer Modeは表示を増やすだけで、権限は与えない（7.9）。
+
+**アプリの設定**（Setup画面に仮置き）
+
 - 言語、パレット、背景、UIの大きさ、動きを減らす設定は、Setup画面の「アプリの設定」に置く。Live画面には置かない。
-- 最初に作る画面は次の2つとする。
-  - Diagnostics：性能計測（`PerformanceSnapshot`）の表。
-  - Component Gallery（Developer Modeのみ）：`styleboard.html`と同じ部品をUnity上で並べ、表示確認に使う。
+- Setup画面の仕様（`docs/<lang>/ui/screens/`）ができるまでは、Setup画面に「アプリの設定」のCardだけを置く。配置はSetup画面の仕様を決めるときに見直す。
+- 項目はSetting Rowで並べる。
+
+| 項目 | 部品 | 選択肢 |
+|---|---|---|
+| 言語 | Dropdown | 文字列表の`displayName`（日本語、English） |
+| パレット | Dropdown | `ThemeAssets`のパレット名 |
+| 背景 | Segmented | ダーク、ライト |
+| UIの大きさ | Dropdown（選択肢が5個以上のため） | 100%、110%、125%、150%、175%、200% |
+| 動きを減らす | Dropdown（選択肢の文字が長いため） | Windowsの設定に合わせる、オン、オフ。説明に、Windowsの「アニメーション効果」がオフのときに止まることを書く |
+| Developer Mode | Toggle | 診断の画面を表示する |
+
+- 選んだ値は`UiSettingsService`へ渡し、すぐに反映して保存する（7.9）。設定が別の場所で変わったときは、表示を`SetValueWithoutNotify`で合わせる。
+
+**最初に作る画面**
+
+ライブ、セットアップ、Voice Labは、各画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する（セットアップは上記の「アプリの設定」も置く）。中身を作る画面は次の2つとし、まず最小限の内容で作る。後で見直す可能性がある。
+
+- Diagnostics（診断、Developer Modeのみ）：性能計測（`PerformanceSnapshot`）の表。表は共通部品の`DataTable`で作る。
+  - 列は、Module、名前、種類、現在、平均、最大、P95、P99、件数、予算超過とする。数値は等幅で右に寄せ、単位を付ける。
+  - 表示している間だけ、1秒ごとに`IPerformanceMetrics.GetSnapshot`で更新する。表示していない間は取得しない。Snapshotの作成はAllocationを伴うためである。
+  - 表の上に、詳細計測が有効か無効かを表示する。無効の間は、TimerとGaugeの値が増えない理由が分かるようにする。
+  - 性能計測のServiceがない場合は、「性能計測を使えません」と表示する。
+  - 数値の文字は純粋関数（`DiagnosticsFormat`）で作る。Moduleと名前は識別子なので、翻訳せずにそのまま表示する。
+- Component Gallery（Developer Modeのみ、実装順序7-3）：`styleboard.html`と同じ部品をUnity上で並べ、表示確認に使う。
 
 ### 7.8 Notification
 
@@ -527,7 +576,7 @@ public interface IUiCommand
 3. `Localizer`、`ThemeService`、`FontService`を作る。文字列表は`UiAssets`が持つ（7.4）。
 4. Rootに`UiServicesScope`（`vv-root`）を置き、Theme、Font、Notification、Dialog、Tooltipを取り付ける。`UiServices`の失敗の通知先には`NotificationService.ShowFailure`、確認Dialogには`DialogService`を渡す。
 5. 解決した設定（Theme、Font、言語、UIの大きさ）を適用する。
-6. 画面の領域（`UiRoot.Content`）を置く。`ScreenHost`（実装順序7-2）はここに入る。
+6. 画面の領域（`UiRoot.Content`）を置き、その中に`AppShell`（ナビゲーションと`ScreenHost`、7.7）を置く。
 7. 設定ファイルを退避した場合は、Notification（Warning）で利用者に知らせる。
 
 **UIの大きさ**
@@ -598,7 +647,7 @@ public interface IUiCommand
 | `language` | OSの言語が日本語なら`ja`、それ以外は`en` | 文字列表が存在する言語のみ |
 | `palette` | `lavender` | |
 | `background` | `dark` | |
-| `uiScale` | `1.0` | 1.0、1.1、1.25、1.5 |
+| `uiScale` | `1.0` | 1.0、1.1、1.25、1.5、1.75、2.0。175%と200%は、Windowsの拡大率を上げずに高い解像度のモニターを使う場合のため |
 | `reducedMotion` | `system` | `system`、`on`、`off` |
 | `fontSet` | `NotoSans` | |
 | `developerMode` | `false` | |
@@ -610,7 +659,7 @@ public interface IUiCommand
   - `language`：文字列表がある言語。知らない言語は英語にする（7.4）。
   - `palette`、`fontSet`：`ThemeAssets`にあるもの。
   - `background`：`dark`、`light`。`reducedMotion`：`system`、`on`、`off`。
-  - `uiScale`：表の4段階のみ。任意の値を許すと、極端な値で画面を操作できなくなるためである。
+  - `uiScale`：表の段階のみ。任意の値を許すと、極端な値で画面を操作できなくなるためである。
   - `lastScreen`：画面の一覧にあるもの（`ScreenHost`、実装順序7-2）。
 - ファイルがないときの`language`は、OSの言語から決めて設定に入れる（`Localizer.ChooseInitialLocale`）。
 
@@ -964,6 +1013,9 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | EditMode | `UiSettingsService`（変更の通知、最後の変更から0.5秒後の保存、終了時の保存、保存の失敗の通知が1回だけであること） |
 | EditMode | `UiAssets`の文字列表が`Strings/*.json`と一致すること、Persistent Sceneに`UiRoot`が1つあり`ApplicationBootstrap`が参照していること、起動できなかったときの画面の種類の判定 |
 | EditMode | `ConfigFileStore`が1 MiBを超えるファイルを退避すること（8.3） |
+| PlayMode | 実際のStyleを使った配置：すべての画面でナビゲーションと上端から余白XLが空くこと、`DataTable`の見出しと値の列がそろうこと、狭いときは表の中で横にスクロールしてはみ出さないこと、縦のホイールが画面へ届くこと（7.7） |
+| EditMode | `ScreenNavigation`（表示する画面の一覧、最初に開く画面、Developer Modeをオフにしたときの移動）、`DiagnosticsFormat`、`DeveloperModeService`（7.7） |
+| PlayMode | `ScreenHost`（画面を初めて開いたときに作って保持すること、表示の切り替え、`OnShown`と`OnHidden`、`lastScreen`の保存、Developer Modeでの診断の表示と非表示、画面の作成の失敗、上下キー）、アプリの設定の操作と反映、Diagnosticsの表と表示中だけの更新（7.7） |
 | PlayMode | `UiRoot`の構築（Theme、Font、言語、UIの大きさの適用、PanelSettingsのAssetが変わらないこと、Font Fallback、Notificationの接続）、設定の変更の反映、起動できなかったときの画面の文字、言語の選び方、設定ファイルを変えないこと、終了ボタン（7.9） |
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
 | 性能 | Bindingの更新とLevel Meterの更新でAllocationが発生しないこと（Performance Test） |
@@ -1003,7 +1055,7 @@ Assets/VirtualVessel/
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
-   │  ├─ Screens/           ScreenHost, 各画面
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

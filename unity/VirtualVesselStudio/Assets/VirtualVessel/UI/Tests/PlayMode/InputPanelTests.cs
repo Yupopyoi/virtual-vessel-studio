@@ -176,6 +176,60 @@ namespace VirtualVessel.UI.Tests
             Assert.That(meter.LitCount, Is.EqualTo(12), "No polling after the meter leaves the screen.");
         }
 
+        [UnityTest]
+        public IEnumerator ArrowKeys_ChangeTheValue_WithoutMovingFocusToAnotherRow()
+        {
+            // Rows above and below: Unity's own arrow-key navigation would move focus to them.
+            var above = new Button { text = "above" };
+            var select = new SelectField();
+            select.SetChoices(new[] { SelectChoice.FromText("a", "A"), SelectChoice.FromText("b", "B") });
+            select.SetValueWithoutNotify("a");
+            var segmented = new Segmented("q.low", "q.high");
+            var slider = new ValueSlider { LowValue = 0, HighValue = 10 };
+            var tabs = new TabBar("q.low", "q.high");
+            var below = new Button { text = "below" };
+            foreach (VisualElement row in new VisualElement[] { above, select, segmented, slider, tabs, below })
+            {
+                _scope.Add(row);
+            }
+
+            yield return null;
+
+            VisualElement box = select.Q(className: SelectField.UssClass + "__box");
+            yield return Press(box, NavigationMoveEvent.Direction.Down);
+            Assert.That(select.value, Is.EqualTo("b"));
+            Assert.That(HasFocus(select), Is.True, "Down changes the dropdown and keeps focus there.");
+
+            yield return Press(segmented, NavigationMoveEvent.Direction.Right);
+            Assert.That(segmented.value, Is.EqualTo(1));
+            Assert.That(HasFocus(segmented), Is.True);
+
+            VisualElement track = slider.Q(className: ValueSlider.UssClass + "__track");
+            float before = slider.value;
+            yield return Press(track, NavigationMoveEvent.Direction.Right);
+            Assert.That(slider.value, Is.GreaterThan(before));
+            Assert.That(HasFocus(slider), Is.True);
+
+            yield return Press(tabs, NavigationMoveEvent.Direction.Right);
+            Assert.That(tabs.value, Is.EqualTo(1));
+            Assert.That(HasFocus(tabs), Is.True);
+        }
+
+        private IEnumerator Press(VisualElement target, NavigationMoveEvent.Direction direction)
+        {
+            target.Focus();
+            yield return null;
+            Move(target, direction);
+            yield return null;
+        }
+
+        /// <summary>Focus is on the control or inside it; Contains alone excludes the control itself.</summary>
+        private bool HasFocus(VisualElement control)
+        {
+            var focused = _scope.focusController.focusedElement as VisualElement;
+            return focused == control || control.Contains(focused);
+        }
+
         private static void Move(VisualElement target, NavigationMoveEvent.Direction direction)
         {
             using (NavigationMoveEvent evt = NavigationMoveEvent.GetPooled(direction))

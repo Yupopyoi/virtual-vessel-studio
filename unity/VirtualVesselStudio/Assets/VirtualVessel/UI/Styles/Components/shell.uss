@@ -1,0 +1,67 @@
+/*
+ * Application frame (UI foundation detailed design 7.7, the screen mockup in styleboard.html): a 200px
+ * navigation on the page background, a border, and the screens on the surface.
+ */
+.vv-shell {
+    background-color: var(--vv-color-surface);
+}
+
+.vv-shell__nav {
+    width: 200px;
+    flex-shrink: 0;
+    padding: var(--vv-space-m) var(--vv-space-s);
+    border-right-width: 1px;
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-bg);
+}
+
+.vv-shell__version {
+    margin-top: auto;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--vv-color-text-3);
+}
+
+.vv-screens {
+    flex-basis: 0;
+}
+
+.vv-screen {
+    flex-grow: 1;
+}
+
+/*
+ * Every screen sits in this column, so its padding and width are set here once for all screens.
+ * The padding is on our own element, not on the ScrollView's internals, whose structure may change.
+ * Content is at most 960px wide (1200px for the Diagnostics table) plus the XL padding (design-system.md 5).
+ */
+.vv-screen__column {
+    width: 100%;
+    max-width: 1040px;
+    padding: var(--vv-space-xl);
+}
+
+.vv-screen--diagnostics .vv-screen__column {
+    max-width: 1280px;
+}
+
+/* The heading of every screen, underlined by the accent line like the mockup's top line. */
+.vv-screen__title {
+    margin: 0 0 var(--vv-space-m) 0;
+    padding: 0 0 var(--vv-space-s) 0;
+    border-bottom-width: 2px;
+    border-color: var(--vv-color-accent-line);
+    font-size: 18px;
+    color: var(--vv-color-text);
+}
+
+.vv-screen__note,
+.vv-screen__failed {
+    margin: var(--vv-space-m) 0 0 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-screen__failed {
+    color: var(--vv-color-error);
+}

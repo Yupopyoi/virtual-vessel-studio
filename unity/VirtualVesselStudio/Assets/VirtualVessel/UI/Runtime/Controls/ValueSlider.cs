@@ -278,6 +278,10 @@ namespace VirtualVessel.UI.Controls
             float size = _step > 0f ? _step : Mathf.Abs(_high - _low) / 100f;
             value = _value + (direction * size * Mathf.Sign(_high - _low));
             evt.StopPropagation();
+
+            // StopPropagation alone leaves Unity's arrow-key focus navigation running, which would move
+            // focus to the next row while the value changes.
+            focusController?.IgnoreEvent(evt);
         }
     }
 }

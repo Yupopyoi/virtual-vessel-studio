@@ -202,7 +202,7 @@ button, input, select { font: inherit; color: inherit; }
 .nav-ico { width: 18px; height: 18px; flex: none; }
 .nav-foot { margin-top: auto; padding: 10px 12px; font-size: 12px; color: var(--text-3); display: grid; gap: 2px; }
 
-.main { padding: var(--space-l); display: grid; gap: var(--space-m); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-content: start; }
+.main { padding: var(--space-xl); display: grid; gap: var(--space-m); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-content: start; }
 .topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; position: relative; padding-bottom: var(--space-s); }
 .topline::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 1px; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
 .topline h3 { font-size: 18px; font-weight: 700; margin-right: auto; }
@@ -352,6 +352,12 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 /* Layer list (components.md 3.20) */
 .layers { display: grid; gap: 2px; min-width: 250px; max-width: 320px; }
+/* Table (components.md 3.24): S padding on both sides of every cell, so columns are 16px apart. */
+.table-scroll { overflow-x: auto; max-width: 100%; }
+.table { border-collapse: collapse; font-size: 13px; }
+.table th, .table td { padding: 0 var(--space-s); height: 36px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.table th { height: 32px; font-size: 12px; font-weight: 400; color: var(--text-3); }
+.table .end { text-align: right; }
 .layers .hint { color: var(--text-3); font-size: 12px; margin-bottom: 2px; }
 .layer { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px 4px 7px; border-left: 3px solid transparent; border-radius: var(--radius-s); color: var(--text-2); font-size: 13px; }
 .layer.sel { background: var(--tint); border-left-color: var(--accent-line); color: var(--text); }
@@ -776,6 +782,16 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
             <div class="layer hidden" role="listitem"><span class="grip">≡</span><span class="thumb" style="background:linear-gradient(180deg,#2b2346,#4a2f5c)"></span><span class="name" data-i18n="c.ldesk">サブモニター</span><span class="state" data-i18n="c.hidden">非表示</span></div>
           </div>
         </div>
+        <div class="cell">
+          <span class="cap" data-i18n="c.table">表</span>
+          <div class="table-scroll"><table class="table">
+            <thead><tr><th data-i18n="t.name">名前</th><th class="end" data-i18n="t.current">現在</th><th class="end" data-i18n="t.max">最大</th><th class="end" data-i18n="t.count">件数</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">MainThreadFrameTime</td><td class="end num">5.79 ms</td><td class="end num">11.5 ms</td><td class="end num">296</td></tr>
+              <tr><td class="mono">SystemUsedMemory</td><td class="end num">1,553.86 MB</td><td class="end num">1,556.22 MB</td><td class="end num">296</td></tr>
+            </tbody>
+          </table></div>
+        </div>
       </div>
     </div>
   </section>
@@ -818,7 +834,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",
     "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
     "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
-    "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
+    "c.table": "Table", "t.name": "Name", "t.current": "Current", "t.max": "Max", "t.count": "Count", "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
     "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
     "c.tipnote": "Appears after resting about half a second, and on keyboard focus. Keep it to what the control does and its shortcut; on a disabled button, say why it cannot be pressed.",

@@ -242,7 +242,7 @@ internal sealed class RvcVoiceConverter
 ### 7.1 Enabling and Disabling Detailed Metrics
 
 - Detailed metrics are switched at runtime together with Developer Mode (system design 14.22). No restart is needed.
-- Until the Developer Mode settings UI exists, detailed metrics are enabled by default in the Unity Editor and disabled in built applications.
+- Once the UI is built, detailed metrics follow Developer Mode (UI foundation detailed design 7.7). Until then, including when the UI fails to build, they are enabled by default in the Unity Editor and disabled in built applications.
 - Recording starts when switching from disabled to enabled. Switching from enabled to disabled keeps the statistics gathered so far.
 
 ### 7.2 Why Counters Are Always Recorded
@@ -303,7 +303,7 @@ While detailed metrics are enabled, timer and gauge statistics are written to th
 
 | Item | Default | Description |
 |---|---|---|
-| Detailed metrics | Editor: enabled / Player: disabled | Switched at runtime with Developer Mode |
+| Detailed metrics | Editor: enabled / Player: disabled | Follows Developer Mode at runtime once the UI is built |
 | Samples used for statistics | 512 | Per timer / gauge |
 | Periodic summary interval | 30 seconds | 0 disables it |
 | Built-in metrics | Enabled | Active only when detailed metrics are enabled |
@@ -418,7 +418,6 @@ Assets/VirtualVessel/Diagnostics/
 
 | Item | Planned handling |
 |---|---|
-| Connecting to the Developer Mode UI | UI foundation |
-| Diagnostics UI and overlay that display measurements | After the UI foundation |
+| An overlay of measurements, a richer Diagnostics screen (graphs, filters, and so on) | Considered when needed. The Diagnostics table is in UI foundation detailed design 7.7 |
 | Environment-dependent measurements such as GPU usage and GPU memory | Each module's detailed design |
 | Criteria for performance regressions on hardware CI | When hardware CI is introduced |

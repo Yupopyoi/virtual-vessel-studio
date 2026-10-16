@@ -70,11 +70,21 @@ namespace VirtualVessel.UI.Tests
             Assert.That(value.Language, Is.EqualTo("en"), "An unknown language becomes English.");
             Assert.That(value.Theme.Palette, Is.EqualTo("lavender"));
             Assert.That(value.Theme.Background, Is.EqualTo(ThemeBackground.Dark));
-            Assert.That(value.UiScale, Is.EqualTo(1f), "Only the four steps are allowed.");
+            Assert.That(value.UiScale, Is.EqualTo(1f), "Only the scale steps are allowed.");
             Assert.That(value.ReducedMotionMode, Is.EqualTo(ReducedMotionMode.System));
             Assert.That(value.FontSet, Is.EqualTo("NotoSans"));
             Assert.That(warnings, Has.Count.EqualTo(6));
             Assert.That(settings.Palette, Is.EqualTo("rainbow"), "The written value is kept until the user changes it.");
+        }
+
+        [TestCase(1.75, 1.75f)]
+        [TestCase(2.0, 2f)]
+        public void Resolve_LargeScales_AreSteps(double written, float expected)
+        {
+            (ResolvedUiSettings value, var warnings) = UiSettingsResolver.Resolve(new UiSettings { Language = "en", UiScale = written }, s_choices);
+
+            Assert.That(value.UiScale, Is.EqualTo(expected), "For high-resolution monitors used at 100% Windows scale.");
+            Assert.That(warnings, Is.Empty);
         }
 
         [TestCase(double.NaN)]

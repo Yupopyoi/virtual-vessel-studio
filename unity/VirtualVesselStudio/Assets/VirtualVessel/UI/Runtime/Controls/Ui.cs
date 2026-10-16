@@ -86,6 +86,12 @@ namespace VirtualVessel.UI.Controls
             return new ProgressMeter { LabelKey = labelKey };
         }
 
+        /// <summary>A table whose header and rows line up by the given columns (components.md 3.24).</summary>
+        public static DataTable Table(params TableColumn[] columns)
+        {
+            return new DataTable(columns);
+        }
+
         /// <summary>A label whose text follows the language, with optional classes such as <c>vv-text-caption</c>.</summary>
         public static Label Text(string textKey, params string[] classes)
         {

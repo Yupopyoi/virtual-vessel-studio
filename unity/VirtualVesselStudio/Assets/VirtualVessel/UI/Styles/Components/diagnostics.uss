@@ -1,0 +1,6 @@
+/* Diagnostics screen (UI foundation detailed design 7.7). The metrics table is a DataTable (table.uss). */
+.vv-diagnostics__status {
+    margin: 0 0 var(--vv-space-s) 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
