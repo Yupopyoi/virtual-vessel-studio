@@ -24,3 +24,4 @@
 @import url("Components/layers.uss");
 @import url("Components/preview.uss");
 @import url("Components/startup.uss");
+@import url("Components/table.uss");

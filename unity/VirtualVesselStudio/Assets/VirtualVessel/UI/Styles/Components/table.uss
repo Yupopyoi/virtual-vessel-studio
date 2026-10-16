@@ -1,0 +1,33 @@
+/*
+ * Table (components.md 3.24). Column widths come from the column definitions; every cell has S padding
+ * on both sides, so neighbouring columns are always 16px apart, in the header and in every row.
+ */
+.vv-table__row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 36px;
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+.vv-table__cell {
+    margin: 0;
+    padding: 0 var(--vv-space-s);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    -unity-text-align: middle-left;
+    color: var(--vv-color-text);
+}
+
+.vv-table__cell--end {
+    -unity-text-align: middle-right;
+}
+
+.vv-table__header {
+    min-height: 32px;
+}
+
+.vv-table__header > .vv-table__cell {
+    color: var(--vv-color-text-3);
+}
