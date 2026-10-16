@@ -52,6 +52,15 @@
         "preview.no-video": "配信映像はまだありません",
         "notice.failure.title": "操作を完了できませんでした",
         "notice.more.one": "ほかに {count} 件の通知",
-        "notice.more.other": "ほかに {count} 件の通知"
+        "notice.more.other": "ほかに {count} 件の通知",
+        "startup.data-root.title": "データの保存先を使えません",
+        "startup.data-root.body": "保存先のフォルダーに書き込めません。フォルダーの場所と空き容量を確認してから、もう一度起動してください。",
+        "startup.failed.title": "Virtual Vessel Studio を起動できませんでした",
+        "startup.failed.body": "もう一度起動してください。繰り返し起きる場合は、ログを添えて報告してください。",
+        "startup.quit": "終了",
+        "settings.recovered.title": "設定ファイルを読み込めませんでした",
+        "settings.recovered.body": "既定の設定で起動しました。元のファイルは同じフォルダーに残してあります。",
+        "settings.save-failed.title": "設定を保存できませんでした",
+        "settings.save-failed.body": "変更は終了するまで使われます。設定のフォルダーに書き込めるか確認してください。"
     }
 }

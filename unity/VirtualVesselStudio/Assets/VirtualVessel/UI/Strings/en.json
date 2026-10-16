@@ -52,6 +52,15 @@
         "preview.no-video": "No stream video yet",
         "notice.failure.title": "Couldn't complete the action",
         "notice.more.one": "{count} more notice",
-        "notice.more.other": "{count} more notices"
+        "notice.more.other": "{count} more notices",
+        "startup.data-root.title": "Can't use the data folder",
+        "startup.data-root.body": "Virtual Vessel Studio can't write to the data folder. Check the folder location and free space, then start again.",
+        "startup.failed.title": "Virtual Vessel Studio couldn't start",
+        "startup.failed.body": "Start it again. If this keeps happening, report it with the logs.",
+        "startup.quit": "Quit",
+        "settings.recovered.title": "Couldn't read the settings file",
+        "settings.recovered.body": "Started with the default settings. The original file is kept in the same folder.",
+        "settings.save-failed.title": "Couldn't save the settings",
+        "settings.save-failed.body": "Your changes apply until you quit. Check that the settings folder can be written to."
     }
 }

@@ -1,0 +1,56 @@
+/* Startup problem screen (UI foundation detailed design 7.9): one centered panel, like a dialog without a scrim. */
+.vv-startup {
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    padding: var(--vv-space-l);
+    background-color: var(--vv-color-bg);
+}
+
+.vv-startup__panel {
+    width: 100%;
+    max-width: 480px;
+    padding: var(--vv-space-l);
+    border-width: 1px;
+    border-radius: var(--vv-radius-l);
+    border-color: var(--vv-color-error-line);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-startup__icon {
+    width: 20px;
+    height: 20px;
+    margin-right: var(--vv-space-s);
+    color: var(--vv-color-error);
+}
+
+.vv-startup__title {
+    flex-shrink: 1;
+    margin: 0;
+    padding: 0;
+    white-space: normal;
+    font-size: 17px;
+    color: var(--vv-color-text);
+}
+
+.vv-startup__body {
+    margin: var(--vv-space-s) 0 0 0;
+    padding: 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-startup__path {
+    margin: var(--vv-space-s) 0 0 0;
+    padding: var(--vv-space-xs) var(--vv-space-s);
+    border-radius: var(--vv-radius-s);
+    white-space: normal;
+    color: var(--vv-color-text);
+    background-color: var(--vv-color-surface-2);
+}
+
+.vv-startup__buttons {
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: var(--vv-space-l);
+}
