@@ -312,7 +312,7 @@ stateDiagram-v2
 4. 起動済みServiceを逆順に停止する。
 5. `Failed`状態とし、利用者へ起動できない旨を通知する。
 
-利用者向けの通知画面はUI基盤の詳細設計で定義する。それまではUnity Consoleおよび利用可能であればログへ記録する。
+利用者向けの画面は、UI基盤詳細設計7.9の「起動できなかったときの画面」とする。`ApplicationBootstrap`は起動処理の後、`Failed`の場合、またはUIのService（`UI`）が動いていない場合に、`UiRoot.ShowStartupProblem`を呼ぶ。Data Rootを使えないことが原因の場合は、そのことと保存先のPathを示す。
 
 ### 8.2 Optional Serviceの失敗
 
@@ -367,7 +367,7 @@ Data Root Overrideは以下から指定可能とする。通常利用者向けUI
 | 対象 | 保存先 |
 |---|---|
 | `bootstrap.json` | `%LOCALAPPDATA%\VirtualVesselStudio\` |
-| 設定ファイル（`ui-settings.json`等） | `%LOCALAPPDATA%\VirtualVesselStudio\Config\`（方式設計6.8） |
+| 設定ファイル（`ui-settings.json`等） | `%LOCALAPPDATA%\VirtualVesselStudio\Config\`（方式設計6.8）。Data Root Overrideの影響を受けない |
 | Session Marker | `<Data Root>/Logs/session.lock` |
 
 ### Data Root解決順序
@@ -399,7 +399,7 @@ store.Save(result.Value);
 | 新しいVersion | 分かる項目だけ読む。保存時は分からない項目とVersion番号を保つ（`NewerVersion`）。新しいVersionが同じファイルを二重に移行しないためである |
 | 現在のVersionが知らない項目 | 読み込んだまま保持し、保存時に書き戻す。入れ子の項目も保つ |
 | 一部の項目の型が違う | その項目だけ既定値にし、注意点を返す |
-| JSONとして読めない、`schemaVersion`がない、移行が失敗した | `<name>.broken-<日時>.json`へ退避し、既定値で続行する（`Recovered`） |
+| JSONとして読めない、`schemaVersion`がない、移行が失敗した、1 MiBを超える | `<name>.broken-<日時>.json`へ退避し、既定値で続行する（`Recovered`） |
 | 保存 | 一時ファイル（`<name>.tmp`）へ書いてDiskへ反映してから、元のファイルと置き換える。失敗した場合、元のファイルは変わらない |
 
 - ProjectDataはLogに依存しない。読み込み結果の注意点（`Warnings`）は呼び出し側がLogへ記録する。
@@ -512,7 +512,6 @@ PlayMode TestもPlay Modeへ入るため、Test実行中およびBatch Modeで�
 
 | 項目 | 対応予定 |
 |---|---|
-| 起動失敗時の利用者向け画面 | UI基盤の詳細設計 |
 | Build識別子（Git Commit等）の埋め込み | CI導入時 |
 | 複数Instance同時起動の防止（同一Data Rootの競合） | 必要性を確認後に別途設計 |
 | Data Root変更・移行 | Project / Data詳細設計 |

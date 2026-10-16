@@ -312,7 +312,7 @@ Even in the `Failed` state, shutdown runs normally and stops services that had s
 4. Stop started services in reverse order.
 5. Enter the `Failed` state and notify the user that the application cannot start.
 
-The user-facing notification screen is defined in the UI foundation detailed design. Until then, the failure is recorded in the Unity console and, if available, in the log.
+The user-facing screen is the startup problem screen in UI foundation detailed design 7.9. After startup, `ApplicationBootstrap` calls `UiRoot.ShowStartupProblem` when the state is `Failed` or when the UI service (`UI`) is not running. When the cause is an unusable Data Root, the screen says so and shows the folder path.
 
 ### 8.2 Optional Service Failure
 
@@ -367,7 +367,7 @@ If both are specified, the command-line argument takes precedence. The environme
 | Target | Location |
 |---|---|
 | `bootstrap.json` | `%LOCALAPPDATA%\VirtualVesselStudio\` |
-| Settings files (`ui-settings.json`, etc.) | `%LOCALAPPDATA%\VirtualVesselStudio\Config\` (system design 6.8) |
+| Settings files (`ui-settings.json`, etc.) | `%LOCALAPPDATA%\VirtualVesselStudio\Config\` (system design 6.8). Not affected by the Data Root override |
 | Session marker | `<Data Root>/Logs/session.lock` |
 
 ### Data Root Resolution Order
@@ -399,7 +399,7 @@ store.Save(result.Value);
 | Newer version | Reads the known fields. On save, keeps unknown fields and the version number (`NewerVersion`), so the newer version does not migrate the file twice |
 | Fields unknown to this version | Kept as read and written back on save, including nested ones |
 | Some field has the wrong type | Only that field falls back to its default, and a note is returned |
-| Not valid JSON, no `schemaVersion`, or a failed migration | Moved aside to `<name>.broken-<timestamp>.json`; continues with defaults (`Recovered`) |
+| Not valid JSON, no `schemaVersion`, a failed migration, or over 1 MiB | Moved aside to `<name>.broken-<timestamp>.json`; continues with defaults (`Recovered`) |
 | Save | Writes a temporary file (`<name>.tmp`), flushes it to disk, then replaces the original. On failure the original is unchanged |
 
 - ProjectData does not depend on logging. The caller records the load result's notes (`Warnings`) in the log.
@@ -512,7 +512,6 @@ Because PlayMode tests also enter Play Mode, this setting is cleared while tests
 
 | Item | Planned handling |
 |---|---|
-| User-facing screen on startup failure | UI foundation detailed design |
 | Embedding the build identifier (Git commit, etc.) | When CI is introduced |
 | Preventing multiple instances from running at the same time (conflicting use of the same Data Root) | Designed separately after confirming the need |
 | Changing and migrating the Data Root | Project / Data detailed design |
