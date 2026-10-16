@@ -25,3 +25,5 @@
 @import url("Components/preview.uss");
 @import url("Components/startup.uss");
 @import url("Components/table.uss");
+@import url("Components/shell.uss");
+@import url("Components/diagnostics.uss");

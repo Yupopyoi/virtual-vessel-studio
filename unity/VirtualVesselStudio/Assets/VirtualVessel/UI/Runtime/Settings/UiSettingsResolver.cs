@@ -119,7 +119,7 @@ namespace VirtualVessel.UI.Settings
     /// <remarks>
     /// ui-settings.json can be edited by the user or by any program running as the user, so every value
     /// is checked against an allowed list, and anything else falls back to the default with a warning.
-    /// The UI scale is limited to its four steps because an extreme value could make the UI unusable.
+    /// The UI scale is limited to its steps because an extreme value could make the UI unusable.
     /// </remarks>
     public static class UiSettingsResolver
     {
@@ -144,7 +144,7 @@ namespace VirtualVessel.UI.Settings
         // Long enough to recognize a value in a warning, short enough that a planted value cannot flood the log.
         private const int MaxQuotedLength = 40;
 
-        private static readonly float[] s_uiScales = { 1f, 1.1f, 1.25f, 1.5f };
+        private static readonly float[] s_uiScales = { 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f };
 
         public static IReadOnlyList<float> UiScales => s_uiScales;
 

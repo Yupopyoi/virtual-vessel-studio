@@ -8,11 +8,14 @@ using UnityEngine.UIElements;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Notifications;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.UI.Theme;
 using VirtualVessel.UI.Tooltips;
@@ -25,13 +28,19 @@ namespace VirtualVessel.UI
         /// <param name="configDirectory">Folder of ui-settings.json, normally %LOCALAPPDATA%\VirtualVesselStudio\Config.</param>
         /// <param name="log">Optional; the UI's developer log.</param>
         /// <param name="systemPrefersReducedMotion">The OS setting, read once by the caller (<see cref="SystemMotionPreference"/>).</param>
+        /// <param name="applicationVersion">Shown under the navigation; optional.</param>
+        /// <param name="metrics">Shown on the Diagnostics screen; null when the service is not available.</param>
+        /// <param name="developerModeReceivers">Told when Developer Mode changes, such as detailed metrics.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
             ISystemClock systemClock,
             IMainThreadDispatcher dispatcher,
             ILog log,
-            bool systemPrefersReducedMotion)
+            bool systemPrefersReducedMotion,
+            string applicationVersion = null,
+            IPerformanceMetrics metrics = null,
+            IReadOnlyList<Action<bool>> developerModeReceivers = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -44,6 +53,9 @@ namespace VirtualVessel.UI
             Dispatcher = dispatcher;
             Log = log;
             SystemPrefersReducedMotion = systemPrefersReducedMotion;
+            ApplicationVersion = applicationVersion;
+            Metrics = metrics;
+            DeveloperModeReceivers = developerModeReceivers ?? Array.Empty<Action<bool>>();
         }
 
         public string ConfigDirectory { get; }
@@ -57,6 +69,12 @@ namespace VirtualVessel.UI
         public ILog Log { get; }
 
         public bool SystemPrefersReducedMotion { get; }
+
+        public string ApplicationVersion { get; }
+
+        public IPerformanceMetrics Metrics { get; }
+
+        public IReadOnlyList<Action<bool>> DeveloperModeReceivers { get; }
     }
 
     /// <summary>
@@ -95,6 +113,7 @@ namespace VirtualVessel.UI
         private FontService _fonts;
         private TooltipService _tooltips;
         private UiServicesScope _scope;
+        private DeveloperModeService _developerMode;
 
         public UiAssets Assets => _assets;
 
@@ -109,8 +128,13 @@ namespace VirtualVessel.UI
 
         public DialogService Dialogs { get; private set; }
 
-        /// <summary>Where the screens go (ScreenHost, implementation step 7-2).</summary>
+        /// <summary>The area under the notifications and dialogs; holds <see cref="Shell"/>.</summary>
         public VisualElement Content { get; private set; }
+
+        /// <summary>The navigation and the screens.</summary>
+        public AppShell Shell { get; private set; }
+
+        public DeveloperModeService DeveloperMode => _developerMode;
 
         /// <summary>The screen shown by <see cref="ShowStartupProblem"/>, otherwise null.</summary>
         public StartupProblemView StartupProblem { get; private set; }
@@ -171,6 +195,9 @@ namespace VirtualVessel.UI
                 Content.AddToClassList(ContentClass);
                 Content.style.flexGrow = 1;
                 _scope.Add(Content);
+                _developerMode = new DeveloperModeService(settings, context.DeveloperModeReceivers, _log);
+                Shell = new AppShell(CreateScreens(settings, context.Metrics), context.ApplicationVersion, _log);
+                Content.Add(Shell);
 
                 // Added after the content so that they draw above every screen.
                 Notifications.Attach(_scope);
@@ -180,6 +207,13 @@ namespace VirtualVessel.UI
                 Settings = settings;
                 Settings.Changed += Apply;
                 Settings.SaveFailed += OnSaveFailed;
+
+                // Developer Mode first, so a saved Diagnostics screen can open, then the last screen.
+                _developerMode.Start();
+                _developerMode.Changed += OnDeveloperModeChanged;
+                Shell.DeveloperMode = _developerMode.IsEnabled;
+                Shell.Open(current.LastScreen);
+                Shell.Opened += Settings.SetLastScreen;
                 if (loaded.Status == ConfigLoadStatus.Recovered)
                 {
                     Notifications.Show(NoticeKind.Warning, UiRootStrings.SettingsRecoveredTitle, UiRootStrings.SettingsRecoveredBody);
@@ -243,6 +277,15 @@ namespace VirtualVessel.UI
         /// <summary>Removes the UI and destroys the run-time copies. Does not save; call <see cref="FlushSettingsAsync"/> first.</summary>
         public void Teardown()
         {
+            if (_developerMode != null)
+            {
+                _developerMode.Changed -= OnDeveloperModeChanged;
+                _developerMode.Dispose();
+                _developerMode = null;
+            }
+
+            Shell?.Host.HideCurrent();
+            Shell = null;
             if (Settings != null)
             {
                 Settings.Changed -= Apply;
@@ -358,6 +401,23 @@ namespace VirtualVessel.UI
                 _panel.scale = settings.UiScale;
                 _log?.Information($"UI scale changed: {settings.UiScale}.");
             }
+        }
+
+        /// <summary>The screens of the navigation, in order (UI foundation detailed design 7.7).</summary>
+        private IReadOnlyList<ScreenDefinition> CreateScreens(UiSettingsService settings, IPerformanceMetrics metrics)
+        {
+            return new[]
+            {
+                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new PlaceholderScreen()),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new PlaceholderScreen(new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
+                new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
+                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
+            };
+        }
+
+        private void OnDeveloperModeChanged(bool enabled)
+        {
+            Shell.DeveloperMode = enabled;
         }
 
         private void OnSaveFailed()
