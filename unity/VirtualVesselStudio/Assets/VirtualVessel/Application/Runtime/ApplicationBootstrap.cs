@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using VirtualVessel.Application.Build;
@@ -8,6 +9,7 @@ using VirtualVessel.Application.Startup;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.UI;
 
 namespace VirtualVessel.Application
 {
@@ -24,6 +26,10 @@ namespace VirtualVessel.Application
     {
         // Bounds how much posted work can run in one frame so a burst cannot cause a frame spike.
         private const int MaxDispatchedActionsPerFrame = 256;
+
+        [SerializeField]
+        [Tooltip("The UI entry point in the persistent scene. Without it the application runs with no UI.")]
+        private UiRoot _uiRoot;
 
         private MainThreadDispatcher _dispatcher;
         private BufferedApplicationLog _log;
@@ -62,7 +68,8 @@ namespace VirtualVessel.Application
                 systemClock,
                 _dispatcher,
                 _log,
-                ApplicationComposition.Create);
+                ApplicationComposition.Create,
+                _uiRoot);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
             _startTask = StartRuntimeAsync();
@@ -135,6 +142,43 @@ namespace VirtualVessel.Application
             {
                 _log.Write(ApplicationLogLevel.Error, "Unexpected failure during application startup.", exception);
             }
+
+            ShowStartupProblemIfNeeded();
+        }
+
+        private void ShowStartupProblemIfNeeded()
+        {
+            if (_uiRoot == null)
+            {
+                return;
+            }
+
+            ApplicationServiceStatus ui = _runtime.Host?.Services.FirstOrDefault(status => status.Name == UiApplicationService.ServiceName);
+            StartupProblemKind? problem = StartupProblemPolicy.Decide(_runtime.State, _runtime.UnavailableDataRootPath != null, ui?.State);
+            if (problem == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _uiRoot.ShowStartupProblem(problem.Value, _runtime.UnavailableDataRootPath, _runtime.ConfigDirectory, Quit);
+                _log.Write(ApplicationLogLevel.Warning, $"Showing the startup problem screen ({problem.Value}).");
+            }
+            catch (Exception exception)
+            {
+                _log.Write(ApplicationLogLevel.Error, "Failed to show the startup problem screen.", exception);
+            }
+        }
+
+        private static void Quit()
+        {
+#if UNITY_EDITOR
+            // Application.Quit does nothing in the Editor; leaving Play Mode runs the same shutdown.
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            UnityEngine.Application.Quit();
+#endif
         }
 
         private async Task StopRuntimeAsync()

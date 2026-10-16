@@ -10,6 +10,8 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.UI;
+using VirtualVessel.UI.Settings;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -38,7 +40,9 @@ namespace VirtualVessel.Application.Startup
             IMonotonicClock monotonicClock,
             ISystemClock systemClock,
             IMainThreadDispatcher mainThreadDispatcher,
-            BufferedApplicationLog foundationLog)
+            BufferedApplicationLog foundationLog,
+            string configDirectory = null,
+            UiRoot uiRoot = null)
         {
             DataRoot = dataRoot ?? throw new ArgumentNullException(nameof(dataRoot));
             Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -48,6 +52,8 @@ namespace VirtualVessel.Application.Startup
             SystemClock = systemClock ?? throw new ArgumentNullException(nameof(systemClock));
             MainThreadDispatcher = mainThreadDispatcher ?? throw new ArgumentNullException(nameof(mainThreadDispatcher));
             FoundationLog = foundationLog ?? throw new ArgumentNullException(nameof(foundationLog));
+            ConfigDirectory = configDirectory;
+            UiRoot = uiRoot;
         }
 
         public IDataRoot DataRoot { get; }
@@ -65,6 +71,12 @@ namespace VirtualVessel.Application.Startup
         public IMainThreadDispatcher MainThreadDispatcher { get; }
 
         public BufferedApplicationLog FoundationLog { get; }
+
+        /// <summary>Folder of the small settings files such as ui-settings.json (system design 6.8).</summary>
+        public string ConfigDirectory { get; }
+
+        /// <summary>The UI entry point in the persistent scene; null when there is no UI, as in tests.</summary>
+        public UiRoot UiRoot { get; }
     }
 
     /// <summary>
@@ -111,6 +123,25 @@ namespace VirtualVessel.Application.Startup
                     context.SystemClock,
                     logging.Provider.GetLog("Diagnostics", "Performance")),
                 new[] { LoggingService.ServiceName }));
+
+            // The UI comes last so that it is built after every service it shows has started, and it
+            // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
+            if (context.UiRoot != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    UiApplicationService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => new UiApplicationService(
+                        context.UiRoot,
+                        new UiRootContext(
+                            context.ConfigDirectory,
+                            context.MonotonicClock,
+                            context.SystemClock,
+                            context.MainThreadDispatcher,
+                            logging.Provider.GetLog("UI", "Root"),
+                            SystemMotionPreference.PrefersReducedMotion())),
+                    new[] { LoggingService.ServiceName }));
+            }
 
             return descriptors;
         }

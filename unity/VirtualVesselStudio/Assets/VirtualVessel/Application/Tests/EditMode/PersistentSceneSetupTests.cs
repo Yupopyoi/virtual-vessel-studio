@@ -31,5 +31,24 @@ namespace VirtualVessel.Application.Tests
 
             Assert.That(occurrences, Is.EqualTo(1), "The persistent scene must contain exactly one ApplicationBootstrap.");
         }
+
+        [Test]
+        public void PersistentScene_HasOneUiRoot_WithAssets_ThatTheBootstrapReferences()
+        {
+            string sceneText = System.IO.File.ReadAllText(PersistentScenePath);
+            string rootGuid = AssetDatabase.FindAssets("UiRoot t:MonoScript")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(path => path.EndsWith("/UiRoot.cs", System.StringComparison.Ordinal))
+                .Select(AssetDatabase.AssetPathToGUID)
+                .Single();
+            string[] documents = sceneText.Split(new[] { "--- !u!" }, System.StringSplitOptions.None);
+            string[] roots = documents.Where(document => document.Contains("guid: " + rootGuid)).ToArray();
+
+            Assert.That(roots, Has.Length.EqualTo(1), "The persistent scene must contain exactly one UiRoot.");
+            string rootId = roots[0].Substring(roots[0].IndexOf('&') + 1).Split('\n')[0].Trim();
+            string assetsGuid = AssetDatabase.AssetPathToGUID("Assets/VirtualVessel/UI/UiAssets.asset");
+            Assert.That(roots[0], Does.Contain($"_assets: {{fileID: 11400000, guid: {assetsGuid}, type: 2}}"), "The UiRoot must reference UiAssets.asset.");
+            Assert.That(sceneText, Does.Contain($"_uiRoot: {{fileID: {rootId}}}"), "ApplicationBootstrap must reference the UiRoot.");
+        }
     }
 }

@@ -12,6 +12,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.UI;
 
 namespace VirtualVessel.Application.Tests
 {
@@ -55,6 +56,28 @@ namespace VirtualVessel.Application.Tests
             Assert.That(descriptors[1].Name, Is.EqualTo(PerformanceMetricsService.ServiceName));
             Assert.That(descriptors[1].Criticality, Is.EqualTo(ServiceCriticality.Optional));
             Assert.That(descriptors[1].DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+        }
+
+        [Test]
+        public void Composition_AddsOptionalUiLast_OnlyWithAUiRoot()
+        {
+            Assert.That(ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor)).Select(d => d.Name), Has.No.Member(UiApplicationService.ServiceName));
+
+            var host = new UnityEngine.GameObject(nameof(Composition_AddsOptionalUiLast_OnlyWithAUiRoot));
+            try
+            {
+                UiRoot root = host.AddComponent<UiRoot>();
+                var descriptors = ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor, root));
+
+                ApplicationServiceDescriptor ui = descriptors[descriptors.Count - 1];
+                Assert.That(ui.Name, Is.EqualTo(UiApplicationService.ServiceName), "The UI is built after every other service.");
+                Assert.That(ui.Criticality, Is.EqualTo(ServiceCriticality.Optional), "A broken UI does not stop the services.");
+                Assert.That(ui.DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
         }
 
         [TestCase(RuntimeEnvironment.Editor, true)]
@@ -106,7 +129,7 @@ namespace VirtualVessel.Application.Tests
             Assert.That(lines.Last(), Does.Contain("Logging stopped."));
         }
 
-        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment)
+        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment, UiRoot uiRoot = null)
         {
             IDataRoot dataRoot = new DataRootResolver(Path.Combine(_tempDirectory, "LocalAppData")).Resolve(Path.Combine(_tempDirectory, "Data")).DataRoot;
             return new ApplicationCompositionContext(
@@ -117,7 +140,9 @@ namespace VirtualVessel.Application.Tests
                 new StopwatchMonotonicClock(),
                 new UtcSystemClock(),
                 new MainThreadDispatcher(),
-                new BufferedApplicationLog(() => DateTimeOffset.UtcNow, null));
+                new BufferedApplicationLog(() => DateTimeOffset.UtcNow, null),
+                Path.Combine(_tempDirectory, "LocalAppData", "Config"),
+                uiRoot);
         }
     }
 }
