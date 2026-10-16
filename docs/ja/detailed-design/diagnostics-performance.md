@@ -242,7 +242,7 @@ internal sealed class RvcVoiceConverter
 ### 7.1 詳細計測の有効・無効
 
 - 詳細計測は、Developer Mode（方式設計14.22）に連動して実行中に切り替える。再起動は不要とする。
-- Developer Modeの設定UIが実装されるまでの既定値は、Unity Editor上の実行では有効、ビルドしたApplicationでは無効とする。
+- UIが構築された後は、Developer Modeに従う（UI基盤詳細設計7.7）。UIが構築されるまで（UIの構築に失敗した場合を含む）の既定値は、Unity Editor上の実行では有効、ビルドしたApplicationでは無効とする。
 - 無効から有効へ切り替えた時点から記録を開始する。有効から無効へ切り替えても、それまでの統計は保持する。
 
 ### 7.2 Counterを常に記録する理由
@@ -303,7 +303,7 @@ sequenceDiagram
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| 詳細計測 | Editor：有効 / Player：無効 | Developer Modeで実行中に切り替え |
+| 詳細計測 | Editor：有効 / Player：無効 | UIの構築後はDeveloper Modeに従い、実行中に切り替わる |
 | 統計に使うSample数 | 512 | Timer / Gaugeごと |
 | 定期Summaryの間隔 | 30秒 | 0で無効 |
 | 標準計測 | 有効 | 詳細計測が有効な場合のみ動作 |
@@ -418,7 +418,6 @@ Assets/VirtualVessel/Diagnostics/
 
 | 項目 | 対応予定 |
 |---|---|
-| Developer Mode UIとの接続 | UI基盤 |
-| 計測値を表示するDiagnostics UI、Overlay | UI基盤以降 |
+| 計測値のOverlay、Diagnostics画面の拡充（グラフ、絞り込み等） | 必要になった時点で検討する。Diagnostics画面の表はUI基盤詳細設計7.7 |
 | GPU使用率、GPU Memory等の環境依存計測 | 各Moduleの詳細設計 |
 | Hardware CIでの性能回帰の判定基準 | Hardware CI導入時 |

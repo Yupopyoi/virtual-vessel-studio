@@ -163,10 +163,12 @@ With near-colorless backgrounds, the palette shows through the following decorat
 | XS | 4px | Between an icon and text |
 | S | 8px | Between parts in the same group |
 | M | 16px | Card padding, between cards |
-| L | 24px | Screen padding, between sections |
-| XL | 40px | Between large groups |
+| L | 24px | Between sections |
+| XL | 40px | Screen padding, between large groups |
 
 Spacing is chosen only from these five steps.
+
+Screen content is at most 960px wide and sits next to the navigation, so an item's name and its control never drift far apart on a wide window. Screens with tables (such as Diagnostics) are at most 1200px wide.
 
 ---
 
@@ -204,7 +206,7 @@ Users can choose the following appearance settings. All are saved as UI-specific
 |---|---|---|
 | Palette | Lavender, Sakura, Mint, Sky, Peach, Lemon | Lavender |
 | Background | Dark, light | Dark |
-| UI scale | Steps decided at implementation | 100% |
+| UI scale | 100%, 110%, 125%, 150%, 175%, 200% (on top of the Windows scale) | 100% |
 
 ---
 

@@ -130,7 +130,9 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | Shared components | VisualElement | The parts in `components.md` (Chapter 6) |
 | `MediaFrame` / `FrameCanvas` | VisualElement | Placement editing and cropping (Chapter 9) |
 | `FrameLayout` / `FrameEditMath` | Struct / static class (Core) | Placement data and editing math |
-| `ScreenHost` | VisualElement | Screen switching |
+| `AppShell` | VisualElement | Navigation, screen area, and version (7.7) |
+| `ScreenHost` | VisualElement | Screen switching (7.7) |
+| `ScreenDefinition` / `IScreen` | Class / Interface | What a screen registers, and shown/hidden notifications (7.7) |
 | `DeveloperModeService` | Class | Switches Developer Mode and propagates it to related functions |
 | `UiSettings` | Class | Contents of the UI-specific settings (the values as written in the file) |
 | `UiSettingsResolver` / `ResolvedUiSettings` | Static class / Struct | Checks the setting values against allowed lists and decides the values to use (8.1) |
@@ -172,6 +174,7 @@ Each part in `components.md` is implemented as a class derived from `VisualEleme
 | Popup Menu | `PopupMenu` | Shown from C# with `PopupMenu.Show` (`components.md` 3.23) |
 | Panel | `MediaFrame` | Chapter 9 |
 | Layer List | `LayerList` | Created from C# with `new LayerList(canvas)` (9.7) |
+| Table | `DataTable` / `TableColumn` | Created from C# with `Ui.Table(TableColumn.Number(...), ...)` (`components.md` 3.24) |
 
 The UXML namespace is `VirtualVessel.UI.Controls` with the prefix `vv`. Classes are defined with `[UxmlElement]` and `[UxmlAttribute]` (Unity 6).
 
@@ -475,13 +478,59 @@ The delay and the position numbers are current defaults and may change. The numb
 
 ### 7.7 Screens and Developer Mode
 
-- `ScreenHost` switches between the Live, Setup, Voice Lab, and Diagnostics screens. A screen is created the first time it opens and kept afterwards.
-- The Diagnostics navigation item is shown only while Developer Mode is enabled (system design 14.22).
-- `DeveloperModeService` propagates Developer Mode changes to related functions such as `PerformanceMetricsService.SetDetailedEnabled`.
+**Layout** (the screen mockup in `styleboard.html`)
+
+- A 200px navigation column (Bg background, 1px Border on its right edge) sits on the left, and the screen area on the right (`AppShell`).
+- The navigation items are Live, Setup, Voice Lab, and Diagnostics, in that order. Each item's tooltip says what the screen is for.
+- The application version (for example `v0.1.0`, monospace, Text 3) sits at the bottom of the navigation. The project name is added when the Project feature is built.
+- Each screen starts with its name as a heading.
+- Screens have XL (40px) padding, and their content is at most 960px wide (1200px for Diagnostics), next to the navigation (`design-system.md` chapter 5).
+
+**ScreenHost**
+
+- Screens are registered as `ScreenDefinition`s: id, icon, name key, tooltip key, whether it shows only in Developer Mode, and how to create it. The ids are `live`, `setup`, `lab`, and `diagnostics`, and are stored in `lastScreen`.
+- A screen is created the first time it opens and kept afterwards. Screens not shown have `display: none`.
+- When a screen implements `IScreen`, `OnShown` is called when it is shown and `OnHidden` when it is hidden. This is for work done only while visible, such as refreshing Diagnostics.
+- The open screen is saved in `lastScreen` and opens at the next start. An unknown id, or a screen that cannot show because Developer Mode is off, opens Live instead (`ScreenNavigation.Choose`, a pure function).
+- When Developer Mode is turned off while Diagnostics is open, Live opens.
+- When creating a screen fails, its area shows "This screen couldn't be shown" and an error is recorded. The other screens keep working (chapter 13).
+- Navigation items are buttons, operated with Tab and Enter. The Up and Down keys also move between items (`components.md` 3.16).
+
+**Developer Mode**
+
+- `DeveloperModeService` tells the receivers registered by the composition whenever `developerMode` in `UiSettingsService` changes, and once when the UI is built. The UI does not depend on the concrete `PerformanceMetricsService`; the composition passes `SetDetailedEnabled`.
+- After the UI is built, detailed metrics follow Developer Mode (performance metrics detailed design 7.1).
+- Developer Mode changes are recorded at Information.
+- Developer Mode only shows more; it grants no rights (7.9).
+
+**App settings** (temporarily on the Setup screen)
+
 - Language, palette, background, UI size, and reduced motion are in "App settings" on the Setup screen, not on the Live screen.
-- The first screens built are:
-  - Diagnostics: a table of performance metrics (`PerformanceSnapshot`).
-  - Component Gallery (Developer Mode only): the same parts as `styleboard.html`, laid out in Unity for display checks.
+- Until the Setup screen has a specification (`docs/<lang>/ui/screens/`), the Setup screen holds only the "App settings" card. Its place is revisited when the Setup screen is specified.
+- The items are laid out with Setting Rows.
+
+| Item | Part | Choices |
+|---|---|---|
+| Language | Dropdown | The string tables' `displayName` (日本語, English) |
+| Palette | Dropdown | The palette names in `ThemeAssets` |
+| Background | Segmented | Dark, Light |
+| UI size | Dropdown (five or more choices) | 100%, 110%, 125%, 150%, 175%, 200% |
+| Reduce motion | Dropdown (a long choice) | Match Windows settings, On, Off. The description says motion stops when Animation effects is off in Windows |
+| Developer Mode | Toggle | Shows the Diagnostics screen |
+
+- A chosen value goes to `UiSettingsService`, which applies and saves it (7.9). When a setting changes elsewhere, the controls follow with `SetValueWithoutNotify`.
+
+**First screens**
+
+Until their specifications exist, Live, Setup, and Voice Lab show only their heading and "This screen is on its way" (Setup also holds the App settings above). Two screens get content, starting with minimal content that may be revised later:
+
+- Diagnostics (Developer Mode only): a table of performance metrics (`PerformanceSnapshot`), built with the shared `DataTable`.
+  - The columns are module, name, kind, current, average, max, P95, P99, count, and over budget. Numbers are monospace, right-aligned, with units.
+  - The table refreshes every second with `IPerformanceMetrics.GetSnapshot`, only while shown. Nothing is taken while hidden, because building a snapshot allocates.
+  - Whether detailed metrics are on is shown above the table, so it is clear why timers and gauges do not move while they are off.
+  - Without the performance metrics service, the screen says "Performance metrics aren't available".
+  - The number texts come from pure functions (`DiagnosticsFormat`). Module and metric names are identifiers and are shown as they are, untranslated.
+- Component Gallery (Developer Mode only, implementation step 7-3): the same parts as `styleboard.html`, laid out in Unity for display checks.
 
 ### 7.8 Notifications
 
@@ -527,7 +576,7 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
 3. Create `Localizer`, `ThemeService`, and `FontService`. `UiAssets` holds the string tables (7.4).
 4. Put a `UiServicesScope` (`vv-root`) at the root and attach theme, font, notifications, dialogs, and tooltips. `UiServices` gets `NotificationService.ShowFailure` for failures and `DialogService` for confirmations.
 5. Apply the resolved settings (theme, font, language, UI scale).
-6. Add the screen area (`UiRoot.Content`). `ScreenHost` (implementation step 7-2) goes here.
+6. Add the screen area (`UiRoot.Content`) and put `AppShell` (navigation and `ScreenHost`, 7.7) in it.
 7. If the settings file was moved aside, tell the user with a notification (Warning).
 
 **UI scale**
@@ -598,7 +647,7 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
 | `language` | `ja` if the OS language is Japanese, otherwise `en` | Only languages with a string table |
 | `palette` | `lavender` | |
 | `background` | `dark` | |
-| `uiScale` | `1.0` | 1.0, 1.1, 1.25, 1.5 |
+| `uiScale` | `1.0` | 1.0, 1.1, 1.25, 1.5, 1.75, 2.0. 175% and 200% are for high-resolution monitors used without raising the Windows scale |
 | `reducedMotion` | `system` | `system`, `on`, `off` |
 | `fontSet` | `NotoSans` | |
 | `developerMode` | `false` | |
@@ -610,7 +659,7 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
   - `language`: a language that has a string table. An unknown language becomes English (7.4).
   - `palette`, `fontSet`: those in `ThemeAssets`.
   - `background`: `dark`, `light`. `reducedMotion`: `system`, `on`, `off`.
-  - `uiScale`: only the four steps in the table. Allowing any value would let an extreme value make the screen unusable.
+  - `uiScale`: only the steps in the table. Allowing any value would let an extreme value make the screen unusable.
   - `lastScreen`: one of the screens (`ScreenHost`, implementation step 7-2).
 - When there is no file, `language` is chosen from the OS language and stored in the settings (`Localizer.ChooseInitialLocale`).
 
@@ -964,6 +1013,9 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | EditMode | `UiSettingsService` (change notification, saving 0.5 seconds after the last change, saving on exit, reporting a save failure only once) |
 | EditMode | `UiAssets` string tables match `Strings/*.json`, the persistent scene has one `UiRoot` that `ApplicationBootstrap` references, deciding the kind of startup problem screen |
 | EditMode | `ConfigFileStore` moves aside a file over 1 MiB (8.3) |
+| PlayMode | Layout with the real styles: every screen keeps XL from the navigation and the top, `DataTable` header and value columns line up, a narrow table scrolls sideways inside itself without spilling out, and a vertical wheel reaches the screen (7.7) |
+| EditMode | `ScreenNavigation` (the screens shown, the screen opened first, moving away when Developer Mode is turned off), `DiagnosticsFormat`, `DeveloperModeService` (7.7) |
+| PlayMode | `ScreenHost` (creating a screen on first open and keeping it, switching, `OnShown` and `OnHidden`, saving `lastScreen`, showing and hiding Diagnostics with Developer Mode, a failing screen, Up and Down keys), operating and applying App settings, the Diagnostics table refreshing only while shown (7.7) |
 | PlayMode | Building `UiRoot` (applying theme, font, language, and UI scale, the PanelSettings asset staying unchanged, font fallback, notifications connected), applying setting changes, the startup problem screen text, how its language is chosen, leaving the settings file untouched, and the Quit button (7.9) |
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
 | Performance | Binding updates and level meter updates do not allocate (performance tests) |
@@ -1003,7 +1055,7 @@ Assets/VirtualVessel/
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
-   │  ├─ Screens/           ScreenHost, screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
