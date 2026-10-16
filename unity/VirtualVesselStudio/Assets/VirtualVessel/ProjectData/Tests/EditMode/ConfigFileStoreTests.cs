@@ -140,6 +140,21 @@ namespace VirtualVessel.ProjectData.Tests
         }
 
         [Test]
+        public void Load_FileOverTheSizeLimit_IsMovedAsideWithoutReading()
+        {
+            // Valid JSON padded past the limit: the size alone decides, before any parsing.
+            string content = "{ \"schemaVersion\": 1, \"palette\": \"mint\", \"pad\": \"" + new string('x', (int)ConfigFileStore<SampleSettings>.MaxFileBytes) + "\" }";
+            Write(content);
+
+            ConfigLoadResult<SampleSettings> result = CreateStore().Load();
+
+            Assert.That(result.Status, Is.EqualTo(ConfigLoadStatus.Recovered));
+            Assert.That(result.Value.Palette, Is.EqualTo("lavender"));
+            Assert.That(result.Warnings[0], Does.Contain("limit"));
+            Assert.That(File.Exists(result.MovedAsidePath), Is.True);
+        }
+
+        [Test]
         public void Load_TwoBrokenFilesInTheSameSecond_DoNotOverwriteEachOther()
         {
             Write("{ broken");
