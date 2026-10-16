@@ -114,10 +114,11 @@ namespace VirtualVessel.Application.Startup
             // Metrics come right after logging so that they stop before it and their totals reach the log.
             // Services that measure will keep this instance in a local, as with logging, and pass it
             // to their factories as IPerformanceMetrics.
+            PerformanceMetricsService metrics = null;
             descriptors.Add(new ApplicationServiceDescriptor(
                 PerformanceMetricsService.ServiceName,
                 ServiceCriticality.Optional,
-                () => new PerformanceMetricsService(
+                () => metrics = new PerformanceMetricsService(
                     CreatePerformanceSettings(context.Environment),
                     context.MonotonicClock,
                     context.SystemClock,
@@ -139,7 +140,12 @@ namespace VirtualVessel.Application.Startup
                             context.SystemClock,
                             context.MainThreadDispatcher,
                             logging.Provider.GetLog("UI", "Root"),
-                            SystemMotionPreference.PrefersReducedMotion())),
+                            SystemMotionPreference.PrefersReducedMotion(),
+                            context.BuildInfo.ApplicationVersion,
+                            metrics,
+
+                            // Detailed metrics follow Developer Mode once the UI is up (performance metrics detailed design 7.1).
+                            metrics == null ? null : new Action<bool>[] { metrics.SetDetailedEnabled })),
                     new[] { LoggingService.ServiceName }));
             }
 
