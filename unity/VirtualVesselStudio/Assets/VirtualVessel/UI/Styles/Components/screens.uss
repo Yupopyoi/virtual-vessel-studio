@@ -28,3 +28,19 @@
 .vv-setup > .vv-screen__note {
     margin: 0 0 var(--vv-space-m) 0;
 }
+
+/* The small video on a capture Card, only to check the device; 16:9, the video fitted inside. */
+.vv-capture-card__preview {
+    width: 256px;
+    height: 144px;
+    margin-top: var(--vv-space-s);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+.vv-capture-card__preview-empty {
+    color: var(--vv-color-text-3);
+}

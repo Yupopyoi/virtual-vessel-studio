@@ -85,6 +85,13 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Status.Status, Is.EqualTo(StatusKind.Success));
             Assert.That(card.Capture.value, Is.True);
             Assert.That(card.Info.text, Is.EqualTo("1920×1080 · 59.9 fps"));
+
+            var video = new Texture2D(4, 4);
+            _game.SetTexture(video);
+            Assert.That(card.Preview.image, Is.SameAs(video), "The small preview shows the source's video.");
+            _game.SetTexture(null);
+            Assert.That(card.Preview.image, Is.Null);
+            Object.Destroy(video);
         }
 
         [UnityTest]
@@ -135,7 +142,14 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyObservable<CaptureSourceInfo> Info => _info;
 
-            public IReadOnlyObservable<Texture> Texture { get; } = new ObservableValue<Texture>(null);
+            private readonly ObservableValue<Texture> _texture = new ObservableValue<Texture>(null);
+
+            public IReadOnlyObservable<Texture> Texture => _texture;
+
+            public void SetTexture(Texture texture)
+            {
+                _texture.Value = texture;
+            }
 
             public IReadOnlyObservable<CaptureFlip> Flip => _flip;
 

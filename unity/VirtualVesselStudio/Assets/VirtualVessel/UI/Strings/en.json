@@ -191,6 +191,7 @@
         "setup.capture.problem.choose": "Choose the capture board under Device. A camera is never opened by itself, so a webcam does not show you by mistake.",
         "setup.capture.problem.signal": "No video is arriving. Check the game device's power and cable.",
         "setup.capture.problem.notfound": "It is found again by itself when connected.",
+        "setup.capture.preview.none": "No video",
         "setup.capture.problem.failed": "Another app may be using the device."
     }
 }

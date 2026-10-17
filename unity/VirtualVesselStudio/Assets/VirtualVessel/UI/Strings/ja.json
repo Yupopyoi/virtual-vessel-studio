@@ -191,6 +191,7 @@
         "setup.capture.problem.choose": "「機器」でキャプチャーボードを選んでください。Webカメラで顔が映らないよう、カメラは自動では開きません。",
         "setup.capture.problem.signal": "映像が届いていません。ゲーム機の電源とケーブルを確かめてください。",
         "setup.capture.problem.notfound": "つなぐと自動で見つけ直します。",
+        "setup.capture.preview.none": "映像なし",
         "setup.capture.problem.failed": "ほかのアプリが機器を使っている可能性があります。"
     }
 }

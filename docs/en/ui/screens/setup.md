@@ -21,6 +21,7 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | Row | Component | Content |
 |---|---|---|
 | State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 4) |
+| Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
 | Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |

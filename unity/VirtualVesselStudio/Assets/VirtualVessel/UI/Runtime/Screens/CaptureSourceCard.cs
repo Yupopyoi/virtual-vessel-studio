@@ -36,6 +36,7 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemSignal = "setup.capture.problem.signal";
         public const string ProblemNotFound = "setup.capture.problem.notfound";
         public const string ProblemFailed = "setup.capture.problem.failed";
+        public const string NoVideo = "setup.capture.preview.none";
     }
 
     /// <summary>
@@ -48,11 +49,14 @@ namespace VirtualVessel.UI.Screens
         public const string UssClass = "vv-capture-card";
         public const string ProblemClass = UssClass + "__problem";
         public const string InfoClass = UssClass + "__info";
+        public const string PreviewClass = UssClass + "__preview";
+        public const string PreviewEmptyClass = PreviewClass + "-empty";
 
         private readonly ICaptureDeviceSource _source;
         private readonly string _emptyChoiceKey;
         private readonly KeyedText _problemText;
         private readonly Label _problem;
+        private readonly Label _noVideo;
 
         /// <param name="emptyChoiceKey">The device choice with no device: "Choose a camera" or "Automatic".</param>
         public CaptureSourceCard(ICaptureDeviceSource source, string titleKey, string emptyChoiceKey)
@@ -74,6 +78,14 @@ namespace VirtualVessel.UI.Screens
                 _problem.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
             });
             card.Add(_problem);
+
+            // Small, only to check that the chosen device is the right one; the source's texture is
+            // shown as it is, already flipped, so nothing is copied.
+            Preview = new Image { scaleMode = UnityEngine.ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
+            Preview.AddToClassList(PreviewClass);
+            _noVideo = Ui.Text(CaptureStrings.NoVideo, PreviewEmptyClass, "vv-text-caption");
+            Preview.Add(_noVideo);
+            card.Add(Preview);
 
             Capture = new SwitchToggle();
             Capture.RegisterValueChangedCallback(evt =>
@@ -121,6 +133,9 @@ namespace VirtualVessel.UI.Screens
 
         public SwitchToggle Capture { get; }
 
+        /// <summary>The source's video, small, to check the device.</summary>
+        public Image Preview { get; }
+
         public SelectField Devices { get; }
 
         public SwitchToggle FlipHorizontal { get; }
@@ -166,7 +181,9 @@ namespace VirtualVessel.UI.Screens
                 _source.Problem.Subscribe(_ => Show()),
                 _source.Flip.Subscribe(_ => Show()),
                 _source.Info.Subscribe(info => Info.text = InfoText(info)),
+                _source.Texture.Subscribe(ShowVideo),
             };
+            ShowVideo(_source.Texture.Value);
             if (_source is IPointerOption pointer)
             {
                 subscriptions.Add(pointer.DrawPointer.Subscribe(draw => Pointer.SetValueWithoutNotify(draw)));
@@ -203,6 +220,12 @@ namespace VirtualVessel.UI.Screens
             }
 
             Info.text = InfoText(_source.Info.Value);
+        }
+
+        private void ShowVideo(UnityEngine.Texture texture)
+        {
+            Preview.image = texture;
+            _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private SwitchToggle FlipToggle(VisualElement card, string nameKey, CaptureFlip part)
