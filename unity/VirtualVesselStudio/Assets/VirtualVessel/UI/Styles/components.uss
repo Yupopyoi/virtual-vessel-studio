@@ -27,3 +27,4 @@
 @import url("Components/table.uss");
 @import url("Components/shell.uss");
 @import url("Components/diagnostics.uss");
+@import url("Components/gallery.uss");

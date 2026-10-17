@@ -1,0 +1,51 @@
+/* Component gallery (UI foundation detailed design 7.7): two columns of cards, the table below. */
+.vv-gallery__note {
+    margin: 0 0 var(--vv-space-m) 0;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-gallery__columns {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.vv-gallery__column {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+}
+
+.vv-gallery__column--first {
+    margin-right: var(--vv-space-m);
+}
+
+.vv-gallery__card {
+    margin-bottom: var(--vv-space-m);
+}
+
+/* Items in a card are S apart, and rows of small parts wrap. */
+.vv-gallery__item {
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-gallery__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.vv-gallery__row > * {
+    margin: 0 var(--vv-space-s) var(--vv-space-s) 0;
+}
+
+/* A row's parts already keep S below them, so the row adds none. */
+.vv-gallery__row.vv-gallery__item {
+    margin-bottom: 0;
+}
+
+.vv-gallery__card .vv-gallery__note {
+    margin: 0;
+    color: var(--vv-color-text-3);
+}

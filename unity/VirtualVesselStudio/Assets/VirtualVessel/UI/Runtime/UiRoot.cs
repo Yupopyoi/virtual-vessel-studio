@@ -406,13 +406,18 @@ namespace VirtualVessel.UI
         /// <summary>The screens of the navigation, in order (UI foundation detailed design 7.7).</summary>
         private IReadOnlyList<ScreenDefinition> CreateScreens(UiSettingsService settings, IPerformanceMetrics metrics)
         {
-            return new[]
+            var screens = new List<ScreenDefinition>
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new PlaceholderScreen(new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };
+#if UNITY_EDITOR
+            // A tool for building the UI, not part of the application: only in the Unity Editor.
+            screens.Add(new ScreenDefinition("gallery", IconName.Gallery, GalleryStrings.Nav, GalleryStrings.NavTip, () => new ComponentGalleryScreen(Notifications), developerOnly: true));
+#endif
+            return screens;
         }
 
         private void OnDeveloperModeChanged(bool enabled)

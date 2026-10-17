@@ -139,7 +139,9 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | `UiSettingsService` | Class | Reports setting changes and saves them together (7.9) |
 | `ConfigFileStore` | Class (ProjectData) | Reads and writes settings files |
 | `ThemeGenerator` | Editor | Generates USS for each theme from the tokens |
-| `UiScreenshotCapture` | Editor | Writes screens to PNG |
+| `ComponentGalleryScreen` | VisualElement | The component gallery (7.7) |
+| `UiScreenshotCapture` | Editor | The menu that writes screens to PNG (7.10) |
+| `UiShotPlan` / `UiScreenshotCaptureRun` | Static class / PlayMode test | The combinations to write, and the writing itself (7.10) |
 
 ---
 
@@ -530,7 +532,14 @@ Until their specifications exist, Live, Setup, and Voice Lab show only their hea
   - Whether detailed metrics are on is shown above the table, so it is clear why timers and gauges do not move while they are off.
   - Without the performance metrics service, the screen says "Performance metrics aren't available".
   - The number texts come from pure functions (`DiagnosticsFormat`). Module and metric names are identifiers and are shown as they are, untranslated.
-- Component Gallery (Developer Mode only, implementation step 7-3): the same parts as `styleboard.html`, laid out in Unity for display checks.
+- Component Gallery: the same parts as the "Common components" of `styleboard.html`, laid out in Unity to check how they look and work (`ComponentGalleryScreen`).
+  - It is a tool for building the UI, not part of the application, so it is included only when running in the Unity Editor (`#if UNITY_EDITOR`). Built applications, development builds included, contain neither the screen nor its code. Its string table keys stay but are never shown.
+  - Even in the Editor, it shows only in Developer Mode, below Diagnostics in the navigation. Its icon is `Gallery` (a 2×2 grid of squares).
+  - Parts are grouped in cards by kind and wrap to the width: buttons, tooltips, toggles and icon buttons, status (status indicators, level meter, key hints), fields (text field, numeric field, dropdown, slider), tabs and setting rows (segmented), notifications and progress, the confirmation dialog, the context menu, and the table.
+  - States other than normal are shown too, such as a disabled button with its reason tooltip and a field with an error.
+  - Notifications, the confirmation dialog, and the context menu really open from their buttons. It is a sample: nothing it does changes any setting or state.
+  - Parts that need video (media frame, layer list, preview) are not included; they are checked on the placement editing screen.
+  - When a part is added, it is added here too (`components.md` chapter 4).
 
 ### 7.8 Notifications
 
@@ -619,6 +628,29 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
 - The settings file holds no secrets (stream keys and so on). Secrets are handled as described in system design 6.13.
 - Developer Mode only shows more; it grants no rights. Anyone can turn it on by editing the settings file, so nothing that needs protection is placed behind it. Diagnostics shows no secrets either (7-2).
 - The startup problem screen and notifications show no internal details such as exception messages, service names, or stack traces. Details go to the developer log.
+
+### 7.10 Writing Screens to Images (UiScreenshotCapture)
+
+A development tool that writes the real UI's screens to PNG for the visual review of system design 14.35.
+
+- Screens are written in Play Mode. `UiRoot` is built with the real `UiAssets` and a temporary settings folder, drawn into the PanelSettings `targetTexture`, and saved. UI Toolkit runtime panels are drawn in Play Mode.
+- The work is a PlayMode test (`UiScreenshotCaptureRun.Capture`) run by the Unity Test Framework. It is marked `[Explicit]`, so it runs only when named and never in a normal test run. It runs in batch mode as long as `-nographics` is not given.
+- There are two ways to run it:
+  - The Unity menu "Virtual Vessel/UI/Capture Screenshots" (`UiScreenshotCapture`, Editor), which opens the output folder when done.
+  - `tools/ui/capture-ui.ps1`, which runs Unity in batch mode while the Editor is closed. `-Screens` limits the screens, and `-Quick` reduces the combinations.
+- `UiShotPlan.Create` (a pure function) decides the combinations. For each screen it writes (`ui-guidelines.md` chapter 5):
+  - dark and light × Japanese and English (1600×900, UI size 100%, Lavender);
+  - a palette with a bright accent (Lemon, light, Japanese);
+  - a narrow window (1024×768, dark, Japanese);
+  - UI size 150% (dark, Japanese).
+  - With `-Quick`, only dark Japanese and light English.
+- A screen taller than the window is written whole: the image grows to the height of its content.
+- Screens are drawn at 96 DPI (Windows scale 100%), so the images have the same size on any machine. The UI size of each combination is applied on top.
+- After switching settings, the capture waits a few frames and 0.3 seconds before writing. Batch mode runs frames so fast that frames alone would catch parts halfway through their color transitions (0.12 s for buttons).
+- Developer Mode is on, and the Diagnostics screen shows sample metrics.
+- File names are `<screen>-<background>-<language>-<palette>-<width>x<height>-<UI size %>.png`. An `index.html` to look through them is written too.
+- The default output is `screenshots/<timestamp>/` at the repository root, which Git ignores (`.gitignore`). The environment variable `VV_UI_CAPTURE` changes it.
+- Color view simulation (red–green, blue–yellow, gray) is not included; the images are checked with another tool.
 
 ---
 
@@ -1013,6 +1045,8 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | EditMode | `UiSettingsService` (change notification, saving 0.5 seconds after the last change, saving on exit, reporting a save failure only once) |
 | EditMode | `UiAssets` string tables match `Strings/*.json`, the persistent scene has one `UiRoot` that `ApplicationBootstrap` references, deciding the kind of startup problem screen |
 | EditMode | `ConfigFileStore` moves aside a file over 1 MiB (8.3) |
+| PlayMode | The component gallery: a card for every kind, and notifications, the confirmation dialog, and the context menu opening from their buttons (7.7) |
+| PlayMode | `UiShotPlan` (the default combinations, limiting screens, Quick, file names, output folder) (7.10) |
 | PlayMode | Layout with the real styles: every screen keeps XL from the navigation and the top, `DataTable` header and value columns line up, a narrow table scrolls sideways inside itself without spilling out, and a vertical wheel reaches the screen (7.7) |
 | EditMode | `ScreenNavigation` (the screens shown, the screen opened first, moving away when Developer Mode is turned off), `DiagnosticsFormat`, `DeveloperModeService` (7.7) |
 | PlayMode | `ScreenHost` (creating a screen on first open and keeping it, switching, `OnShown` and `OnHidden`, saving `lastScreen`, showing and hiding Diagnostics with Developer Mode, a failing screen, Up and Down keys), operating and applying App settings, the Diagnostics table refreshing only while shown (7.7) |
@@ -1020,7 +1054,7 @@ USS cannot compute colors, so precomputed values are generated for each palette 
 | Display check | `UiScreenshotCapture` writes images for combinations of dark/light, Japanese/English, and scale for review (system design 14.35) |
 | Performance | Binding updates and level meter updates do not allocate (performance tests) |
 
-`UiScreenshotCapture` draws a screen into the PanelSettings `targetTexture` and saves it as PNG. It runs in batch mode as long as `-nographics` is not given.
+`UiScreenshotCapture` draws a screen into the PanelSettings `targetTexture` in Play Mode and saves it as PNG (7.10). It runs in batch mode as long as `-nographics` is not given.
 
 ---
 
@@ -1055,7 +1089,7 @@ Assets/VirtualVessel/
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
@@ -1066,7 +1100,7 @@ Assets/VirtualVessel/
    ├─ UiAssets.asset, PanelSettings.asset, RuntimeTheme.tss
    └─ Tests/
       ├─ EditMode/
-      ├─ PlayMode/
+      ├─ PlayMode/          UiScreenshotCaptureRun, UiShotPlan (7.10)
       └─ Performance/
 
 Assets/ThirdParty/

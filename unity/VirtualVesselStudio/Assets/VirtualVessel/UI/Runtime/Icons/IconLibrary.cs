@@ -32,6 +32,9 @@ namespace VirtualVessel.UI.Icons
 
         /// <summary>Three bars: something that can be dragged, such as a layer list row.</summary>
         Grip,
+
+        /// <summary>A 2×2 grid of squares: the component gallery.</summary>
+        Gallery,
     }
 
     /// <summary>One part of an icon: a line drawn with the text color, or a filled area.</summary>
@@ -81,6 +84,7 @@ namespace VirtualVessel.UI.Icons
             [IconName.Dot] = new[] { "fill:M7 12a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z" },
             [IconName.Ring] = new[] { "M6.5 12a5.5 5.5 0 1 0 11 0a5.5 5.5 0 1 0 -11 0Z" },
             [IconName.Grip] = new[] { "M6 8h12M6 12h12M6 16h12" },
+            [IconName.Gallery] = new[] { "M4 4h6v6H4Z", "M14 4h6v6h-6Z", "M4 14h6v6H4Z", "M14 14h6v6h-6Z" },
         };
 
         // Declared after Sources: static initializers run in source order.

@@ -221,5 +221,5 @@
 
 1. 既存のComponentで足りないことを確認する。
 2. 本書と`docs/en/ui/components.md`に仕様を追加する。
-3. `docs/assets/ui/styleboard.html`に見本を追加する。
+3. `docs/assets/ui/styleboard.html`に見本を追加する。Unityエディタの部品見本の画面（UI基盤詳細設計7.7）にも並べる。
 4. ダーク、ライト、日本語、英語、色の見え方の各表示で確認する。
