@@ -55,3 +55,5 @@ When the UI changes, check at least the following combinations.
 | States | Normal, hover, focused, disabled, loading, error |
 | Size | Text is not cut off when the UI is scaled up |
 | Operation | Everything works from the keyboard |
+
+The combinations of background, language, palette, UI size, and window width can be written to images at once with `tools/ui/capture-ui.ps1` (UI foundation detailed design 7.10). Part states are checked on the component gallery screen, in Developer Mode when running in the Unity Editor.

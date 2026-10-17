@@ -139,7 +139,9 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | `UiSettingsService` | Class | 設定の変更の通知と、まとめての保存（7.9） |
 | `ConfigFileStore` | Class（ProjectData） | 設定ファイルの読み書き |
 | `ThemeGenerator` | Editor | Tokenから各ThemeのUSSを生成する |
-| `UiScreenshotCapture` | Editor | 画面をPNGへ書き出す |
+| `ComponentGalleryScreen` | VisualElement | 部品見本（7.7） |
+| `UiScreenshotCapture` | Editor | 画面をPNGへ書き出すメニュー（7.10） |
+| `UiShotPlan` / `UiScreenshotCaptureRun` | Static Class / PlayMode Test | 書き出す組み合わせと、書き出しの処理（7.10） |
 
 ---
 
@@ -530,7 +532,14 @@ public interface IUiCommand
   - 表の上に、詳細計測が有効か無効かを表示する。無効の間は、TimerとGaugeの値が増えない理由が分かるようにする。
   - 性能計測のServiceがない場合は、「性能計測を使えません」と表示する。
   - 数値の文字は純粋関数（`DiagnosticsFormat`）で作る。Moduleと名前は識別子なので、翻訳せずにそのまま表示する。
-- Component Gallery（Developer Modeのみ、実装順序7-3）：`styleboard.html`と同じ部品をUnity上で並べ、表示確認に使う。
+- Component Gallery（部品見本）：`styleboard.html`の「共通コンポーネント」と同じ部品をUnity上で並べ、見た目と動きを確認する（`ComponentGalleryScreen`）。
+  - UIを作るための道具であり、アプリの一部ではないため、Unityエディタで実行したときだけ含める（`#if UNITY_EDITOR`）。配布するアプリ（開発用ビルドを含む）には、画面もコードも入らない。文字列表のKeyは残るが、表示されることはない。
+  - エディタでも、Developer Modeのときだけ、ナビゲーションの診断の下に表示する。アイコンは`Gallery`（2×2の四角）。
+  - 部品の種類ごとにCardにまとめ、幅に合わせて折り返して並べる。種類は、ボタン、Tooltip、トグルとIcon Button、状態の表示（Status Indicator、Level Meter、Key Hint）、入力欄（Text Field、Numeric Field、Dropdown、Slider）、タブと設定行（Segmented）、Notificationと進捗、確認Dialog、右クリックMenu、表とする。
+  - 押せない理由のTooltipが付いた無効なボタン、入力のエラーなど、通常以外の状態も並べる。
+  - Notification、確認Dialog、右クリックMenuは、ボタンを押すと実際に表示する。見本のため、操作しても設定や状態は変わらない。
+  - 映像を必要とする部品（Media Frame、Layer List、Preview）は置かない。配置編集の画面で確認する。
+  - 部品を追加したら、ここにも並べる（`components.md` 4章）。
 
 ### 7.8 Notification
 
@@ -619,6 +628,29 @@ public interface IUiCommand
 - 設定ファイルには秘密情報（Stream Key等）を保存しない。秘密情報は方式設計6.13の方式で扱う。
 - Developer Modeは表示を増やすだけで、権限は与えない。設定ファイルを書き換えれば誰でも有効にできるため、Developer Modeの裏に守るべき機能を置かない。Diagnosticsにも秘密情報を表示しない（7-2）。
 - 起動できなかったときの画面とNotificationには、例外の文、Service名、Stack Traceなどの内部の情報を出さない。詳細は開発者向けのLogへ記録する。
+
+### 7.10 画面の書き出し（UiScreenshotCapture）
+
+方式設計14.35のVisual Reviewのため、実際のUIの画面をPNGに書き出す開発用のツールである。
+
+- 書き出しはPlay Modeで行う。`UiRoot`を実際の`UiAssets`と一時的な設定フォルダで構築し、PanelSettingsの`targetTexture`へ描いて保存する。UI ToolkitのRuntime Panelは、Play Modeで描かれるためである。
+- 処理はPlayModeのTest（`UiScreenshotCaptureRun.Capture`）として書き、Unity Test Frameworkで実行する。`[Explicit]`を付け、名前を指定したときだけ動かす。通常のTestの実行では動かない。Batch Modeでも、`-nographics`を付けなければ動く。
+- 実行方法は次の2つとする。
+  - Unityのメニュー「Virtual Vessel/UI/Capture Screenshots」（`UiScreenshotCapture`、Editor）。終わると保存先のフォルダを開く。
+  - `tools/ui/capture-ui.ps1`。Unityを閉じた状態でBatch Modeで実行する。`-Screens`で画面を絞り、`-Quick`で組み合わせを減らせる。
+- 書き出す組み合わせは`UiShotPlan.Create`（純粋関数）が決める。画面ごとに次を書き出す（`ui-guidelines.md` 5章）。
+  - ダーク・ライト×日本語・英語（1600×900、UIの大きさ100%、Lavender）
+  - 明るいアクセント色のパレット（Lemon、ライト、日本語）
+  - 狭い窓（1024×768、ダーク、日本語）
+  - UIの大きさ150%（ダーク、日本語）
+  - `-Quick`のときは、ダーク・日本語とライト・英語だけとする。
+- 縦に長い画面は、中身の高さに合わせて画像を縦に伸ばし、全体を1枚に収める。
+- 画面は96 DPI（Windowsの拡大率100%）で描き、実行する環境によらず同じ大きさで書き出す。UIの大きさは組み合わせどおりに掛ける。
+- 設定を切り替えた後は、数フレームに加えて0.3秒待ってから書き出す。Batch Modeではフレームがとても速く進むため、フレーム数だけでは、部品の色の切り替え（ボタンは0.12秒）が途中のまま写るためである。
+- Developer Modeはオンにし、診断画面には見本の計測値を入れる。
+- ファイル名は`<画面>-<背景>-<言語>-<パレット>-<幅>x<高さ>-<UIの大きさ%>.png`とする。一覧で見るための`index.html`も書き出す。
+- 保存先は、既定でRepository直下の`screenshots/<日時>/`とし、Gitの管理から外す（`.gitignore`）。環境変数`VV_UI_CAPTURE`で変えられる。
+- 色の見え方（赤緑、青黄、白黒）の模擬は含めない。書き出した画像を別のツールで確認する。
 
 ---
 
@@ -1013,6 +1045,8 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | EditMode | `UiSettingsService`（変更の通知、最後の変更から0.5秒後の保存、終了時の保存、保存の失敗の通知が1回だけであること） |
 | EditMode | `UiAssets`の文字列表が`Strings/*.json`と一致すること、Persistent Sceneに`UiRoot`が1つあり`ApplicationBootstrap`が参照していること、起動できなかったときの画面の種類の判定 |
 | EditMode | `ConfigFileStore`が1 MiBを超えるファイルを退避すること（8.3） |
+| PlayMode | 部品見本：すべての種類のCardがあること、Notification・確認Dialog・右クリックMenuがボタンで表示されること（7.7） |
+| PlayMode | `UiShotPlan`（既定の組み合わせ、画面の絞り込み、Quick、ファイル名、保存先）（7.10） |
 | PlayMode | 実際のStyleを使った配置：すべての画面でナビゲーションと上端から余白XLが空くこと、`DataTable`の見出しと値の列がそろうこと、狭いときは表の中で横にスクロールしてはみ出さないこと、縦のホイールが画面へ届くこと（7.7） |
 | EditMode | `ScreenNavigation`（表示する画面の一覧、最初に開く画面、Developer Modeをオフにしたときの移動）、`DiagnosticsFormat`、`DeveloperModeService`（7.7） |
 | PlayMode | `ScreenHost`（画面を初めて開いたときに作って保持すること、表示の切り替え、`OnShown`と`OnHidden`、`lastScreen`の保存、Developer Modeでの診断の表示と非表示、画面の作成の失敗、上下キー）、アプリの設定の操作と反映、Diagnosticsの表と表示中だけの更新（7.7） |
@@ -1020,7 +1054,7 @@ USSは色の計算に対応しないため、パレット×背景の組み合わ
 | 表示確認 | `UiScreenshotCapture`で、ダーク／ライト、日本語／英語、拡大率の組み合わせを画像に書き出し、確認する（方式設計14.35） |
 | 性能 | Bindingの更新とLevel Meterの更新でAllocationが発生しないこと（Performance Test） |
 
-`UiScreenshotCapture`は、画面をPanelSettingsの`targetTexture`へ描いてPNGに保存する。Batch Modeでも、`-nographics`を付けなければ実行できる。
+`UiScreenshotCapture`は、Play Modeで画面をPanelSettingsの`targetTexture`へ描いてPNGに保存する（7.10）。Batch Modeでも、`-nographics`を付けなければ実行できる。
 
 ---
 
@@ -1055,7 +1089,7 @@ Assets/VirtualVessel/
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
@@ -1066,7 +1100,7 @@ Assets/VirtualVessel/
    ├─ UiAssets.asset, PanelSettings.asset, RuntimeTheme.tss
    └─ Tests/
       ├─ EditMode/
-      ├─ PlayMode/
+      ├─ PlayMode/          UiScreenshotCaptureRun, UiShotPlan（7.10）
       └─ Performance/
 
 Assets/ThirdParty/

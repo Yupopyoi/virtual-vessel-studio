@@ -221,5 +221,5 @@ The frame for editing the placement of a video (game screen, second monitor, and
 
 1. Confirm that the existing components are not enough.
 2. Add the specification to this document and `docs/ja/ui/components.md`.
-3. Add a sample to `docs/assets/ui/styleboard.html`.
+3. Add a sample to `docs/assets/ui/styleboard.html`, and to the component gallery screen in the Unity Editor (UI foundation detailed design 7.7).
 4. Check the display in dark, light, Japanese, English, and each color view.
