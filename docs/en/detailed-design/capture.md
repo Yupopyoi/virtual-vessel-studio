@@ -115,6 +115,8 @@ public interface IVideoCaptureSource
     IReadOnlyObservable<CaptureProblem> Problem { get; }     // What to tell the user; None when there is nothing
     IReadOnlyObservable<CaptureSourceInfo> Info { get; }     // Actual resolution, frame rate, device name
     IReadOnlyObservable<Texture> Texture { get; }            // The video; a different texture when the resolution changes
+    IReadOnlyObservable<CaptureFlip> Flip { get; }           // Mirroring top-bottom and left-right; Texture is already mirrored
+    void SetFlip(CaptureFlip flip);
     void Start();
     void Stop();
 }
@@ -161,6 +163,7 @@ public interface ICaptureSources
 | `CaptureProblem` | What the user sees (example) |
 |---|---|
 | `None` | — |
+| `DeviceNotChosen` | Choose a camera (a capture board is not opened until one is chosen) |
 | `DeviceNotFound` | The capture board can't be found |
 | `MonitorNotFound` | The monitor can't be found |
 | `NoSignal` | No video is arriving (check the game device's power and cable) |
@@ -183,6 +186,8 @@ public sealed class CaptureDevice
 |---|---|---|
 | GameCapture | `WebCamDevice.name` | The same |
 | SubScreenCapture | The monitor's device name (for example `\\.\DISPLAY2`) | Its device name and resolution, such as "DISPLAY2 (1920×1080)". It has no words, so it reads the same in every language. A translated name with a number and a mark for the main monitor is built by the setup screen (chapter 17) |
+
+GameCapture opens no device until the user chooses one: the first camera found may be a webcam, showing the user's face or room. Starting without a choice gives `Stopped` (`DeviceNotChosen`); choosing a device afterwards goes on with the start that waited.
 
 SubScreenCapture defaults to the first monitor that is not the main one. With a single monitor it picks that one, for trying it out.
 
@@ -230,7 +235,7 @@ public interface IFrameLoop
 
 As in the prototype (`VideoDisplayer.cs`), the capture board is opened as a UVC video device through `WebCamTexture`. No native plugin is used.
 
-1. `Start()`: if the chosen device is not in `WebCamTexture.devices`, `Unavailable` (`DeviceNotFound`).
+1. `Start()`: if no device is chosen, `Stopped` (`DeviceNotChosen`) (6.3). If the chosen device is not in `WebCamTexture.devices`, `Unavailable` (`DeviceNotFound`).
 2. Create a `WebCamTexture` with the device name and the requested resolution and frame rate (default 1920×1080, 60 fps), and `Play()` it. `Starting`.
 3. Until the first frame arrives (`didUpdateThisFrame`, width over 16 px), `Ready`.
 4. When frames arrive, `Capturing`. `Texture` exposes the `WebCamTexture`; `Info` gets the actual resolution and the frame rate that actually arrives (counted about every second).
@@ -263,7 +268,8 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 
 - Frames are `B8G8R8A8` and uploaded as-is to Unity's `TextureFormat.BGRA32`.
 - Desktop Duplication returns a frame only when the screen changes. A still screen sends no frames; that is not a failure.
-- The mouse cursor is not in the image (a property of Desktop Duplication). Whether to draw it is an open issue (chapter 17).
+- The desktop gives its rows top first, while Unity's textures start at the bottom row, so the rows are reversed while they are copied (at no extra cost). Without that the image is upside down (a bug of the first version).
+- The mouse cursor is not in Desktop Duplication's image. By default the native side draws it into the frames as the screen shows it (`CaptureSettings.SubScreenDrawPointer`), combining color, masked color, and monochrome shapes by the same rules as Windows. When only the cursor moves over a still screen, it is drawn again on the last image kept in the staging texture, which makes a new frame.
 - A rotated (portrait) monitor is first shown as it comes, rotated. Correcting the orientation is an open issue.
 - A monitor's size comes from its current display mode. For a process that is not DPI aware, the desktop coordinates come back smaller by the scale factor (3840×2160 came back as 2560×1440 on the development PC).
 
@@ -271,6 +277,12 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 
 - `SelectDevice` stops a running source and opens it again with the chosen device. A stopped source only records the choice.
 - The choice is kept in `CaptureSettings`. Where it is stored is an open issue (chapter 17); until then it returns to the default at every start.
+
+### 8.4 Flipping
+
+- Each source has a top-bottom and left-right flip (`CaptureFlip`), starting from `CaptureSettings.GameFlip` and `SubScreenFlip`.
+- While flipped, every new frame is copied mirrored on the GPU into a render texture of the same size, and `Texture` shows that render texture, so its users need not handle the flip. Without a flip, the source's own texture is shown as it is.
+- A source's flip corrects the video itself. The left-right flip of a placement on the stream screen (the placement editor's `FrameLayout`) is separate, and both can be used.
 
 ---
 
@@ -288,11 +300,14 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 ```csharp
 public sealed class CaptureSettings
 {
-    public string GameDeviceId { get; set; }          // The first in the list when not set
+    public string GameDeviceId { get; set; }          // Nothing is opened when not set (6.3)
+    public CaptureFlip GameFlip { get; set; }
     public int GameWidth { get; set; } = 1920;
     public int GameHeight { get; set; } = 1080;
     public int GameFrameRate { get; set; } = 60;
     public string SubScreenMonitorId { get; set; }    // The first monitor that is not the main one when not set
+    public CaptureFlip SubScreenFlip { get; set; }
+    public bool SubScreenDrawPointer { get; set; } = true;   // Draw the mouse cursor
 }
 ```
 
@@ -347,13 +362,14 @@ public sealed class CaptureSettings
 
 | Kind | Target |
 |---|---|
-| EditMode | `CaptureStateMachine` transitions, choosing the default device, monitor display names, deciding uploads from frame numbers (pure functions) |
+| EditMode | `CaptureStateMachine` transitions, choosing the default device, monitor display names, deciding uploads from frame numbers, the flip UVs (pure functions) |
+| EditMode | Reading back a flipped render texture shows left and right swapped; a capture board is not opened until one is chosen |
 | EditMode | `GameCaptureSource` and `SubScreenCaptureSource` driven by fake `ICameraDevices` and `IDesktopDuplication`: states, recovering from `Unavailable`, choosing again, releasing on stop |
 | EditMode | `FrameLoop` order, isolating exceptions, removing registrations |
 | EditMode | Fake frames handed to `SubScreenCaptureSource` are uploaded as BGRA to a real `Texture2D` |
 | Hardware | SubScreenCapture shows a real monitor through the real plugin; GameCapture shows a real capture board. Marked `[Explicit]` and run only by name. Recovering from `ACCESS_LOST` (a resolution change) is checked by changing the resolution by hand |
 | Performance | Records the upload time at 1920×1080 and 3840×2160 (`SubScreenCaptureHardwareTests.Upload_Timing`; `Capture/subscreen.Upload` at run time) |
-| Native | `vv_capture_tests` (CTest): handing over through the three buffers (across threads too), the retry policy, the row copy, the C ABI's argument checks, a monitor that does not exist. With `--hardware` it duplicates a real monitor once. `tools/native/build-capture.ps1` builds and runs it |
+| Native | `vv_capture_tests` (CTest): handing over through the three buffers (across threads too), the retry policy, the row copy (bottom row first), drawing the mouse cursor (three kinds of shapes, clipped at the edges), the C ABI's argument checks, a monitor that does not exist. With `--hardware` it duplicates a real monitor once. `tools/native/build-capture.ps1` builds and runs it |
 
 ---
 
@@ -411,7 +427,6 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 | Whether the native DLL is committed to the repository, or built by each developer and CI | Decided with the user. Until then the DLL is kept out of Git and built locally |
 | GameCapture audio (library: NAudio, Unity's Microphone, native WASAPI) | With the Audio module design. Using NAudio needs approval as a new dependency |
 | Where capture settings are stored | With the Project / Profile design |
-| Whether SubScreenCapture draws the mouse cursor | After checking what the user wants |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
 | Sharing directly on the GPU | Decided from the measured upload times |

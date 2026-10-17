@@ -115,6 +115,8 @@ public interface IVideoCaptureSource
     IReadOnlyObservable<CaptureProblem> Problem { get; }     // 利用者へ伝える問題。なければNone
     IReadOnlyObservable<CaptureSourceInfo> Info { get; }     // 実際の解像度、Frame Rate、機器名
     IReadOnlyObservable<Texture> Texture { get; }            // 映像。解像度が変わると別のTextureになる
+    IReadOnlyObservable<CaptureFlip> Flip { get; }           // 上下・左右の反転。Textureは反転済み
+    void SetFlip(CaptureFlip flip);
     void Start();
     void Stop();
 }
@@ -161,6 +163,7 @@ public interface ICaptureSources
 | `CaptureProblem` | 利用者向けの表示（例） |
 |---|---|
 | `None` | — |
+| `DeviceNotChosen` | カメラを選んでください（Capture Boardは、選ぶまで開かない） |
 | `DeviceNotFound` | Capture Boardが見つかりません |
 | `MonitorNotFound` | モニターが見つかりません |
 | `NoSignal` | 映像が届いていません（ゲーム機の電源や接続を確認） |
@@ -183,6 +186,8 @@ public sealed class CaptureDevice
 |---|---|---|
 | GameCapture | `WebCamDevice.name` | 同じ |
 | SubScreenCapture | モニターのDevice名（例：`\\.\DISPLAY2`） | 「DISPLAY2 (1920×1080)」のように、Device名と解像度。言葉を含めず、どの言語でも同じに読める。番号や主モニターの印を付けた、翻訳した表示名はSetup画面で作る（17章） |
+
+GameCaptureは、利用者が選ぶまで機器を開かない。最初に見つかったカメラがWebカメラで、利用者の顔や部屋を映してしまうことがあるためである。選ばずに開始すると`Stopped`（`DeviceNotChosen`）になり、その後に機器を選ぶと、待っていた開始がそのまま続く。
 
 SubScreenCaptureの既定は、主モニター以外で最初のモニターとする。モニターが1つしかなければ、そのモニターを選ぶ（動作確認用）。
 
@@ -230,7 +235,7 @@ public interface IFrameLoop
 
 試作（`VideoDisplayer.cs`）と同じく、Capture BoardをUVCの映像機器として`WebCamTexture`で開く。Native Pluginは使わない。
 
-1. `Start()`：選んだ機器が`WebCamTexture.devices`になければ`Unavailable`（`DeviceNotFound`）。
+1. `Start()`：機器が選ばれていなければ`Stopped`（`DeviceNotChosen`）（6.3）。選んだ機器が`WebCamTexture.devices`になければ`Unavailable`（`DeviceNotFound`）。
 2. 機器名と希望の解像度・Frame Rate（既定：1920×1080、60fps）で`WebCamTexture`を作り、`Play()`する。`Starting`。
 3. 最初のFrameが届くまで（`didUpdateThisFrame`、幅が16pxより大きい）`Ready`。
 4. 届いたら`Capturing`。`Texture`に`WebCamTexture`を出す。実際の解像度と、実際に届くFrame Rate（約1秒ごとに数える）を`Info`へ反映する。
@@ -263,7 +268,8 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 
 - 映像の形式は`B8G8R8A8`で、Unityの`TextureFormat.BGRA32`へそのまま転送する。
 - Desktop Duplicationは、画面が変わったときだけFrameを返す。動かない画面ではFrameが届かないが、異常ではない。
-- マウスカーソルは映像に含まれない（Desktop Duplicationの仕様）。描くかどうかは未決事項とする（17章）。
+- 行は、Desktopからは上の行から届くが、Unityのテクスチャは下の行から並ぶ。行を写すときに順を入れ替える（追加の手間はない）。入れ替えないと上下が逆に映る（最初の版の不具合）。
+- マウスカーソルは、Desktop Duplicationの映像には含まれない。既定では、Native側が画面と同じようにFrameへ描き込む（`CaptureSettings.SubScreenDrawPointer`）。カラー、マスク付きカラー、モノクロの形を、Windowsと同じ規則で合成する。動かない画面の上でカーソルだけが動いたときは、Staging Textureに残る最後の画像に描き直して新しいFrameにする。
 - 回転したモニター（縦置き）は、まず回転したままの映像を出す。正しい向きへの変換は未決事項とする。
 - モニターの大きさは、現在の表示Modeから取る。DPIに対応していないProcessでは、Desktop座標が拡大率の分だけ小さく返るため（開発用PCで、3840×2160が2560×1440と返った）。
 
@@ -271,6 +277,12 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 
 - `SelectDevice`は、動作中であれば止めてから選んだ機器で開き直す。止まっていれば選ぶだけ。
 - 選択は`CaptureSettings`に持つ。保存先は未決事項とする（17章）。それまでは起動のたびに既定に戻る。
+
+### 8.4 反転
+
+- 各Sourceは、上下・左右の反転（`CaptureFlip`）を持つ。設定の初期値は`CaptureSettings.GameFlip`、`SubScreenFlip`。
+- 反転していれば、新しいFrameのたびにGPUで同じ大きさのRender Textureへ反転してコピーし、`Texture`はそのRender Textureを出す。使う側は反転を気にしなくてよい。反転しなければ、元のTextureをそのまま出す。
+- Sourceの反転は、映像そのものの向きを直すためのもの。配信画面上の置き方としての左右反転（配置編集の`FrameLayout`）とは別に、両方使える。
 
 ---
 
@@ -288,11 +300,14 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 ```csharp
 public sealed class CaptureSettings
 {
-    public string GameDeviceId { get; set; }          // 未設定なら一覧の最初
+    public string GameDeviceId { get; set; }          // 未設定なら開かない（6.3）
+    public CaptureFlip GameFlip { get; set; }
     public int GameWidth { get; set; } = 1920;
     public int GameHeight { get; set; } = 1080;
     public int GameFrameRate { get; set; } = 60;
     public string SubScreenMonitorId { get; set; }    // 未設定なら主モニター以外の最初
+    public CaptureFlip SubScreenFlip { get; set; }
+    public bool SubScreenDrawPointer { get; set; } = true;   // マウスカーソルを描く
 }
 ```
 
@@ -347,13 +362,14 @@ public sealed class CaptureSettings
 
 | 種類 | 対象 |
 |---|---|
-| EditMode | `CaptureStateMachine`の遷移、機器の既定の選び方、モニターの表示名、Frameの連番による転送の判断（純粋関数） |
+| EditMode | `CaptureStateMachine`の遷移、機器の既定の選び方、モニターの表示名、Frameの連番による転送の判断、反転のUV（純粋関数） |
+| EditMode | 反転したRender Textureの画素を読み戻し、左右が入れ替わっていること。Capture Boardが選ぶまで開かれないこと |
 | EditMode | `GameCaptureSource`、`SubScreenCaptureSource`を偽の`ICameraDevices`、`IDesktopDuplication`で動かし、状態、`Unavailable`からの復帰、選び直し、停止時の解放を確かめる |
 | EditMode | `FrameLoop`の順序、例外の分離、登録の解除 |
 | EditMode | 偽のFrameを`SubScreenCaptureSource`へ渡し、実際の`Texture2D`へBGRAのまま転送されること |
 | 実機 | 実際のPluginとモニターでSubScreenCaptureが映ること。実際のCapture BoardでGameCaptureが映ること。`[Explicit]`を付け、名前を指定したときだけ動かす。`ACCESS_LOST`（解像度の変更）からの復帰は、手で解像度を変えて確かめる |
 | 性能 | 1920×1080と3840×2160の転送時間（`SubScreenCaptureHardwareTests.Upload_Timing`、実行時は`Capture/subscreen.Upload`）を記録する |
-| Native | `vv_capture_tests`（CTest）：3つのBufferの受け渡し（Threadをまたぐ場合を含む）、作り直しの方針、行のコピー、C ABIの引数の確認、存在しないモニター。`--hardware`を付けると、実際のモニターを一度だけ複製する。`tools/native/build-capture.ps1`がビルドと実行を行う |
+| Native | `vv_capture_tests`（CTest）：3つのBufferの受け渡し（Threadをまたぐ場合を含む）、作り直しの方針、行のコピー（下の行から）、マウスカーソルの合成（3種の形、端での切り取り）、C ABIの引数の確認、存在しないモニター。`--hardware`を付けると、実際のモニターを一度だけ複製する。`tools/native/build-capture.ps1`がビルドと実行を行う |
 
 ---
 
@@ -411,7 +427,6 @@ tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 | Native DLLをRepositoryへコミットするか、各自・CIがビルドするか | 利用者と相談して決める。決まるまで、DLLはGitの管理から外し、手元でビルドする |
 | GameCaptureの音声（Libraryの選択：NAudio、UnityのMicrophone、Native WASAPI） | Audio Moduleの設計時。NAudioを使う場合は依存の追加として承認を得る |
 | Capture設定の保存先 | Project / Profileの設計時 |
-| SubScreenCaptureでマウスカーソルを描くか | 利用者の要望を確かめてから |
 | 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |
