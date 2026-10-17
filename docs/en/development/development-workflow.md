@@ -851,6 +851,7 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 | Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
 | String tables | Each locale's JSON parses, and every locale has the same keys |
 | Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`) |
 
 - The checks look at the files tracked by git, not files that exist only locally, so they catch files that were not committed and missing `.meta` files.
 - The checks are in `tools/ci/repo_checks.py`, and their own unit tests (`tools/ci/test_repo_checks.py`) also run in CI.
@@ -865,6 +866,14 @@ Native plugins keep their C++ sources in Git, and the built DLLs are not committ
 
 - Locally, the same script builds the DLL and copies it into the Unity project (Visual Studio and CMake are needed).
 - Putting the DLL into the distributed application belongs to Native Plugin Packaging in the main build (18.2).
+
+### 18.1.2 SBOM
+
+Everything used beyond the language standard libraries and the operating system (Unity packages, bundled assets such as fonts and models, native libraries and runtimes built into plugins, Python packages, external OSS, GitHub Actions, and build tools) is recorded in `sbom/virtual-vessel-studio.cdx.json` (CycloneDX 1.6).
+
+- The SBOM is updated in the same change that adds, updates, or removes a component.
+- Each entry has a version, a license, and a scope: `required` for what is distributed, `excluded` for what is used only in development and CI.
+- The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, and GitHub Actions. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
 
 ## 18.2 main Build
 

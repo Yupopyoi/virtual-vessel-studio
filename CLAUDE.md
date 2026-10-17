@@ -1790,6 +1790,8 @@ A new dependency, bundled component, or model must have a license that allows di
 
 Do not add copyleft (GPL, AGPL) or non-commercial-only dependencies without explicit user approval.
 
+Every third-party component is recorded in the SBOM, `sbom/virtual-vessel-studio.cdx.json` (CycloneDX), in the same change that adds, updates, or removes it. This covers anything beyond the language standard libraries and the operating system: Unity packages, bundled assets such as fonts and models, native libraries and runtimes linked into plugins, Python packages, external OSS, GitHub Actions, and build tools. Each entry has a version, a license, and a scope (`required` when distributed, `excluded` when used only for development). The repository checks fail when a Unity package, an `Assets/ThirdParty` folder, or a GitHub Action is missing or stale.
+
 The name "Virtual Vessel Studio" and its logos are covered by `TRADEMARKS.md`, not by the code license.
 
 ---

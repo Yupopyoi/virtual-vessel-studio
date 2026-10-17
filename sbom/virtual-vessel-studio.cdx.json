@@ -1,0 +1,645 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-17T00:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "virtual-vessel-studio",
+      "name": "Virtual Vessel Studio",
+      "version": "0.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "bom-ref": "unity-engine",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "Unity Engine (runtime and built-in com.unity.modules.* packages)",
+      "version": "6000.6.4f1",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Terms of Service",
+            "url": "https://unity.com/legal/terms-of-service"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "The application runtime. Its version is fixed by ProjectSettings/ProjectVersion.txt."
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.ai.navigation",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ai.navigation",
+      "version": "2.0.14",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Navigation (from the project template; not used by Virtual Vessel code yet)"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.burst",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.burst",
+      "version": "2.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Terms of Service (built-in package, no license file of its own)",
+            "url": "https://unity.com/legal/terms-of-service"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Burst compiler, a dependency of Collections"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.collab-proxy",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.collab-proxy",
+      "version": "2.13.6",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Package Distribution License",
+            "url": "https://unity.com/legal/licenses/unity-package-distribution-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Unity Version Control in the Editor (from the project template)"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.collections",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.collections",
+      "version": "6.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Native collections, a dependency of the render pipelines"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.ext.nunit",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ext.nunit",
+      "version": "2.1.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Package Distribution License",
+            "url": "https://unity.com/legal/licenses/unity-package-distribution-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "NUnit for the Unity Test Framework"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.graph-authoring",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.graph-authoring",
+      "version": "1.0.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Terms of Service (built-in package, no license file of its own)",
+            "url": "https://unity.com/legal/terms-of-service"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Graph editing for Shader Graph in the Editor"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.ide.rider",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ide.rider",
+      "version": "3.0.38",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Rider integration in the Editor"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.ide.visualstudio",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ide.visualstudio",
+      "version": "2.0.26",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Visual Studio integration in the Editor"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.inputsystem",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.inputsystem",
+      "version": "1.20.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Input System"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.nuget.mono-cecil",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.nuget.mono-cecil",
+      "version": "1.11.6",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Mono.Cecil for Editor tooling, a dependency of Collections"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.nuget.newtonsoft-json",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.nuget.newtonsoft-json",
+      "version": "3.2.2",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Unity's package of Newtonsoft.Json; used to read and write settings files (ProjectData)",
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "newtonsoft-json",
+          "supplier": {
+            "name": "James Newton-King"
+          },
+          "name": "Newtonsoft.Json",
+          "version": "13.0.2",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT"
+              }
+            }
+          ],
+          "scope": "required",
+          "purl": "pkg:nuget/Newtonsoft.Json@13.0.2",
+          "description": "Json.NET, with the AOT build of Json.Net.Unity3D (MIT, SaladLab).",
+          "externalReferences": [
+            {
+              "type": "website",
+              "url": "https://www.newtonsoft.com/json"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.profiling.core",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.profiling.core",
+      "version": "1.0.3",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Profiler markers and counters"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.render-pipelines.core",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.render-pipelines.core",
+      "version": "17.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Render pipeline core"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.render-pipelines.universal",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.render-pipelines.universal",
+      "version": "17.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Universal Render Pipeline"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.render-pipelines.universal-config",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.render-pipelines.universal-config",
+      "version": "17.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Universal Render Pipeline configuration"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.searcher",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.searcher",
+      "version": "4.9.5",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Search popup for Shader Graph in the Editor"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.shadergraph",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.shadergraph",
+      "version": "17.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Shader Graph, a dependency of the Universal Render Pipeline"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.test-framework",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.test-framework",
+      "version": "1.8.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Unity Test Framework"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.test-framework.performance",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.test-framework.performance",
+      "version": "6.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Performance testing extension"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.timeline",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.timeline",
+      "version": "6.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Timeline (from the project template)"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.ugui",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ugui",
+      "version": "2.6.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "uGUI (from the project template; Virtual Vessel uses UI Toolkit)"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.visualscripting",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.visualscripting",
+      "version": "1.9.12",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Package Distribution License",
+            "url": "https://unity.com/legal/licenses/unity-package-distribution-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Visual Scripting (from the project template; not used by Virtual Vessel code)"
+    },
+    {
+      "type": "file",
+      "bom-ref": "asset:NotoSansJP",
+      "supplier": {
+        "name": "Google (Noto fonts)"
+      },
+      "name": "Noto Sans JP",
+      "version": "Google Fonts notosansjp/v57",
+      "licenses": [
+        {
+          "license": {
+            "id": "OFL-1.1"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "UI font, Regular and Bold, unmodified. Assets/ThirdParty/NotoSansJP; retrieved 2026-10-12. Distributions include OFL.txt.",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/notofonts/noto-cjk"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "bom-ref": "asset:NotoSansMono",
+      "supplier": {
+        "name": "Google (Noto fonts)"
+      },
+      "name": "Noto Sans Mono",
+      "version": "Google Fonts notosansmono/v37",
+      "licenses": [
+        {
+          "license": {
+            "id": "OFL-1.1"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Monospace UI font, Regular, unmodified. Assets/ThirdParty/NotoSansMono; retrieved 2026-10-12. Distributions include OFL.txt.",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/notofonts/latin-greek-cyrillic"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "msvc-runtime",
+      "supplier": {
+        "name": "Microsoft"
+      },
+      "name": "Microsoft C/C++ runtime (static, /MT)",
+      "version": "MSVC 14.44",
+      "licenses": [
+        {
+          "license": {
+            "name": "Microsoft Visual Studio license terms (distributable code)",
+            "url": "https://visualstudio.microsoft.com/license-terms/"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLL. Windows system libraries (d3d11, dxgi, user32) are only linked against and not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool:cmake",
+      "supplier": {
+        "name": "Kitware"
+      },
+      "name": "CMake",
+      "version": "3.21 or later",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Builds the native plugins (developers and CI); not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool:python",
+      "supplier": {
+        "name": "Python Software Foundation"
+      },
+      "name": "Python",
+      "version": "3.12 in CI, 3.10 or later locally",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Runs tools/ci with the standard library only; not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "github-action:actions/checkout@v4",
+      "supplier": {
+        "name": "GitHub"
+      },
+      "name": "actions/checkout",
+      "version": "v4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "purl": "pkg:github/actions/checkout@v4",
+      "description": "GitHub Actions step used by .github/workflows; not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "github-action:actions/setup-python@v5",
+      "supplier": {
+        "name": "GitHub"
+      },
+      "name": "actions/setup-python",
+      "version": "v5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "purl": "pkg:github/actions/setup-python@v5",
+      "description": "GitHub Actions step used by .github/workflows; not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "github-action:actions/upload-artifact@v4",
+      "supplier": {
+        "name": "GitHub"
+      },
+      "name": "actions/upload-artifact",
+      "version": "v4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "purl": "pkg:github/actions/upload-artifact@v4",
+      "description": "GitHub Actions step used by .github/workflows; not distributed."
+    }
+  ]
+}
