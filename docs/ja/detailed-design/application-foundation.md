@@ -78,6 +78,7 @@ Static Service Locatorや、全Serviceを保持して任意に取得できるGlo
 | `IMainThreadDispatcher` | Interface | 任意のThreadからMain Threadへ処理を渡す |
 | `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装 |
 | `MainThreadDispatcher` | Class | Queueによる`IMainThreadDispatcher`の実装。Main Threadの所有者が毎Frame`Drain`を呼ぶ |
+| `IFrameLoop` / `FrameLoop` | Interface / Class | 毎Frame、Main Threadで呼ぶ処理の登録と呼び出し（5.5） |
 
 Clockおよび`MainThreadDispatcher`はUnityEngineに依存しない純粋な.NETコードであり、特定Moduleにも属さないためCoreへ配置する。これにより、EditModeでの高速なテストおよび他Moduleのテストでの再利用が可能となる。
 
@@ -85,7 +86,7 @@ Clockおよび`MainThreadDispatcher`はUnityEngineに依存しない純粋な.NE
 
 | 名称 | 種別 | 概要 |
 |---|---|---|
-| `ApplicationBootstrap` | MonoBehaviour | Persistent Sceneに1つだけ配置する入口。Unity Lifecycleと`ApplicationRuntime`を接続し、毎Frame`MainThreadDispatcher.Drain`を呼ぶ |
+| `ApplicationBootstrap` | MonoBehaviour | Persistent Sceneに1つだけ配置する入口。Unity Lifecycleと`ApplicationRuntime`を接続し、毎Frame`MainThreadDispatcher.Drain`と`FrameLoop.Tick`を呼ぶ |
 | `ApplicationRuntime` | Internal Class | 起動・終了の一連の手順（Data Root解決、Session、Composition、Host）を実行する。UnityEngineに依存しない部分をEditModeでテストするために`ApplicationBootstrap`から分離する |
 | `ApplicationHost` | Internal Class | Serviceの起動・終了順序と状態を管理する |
 | `ApplicationComposition` | Internal Class | どのServiceをどの順序で、どの依存関係で生成するかを明示的に記述する |
@@ -180,6 +181,22 @@ public interface IDataRoot
 ```
 
 `DataRootDirectory`は方式設計6.10の標準Directory（Projects、Profiles、Avatars、Logs、Cache等）を表すEnumとする。
+
+### 5.5 IFrameLoop
+
+```csharp
+public interface IFrameLoop
+{
+    IDisposable Register(Action tick);
+}
+```
+
+- 毎Frame、Main Threadで呼ぶ処理を登録する。返された値を`Dispose`すると登録を外す。取得した映像のTextureへの転送（Capture詳細設計7.3）のように、Unity Frameに合わせて行う処理に使う。
+- `ApplicationBootstrap.Update`が、`MainThreadDispatcher.Drain`の後に`FrameLoop.Tick`を呼び、登録順に処理を呼ぶ。
+- 1つの処理が例外を投げても、他の処理は続ける。例外はErrorとして記録し、同じ処理の2回目以降の例外は記録しない。
+- 呼び出し中に登録した処理は、次のFrameから呼ぶ。解除はすぐに反映し、まだ呼んでいない処理は呼ばない（破棄した後に呼ばれないようにするため）。
+- Compositionが、必要なServiceのFactoryへ明示的に渡す。Static Instanceにはしない。
+- `FrameLoop`はUnityEngineに依存しない純粋な.NETコードとし、EditModeのTestで`Tick`を直接呼べるようにする。
 
 ---
 
@@ -453,6 +470,7 @@ Logging Serviceの起動前に発生した記録は、Memory上に保持し、Lo
 | EditMode | Data Root解決順序、壊れた`bootstrap.json`、書き込み不可（一時Directoryを使用） |
 | EditMode | Session Markerによる前回異常終了の判定 |
 | EditMode | Main Thread Dispatcherの順序保証と件数上限 |
+| EditMode | `FrameLoop`の呼び出し順、例外の分離、登録の解除、呼び出し中の登録 |
 | PlayMode | Persistent Sceneを読み込み、`Running`へ到達し、正常に終了できること |
 
 `ApplicationHost`はUnityEngineに依存しない形で実装し、EditModeで高速にテストできるようにする。
