@@ -40,10 +40,18 @@ namespace VirtualVessel.Capture.Tests
         [Test]
         public void AStoppedSource_IgnoresEverythingButAStart()
         {
-            foreach (CaptureEvent captureEvent in new[] { CaptureEvent.Opened, CaptureEvent.FrameArrived, CaptureEvent.DeviceMissing, CaptureEvent.Failed, CaptureEvent.NoFrame })
+            foreach (CaptureEvent captureEvent in new[] { CaptureEvent.Opening, CaptureEvent.Opened, CaptureEvent.FrameArrived, CaptureEvent.DeviceMissing, CaptureEvent.Failed, CaptureEvent.NoFrame })
             {
                 Assert.That(CaptureStateMachine.Next(CaptureStatus.Stopped, captureEvent, CaptureSourceKind.GameCapture), Is.EqualTo(CaptureStatus.Stopped), captureEvent.ToString());
             }
+        }
+
+        [Test]
+        public void Opening_StartsAgain_FromUnavailable()
+        {
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Unavailable, CaptureProblem.MonitorNotFound), CaptureEvent.Opening, CaptureSourceKind.SubScreenCapture), Is.EqualTo(Status(CaptureState.Starting)));
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Starting), CaptureEvent.Opening, CaptureSourceKind.SubScreenCapture), Is.EqualTo(Status(CaptureState.Starting)));
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Capturing), CaptureEvent.Opening, CaptureSourceKind.SubScreenCapture), Is.EqualTo(Status(CaptureState.Capturing)));
         }
 
         [Test]
@@ -88,6 +96,22 @@ namespace VirtualVessel.Capture.Tests
     public sealed class FrameRateMeterTests
     {
         private const long Second = 1_000_000;
+
+        [Test]
+        public void RateAt_IsZero_OnceASecondPassesWithoutAFrame()
+        {
+            long now = 5 * Second;
+            FrameRateMeter meter = default(FrameRateMeter).Next(now, Second);
+            for (int i = 0; i < 25; i++)
+            {
+                now += Second / 25;
+                meter = meter.Next(now, Second);
+            }
+
+            Assert.That(meter.RateAt(now + (Second / 2), Second), Is.EqualTo(25.0));
+            Assert.That(meter.RateAt(now + Second, Second), Is.EqualTo(0));
+            Assert.That(default(FrameRateMeter).RateAt(now, Second), Is.EqualTo(0));
+        }
 
         [Test]
         public void TheRate_IsCountedOverAboutASecond()
@@ -186,6 +210,23 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
+        public void ADefaultDevice_StaysChosen_AndIsWaitedForWhenItGoesAway()
+        {
+            _source.Start();
+            Assert.That(_source.SelectedDeviceId, Is.EqualTo("board-1"));
+
+            _source.Available.RemoveAt(0);
+            _source.LoseDevice = true;
+            _source.Tick(_clock.Now);
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Unavailable));
+
+            _clock.Advance(2.0);
+            _source.Tick(_clock.Now);
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Unavailable), "board-2 is there, but it was not chosen.");
+            Assert.That(_source.OpenedId, Is.Null);
+        }
+
+        [Test]
         public void SelectDevice_WhileRunning_ReopensOnTheChosenDevice()
         {
             _source.Start();
@@ -232,6 +273,34 @@ namespace VirtualVessel.Capture.Tests
             Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Error));
             Assert.That(_source.Problem.Value, Is.EqualTo(CaptureProblem.StartFailed));
             Assert.That(_source.Closes, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void AMissingPlugin_IsAPluginProblem_AndRefreshingKeepsTheState()
+        {
+            _source.ThrowOnList = new CapturePluginMissingException("no plugin");
+
+            _source.RefreshDevices();
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Stopped), "Refreshing the list changes no state.");
+            Assert.That(_source.Devices, Is.Empty);
+
+            _source.Start();
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Error));
+            Assert.That(_source.Problem.Value, Is.EqualTo(CaptureProblem.PluginMissing));
+        }
+
+        [Test]
+        public void AFailedListing_WhileCapturing_LeavesTheCaptureAlone()
+        {
+            _source.Start();
+            _source.FrameNow = true;
+            _source.Tick(_clock.Now);
+            _source.ThrowOnList = new InvalidOperationException("listing failed");
+
+            _source.RefreshDevices();
+
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Capturing));
+            Assert.That(_source.Closes, Is.EqualTo(0));
         }
 
         [Test]
@@ -293,8 +362,17 @@ namespace VirtualVessel.Capture.Tests
 
         public bool ThrowOnTick { get; set; }
 
+        public Exception ThrowOnList { get; set; }
+
+        public bool LoseDevice { get; set; }
+
         protected override IReadOnlyList<CaptureDevice> ListDevices()
         {
+            if (ThrowOnList != null)
+            {
+                throw ThrowOnList;
+            }
+
             return Available.ToArray();
         }
 
@@ -330,6 +408,13 @@ namespace VirtualVessel.Capture.Tests
             if (ThrowOnTick)
             {
                 throw new InvalidOperationException("lost");
+            }
+
+            if (LoseDevice)
+            {
+                LoseDevice = false;
+                ReportDeviceLost();
+                return;
             }
 
             if (FrameNow)

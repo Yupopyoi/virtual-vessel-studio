@@ -73,9 +73,10 @@ namespace VirtualVessel.Capture
 
         protected IMonotonicClock Clock => _clock;
 
+        /// <summary>Lists the devices again. A failure leaves the list empty and the state as it is.</summary>
         public void RefreshDevices()
         {
-            _devices = ListDevices() ?? Array.Empty<CaptureDevice>();
+            TryListDevices(out _);
         }
 
         public void Start()
@@ -136,7 +137,7 @@ namespace VirtualVessel.Capture
             {
                 Log?.Error($"Capture source '{Id}' failed while capturing.", exception);
                 CloseDevice();
-                Apply(CaptureEvent.Failed);
+                Apply(FailureEvent(exception));
             }
         }
 
@@ -144,6 +145,12 @@ namespace VirtualVessel.Capture
         {
             CloseDevice();
             SetStatus(CaptureStatus.Stopped);
+        }
+
+        /// <summary>What a failure means for the state: a missing plugin is a developer problem of its own.</summary>
+        internal static CaptureEvent FailureEvent(Exception exception)
+        {
+            return exception is CapturePluginMissingException ? CaptureEvent.PluginMissing : CaptureEvent.Failed;
         }
 
         /// <summary>The devices there are now. May be called often while unavailable; keep it light.</summary>
@@ -155,7 +162,10 @@ namespace VirtualVessel.Capture
             return devices[0];
         }
 
-        /// <summary>Opens <paramref name="device"/> and reports the outcome with <see cref="Report"/>.</summary>
+        /// <summary>
+        /// Opens <paramref name="device"/>. Reports <see cref="CaptureEvent.Opened"/> here, or from
+        /// <see cref="OnTick"/> when opening finishes later; the source is Starting until then.
+        /// </summary>
         protected abstract void Open(CaptureDevice device);
 
         /// <summary>Releases the device and anything made for it. Must be safe to call when nothing is open.</summary>
@@ -200,10 +210,32 @@ namespace VirtualVessel.Capture
             _info.Value = info;
         }
 
+        private bool TryListDevices(out Exception failure)
+        {
+            try
+            {
+                _devices = ListDevices() ?? Array.Empty<CaptureDevice>();
+                failure = null;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                _devices = Array.Empty<CaptureDevice>();
+                Log?.Warning($"Capture source '{Id}' could not list its devices.", exception);
+                failure = exception;
+                return false;
+            }
+        }
+
         private void TryOpen()
         {
             _lastCheck = _clock.GetTimestamp();
-            RefreshDevices();
+            if (!TryListDevices(out Exception failure))
+            {
+                Apply(FailureEvent(failure));
+                return;
+            }
+
             CaptureDevice device = CaptureStateMachine.Choose(_devices, SelectedDeviceId, ChooseDefault);
             if (device == null)
             {
@@ -211,16 +243,22 @@ namespace VirtualVessel.Capture
                 return;
             }
 
+            // A device chosen by default stays chosen. When it goes away the source waits for it,
+            // instead of moving to another device such as the main monitor or a webcam, which could
+            // show the user something they did not mean to (capture detailed design 13).
+            SelectedDeviceId = device.Id;
+
             try
             {
                 OpenDevice = device;
+                Apply(CaptureEvent.Opening);
                 Open(device);
             }
             catch (Exception exception)
             {
                 Log?.Warning($"Capture source '{Id}' could not open '{device.DisplayName}'.", exception);
                 CloseDevice();
-                Apply(CaptureEvent.Failed);
+                Apply(FailureEvent(exception));
             }
         }
 

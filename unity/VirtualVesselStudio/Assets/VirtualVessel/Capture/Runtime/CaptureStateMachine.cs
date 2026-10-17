@@ -12,6 +12,9 @@ namespace VirtualVessel.Capture
         /// <summary>The chosen device or monitor is not there, or went away.</summary>
         DeviceMissing,
 
+        /// <summary>A device was found and is being opened; the outcome follows, possibly frames later.</summary>
+        Opening,
+
         /// <summary>The device opened; frames may follow.</summary>
         Opened,
         FrameArrived,
@@ -81,6 +84,10 @@ namespace VirtualVessel.Capture
             {
                 case CaptureEvent.StartRequested:
                     return IsActive(current.State) ? current : new CaptureStatus(CaptureState.Starting, CaptureProblem.None);
+                case CaptureEvent.Opening:
+                    return current.State == CaptureState.Starting || current.State == CaptureState.Unavailable
+                        ? new CaptureStatus(CaptureState.Starting, CaptureProblem.None)
+                        : current;
                 case CaptureEvent.DeviceMissing:
                     return new CaptureStatus(CaptureState.Unavailable, kind == CaptureSourceKind.SubScreenCapture ? CaptureProblem.MonitorNotFound : CaptureProblem.DeviceNotFound);
                 case CaptureEvent.Opened:
