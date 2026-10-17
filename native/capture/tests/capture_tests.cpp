@@ -156,9 +156,9 @@ namespace
         CHECK(RetryDelayMilliseconds(MaxFailures, E_ACCESSDENIED, false) == -1);
     }
 
-    void CopyRows_DropsThePadding_AndChecksThePitch()
+    void CopyRows_DropsThePadding_PutsTheBottomRowFirst_AndChecksThePitch()
     {
-        // Two rows of two pixels, each row padded to 12 bytes.
+        // Two rows of two pixels, each row padded to 12 bytes; the desktop gives the top row first.
         std::vector<uint8_t> source(24, 0xEE);
         for (int i = 0; i < 8; i++)
         {
@@ -170,11 +170,97 @@ namespace
         CHECK(CopyRows(target, source.data(), 12, 2, 2));
         CHECK(target.width == 2 && target.height == 2);
         CHECK(target.pixels.size() == 16);
-        CHECK(target.pixels[7] == 7 && target.pixels[8] == 100 && target.pixels[15] == 107);
+        CHECK(target.pixels[0] == 100 && target.pixels[7] == 107 && target.pixels[8] == 0 && target.pixels[15] == 7);
 
         CHECK(!CopyRows(target, source.data(), 4, 2, 2));
         CHECK(!CopyRows(target, nullptr, 12, 2, 2));
         CHECK(!CopyRows(target, source.data(), 12, 0, 2));
+    }
+
+    FrameBuffer Filled(int32_t width, int32_t height, uint32_t color)
+    {
+        FrameBuffer buffer;
+        buffer.width = width;
+        buffer.height = height;
+        buffer.pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
+        for (size_t i = 0; i < buffer.pixels.size(); i += 4)
+        {
+            std::memcpy(&buffer.pixels[i], &color, 4);
+        }
+
+        return buffer;
+    }
+
+    // The pixel at (x, y) counted from the top, in a buffer stored bottom row first.
+    uint32_t PixelAt(const FrameBuffer& buffer, int32_t x, int32_t y)
+    {
+        uint32_t value;
+        std::memcpy(&value, &buffer.pixels[(static_cast<size_t>(buffer.height - 1 - y) * static_cast<size_t>(buffer.width) + static_cast<size_t>(x)) * 4], 4);
+        return value;
+    }
+
+    void DrawPointer_BlendsAColorShape_AndClipsAtTheEdge()
+    {
+        FrameBuffer image = Filled(4, 4, 0xFF000000u);
+        Pointer pointer;
+        pointer.visible = true;
+        pointer.shape.Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR;
+        pointer.shape.Width = 2;
+        pointer.shape.Height = 2;
+        pointer.shape.Pitch = 8;
+
+        // Opaque white, half-transparent white, and two clear pixels; placed at the right edge.
+        const uint32_t shape[4] = {0xFFFFFFFFu, 0x80FFFFFFu, 0x00000000u, 0x00000000u};
+        pointer.shapeBytes.assign(reinterpret_cast<const uint8_t*>(shape), reinterpret_cast<const uint8_t*>(shape) + sizeof(shape));
+        pointer.x = 3;
+        pointer.y = 0;
+
+        DrawPointer(image, pointer);
+        CHECK(PixelAt(image, 3, 0) == 0xFFFFFFFFu);
+        CHECK(PixelAt(image, 2, 0) == 0xFF000000u);
+        CHECK(PixelAt(image, 3, 1) == 0xFF000000u);
+
+        pointer.x = 0;
+        DrawPointer(image, pointer);
+        CHECK((PixelAt(image, 1, 0) & 0xFFu) == 0x80u);
+
+        Pointer hidden = pointer;
+        hidden.visible = false;
+        FrameBuffer untouched = Filled(4, 4, 0xFF000000u);
+        DrawPointer(untouched, hidden);
+        CHECK(PixelAt(untouched, 0, 0) == 0xFF000000u);
+    }
+
+    void DrawPointer_AppliesMasks()
+    {
+        // Monochrome, 8 pixels wide and 1 tall: AND mask row, then XOR mask row.
+        FrameBuffer image = Filled(8, 1, 0xFF102030u);
+        Pointer mono;
+        mono.visible = true;
+        mono.shape.Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME;
+        mono.shape.Width = 8;
+        mono.shape.Height = 2;
+        mono.shape.Pitch = 1;
+        mono.shapeBytes = {0x7F, 0xC0};
+
+        DrawPointer(image, mono);
+        CHECK(PixelAt(image, 0, 0) == 0xFFFFFFFFu);   // AND 0, XOR 1: white.
+        CHECK(PixelAt(image, 1, 0) == 0xFFEFDFCFu);   // AND 1, XOR 1: inverted.
+        CHECK(PixelAt(image, 2, 0) == 0xFF102030u);   // AND 1, XOR 0: unchanged.
+
+        // Masked color: alpha 0 replaces, 0xFF inverts by the color.
+        FrameBuffer masked = Filled(2, 1, 0xFF102030u);
+        Pointer color;
+        color.visible = true;
+        color.shape.Type = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR;
+        color.shape.Width = 2;
+        color.shape.Height = 1;
+        color.shape.Pitch = 8;
+        const uint32_t shape[2] = {0x00ABCDEFu, 0xFFFFFFFFu};
+        color.shapeBytes.assign(reinterpret_cast<const uint8_t*>(shape), reinterpret_cast<const uint8_t*>(shape) + sizeof(shape));
+        DrawPointer(masked, color);
+        CHECK(PixelAt(masked, 0, 0) == 0xFFABCDEFu);
+        CHECK(PixelAt(masked, 1, 0) == 0xFFEFDFCFu);
     }
 
     void Abi_ChecksItsArguments()
@@ -184,11 +270,12 @@ namespace
         CHECK(vv_capture_list_monitors(nullptr, -1) == VV_CAPTURE_INVALID_ARGUMENT);
 
         vv_capture_session* session = reinterpret_cast<vv_capture_session*>(1);
-        CHECK(vv_capture_open(nullptr, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open(nullptr, 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
         CHECK(session == nullptr);
-        CHECK(vv_capture_open(L"", &session) == VV_CAPTURE_INVALID_ARGUMENT);
-        CHECK(vv_capture_open(L"\\\\.\\DISPLAY1-but-much-longer-than-32", &session) == VV_CAPTURE_INVALID_ARGUMENT);
-        CHECK(vv_capture_open(L"\\\\.\\DISPLAY1", nullptr) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open(L"", 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open(L"\\\\.\\DISPLAY1-but-much-longer-than-32", 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open(L"\\\\.\\DISPLAY1", 0, nullptr) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open(L"\\\\.\\DISPLAY1", 4, &session) == VV_CAPTURE_INVALID_ARGUMENT);
 
         vv_capture_status status = {};
         CHECK(vv_capture_get_status(nullptr, &status) == VV_CAPTURE_INVALID_ARGUMENT);
@@ -236,7 +323,7 @@ namespace
     void Abi_AMonitorThatIsNotThere_IsLost()
     {
         vv_capture_session* session = nullptr;
-        CHECK(vv_capture_open(L"\\\\.\\NO-SUCH-DISPLAY", &session) == VV_CAPTURE_OK);
+        CHECK(vv_capture_open(L"\\\\.\\NO-SUCH-DISPLAY", 0, &session) == VV_CAPTURE_OK);
         CHECK(session != nullptr);
 
         vv_capture_status status = WaitForState(session, VV_CAPTURE_MONITOR_LOST, 3000);
@@ -254,7 +341,7 @@ namespace
         }
 
         vv_capture_session* session = nullptr;
-        CHECK(vv_capture_open(monitor.device_name, &session) == VV_CAPTURE_OK);
+        CHECK(vv_capture_open(monitor.device_name, VV_CAPTURE_DRAW_POINTER, &session) == VV_CAPTURE_OK);
 
         // The first frame after creating the duplication is the whole current image.
         vv_capture_frame frame = {};
@@ -289,7 +376,9 @@ int main(int argc, char** argv)
     FrameExchange_HandsOverAcrossThreads();
     RetryPolicy_GivesUpAfterFiveRetries();
     RetryPolicy_WaitsForTheSecureDesktop_OnlyAfterRunning();
-    CopyRows_DropsThePadding_AndChecksThePitch();
+    CopyRows_DropsThePadding_PutsTheBottomRowFirst_AndChecksThePitch();
+    DrawPointer_BlendsAColorShape_AndClipsAtTheEdge();
+    DrawPointer_AppliesMasks();
     Abi_ChecksItsArguments();
     Abi_ListsMonitors();
     Abi_AMonitorThatIsNotThere_IsLost();

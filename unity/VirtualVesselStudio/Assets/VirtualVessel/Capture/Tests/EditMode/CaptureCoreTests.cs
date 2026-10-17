@@ -47,6 +47,25 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
+        public void NotChosen_StopsAndSaysSo()
+        {
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Starting), CaptureEvent.NotChosen, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Stopped, CaptureProblem.DeviceNotChosen)));
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Stopped, CaptureProblem.DeviceNotChosen), CaptureEvent.StartRequested, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Starting)));
+        }
+
+        [TestCase(CaptureFlip.None, 1f, 1f, 0f, 0f)]
+        [TestCase(CaptureFlip.Horizontal, -1f, 1f, 1f, 0f)]
+        [TestCase(CaptureFlip.Vertical, 1f, -1f, 0f, 1f)]
+        [TestCase(CaptureFlip.Horizontal | CaptureFlip.Vertical, -1f, -1f, 1f, 1f)]
+        public void FlipTransform_MirrorsTheUvs(CaptureFlip flip, float scaleX, float scaleY, float offsetX, float offsetY)
+        {
+            (Vector2 scale, Vector2 offset) = CaptureSourceBase.FlipTransform(flip);
+
+            Assert.That(scale, Is.EqualTo(new Vector2(scaleX, scaleY)));
+            Assert.That(offset, Is.EqualTo(new Vector2(offsetX, offsetY)));
+        }
+
+        [Test]
         public void Opening_StartsAgain_FromUnavailable()
         {
             Assert.That(CaptureStateMachine.Next(Status(CaptureState.Unavailable, CaptureProblem.MonitorNotFound), CaptureEvent.Opening, CaptureSourceKind.SubScreenCapture), Is.EqualTo(Status(CaptureState.Starting)));
@@ -157,7 +176,7 @@ namespace VirtualVessel.Capture.Tests
         }
     }
 
-    public sealed class CaptureSourceBaseTests
+    public sealed partial class CaptureSourceBaseTests
     {
         private ManualClock _clock;
         private FakeSource _source;
@@ -238,6 +257,24 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
+        public void AFlip_MirrorsTheVideo_AndIsReleasedOnStop()
+        {
+            _source.SetFlip(CaptureFlip.Horizontal);
+            _source.Start();
+            _source.FrameNow = true;
+            _source.Tick(_clock.Now);
+
+            var mirrored = _source.Texture.Value as RenderTexture;
+            Assert.That(mirrored, Is.Not.Null);
+            Color32[] pixels = ReadBack(mirrored);
+            Assert.That(pixels[0].b, Is.EqualTo(255), "Blue was on the right and is now on the left.");
+            Assert.That(pixels[1].r, Is.EqualTo(255));
+
+            _source.Stop();
+            Assert.That(mirrored == null, Is.True, "The mirrored copy is destroyed.");
+        }
+
+        [Test]
         public void SelectDevice_WhileStopped_OnlyRemembers()
         {
             _source.SelectDevice("board-2");
@@ -313,6 +350,27 @@ namespace VirtualVessel.Capture.Tests
             _source.ThrowOnOpen = false;
             _source.Start();
             Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Ready));
+        }
+    }
+
+    public sealed partial class CaptureSourceBaseTests
+    {
+        private static Color32[] ReadBack(RenderTexture texture)
+        {
+            RenderTexture active = RenderTexture.active;
+            var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+            try
+            {
+                RenderTexture.active = texture;
+                read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+                read.Apply();
+                return read.GetPixels32();
+            }
+            finally
+            {
+                RenderTexture.active = active;
+                UnityEngine.Object.DestroyImmediate(read);
+            }
         }
     }
 
@@ -421,7 +479,10 @@ namespace VirtualVessel.Capture.Tests
             {
                 if (_texture == null)
                 {
-                    _texture = new Texture2D(4, 4);
+                    // Red on the left, blue on the right, to see a flip.
+                    _texture = new Texture2D(2, 1, TextureFormat.RGBA32, false);
+                    _texture.SetPixels32(new[] { new Color32(255, 0, 0, 255), new Color32(0, 0, 255, 255) });
+                    _texture.Apply();
                     SetTexture(_texture);
                     SetInfo(new CaptureSourceInfo(4, 4, 0, OpenDevice.DisplayName));
                 }

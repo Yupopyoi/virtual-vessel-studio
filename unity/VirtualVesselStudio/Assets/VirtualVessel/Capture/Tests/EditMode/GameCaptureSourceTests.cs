@@ -20,7 +20,7 @@ namespace VirtualVessel.Capture.Tests
         {
             _clock = new ManualClock();
             _devices = new FakeCameraDevices("Board A", "Board B");
-            _settings = new CaptureSettings();
+            _settings = new CaptureSettings { GameDeviceId = "Board A" };
             _source = null;
         }
 
@@ -48,6 +48,40 @@ namespace VirtualVessel.Capture.Tests
             Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Ready));
             Assert.That(_source.Info.Value.DeviceName, Is.EqualTo("Board B"));
             Assert.That(_source.Texture.Value, Is.Null, "No texture before the first image.");
+        }
+
+        [Test]
+        public void WithoutAChosenBoard_NothingOpens_UntilOneIsChosen()
+        {
+            _settings.GameDeviceId = null;
+            Create();
+
+            _source.Start();
+
+            Assert.That(_devices.Opened, Is.Empty, "The first camera may be a webcam.");
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Stopped));
+            Assert.That(_source.Problem.Value, Is.EqualTo(CaptureProblem.DeviceNotChosen));
+            Assert.That(_source.Devices.Count, Is.EqualTo(2), "The list is ready to choose from.");
+
+            _source.SelectDevice("Board B");
+
+            Assert.That(_devices.Last.Name, Is.EqualTo("Board B"), "The start that waited goes on.");
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Ready));
+        }
+
+        [Test]
+        public void AFlip_ShowsAMirroredCopy_AndNoFlipTheCameraItself()
+        {
+            _settings.GameFlip = CaptureFlip.Horizontal;
+            Create();
+            _source.Start();
+            SendFrames(1);
+
+            Assert.That(_source.Flip.Value, Is.EqualTo(CaptureFlip.Horizontal));
+            Assert.That(_source.Texture.Value, Is.InstanceOf<RenderTexture>());
+
+            _source.SetFlip(CaptureFlip.None);
+            Assert.That(_source.Texture.Value, Is.SameAs(_devices.Last.Texture));
         }
 
         [Test]

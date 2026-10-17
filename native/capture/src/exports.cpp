@@ -14,8 +14,8 @@
 
 struct vv_capture_session
 {
-    explicit vv_capture_session(std::wstring deviceName)
-        : session(std::move(deviceName))
+    vv_capture_session(std::wstring deviceName, bool drawPointer)
+        : session(std::move(deviceName), drawPointer)
     {
     }
 
@@ -57,7 +57,7 @@ extern "C"
         }
     }
 
-    int32_t vv_capture_open(const wchar_t* device_name, vv_capture_session** session)
+    int32_t vv_capture_open(const wchar_t* device_name, uint32_t flags, vv_capture_session** session)
     {
         if (session == nullptr)
         {
@@ -71,14 +71,14 @@ extern "C"
         }
 
         size_t length = wcsnlen(device_name, VV_CAPTURE_DEVICE_NAME_LENGTH);
-        if (length == 0 || length >= VV_CAPTURE_DEVICE_NAME_LENGTH)
+        if (length == 0 || length >= VV_CAPTURE_DEVICE_NAME_LENGTH || (flags & ~VV_CAPTURE_DRAW_POINTER) != 0)
         {
             return VV_CAPTURE_INVALID_ARGUMENT;
         }
 
         try
         {
-            auto created = std::make_unique<vv_capture_session>(std::wstring(device_name, length));
+            auto created = std::make_unique<vv_capture_session>(std::wstring(device_name, length), (flags & VV_CAPTURE_DRAW_POINTER) != 0);
             created->session.Start();
             *session = created.release();
             return VV_CAPTURE_OK;

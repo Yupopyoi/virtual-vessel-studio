@@ -12,6 +12,9 @@ namespace VirtualVessel.Capture
         /// <summary>The chosen device or monitor is not there, or went away.</summary>
         DeviceMissing,
 
+        /// <summary>No device is chosen and the source does not choose one by itself; it stops until one is.</summary>
+        NotChosen,
+
         /// <summary>A device was found and is being opened; the outcome follows, possibly frames later.</summary>
         Opening,
 
@@ -84,6 +87,8 @@ namespace VirtualVessel.Capture
             {
                 case CaptureEvent.StartRequested:
                     return IsActive(current.State) ? current : new CaptureStatus(CaptureState.Starting, CaptureProblem.None);
+                case CaptureEvent.NotChosen:
+                    return new CaptureStatus(CaptureState.Stopped, CaptureProblem.DeviceNotChosen);
                 case CaptureEvent.Opening:
                     return current.State == CaptureState.Starting || current.State == CaptureState.Unavailable
                         ? new CaptureStatus(CaptureState.Starting, CaptureProblem.None)

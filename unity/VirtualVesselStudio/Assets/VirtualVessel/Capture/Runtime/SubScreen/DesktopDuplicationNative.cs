@@ -14,7 +14,10 @@ namespace VirtualVessel.Capture.SubScreen
         private const string Library = "VirtualVessel.Capture.Native.dll";
 
         // vv_capture.h: VV_CAPTURE_API_VERSION.
-        private const int ApiVersion = 1;
+        private const int ApiVersion = 2;
+
+        // vv_capture.h: VV_CAPTURE_DRAW_POINTER.
+        private const uint DrawPointerFlag = 1;
 
         private const int MonitorCapacity = 16;
 
@@ -40,10 +43,10 @@ namespace VirtualVessel.Capture.SubScreen
             return monitors;
         }
 
-        public IDuplicationSession Open(string deviceName)
+        public IDuplicationSession Open(string deviceName, bool drawPointer)
         {
             EnsureLoaded();
-            int result = OpenNative(deviceName, out IntPtr handle);
+            int result = OpenNative(deviceName, drawPointer ? DrawPointerFlag : 0, out IntPtr handle);
             if (result != 0)
             {
                 throw new InvalidOperationException($"Duplicating '{deviceName}' could not start: result {result}.");
@@ -84,7 +87,7 @@ namespace VirtualVessel.Capture.SubScreen
         private static extern int ListMonitorsNative([Out] NativeMonitor[] monitors, int capacity);
 
         [DllImport(Library, EntryPoint = "vv_capture_open", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
-        private static extern int OpenNative(string deviceName, out IntPtr session);
+        private static extern int OpenNative(string deviceName, uint flags, out IntPtr session);
 
         [DllImport(Library, EntryPoint = "vv_capture_close", CallingConvention = CallingConvention.Cdecl)]
         private static extern void CloseNative(IntPtr session);

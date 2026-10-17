@@ -1,5 +1,6 @@
 #include "desktop_duplication.h"
 
+#include <algorithm>
 #include <cstring>
 #include <new>
 
@@ -150,21 +151,82 @@ namespace vv::capture
         }
 
         uint8_t* destination = target.pixels.data();
-        if (pitch == rowBytes)
+        for (int32_t y = 0; y < height; y++)
         {
-            std::memcpy(destination, source, rowBytes * static_cast<size_t>(height));
-        }
-        else
-        {
-            for (int32_t y = 0; y < height; y++)
-            {
-                std::memcpy(destination + rowBytes * static_cast<size_t>(y), source + pitch * static_cast<size_t>(y), rowBytes);
-            }
+            std::memcpy(destination + rowBytes * static_cast<size_t>(height - 1 - y), source + pitch * static_cast<size_t>(y), rowBytes);
         }
 
         target.width = width;
         target.height = height;
         return true;
+    }
+
+    void DrawPointer(FrameBuffer& target, const Pointer& pointer)
+    {
+        const DXGI_OUTDUPL_POINTER_SHAPE_INFO& shape = pointer.shape;
+        const bool monochrome = shape.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME;
+        const int32_t shapeWidth = static_cast<int32_t>(shape.Width);
+
+        // A monochrome shape holds the AND mask and then the XOR mask, each half its height.
+        const int32_t shapeHeight = static_cast<int32_t>(monochrome ? shape.Height / 2 : shape.Height);
+        const size_t pitch = shape.Pitch;
+        const size_t rowBytes = monochrome ? static_cast<size_t>((shapeWidth + 7) / 8) : static_cast<size_t>(shapeWidth) * 4;
+        const size_t needed = pitch * static_cast<size_t>(monochrome ? shapeHeight * 2 : shapeHeight);
+        if (!pointer.visible || shapeWidth <= 0 || shapeHeight <= 0 || pitch < rowBytes || pointer.shapeBytes.size() < needed
+            || target.pixels.size() < static_cast<size_t>(target.width) * static_cast<size_t>(target.height) * 4)
+        {
+            return;
+        }
+
+        const int32_t left = std::max(0, pointer.x);
+        const int32_t top = std::max(0, pointer.y);
+        const int32_t right = std::min(target.width, pointer.x + shapeWidth);
+        const int32_t bottom = std::min(target.height, pointer.y + shapeHeight);
+        const uint8_t* bytes = pointer.shapeBytes.data();
+        for (int32_t imageY = top; imageY < bottom; imageY++)
+        {
+            const int32_t row = imageY - pointer.y;
+            uint8_t* destinationRow = target.pixels.data() + static_cast<size_t>(target.height - 1 - imageY) * static_cast<size_t>(target.width) * 4;
+            for (int32_t imageX = left; imageX < right; imageX++)
+            {
+                const int32_t column = imageX - pointer.x;
+                uint8_t* pixel = destinationRow + static_cast<size_t>(imageX) * 4;
+                uint32_t value;
+                std::memcpy(&value, pixel, 4);
+                if (monochrome)
+                {
+                    const uint8_t bit = static_cast<uint8_t>(0x80 >> (column % 8));
+                    const bool andBit = (bytes[static_cast<size_t>(row) * pitch + static_cast<size_t>(column / 8)] & bit) != 0;
+                    const bool xorBit = (bytes[static_cast<size_t>(row + shapeHeight) * pitch + static_cast<size_t>(column / 8)] & bit) != 0;
+                    value = (value & (andBit ? 0xFFFFFFFFu : 0xFF000000u)) ^ (xorBit ? 0x00FFFFFFu : 0u);
+                }
+                else
+                {
+                    const uint8_t* source = bytes + static_cast<size_t>(row) * pitch + static_cast<size_t>(column) * 4;
+                    uint32_t color;
+                    std::memcpy(&color, source, 4);
+                    if (shape.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR)
+                    {
+                        // The alpha byte is the mask: 0 replaces the pixel, anything else inverts it by the color.
+                        value = source[3] == 0 ? (color | 0xFF000000u) : (value ^ (color & 0x00FFFFFFu));
+                    }
+                    else
+                    {
+                        const uint32_t alpha = source[3];
+                        uint8_t blended[4];
+                        for (int channel = 0; channel < 3; channel++)
+                        {
+                            blended[channel] = static_cast<uint8_t>((source[channel] * alpha + pixel[channel] * (255 - alpha) + 127) / 255);
+                        }
+
+                        blended[3] = 0xFF;
+                        std::memcpy(&value, blended, 4);
+                    }
+                }
+
+                std::memcpy(pixel, &value, 4);
+            }
+        }
     }
 
     HRESULT Duplication::Create(const std::wstring& deviceName)
@@ -227,6 +289,8 @@ namespace vv::capture
 
     void Duplication::Release()
     {
+        _hasImage = false;
+        _pointer = Pointer();
         _staging.Reset();
         _stagingWidth = 0;
         _stagingHeight = 0;
@@ -253,33 +317,40 @@ namespace vv::capture
         AcquiredFrame frame(_duplication.Get());
 
         // A frame without a present time only moved the mouse pointer; the image is the same.
-        if (info.LastPresentTime.QuadPart == 0)
+        const bool imageChanged = info.LastPresentTime.QuadPart != 0;
+        const bool pointerChanged = _drawPointer && UpdatePointer(info);
+        if (!imageChanged && !(pointerChanged && _hasImage))
         {
             return S_FALSE;
         }
 
-        ComPtr<ID3D11Texture2D> texture;
-        hr = resource.As(&texture);
-        if (FAILED(hr))
+        if (imageChanged)
         {
-            return hr;
+            ComPtr<ID3D11Texture2D> texture;
+            hr = resource.As(&texture);
+            if (FAILED(hr))
+            {
+                return hr;
+            }
+
+            D3D11_TEXTURE2D_DESC desc;
+            texture->GetDesc(&desc);
+            if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM)
+            {
+                // DuplicateOutput always delivers this format; anything else would be uploaded wrongly.
+                return DXGI_ERROR_UNSUPPORTED;
+            }
+
+            hr = EnsureStaging(desc);
+            if (FAILED(hr))
+            {
+                return hr;
+            }
+
+            _context->CopyResource(_staging.Get(), texture.Get());
+            _hasImage = true;
         }
 
-        D3D11_TEXTURE2D_DESC desc;
-        texture->GetDesc(&desc);
-        if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM)
-        {
-            // DuplicateOutput always delivers this format; anything else would be uploaded wrongly.
-            return DXGI_ERROR_UNSUPPORTED;
-        }
-
-        hr = EnsureStaging(desc);
-        if (FAILED(hr))
-        {
-            return hr;
-        }
-
-        _context->CopyResource(_staging.Get(), texture.Get());
         D3D11_MAPPED_SUBRESOURCE mapped = {};
         hr = _context->Map(_staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
         if (FAILED(hr))
@@ -290,15 +361,60 @@ namespace vv::capture
         // Map waits for the copy, so the desktop image can go back before the slower CPU copy.
         frame.Release();
 
-        bool copied = CopyRows(exchange.Writable(), static_cast<const uint8_t*>(mapped.pData), mapped.RowPitch, static_cast<int32_t>(desc.Width), static_cast<int32_t>(desc.Height));
+        FrameBuffer& target = exchange.Writable();
+        bool copied = CopyRows(target, static_cast<const uint8_t*>(mapped.pData), mapped.RowPitch, static_cast<int32_t>(_stagingWidth), static_cast<int32_t>(_stagingHeight));
         _context->Unmap(_staging.Get(), 0);
         if (!copied)
         {
             return E_OUTOFMEMORY;
         }
 
+        if (_drawPointer)
+        {
+            DrawPointer(target, _pointer);
+        }
+
         exchange.Publish();
         return S_OK;
+    }
+
+    bool Duplication::UpdatePointer(const DXGI_OUTDUPL_FRAME_INFO& info)
+    {
+        bool changed = false;
+
+        // The position is valid only in frames where the mouse was updated.
+        if (info.LastMouseUpdateTime.QuadPart != 0)
+        {
+            const bool visible = info.PointerPosition.Visible != FALSE;
+            changed = visible != _pointer.visible || (visible && (info.PointerPosition.Position.x != _pointer.x || info.PointerPosition.Position.y != _pointer.y));
+            _pointer.visible = visible;
+            _pointer.x = info.PointerPosition.Position.x;
+            _pointer.y = info.PointerPosition.Position.y;
+        }
+
+        if (info.PointerShapeBufferSize > 0)
+        {
+            try
+            {
+                _pointer.shapeBytes.resize(info.PointerShapeBufferSize);
+            }
+            catch (const std::bad_alloc&)
+            {
+                _pointer.shape = {};
+                return true;
+            }
+
+            UINT required = 0;
+            if (FAILED(_duplication->GetFramePointerShape(info.PointerShapeBufferSize, _pointer.shapeBytes.data(), &required, &_pointer.shape)))
+            {
+                // Without a shape nothing is drawn; the screen itself is still captured.
+                _pointer.shape = {};
+            }
+
+            changed = true;
+        }
+
+        return changed;
     }
 
     HRESULT Duplication::EnsureStaging(const D3D11_TEXTURE2D_DESC& desc)

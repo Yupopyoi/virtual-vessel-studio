@@ -14,8 +14,9 @@ namespace vv::capture
         constexpr UINT AcquireTimeoutMilliseconds = 100;
     }
 
-    Session::Session(std::wstring deviceName)
+    Session::Session(std::wstring deviceName, bool drawPointer)
         : _deviceName(std::move(deviceName))
+        , _drawPointer(drawPointer)
     {
     }
 
@@ -83,7 +84,7 @@ namespace vv::capture
 
     void Session::Capture()
     {
-        Duplication duplication;
+        Duplication duplication(_drawPointer);
 
         // Failures since the last captured frame, so that a duplication that is lost again right
         // after being created also waits and finally gives up instead of spinning.

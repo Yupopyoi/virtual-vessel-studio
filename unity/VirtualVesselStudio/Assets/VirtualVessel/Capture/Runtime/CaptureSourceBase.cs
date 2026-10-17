@@ -25,6 +25,7 @@ namespace VirtualVessel.Capture
         private readonly ObservableValue<CaptureProblem> _problem = new ObservableValue<CaptureProblem>(CaptureProblem.None);
         private readonly ObservableValue<CaptureSourceInfo> _info = new ObservableValue<CaptureSourceInfo>(default);
         private readonly ObservableValue<Texture> _texture = new ObservableValue<Texture>(null);
+        private readonly ObservableValue<CaptureFlip> _flip = new ObservableValue<CaptureFlip>(CaptureFlip.None);
         private readonly IMonotonicClock _clock;
         private readonly long _retryTicks;
         private readonly PerfCounter _frames;
@@ -33,6 +34,10 @@ namespace VirtualVessel.Capture
         private CaptureStatus _status = CaptureStatus.Stopped;
         private long _lastCheck;
         private long _lastFrame;
+
+        // What the source delivers, and the mirrored copy shown instead while a flip is set.
+        private Texture _raw;
+        private RenderTexture _flipped;
 
         protected CaptureSourceBase(string id, CaptureSourceKind kind, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
@@ -62,6 +67,8 @@ namespace VirtualVessel.Capture
 
         public IReadOnlyObservable<Texture> Texture => _texture;
 
+        public IReadOnlyObservable<CaptureFlip> Flip => _flip;
+
         public IReadOnlyList<CaptureDevice> Devices => _devices;
 
         public string SelectedDeviceId { get; private set; }
@@ -72,6 +79,12 @@ namespace VirtualVessel.Capture
         protected ILog Log { get; }
 
         protected IMonotonicClock Clock => _clock;
+
+        /// <summary>
+        /// True for sources that must not open a device nobody chose, such as a capture board, where
+        /// the first camera may be a webcam showing the user's face (capture detailed design 6.3).
+        /// </summary>
+        protected virtual bool RequiresChosenDevice => false;
 
         /// <summary>Lists the devices again. A failure leaves the list empty and the state as it is.</summary>
         public void RefreshDevices()
@@ -104,6 +117,14 @@ namespace VirtualVessel.Capture
         public void SelectDevice(string deviceId)
         {
             SelectedDeviceId = string.IsNullOrEmpty(deviceId) ? null : deviceId;
+
+            // A start that waited for a choice goes on once there is one.
+            if (_status.Equals(new CaptureStatus(CaptureState.Stopped, CaptureProblem.DeviceNotChosen)) && SelectedDeviceId != null)
+            {
+                Start();
+                return;
+            }
+
             if (_status.State == CaptureState.Stopped)
             {
                 return;
@@ -145,6 +166,20 @@ namespace VirtualVessel.Capture
         {
             CloseDevice();
             SetStatus(CaptureStatus.Stopped);
+        }
+
+        public void SetFlip(CaptureFlip flip)
+        {
+            _flip.Value = flip;
+            PublishTexture();
+        }
+
+        /// <summary>The blit that mirrors a texture: UV scale and offset for each flip. Pure.</summary>
+        internal static (Vector2 Scale, Vector2 Offset) FlipTransform(CaptureFlip flip)
+        {
+            bool horizontal = (flip & CaptureFlip.Horizontal) != 0;
+            bool vertical = (flip & CaptureFlip.Vertical) != 0;
+            return (new Vector2(horizontal ? -1f : 1f, vertical ? -1f : 1f), new Vector2(horizontal ? 1f : 0f, vertical ? 1f : 0f));
         }
 
         /// <summary>What a failure means for the state: a missing plugin is a developer problem of its own.</summary>
@@ -189,6 +224,11 @@ namespace VirtualVessel.Capture
             }
 
             _lastFrame = now;
+            if (_flipped != null)
+            {
+                MirrorFrame();
+            }
+
             Apply(CaptureEvent.FrameArrived);
         }
 
@@ -200,9 +240,11 @@ namespace VirtualVessel.Capture
             Apply(CaptureEvent.DeviceMissing);
         }
 
+        /// <summary>The source's own texture; <see cref="Texture"/> shows it, or a mirrored copy of it.</summary>
         protected void SetTexture(Texture texture)
         {
-            _texture.Value = texture;
+            _raw = texture;
+            PublishTexture();
         }
 
         protected void SetInfo(CaptureSourceInfo info)
@@ -233,6 +275,12 @@ namespace VirtualVessel.Capture
             if (!TryListDevices(out Exception failure))
             {
                 Apply(FailureEvent(failure));
+                return;
+            }
+
+            if (RequiresChosenDevice && SelectedDeviceId == null)
+            {
+                Apply(CaptureEvent.NotChosen);
                 return;
             }
 
@@ -277,8 +325,77 @@ namespace VirtualVessel.Capture
             {
                 OpenDevice = null;
                 _lastFrame = 0;
+                _raw = null;
                 _texture.Value = null;
+                ReleaseFlipped();
                 _info.Value = default;
+            }
+        }
+
+        /// <summary>Shows the source's texture as it is, or mirrored into a render texture of the same size.</summary>
+        private void PublishTexture()
+        {
+            if (_raw == null || _flip.Value == CaptureFlip.None)
+            {
+                _texture.Value = _raw;
+                ReleaseFlipped();
+                return;
+            }
+
+            MirrorFrame();
+            _texture.Value = _flipped;
+        }
+
+        /// <summary>
+        /// Copies the newest frame mirrored. A GPU blit per new frame, so the video reaches its users
+        /// the right way round without each of them handling the flip.
+        /// </summary>
+        private void MirrorFrame()
+        {
+            if (_flipped == null || _flipped.width != _raw.width || _flipped.height != _raw.height)
+            {
+                RenderTexture previous = _flipped;
+
+                // sRGB like the desktop and camera images, so the copy keeps their colors.
+                _flipped = new RenderTexture(_raw.width, _raw.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = Id + " (flipped)" };
+                _flipped.Create();
+                if (previous != null)
+                {
+                    if (_texture.Value == previous)
+                    {
+                        _texture.Value = _flipped;
+                    }
+
+                    DestroyObject(previous);
+                }
+            }
+
+            (Vector2 scale, Vector2 offset) = FlipTransform(_flip.Value);
+            Graphics.Blit(_raw, _flipped, scale, offset);
+        }
+
+        private void ReleaseFlipped()
+        {
+            RenderTexture flipped = _flipped;
+            _flipped = null;
+            DestroyObject(flipped);
+        }
+
+        private static void DestroyObject(RenderTexture texture)
+        {
+            if (texture == null)
+            {
+                return;
+            }
+
+            texture.Release();
+            if (UnityEngine.Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
             }
         }
 

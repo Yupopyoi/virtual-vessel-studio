@@ -13,9 +13,12 @@ namespace VirtualVessel.Capture.SubScreen
         /// <exception cref="CapturePluginMissingException">The plugin is missing or of another version.</exception>
         IReadOnlyList<MonitorDescription> ListMonitors();
 
-        /// <summary>Starts duplicating a monitor and returns at once; the outcome comes through the session's status.</summary>
+        /// <summary>
+        /// Starts duplicating a monitor and returns at once; the outcome comes through the session's
+        /// status. With <paramref name="drawPointer"/> the mouse pointer is drawn into the frames.
+        /// </summary>
         /// <exception cref="CapturePluginMissingException">The plugin is missing or of another version.</exception>
-        IDuplicationSession Open(string deviceName);
+        IDuplicationSession Open(string deviceName, bool drawPointer);
     }
 
     /// <summary>One monitor being duplicated on a native thread. Disposing stops it and waits for the thread.</summary>
@@ -99,7 +102,7 @@ namespace VirtualVessel.Capture.SubScreen
         public uint Recoveries { get; }
     }
 
-    /// <summary>A frame in native memory: B8G8R8A8 rows of Width * 4 bytes, top to bottom, without gaps.</summary>
+    /// <summary>A frame in native memory: B8G8R8A8 rows of Width * 4 bytes, bottom to top as in Unity's textures, without gaps.</summary>
     internal readonly struct DuplicationFrame
     {
         public DuplicationFrame(IntPtr data, int width, int height, ulong number)

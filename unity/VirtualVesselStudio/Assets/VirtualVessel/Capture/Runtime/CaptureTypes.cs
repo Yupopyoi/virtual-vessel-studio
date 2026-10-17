@@ -37,6 +37,9 @@ namespace VirtualVessel.Capture
     public enum CaptureProblem
     {
         None,
+
+        /// <summary>No device is chosen, and this source does not choose one by itself (a capture board).</summary>
+        DeviceNotChosen,
         DeviceNotFound,
         MonitorNotFound,
 
@@ -46,6 +49,19 @@ namespace VirtualVessel.Capture
 
         /// <summary>The native plugin is missing: a developer problem, shown to users as StartFailed.</summary>
         PluginMissing,
+    }
+
+    /// <summary>How a source's video is mirrored before anyone uses it (capture detailed design 8.4).</summary>
+    [Flags]
+    public enum CaptureFlip
+    {
+        None = 0,
+
+        /// <summary>Left and right swapped.</summary>
+        Horizontal = 1,
+
+        /// <summary>Top and bottom swapped.</summary>
+        Vertical = 2,
     }
 
     /// <summary>A device a source can capture from: a capture board or a monitor.</summary>

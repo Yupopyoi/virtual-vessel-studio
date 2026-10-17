@@ -16,6 +16,7 @@ namespace VirtualVessel.Capture.SubScreen
         public const string SourceId = "subscreen";
 
         private readonly IDesktopDuplication _duplication;
+        private readonly bool _drawPointer;
         private readonly PerfTimer _upload;
         private readonly PerfCounter _skipped;
         private readonly PerfCounter _recovered;
@@ -34,6 +35,8 @@ namespace VirtualVessel.Capture.SubScreen
             _skipped = metrics?.Counter("Capture", SourceId + ".Skipped");
             _recovered = metrics?.Counter("Capture", SourceId + ".Recovered");
             SelectDevice((settings ?? throw new ArgumentNullException(nameof(settings))).SubScreenMonitorId);
+            SetFlip(settings.SubScreenFlip);
+            _drawPointer = settings.SubScreenDrawPointer;
         }
 
         /// <summary>
@@ -91,7 +94,7 @@ namespace VirtualVessel.Capture.SubScreen
         {
             // The native side looks for the monitor and creates the duplication on its own thread, so
             // the main thread does not wait; OnTick reports the outcome.
-            _session = _duplication.Open(device.Id);
+            _session = _duplication.Open(device.Id, _drawPointer);
             _status = default;
             _uploaded = 0;
             _rate = default;
@@ -181,7 +184,7 @@ namespace VirtualVessel.Capture.SubScreen
                 DestroyTexture(previous);
             }
 
-            // The frame is B8G8R8A8 and BGRA32 matches it, so the bytes are uploaded as they are.
+            // The frame is B8G8R8A8, bottom row first like Unity's textures, so the bytes are uploaded as they are.
             long token = _upload?.Begin() ?? 0;
             _texture.LoadRawTextureData(frame.Data, frame.ByteCount);
             _texture.Apply(updateMipmaps: false);

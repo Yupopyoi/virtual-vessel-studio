@@ -18,7 +18,7 @@ namespace vv::capture
     class Session
     {
     public:
-        explicit Session(std::wstring deviceName);
+        Session(std::wstring deviceName, bool drawPointer);
 
         // Stops the thread and waits for it.
         ~Session();
@@ -46,6 +46,7 @@ namespace vv::capture
         void Wait(int milliseconds);
 
         const std::wstring _deviceName;
+        const bool _drawPointer;
         FrameExchange _exchange;
 
         mutable std::mutex _statusMutex;

@@ -23,7 +23,7 @@ extern "C"
 #endif
 
 // Changes whenever a function or a structure changes; the managed side refuses another version.
-#define VV_CAPTURE_API_VERSION 1
+#define VV_CAPTURE_API_VERSION 2
 
 // Function results.
 #define VV_CAPTURE_OK 0
@@ -39,6 +39,9 @@ extern "C"
 #define VV_CAPTURE_FAILED 4         // It gave up; last_error has the HRESULT. The session has stopped.
 
 #define VV_CAPTURE_DEVICE_NAME_LENGTH 32
+
+// Flags of vv_capture_open.
+#define VV_CAPTURE_DRAW_POINTER 1u  // Draw the mouse pointer into the frames, as the screen shows it.
 
 typedef struct vv_capture_monitor
 {
@@ -67,7 +70,7 @@ typedef struct vv_capture_status
 
 typedef struct vv_capture_frame
 {
-    const uint8_t* data;    // B8G8R8A8 rows of width * 4 bytes, top to bottom, without gaps.
+    const uint8_t* data;    // B8G8R8A8 rows of width * 4 bytes, bottom to top as in Unity's textures, without gaps.
     int32_t width;
     int32_t height;
     uint64_t frame_number;
@@ -82,8 +85,9 @@ VV_CAPTURE_API int32_t vv_capture_api_version(void);
 VV_CAPTURE_API int32_t vv_capture_list_monitors(vv_capture_monitor* monitors, int32_t capacity);
 
 // Starts duplicating the monitor named `device_name` on a thread of its own and returns at once;
-// the outcome comes through vv_capture_get_status. The session must be closed.
-VV_CAPTURE_API int32_t vv_capture_open(const wchar_t* device_name, vv_capture_session** session);
+// the outcome comes through vv_capture_get_status. `flags` are VV_CAPTURE_DRAW_POINTER or 0. The
+// session must be closed.
+VV_CAPTURE_API int32_t vv_capture_open(const wchar_t* device_name, uint32_t flags, vv_capture_session** session);
 
 // Stops the thread, waiting for it (about 100 ms at most), and releases everything. Accepts null.
 VV_CAPTURE_API void vv_capture_close(vv_capture_session* session);

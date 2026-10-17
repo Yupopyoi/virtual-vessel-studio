@@ -43,6 +43,7 @@ namespace VirtualVessel.Capture.Tests
             _source.Start();
 
             Assert.That(_duplication.Last.DeviceName, Is.EqualTo(SubMonitor));
+            Assert.That(_duplication.Last.DrawPointer, Is.True, "The mouse pointer is drawn by default.");
             Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Starting), "The native side opens it on its own thread.");
             Assert.That(_source.Info.Value.DeviceName, Is.EqualTo("DISPLAY2 (1920×1080)"));
         }
@@ -50,11 +51,12 @@ namespace VirtualVessel.Capture.Tests
         [Test]
         public void TheChosenMonitor_IsOpenedByItsDeviceName()
         {
-            var source = new SubScreenCaptureSource(_duplication, new CaptureSettings { SubScreenMonitorId = MainMonitor }, _clock, null, null);
+            var source = new SubScreenCaptureSource(_duplication, new CaptureSettings { SubScreenMonitorId = MainMonitor, SubScreenDrawPointer = false }, _clock, null, null);
             try
             {
                 source.Start();
                 Assert.That(_duplication.Last.DeviceName, Is.EqualTo(MainMonitor));
+                Assert.That(_duplication.Last.DrawPointer, Is.False);
             }
             finally
             {
@@ -302,9 +304,9 @@ namespace VirtualVessel.Capture.Tests
             return Monitors.ToArray();
         }
 
-        public IDuplicationSession Open(string deviceName)
+        public IDuplicationSession Open(string deviceName, bool drawPointer)
         {
-            var session = new FakeDuplicationSession(deviceName);
+            var session = new FakeDuplicationSession(deviceName) { DrawPointer = drawPointer };
             Opened.Add(session);
             return session;
         }
@@ -330,6 +332,8 @@ namespace VirtualVessel.Capture.Tests
         }
 
         public string DeviceName { get; }
+
+        public bool DrawPointer { get; set; }
 
         public DuplicationState State { get; set; } = DuplicationState.Starting;
 
