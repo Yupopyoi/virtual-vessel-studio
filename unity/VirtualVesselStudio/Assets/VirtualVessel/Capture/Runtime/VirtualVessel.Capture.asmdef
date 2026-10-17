@@ -3,7 +3,8 @@
     "rootNamespace": "VirtualVessel.Capture",
     "references": [
         "VirtualVessel.Core",
-        "VirtualVessel.Diagnostics"
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

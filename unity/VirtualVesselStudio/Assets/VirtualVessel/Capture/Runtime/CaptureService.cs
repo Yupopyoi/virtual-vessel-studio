@@ -8,32 +8,10 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.ProjectData.Config;
 
 namespace VirtualVessel.Capture
 {
-    /// <summary>What the capture sources start with (capture detailed design 10). Where it is saved is still open.</summary>
-    public sealed class CaptureSettings
-    {
-        /// <summary>The capture board's camera name. Nothing is opened until it is set (capture detailed design 6.3).</summary>
-        public string GameDeviceId { get; set; }
-
-        public CaptureFlip GameFlip { get; set; }
-
-        public int GameWidth { get; set; } = 1920;
-
-        public int GameHeight { get; set; } = 1080;
-
-        public int GameFrameRate { get; set; } = 60;
-
-        /// <summary>The monitor's device name; the first monitor that is not the main one when not set.</summary>
-        public string SubScreenMonitorId { get; set; }
-
-        public CaptureFlip SubScreenFlip { get; set; }
-
-        /// <summary>Whether the mouse pointer is drawn into the sub-screen video, as the screen shows it.</summary>
-        public bool SubScreenDrawPointer { get; set; } = true;
-    }
-
     /// <summary>
     /// Owns the capture sources: creates them, updates them every frame, and releases them on
     /// shutdown (capture detailed design 7.1). An Optional application service: its failure stops no
@@ -48,10 +26,18 @@ namespace VirtualVessel.Capture
         private readonly IFrameLoop _frameLoop;
         private readonly IMonotonicClock _clock;
         private readonly ILog _log;
+        private readonly ConfigSaveScheduler<CaptureSettings> _saves;
+        private CaptureSettings _settings;
+        private CaptureChoices _saved;
         private IDisposable _tick;
 
-        internal CaptureService(IEnumerable<CaptureSourceBase> sources, IFrameLoop frameLoop, IMonotonicClock clock, ILog log)
+        /// <param name="settings">What the sources were created with; started again when they were started last time.</param>
+        /// <param name="saves">Where changes go; null to save nothing, as in tests.</param>
+        internal CaptureService(IEnumerable<CaptureSourceBase> sources, IFrameLoop frameLoop, IMonotonicClock clock, ILog log, CaptureSettings settings = null, ConfigSaveScheduler<CaptureSettings> saves = null)
         {
+            _settings = settings ?? new CaptureSettings();
+            _saved = CaptureChoices.From(_settings);
+            _saves = saves;
             _sources = new List<CaptureSourceBase>(sources ?? throw new ArgumentNullException(nameof(sources)));
             _publicSources = _sources.ConvertAll(source => (IVideoCaptureSource)source);
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
@@ -63,10 +49,32 @@ namespace VirtualVessel.Capture
 
         public IReadOnlyList<IVideoCaptureSource> Sources => _publicSources;
 
-        /// <summary>Creates the service with the product's capture sources.</summary>
+        /// <summary>Creates the service with the product's capture sources and the given settings, saving nothing.</summary>
         public static CaptureService Create(CaptureSettings settings, IFrameLoop frameLoop, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            return new CaptureService(CreateSources(settings ?? new CaptureSettings(), clock, metrics, log), frameLoop, clock, log);
+            settings ??= new CaptureSettings();
+            return new CaptureService(CreateSources(settings, clock, metrics, log), frameLoop, clock, log, settings);
+        }
+
+        /// <summary>Creates the service with the settings in <paramref name="store"/>, saving changes back to it.</summary>
+        public static CaptureService Create(ConfigFileStore<CaptureSettings> store, IFrameLoop frameLoop, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+        {
+            if (store == null)
+            {
+                throw new ArgumentNullException(nameof(store));
+            }
+
+            ConfigLoadResult<CaptureSettings> loaded = store.Load();
+            CaptureSettings settings = loaded.Value ?? new CaptureSettings();
+            log?.Information($"Capture settings {loaded.Status} from {store.FilePath}.");
+            var saves = new ConfigSaveScheduler<CaptureSettings>(store, clock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the capture settings to {store.FilePath}.", failure));
+            return new CaptureService(CreateSources(settings, clock, metrics, log), frameLoop, clock, log, settings, saves);
+        }
+
+        /// <summary>Creates the store of capture-settings.json in the settings folder.</summary>
+        public static ConfigFileStore<CaptureSettings> CreateStore(string configDirectory, ISystemClock clock)
+        {
+            return new ConfigFileStore<CaptureSettings>(configDirectory, CaptureSettings.FileName, CaptureSettings.SchemaVersion, () => new CaptureSettings(), clock);
         }
 
         public IVideoCaptureSource Find(string id)
@@ -86,17 +94,44 @@ namespace VirtualVessel.Capture
         {
             _tick = _frameLoop.Register(Tick);
             _log?.Information($"Capture started with {_sources.Count} sources.");
+
+            // Sources the user had started come back (capture detailed design 10).
+            foreach (CaptureSourceBase source in _sources)
+            {
+                if (WasStarted(_settings, source.Id))
+                {
+                    source.Start();
+                }
+            }
+
+            _saved = CaptureChoices.Of(_saved, _sources);
             return Task.CompletedTask;
         }
 
-        public Task ShutdownAsync(CancellationToken cancellationToken)
+        public async Task ShutdownAsync(CancellationToken cancellationToken)
         {
+            // Saved before stopping, so the sources that were running start again next time.
+            NoteChanges();
             foreach (CaptureSourceBase source in _sources)
             {
                 source.Stop();
             }
 
-            return Task.CompletedTask;
+            if (_saves != null)
+            {
+                await _saves.FlushAsync().ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>Whether a source was started when the settings were saved. Pure.</summary>
+        internal static bool WasStarted(CaptureSettings settings, string sourceId)
+        {
+            return sourceId switch
+            {
+                Game.GameCaptureSource.SourceId => settings.GameEnabled,
+                SubScreen.SubScreenCaptureSource.SourceId => settings.SubScreenEnabled,
+                _ => false,
+            };
         }
 
         public void Dispose()
@@ -116,6 +151,22 @@ namespace VirtualVessel.Capture
             {
                 source.Tick(now);
             }
+
+            NoteChanges();
+            _saves?.Tick();
+        }
+
+        private void NoteChanges()
+        {
+            CaptureChoices now = CaptureChoices.Of(_saved, _sources);
+            if (now.Equals(_saved))
+            {
+                return;
+            }
+
+            _saved = now;
+            _settings = now.ApplyTo(_settings);
+            _saves?.Changed(_settings.Clone());
         }
 
         private static CaptureSourceBase[] CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)

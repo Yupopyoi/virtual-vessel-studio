@@ -55,6 +55,15 @@ namespace VirtualVessel.Capture
     }
 
     /// <summary>The capture sources, for other modules such as Stage.</summary>
+    /// <summary>A source that can draw the mouse pointer into its video (SubScreenCapture).</summary>
+    public interface IPointerOption
+    {
+        IReadOnlyObservable<bool> DrawPointer { get; }
+
+        /// <summary>Changes it; a source that is capturing opens its device again.</summary>
+        void SetDrawPointer(bool draw);
+    }
+
     public interface ICaptureSources
     {
         IReadOnlyList<IVideoCaptureSource> Sources { get; }

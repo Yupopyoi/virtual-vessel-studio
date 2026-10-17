@@ -148,12 +148,21 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     CaptureService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => capture = CaptureService.Create(
-                        new CaptureSettings(),
-                        context.FrameLoop,
-                        context.MonotonicClock,
-                        metrics,
-                        logging.Provider.GetLog("Capture", "Sources")),
+                    // The settings live in capture-settings.json next to the UI settings (capture
+                    // detailed design 10); without a settings folder nothing is saved.
+                    () => capture = context.ConfigDirectory != null
+                        ? CaptureService.Create(
+                            CaptureService.CreateStore(context.ConfigDirectory, context.SystemClock),
+                            context.FrameLoop,
+                            context.MonotonicClock,
+                            metrics,
+                            logging.Provider.GetLog("Capture", "Sources"))
+                        : CaptureService.Create(
+                            new CaptureSettings(),
+                            context.FrameLoop,
+                            context.MonotonicClock,
+                            metrics,
+                            logging.Provider.GetLog("Capture", "Sources")),
                     new[] { LoggingService.ServiceName }));
             }
 
