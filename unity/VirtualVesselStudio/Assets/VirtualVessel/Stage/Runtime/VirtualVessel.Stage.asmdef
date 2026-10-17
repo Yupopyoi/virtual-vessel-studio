@@ -1,0 +1,21 @@
+{
+    "name": "VirtualVessel.Stage",
+    "rootNamespace": "VirtualVessel.Stage",
+    "references": [
+        "VirtualVessel.Capture",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.UI",
+        "VirtualVessel.Video"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

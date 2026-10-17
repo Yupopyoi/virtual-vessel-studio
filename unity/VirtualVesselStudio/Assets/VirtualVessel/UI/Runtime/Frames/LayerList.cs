@@ -280,7 +280,14 @@ namespace VirtualVessel.UI.Frames
                 Label name = QuietText.Of(new Label { pickingMode = PickingMode.Ignore });
                 name.AddToClassList(UssClass + "__name");
                 Add(name);
-                this.Bind(frame.Source.DisplayName, text => name.text = text);
+                if (frame.Source.NameKey != null)
+                {
+                    new KeyedText(name, text => name.text = text) { Key = frame.Source.NameKey };
+                }
+                else
+                {
+                    this.Bind(frame.Source.DisplayName, text => name.text = text);
+                }
 
                 _stateLabel = QuietText.Of(new Label { pickingMode = PickingMode.Ignore });
                 _stateLabel.AddToClassList(UssClass + "__state");

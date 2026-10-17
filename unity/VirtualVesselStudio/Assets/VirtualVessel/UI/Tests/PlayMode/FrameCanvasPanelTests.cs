@@ -771,6 +771,8 @@ namespace VirtualVessel.UI.Tests
 
             public ObservableValue<bool> Shown { get; } = new ObservableValue<bool>(true);
 
+            public string NameKey => null;
+
             public IReadOnlyObservable<string> DisplayName => Name;
 
             public IReadOnlyObservable<bool> Visible => Shown;

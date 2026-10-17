@@ -17,9 +17,12 @@ namespace VirtualVessel.UI.Frames
         string Id { get; }
 
         /// <summary>
-        /// The name shown in the layer list, such as a capture device's name. Data text: Stage provides it
-        /// in the user's language where it has one.
+        /// A string table key for the name, which the UI shows in the user's language, so that Stage need
+        /// not know the language (UI foundation detailed design 9.8). Null to show <see cref="DisplayName"/>.
         /// </summary>
+        string NameKey { get; }
+
+        /// <summary>The name when there is no <see cref="NameKey"/>: data text such as a device name.</summary>
         IReadOnlyObservable<string> DisplayName { get; }
 
         /// <summary>

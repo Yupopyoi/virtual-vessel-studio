@@ -157,7 +157,7 @@ public sealed class StageService : IApplicationService
 ### 8.2 Checking Values
 
 - A placement whose size is zero or less, or that is not a number, is rejected with a `UserFacingException` ("This placement cannot be used"). The UI goes back to the previous placement.
-- Stage renumbers `Order` from 0, keeping the stacking order.
+- `Order` is used as it is (larger in front). It is not renumbered, so the value the UI sent is the value saved.
 
 ---
 

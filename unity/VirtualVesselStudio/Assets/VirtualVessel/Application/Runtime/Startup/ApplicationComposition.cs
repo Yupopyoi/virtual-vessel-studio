@@ -12,6 +12,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.Stage;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
@@ -141,12 +142,13 @@ namespace VirtualVessel.Application.Startup
             // Capture is Optional: without a capture board or a monitor everything else keeps working
             // (capture detailed design 7.1). Its sources are updated every frame, so it needs the frame
             // loop, which tests without frames leave out.
+            CaptureService capture = null;
             if (context.FrameLoop != null)
             {
                 descriptors.Add(new ApplicationServiceDescriptor(
                     CaptureService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => CaptureService.Create(
+                    () => capture = CaptureService.Create(
                         new CaptureSettings(),
                         context.FrameLoop,
                         context.MonotonicClock,
@@ -157,12 +159,13 @@ namespace VirtualVessel.Application.Startup
 
             // Video renders the stream with the persistent scene's Main Camera (video detailed design
             // 7.1). Optional: without it there is no stream video, and everything else runs.
+            VideoService video = null;
             if (context.MainCamera != null && context.FrameLoop != null)
             {
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VideoService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => new VideoService(
+                    () => video = new VideoService(
                         new VideoSettings(),
                         context.MainCamera,
                         context.FrameLoop,
@@ -170,6 +173,23 @@ namespace VirtualVessel.Application.Startup
                         metrics,
                         logging.Provider.GetLog("Video", "Stream")),
                     new[] { LoggingService.ServiceName }));
+
+                // Stage puts the capture videos on the stream screen (Stage detailed design 7), so it
+                // needs both; when either does not start, the host does not create it.
+                if (context.ConfigDirectory != null)
+                {
+                    descriptors.Add(new ApplicationServiceDescriptor(
+                        StageService.ServiceName,
+                        ServiceCriticality.Optional,
+                        () => new StageService(
+                            capture,
+                            video,
+                            context.FrameLoop,
+                            StageService.CreateStore(context.ConfigDirectory, context.SystemClock),
+                            context.MonotonicClock,
+                            logging.Provider.GetLog("Stage", "Screens")),
+                        new[] { LoggingService.ServiceName, CaptureService.ServiceName, VideoService.ServiceName }));
+                }
             }
 
             // The UI comes last so that it is built after every service it shows has started, and it
