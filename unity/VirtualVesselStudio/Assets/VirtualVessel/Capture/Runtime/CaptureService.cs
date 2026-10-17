@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Capture.Game;
+using VirtualVessel.Capture.SubScreen;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -112,10 +113,11 @@ namespace VirtualVessel.Capture
 
         private static CaptureSourceBase[] CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            // The sub-screen source is added with its native plugin (capture detailed design 18).
+            // Neither touches a device or the native plugin until it is started.
             return new CaptureSourceBase[]
             {
                 new GameCaptureSource(new UnityCameraDevices(), settings, clock, metrics, log),
+                new SubScreenCaptureSource(new DesktopDuplicationNative(), settings, clock, metrics, log),
             };
         }
     }
