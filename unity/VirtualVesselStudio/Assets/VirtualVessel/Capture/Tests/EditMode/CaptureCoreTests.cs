@@ -47,10 +47,11 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
-        public void NoFrame_FlagsNoSignal_OnlyWhileReady()
+        public void NoFrame_FlagsNoSignal_WhileOpen()
         {
             Assert.That(CaptureStateMachine.Next(Status(CaptureState.Ready), CaptureEvent.NoFrame, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Ready, CaptureProblem.NoSignal)));
-            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Capturing), CaptureEvent.NoFrame, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Capturing)));
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Capturing), CaptureEvent.NoFrame, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Ready, CaptureProblem.NoSignal)), "Frames that stop are no signal too.");
+            Assert.That(CaptureStateMachine.Next(Status(CaptureState.Unavailable, CaptureProblem.DeviceNotFound), CaptureEvent.NoFrame, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Unavailable, CaptureProblem.DeviceNotFound)));
             Assert.That(CaptureStateMachine.Next(Status(CaptureState.Ready, CaptureProblem.NoSignal), CaptureEvent.FrameArrived, CaptureSourceKind.GameCapture), Is.EqualTo(Status(CaptureState.Capturing)), "A frame clears it.");
         }
 
@@ -81,6 +82,54 @@ namespace VirtualVessel.Capture.Tests
             Assert.That(CaptureStateMachine.ShouldCheckAgain(CaptureState.Unavailable, 100, 299, 200), Is.False);
             Assert.That(CaptureStateMachine.ShouldCheckAgain(CaptureState.Unavailable, 100, 300, 200), Is.True);
             Assert.That(CaptureStateMachine.ShouldCheckAgain(CaptureState.Error, 100, 1000, 200), Is.False);
+        }
+    }
+
+    public sealed class FrameRateMeterTests
+    {
+        private const long Second = 1_000_000;
+
+        [Test]
+        public void TheRate_IsCountedOverAboutASecond()
+        {
+            long now = 5 * Second;
+            FrameRateMeter meter = default(FrameRateMeter).Next(now, Second);
+
+            for (int i = 0; i < 24; i++)
+            {
+                now += Second / 25;
+                meter = meter.Next(now, Second);
+            }
+
+            Assert.That(meter.Rate, Is.EqualTo(0), "Unknown until a second is complete.");
+
+            now += Second / 25;
+            meter = meter.Next(now, Second);
+            Assert.That(meter.Rate, Is.EqualTo(25.0));
+        }
+
+        [Test]
+        public void AGapOfASecond_StartsOver_InsteadOfLoweringTheRate()
+        {
+            long now = 5 * Second;
+            FrameRateMeter meter = default(FrameRateMeter).Next(now, Second);
+            for (int i = 0; i < 50; i++)
+            {
+                now += Second / 25;
+                meter = meter.Next(now, Second);
+            }
+
+            now += 3 * Second;
+            meter = meter.Next(now, Second);
+            Assert.That(meter.Rate, Is.EqualTo(0));
+
+            for (int i = 0; i < 25; i++)
+            {
+                now += Second / 25;
+                meter = meter.Next(now, Second);
+            }
+
+            Assert.That(meter.Rate, Is.EqualTo(25.0));
         }
     }
 
@@ -168,6 +217,7 @@ namespace VirtualVessel.Capture.Tests
 
             Assert.That(_source.Closes, Is.EqualTo(1));
             Assert.That(_source.Texture.Value, Is.Null);
+            Assert.That(_source.Info.Value, Is.EqualTo(default(CaptureSourceInfo)), "Nothing is delivered any more.");
             Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Stopped));
         }
 
@@ -288,6 +338,7 @@ namespace VirtualVessel.Capture.Tests
                 {
                     _texture = new Texture2D(4, 4);
                     SetTexture(_texture);
+                    SetInfo(new CaptureSourceInfo(4, 4, 0, OpenDevice.DisplayName));
                 }
 
                 ReportFrame(now);

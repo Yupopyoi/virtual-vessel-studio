@@ -135,7 +135,8 @@ public interface ICaptureSources
 ```
 
 - すべての操作と状態の通知は、Main Threadで行う。
-- `Texture`は、取得中でない間は`null`とする。使う側は`Texture`の変化を購読し、表示を差し替える。
+- `Texture`は、最初のFrameが届くまでと、機器を閉じた後（停止、機器が外れた、失敗）は`null`とする。開いたまま映像が止まった間（`Ready`、`NoSignal`）は、最後の映像を残す。使う側は`Texture`の変化を購読し、表示を差し替える。
+- `Info`は、機器を閉じると既定値（0×0、0fps、機器名なし）に戻る。
 - `Start()`は待たずに戻る。結果は`State`で知らせる（機器を開く処理に時間がかかる場合があるため）。
 
 ---
@@ -148,7 +149,7 @@ public interface ICaptureSources
 |---|---|
 | `Stopped` | 止まっている。利用者が止めた、または起動していない |
 | `Starting` | 機器を開いている |
-| `Ready` | 機器は開いたが、まだ映像が届いていない（Capture Boardに入力がない等） |
+| `Ready` | 機器は開いたが、映像が届いていない。まだ届かない場合と、途中で止まった場合がある（Capture Boardに入力がない等） |
 | `Capturing` | 映像が届いている |
 | `Unavailable` | 選んだ機器やモニターが見つからない。一定の間隔で確かめ直し、見つかれば自動で開く |
 | `Error` | 開けなかった、または取得中に回復できない失敗が起きた |
@@ -215,7 +216,7 @@ public interface IFrameLoop
 
 | Source | 処理 |
 |---|---|
-| GameCapture | `WebCamTexture`の更新を確かめ、状態（`Ready`／`Capturing`）と実際の解像度を反映する |
+| GameCapture | `WebCamTexture`の更新を確かめ、状態（`Ready`／`Capturing`）と実際の解像度・Frame Rateを反映する。映像が1秒届かないときだけ、機器が一覧にあるかを確かめる（8.1） |
 | SubScreenCapture | Native側に新しいFrameがあれば、Textureへ転送する（8.2）。Native側の状態を反映する |
 | 共通 | `Unavailable`のSourceは、2秒ごとに機器を確かめ直す |
 
@@ -229,9 +230,10 @@ public interface IFrameLoop
 
 1. `Start()`：選んだ機器が`WebCamTexture.devices`になければ`Unavailable`（`DeviceNotFound`）。
 2. 機器名と希望の解像度・Frame Rate（既定：1920×1080、60fps）で`WebCamTexture`を作り、`Play()`する。`Starting`。
-3. 最初のFrameが届くまで（`didUpdateThisFrame`、幅が16pxより大きい）`Ready`。一定時間（5秒）届かなければ`Problem = NoSignal`のまま`Ready`を続ける。
-4. 届いたら`Capturing`。`Texture`に`WebCamTexture`を出す。実際の解像度とFrame Rateを`Info`へ反映する。
-5. 機器が外れた（一覧から消えた）ら`Unavailable`。戻れば自動で開き直す。
+3. 最初のFrameが届くまで（`didUpdateThisFrame`、幅が16pxより大きい）`Ready`。
+4. 届いたら`Capturing`。`Texture`に`WebCamTexture`を出す。実際の解像度と、実際に届くFrame Rate（約1秒ごとに数える）を`Info`へ反映する。
+5. Frameが5秒届かなければ（開いてから、または最後のFrameから）、`Ready`（`Problem = NoSignal`）にする。`Texture`は最後の映像を残し、`Info`のFrame Rateは0にする。Frameが届けば`Capturing`に戻る。
+6. Frameが1秒届かないときは、機器が一覧にあるかを確かめる（2秒に1回まで）。一覧から消えていたら`Unavailable`にし、戻れば自動で開き直す。`WebCamTexture`には機器が外れたことを知らせる仕組みがなく、映像が止まるだけのため。Frameが届いている間は一覧を確かめない。一覧の取得はOSへの問い合わせとメモリの確保を伴い、映像を送っている機器がそこにあるのは明らかなため。
 
 試作では、機器を一覧の番号で選んでいた。番号は機器の抜き差しで変わるため、製品では機器名で選ぶ。
 
@@ -319,7 +321,7 @@ public sealed class CaptureSettings
 |---|---|
 | 選んだ機器・モニターがない | `Unavailable`。2秒ごとに確かめ直し、見つかれば自動で開く |
 | `WebCamTexture`が開けない | `Error`（`StartFailed`）。利用者が開始し直せる |
-| Capture Boardに入力がない | `Ready`のまま`NoSignal` |
+| Capture Boardに入力がない | `Ready`（`NoSignal`）。取得中に映像が止まった場合も同じ |
 | Desktop Duplicationを失った | Native側で作り直す。失敗が続けば`Error` |
 | Native Pluginがない・読み込めない | `Error`（`PluginMissing`）。開発者向けLogに理由を記録する |
 | 1つのSourceの失敗 | そのSourceだけが止まる。他のSourceや機能は止めない（方式設計10.24） |
@@ -353,6 +355,7 @@ public sealed class CaptureSettings
 
 - 映像は、Main Threadでの転送（1920×1080、約8MB）が主な負荷となる。新しいFrameがあるときだけ転送し、1Frameに1回までとする。
 - Native側の取得は別Threadで行い、Main Threadを待たせない。Bufferは使い回し、取得のたびにメモリを確保しない。
+- 機器の一覧（`WebCamTexture.devices`）の取得は、開発用PCで4台のとき平均0.72ms、初回は3.86msだった（2026-10-17、`GameCaptureHardwareTests.ListingCameras_Timing`）。`Unavailable`のSourceは2秒ごとに一覧を取得する。取得中のSourceは、映像が1秒届かないときだけ取得する（8.1）。
 - GPU間で直接共有する方式（CPUを経由しない）は、性能を測ってから検討する（17章）。試作で動いた方式を変える場合は、比較の計測を行う（CLAUDE.md 33章）。
 
 ---
@@ -366,6 +369,7 @@ Assets/VirtualVessel/Capture/
 │  ├─ CaptureTypes.cs          CaptureSourceKind, CaptureState, CaptureProblem, CaptureDevice, CaptureSourceInfo
 │  ├─ CaptureStateMachine.cs   CaptureEvent, CaptureStatus, CaptureStateMachine
 │  ├─ CaptureSourceBase.cs     Sourceに共通の状態、機器の選択、再確認、計測
+│  ├─ FrameRateMeter.cs        実際に届くFrame Rateを数える（純粋）
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
 │  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen

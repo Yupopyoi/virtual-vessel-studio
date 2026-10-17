@@ -20,7 +20,7 @@ namespace VirtualVessel.Capture
         /// <summary>Opening the device.</summary>
         Starting,
 
-        /// <summary>The device is open but no video has arrived yet.</summary>
+        /// <summary>The device is open but no video is arriving: not yet, or it stopped.</summary>
         Ready,
 
         /// <summary>Video is arriving.</summary>

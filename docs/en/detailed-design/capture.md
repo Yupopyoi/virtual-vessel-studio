@@ -135,7 +135,8 @@ public interface ICaptureSources
 ```
 
 - Every operation and state notification happens on the main thread.
-- `Texture` is `null` while not capturing. Users subscribe to `Texture` and swap what they show.
+- `Texture` is `null` until the first frame and after the device is closed (stopped, gone, or failed). While the device stays open but the video stops (`Ready`, `NoSignal`), it keeps the last image. Users subscribe to `Texture` and swap what they show.
+- `Info` returns to its default (0×0, 0 fps, no device name) when the device is closed.
 - `Start()` returns without waiting; the result comes through `State`, because opening a device can take time.
 
 ---
@@ -148,7 +149,7 @@ public interface ICaptureSources
 |---|---|
 | `Stopped` | Stopped: the user stopped it, or it was never started |
 | `Starting` | Opening the device |
-| `Ready` | The device is open but no video has arrived yet (no input on the capture board, and so on) |
+| `Ready` | The device is open but no video is arriving, either not yet or no longer (no input on the capture board, and so on) |
 | `Capturing` | Video is arriving |
 | `Unavailable` | The chosen device or monitor is not found. Checked again at intervals and opened automatically when it comes back |
 | `Error` | It could not open, or an unrecoverable failure happened while capturing |
@@ -215,7 +216,7 @@ public interface IFrameLoop
 
 | Source | Work |
 |---|---|
-| GameCapture | Checks for `WebCamTexture` updates and reflects the state (`Ready` / `Capturing`) and the actual resolution |
+| GameCapture | Checks for `WebCamTexture` updates and reflects the state (`Ready` / `Capturing`) and the actual resolution and frame rate. Only when no video has arrived for a second does it check that the device is still in the list (8.1) |
 | SubScreenCapture | When the native side has a new frame, uploads it to the texture (8.2), and reflects the native state |
 | Both | `Unavailable` sources check their device again every 2 seconds |
 
@@ -229,9 +230,10 @@ As in the prototype (`VideoDisplayer.cs`), the capture board is opened as a UVC 
 
 1. `Start()`: if the chosen device is not in `WebCamTexture.devices`, `Unavailable` (`DeviceNotFound`).
 2. Create a `WebCamTexture` with the device name and the requested resolution and frame rate (default 1920×1080, 60 fps), and `Play()` it. `Starting`.
-3. Until the first frame arrives (`didUpdateThisFrame`, width over 16 px), `Ready`. If none arrives within 5 seconds, stay `Ready` with `Problem = NoSignal`.
-4. When frames arrive, `Capturing`. `Texture` exposes the `WebCamTexture`; `Info` gets the actual resolution and frame rate.
-5. When the device goes away (drops out of the list), `Unavailable`; it reopens automatically when it comes back.
+3. Until the first frame arrives (`didUpdateThisFrame`, width over 16 px), `Ready`.
+4. When frames arrive, `Capturing`. `Texture` exposes the `WebCamTexture`; `Info` gets the actual resolution and the frame rate that actually arrives (counted about every second).
+5. When no frame arrives for 5 seconds (after opening, or after the last frame), `Ready` with `Problem = NoSignal`. `Texture` keeps the last image and the frame rate in `Info` becomes 0. A frame makes it `Capturing` again.
+6. When no frame has arrived for a second, it checks that the device is still in the list (at most every 2 seconds). If it dropped out, `Unavailable`; it reopens automatically when it comes back. `WebCamTexture` has no event for a device that goes away; its image just stops. While frames arrive the list is not checked: listing devices queries the OS and allocates memory, and a device that sends video is clearly there.
 
 The prototype chose devices by their index in the list. Indices change as devices are plugged in and out, so the product chooses by device name.
 
@@ -319,7 +321,7 @@ public sealed class CaptureSettings
 |---|---|
 | The chosen device or monitor is missing | `Unavailable`. Checked again every 2 seconds and opened automatically when found |
 | `WebCamTexture` cannot open | `Error` (`StartFailed`). The user can start it again |
-| No input on the capture board | Stays `Ready` with `NoSignal` |
+| No input on the capture board | `Ready` with `NoSignal`; the same when the video stops while capturing |
 | Desktop Duplication is lost | Recreated on the native side; `Error` if failures continue |
 | The native plugin is missing or cannot load | `Error` (`PluginMissing`). The reason goes to the developer log |
 | One source fails | Only that source stops; other sources and features keep running (system design 10.24) |
@@ -353,6 +355,7 @@ public sealed class CaptureSettings
 
 - The main cost is the upload on the main thread (1920×1080, about 8 MB). Uploads happen only when there is a new frame, at most once per frame.
 - The native side acquires frames on its own thread and never makes the main thread wait. Buffers are reused, so acquiring allocates no memory.
+- Listing the devices (`WebCamTexture.devices`) took 0.72 ms on average with 4 devices on the development PC, and 3.86 ms the first time (2026-10-17, `GameCaptureHardwareTests.ListingCameras_Timing`). `Unavailable` sources list them every 2 seconds; capturing sources list them only when no video has arrived for a second (8.1).
 - Sharing directly on the GPU (without the CPU) is considered after measuring (chapter 17). Replacing the approach the prototype proved requires a comparison measurement (CLAUDE.md chapter 33).
 
 ---
@@ -366,6 +369,7 @@ Assets/VirtualVessel/Capture/
 │  ├─ CaptureTypes.cs          CaptureSourceKind, CaptureState, CaptureProblem, CaptureDevice, CaptureSourceInfo
 │  ├─ CaptureStateMachine.cs   CaptureEvent, CaptureStatus, CaptureStateMachine
 │  ├─ CaptureSourceBase.cs     State, device choice, checking again, and metrics shared by sources
+│  ├─ FrameRateMeter.cs        Counts the frame rate that actually arrives (pure)
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
 │  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen

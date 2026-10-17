@@ -182,6 +182,14 @@ namespace VirtualVessel.Capture
             Apply(CaptureEvent.FrameArrived);
         }
 
+        /// <summary>The open device went away: releases it and waits for it to come back (Unavailable).</summary>
+        protected void ReportDeviceLost()
+        {
+            CloseDevice();
+            _lastCheck = _clock.GetTimestamp();
+            Apply(CaptureEvent.DeviceMissing);
+        }
+
         protected void SetTexture(Texture texture)
         {
             _texture.Value = texture;
@@ -232,6 +240,7 @@ namespace VirtualVessel.Capture
                 OpenDevice = null;
                 _lastFrame = 0;
                 _texture.Value = null;
+                _info.Value = default;
             }
         }
 

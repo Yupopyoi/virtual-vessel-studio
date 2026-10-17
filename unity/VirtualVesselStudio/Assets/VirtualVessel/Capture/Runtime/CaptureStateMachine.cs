@@ -16,7 +16,7 @@ namespace VirtualVessel.Capture
         Opened,
         FrameArrived,
 
-        /// <summary>Open, but nothing arrived for a while.</summary>
+        /// <summary>Open, but nothing arrived for a while, before the first frame or after the last.</summary>
         NoFrame,
         Failed,
         PluginMissing,
@@ -92,7 +92,9 @@ namespace VirtualVessel.Capture
                         ? new CaptureStatus(CaptureState.Capturing, CaptureProblem.None)
                         : current;
                 case CaptureEvent.NoFrame:
-                    return current.State == CaptureState.Ready ? new CaptureStatus(CaptureState.Ready, CaptureProblem.NoSignal) : current;
+                    return current.State == CaptureState.Ready || current.State == CaptureState.Capturing
+                        ? new CaptureStatus(CaptureState.Ready, CaptureProblem.NoSignal)
+                        : current;
                 case CaptureEvent.Failed:
                     return new CaptureStatus(CaptureState.Error, CaptureProblem.StartFailed);
                 case CaptureEvent.PluginMissing:
