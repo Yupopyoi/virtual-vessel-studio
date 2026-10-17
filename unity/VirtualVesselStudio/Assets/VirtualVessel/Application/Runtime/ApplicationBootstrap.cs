@@ -32,6 +32,10 @@ namespace VirtualVessel.Application
         [Tooltip("The UI entry point in the persistent scene. Without it the application runs with no UI.")]
         private UiRoot _uiRoot;
 
+        [SerializeField]
+        [Tooltip("The Main Camera in the persistent scene, which renders the stream video. Without it there is no stream video.")]
+        private Camera _mainCamera;
+
         private MainThreadDispatcher _dispatcher;
         private FrameLoop _frameLoop;
         private BufferedApplicationLog _log;
@@ -73,7 +77,8 @@ namespace VirtualVessel.Application
                 _log,
                 ApplicationComposition.Create,
                 _uiRoot,
-                _frameLoop);
+                _frameLoop,
+                _mainCamera);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
             _startTask = StartRuntimeAsync();

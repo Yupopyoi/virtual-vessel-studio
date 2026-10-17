@@ -9,6 +9,7 @@
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
         "VirtualVessel.UI",
+        "VirtualVessel.Video",
         "VirtualVessel.Application"
     ],
     "includePlatforms": [

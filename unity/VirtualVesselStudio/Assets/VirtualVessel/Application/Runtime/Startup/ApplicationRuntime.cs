@@ -34,6 +34,7 @@ namespace VirtualVessel.Application.Startup
         private readonly Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> _compose;
         private readonly UiRoot _uiRoot;
         private readonly IFrameLoop _frameLoop;
+        private readonly UnityEngine.Camera _mainCamera;
 
         private SessionMarker _sessionMarker;
         private bool _sessionMarkerWritten;
@@ -50,7 +51,8 @@ namespace VirtualVessel.Application.Startup
             BufferedApplicationLog log,
             Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> compose,
             UiRoot uiRoot = null,
-            IFrameLoop frameLoop = null)
+            IFrameLoop frameLoop = null,
+            UnityEngine.Camera mainCamera = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _buildInfo = buildInfo ?? throw new ArgumentNullException(nameof(buildInfo));
@@ -63,6 +65,7 @@ namespace VirtualVessel.Application.Startup
             _compose = compose ?? throw new ArgumentNullException(nameof(compose));
             _uiRoot = uiRoot;
             _frameLoop = frameLoop;
+            _mainCamera = mainCamera;
         }
 
         public ApplicationState State => Host?.State ?? _startupFailureState;
@@ -97,7 +100,7 @@ namespace VirtualVessel.Application.Startup
 
             StartSession();
 
-            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log, _dataRootResolver.ConfigDirectory, _uiRoot, _frameLoop);
+            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log, _dataRootResolver.ConfigDirectory, _uiRoot, _frameLoop, _mainCamera);
             IReadOnlyList<ApplicationServiceDescriptor> descriptors;
             try
             {

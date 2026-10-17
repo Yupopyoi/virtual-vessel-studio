@@ -6,7 +6,8 @@
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
-        "VirtualVessel.UI"
+        "VirtualVessel.UI",
+        "VirtualVessel.Video"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

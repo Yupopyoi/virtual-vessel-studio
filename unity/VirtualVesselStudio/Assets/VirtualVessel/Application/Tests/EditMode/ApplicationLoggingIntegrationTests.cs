@@ -15,6 +15,7 @@ using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.UI;
+using VirtualVessel.Video;
 
 namespace VirtualVessel.Application.Tests
 {
@@ -92,6 +93,27 @@ namespace VirtualVessel.Application.Tests
 
             Assert.That(capture.Criticality, Is.EqualTo(ServiceCriticality.Optional), "Missing capture hardware does not stop the application.");
             Assert.That(capture.DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+        }
+
+        [Test]
+        public void Composition_AddsOptionalVideo_OnlyWithAMainCamera()
+        {
+            Assert.That(ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor, frameLoop: new FrameLoop())).Select(d => d.Name), Has.No.Member(VideoService.ServiceName));
+
+            var host = new UnityEngine.GameObject(nameof(Composition_AddsOptionalVideo_OnlyWithAMainCamera));
+            try
+            {
+                UnityEngine.Camera camera = host.AddComponent<UnityEngine.Camera>();
+                var descriptors = ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor, frameLoop: new FrameLoop(), mainCamera: camera));
+                ApplicationServiceDescriptor video = descriptors.Single(d => d.Name == VideoService.ServiceName);
+
+                Assert.That(video.Criticality, Is.EqualTo(ServiceCriticality.Optional), "Without a stream video everything else runs.");
+                Assert.That(video.DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
         }
 
         [Test]
@@ -176,7 +198,7 @@ namespace VirtualVessel.Application.Tests
             Assert.That(lines.Last(), Does.Contain("Logging stopped."));
         }
 
-        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment, UiRoot uiRoot = null, IFrameLoop frameLoop = null)
+        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment, UiRoot uiRoot = null, IFrameLoop frameLoop = null, UnityEngine.Camera mainCamera = null)
         {
             IDataRoot dataRoot = new DataRootResolver(Path.Combine(_tempDirectory, "LocalAppData")).Resolve(Path.Combine(_tempDirectory, "Data")).DataRoot;
             return new ApplicationCompositionContext(
@@ -190,7 +212,8 @@ namespace VirtualVessel.Application.Tests
                 new BufferedApplicationLog(() => DateTimeOffset.UtcNow, null),
                 Path.Combine(_tempDirectory, "LocalAppData", "Config"),
                 uiRoot,
-                frameLoop);
+                frameLoop,
+                mainCamera);
         }
     }
 }

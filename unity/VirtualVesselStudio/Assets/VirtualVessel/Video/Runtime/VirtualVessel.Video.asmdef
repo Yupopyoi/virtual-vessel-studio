@@ -1,0 +1,20 @@
+{
+    "name": "VirtualVessel.Video",
+    "rootNamespace": "VirtualVessel.Video",
+    "references": [
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.UI",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

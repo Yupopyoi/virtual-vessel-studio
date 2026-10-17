@@ -524,7 +524,12 @@ public interface IUiCommand
 
 **最初に作る画面**
 
-ライブ、セットアップ、Voice Labは、各画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する（セットアップは上記の「アプリの設定」も置く）。中身を作る画面は次の2つとし、まず最小限の内容で作る。後で見直す可能性がある。
+ライブとセットアップは、画面の仕様（`docs/ja/ui/screens/live.md`、`setup.md`）に従う。ライブは配信プレビューと配置編集、セットアップは映像の取り込みのCardとアプリの設定を置く。Voice Labは、画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する。
+
+- 必要な相手は、Compositionが`UiRootContext`で渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧（Stage）、`ICaptureSources`（Capture）。ないものは渡さず、その部分は「使えません」と表示する。
+- UIはCaptureの公開Contract（`ICaptureSources`、`ICaptureDeviceSource`、`IPointerOption`）を参照してよい（Captureの状態を表示する流れ）。CaptureはUIを参照しない。
+
+このほか、次の2つの画面を最小限の内容で作る。後で見直す可能性がある。
 
 - Diagnostics（診断、Developer Modeのみ）：性能計測（`PerformanceSnapshot`）の表。表は共通部品の`DataTable`で作る。
   - 列は、Module、名前、種類、現在、平均、最大、P95、P99、件数、予算超過とする。数値は等幅で右に寄せ、単位を付ける。
@@ -877,7 +882,8 @@ UIとStageの間は`IFrameSource`（UI Module）でつなぐ。Stageが映像ご
 public interface IFrameSource
 {
     string Id { get; }
-    IReadOnlyObservable<string> DisplayName { get; }   // 一覧に出す名前（Stageが利用者の言語で渡す）
+    string NameKey { get; }                            // 名前の文字列表のKey。あればUIが翻訳して表示し、DisplayNameは使わない
+    IReadOnlyObservable<string> DisplayName { get; }   // NameKeyがないときの名前（機器名等のデータ）
     IReadOnlyObservable<bool> Visible { get; }         // 配信に出ているか
     double SourceAspect { get; }                       // 映像全体の縦横比（画面に合わせる等で使う）
     Texture Video { get; }                             // 切り抜き中に映像全体を薄く表示するため。nullなら枠だけ
@@ -889,6 +895,8 @@ public interface IFrameSource
 
 - 確定は`CommandRunner`で実行する。Stageが`UserFacingException`で拒否した場合は、その文をNotificationで表示する。確定の成否にかかわらず、終わったら`Layout`の値を表示する。拒否された場合は元の配置に戻る。
 - 確定を待つ間は、操作した配置を表示し続ける。確定より後に新しい操作が始まった場合は、その操作の表示を優先する。
+
+- Stageは名前を`NameKey`で渡す（Stage詳細設計6.4）。Stageが利用者の言語を知らずに済む。
 
 **非表示の映像**
 
