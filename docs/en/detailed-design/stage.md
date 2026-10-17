@@ -226,7 +226,7 @@ Assets/VirtualVessel/Stage/
 │  ├─ StageSettings.cs
 │  ├─ ScreenPlacementMath.cs
 │  ├─ StageDefaults.cs
-│  └─ Resources/StreamScreen.mat    URP Unlit; in Resources so that builds include it
+│  └─ Resources/StreamScreen.shader An unlit quad shader: the crop and flip are only material values (_MainTex_ST); in Resources so that builds include it
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/
