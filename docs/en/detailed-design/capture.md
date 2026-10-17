@@ -192,7 +192,7 @@ SubScreenCapture defaults to the first monitor that is not the main one. With a 
 
 ### 7.1 CaptureService
 
-- `CaptureService` is an Optional application service that starts after logging and performance metrics. Its failure stops no other feature (system design 10.24).
+- `CaptureService` is an Optional application service that starts after logging and performance metrics. Its failure stops no other feature (system design 10.24). The composition registers it as the service `Capture`, depending on Logging. It needs `IFrameLoop` for its per-frame update, so it is not registered when there is no frame loop (as in tests that run no frames).
 - At startup it creates two sources, `game` and `subscreen`. Both start `Stopped` and never start on their own; they are started and stopped from the setup screen, the live screen (later), or the demo.
 - On shutdown it stops every source and releases textures, `WebCamTexture`, and native handles.
 - It receives its per-frame update through `IFrameLoop` (7.3).

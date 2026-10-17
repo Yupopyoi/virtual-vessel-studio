@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using VirtualVessel.Capture.Game;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -109,10 +110,13 @@ namespace VirtualVessel.Capture
             }
         }
 
-        private static IEnumerable<CaptureSourceBase> CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+        private static CaptureSourceBase[] CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            // The game and sub-screen sources are added with their implementations (capture detailed design 18).
-            yield break;
+            // The sub-screen source is added with its native plugin (capture detailed design 18).
+            return new CaptureSourceBase[]
+            {
+                new GameCaptureSource(new UnityCameraDevices(), settings, clock, metrics, log),
+            };
         }
     }
 }

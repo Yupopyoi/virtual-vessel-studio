@@ -192,7 +192,7 @@ SubScreenCaptureの既定は、主モニター以外で最初のモニターと�
 
 ### 7.1 CaptureService
 
-- `CaptureService`はOptionalのApplication Serviceとし、Logging、性能計測の後に起動する。失敗しても他の機能を止めない（方式設計10.24）。
+- `CaptureService`はOptionalのApplication Serviceとし、Logging、性能計測の後に起動する。失敗しても他の機能を止めない（方式設計10.24）。Compositionは、Service名`Capture`、Loggingに依存するものとして登録する。毎Frameの更新に`IFrameLoop`を使うため、Frame Loopがない場合（Frameを回さないテスト等）は登録しない。
 - 起動時に`game`と`subscreen`の2つのSourceを作る。どちらも`Stopped`で始め、自動では開始しない。開始・停止はSetup画面、Live画面（後続）、またはデモから行う。
 - 終了時は、すべてのSourceを止め、Texture、`WebCamTexture`、Native側のHandleを解放する。
 - 毎Frameの更新は`IFrameLoop`で受け取る（7.3）。
