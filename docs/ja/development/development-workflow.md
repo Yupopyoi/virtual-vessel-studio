@@ -865,6 +865,15 @@ PR CIが失敗している変更は原則Mergeしない。
 - 標準ライブラリだけを使うため、venvや`pip`は不要である。手元ではPython 3.10以上で、リポジトリの直下から`python tools/ci/repo_checks.py`を実行する。CIはPython 3.12を使う。
 - Unityのテスト（EditMode、PlayMode）は、実行環境とUnityのライセンスの扱いを決めてから追加する。
 
+Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGitに入れない。GitHub Actionsの`Native plugins`（`.github/workflows/native-plugins.yml`）が、`native/`、`tools/native/`、またはこのWorkflowが変わったPull Requestと、`main`へのPushで、Windows上でビルドとテストを行う。
+
+| Plugin | 内容 |
+|---|---|
+| Capture（`native/capture/`） | 開発者と同じ`tools/native/build-capture.ps1`で、CMakeの構成、Releaseのビルド、Nativeのテスト（`vv_capture_tests`）を行う。できたDLLをArtifactとして14日間保存する |
+
+- 手元では、同じスクリプトでビルドし、DLLをUnityのProjectへ写す（Visual StudioとCMakeが必要）。
+- 配布物へのDLLの組み込みは、main Build（18.2）のNative Plugin Packagingで扱う。
+
 ## 18.2 main Build
 
 `main`へMerge後、統合された状態でBuildする。

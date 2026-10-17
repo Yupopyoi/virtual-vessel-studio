@@ -857,6 +857,15 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 - They use only the standard library, so no venv or `pip` is needed. Locally, run `python tools/ci/repo_checks.py` from the repository root with Python 3.10 or later. CI uses Python 3.12.
 - Unity tests (EditMode, PlayMode) will be added once the runner and the handling of the Unity license are decided.
 
+Native plugins keep their C++ sources in Git, and the built DLLs are not committed. GitHub Actions runs `Native plugins` (`.github/workflows/native-plugins.yml`) on Windows for pull requests that change `native/`, `tools/native/`, or the workflow itself, and for pushes to `main`.
+
+| Plugin | What it does |
+|---|---|
+| Capture (`native/capture/`) | Runs `tools/native/build-capture.ps1`, the same script developers use: CMake configuration, a Release build, and the native tests (`vv_capture_tests`). The built DLL is kept as an artifact for 14 days |
+
+- Locally, the same script builds the DLL and copies it into the Unity project (Visual Studio and CMake are needed).
+- Putting the DLL into the distributed application belongs to Native Plugin Packaging in the main build (18.2).
+
 ## 18.2 main Build
 
 After merging into `main`, the integrated state is built.
