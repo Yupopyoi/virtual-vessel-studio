@@ -23,7 +23,7 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 4) |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
 | Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
-| Find devices again | Button (Secondary) | Lists the devices again |
+| Device list | Button (Secondary) "Search again" | Lists the devices again |
 | Flip left and right | Toggle | Corrects the video's orientation |
 | Flip top and bottom | Toggle | Corrects the video's orientation |
 | Show the mouse cursor (sub monitor only) | Toggle | On by default |

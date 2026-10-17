@@ -1,0 +1,30 @@
+/* The live and setup screens (docs/<lang>/ui/screens/). Layout only; the components bring their own styles. */
+
+.vv-live__layers {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-live__hint {
+    margin-top: var(--vv-space-s);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-capture-card {
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-capture-card__problem {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-capture-card__info {
+    margin-top: var(--vv-space-s);
+    color: var(--vv-color-text-2);
+}
+
+.vv-setup > .vv-screen__note {
+    margin: 0 0 var(--vv-space-m) 0;
+}

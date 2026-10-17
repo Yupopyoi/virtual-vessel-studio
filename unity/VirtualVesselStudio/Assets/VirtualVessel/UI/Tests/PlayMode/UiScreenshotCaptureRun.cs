@@ -51,7 +51,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, captures: new ScreenshotCaptureSources()));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;

@@ -169,6 +169,7 @@ namespace VirtualVessel.Application.Startup
             // Video renders the stream with the persistent scene's Main Camera (video detailed design
             // 7.1). Optional: without it there is no stream video, and everything else runs.
             VideoService video = null;
+            StageService stage = null;
             if (context.MainCamera != null && context.FrameLoop != null)
             {
                 descriptors.Add(new ApplicationServiceDescriptor(
@@ -190,7 +191,7 @@ namespace VirtualVessel.Application.Startup
                     descriptors.Add(new ApplicationServiceDescriptor(
                         StageService.ServiceName,
                         ServiceCriticality.Optional,
-                        () => new StageService(
+                        () => stage = new StageService(
                             capture,
                             video,
                             context.FrameLoop,
@@ -221,7 +222,13 @@ namespace VirtualVessel.Application.Startup
                             metrics,
 
                             // Detailed metrics follow Developer Mode once the UI is up (performance metrics detailed design 7.1).
-                            metrics == null ? null : new Action<bool>[] { metrics.SetDetailedEnabled })),
+                            metrics == null ? null : new Action<bool>[] { metrics.SetDetailedEnabled },
+
+                            // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
+                            // there leave their part of the screens saying so.
+                            video?.Preview,
+                            stage?.Screens,
+                            capture)),
                     new[] { LoggingService.ServiceName }));
             }
 
