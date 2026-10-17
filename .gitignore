@@ -122,3 +122,9 @@ Desktop.ini
 *.bak
 *.swp
 *.swo
+
+# ------------------------------------------------------------
+# UI screenshots written by tools/ui/capture-ui.ps1 (UI foundation detailed design 7.10)
+# ------------------------------------------------------------
+
+/screenshots/
