@@ -308,10 +308,15 @@ public sealed class CaptureSettings
     public string SubScreenMonitorId { get; set; }    // The first monitor that is not the main one when not set
     public CaptureFlip SubScreenFlip { get; set; }
     public bool SubScreenDrawPointer { get; set; } = true;   // Draw the mouse cursor
+    public bool GameEnabled { get; set; }             // Whether it was started; restored at the next start
+    public bool SubScreenEnabled { get; set; }
 }
 ```
 
-- The values are passed when `CaptureService` is created. Saving and loading are decided with the Project / Profile design (chapter 17).
+- The values are saved in `capture-settings.json`, read at startup, and passed when `CaptureService` is created. The file is kept in the settings folder (the same as the UI's `ui-settings.json`) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used. It moves into Project / Profile once they exist (chapter 17).
+- `CaptureService` compares each source's chosen device, flips, cursor, and whether it was started (not `Stopped`) every frame (`CaptureSettingsSnapshot`, pure functions), and saves 0.5 seconds after the last change. At shutdown, anything unsaved is saved with the values from before stopping.
+- Sources that were started are started again at the next start. GameCapture opens only when a device is chosen (6.3).
+- The sub monitor's cursor is switched through `IPointerOption` (implemented by SubScreenCaptureSource). Changing it while capturing reopens the native session.
 - When a device does not support the requested resolution or frame rate, it uses something close; `Info` shows the actual values.
 
 ---
@@ -426,11 +431,11 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 |---|---|
 | How the native DLL is handled | Decided: the C++ sources are kept in Git and the DLL is not. It is built locally with `tools/native/build-capture.ps1`, and the CI workflow `Native plugins` builds and tests it (development workflow 18.1.1). Putting it into the distributed application is handled by the main build |
 | GameCapture audio (library: NAudio, Unity's Microphone, native WASAPI) | With the Audio module design. Using NAudio needs approval as a new dependency |
-| Where capture settings are stored | With the Project / Profile design |
+| Where capture settings are stored | Decided: `capture-settings.json` until Project / Profile exist (chapter 10); moved there afterwards |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
 | Sharing directly on the GPU | Decided from the measured upload times |
-| Capture setup screen and live screen controls | When each screen's specification is written |
+| Capture setup screen and live screen controls | Decided: the capture Cards on the setup screen (`docs/en/ui/screens/setup.md`); the live screen has no capture controls |
 
 ---
 

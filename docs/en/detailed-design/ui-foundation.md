@@ -524,7 +524,12 @@ The delay and the position numbers are current defaults and may change. The numb
 
 **First screens**
 
-Until their specifications exist, Live, Setup, and Voice Lab show only their heading and "This screen is on its way" (Setup also holds the App settings above). Two screens get content, starting with minimal content that may be revised later:
+Live and Setup follow their screen specifications (`docs/en/ui/screens/live.md`, `setup.md`): Live has the stream preview and placement editing, Setup the capture Cards and the App settings. Until its specification exists, Voice Lab shows only its heading and "This screen is on its way".
+
+- The composition passes what they need in `UiRootContext`: `IStreamPreviewSource` (Video), the list of `IFrameSource` (Stage), and `ICaptureSources` (Capture). Anything missing is not passed, and that part says it is unavailable.
+- The UI may reference Capture's public contracts (`ICaptureSources`, `ICaptureDeviceSource`, `IPointerOption`), as it shows Capture's state. Capture does not reference the UI.
+
+Two more screens get minimal content that may be revised later:
 
 - Diagnostics (Developer Mode only): a table of performance metrics (`PerformanceSnapshot`), built with the shared `DataTable`.
   - The columns are module, name, kind, current, average, max, P95, P99, count, and over budget. Numbers are monospace, right-aligned, with units.
@@ -877,7 +882,8 @@ The UI and Stage are connected through `IFrameSource` (UI module), which Stage i
 public interface IFrameSource
 {
     string Id { get; }
-    IReadOnlyObservable<string> DisplayName { get; }   // the name in the layer list (Stage gives it in the user's language)
+    string NameKey { get; }                            // a string table key for the name; when set, the UI translates it and ignores DisplayName
+    IReadOnlyObservable<string> DisplayName { get; }   // the name when there is no NameKey (data such as a device name)
     IReadOnlyObservable<bool> Visible { get; }         // whether it is on the stream
     double SourceAspect { get; }                       // aspect ratio of the whole video (for fitting)
     Texture Video { get; }                             // to show the whole video faintly while cropping; null shows an outline
@@ -889,6 +895,8 @@ public interface IFrameSource
 
 - Commits run through `CommandRunner`. If Stage rejects one with a `UserFacingException`, that text is shown as a notification. Whether the commit succeeds or not, the editor then shows the value of `Layout`, so a rejected edit returns to the previous layout.
 - While a commit is pending, the edited layout stays on screen. If a newer edit starts before the commit finishes, the newer edit is shown.
+
+- Stage gives names as `NameKey` (Stage detailed design 6.4), so it does not need to know the user's language.
 
 **Hidden videos**
 
