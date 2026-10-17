@@ -182,9 +182,11 @@ public sealed class CaptureDevice
 | Source | `Id` | `DisplayName` |
 |---|---|---|
 | GameCapture | `WebCamDevice.name` | 同じ |
-| SubScreenCapture | モニターのDevice名（例：`\\.\DISPLAY2`） | 「モニター2（1920×1080）」のように、番号と解像度。主モニターには印を付ける |
+| SubScreenCapture | モニターのDevice名（例：`\\.\DISPLAY2`） | 「DISPLAY2 (1920×1080)」のように、Device名と解像度。言葉を含めず、どの言語でも同じに読める。番号や主モニターの印を付けた、翻訳した表示名はSetup画面で作る（17章） |
 
 SubScreenCaptureの既定は、主モニター以外で最初のモニターとする。モニターが1つしかなければ、そのモニターを選ぶ（動作確認用）。
+
+既定で選んだ機器は、開いた時点で選んだ機器として残す。その機器が外れたら、別の機器（主モニター、Webカメラ等）へ移らず、戻るのを待つ。利用者が意図しない画面や映像を映さないためである（13章）。
 
 ---
 
@@ -252,16 +254,18 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 | 例外をSEHで握りつぶしていた | 範囲を確かめてから写し、失敗は状態として返す |
 
 1. `Start()`：選んだモニターが見つからなければ`Unavailable`（`MonitorNotFound`）。
-2. Native側で、モニターがつながったGPUにD3D11 Deviceを作り、`DuplicateOutput`する。取得用のThreadを始める。`Starting`→`Ready`。
-3. Threadは`AcquireNextFrame`（100ms）で待ち、Frameが来たらStaging Textureへ写してMapし、空いているBufferへ行ごとに写す。写し終えたら連番を進め、そのBufferを最新にする。
-4. Managed側は毎Frame、最新のBufferの連番を見る。変わっていれば、そのBufferを読み出し中にし、`Texture2D.LoadRawTextureData`と`Apply`でTextureへ転送する。最初のFrameで`Capturing`。
-5. `ACCESS_LOST`等で複製が失われたら、Native側で作り直す（最大5回、間隔を空けて）。作り直せなければ`Error`（`StartFailed`）。
-6. `Stop()`：Threadを止め、COMの参照、Buffer、Textureを解放する。
+2. `vv_capture_open`がNative側のThreadを始め、すぐに戻る。Threadは、すべてのGPUの出力からDevice名でモニターを探し、そのGPUにD3D11 Deviceを作って`DuplicateOutput`する。Native側が動き出すまで`Starting`、その後`Ready`。Deviceの作成をMain Threadで待たない。
+3. Threadは`AcquireNextFrame`（100ms）で待つ。新しい画像のFrame（マウスポインターだけの更新でないもの）が来たら、Staging Texture（大きさが変わるまで使い回す）へ写してMapする。Frameはすぐに画面側へ返し、行ごとに書き込み用のBufferへ写す。写し終えたら次の連番を付け、そのBufferを最新にする。
+4. Managed側は毎Frame、Native側の状態を読む。連番が変わっていれば、最新のBufferを受け取り、`Texture2D.LoadRawTextureData`と`Apply`でTextureへ転送する。最初のFrameで`Capturing`。大きさが変われば、別のTextureを作る。
+5. `ACCESS_LOST`等で複製が失われたら、Native側で作り直す。間隔を0.25秒から4秒へ広げながら最大5回まで試し、作り直せなければ`Error`（`StartFailed`）。失敗は、最後にFrameを取れた時点から数える（作り直した直後にまた失われる場合も、間隔を空けて最後は諦める）。安全なデスクトップ（UACの確認画面、ロック画面）が出ている間は`E_ACCESSDENIED`で断られるため、1秒ごとに上限なく待つ。その間、Sourceは最後の映像のまま`Capturing`を続ける。
+6. モニターが見つからなくなったら、Native側のSessionは止まり（`MONITOR_LOST`）、Sourceは`Unavailable`（`MonitorNotFound`）になる。戻れば自動で開き直す。
+7. `Stop()`：Sessionを閉じ（Threadの終了を待つ。最大で約100ms）、Textureを解放する。
 
 - 映像の形式は`B8G8R8A8`で、Unityの`TextureFormat.BGRA32`へそのまま転送する。
 - Desktop Duplicationは、画面が変わったときだけFrameを返す。動かない画面ではFrameが届かないが、異常ではない。
 - マウスカーソルは映像に含まれない（Desktop Duplicationの仕様）。描くかどうかは未決事項とする（17章）。
 - 回転したモニター（縦置き）は、まず回転したままの映像を出す。正しい向きへの変換は未決事項とする。
+- モニターの大きさは、現在の表示Modeから取る。DPIに対応していないProcessでは、Desktop座標が拡大率の分だけ小さく返るため（開発用PCで、3840×2160が2560×1440と返った）。
 
 ### 8.3 機器の選び直し
 
@@ -273,7 +277,7 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 ## 9. Thread / async
 
 - `IVideoCaptureSource`の操作、状態の変更、Textureの作成と転送は、すべてMain Threadで行う。
-- SubScreenCaptureのFrameの取得はNative側のThreadで行う。Managed側との受け渡しは3つのBufferと連番による（8.2）。Native Threadは、Unityの関数を呼ばない。
+- SubScreenCaptureでは、モニターを開くこと、複製の作り直し、Frameの取得をすべてNative側のThreadで行う。Managed側は、状態を読むこととFrameを受け取ることだけを行い、どちらも短い排他だけで待たない。受け渡しは3つのBufferと連番による（8.2）。Native Threadは、Unityの関数を呼ばない。
 - `WebCamTexture`はUnityが管理し、Main Threadから操作する。
 - 毎Frameの処理は、転送が必要なときだけ重い（1920×1080で約8MB）。転送時間は計測する（11章）。
 
@@ -323,7 +327,8 @@ public sealed class CaptureSettings
 | `WebCamTexture`が開けない | `Error`（`StartFailed`）。利用者が開始し直せる |
 | Capture Boardに入力がない | `Ready`（`NoSignal`）。取得中に映像が止まった場合も同じ |
 | Desktop Duplicationを失った | Native側で作り直す。失敗が続けば`Error` |
-| Native Pluginがない・読み込めない | `Error`（`PluginMissing`）。開発者向けLogに理由を記録する |
+| Native Pluginがない・読み込めない、またはInterfaceの版が違う | `Error`（`PluginMissing`）。開発者向けLogに理由とビルドの方法を記録する |
+| 機器の一覧を取れない | 一覧は空になる。開始の途中なら`Error`。一覧の取り直しだけなら、取得中のSourceの状態は変えない |
 | 1つのSourceの失敗 | そのSourceだけが止まる。他のSourceや機能は止めない（方式設計10.24） |
 
 ---
@@ -333,7 +338,8 @@ public sealed class CaptureSettings
 - 取り込む画面は利用者の画面であり、個人の情報を含み得る。利用者が開始したSourceだけを取り込み、選んだモニターだけを複製する。
 - 取り込んだ映像は、Processの外へ出さない。試作の名前付き共有メモリは使わない（8.2）。
 - 映像の内容をファイル、Log、診断へ残さない。
-- Native Pluginへ渡す値（モニターの番号等）は、Native側でも範囲を確かめる。
+- Native Pluginへ渡す値（モニターのDevice名の長さ、Pointer、個数）は、Native側でも確かめる。
+- 既定で選んだ機器が外れても、別の機器へ移らない（6.3）。サブモニターが外れたときに主モニターを映したり、Capture Boardが外れたときにWebカメラを映したりしないためである。
 
 ---
 
@@ -344,10 +350,10 @@ public sealed class CaptureSettings
 | EditMode | `CaptureStateMachine`の遷移、機器の既定の選び方、モニターの表示名、Frameの連番による転送の判断（純粋関数） |
 | EditMode | `GameCaptureSource`、`SubScreenCaptureSource`を偽の`ICameraDevices`、`IDesktopDuplication`で動かし、状態、`Unavailable`からの復帰、選び直し、停止時の解放を確かめる |
 | EditMode | `FrameLoop`の順序、例外の分離、登録の解除 |
-| PlayMode | 偽のFrameを`SubScreenCaptureSource`へ渡し、Textureへ転送されること（実際の`Texture2D`） |
-| 実機 | 実際のモニターでSubScreenCaptureが映ること、`ACCESS_LOST`（解像度の変更）から戻ること。実際のCapture BoardでGameCaptureが映ること。`[Explicit]`を付け、名前を指定したときだけ動かす |
-| 性能 | 1920×1080の転送時間（`Capture/subscreen.Upload`）を記録する |
-| Native | `native/capture/`をビルドできること（`tools/native/build-capture.ps1`） |
+| EditMode | 偽のFrameを`SubScreenCaptureSource`へ渡し、実際の`Texture2D`へBGRAのまま転送されること |
+| 実機 | 実際のPluginとモニターでSubScreenCaptureが映ること。実際のCapture BoardでGameCaptureが映ること。`[Explicit]`を付け、名前を指定したときだけ動かす。`ACCESS_LOST`（解像度の変更）からの復帰は、手で解像度を変えて確かめる |
+| 性能 | 1920×1080と3840×2160の転送時間（`SubScreenCaptureHardwareTests.Upload_Timing`、実行時は`Capture/subscreen.Upload`）を記録する |
+| Native | `vv_capture_tests`（CTest）：3つのBufferの受け渡し（Threadをまたぐ場合を含む）、作り直しの方針、行のコピー、C ABIの引数の確認、存在しないモニター。`--hardware`を付けると、実際のモニターを一度だけ複製する。`tools/native/build-capture.ps1`がビルドと実行を行う |
 
 ---
 
@@ -356,6 +362,8 @@ public sealed class CaptureSettings
 - 映像は、Main Threadでの転送（1920×1080、約8MB）が主な負荷となる。新しいFrameがあるときだけ転送し、1Frameに1回までとする。
 - Native側の取得は別Threadで行い、Main Threadを待たせない。Bufferは使い回し、取得のたびにメモリを確保しない。
 - 機器の一覧（`WebCamTexture.devices`）の取得は、開発用PCで4台のとき平均0.72ms、初回は3.86msだった（2026-10-17、`GameCaptureHardwareTests.ListingCameras_Timing`）。`Unavailable`のSourceは2秒ごとに一覧を取得する。取得中のSourceは、映像が1秒届かないときだけ取得する（8.1）。
+- 転送時間（Main Thread、`LoadRawTextureData`と`Apply`）は、開発用PCで1920×1080が平均1.42ms（中央値0.94ms、最大2.95ms）、3840×2160が平均4.95ms（中央値4.24ms、最大13.40ms）だった（2026-10-17、60回）。既定は主モニター以外のため、多くの場合は1920×1080程度になる。
+- Sessionを閉じる時間は、開発用PCで40〜120msだった（Threadが`AcquireNextFrame`の待ちを終えるまで）。
 - GPU間で直接共有する方式（CPUを経由しない）は、性能を測ってから検討する（17章）。試作で動いた方式を変える場合は、比較の計測を行う（CLAUDE.md 33章）。
 
 ---
@@ -369,11 +377,12 @@ Assets/VirtualVessel/Capture/
 │  ├─ CaptureTypes.cs          CaptureSourceKind, CaptureState, CaptureProblem, CaptureDevice, CaptureSourceInfo
 │  ├─ CaptureStateMachine.cs   CaptureEvent, CaptureStatus, CaptureStateMachine
 │  ├─ CaptureSourceBase.cs     Sourceに共通の状態、機器の選択、再確認、計測
+│  ├─ CapturePluginMissingException.cs   Native Pluginがない、または版が違う
 │  ├─ FrameRateMeter.cs        実際に届くFrame Rateを数える（純粋）
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
 │  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
-├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll（17章）
+├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll（ビルドして置く。Gitの管理外。17章）
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/
@@ -381,9 +390,16 @@ Assets/VirtualVessel/Capture/
 native/capture/
 ├─ CMakeLists.txt
 ├─ include/vv_capture.h        C ABIの宣言
-└─ src/desktop_duplication.cpp
+├─ src/
+│  ├─ exports.cpp              C ABIの実装。引数を確かめ、C++の例外を外へ出さない
+│  ├─ capture_session.*        1つのモニターを複製するThreadと状態
+│  ├─ desktop_duplication.*    モニターの列挙、複製の作成、Frameの取得
+│  ├─ frame_exchange.*         3つのBufferの受け渡し（手順は純粋関数）
+│  └─ retry_policy.h           作り直しの方針（純粋関数）
+├─ tests/capture_tests.cpp
+└─ build/                      ビルドの出力（Gitの管理外）
 
-tools/native/build-capture.ps1
+tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 ```
 
 ---
@@ -396,6 +412,7 @@ tools/native/build-capture.ps1
 | GameCaptureの音声（Libraryの選択：NAudio、UnityのMicrophone、Native WASAPI） | Audio Moduleの設計時。NAudioを使う場合は依存の追加として承認を得る |
 | Capture設定の保存先 | Project / Profileの設計時 |
 | SubScreenCaptureでマウスカーソルを描くか | 利用者の要望を確かめてから |
+| 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |
 | Capture Setup画面、Live画面の操作 | 各画面の仕様の作成時 |

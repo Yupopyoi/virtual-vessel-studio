@@ -182,9 +182,11 @@ public sealed class CaptureDevice
 | Source | `Id` | `DisplayName` |
 |---|---|---|
 | GameCapture | `WebCamDevice.name` | The same |
-| SubScreenCapture | The monitor's device name (for example `\\.\DISPLAY2`) | Its number and resolution, such as "Monitor 2 (1920×1080)", with a mark for the main monitor |
+| SubScreenCapture | The monitor's device name (for example `\\.\DISPLAY2`) | Its device name and resolution, such as "DISPLAY2 (1920×1080)". It has no words, so it reads the same in every language. A translated name with a number and a mark for the main monitor is built by the setup screen (chapter 17) |
 
 SubScreenCapture defaults to the first monitor that is not the main one. With a single monitor it picks that one, for trying it out.
+
+A device chosen by default stays chosen once it is opened. When it goes away, the source waits for it to come back instead of moving to another device (the main monitor, a webcam, and so on), so that it never shows a screen or video the user did not mean to (chapter 13).
 
 ---
 
@@ -252,16 +254,18 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 | It swallowed exceptions with SEH | Checks ranges before copying and reports failures as states |
 
 1. `Start()`: if the chosen monitor is not found, `Unavailable` (`MonitorNotFound`).
-2. The native side creates a D3D11 device on the GPU the monitor is attached to, calls `DuplicateOutput`, and starts its capture thread. `Starting` → `Ready`.
-3. The thread waits in `AcquireNextFrame` (100 ms). When a frame comes, it copies it to the staging texture, maps it, and copies it row by row into a free buffer. Then it advances the frame number and makes that buffer the latest.
-4. Every frame, the managed side looks at the latest buffer's number. When it changed, it takes that buffer for reading and uploads it with `Texture2D.LoadRawTextureData` and `Apply`. The first frame makes it `Capturing`.
-5. When the duplication is lost (`ACCESS_LOST` and so on), the native side recreates it (up to 5 times, with pauses). If it cannot, `Error` (`StartFailed`).
-6. `Stop()`: stops the thread and releases the COM references, buffers, and texture.
+2. `vv_capture_open` starts a native thread and returns at once. The thread finds the monitor by device name among the outputs of every GPU, creates a D3D11 device on that GPU, and calls `DuplicateOutput`. `Starting` until the native side is running, then `Ready`. The main thread never waits for the device to be created.
+3. The thread waits in `AcquireNextFrame` (100 ms). For a frame with a new image (not only a mouse pointer update), it copies the image to the staging texture (reused until the size changes) and maps it. It gives the frame back to the desktop right away, then copies the rows into the writable buffer, gives it the next number, and makes it the latest.
+4. Every frame, the managed side reads the native status. When the number changed, it takes the latest buffer and uploads it with `Texture2D.LoadRawTextureData` and `Apply`. The first frame makes it `Capturing`. A new size gets a new texture.
+5. When the duplication is lost (`ACCESS_LOST` and so on), the native side creates it again, up to 5 retries with pauses growing from 0.25 to 4 seconds. If it cannot, `Error` (`StartFailed`). Failures count from the last captured frame, so a duplication lost again right after being created also pauses and finally gives up. The secure desktop (a UAC prompt, the lock screen) refuses it with `E_ACCESSDENIED` while it is shown, so then it waits, trying every second without limit. Meanwhile the source stays `Capturing` with the last image.
+6. When the monitor is not found any more, the native session stops (`MONITOR_LOST`) and the source becomes `Unavailable` (`MonitorNotFound`); it reopens automatically when the monitor comes back.
+7. `Stop()`: closes the session (waiting for its thread, about 100 ms at most) and releases the texture.
 
 - Frames are `B8G8R8A8` and uploaded as-is to Unity's `TextureFormat.BGRA32`.
 - Desktop Duplication returns a frame only when the screen changes. A still screen sends no frames; that is not a failure.
 - The mouse cursor is not in the image (a property of Desktop Duplication). Whether to draw it is an open issue (chapter 17).
 - A rotated (portrait) monitor is first shown as it comes, rotated. Correcting the orientation is an open issue.
+- A monitor's size comes from its current display mode. For a process that is not DPI aware, the desktop coordinates come back smaller by the scale factor (3840×2160 came back as 2560×1440 on the development PC).
 
 ### 8.3 Choosing Another Device
 
@@ -273,7 +277,7 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 ## 9. Threading / Async
 
 - Operating `IVideoCaptureSource`, changing states, and creating and uploading textures all happen on the main thread.
-- SubScreenCapture acquires frames on a native thread. It hands them to the managed side through the three buffers and the frame number (8.2). The native thread never calls Unity.
+- In SubScreenCapture, opening the monitor, creating the duplication again, and acquiring frames all happen on the native thread. The managed side only reads the status and takes frames, both with short locks and no waiting. Frames are handed over through the three buffers and the frame number (8.2). The native thread never calls Unity.
 - Unity manages `WebCamTexture`, which is operated from the main thread.
 - Per-frame work is heavy only when an upload is needed (about 8 MB at 1920×1080). The upload time is measured (chapter 11).
 
@@ -323,7 +327,8 @@ public sealed class CaptureSettings
 | `WebCamTexture` cannot open | `Error` (`StartFailed`). The user can start it again |
 | No input on the capture board | `Ready` with `NoSignal`; the same when the video stops while capturing |
 | Desktop Duplication is lost | Recreated on the native side; `Error` if failures continue |
-| The native plugin is missing or cannot load | `Error` (`PluginMissing`). The reason goes to the developer log |
+| The native plugin is missing, cannot load, or has another interface version | `Error` (`PluginMissing`). The reason and how to build the plugin go to the developer log |
+| The device list cannot be read | The list is empty. While starting, `Error`. Only refreshing the list leaves a running source as it is |
 | One source fails | Only that source stops; other sources and features keep running (system design 10.24) |
 
 ---
@@ -333,7 +338,8 @@ public sealed class CaptureSettings
 - The captured screen is the user's screen and may contain personal information. Only sources the user started are captured, and only the chosen monitor is duplicated.
 - Captured video never leaves the process. The prototype's named shared memory is not used (8.2).
 - The content of the video is never written to files, logs, or diagnostics.
-- Values passed to the native plugin (such as the monitor number) are checked on the native side too.
+- Values passed to the native plugin (the length of the monitor's device name, pointers, counts) are checked on the native side too.
+- A device chosen by default that goes away is not replaced by another one (6.3), so that losing a sub monitor never shows the main monitor, and losing a capture board never shows a webcam.
 
 ---
 
@@ -344,10 +350,10 @@ public sealed class CaptureSettings
 | EditMode | `CaptureStateMachine` transitions, choosing the default device, monitor display names, deciding uploads from frame numbers (pure functions) |
 | EditMode | `GameCaptureSource` and `SubScreenCaptureSource` driven by fake `ICameraDevices` and `IDesktopDuplication`: states, recovering from `Unavailable`, choosing again, releasing on stop |
 | EditMode | `FrameLoop` order, isolating exceptions, removing registrations |
-| PlayMode | Fake frames handed to `SubScreenCaptureSource` are uploaded to a real `Texture2D` |
-| Hardware | SubScreenCapture shows a real monitor and recovers from `ACCESS_LOST` (a resolution change); GameCapture shows a real capture board. Marked `[Explicit]` and run only by name |
-| Performance | Records the upload time at 1920×1080 (`Capture/subscreen.Upload`) |
-| Native | `native/capture/` builds (`tools/native/build-capture.ps1`) |
+| EditMode | Fake frames handed to `SubScreenCaptureSource` are uploaded as BGRA to a real `Texture2D` |
+| Hardware | SubScreenCapture shows a real monitor through the real plugin; GameCapture shows a real capture board. Marked `[Explicit]` and run only by name. Recovering from `ACCESS_LOST` (a resolution change) is checked by changing the resolution by hand |
+| Performance | Records the upload time at 1920×1080 and 3840×2160 (`SubScreenCaptureHardwareTests.Upload_Timing`; `Capture/subscreen.Upload` at run time) |
+| Native | `vv_capture_tests` (CTest): handing over through the three buffers (across threads too), the retry policy, the row copy, the C ABI's argument checks, a monitor that does not exist. With `--hardware` it duplicates a real monitor once. `tools/native/build-capture.ps1` builds and runs it |
 
 ---
 
@@ -356,6 +362,8 @@ public sealed class CaptureSettings
 - The main cost is the upload on the main thread (1920×1080, about 8 MB). Uploads happen only when there is a new frame, at most once per frame.
 - The native side acquires frames on its own thread and never makes the main thread wait. Buffers are reused, so acquiring allocates no memory.
 - Listing the devices (`WebCamTexture.devices`) took 0.72 ms on average with 4 devices on the development PC, and 3.86 ms the first time (2026-10-17, `GameCaptureHardwareTests.ListingCameras_Timing`). `Unavailable` sources list them every 2 seconds; capturing sources list them only when no video has arrived for a second (8.1).
+- The upload time on the main thread (`LoadRawTextureData` and `Apply`) on the development PC was 1.42 ms on average at 1920×1080 (median 0.94 ms, max 2.95 ms) and 4.95 ms at 3840×2160 (median 4.24 ms, max 13.40 ms) (2026-10-17, 60 uploads). The default is a monitor other than the main one, which is often about 1920×1080.
+- Closing a session took 40 to 120 ms on the development PC (until the thread finishes waiting in `AcquireNextFrame`).
 - Sharing directly on the GPU (without the CPU) is considered after measuring (chapter 17). Replacing the approach the prototype proved requires a comparison measurement (CLAUDE.md chapter 33).
 
 ---
@@ -369,11 +377,12 @@ Assets/VirtualVessel/Capture/
 │  ├─ CaptureTypes.cs          CaptureSourceKind, CaptureState, CaptureProblem, CaptureDevice, CaptureSourceInfo
 │  ├─ CaptureStateMachine.cs   CaptureEvent, CaptureStatus, CaptureStateMachine
 │  ├─ CaptureSourceBase.cs     State, device choice, checking again, and metrics shared by sources
+│  ├─ CapturePluginMissingException.cs   The native plugin is missing or of another version
 │  ├─ FrameRateMeter.cs        Counts the frame rate that actually arrives (pure)
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
 │  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
-├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll (chapter 17)
+├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll (built and copied here; not in Git; chapter 17)
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/
@@ -381,9 +390,16 @@ Assets/VirtualVessel/Capture/
 native/capture/
 ├─ CMakeLists.txt
 ├─ include/vv_capture.h        The C ABI declarations
-└─ src/desktop_duplication.cpp
+├─ src/
+│  ├─ exports.cpp              The C ABI: checks arguments and keeps C++ exceptions inside
+│  ├─ capture_session.*        The thread and state of one duplicated monitor
+│  ├─ desktop_duplication.*    Listing monitors, creating the duplication, acquiring frames
+│  ├─ frame_exchange.*         Handing frames over through three buffers (the steps are pure)
+│  └─ retry_policy.h           When to create the duplication again (pure)
+├─ tests/capture_tests.cpp
+└─ build/                      Build output (not in Git)
 
-tools/native/build-capture.ps1
+tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 ```
 
 ---
@@ -396,6 +412,7 @@ tools/native/build-capture.ps1
 | GameCapture audio (library: NAudio, Unity's Microphone, native WASAPI) | With the Audio module design. Using NAudio needs approval as a new dependency |
 | Where capture settings are stored | With the Project / Profile design |
 | Whether SubScreenCapture draws the mouse cursor | After checking what the user wants |
+| Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
 | Sharing directly on the GPU | Decided from the measured upload times |
 | Capture setup screen and live screen controls | When each screen's specification is written |
