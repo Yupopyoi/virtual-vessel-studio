@@ -66,6 +66,45 @@ class StringTableTests(unittest.TestCase):
         self.assertTrue(errors[1].startswith("Invalid JSON in ja.json"))
 
 
+class SbomTests(unittest.TestCase):
+    LOCK = '{"dependencies": {"com.unity.ugui": {"version": "2.6.0"}, "com.unity.modules.ui": {"version": "1.0.0"}}}'
+    WORKFLOW = "steps:\n  - uses: actions/checkout@v4\n  - uses: ./local-action\n"
+
+    @staticmethod
+    def component(reference, version="1", scope="required"):
+        return {"bom-ref": reference, "name": reference, "version": version, "licenses": [{"license": {"id": "MIT"}}], "scope": scope}
+
+    def sbom(self, *components):
+        import json
+        return json.dumps({"bomFormat": "CycloneDX", "components": list(components)})
+
+    def required(self):
+        tracked = ["unity/VirtualVesselStudio/Assets/ThirdParty/Font/Font.ttf", "unity/VirtualVesselStudio/Assets/ThirdParty/Font.meta"]
+        return repo_checks.sbom_requirements(self.LOCK, tracked, {"ci.yml": self.WORKFLOW})
+
+    def test_requirements_skip_modules_and_local_actions(self):
+        self.assertEqual(self.required(), {"unity-package:com.unity.ugui": "2.6.0", "asset:Font": None, "github-action:actions/checkout@v4": None})
+
+    def test_complete_sbom_passes(self):
+        sbom = self.sbom(self.component("unity-package:com.unity.ugui", "2.6.0"), self.component("asset:Font"), self.component("github-action:actions/checkout@v4", scope="excluded"))
+        self.assertEqual(repo_checks.check_sbom(sbom, self.required()), [])
+
+    def test_missing_wrong_version_and_stale_entries(self):
+        sbom = self.sbom(self.component("unity-package:com.unity.ugui", "2.5.0"), self.component("asset:Old"))
+        errors = repo_checks.check_sbom(sbom, self.required())
+        self.assertIn("SBOM: unity-package:com.unity.ugui is 2.5.0, but the repository uses 2.6.0", errors)
+        self.assertIn("SBOM: missing asset:Font", errors)
+        self.assertIn("SBOM: missing github-action:actions/checkout@v4", errors)
+        self.assertIn("SBOM: asset:Old is listed but no longer used", errors)
+
+    def test_nested_components_need_a_license_and_scope(self):
+        parent = self.component("unity-package:com.unity.ugui", "2.6.0")
+        parent["components"] = [{"bom-ref": "inner", "name": "inner", "version": "1"}]
+        errors = repo_checks.check_sbom(self.sbom(parent), {})
+        self.assertIn("SBOM: inner has no license", errors)
+        self.assertIn("SBOM: inner needs a scope (required, optional, or excluded)", errors)
+
+
 class DocPairTests(unittest.TestCase):
     def test_pairs_pass_and_assets_are_ignored(self):
         tracked = ["docs/ja/ui/a.md", "docs/en/ui/a.md", "docs/assets/ui/styleboard.html"]

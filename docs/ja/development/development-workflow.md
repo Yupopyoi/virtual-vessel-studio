@@ -859,6 +859,7 @@ PR CIが失敗している変更は原則Mergeしない。
 | GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
 | 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること |
 
 - 確認はgitで追跡しているファイルに対して行う。手元にだけあるファイルは対象にしないため、コミットし忘れや`.meta`の抜けを見つけられる。
 - 確認処理は`tools/ci/repo_checks.py`にあり、確認処理自体の単体テスト（`tools/ci/test_repo_checks.py`）もCIで実行する。
@@ -873,6 +874,14 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 
 - 手元では、同じスクリプトでビルドし、DLLをUnityのProjectへ写す（Visual StudioとCMakeが必要）。
 - 配布物へのDLLの組み込みは、main Build（18.2）のNative Plugin Packagingで扱う。
+
+### 18.1.2 SBOM
+
+言語の標準ライブラリとOS以外に使うもの（Unity Package、フォントやモデル等の同梱Asset、Pluginに組み込むNativeのライブラリやランタイム、Python Package、外部OSS、GitHub Action、ビルドツール）は、すべて`sbom/virtual-vessel-studio.cdx.json`（CycloneDX 1.6）に記録する。
+
+- 追加、更新、削除と同じ変更でSBOMを直す。
+- 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
+- Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
 
 ## 18.2 main Build
 

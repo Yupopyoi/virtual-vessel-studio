@@ -6,6 +6,9 @@ Checks the files tracked by git:
   and no two .meta files share a GUID (a common result of copying or merging assets).
 * String tables: every locale file parses and has the same keys as the others.
 * Documentation: docs/ja and docs/en contain the same documents.
+* SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
+  every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
+  license and a scope.
 
 Run from the repository root:  python tools/ci/repo_checks.py
 Standard library only; Python 3.10 or later.
@@ -25,6 +28,12 @@ from typing import Iterable, Mapping
 ASSETS_ROOT = "unity/VirtualVesselStudio/Assets"
 STRING_TABLE_DIRS = ("unity/VirtualVesselStudio/Assets/VirtualVessel/UI/Strings",)
 DOC_LANGUAGES = ("ja", "en")
+SBOM_PATH = "sbom/virtual-vessel-studio.cdx.json"
+PACKAGES_LOCK = "unity/VirtualVesselStudio/Packages/packages-lock.json"
+THIRD_PARTY_ROOT = "unity/VirtualVesselStudio/Assets/ThirdParty"
+WORKFLOWS_DIR = ".github/workflows"
+
+_USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 
 _GUID = re.compile(r"^guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 
@@ -116,6 +125,74 @@ def check_doc_pairs(tracked: Iterable[str], languages: tuple[str, ...] = DOC_LAN
     ]
 
 
+def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str]) -> dict[str, str | None]:
+    """The SBOM entries the repository needs: bom-ref to required version (None when any version will do)."""
+    required: dict[str, str | None] = {}
+    for name, package in json.loads(packages_lock).get("dependencies", {}).items():
+        # Built-in modules are part of the engine, listed once as the Unity Engine.
+        if not name.startswith("com.unity.modules."):
+            required[f"unity-package:{name}"] = package.get("version")
+
+    prefix = THIRD_PARTY_ROOT + "/"
+    for path in tracked:
+        if path.startswith(prefix):
+            folder = path[len(prefix):].split("/")[0]
+            if not folder.endswith(".meta") and "/" in path[len(prefix):]:
+                required[f"asset:{folder}"] = None
+
+    for text in workflows.values():
+        for action in _USES.findall(text):
+            if not action.startswith("./"):
+                required[f"github-action:{action}"] = None
+
+    return required
+
+
+def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
+    """Problems in the CycloneDX SBOM: format, entries without a license or scope, and missing or stale entries."""
+    try:
+        document = json.loads(sbom)
+    except json.JSONDecodeError as error:
+        return [f"SBOM is not valid JSON: {error}"]
+
+    if document.get("bomFormat") != "CycloneDX":
+        return ["SBOM: bomFormat must be CycloneDX"]
+
+    errors = []
+    components: dict[str, dict] = {}
+    pending = list(document.get("components", []))
+    while pending:
+        component = pending.pop()
+        pending.extend(component.get("components", []))
+        reference = component.get("bom-ref")
+        if not reference:
+            errors.append(f"SBOM component without bom-ref: {component.get('name')}")
+            continue
+        if reference in components:
+            errors.append(f"SBOM: duplicate bom-ref {reference}")
+        components[reference] = component
+        if not component.get("version"):
+            errors.append(f"SBOM: {reference} has no version")
+        if not component.get("licenses"):
+            errors.append(f"SBOM: {reference} has no license")
+        if component.get("scope") not in ("required", "optional", "excluded"):
+            errors.append(f"SBOM: {reference} needs a scope (required, optional, or excluded)")
+
+    for reference, version in sorted(required.items()):
+        component = components.get(reference)
+        if component is None:
+            errors.append(f"SBOM: missing {reference}")
+        elif version is not None and component.get("version") != version:
+            errors.append(f"SBOM: {reference} is {component.get('version')}, but the repository uses {version}")
+
+    kinds = ("unity-package:", "asset:", "github-action:")
+    for reference in sorted(components):
+        if reference.startswith(kinds) and reference not in required:
+            errors.append(f"SBOM: {reference} is listed but no longer used")
+
+    return errors
+
+
 def tracked_files(repository: Path) -> list[str]:
     output = subprocess.run(
         ["git", "ls-files", "-z"], cwd=repository, check=True, capture_output=True
@@ -141,6 +218,18 @@ def run(repository: Path) -> list[str]:
         errors += check_string_tables(tables)
 
     errors += check_doc_pairs(tracked)
+
+    workflows = {
+        p: (repository / p).read_text(encoding="utf-8")
+        for p in tracked
+        if posixpath.dirname(p) == WORKFLOWS_DIR and p.endswith((".yml", ".yaml"))
+    }
+    required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows)
+    if SBOM_PATH in tracked:
+        errors += check_sbom((repository / SBOM_PATH).read_text(encoding="utf-8"), required)
+    else:
+        errors.append(f"Missing {SBOM_PATH}")
+
     return errors
 
 
