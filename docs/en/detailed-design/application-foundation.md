@@ -78,6 +78,7 @@ No static service locator or global context that holds all services and allows a
 | `IMainThreadDispatcher` | Interface | Passes work from any thread to the main thread |
 | `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations |
 | `MainThreadDispatcher` | Class | Queue-based implementation of `IMainThreadDispatcher`. The owner of the main thread calls `Drain` every frame |
+| `IFrameLoop` / `FrameLoop` | Interface / Class | Registers and calls work run on the main thread every frame (5.5) |
 
 The clocks and `MainThreadDispatcher` are pure .NET code that does not depend on UnityEngine and do not belong to a specific module, so they are placed in Core. This allows fast EditMode tests and reuse in other modules' tests.
 
@@ -85,7 +86,7 @@ The clocks and `MainThreadDispatcher` are pure .NET code that does not depend on
 
 | Name | Kind | Summary |
 |---|---|---|
-| `ApplicationBootstrap` | MonoBehaviour | The single entry point placed in the persistent scene. Connects the Unity lifecycle with `ApplicationRuntime` and calls `MainThreadDispatcher.Drain` every frame |
+| `ApplicationBootstrap` | MonoBehaviour | The single entry point placed in the persistent scene. Connects the Unity lifecycle with `ApplicationRuntime` and calls `MainThreadDispatcher.Drain` and `FrameLoop.Tick` every frame |
 | `ApplicationRuntime` | Internal class | Runs the startup / shutdown sequence (Data Root resolution, session, composition, host). Separated from `ApplicationBootstrap` so that the parts that do not depend on UnityEngine can be tested in EditMode |
 | `ApplicationHost` | Internal class | Manages the startup / shutdown order and state of services |
 | `ApplicationComposition` | Internal class | Explicitly describes which services are created, in what order, and with which dependencies |
@@ -180,6 +181,22 @@ public interface IDataRoot
 ```
 
 `DataRootDirectory` is an enum representing the standard directories of system design 6.10 (Projects, Profiles, Avatars, Logs, Cache, etc.).
+
+### 5.5 IFrameLoop
+
+```csharp
+public interface IFrameLoop
+{
+    IDisposable Register(Action tick);
+}
+```
+
+- Registers work called on the main thread every frame; disposing the returned value removes it. It is for work that follows Unity frames, such as uploading captured video to a texture (Capture detailed design 7.3).
+- `ApplicationBootstrap.Update` calls `FrameLoop.Tick` after `MainThreadDispatcher.Drain`, which calls the work in registration order.
+- One piece of work throwing does not stop the others. The exception is recorded as an error; later exceptions from the same work are not recorded.
+- Work registered during a call runs from the next frame. Removal takes effect at once: work not yet called is skipped, so nothing runs after its owner was disposed.
+- The composition passes it explicitly to the factories of the services that need it; it is not a static instance.
+- `FrameLoop` is pure .NET code that does not depend on UnityEngine, so EditMode tests can call `Tick` directly.
 
 ---
 
@@ -453,6 +470,7 @@ Records produced before the logging service starts are kept in memory and output
 | EditMode | Data Root resolution order, corrupted `bootstrap.json`, unwritable directory (using temporary directories) |
 | EditMode | Detecting abnormal termination of the previous session with the session marker |
 | EditMode | Ordering guarantee and item limit of the main thread dispatcher |
+| EditMode | `FrameLoop` call order, isolating exceptions, removing registrations, registering during a call |
 | PlayMode | Loading the persistent scene, reaching `Running`, and shutting down normally |
 
 `ApplicationHost` is implemented without depending on UnityEngine so that it can be tested quickly in EditMode.

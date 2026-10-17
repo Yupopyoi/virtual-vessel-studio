@@ -6,6 +6,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Startup;
+using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.DataRoot;
@@ -32,6 +33,7 @@ namespace VirtualVessel.Application
         private UiRoot _uiRoot;
 
         private MainThreadDispatcher _dispatcher;
+        private FrameLoop _frameLoop;
         private BufferedApplicationLog _log;
         private ApplicationRuntime _runtime;
         private Task _startTask;
@@ -53,6 +55,7 @@ namespace VirtualVessel.Application
 
             var systemClock = new UtcSystemClock();
             _dispatcher = new MainThreadDispatcher();
+            _frameLoop = new FrameLoop();
             _log = new BufferedApplicationLog(() => systemClock.UtcNow, WriteToUnityConsole);
 
             ApplicationStartupOptions options = ApplicationStartupOptions.FromEnvironment(
@@ -69,7 +72,8 @@ namespace VirtualVessel.Application
                 _dispatcher,
                 _log,
                 ApplicationComposition.Create,
-                _uiRoot);
+                _uiRoot,
+                _frameLoop);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
             _startTask = StartRuntimeAsync();
@@ -78,6 +82,7 @@ namespace VirtualVessel.Application
         private void Update()
         {
             _dispatcher?.Drain(MaxDispatchedActionsPerFrame, OnDispatchedActionFailed);
+            _frameLoop?.Tick(OnFrameWorkFailed);
         }
 
         private void OnApplicationQuit()
@@ -203,6 +208,11 @@ namespace VirtualVessel.Application
             await StopRuntimeAsync();
             _quitAllowed = true;
             UnityEngine.Application.Quit();
+        }
+
+        private void OnFrameWorkFailed(Exception exception)
+        {
+            _log.Write(ApplicationLogLevel.Error, "Per-frame work failed. Its later failures are not recorded.", exception);
         }
 
         private void OnDispatchedActionFailed(Exception exception)

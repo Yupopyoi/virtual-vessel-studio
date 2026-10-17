@@ -6,6 +6,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.DataRoot;
@@ -32,6 +33,7 @@ namespace VirtualVessel.Application.Startup
         private readonly BufferedApplicationLog _log;
         private readonly Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> _compose;
         private readonly UiRoot _uiRoot;
+        private readonly IFrameLoop _frameLoop;
 
         private SessionMarker _sessionMarker;
         private bool _sessionMarkerWritten;
@@ -47,7 +49,8 @@ namespace VirtualVessel.Application.Startup
             IMainThreadDispatcher mainThreadDispatcher,
             BufferedApplicationLog log,
             Func<ApplicationCompositionContext, IReadOnlyList<ApplicationServiceDescriptor>> compose,
-            UiRoot uiRoot = null)
+            UiRoot uiRoot = null,
+            IFrameLoop frameLoop = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _buildInfo = buildInfo ?? throw new ArgumentNullException(nameof(buildInfo));
@@ -59,6 +62,7 @@ namespace VirtualVessel.Application.Startup
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _compose = compose ?? throw new ArgumentNullException(nameof(compose));
             _uiRoot = uiRoot;
+            _frameLoop = frameLoop;
         }
 
         public ApplicationState State => Host?.State ?? _startupFailureState;
@@ -93,7 +97,7 @@ namespace VirtualVessel.Application.Startup
 
             StartSession();
 
-            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log, _dataRootResolver.ConfigDirectory, _uiRoot);
+            var context = new ApplicationCompositionContext(DataRoot, Session, _buildInfo, _environment, _monotonicClock, _systemClock, _mainThreadDispatcher, _log, _dataRootResolver.ConfigDirectory, _uiRoot, _frameLoop);
             IReadOnlyList<ApplicationServiceDescriptor> descriptors;
             try
             {

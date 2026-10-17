@@ -5,6 +5,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -42,7 +43,8 @@ namespace VirtualVessel.Application.Startup
             IMainThreadDispatcher mainThreadDispatcher,
             BufferedApplicationLog foundationLog,
             string configDirectory = null,
-            UiRoot uiRoot = null)
+            UiRoot uiRoot = null,
+            IFrameLoop frameLoop = null)
         {
             DataRoot = dataRoot ?? throw new ArgumentNullException(nameof(dataRoot));
             Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -54,6 +56,7 @@ namespace VirtualVessel.Application.Startup
             FoundationLog = foundationLog ?? throw new ArgumentNullException(nameof(foundationLog));
             ConfigDirectory = configDirectory;
             UiRoot = uiRoot;
+            FrameLoop = frameLoop;
         }
 
         public IDataRoot DataRoot { get; }
@@ -77,6 +80,9 @@ namespace VirtualVessel.Application.Startup
 
         /// <summary>The UI entry point in the persistent scene; null when there is no UI, as in tests.</summary>
         public UiRoot UiRoot { get; }
+
+        /// <summary>Per-frame work on the main thread; null where nothing drives frames, as in some tests.</summary>
+        public IFrameLoop FrameLoop { get; }
     }
 
     /// <summary>
