@@ -173,6 +173,7 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 - Flat videos go behind the avatar (the user's decision, 2026-10-17). The order is kept as a table so that choosing front or back per video can be added later.
 - The Screen Camera is not a child of the Main Camera. It sits at the origin with an orthographic projection and draws only the stream screen, so flat videos stay put when the Main Camera moves.
 - The Unity layer `StreamScreens` is added to the project settings.
+- With the Main Camera drawing into the Stream Render Target, no camera would draw the application window, and the UI drawn on top of the window would not show. A Window Camera that draws nothing and only clears (no layers, cleared to black) keeps it drawn.
 
 ### 7.3 Coordinates of the Flat Video Layer
 

@@ -73,6 +73,16 @@ namespace VirtualVessel.Video.Tests
         }
 
         [Test]
+        public void AWindowCamera_KeepsTheWindowDrawn_WithoutDrawingAnything()
+        {
+            Camera window = _video.WindowCamera;
+
+            Assert.That(window, Is.Not.Null, "Without a camera on the window, the UI on top of it does not show.");
+            Assert.That(window.targetTexture, Is.Null);
+            Assert.That(window.cullingMask, Is.EqualTo(0));
+        }
+
+        [Test]
         public void Shutdown_GivesTheCameraBack_AndReleasesWhatItMade()
         {
             Camera camera = _cameraObject.GetComponent<Camera>();

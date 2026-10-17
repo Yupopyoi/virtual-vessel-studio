@@ -35,6 +35,7 @@ namespace VirtualVessel.Video
         private readonly PerfCounter _frames;
         private RenderTexture _target;
         private GameObject _screenCameraObject;
+        private GameObject _windowCameraObject;
         private Camera _screenCamera;
         private GameObject _root;
         private IDisposable _tick;
@@ -75,6 +76,9 @@ namespace VirtualVessel.Video
         /// <summary>For the UI's stream preview: the same texture that is streamed (system design 10.6).</summary>
         public IStreamPreviewSource Preview { get; }
 
+        /// <summary>The camera that keeps the window drawn so the UI shows; for tests.</summary>
+        internal Camera WindowCamera => _windowCameraObject != null ? _windowCameraObject.GetComponent<Camera>() : null;
+
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
             _layer = LayerMask.NameToLayer(ScreenLayerName);
@@ -114,6 +118,16 @@ namespace VirtualVessel.Video
             UniversalAdditionalCameraData screenData = _screenCamera.GetUniversalAdditionalCameraData();
             screenData.renderType = CameraRenderType.Overlay;
             mainData.cameraStack.Add(_screenCamera);
+
+            // The Main Camera now draws into the stream target, so nothing would draw the window and
+            // the UI, which is drawn on top of the window, would not show. This camera only clears it.
+            _windowCameraObject = new GameObject("WindowCamera");
+            Camera windowCamera = _windowCameraObject.AddComponent<Camera>();
+            windowCamera.cullingMask = 0;
+            windowCamera.clearFlags = CameraClearFlags.SolidColor;
+            windowCamera.backgroundColor = Color.black;
+            windowCamera.depth = _mainCamera.depth + 1;
+            windowCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Base;
 
             _root = new GameObject("StreamScreens") { layer = _layer };
             (Vector3 position, Vector3 scale) = ScreenLayerMath.RootPlacement(Size.Aspect);
@@ -185,6 +199,8 @@ namespace VirtualVessel.Video
 
             DestroyObject(_root);
             DestroyObject(_screenCameraObject);
+            DestroyObject(_windowCameraObject);
+            _windowCameraObject = null;
             _root = null;
             _screenCameraObject = null;
             _screenCamera = null;

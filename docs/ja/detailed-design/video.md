@@ -172,6 +172,7 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 - 平面の映像はアバターの後ろに出す（利用者の決定、2026-10-17）。映像ごとに前後を選ぶ機能は後で足せるよう、層の順は表で管理する。
 - Screen CameraはMain Cameraの子にしない。正射影で原点に置き、配信画面の範囲だけを描く。Main Cameraが動いても平面の映像は動かない。
 - Unityの層`StreamScreens`をProject設定に追加する。
+- Main CameraがStream Render Targetへ描くため、アプリのウィンドウへ描くカメラがなくなる。ウィンドウに描くカメラがないと、その上に描くUIが表示されない。そのため、何も描かずに消去だけするWindow Camera（描く層なし、黒で消去）を置く。
 
 ### 7.3 平面の映像の層の座標
 
