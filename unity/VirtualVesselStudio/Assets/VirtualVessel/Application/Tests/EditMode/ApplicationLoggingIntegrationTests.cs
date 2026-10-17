@@ -7,6 +7,8 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Startup;
+using VirtualVessel.Capture;
+using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -80,6 +82,51 @@ namespace VirtualVessel.Application.Tests
             }
         }
 
+        [Test]
+        public void Composition_AddsOptionalCapture_OnlyWithAFrameLoop()
+        {
+            Assert.That(ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor)).Select(d => d.Name), Has.No.Member(CaptureService.ServiceName));
+
+            var descriptors = ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor, frameLoop: new FrameLoop()));
+            ApplicationServiceDescriptor capture = descriptors.Single(d => d.Name == CaptureService.ServiceName);
+
+            Assert.That(capture.Criticality, Is.EqualTo(ServiceCriticality.Optional), "Missing capture hardware does not stop the application.");
+            Assert.That(capture.DependsOn, Is.EqualTo(new[] { LoggingService.ServiceName }));
+        }
+
+        [Test]
+        public async Task Runtime_WithAFrameLoop_StartsCapture_AndRemovesItsFrameWorkOnStop()
+        {
+            var frameLoop = new FrameLoop();
+            var runtime = new ApplicationRuntime(
+                new ApplicationStartupOptions(Path.Combine(_tempDirectory, "Data"), TimeSpan.FromSeconds(10)),
+                new BuildInfo("0.0.0-test", UnityEngine.Application.unityVersion, null, "test"),
+                RuntimeEnvironment.Editor,
+                new DataRootResolver(Path.Combine(_tempDirectory, "LocalAppData")),
+                new StopwatchMonotonicClock(),
+                new UtcSystemClock(),
+                new MainThreadDispatcher(),
+                new BufferedApplicationLog(() => DateTimeOffset.UtcNow, null),
+                ApplicationComposition.Create,
+                frameLoop: frameLoop);
+
+            await runtime.StartAsync();
+            try
+            {
+                Assert.That(runtime.State, Is.EqualTo(ApplicationState.Running));
+                Assert.That(frameLoop.Count, Is.EqualTo(1), "Capture updates its sources every frame.");
+
+                // Every source starts stopped, so a frame opens no capture board or monitor.
+                frameLoop.Tick(exception => Assert.Fail(exception.ToString()));
+            }
+            finally
+            {
+                await runtime.StopAsync();
+            }
+
+            Assert.That(frameLoop.Count, Is.EqualTo(0), "Stopping removes the per-frame work.");
+        }
+
         [TestCase(RuntimeEnvironment.Editor, true)]
         [TestCase(RuntimeEnvironment.Player, false)]
         public void PerformanceSettings_DetailedDefaultsByEnvironment(RuntimeEnvironment environment, bool expected)
@@ -129,7 +176,7 @@ namespace VirtualVessel.Application.Tests
             Assert.That(lines.Last(), Does.Contain("Logging stopped."));
         }
 
-        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment, UiRoot uiRoot = null)
+        private ApplicationCompositionContext CreateContext(RuntimeEnvironment environment, UiRoot uiRoot = null, IFrameLoop frameLoop = null)
         {
             IDataRoot dataRoot = new DataRootResolver(Path.Combine(_tempDirectory, "LocalAppData")).Resolve(Path.Combine(_tempDirectory, "Data")).DataRoot;
             return new ApplicationCompositionContext(
@@ -142,7 +189,8 @@ namespace VirtualVessel.Application.Tests
                 new MainThreadDispatcher(),
                 new BufferedApplicationLog(() => DateTimeOffset.UtcNow, null),
                 Path.Combine(_tempDirectory, "LocalAppData", "Config"),
-                uiRoot);
+                uiRoot,
+                frameLoop);
         }
     }
 }

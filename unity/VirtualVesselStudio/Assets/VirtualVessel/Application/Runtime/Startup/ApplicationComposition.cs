@@ -5,6 +5,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
@@ -130,6 +131,23 @@ namespace VirtualVessel.Application.Startup
                     context.SystemClock,
                     logging.Provider.GetLog("Diagnostics", "Performance")),
                 new[] { LoggingService.ServiceName }));
+
+            // Capture is Optional: without a capture board or a monitor everything else keeps working
+            // (capture detailed design 7.1). Its sources are updated every frame, so it needs the frame
+            // loop, which tests without frames leave out.
+            if (context.FrameLoop != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    CaptureService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => CaptureService.Create(
+                        new CaptureSettings(),
+                        context.FrameLoop,
+                        context.MonotonicClock,
+                        metrics,
+                        logging.Provider.GetLog("Capture", "Sources")),
+                    new[] { LoggingService.ServiceName }));
+            }
 
             // The UI comes last so that it is built after every service it shows has started, and it
             // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
