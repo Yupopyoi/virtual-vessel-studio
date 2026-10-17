@@ -236,10 +236,11 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             AppShell shell = _root.Shell;
-            Assert.That(shell.Items.Select(item => item.TextKey), Is.EqualTo(new[] { ScreenStrings.Live, ScreenStrings.Setup, ScreenStrings.Lab, ScreenStrings.Diagnostics }));
+            Assert.That(shell.Items.Select(item => item.TextKey), Is.EqualTo(new[] { ScreenStrings.Live, ScreenStrings.Setup, ScreenStrings.Lab, ScreenStrings.Diagnostics, GalleryStrings.Nav }));
             Assert.That(shell.Host.Current, Is.EqualTo("live"));
             Assert.That(shell.Version.text, Is.EqualTo("v0.1.0-test"));
             Assert.That(shell.Items[3].style.display, Is.EqualTo((StyleEnum<DisplayStyle>)DisplayStyle.None));
+            Assert.That(shell.Items[4].style.display, Is.EqualTo((StyleEnum<DisplayStyle>)DisplayStyle.None), "The gallery is for Developer Mode too.");
             Assert.That(_detailed, Is.EqualTo(new[] { false }), "Detailed metrics follow Developer Mode from the start.");
         }
 
@@ -336,7 +337,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             // Measured on the real styles, so a selector that silently stops matching fails here.
-            foreach (string id in new[] { "live", "setup", "lab", "diagnostics" })
+            foreach (string id in new[] { "live", "setup", "lab", "diagnostics", "gallery" })
             {
                 _root.Shell.Open(id);
                 yield return null;
@@ -357,7 +358,7 @@ namespace VirtualVessel.UI.Tests
             _root.Shell.style.width = 1024;
             yield return null;
 
-            foreach (string id in new[] { "live", "setup", "lab", "diagnostics" })
+            foreach (string id in new[] { "live", "setup", "lab", "diagnostics", "gallery" })
             {
                 _root.Shell.Open(id);
                 yield return null;
@@ -398,6 +399,41 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Gallery_HasEverySection_AndItsSamplesOpen()
+        {
+            WriteSettings("{ \"schemaVersion\": 1, \"developerMode\": true, \"lastScreen\": \"gallery\" }");
+            Build();
+            yield return null;
+            yield return null;
+
+            Assert.That(_root.Shell.Host.Current, Is.EqualTo("gallery"));
+            var gallery = (ComponentGalleryScreen)_root.Shell.Host.GetScreen("gallery");
+            Assert.That(gallery.Sections.Keys, Is.EquivalentTo(new[]
+            {
+                GalleryStrings.Buttons, GalleryStrings.Tooltips, GalleryStrings.Toggles, GalleryStrings.Status, GalleryStrings.Fields,
+                GalleryStrings.Tabs, GalleryStrings.Notices, GalleryStrings.Dialog, GalleryStrings.Menu, GalleryStrings.Table,
+            }));
+
+            foreach (ActionButton button in gallery.Sections[GalleryStrings.Notices].Query<ActionButton>().ToList())
+            {
+                Submit(button);
+            }
+
+            Assert.That(_root.Notifications.Visible.Count + _root.Notifications.Waiting.Count, Is.EqualTo(4), "One sample notice of each kind.");
+
+            Submit(gallery.Sections[GalleryStrings.Dialog].Q<ActionButton>());
+            yield return null;
+            Assert.That(_root.Dialogs.IsOpen, Is.True, "The sample dialog opens.");
+            Submit(_root.Dialogs.Current.Cancel);
+            yield return null;
+            Assert.That(_root.Dialogs.IsOpen, Is.False);
+
+            Submit(gallery.Sections[GalleryStrings.Menu].Q<ActionButton>());
+            yield return null;
+            Assert.That(_root.Content.parent.Q<PopupMenu>(), Is.Not.Null, "The sample menu opens.");
+        }
+
+        [UnityTest]
         public IEnumerator Diagnostics_WithoutMetrics_SaysSo()
         {
             WriteSettings("{ \"schemaVersion\": 1, \"developerMode\": true, \"lastScreen\": \"diagnostics\" }");
@@ -407,6 +443,15 @@ namespace VirtualVessel.UI.Tests
             var screen = (DiagnosticsScreen)_root.Shell.Host.GetScreen("diagnostics");
             Assert.That(screen.Status.text, Is.EqualTo(_root.Localizer.Get(ScreenStrings.MetricsUnavailable)));
             Assert.That(screen.IsRefreshing, Is.False);
+        }
+
+        private static void Submit(VisualElement target)
+        {
+            using (NavigationSubmitEvent submit = NavigationSubmitEvent.GetPooled())
+            {
+                submit.target = target;
+                target.SendEvent(submit);
+            }
         }
 
         /// <summary>Every shown element under <paramref name="root"/>; a table's own sideways scroll is not entered.</summary>
