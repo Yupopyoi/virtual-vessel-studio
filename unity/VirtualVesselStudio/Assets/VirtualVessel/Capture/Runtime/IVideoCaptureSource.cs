@@ -27,6 +27,11 @@ namespace VirtualVessel.Capture
         /// <summary>The video, or null while not capturing. A different texture when the resolution changes.</summary>
         IReadOnlyObservable<Texture> Texture { get; }
 
+        /// <summary>How the video is mirrored; <see cref="Texture"/> already shows it so.</summary>
+        IReadOnlyObservable<CaptureFlip> Flip { get; }
+
+        void SetFlip(CaptureFlip flip);
+
         /// <summary>Starts without waiting; the result comes through <see cref="State"/>.</summary>
         void Start();
 

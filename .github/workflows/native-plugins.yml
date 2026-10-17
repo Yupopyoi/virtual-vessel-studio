@@ -1,0 +1,39 @@
+# Builds and tests the native plugins on Windows (development workflow 18.1.1). The C++ sources are
+# kept in Git and the DLLs are not; CI builds them, and the built DLL is kept as an artifact.
+name: Native plugins
+
+on:
+  pull_request:
+    paths:
+      - "native/**"
+      - "tools/native/**"
+      - ".github/workflows/native-plugins.yml"
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "tools/native/**"
+      - ".github/workflows/native-plugins.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same script developers run: CMake configure, Release build, native tests, copy into Unity.
+      - name: Build and test
+        shell: pwsh
+        run: ./tools/native/build-capture.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VirtualVessel.Capture.Native
+          path: native/capture/build/Release/VirtualVessel.Capture.Native.dll
+          if-no-files-found: error
+          retention-days: 14

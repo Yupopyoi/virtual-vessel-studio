@@ -23,6 +23,12 @@ namespace VirtualVessel.Capture
         /// <summary>Frames per second over the last full window, rounded to 0.1; 0 until a window is complete.</summary>
         public double Rate { get; }
 
+        /// <summary>The rate as it stands at <paramref name="now"/>: 0 once a second has passed without a frame.</summary>
+        public double RateAt(long now, long frequency)
+        {
+            return _lastFrame != 0 && now - _lastFrame < frequency ? Rate : 0;
+        }
+
         /// <summary>
         /// The meter after a frame at <paramref name="now"/>. The first frame, or one after a gap of a
         /// second or more, starts over so that the gap does not lower the rate.

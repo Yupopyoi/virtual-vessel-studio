@@ -43,7 +43,10 @@ namespace VirtualVessel.Capture.Game
             _quietTicks = ToTicks(QuietBeforeDeviceCheck, clock.Frequency);
             _checkTicks = ToTicks(RetryInterval, clock.Frequency);
             SelectDevice(settings.GameDeviceId);
+            SetFlip(settings.GameFlip);
         }
+
+        protected override bool RequiresChosenDevice => true;
 
         /// <summary>
         /// Whether to look for the open device in the device list. Only after a quiet second, since a

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Capture.Game;
+using VirtualVessel.Capture.SubScreen;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -13,8 +14,10 @@ namespace VirtualVessel.Capture
     /// <summary>What the capture sources start with (capture detailed design 10). Where it is saved is still open.</summary>
     public sealed class CaptureSettings
     {
-        /// <summary>The capture board's camera name; the first device when not set.</summary>
+        /// <summary>The capture board's camera name. Nothing is opened until it is set (capture detailed design 6.3).</summary>
         public string GameDeviceId { get; set; }
+
+        public CaptureFlip GameFlip { get; set; }
 
         public int GameWidth { get; set; } = 1920;
 
@@ -24,6 +27,11 @@ namespace VirtualVessel.Capture
 
         /// <summary>The monitor's device name; the first monitor that is not the main one when not set.</summary>
         public string SubScreenMonitorId { get; set; }
+
+        public CaptureFlip SubScreenFlip { get; set; }
+
+        /// <summary>Whether the mouse pointer is drawn into the sub-screen video, as the screen shows it.</summary>
+        public bool SubScreenDrawPointer { get; set; } = true;
     }
 
     /// <summary>
@@ -112,10 +120,11 @@ namespace VirtualVessel.Capture
 
         private static CaptureSourceBase[] CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            // The sub-screen source is added with its native plugin (capture detailed design 18).
+            // Neither touches a device or the native plugin until it is started.
             return new CaptureSourceBase[]
             {
                 new GameCaptureSource(new UnityCameraDevices(), settings, clock, metrics, log),
+                new SubScreenCaptureSource(new DesktopDuplicationNative(), settings, clock, metrics, log),
             };
         }
     }

@@ -64,6 +64,7 @@ _ReSharper*/
 **/compile_commands.json
 
 **/out/
+/native/*/build/
 **/x64/
 **/x86/
 **/Debug/
@@ -122,6 +123,14 @@ Desktop.ini
 *.bak
 *.swp
 *.swo
+
+# ------------------------------------------------------------
+# Capture native plugin built by tools/native/build-capture.ps1; kept out of Git until how it is
+# distributed is decided (capture detailed design 17)
+# ------------------------------------------------------------
+
+/unity/VirtualVesselStudio/Assets/VirtualVessel/Capture/Plugins/
+/unity/VirtualVesselStudio/Assets/VirtualVessel/Capture/Plugins.meta
 
 # ------------------------------------------------------------
 # UI screenshots written by tools/ui/capture-ui.ps1 (UI foundation detailed design 7.10)
