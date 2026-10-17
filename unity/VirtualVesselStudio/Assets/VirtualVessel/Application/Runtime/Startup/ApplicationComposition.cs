@@ -14,6 +14,7 @@ using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.Video;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -45,7 +46,8 @@ namespace VirtualVessel.Application.Startup
             BufferedApplicationLog foundationLog,
             string configDirectory = null,
             UiRoot uiRoot = null,
-            IFrameLoop frameLoop = null)
+            IFrameLoop frameLoop = null,
+            UnityEngine.Camera mainCamera = null)
         {
             DataRoot = dataRoot ?? throw new ArgumentNullException(nameof(dataRoot));
             Session = session ?? throw new ArgumentNullException(nameof(session));
@@ -58,6 +60,7 @@ namespace VirtualVessel.Application.Startup
             ConfigDirectory = configDirectory;
             UiRoot = uiRoot;
             FrameLoop = frameLoop;
+            MainCamera = mainCamera;
         }
 
         public IDataRoot DataRoot { get; }
@@ -84,6 +87,9 @@ namespace VirtualVessel.Application.Startup
 
         /// <summary>Per-frame work on the main thread; null where nothing drives frames, as in some tests.</summary>
         public IFrameLoop FrameLoop { get; }
+
+        /// <summary>The persistent scene's Main Camera, which renders the stream video; null in tests without one.</summary>
+        public UnityEngine.Camera MainCamera { get; }
     }
 
     /// <summary>
@@ -146,6 +152,23 @@ namespace VirtualVessel.Application.Startup
                         context.MonotonicClock,
                         metrics,
                         logging.Provider.GetLog("Capture", "Sources")),
+                    new[] { LoggingService.ServiceName }));
+            }
+
+            // Video renders the stream with the persistent scene's Main Camera (video detailed design
+            // 7.1). Optional: without it there is no stream video, and everything else runs.
+            if (context.MainCamera != null && context.FrameLoop != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    VideoService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => new VideoService(
+                        new VideoSettings(),
+                        context.MainCamera,
+                        context.FrameLoop,
+                        context.MonotonicClock,
+                        metrics,
+                        logging.Provider.GetLog("Video", "Stream")),
                     new[] { LoggingService.ServiceName }));
             }
 
