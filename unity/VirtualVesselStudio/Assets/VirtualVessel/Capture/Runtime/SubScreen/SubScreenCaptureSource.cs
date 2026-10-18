@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
@@ -11,12 +12,12 @@ namespace VirtualVessel.Capture.SubScreen
     /// SubScreenCapture: a monitor of this PC duplicated by the native plugin, uploaded to a texture
     /// only when there is a new frame (capture detailed design 8.2). Video only.
     /// </summary>
-    internal sealed class SubScreenCaptureSource : CaptureSourceBase
+    internal sealed class SubScreenCaptureSource : CaptureSourceBase, IPointerOption
     {
         public const string SourceId = "subscreen";
 
         private readonly IDesktopDuplication _duplication;
-        private readonly bool _drawPointer;
+        private readonly ObservableValue<bool> _drawPointer = new ObservableValue<bool>(true);
         private readonly PerfTimer _upload;
         private readonly PerfCounter _skipped;
         private readonly PerfCounter _recovered;
@@ -36,7 +37,23 @@ namespace VirtualVessel.Capture.SubScreen
             _recovered = metrics?.Counter("Capture", SourceId + ".Recovered");
             SelectDevice((settings ?? throw new ArgumentNullException(nameof(settings))).SubScreenMonitorId);
             SetFlip(settings.SubScreenFlip);
-            _drawPointer = settings.SubScreenDrawPointer;
+            _drawPointer.Value = settings.SubScreenDrawPointer;
+        }
+
+        public IReadOnlyObservable<bool> DrawPointer => _drawPointer;
+
+        public void SetDrawPointer(bool draw)
+        {
+            if (!_drawPointer.Set(draw))
+            {
+                return;
+            }
+
+            // The native session takes the setting when it opens, so a running source opens again.
+            if (State.Value != CaptureState.Stopped)
+            {
+                SelectDevice(SelectedDeviceId);
+            }
         }
 
         /// <summary>
@@ -94,7 +111,7 @@ namespace VirtualVessel.Capture.SubScreen
         {
             // The native side looks for the monitor and creates the duplication on its own thread, so
             // the main thread does not wait; OnTick reports the outcome.
-            _session = _duplication.Open(device.Id, _drawPointer);
+            _session = _duplication.Open(device.Id, _drawPointer.Value);
             _status = default;
             _uploaded = 0;
             _rate = default;
