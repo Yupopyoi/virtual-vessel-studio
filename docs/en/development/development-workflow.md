@@ -211,22 +211,24 @@ This ensures that the rules Claude Code must always follow are reliably loaded, 
 
 ## 6.1 Basic Policy
 
-`main` is the only integration branch.
+There are two long-lived branches (the user's decision, 2026-10-18; until then there was only `main`).
 
-No long-lived `develop` branch is maintained.
+| Branch | Role |
+|---|---|
+| `main` | Releasable. Release version tags (`vX.Y.Z`) go here |
+| `develop` | The integration branch during development. Work branches start here and merge back here |
 
-A short-lived branch is created for each piece of work and merged into `main` through a pull request.
+A short-lived branch is created from `develop` for each piece of work and merged into `develop` through a pull request. A release merges a pull request from `develop` into `main` (the release PR).
 
 ```text
-main
- ↑
-Pull Request
- ↑
-feature/capture-module
-fix/audio-underrun
-refactor/avatar-runtime
-docs/update-architecture
+main      ──────────────●(v0.2.0)───────────●(v0.2.1)──
+                        ↑ release PR          ↑     ↘
+develop   ──●──●──●─────┴──●──●───────────────┴──────●──
+            ↑  ↑  ↑        ↑                    hotfix/… also goes
+feature/… fix/… docs/…    feature/…             back to develop
 ```
+
+- An urgent fix starts from `main` as `hotfix/<name>`, is released through a pull request into `main`, and is then brought back into `develop` (a pull request from `main` into `develop`).
 
 ## 6.2 Branch Naming
 
@@ -237,19 +239,20 @@ docs/update-architecture
 | Refactoring | `refactor/` | `refactor/avatar-runtime` |
 | Documentation | `docs/` | `docs/update-workflow` |
 | CI / Build | `chore/` | `chore/github-actions` |
+| Urgent fix of a released version (from `main`) | `hotfix/` | `hotfix/capture-crash` |
 
-## 6.3 Handling of main
+## 6.3 Handling of main and develop
 
-`main` is normally kept in a state that satisfies the following.
+`main` is normally kept in a state that satisfies the following. `develop` aims for the same state; the checks before a release (chapter 21) happen when it goes into `main`.
 
 - It can be built.
 - Required tests pass.
 - There are no major known regressions.
 - Version-controlled configuration and documents are consistent.
 
-Direct pushes to `main` are not part of normal operation.
+Direct pushes to `main` and `develop` are not part of normal operation.
 
-Changes are merged through pull requests.
+Changes are merged through pull requests. Pull requests into `main` are only release PRs (from `develop`) and hotfixes (from `hotfix/`).
 
 ## 6.4 Pull Requests
 
@@ -542,10 +545,12 @@ Completion criteria:
 ## 9.2 Create a Branch
 
 ```bash
-git switch main
+git switch develop
 git pull
 git switch -c feature/capture-module
 ```
+
+Pull requests target (base) `develop`.
 
 Claude Code works within this branch.
 
@@ -739,6 +744,18 @@ Examples:
 - native plugin build
 - Python tests
 
+## How to Run Them
+
+| Target | Command |
+|---|---|
+| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. `[Explicit]` tests run only when named |
+| Native plugins | `pwsh tools/native/build-capture.ps1` (build and tests) |
+| Repository checks | `python tools/ci/repo_checks.py` |
+| UI images | `pwsh tools/ui/capture-ui.ps1` |
+
+- Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). Close the Editor, or pass another working copy made with `git worktree` as `-Project`.
+- Results and logs go to `build/` (not in Git).
+
 ## Manual / System Test
 
 Use real devices as needed.
@@ -875,18 +892,12 @@ Everything used beyond the language standard libraries and the operating system 
 - Each entry has a version, a license, and a scope: `required` for what is distributed, `excluded` for what is used only in development and CI.
 - The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, and GitHub Actions. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
 
-## 18.2 main Build
+## 18.2 Release Build
 
-After merging into `main`, the integrated state is built.
+A release is built from the version tag on `main` (chapter 21).
 
-Examples:
-
-- Windows application build
-- integration tests
-- native plugin packaging
-- build artifact generation
-
-Build artifacts are kept for a certain period.
+- Native plugins: on every push to `develop` and `main`, the GitHub Actions workflow `Native plugins` builds and tests them and keeps the DLL as an artifact for 14 days (18.1.1).
+- Windows application: Unity cannot run on GitHub-hosted runners yet (the handling of the Unity license is undecided), so `tools/release/build-release.ps1` builds it on a developer's PC. The same script can run on a future self-hosted runner as it is.
 
 ## 18.3 Nightly / Hardware CI
 
@@ -925,9 +936,9 @@ Self-hosted runners only run trusted code.
 
 ---
 
-# 19. Protecting the main Branch
+# 19. Protecting the main and develop Branches
 
-`main` is protected on GitHub.
+`main` and `develop` are protected on GitHub with the same settings. Pull requests target `develop` by default (the default branch).
 
 At minimum, the policy is to configure:
 
@@ -947,6 +958,7 @@ The current settings are:
 - prohibit branch deletion
 - require conversation resolution
 - `Repository checks` is a required status check (18.1.1)
+- the same settings apply to both `main` and `develop`
 
 ## 19.1 Merge Permission
 
@@ -996,7 +1008,7 @@ The quality of real-time features is confirmed only when both pass.
 
 # 21. Release
 
-Releases are based on Git tags.
+Releases are based on Git tags. Tags go only on commits of `main`.
 
 Examples:
 
@@ -1006,23 +1018,29 @@ v0.2.0
 v1.0.0
 ```
 
-Creating a tag triggers the release workflow.
-
 ```mermaid
 flowchart LR
-    Tag["Git Tag"]
-    Test["Final CI"]
-    Build["Windows Build"]
-    Package["Package"]
-    Hash["Checksum"]
-    GH["GitHub Release"]
+    Bump["Raise the version on develop<br/>(pull request)"]
+    PR["Release PR<br/>develop → main"]
+    Tag["Tag vX.Y.Z on main"]
+    WF["Release workflow<br/>checks the tag and version, drafts the Release"]
+    Local["build-release.ps1 -Upload<br/>tests, build, package, checksum"]
+    Publish["Check it and publish by hand"]
 
-    Tag --> Test
-    Test --> Build
-    Build --> Package
-    Package --> Hash
-    Hash --> GH
+    Bump --> PR --> Tag --> WF --> Local --> Publish
 ```
+
+Steps:
+
+1. On `develop`, raise the project version (`PlayerSettings.bundleVersion`, chapter 22) in a pull request and merge it.
+2. Create the release PR from `develop` into `main` and merge it.
+3. Tag the merge commit on `main` as `vX.Y.Z` and push the tag (the user does this, or Claude Code with approval).
+4. The GitHub Actions workflow `Release` (`.github/workflows/release.yml`) checks the tag's form, that it matches the project version, that it is on `main`, and the repository checks, then creates a draft GitHub Release (with notes generated from the pull requests).
+5. On a developer's PC, check out the tag and run `pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`. It builds and tests the native plugins, runs the Unity EditMode and PlayMode tests, builds for Windows (`ReleaseBuild.BuildWindows`), adds the licenses and the SBOM, writes the ZIP and its checksum, and puts them on the draft Release.
+6. Check the draft and publish it by hand on GitHub.
+
+- A release build writes the build identifier `vX.Y.Z+<commit>` to `StreamingAssets/build-id.txt`. The application reads it at startup and shows it in logs and diagnostics (system design 5.29). Development builds and the Editor show `development`.
+- The package contains `LICENSE`, `NOTICE`, `TRADEMARKS.md`, the licenses in `Assets/ThirdParty`, and the SBOM.
 
 Example artifacts:
 
@@ -1058,6 +1076,8 @@ Guidelines:
 - MAJOR: major incompatible changes
 
 Project schemas and similar formats do not need to match the application version exactly and have their own `schemaVersion`.
+
+The application version is Unity's `PlayerSettings.bundleVersion` (`ProjectSettings/ProjectSettings.asset`). The release workflow and the release script stop when the tag does not match it.
 
 ---
 
@@ -1196,7 +1216,7 @@ It is not necessary to complete all CI/CD and automation from the start.
 - Python tests
 - PR required checks
 
-## Phase 3: Take One Module Through to Completion
+## Phase 3: Take One Module Through to Completion (done: Capture, 2026-10)
 
 For example, with the Capture module, go through
 
@@ -1222,12 +1242,18 @@ Use the results to revise `CLAUDE.md` and CI.
 - capture benchmark
 - long-run tests
 
-## Phase 5: Release Automation
+## Phase 5: Release Automation (partly: CI checks the tag and drafts the Release; a script on a developer's PC builds and packages)
 
 - tag
 - build
 - package
 - GitHub release
+
+Looking back on Phase 3 (2026-10-18):
+
+- Running Unity tests, native builds, and UI images are scripts in `tools/` (chapter 14).
+- Running Unity tests and builds in CI waits until the handling of the Unity license is decided (the rest of Phase 2).
+- With development growing, `develop` was added (6.1).
 
 ---
 

@@ -213,22 +213,24 @@ Rootの`CLAUDE.md`には主に以下を置く。
 
 ## 6.1 基本方針
 
-`main`を唯一の統合Branchとする。
+2本の長期Branchを持つ（利用者の決定、2026-10-18。それまでは`main`だけだった）。
 
-長期間維持する`develop` Branchは設けない。
+| Branch | 役割 |
+|---|---|
+| `main` | Releaseできる状態。Releaseの版のTag（`vX.Y.Z`）はここに付ける |
+| `develop` | 開発中の統合Branch。作業Branchはここから作り、ここへMergeする |
 
-作業ごとに短期間のBranchを作成し、Pull Requestを経由して`main`へMergeする。
+作業ごとに`develop`から短期間のBranchを作成し、Pull Requestを経由して`develop`へMergeする。Releaseするときに、`develop`から`main`へのPull Request（Release PR）をMergeする。
 
 ```text
-main
- ↑
-Pull Request
- ↑
-feature/capture-module
-fix/audio-underrun
-refactor/avatar-runtime
-docs/update-architecture
+main      ──────────────●(v0.2.0)───────────●(v0.2.1)──
+                        ↑ Release PR          ↑     ↘
+develop   ──●──●──●─────┴──●──●───────────────┴──────●──
+            ↑  ↑  ↑        ↑                    hotfix/… も
+feature/… fix/… docs/…    feature/…             developへ戻す
 ```
+
+- 緊急の修正は`main`から`hotfix/<name>`を作り、`main`へのPull RequestでReleaseしたうえで、`develop`へも戻す（`main`から`develop`へのPull Request）。
 
 ## 6.2 Branch命名
 
@@ -239,19 +241,20 @@ docs/update-architecture
 | Refactoring | `refactor/` | `refactor/avatar-runtime` |
 | 文書 | `docs/` | `docs/update-workflow` |
 | CI / Build | `chore/` | `chore/github-actions` |
+| Releaseされた版の緊急修正（`main`から作る） | `hotfix/` | `hotfix/capture-crash` |
 
-## 6.3 mainの扱い
+## 6.3 mainとdevelopの扱い
 
-`main`は原則として以下を満たす状態を維持する。
+`main`は原則として以下を満たす状態を維持する。`develop`も同じ状態を目指すが、Release前の確認（21章）は`main`へ入れるときに行う。
 
 - Build可能
 - 必須Testが成功
 - 重大な既知Regressionがない
 - Version管理対象の設定や文書が整合している
 
-`main`への直接Pushを通常運用では行わない。
+`main`と`develop`への直接Pushを通常運用では行わない。
 
-Pull Request経由でMergeする。
+Pull Request経由でMergeする。`main`へのPull Requestは、Release PR（`develop`から）とhotfix（`hotfix/`から）だけとする。
 
 ## 6.4 Pull Request
 
@@ -548,10 +551,12 @@ Capture Moduleを実装する。
 ## 9.2 Branchを作る
 
 ```bash
-git switch main
+git switch develop
 git pull
 git switch -c feature/capture-module
 ```
+
+Pull Requestの宛先（base）は`develop`とする。
 
 Claude CodeはこのBranch内で作業させる。
 
@@ -747,6 +752,18 @@ Pull Requestを作る前に、可能な範囲でLocal Testを実行する。
 - Native Plugin Build
 - Python Test
 
+## 実行方法
+
+| 対象 | コマンド |
+|---|---|
+| UnityのEditMode / PlayMode Test | `pwsh tools/unity/run-tests.ps1 -Platform EditMode`（または`PlayMode`）。`-Filter`で絞る。`[Explicit]`のTestは名前を指定したときだけ動く |
+| Native Plugin | `pwsh tools/native/build-capture.ps1`（BuildとTest） |
+| Repository checks | `python tools/ci/repo_checks.py` |
+| UIの画像 | `pwsh tools/ui/capture-ui.ps1` |
+
+- UnityのTestとBuildは、そのProjectをEditorで開いている間は実行できない（Unityが同じProjectを2つ同時に開けないため）。Editorを閉じるか、`git worktree`で作った別の作業Copyを`-Project`で指定する。
+- 結果とLogは`build/`（Gitの管理外）に出る。
+
 ## Manual / System Test
 
 必要に応じて実際のDeviceを利用する。
@@ -883,18 +900,12 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 - 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
 - Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
 
-## 18.2 main Build
+## 18.2 Release Build
 
-`main`へMerge後、統合された状態でBuildする。
+Releaseのときに、`main`の版のTagの状態でBuildする（21章）。
 
-対象例:
-
-- Windows Application Build
-- Integration Test
-- Native Plugin Packaging
-- Build Artifact生成
-
-Build Artifactを一定期間保存する。
+- Native Plugin：`develop`と`main`へのPushごとに、GitHub Actionsの`Native plugins`がBuildとTestを行い、DLLをArtifactとして14日間保存する（18.1.1）。
+- Windows Application：UnityはGitHub-hosted Runnerでまだ動かせない（Unityのライセンスの扱いを決めていない）。そのため、開発者のPCで`tools/release/build-release.ps1`がBuildする。同じScriptは、将来のSelf-hosted Runnerでもそのまま動かせる。
 
 ## 18.3 Nightly / Hardware CI
 
@@ -933,9 +944,9 @@ Self-hosted Runnerは信頼済みCodeを対象とする。
 
 ---
 
-# 19. main Branchの保護
+# 19. main / develop Branchの保護
 
-GitHub側で`main`を保護する。
+GitHub側で`main`と`develop`を同じ設定で保護する。Pull Requestの既定の宛先（Default Branch）は`develop`とする。
 
 最低限、以下を設定する方針とする。
 
@@ -955,6 +966,7 @@ GitHub側で`main`を保護する。
 - Branch削除禁止
 - Conversation Resolution必須
 - Required Status Checksに`Repository checks`を設定する（18.1.1）
+- `main`と`develop`の両方に同じ設定を適用する
 
 ## 19.1 Merge権限
 
@@ -1004,7 +1016,7 @@ Write以上の権限を付与する必要が生じた場合は、CODEOWNERSお�
 
 # 21. Release
 
-ReleaseはGit Tagを基準とする。
+ReleaseはGit Tagを基準とする。Tagは`main`のCommitにだけ付ける。
 
 例:
 
@@ -1014,23 +1026,29 @@ v0.2.0
 v1.0.0
 ```
 
-Tag作成をTriggerとしてRelease Workflowを実行する。
-
 ```mermaid
 flowchart LR
-    Tag["Git Tag"]
-    Test["Final CI"]
-    Build["Windows Build"]
-    Package["Package"]
-    Hash["Checksum"]
-    GH["GitHub Release"]
+    Bump["developで版を上げる<br/>（Pull Request）"]
+    PR["Release PR<br/>develop → main"]
+    Tag["mainにTag vX.Y.Z"]
+    WF["Release Workflow<br/>Tagと版の確認、下書きのRelease"]
+    Local["build-release.ps1 -Upload<br/>Test、Build、Package、Checksum"]
+    Publish["内容を確かめて手で公開"]
 
-    Tag --> Test
-    Test --> Build
-    Build --> Package
-    Package --> Hash
-    Hash --> GH
+    Bump --> PR --> Tag --> WF --> Local --> Publish
 ```
+
+手順：
+
+1. `develop`で、Projectの版（`PlayerSettings.bundleVersion`、22章）を上げるPull Requestを作り、Mergeする。
+2. `develop`から`main`へのRelease PRを作り、Mergeする。
+3. `main`のMerge Commitに`vX.Y.Z`のTagを付け、Pushする（Push、Tagは利用者が行うか、Claude Codeが承認を得て行う）。
+4. GitHub Actionsの`Release`（`.github/workflows/release.yml`）が、Tagの形、Projectの版との一致、Tagが`main`にあること、Repository checksを確かめ、下書き（Draft）のGitHub Releaseを作る（変更点はPull Requestから自動で書く）。
+5. 開発者のPCで、Tagの状態を取り出して`pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`を実行する。Native PluginのBuildとTest、UnityのEditMode / PlayMode Test、Windows Build（`ReleaseBuild.BuildWindows`）、License類とSBOMの同梱、ZIPとChecksumの作成を行い、下書きのReleaseへ載せる。
+6. 下書きの内容を確かめ、GitHub上で手で公開する。
+
+- ReleaseのBuildは、Build識別子`vX.Y.Z+<commit>`を`StreamingAssets/build-id.txt`に書く。Applicationは起動時にそれを読み、Logと診断に出す（方式設計5.29）。開発中のBuildやEditorでは`development`となる。
+- Packageには、`LICENSE`、`NOTICE`、`TRADEMARKS.md`、`Assets/ThirdParty`の各License、SBOMを入れる。
 
 生成物例:
 
@@ -1066,6 +1084,8 @@ Semantic Versioningを基本とする。
 - MAJOR: 大きな非互換変更
 
 Project Schema等はApplication Versionと完全に同一である必要はなく、独自の`schemaVersion`を持たせる。
+
+Applicationの版の正は、Unityの`PlayerSettings.bundleVersion`（`ProjectSettings/ProjectSettings.asset`）とする。Release WorkflowとRelease Scriptは、Tagとこの値が一致しないと止まる。
 
 ---
 
@@ -1204,7 +1224,7 @@ Nightly Hardware Benchmark
 - Python Test
 - PR Required Check
 
-## Phase 3: 1 Moduleを完成まで回す
+## Phase 3: 1 Moduleを完成まで回す（完了：Capture、2026-10）
 
 例えばCapture Moduleで、
 
@@ -1230,12 +1250,18 @@ Nightly Hardware Benchmark
 - Capture Benchmark
 - Long Run Test
 
-## Phase 5: Release Automation
+## Phase 5: Release Automation（一部：Tagの確認と下書きはCI、BuildとPackageは開発者のPCのScript）
 
 - Tag
 - Build
 - Package
 - GitHub Release
+
+Phase 3の振り返り（2026-10-18）：
+
+- UnityのTest実行、Native Build、UIの画像は`tools/`のScriptにまとめた（14章）。
+- UnityのTestとBuildをCIで動かすのは、Unityのライセンスの扱いを決めるまで保留する（Phase 2の残り）。
+- 開発が進んだため、`develop`を設けた（6.1）。
 
 ---
 

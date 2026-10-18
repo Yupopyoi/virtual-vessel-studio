@@ -1298,9 +1298,21 @@ Do not accumulate a large amount of unrelated implementation before committing.
 
 ## 29.1 Branch Policy
 
-Do not perform normal feature development directly on `main`.
+The repository has two long-lived branches (development workflow 6.1):
 
-Before starting implementation work, create or switch to a dedicated short-lived task branch.
+- `main`: releasable; release tags `vX.Y.Z` are placed only here.
+- `develop`: the integration branch during development.
+
+Do not perform normal feature development directly on `main` or `develop`.
+
+Before starting implementation work, create or switch to a dedicated short-lived task branch created from `develop`. Its Pull Request targets `develop`.
+
+Pull Requests into `main` are only:
+
+- the release PR from `develop` (development workflow 21),
+- `hotfix/<task-name>` branches created from `main` for urgent fixes to a released version; after release, the fix is also brought back into `develop`.
+
+Release PRs, hotfix PRs, and tags are user-controlled like any push (29.8).
 
 Typical branch prefixes are:
 
@@ -1310,6 +1322,7 @@ fix/<task-name>
 refactor/<task-name>
 docs/<task-name>
 chore/<task-name>
+hotfix/<task-name>   (from main only)
 ```
 
 Examples:
@@ -1330,12 +1343,12 @@ Do not mix unrelated features, fixes, refactoring, or documentation work into th
 
 Before modifying files, confirm the current branch.
 
-If the current branch is `main`, create an appropriate task branch before modifying any tracked file.
+If the current branch is `main` or `develop`, create an appropriate task branch before modifying any tracked file.
 
 The only exceptions are:
 
 - operations that do not change repository contents, such as GitHub repository settings, branch protection rules, labels, or issue management,
-- work that the user has explicitly instructed to perform directly on `main` for the current task.
+- work that the user has explicitly instructed to perform directly on `main` or `develop` for the current task.
 
 Documentation, `CLAUDE.md`, configuration, and repository-structure changes are not exceptions and use a task branch.
 
@@ -1631,7 +1644,9 @@ Do not rewrite already published history without explicit approval.
 
 A Pull Request represents a completed reviewable branch.
 
-Do not merge directly into `main` as part of normal feature development.
+Do not merge directly into `main` or `develop` as part of normal feature development.
+
+Task branches open Pull Requests against `develop`; only release PRs and hotfixes target `main` (29.1).
 
 A Pull Request should clearly explain:
 
