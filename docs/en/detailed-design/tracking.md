@@ -126,7 +126,7 @@ flowchart LR
 ```csharp
 public interface ITrackingSource
 {
-    IReadOnlyObservable<TrackingSourceState> State { get; }    // Stopped, Starting, Running, Unavailable, Error
+    IReadOnlyObservable<TrackingState> State { get; }          // Stopped, Starting, Running, Unavailable, Error
     IReadOnlyObservable<TrackingProblem> Problem { get; }      // Problem shown to the user (chapter 11)
     TrackingRegions Supported { get; }                         // Parts the provider can track
     IReadOnlyObservable<TrackingRegions> Enabled { get; }      // Enabled parts (settings)
@@ -155,18 +155,18 @@ public interface ITrackingSource
 public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
-    IReadOnlyObservable<TrackingProviderState> State { get; }
+    IReadOnlyObservable<TrackingState> State { get; }          // The same states for sources and providers
     void Start(TrackingRegions regions);                       // Returns without waiting; the result comes through State
     void Stop();
     void Tick();                                               // Every frame on the main thread; advances reading the input
 
     // Copies the latest observation into the given object. Returns false when there is no new observation.
     // Copying into the caller's object avoids a per-frame allocation (exception to CLAUDE.md 15.1, chapter 23).
-    bool TryTakeLatest(TrackingObservation into);
+    bool TryTakeLatest(TrackingFrame into);
 }
 ```
 
-- `TrackingObservation` is the observation before smoothing, with the same shape as `TrackingFrame` (chapter 6). Provider differences (coordinate system, point indices, left and right) are converted to the common form inside the provider before output (system design 8.8).
+- A provider outputs observations as a `TrackingFrame` before smoothing (chapter 6; the same type before and after smoothing, so it is only copied). Provider differences (coordinate system, point indices, left and right) are converted to the common form inside the provider before output (system design 8.8).
 - A new provider (mocopi and so on) is added by implementing this contract only.
 
 ### 5.3 TrackingService
@@ -311,6 +311,21 @@ Voom's average was needed to suppress jitter. The product separates the causes o
 - Uses the time of the image frame, not the processing time, so uneven frame intervals do not change the smoothing strength.
 - Parameters are per part (fast for the face, slow for the torso, and so on). The user sees three levels: "smooth / standard / responsive" (chapter 10).
 - The computation is a pure function (it takes the state as an argument and returns a new state) and is checked in EditMode with inputs and outputs only.
+- The speed of a rotation is smoothed as an angular velocity with a direction (a vector). Smoothing only the size of the angle (always positive) does not let shakes in opposite directions cancel, so a still value looks like it is moving (the first implementation shook about three times as much as the average when still).
+
+#### Measured Results (Step 1, 2026-10-18)
+
+Synthetic motion (an angle with 2° noise at 30 per second: still for 3 s, raised 90° in 0.3 s, held, waved ±30° at 0.5 Hz), compared over 20 noise seeds (`OneEuroComparisonTests`, `SmoothingProfile`).
+
+| Method | Jitter when still (RMS of the per-frame change) | Lag | Error while waving slowly |
+|---|---|---|---|
+| Voom's method (30-frame average) | 0.097° | 483 ms | 23.2° |
+| Smooth (MinCutoff 0.05 Hz, Beta 0.003) | 0.057° | 99 ms | 9.6° |
+| Standard (0.1 Hz, 0.005) | 0.088° | 66 ms | 7.5° |
+| Responsive (0.2 Hz, 0.01) | 0.160° | 56 ms | 5.2° |
+
+- Standard is as steady as the average or steadier when still, with about 1/7 of the lag. A single noise draw can favor either method by about a third, so the test compares the average of 10 seeds.
+- Positions (joints) use provisional values with beta converted at 1 cm ≈ 2° for an arm (Standard: 0.1 Hz, 1.0). For an arm movement with 1 cm noise, the angle jitter went from 4.7° to 0.13° with 100 ms lag. Face values are provisional too and are tuned in steps 2–5 on movements recorded with a camera (chapter 17).
 
 ### 8.3 Outlier Removal
 
@@ -415,7 +430,7 @@ public sealed class TrackingSettings
 
 Tools for choosing the smoothing and depth methods by comparison rather than by feel.
 
-- `TrackingRecorder`: records the provider's observations (`TrackingObservation` before smoothing) with times to a file. **Images are not recorded.**
+- `TrackingRecorder`: records the provider's observations (`TrackingFrame` before smoothing) with times to a file. **Images are not recorded.**
 - `TrackingReplayProvider`: replays a recording as an `ITrackingProvider`. The same movement can be reproduced any number of times without a camera.
 - Evaluation values (pure functions computed in EditMode):
 
@@ -478,13 +493,13 @@ Tools for choosing the smoothing and depth methods by comparison rather than by 
 ```text
 Assets/VirtualVessel/Tracking/
 ├─ Runtime/                                    VirtualVessel.Tracking
-│  ├─ TrackingFrame.cs        TrackingFrame, BodyPose, HandPose, FacePose, TrackingObservation
+│  ├─ TrackingFrame.cs        TrackingFrame, TrackedPart, BodyPose, HandPose, FacePose
 │  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
 │  ├─ TrackingService.cs      TrackingService, TrackingSettings
-│  ├─ Processing/             OneEuroFilter, RotationFilter, TrackingProcessor, TrackingStateMachine, DepthEstimation
+│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, DepthEstimation (step 5)
 │  ├─ Threading/FrameSlot.cs
-│  └─ Recording/              TrackingRecorder, TrackingReplayProvider, TrackingMetrics
+│  └─ Recording/              TrackingRecorder (step 2), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe (the only assembly that references MediaPipeUnityPlugin)
 │  ├─ MediaPipeTrackingProvider.cs   Creating and calling tasks (the part that uses the plugin API)
 │  ├─ MediaPipeConversion.cs
