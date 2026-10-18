@@ -2,6 +2,7 @@
     "name": "VirtualVessel.Application.Editor",
     "rootNamespace": "VirtualVessel.Application.Editor",
     "references": [
+        "VirtualVessel.Application",
         "UnityEditor.TestRunner",
         "UnityEngine.TestRunner"
     ],

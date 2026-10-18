@@ -9,7 +9,7 @@ on:
       - "tools/native/**"
       - ".github/workflows/native-plugins.yml"
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "native/**"
       - "tools/native/**"

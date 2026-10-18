@@ -15,6 +15,9 @@
 /unity/*/Build/
 /unity/*/Builds/
 
+# Release packages and test results written by tools/release and tools/unity.
+/build/
+
 # Logs left at the repository root by Unity Hub before the project moved.
 /Logs/
 
@@ -69,6 +72,8 @@ _ReSharper*/
 **/x86/
 **/Debug/
 **/Release/
+# Release tooling, not a build output (Git matches case-insensitively on Windows).
+!/tools/release/
 
 # ------------------------------------------------------------
 # Python
