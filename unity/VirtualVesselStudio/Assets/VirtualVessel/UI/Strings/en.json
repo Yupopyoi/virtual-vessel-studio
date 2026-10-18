@@ -163,6 +163,9 @@
         "gallery.dialog-title": "Reset the settings?",
         "gallery.dialog-body": "This is a sample; nothing changes",
         "gallery.dialog-confirm": "Reset",
-        "gallery.open-menu": "Open the menu"
+        "gallery.open-menu": "Open the menu",
+        "stage.screen.game": "Game screen",
+        "stage.screen.subscreen": "Sub monitor",
+        "stage.placement.invalid": "This placement cannot be used."
     }
 }

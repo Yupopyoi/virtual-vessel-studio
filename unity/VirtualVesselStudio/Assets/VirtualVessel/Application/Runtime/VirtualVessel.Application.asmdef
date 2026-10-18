@@ -6,6 +6,7 @@
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
+        "VirtualVessel.Stage",
         "VirtualVessel.UI",
         "VirtualVessel.Video"
     ],

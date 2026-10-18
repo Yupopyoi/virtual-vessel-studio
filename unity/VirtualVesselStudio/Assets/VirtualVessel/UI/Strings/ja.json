@@ -163,6 +163,9 @@
         "gallery.dialog-title": "設定を元に戻しますか？",
         "gallery.dialog-body": "見本のため、実際には何も変わりません",
         "gallery.dialog-confirm": "元に戻す",
-        "gallery.open-menu": "メニューを開く"
+        "gallery.open-menu": "メニューを開く",
+        "stage.screen.game": "ゲーム画面",
+        "stage.screen.subscreen": "サブモニター",
+        "stage.placement.invalid": "この配置は使えません。"
     }
 }

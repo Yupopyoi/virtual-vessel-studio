@@ -157,7 +157,7 @@ public sealed class StageService : IApplicationService
 ### 8.2 値の確認
 
 - 大きさが0以下、または数値でない配置は拒否し、`UserFacingException`（「この配置は使えません」）を返す。UIは元の配置へ戻す。
-- `Order`はStageが0から振り直す（重なりの順は保つ）。
+- `Order`は値のまま使う（大きいほど手前）。振り直さないため、UIが送った値と保存する値が一致する。
 
 ---
 
