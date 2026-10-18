@@ -126,7 +126,7 @@ flowchart LR
 ```csharp
 public interface ITrackingSource
 {
-    IReadOnlyObservable<TrackingSourceState> State { get; }    // Stopped、Starting、Running、Unavailable、Error
+    IReadOnlyObservable<TrackingState> State { get; }          // Stopped、Starting、Running、Unavailable、Error
     IReadOnlyObservable<TrackingProblem> Problem { get; }      // 利用者へ伝える問題（11章）
     TrackingRegions Supported { get; }                         // Providerが取れる部位
     IReadOnlyObservable<TrackingRegions> Enabled { get; }      // 有効にした部位（設定）
@@ -154,18 +154,18 @@ public interface ITrackingSource
 public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
-    IReadOnlyObservable<TrackingProviderState> State { get; }
+    IReadOnlyObservable<TrackingState> State { get; }          // SourceとProviderで同じ状態を使う
     void Start(TrackingRegions regions);                       // 待たずに戻る。結果はStateで知らせる
     void Stop();
     void Tick();                                               // Main Threadで毎Frame。入力の読み出しを進める
 
     // 最新の観測を、渡されたObjectへ写す。新しい観測がなければfalse。
     // 呼び出し元のObjectへ写すのは、毎Frameの確保を避けるため（CLAUDE.md 15.1の例外、23章）。
-    bool TryTakeLatest(TrackingObservation into);
+    bool TryTakeLatest(TrackingFrame into);
 }
 ```
 
-- `TrackingObservation`は平滑化する前の観測で、形は`TrackingFrame`と同じ（6章）。Providerごとの違い（座標系、点の番号、左右）は、Providerの中で共通の形へ変換してから出す（方式設計8.8）。
+- Providerが出す観測は、平滑化する前の`TrackingFrame`である（6章。平滑化の前と後で同じ型を使い、写すだけで済むようにする）。Providerごとの違い（座標系、点の番号、左右）は、Providerの中で共通の形へ変換してから出す（方式設計8.8）。
 - 新しいProvider（mocopi等）は、この契約を実装するだけで追加できる。
 
 ### 5.3 TrackingService
@@ -310,6 +310,21 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 - 時刻は映像のFrameの時刻を使う（処理した時刻ではない）。Frameの間隔が揺れても、平滑化の強さが変わらない。
 - 部位ごとにパラメータを持つ（顔は速く、胴はゆっくり等）。利用者には「なめらか／標準／きびきび」の3段階で見せる（10章）。
 - 計算は純粋関数（状態を引数で受け取り、新しい状態を返す）とし、EditModeで入力と出力だけで確かめる。
+- 回転の速さは、向きを持った角速度（ベクトル）として平滑化する。角度の大きさ（常に正）だけを平滑化すると、逆向きの揺れが打ち消し合わず、静止していても動いているように見積もってしまう（最初の実装で、静止時の揺れが平均の約3倍になった）。
+
+#### 計測した結果（段階1、2026-10-18）
+
+合成の動き（2°の揺れを加えた角度、30回/秒。静止3秒、0.3秒で90°上げる、保持、0.5Hzで±30°振る）を、乱数を変えて20通り比べた（`OneEuroComparisonTests`、`SmoothingProfile`）。
+
+| 方法 | 静止時の揺れ（1Frameの変化のRMS） | 遅れ | ゆっくり振る間の誤差 |
+|---|---|---|---|
+| Voomの方法（30Frameの平均） | 0.097° | 483ms | 23.2° |
+| なめらか（MinCutoff 0.05Hz、Beta 0.003） | 0.057° | 99ms | 9.6° |
+| 標準（0.1Hz、0.005） | 0.088° | 66ms | 7.5° |
+| きびきび（0.2Hz、0.01） | 0.160° | 56ms | 5.2° |
+
+- 標準は、静止時の揺れが平均と同程度以下で、遅れは約1/7になる。1つの乱数だけで比べると、どちらの方法も3割ほど有利・不利が出るため、Testは10通りの平均で比べる。
+- 位置（関節）は、腕の長さで1cm≈2°としてBetaを換算した仮の値（標準：0.1Hz、1.0）。1cmの揺れを加えた腕の動きでは、角度の揺れが4.7°から0.13°になり、遅れは100msだった。顔の値も仮の値で、カメラで記録した動きで段階2〜5に調整する（17章）。
 
 ### 8.3 外れ値の除去
 
@@ -414,7 +429,7 @@ public sealed class TrackingSettings
 
 平滑化や奥行きの方法を、勘ではなく比べて決めるための仕組み。
 
-- `TrackingRecorder`：Providerの観測（平滑化する前の`TrackingObservation`）を、時刻とともにファイルへ記録する。**映像は記録しない**。
+- `TrackingRecorder`：Providerの観測（平滑化する前の`TrackingFrame`）を、時刻とともにファイルへ記録する。**映像は記録しない**。
 - `TrackingReplayProvider`：記録を`ITrackingProvider`として再生する。カメラなしで、同じ動きを何度でも再現できる。
 - 評価の値（EditModeで計算する純粋関数）：
 
@@ -477,13 +492,13 @@ public sealed class TrackingSettings
 ```text
 Assets/VirtualVessel/Tracking/
 ├─ Runtime/                                    VirtualVessel.Tracking
-│  ├─ TrackingFrame.cs        TrackingFrame, BodyPose, HandPose, FacePose, TrackingObservation
+│  ├─ TrackingFrame.cs        TrackingFrame, TrackedPart, BodyPose, HandPose, FacePose
 │  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
 │  ├─ TrackingService.cs      TrackingService, TrackingSettings
-│  ├─ Processing/             OneEuroFilter, RotationFilter, TrackingProcessor, TrackingStateMachine, DepthEstimation
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, DepthEstimation（段階5）
 │  ├─ Threading/FrameSlot.cs
-│  └─ Recording/              TrackingRecorder, TrackingReplayProvider, TrackingMetrics
+│  └─ Recording/              TrackingRecorder（段階2）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe（MediaPipeUnityPluginを参照する唯一のAssembly）
 │  ├─ MediaPipeTrackingProvider.cs   Taskの作成と呼び出し（PluginのAPIを使う部分）
 │  ├─ MediaPipeConversion.cs
