@@ -1,0 +1,53 @@
+# On a version tag (development workflow 21): checks the tag and prepares a draft GitHub Release.
+# The Windows player is built on a developer's PC with tools/release/build-release.ps1 -Upload,
+# because Unity cannot run here yet; publishing the Release is done by hand.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    name: Draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $tag is not vMAJOR.MINOR.PATCH (development workflow 22)."; exit 1
+          fi
+          version=$(sed -n 's/^ *bundleVersion: *//p' unity/VirtualVesselStudio/ProjectSettings/ProjectSettings.asset | tr -d '\r')
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::Tag $tag does not match the project version $version."; exit 1
+          fi
+          # Releases come only from main (development workflow 6.3).
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $tag is not on main."; exit 1
+          fi
+
+      - name: Check the repository
+        run: python3 tools/ci/repo_checks.py
+
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "The Release $GITHUB_REF_NAME already exists."
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --title "Virtual Vessel Studio $GITHUB_REF_NAME"
+          fi
