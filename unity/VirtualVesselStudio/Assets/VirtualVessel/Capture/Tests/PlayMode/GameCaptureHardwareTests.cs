@@ -24,7 +24,7 @@ namespace VirtualVessel.Capture.Tests
         {
             var clock = new StopwatchMonotonicClock();
             var settings = new CaptureSettings { GameDeviceId = Environment.GetEnvironmentVariable(DeviceVariable) };
-            var source = new GameCaptureSource(new UnityCameraDevices(), settings, clock, null, null);
+            var source = WebCamCaptureSource.ForGame(new UnityCameraDevices(), settings, clock, null, null);
             try
             {
                 source.Start();

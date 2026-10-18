@@ -37,6 +37,18 @@ namespace VirtualVessel.Capture
 
         public bool SubScreenEnabled { get; set; }
 
+        /// <summary>The tracking webcam's name. Nothing is opened until it is set, like the capture board.</summary>
+        public string CameraDeviceId { get; set; }
+
+        /// <summary>Enough for inference with a small readback cost (tracking detailed design 5.4).</summary>
+        public int CameraWidth { get; set; } = 1280;
+
+        public int CameraHeight { get; set; } = 720;
+
+        public int CameraFrameRate { get; set; } = 30;
+
+        public bool CameraEnabled { get; set; }
+
         public CaptureSettings Clone()
         {
             return (CaptureSettings)MemberwiseClone();
@@ -49,8 +61,10 @@ namespace VirtualVessel.Capture
     /// </summary>
     internal readonly struct CaptureChoices : IEquatable<CaptureChoices>
     {
-        private CaptureChoices(string gameDevice, CaptureFlip gameFlip, bool gameEnabled, string monitor, CaptureFlip subFlip, bool drawPointer, bool subEnabled)
+        private CaptureChoices(string gameDevice, CaptureFlip gameFlip, bool gameEnabled, string monitor, CaptureFlip subFlip, bool drawPointer, bool subEnabled, string camera, bool cameraEnabled)
         {
+            Camera = camera;
+            CameraEnabled = cameraEnabled;
             GameDevice = gameDevice;
             GameFlip = gameFlip;
             GameEnabled = gameEnabled;
@@ -74,9 +88,13 @@ namespace VirtualVessel.Capture
 
         public bool SubEnabled { get; }
 
+        public string Camera { get; }
+
+        public bool CameraEnabled { get; }
+
         public static CaptureChoices From(CaptureSettings settings)
         {
-            return new CaptureChoices(settings.GameDeviceId, settings.GameFlip, settings.GameEnabled, settings.SubScreenMonitorId, settings.SubScreenFlip, settings.SubScreenDrawPointer, settings.SubScreenEnabled);
+            return new CaptureChoices(settings.GameDeviceId, settings.GameFlip, settings.GameEnabled, settings.SubScreenMonitorId, settings.SubScreenFlip, settings.SubScreenDrawPointer, settings.SubScreenEnabled, settings.CameraDeviceId, settings.CameraEnabled);
         }
 
         /// <summary>
@@ -90,14 +108,18 @@ namespace VirtualVessel.Capture
             {
                 CaptureSourceBase source = sources[i];
                 bool enabled = source.State.Value != CaptureState.Stopped;
-                if (source.Id == Game.GameCaptureSource.SourceId)
+                if (source.Id == Game.WebCamCaptureSource.GameSourceId)
                 {
-                    choices = new CaptureChoices(source.SelectedDeviceId, source.Flip.Value, enabled, choices.Monitor, choices.SubFlip, choices.DrawPointer, choices.SubEnabled);
+                    choices = new CaptureChoices(source.SelectedDeviceId, source.Flip.Value, enabled, choices.Monitor, choices.SubFlip, choices.DrawPointer, choices.SubEnabled, choices.Camera, choices.CameraEnabled);
+                }
+                else if (source.Id == Game.WebCamCaptureSource.CameraSourceId)
+                {
+                    choices = new CaptureChoices(choices.GameDevice, choices.GameFlip, choices.GameEnabled, choices.Monitor, choices.SubFlip, choices.DrawPointer, choices.SubEnabled, source.SelectedDeviceId, enabled);
                 }
                 else if (source.Id == SubScreen.SubScreenCaptureSource.SourceId)
                 {
                     bool drawPointer = source is IPointerOption pointer ? pointer.DrawPointer.Value : choices.DrawPointer;
-                    choices = new CaptureChoices(choices.GameDevice, choices.GameFlip, choices.GameEnabled, source.SelectedDeviceId, source.Flip.Value, drawPointer, enabled);
+                    choices = new CaptureChoices(choices.GameDevice, choices.GameFlip, choices.GameEnabled, source.SelectedDeviceId, source.Flip.Value, drawPointer, enabled, choices.Camera, choices.CameraEnabled);
                 }
             }
 
@@ -115,6 +137,8 @@ namespace VirtualVessel.Capture
             next.SubScreenFlip = SubFlip;
             next.SubScreenDrawPointer = DrawPointer;
             next.SubScreenEnabled = SubEnabled;
+            next.CameraDeviceId = Camera;
+            next.CameraEnabled = CameraEnabled;
             return next;
         }
 
@@ -126,7 +150,9 @@ namespace VirtualVessel.Capture
                 && string.Equals(Monitor, other.Monitor, StringComparison.Ordinal)
                 && SubFlip == other.SubFlip
                 && DrawPointer == other.DrawPointer
-                && SubEnabled == other.SubEnabled;
+                && SubEnabled == other.SubEnabled
+                && string.Equals(Camera, other.Camera, StringComparison.Ordinal)
+                && CameraEnabled == other.CameraEnabled;
         }
 
         public override bool Equals(object obj)

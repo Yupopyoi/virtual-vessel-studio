@@ -146,6 +146,10 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyObservable<Texture> Texture => _texture;
 
+            public long FrameCount => 0;
+
+            public long LastFrameTimestamp => 0;
+
             public void SetTexture(Texture texture)
             {
                 _texture.Value = texture;
