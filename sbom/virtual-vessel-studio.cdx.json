@@ -3,7 +3,7 @@
   "specVersion": "1.6",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-17T00:00:00Z",
+    "timestamp": "2026-10-18T00:00:00Z",
     "component": {
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
@@ -37,6 +37,74 @@
       ],
       "scope": "required",
       "description": "The application runtime. Its version is fixed by ProjectSettings/ProjectVersion.txt."
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.github.homuler.mediapipe",
+      "supplier": {
+        "name": "homuler"
+      },
+      "name": "com.github.homuler.mediapipe (MediaPipeUnityPlugin)",
+      "version": "0.16.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/homuler/MediaPipeUnityPlugin/releases/download/v0.16.3/com.github.homuler.mediapipe-0.16.3.tgz"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cc3e77a219e0b99618ae3be64c31a566197deedc69c1e136acf52d65d7cf2e79"
+        }
+      ],
+      "description": "Camera tracking (tracking detailed design 16.2). Not in Git: tools/deps/fetch-mediapipe.ps1 fetches the pinned release (tools/deps/mediapipe.json) as an embedded package. Its native library bundles the components in its 'Third Party Notices.md' (Abseil, OpenCV, Protocol Buffers, TensorFlow Lite, XNNPACK, and others, all permissive), which the release package includes.",
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "mediapipe",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "MediaPipe",
+          "version": "0.10.22",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "Built into the plugin's mediapipe_c.dll."
+        },
+        {
+          "type": "library",
+          "bom-ref": "mediapipe-models",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "MediaPipe Face, Pose, and Hand Landmarker models",
+          "version": "0.10.22",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe."
+        }
+      ]
     },
     {
       "type": "library",

@@ -97,6 +97,16 @@ class SbomTests(unittest.TestCase):
         self.assertIn("SBOM: missing github-action:actions/checkout@v4", errors)
         self.assertIn("SBOM: asset:Old is listed but no longer used", errors)
 
+    def test_an_embedded_package_needs_the_pinned_version(self):
+        lock = '{"dependencies": {"com.example.plugin": {"version": "file:com.example.plugin", "source": "embedded"}}}'
+        pinned = repo_checks.pinned_packages(['{"package": "com.example.plugin", "version": "1.2.3", "url": "u"}', '{"other": 1}'])
+        self.assertEqual(pinned, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(repo_checks.sbom_requirements(lock, [], {}, pinned), {"unity-package:com.example.plugin": "1.2.3"})
+
+    def test_a_pinned_package_is_required_before_it_is_fetched(self):
+        required = repo_checks.sbom_requirements('{"dependencies": {}}', [], {}, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(required, {"unity-package:com.example.plugin": "1.2.3"})
+
     def test_nested_components_need_a_license_and_scope(self):
         parent = self.component("unity-package:com.unity.ugui", "2.6.0")
         parent["components"] = [{"bom-ref": "inner", "name": "inner", "version": "1"}]

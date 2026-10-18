@@ -8,7 +8,8 @@ Checks the files tracked by git:
 * Documentation: docs/ja and docs/en contain the same documents.
 * SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
-  license and a scope.
+  license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
+  against the version pinned there, since the lock file only says "file:".
 
 Run from the repository root:  python tools/ci/repo_checks.py
 Standard library only; Python 3.10 or later.
@@ -32,6 +33,7 @@ SBOM_PATH = "sbom/virtual-vessel-studio.cdx.json"
 PACKAGES_LOCK = "unity/VirtualVesselStudio/Packages/packages-lock.json"
 THIRD_PARTY_ROOT = "unity/VirtualVesselStudio/Assets/ThirdParty"
 WORKFLOWS_DIR = ".github/workflows"
+DEPS_DIR = "tools/deps"
 
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 
@@ -125,13 +127,34 @@ def check_doc_pairs(tracked: Iterable[str], languages: tuple[str, ...] = DOC_LAN
     ]
 
 
-def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str]) -> dict[str, str | None]:
+def pinned_packages(manifests: Iterable[str]) -> dict[str, str]:
+    """Package name to version from the tools/deps manifests that fetch embedded packages."""
+    pinned = {}
+    for text in manifests:
+        data = json.loads(text)
+        if "package" in data and "version" in data:
+            pinned[data["package"]] = data["version"]
+    return pinned
+
+
+def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str], pinned: Mapping[str, str] | None = None) -> dict[str, str | None]:
     """The SBOM entries the repository needs: bom-ref to required version (None when any version will do)."""
+    pinned = pinned or {}
     required: dict[str, str | None] = {}
     for name, package in json.loads(packages_lock).get("dependencies", {}).items():
         # Built-in modules are part of the engine, listed once as the Unity Engine.
-        if not name.startswith("com.unity.modules."):
+        if name.startswith("com.unity.modules."):
+            continue
+        if package.get("source") == "embedded":
+            # The lock file only says "file:<folder>"; the version is the one the fetch script pins.
+            required[f"unity-package:{name}"] = pinned.get(name)
+        else:
             required[f"unity-package:{name}"] = package.get("version")
+
+    # A pinned package counts even in a working copy that has not fetched it, so the SBOM
+    # check does not depend on whether the developer ran the script.
+    for name, version in pinned.items():
+        required[f"unity-package:{name}"] = version
 
     prefix = THIRD_PARTY_ROOT + "/"
     for path in tracked:
@@ -224,7 +247,12 @@ def run(repository: Path) -> list[str]:
         for p in tracked
         if posixpath.dirname(p) == WORKFLOWS_DIR and p.endswith((".yml", ".yaml"))
     }
-    required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows)
+    manifests = [
+        (repository / p).read_text(encoding="utf-8")
+        for p in tracked
+        if posixpath.dirname(p) == DEPS_DIR and p.endswith(".json")
+    ]
+    required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows, pinned_packages(manifests))
     if SBOM_PATH in tracked:
         errors += check_sbom((repository / SBOM_PATH).read_text(encoding="utf-8"), required)
     else:
