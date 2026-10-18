@@ -486,7 +486,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ Threading/FrameSlot.cs
 │  └─ Recording/              TrackingRecorder, TrackingReplayProvider, TrackingMetrics
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe (the only assembly that references MediaPipeUnityPlugin)
-│  ├─ MediaPipeTrackingProvider.cs
+│  ├─ MediaPipeTrackingProvider.cs   Creating and calling tasks (the part that uses the plugin API)
 │  ├─ MediaPipeConversion.cs
 │  └─ CameraFrameReader.cs    AsyncGPUReadback and buffer reuse
 └─ Tests/
@@ -505,6 +505,17 @@ References: Core, Diagnostics, ProjectData, Capture. The MediaPipe assembly also
 - Models (Face Landmarker, Pose Landmarker, Hand Landmarker) are fetched by the same script with pinned versions and hashes, and are included in the distribution.
 - The distribution includes only the Windows x64 native libraries.
 - Licenses: the plugin is MIT; MediaPipe and the models are Apache-2.0. They are recorded in the SBOM in the same change (CLAUDE.md chapter 35).
+
+#### Preparing for Updates
+
+MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.16.3). To make following updates easy:
+
+- The version, download URL, and SHA-256 are written in one place, `tools/deps/mediapipe.json`. The script, CI, and the SBOM check read these values. An update is one change (a `chore:` branch) that changes these values and the SBOM.
+- Only the MediaPipe assembly uses plugin types, and within it, the part that calls the plugin (creating tasks, `DetectAsync`, receiving results) is separate from the part that converts results to the common form (`MediaPipeConversion`). When the plugin API changes, the fix is limited to the part that calls the tasks.
+- `MediaPipeConversion` is a pure function that takes arrays of points (positions, confidence), not plugin types. Its tests keep working when the plugin API changes.
+- Model files have their own versions and hashes, separate from the plugin. Updating the plugin does not require changing the models, and vice versa.
+- Checking an update: EditMode tests, `[Explicit]` hardware tests (face, body, and hands are tracked), and performance measurements (inference time, lag) are compared before and after the update, and the results go in the pull request.
+- The update procedure is written in the dependency-update section of the development workflow (added in the step that introduces the plugin).
 
 ---
 

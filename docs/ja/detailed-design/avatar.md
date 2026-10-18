@@ -6,7 +6,7 @@
 
 本書で作る範囲は以下とする（v0.1.0）。
 
-- VRMの読み込み（UniVRM）と、アバターの抽象（Avatar Runtime、Skeleton、Expression）
+- VRMの読み込み（UniVRM。VRM 0.xは読み込み時に1.0へ変換する、6.8）と、アバターの抽象（Avatar Runtime、Skeleton、Expression）
 - アバターの登録：Data Rootへのコピー、Avatar Profile、サムネイル、モデルのライセンス情報の表示
 - 使うアバターの選択と、起動時の読み込み、配信画面への配置
 - 姿勢の適用（上半身、手指）と表情の適用（目、口、視線、眉）
@@ -181,6 +181,7 @@ DataRoot/Avatars/<AvatarId>/
   "displayName": "モデルの名前（メタ情報から。利用者が変えられる）",
   "format": "vrm",
   "formatVersion": "1.0",
+  "converted": false,
   "sourceFileName": "original.vrm",
   "sha256": "...",
   "importedAt": "2026-10-20T12:00:00Z",
@@ -218,6 +219,14 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 
 - UIに`IFileDialog`（`Task<string> OpenAsync(FileDialogOptions options)`）を加える。WindowsではCOMの`IFileOpenDialog`を専用のSTAのThreadで開く。Main Threadで開くと、ダイアログを開いている間、描画と配信の映像が止まるためである。
 - 追加の依存（Libraryの導入）はしない。
+
+### 6.8 VRM 0.x
+
+- VRM 0.xのモデルも受け付ける（利用者の決定、2026-10-18。方式設計7.3）。UniVRMの読み込みで、VRM 0.xをVRM 1.0へ変換する（`Vrm10`の0.xの変換を有効にする）。
+- 保存するのは元のファイル（`model.vrm`）のままとし、変換は読み込みのたびに行う。変換の結果をファイルとして保存しない。UniVRMの変換が良くなったとき、そのまま反映されるようにするため。
+- Profileの`formatVersion`は元の版（`0.x`）とし、変換したことを`converted`で示す。
+- ライセンス（6.4）は、0.xのメタ情報の項目を1.0の項目へ対応させて表示する。対応しない項目は元の値のまま表示する。
+- 0.xと1.0では、骨の基準の向きや表情の名前が違うが、変換の後は1.0として同じに扱う。違いが残る場合（視線の範囲等）は、Testで確かめる。
 
 ---
 
@@ -436,8 +445,8 @@ Assets/VirtualVessel/Avatar/
 
 | 項目 | 対応予定 |
 |---|---|
-| VRM 0.xのモデルを受け付けるか | **利用者の確認待ち**。方式設計7.3はVRM 1.0以降を対象とする。UniVRMはVRM 0.xを読み込み時に1.0へ変換できる。0.xのモデルは今も多いため、変換して受け付ける案を提案する（受け付ける場合は方式設計7.3を更新する） |
-| Test用のVRMモデル | 利用者からサンプルを受け取る（Repository外に置く）。Repositoryに入れられるライセンスの小さなモデルがあれば、自動のTestに使う |
+| VRM 0.xのモデルを受け付けるか | 決定：読み込み時に1.0へ変換して受け付ける（6.8、方式設計7.3。利用者の決定、2026-10-18） |
+| Test用のVRMモデル | 利用者からサンプルを受け取る（Repository外の`E:\VirtualVessel\samples\`）。VRM 1.0から始め、0.xの変換のTestに0.xのモデルが必要になったら依頼する。Repositoryに入れられるライセンスの小さなモデルがあれば、自動のTestに使う |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |
 | Perfect Sync（ARKitの52個の表情を持つモデル） | v0.1.0の後 |
 | FBX | Libraryの選択から。v0.1.0の後 |

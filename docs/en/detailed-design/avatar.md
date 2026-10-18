@@ -6,7 +6,7 @@ This document defines the detailed design of the Avatar module. The Avatar modul
 
 The scope built here (v0.1.0):
 
-- Loading VRM (UniVRM) and the avatar abstraction (Avatar Runtime, skeleton, expressions)
+- Loading VRM (UniVRM; VRM 0.x is converted to 1.0 at load, 6.8) and the avatar abstraction (Avatar Runtime, skeleton, expressions)
 - Registering avatars: copying into the Data Root, Avatar Profile, thumbnail, showing the model's license information
 - Choosing the avatar to use, loading it at startup, and placing it on the stream
 - Applying the pose (upper body, fingers) and expressions (eyes, mouth, gaze, brows)
@@ -181,6 +181,7 @@ DataRoot/Avatars/<AvatarId>/
   "displayName": "The model's name (from the meta; the user can change it)",
   "format": "vrm",
   "formatVersion": "1.0",
+  "converted": false,
   "sourceFileName": "original.vrm",
   "sha256": "...",
   "importedAt": "2026-10-20T12:00:00Z",
@@ -218,6 +219,14 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 - UI gets `IFileDialog` (`Task<string> OpenAsync(FileDialogOptions options)`). On Windows, the COM `IFileOpenDialog` is opened on a dedicated STA thread. Opening it on the main thread would stop rendering and the stream image while the dialog is open.
 - No additional dependency (library) is added.
+
+### 6.8 VRM 0.x
+
+- VRM 0.x models are accepted too (user's decision, 2026-10-18; system design 7.3). UniVRM's loading converts VRM 0.x to VRM 1.0 (enabling the 0.x conversion of `Vrm10`).
+- The original file (`model.vrm`) is stored as it is, and the conversion runs at every load. The converted result is not saved as a file, so improvements to UniVRM's conversion take effect without re-importing.
+- The profile's `formatVersion` is the original version (`0.x`), and `converted` shows that it was converted.
+- The license (6.4) is shown by mapping the 0.x meta fields to the 1.0 fields. Fields without a counterpart are shown with their original values.
+- Bone reference orientations and expression names differ between 0.x and 1.0, but after conversion the model is handled as 1.0. Remaining differences (such as the gaze range) are checked by tests.
 
 ---
 
@@ -436,8 +445,8 @@ Assets/VirtualVessel/Avatar/
 
 | Item | Plan |
 |---|---|
-| Whether to accept VRM 0.x models | **Waiting for the user's confirmation.** System design 7.3 targets VRM 1.0 and later. UniVRM can convert VRM 0.x to 1.0 at load. Many 0.x models are still in use, so accepting them with conversion is proposed (if accepted, system design 7.3 is updated) |
-| A VRM model for tests | Receive a sample from the user (kept outside the repository). If a small model with a license that allows committing exists, use it for automated tests |
+| Whether to accept VRM 0.x models | Decided: accepted by converting to 1.0 at load (6.8, system design 7.3; user's decision, 2026-10-18) |
+| A VRM model for tests | Receive a sample from the user (outside the repository, in `E:\VirtualVessel\samples\`). Start with VRM 1.0; ask for a 0.x model when the 0.x conversion tests need one. If a small model with a license that allows committing exists, use it for automated tests |
 | Position matching such as touching the face (IK) | Considered together with full body |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | FBX | Starting with the choice of library. After v0.1.0 |

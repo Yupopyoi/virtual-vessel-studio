@@ -485,7 +485,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ Threading/FrameSlot.cs
 │  └─ Recording/              TrackingRecorder, TrackingReplayProvider, TrackingMetrics
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe（MediaPipeUnityPluginを参照する唯一のAssembly）
-│  ├─ MediaPipeTrackingProvider.cs
+│  ├─ MediaPipeTrackingProvider.cs   Taskの作成と呼び出し（PluginのAPIを使う部分）
 │  ├─ MediaPipeConversion.cs
 │  └─ CameraFrameReader.cs    AsyncGPUReadbackとBufferの使い回し
 └─ Tests/
@@ -504,6 +504,17 @@ Assets/VirtualVessel/Tracking/
 - モデル（Face Landmarker、Pose Landmarker、Hand Landmarker）も同じScriptで、固定した版とHashで取得し、配布物に含める。
 - 配布物には、Windows x64のNative Libraryだけを含める。
 - ライセンス：Pluginは MIT、MediaPipeとモデルはApache-2.0。同じ変更でSBOMへ記録する（CLAUDE.md 35章）。
+
+#### 更新への備え
+
+MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9か月）。更新に追随しやすいよう、次のように作る。
+
+- 版、ダウンロード先、SHA-256は、`tools/deps/mediapipe.json`の1か所に書く。Script、CI、SBOMの確認は、この値を読む。更新は、この値とSBOMを変える1つの変更（`chore:`のBranch）とする。
+- Pluginの型を使うのはMediaPipeのAssemblyだけで、その中でも、Pluginを呼ぶ部分（Taskの作成、`DetectAsync`、結果の受け取り）と、結果を共通の形へ変える部分（`MediaPipeConversion`）を分ける。PluginのAPIが変わったときに直す場所を、Taskを呼ぶ部分に限るため。
+- `MediaPipeConversion`は、Pluginの型ではなく、点の配列（位置、信頼度）を受け取る純粋関数とする。PluginのAPIが変わっても、変換のTestはそのまま使える。
+- モデルのファイルは、Pluginとは別に版とHashを持つ。Pluginを更新しても、モデルは変えずに済む（逆も同じ）。
+- 更新の確認：EditModeのTest、`[Explicit]`の実機のTest（顔・体・手が取れること）、性能の計測（推論の時間、遅れ）を、更新の前後で比べる。結果をPull Requestに書く。
+- 更新の手順は、開発運用方針の依存の更新の節に書く（導入の段階で加える）。
 
 ---
 

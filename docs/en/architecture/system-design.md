@@ -68,7 +68,7 @@ This system mainly covers the following functions.
 
 ### 3D Avatar
 
-- VRM 1.0 and later
+- VRM 1.0 and later (VRM 0.x is accepted by converting it to 1.0 at load)
 - FBX
 - avatar registration
 - avatar switching
@@ -5072,7 +5072,7 @@ The initially supported formats are as follows.
 
 | Format | Support policy |
 |---|---|
-| VRM | VRM 1.0 and later are targeted |
+| VRM | VRM 1.0 and later are targeted. VRM 0.x models are also accepted by converting them to VRM 1.0 at load (user's decision, 2026-10-18, because 0.x models are still widely used) |
 | FBX | Supported |
 
 The runtime loading method for FBX, including the library used, is decided in the detailed design.
@@ -12591,7 +12591,7 @@ Combining multiple inputs allows the strengths of each to be used.
 
 ## 16.5 Supporting New 3D Model Formats
 
-The initially supported formats are VRM 1.0 and later and FBX.
+The initially supported formats are VRM 1.0 and later (VRM 0.x is accepted by converting it to 1.0) and FBX.
 
 When adding another 3D avatar format in the future, it is supported by adding an avatar loader as defined in Chapter 7.
 
