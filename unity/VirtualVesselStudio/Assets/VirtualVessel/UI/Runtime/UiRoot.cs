@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -12,9 +13,11 @@ using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Notifications;
+using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.UI.Theme;
@@ -31,6 +34,9 @@ namespace VirtualVessel.UI
         /// <param name="applicationVersion">Shown under the navigation; optional.</param>
         /// <param name="metrics">Shown on the Diagnostics screen; null when the service is not available.</param>
         /// <param name="developerModeReceivers">Told when Developer Mode changes, such as detailed metrics.</param>
+        /// <param name="streamPreview">The stream video for the live screen (Video); null shows "no video".</param>
+        /// <param name="frameSources">The videos to place on the live screen (Stage); null for none.</param>
+        /// <param name="captures">The capture sources for the setup screen (Capture); null says it is unavailable.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
@@ -40,7 +46,10 @@ namespace VirtualVessel.UI
             bool systemPrefersReducedMotion,
             string applicationVersion = null,
             IPerformanceMetrics metrics = null,
-            IReadOnlyList<Action<bool>> developerModeReceivers = null)
+            IReadOnlyList<Action<bool>> developerModeReceivers = null,
+            IStreamPreviewSource streamPreview = null,
+            IReadOnlyList<IFrameSource> frameSources = null,
+            ICaptureSources captures = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -56,6 +65,9 @@ namespace VirtualVessel.UI
             ApplicationVersion = applicationVersion;
             Metrics = metrics;
             DeveloperModeReceivers = developerModeReceivers ?? Array.Empty<Action<bool>>();
+            StreamPreview = streamPreview;
+            FrameSources = frameSources ?? Array.Empty<IFrameSource>();
+            Captures = captures;
         }
 
         public string ConfigDirectory { get; }
@@ -75,6 +87,12 @@ namespace VirtualVessel.UI
         public IPerformanceMetrics Metrics { get; }
 
         public IReadOnlyList<Action<bool>> DeveloperModeReceivers { get; }
+
+        public IStreamPreviewSource StreamPreview { get; }
+
+        public IReadOnlyList<IFrameSource> FrameSources { get; }
+
+        public ICaptureSources Captures { get; }
     }
 
     /// <summary>
@@ -196,7 +214,7 @@ namespace VirtualVessel.UI
                 Content.style.flexGrow = 1;
                 _scope.Add(Content);
                 _developerMode = new DeveloperModeService(settings, context.DeveloperModeReceivers, _log);
-                Shell = new AppShell(CreateScreens(settings, context.Metrics), context.ApplicationVersion, _log);
+                Shell = new AppShell(CreateScreens(settings, context), context.ApplicationVersion, _log);
                 Content.Add(Shell);
 
                 // Added after the content so that they draw above every screen.
@@ -404,12 +422,13 @@ namespace VirtualVessel.UI
         }
 
         /// <summary>The screens of the navigation, in order (UI foundation detailed design 7.7).</summary>
-        private IReadOnlyList<ScreenDefinition> CreateScreens(UiSettingsService settings, IPerformanceMetrics metrics)
+        private IReadOnlyList<ScreenDefinition> CreateScreens(UiSettingsService settings, UiRootContext context)
         {
+            IPerformanceMetrics metrics = context.Metrics;
             var screens = new List<ScreenDefinition>
             {
-                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new PlaceholderScreen()),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new PlaceholderScreen(new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
+                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };

@@ -226,7 +226,7 @@ Assets/VirtualVessel/Stage/
 │  ├─ StageSettings.cs
 │  ├─ ScreenPlacementMath.cs
 │  ├─ StageDefaults.cs
-│  └─ Resources/StreamScreen.mat    URPのUnlit。Buildに含めるためResourcesに置く
+│  └─ Resources/StreamScreen.shader 光を受けない板のShader。切り抜きと反転を材質の値（_MainTex_ST）だけで表す。Buildに含めるためResourcesに置く
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/

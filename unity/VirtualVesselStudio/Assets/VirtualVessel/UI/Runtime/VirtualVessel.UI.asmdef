@@ -2,6 +2,7 @@
     "name": "VirtualVessel.UI",
     "rootNamespace": "VirtualVessel.UI",
     "references": [
+        "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData"
