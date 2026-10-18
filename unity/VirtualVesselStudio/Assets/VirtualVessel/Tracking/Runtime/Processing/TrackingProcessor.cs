@@ -90,6 +90,7 @@ namespace VirtualVessel.Tracking.Processing
             }
 
             Outliers += state.Filter(raw.Positions, raw.Timestamp, profile.Position, output.Positions);
+            Array.Copy(raw.ImagePositions, output.ImagePositions, HandPose.JointCount);
             state.Palm = state.Palm.Next(raw.PalmRotation, raw.Timestamp, profile.Angle);
             output.PalmRotation = state.Palm.Value;
         }

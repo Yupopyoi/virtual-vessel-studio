@@ -44,6 +44,11 @@ namespace VirtualVessel.Tracking.Recording
             _state.Set(_frames.Count > 0 ? TrackingState.Running : TrackingState.Error);
         }
 
+        /// <summary>A recording has what it has; the processor leaves out disabled parts.</summary>
+        public void SetRegions(TrackingRegions regions)
+        {
+        }
+
         public void Stop()
         {
             _pending = -1;

@@ -68,6 +68,9 @@ namespace VirtualVessel.Tracking
 
         public Vector3[] Positions { get; } = new Vector3[JointCount];
 
+        /// <summary>Positions in the image, 0 to 1 from the top left; for showing the points over the camera image.</summary>
+        public Vector2[] ImagePositions { get; } = new Vector2[JointCount];
+
         /// <summary>From the wrist and the bases of the index and little fingers.</summary>
         public Quaternion PalmRotation { get; set; } = Quaternion.identity;
 
@@ -81,6 +84,7 @@ namespace VirtualVessel.Tracking
         {
             CopyHeader(other);
             Array.Copy(other.Positions, Positions, JointCount);
+            Array.Copy(other.ImagePositions, ImagePositions, JointCount);
             PalmRotation = other.PalmRotation;
         }
     }

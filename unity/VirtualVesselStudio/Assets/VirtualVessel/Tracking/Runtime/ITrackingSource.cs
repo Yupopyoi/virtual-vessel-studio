@@ -35,8 +35,10 @@ namespace VirtualVessel.Tracking
 
         void SetBodyRange(BodyRange range);
 
-        /// <summary>Makes the current pose the front and reference (tracking detailed design 8.5).</summary>
-        void Recenter();
+        /// <summary>The smoothing level (tracking detailed design 8.2).</summary>
+        IReadOnlyObservable<SmoothingPreset> Smoothing { get; }
+
+        void SetSmoothing(SmoothingPreset preset);
     }
 
     /// <summary>
@@ -51,6 +53,9 @@ namespace VirtualVessel.Tracking
 
         /// <summary>Returns without waiting; the result comes through <see cref="State"/>.</summary>
         void Start(TrackingRegions regions);
+
+        /// <summary>Changes the parts tracked while running; inference for the others stops.</summary>
+        void SetRegions(TrackingRegions regions);
 
         void Stop();
 
