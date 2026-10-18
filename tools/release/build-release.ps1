@@ -80,6 +80,9 @@ $process = Start-Process -FilePath $unity -PassThru -Wait -ArgumentList @(
     '-executeMethod', 'VirtualVessel.Application.Editor.ReleaseBuild.BuildWindows',
     '-vvOutput', "`"$stage`"", '-vvVersion', $Version, '-vvBuildId', $buildId,
     '-logFile', "`"$log`"")
+# The build rewrites settings (URP variant prefiltering, and it turns UnityConnectSettings on), so put the
+# project back as committed; the working copy was clean before the build.
+git -C $repository checkout -- unity
 if ($process.ExitCode -ne 0)
 {
     Select-String -Path $log -Pattern '\[ReleaseBuild\]|error CS' | Select-Object -First 20 | ForEach-Object { $_.Line }
@@ -96,8 +99,8 @@ Get-ChildItem (Join-Path $project 'Assets\ThirdParty') -Directory | ForEach-Obje
 }
 Copy-Item (Join-Path $repository 'sbom\virtual-vessel-studio.cdx.json') $licenses
 
-# Debug symbols stay out of the package.
-Get-ChildItem $stage -Recurse -Directory -Filter '*_BurstDebugInformation_DoNotShip' | Remove-Item -Recurse -Force
+# Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
+Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force
 
 # 6. The package and its checksum.
 $zip = Join-Path $releaseRoot $zipName
