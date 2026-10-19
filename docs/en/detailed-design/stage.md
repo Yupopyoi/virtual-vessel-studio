@@ -139,7 +139,7 @@ public sealed class StageService : IApplicationService
 ## 7. State / Lifecycle
 
 - `StageService` is an Optional application service that starts after Capture and Video. It is not registered without either (there would be no place for flat videos, or no videos).
-- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`.
+- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`. Sources of the `Camera` kind (the tracking camera) get none, so the user's face and room never go on the stream (Tracking detailed design 5.4, `StageService.ShowsOnStream`).
 - It subscribes to changes of the video (`Texture`) and sets it on the quad's material. Without a video the quad is hidden.
 - At shutdown it saves unsaved placements and destroys the quads and materials.
 

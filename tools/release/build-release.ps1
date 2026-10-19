@@ -7,7 +7,8 @@ The release procedure of development workflow 21, run on a developer's PC becaus
 in GitHub's hosted CI yet. In order:
 
 1. Checks the working copy: no uncommitted changes, and the project version is -Version.
-2. Builds the native plugins and runs their tests (tools/native).
+2. Builds the native plugins and runs their tests (tools/native), and puts the pinned MediaPipe
+   plugin and models in place (tools/deps).
 3. Runs the Unity EditMode and PlayMode tests (tools/unity/run-tests.ps1), unless -SkipTests.
 4. Builds the Windows player with the build identifier v<version>+<commit>.
 5. Adds LICENSE, NOTICE, TRADEMARKS.md, the third-party licenses, and the SBOM.
@@ -60,8 +61,9 @@ if ($Upload)
     if ($LASTEXITCODE -ne 0 -or $tagCommit.Trim() -ne $commit) { throw "HEAD is not the commit of tag $tag. Check out the tag before uploading." }
 }
 
-# 2–3. Native plugins and tests.
+# 2–3. Native plugins, the pinned MediaPipe plugin and models, and tests.
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-capture.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\deps\fetch-mediapipe.ps1'))
 if (-not $SkipTests)
 {
     foreach ($platform in 'EditMode', 'PlayMode')
@@ -98,6 +100,11 @@ Get-ChildItem (Join-Path $project 'Assets\ThirdParty') -Directory | ForEach-Obje
     }
 }
 Copy-Item (Join-Path $repository 'sbom\virtual-vessel-studio.cdx.json') $licenses
+
+# MediaPipeUnityPlugin and the libraries built into its native library (tracking detailed design 16.2).
+$mediapipe = Join-Path $project 'Packages\com.github.homuler.mediapipe'
+Copy-Item (Join-Path $mediapipe 'LICENSE.md') (Join-Path $licenses 'MediaPipeUnityPlugin-LICENSE.md')
+Copy-Item (Join-Path $mediapipe 'Third Party Notices.md') (Join-Path $licenses 'MediaPipeUnityPlugin-Third-Party-Notices.md')
 
 # Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
 Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force

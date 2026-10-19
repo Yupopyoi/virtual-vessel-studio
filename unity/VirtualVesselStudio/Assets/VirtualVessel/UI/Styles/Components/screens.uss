@@ -44,3 +44,21 @@
 .vv-capture-card__preview-empty {
     color: var(--vv-color-text-3);
 }
+
+/* The tracked points over the tracking camera's image (setup.md 4). Primary points on accent-line
+   bones, each with an on-accent outline so they show on bright and dark images alike. */
+.vv-tracking-overlay {
+    --tracking-point: var(--vv-color-primary);
+    --tracking-bone: var(--vv-color-accent-line);
+    --tracking-outline: var(--vv-color-on-accent);
+}
+
+.vv-tracking-card__parts {
+    margin-top: var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}
+
+.vv-tracking-card__load {
+    margin-top: var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}

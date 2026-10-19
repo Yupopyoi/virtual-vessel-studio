@@ -334,6 +334,19 @@ sequenceDiagram
 
 GPU使用率、GPU Memory等、環境依存の計測は、対応するModuleの詳細設計で追加する。
 
+### 12.1 画面に出す負荷（AppLoadSampler）
+
+セットアップ画面のトラッキングのCard（UI `setup.md` 4章）は、`AppLoadSampler`で1秒ごとに次を読む。計算は`AppLoadSampler.Compute`（純粋関数）。
+
+| 値 | 求め方 |
+|---|---|
+| FPS | 1秒の間のFrameの数 |
+| CPU | このProcessのCPU時間（`Process.TotalProcessorTime`）÷（経過時間×コア数） |
+| GPU | 直近のFrameのGPU時間（`FrameTimingManager`）÷1Frameの長さ。分からない環境ではNaN（表示は「—」） |
+
+- `FrameTimingManager`のため、Project設定の`Frame Timing Stats`（`enableFrameTimingStats`）を有効にした。
+- システム全体のGPU使用率は、Unityから読めないため扱わない。
+
 ---
 
 ## 13. エラー処理

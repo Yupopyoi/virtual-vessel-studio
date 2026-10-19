@@ -16,10 +16,8 @@ namespace VirtualVessel.Tracking
         /// <summary>Parts the provider can track.</summary>
         TrackingRegions Supported { get; }
 
-        /// <summary>Parts the user enabled.</summary>
-        IReadOnlyObservable<TrackingRegions> Enabled { get; }
-
-        IReadOnlyObservable<BodyRange> BodyRange { get; }
+        /// <summary>The user's choices; saved and restored at the next start.</summary>
+        IReadOnlyObservable<TrackingOptions> Options { get; }
 
         /// <summary>
         /// The latest smoothed observation, updated every frame. The same object is returned each time
@@ -27,16 +25,15 @@ namespace VirtualVessel.Tracking
         /// </summary>
         TrackingFrame Current { get; }
 
+        /// <summary>Camera images inferred per second over the last second; 0 while nothing arrives.</summary>
+        double ObservationsPerSecond { get; }
+
         void Start();
 
         void Stop();
 
-        void SetEnabled(TrackingRegions regions);
-
-        void SetBodyRange(BodyRange range);
-
-        /// <summary>Makes the current pose the front and reference (tracking detailed design 8.5).</summary>
-        void Recenter();
+        /// <summary>Applies new choices; a change of parts takes effect at once.</summary>
+        void SetOptions(TrackingOptions options);
     }
 
     /// <summary>
@@ -50,7 +47,10 @@ namespace VirtualVessel.Tracking
         IReadOnlyObservable<TrackingState> State { get; }
 
         /// <summary>Returns without waiting; the result comes through <see cref="State"/>.</summary>
-        void Start(TrackingRegions regions);
+        void Start(TrackingOptions options);
+
+        /// <summary>Changes the options while running; inference for disabled parts stops.</summary>
+        void SetOptions(TrackingOptions options);
 
         void Stop();
 

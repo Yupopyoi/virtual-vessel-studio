@@ -35,13 +35,18 @@ namespace VirtualVessel.Tracking.Recording
 
         public IReadOnlyObservable<TrackingState> State => _state;
 
-        public void Start(TrackingRegions regions)
+        public void Start(TrackingOptions options)
         {
             _startedAt = _now();
             _loopOffset = 0;
             _next = 0;
             _pending = -1;
             _state.Set(_frames.Count > 0 ? TrackingState.Running : TrackingState.Error);
+        }
+
+        /// <summary>A recording has what it has; the processor leaves out disabled parts.</summary>
+        public void SetOptions(TrackingOptions options)
+        {
         }
 
         public void Stop()

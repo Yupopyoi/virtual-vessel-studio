@@ -1,0 +1,29 @@
+{
+  "package": "com.github.homuler.mediapipe",
+  "version": "0.16.3",
+  "mediapipeVersion": "0.10.22",
+  "url": "https://github.com/homuler/MediaPipeUnityPlugin/releases/download/v0.16.3/com.github.homuler.mediapipe-0.16.3.tgz",
+  "sha256": "cc3e77a219e0b99618ae3be64c31a566197deedc69c1e136acf52d65d7cf2e79",
+  "models": [
+    {
+      "file": "face_landmarker_v2_with_blendshapes.bytes",
+      "sha256": "b261925d4aad812b47a0e8d58c1baa1223270a5d1f663d78338bc881c003879d"
+    },
+    {
+      "file": "pose_landmarker_lite.bytes",
+      "sha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a"
+    },
+    {
+      "file": "pose_landmarker_full.bytes",
+      "sha256": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1"
+    },
+    {
+      "file": "pose_landmarker_heavy.bytes",
+      "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b"
+    },
+    {
+      "file": "hand_landmarker.bytes",
+      "sha256": "32d1eab97e80a9a20edb29231e15301ce65abfd0fa9d41cf1757e0ecc8078a4e"
+    }
+  ]
+}

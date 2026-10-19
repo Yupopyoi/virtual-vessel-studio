@@ -748,13 +748,23 @@ Examples:
 
 | Target | Command |
 |---|---|
-| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. `[Explicit]` tests run only when named |
+| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. Only the test assemblies under `Assets/VirtualVessel` run (not packages' own tests). `[Explicit]` tests carry the `Explicit` category and run only when named |
+| MediaPipeUnityPlugin and models | `pwsh tools/deps/fetch-mediapipe.ps1`. Run it before opening the project for the first time and after changing the version (Tracking detailed design 16.2) |
 | Native plugins | `pwsh tools/native/build-capture.ps1` (build and tests) |
 | Repository checks | `python tools/ci/repo_checks.py` |
 | UI images | `pwsh tools/ui/capture-ui.ps1` |
 
 - Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). Close the Editor, or pass another working copy made with `git worktree` as `-Project`.
 - Results and logs go to `build/` (not in Git).
+
+## 14.1 Updating Fetched Dependencies
+
+Dependencies fetched from GitHub releases and the like (currently MediaPipeUnityPlugin) have their version, download URL, and SHA-256 in `tools/deps/<name>.json` and are fetched by a script. An update is one `chore:` branch:
+
+1. Change the version, URL, and SHA-256 (and the hashes of contents such as models) in `tools/deps/<name>.json`.
+2. Run the fetch script with `-Force`, then compile and test in Unity.
+3. Change the version, download URL, and hash in the SBOM (the repository checks find a mismatch).
+4. Compare tests, performance measurements (`AllTasks_Timing` in Tracking detailed design chapter 15), and a check with real devices before and after the update, and write the results in the pull request.
 
 ## Manual / System Test
 
@@ -868,7 +878,8 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 | Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
 | String tables | Each locale's JSON parses, and every locale has the same keys |
 | Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`) |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`). Fetched dependencies (`tools/deps/*.json`, embedded packages) are listed at the version pinned there, with the same download URL and SHA-256 |
+| Fetched dependencies | Each `tools/deps/*.json` has a package name, a version, an `https` download URL, and SHA-256 values (also for contents such as models) |
 
 - The checks look at the files tracked by git, not files that exist only locally, so they catch files that were not committed and missing `.meta` files.
 - The checks are in `tools/ci/repo_checks.py`, and their own unit tests (`tools/ci/test_repo_checks.py`) also run in CI.

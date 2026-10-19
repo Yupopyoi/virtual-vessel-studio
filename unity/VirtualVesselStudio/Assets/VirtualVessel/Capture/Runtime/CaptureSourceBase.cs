@@ -71,6 +71,13 @@ namespace VirtualVessel.Capture
 
         public IReadOnlyList<CaptureDevice> Devices => _devices;
 
+        public long FrameCount { get; private set; }
+
+        public long LastFrameTimestamp => _lastFrame;
+
+        /// <summary>The id of the device being captured, or null; for keeping two sources off one device.</summary>
+        internal string OpenDeviceId => OpenDevice?.Id;
+
         public string SelectedDeviceId { get; private set; }
 
         /// <summary>The device being captured, or null.</summary>
@@ -185,7 +192,12 @@ namespace VirtualVessel.Capture
         /// <summary>What a failure means for the state: a missing plugin is a developer problem of its own.</summary>
         internal static CaptureEvent FailureEvent(Exception exception)
         {
-            return exception is CapturePluginMissingException ? CaptureEvent.PluginMissing : CaptureEvent.Failed;
+            return exception switch
+            {
+                CapturePluginMissingException _ => CaptureEvent.PluginMissing,
+                CaptureDeviceInUseException _ => CaptureEvent.DeviceInUse,
+                _ => CaptureEvent.Failed,
+            };
         }
 
         /// <summary>The devices there are now. May be called often while unavailable; keep it light.</summary>
@@ -224,6 +236,7 @@ namespace VirtualVessel.Capture
             }
 
             _lastFrame = now;
+            FrameCount++;
             if (_flipped != null)
             {
                 MirrorFrame();

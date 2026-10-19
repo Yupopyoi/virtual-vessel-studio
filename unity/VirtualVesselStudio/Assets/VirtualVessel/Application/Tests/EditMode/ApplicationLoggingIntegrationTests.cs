@@ -136,9 +136,9 @@ namespace VirtualVessel.Application.Tests
             try
             {
                 Assert.That(runtime.State, Is.EqualTo(ApplicationState.Running));
-                Assert.That(frameLoop.Count, Is.EqualTo(1), "Capture updates its sources every frame.");
+                Assert.That(frameLoop.Count, Is.EqualTo(2), "Capture updates its sources and Tracking its frame every frame.");
 
-                // Every source starts stopped, so a frame opens no capture board or monitor.
+                // Every source starts stopped and tracking is off, so a frame opens no device.
                 frameLoop.Tick(exception => Assert.Fail(exception.ToString()));
             }
             finally

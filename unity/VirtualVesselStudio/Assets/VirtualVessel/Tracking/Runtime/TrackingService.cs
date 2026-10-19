@@ -1,0 +1,284 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using VirtualVessel.Capture;
+using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Core.State;
+using VirtualVessel.Core.Time;
+using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Tracking.Processing;
+
+namespace VirtualVessel.Tracking
+{
+    /// <summary>
+    /// The tracking of one person (tracking detailed design 5.1, 5.3): runs the provider on the
+    /// tracking camera, smooths its observations every frame, and saves the user's choices. An
+    /// Optional application service; without it the avatar keeps its rest pose.
+    /// </summary>
+    /// <remarks>
+    /// The tracking camera is used only for tracking, so it starts and stops with tracking. Main
+    /// thread only.
+    /// </remarks>
+    public sealed class TrackingService : IApplicationService, ITrackingSource
+    {
+        public const string ServiceName = "Tracking";
+
+        private readonly ITrackingProvider _provider;
+        private readonly IVideoCaptureSource _camera;
+        private readonly IFrameLoop _frameLoop;
+        private readonly IMonotonicClock _clock;
+        private readonly ILog _log;
+        private readonly ConfigSaveScheduler<TrackingSettings> _saves;
+        private readonly TrackingProcessor _processor = new TrackingProcessor();
+        private readonly TrackingFrame _raw = new TrackingFrame();
+        private readonly TrackingFrame _current = new TrackingFrame();
+        private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
+        private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
+        private readonly ObservableValue<TrackingOptions> _options;
+        private readonly PerfTimer _latency;
+        private TrackingSettings _settings;
+        private bool _wanted;
+        private EventRate _rate;
+        private double _lastImage = double.NegativeInfinity;
+        private double _now;
+        private IDisposable _tick;
+
+        /// <param name="provider">Null when no provider can run, such as without the MediaPipe plugin; tracking then reports StartFailed.</param>
+        /// <param name="camera">The tracking camera, or null for a provider that needs none, such as replay.</param>
+        /// <param name="saves">Where changes go; null to save nothing, as in tests.</param>
+        public TrackingService(ITrackingProvider provider, IVideoCaptureSource camera, IFrameLoop frameLoop, IMonotonicClock clock, TrackingSettings settings, ConfigSaveScheduler<TrackingSettings> saves, IPerformanceMetrics metrics, ILog log)
+        {
+            _provider = provider;
+            _camera = camera;
+            _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+            _settings = settings?.Clone() ?? new TrackingSettings();
+            _saves = saves;
+            _log = log;
+            _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
+            _latency = metrics?.Timer("Tracking", "Latency");
+        }
+
+        public string Name => ServiceName;
+
+        public IReadOnlyObservable<TrackingState> State => _state;
+
+        public IReadOnlyObservable<TrackingProblem> Problem => _problem;
+
+        public TrackingRegions Supported => _provider?.Supported ?? TrackingRegions.None;
+
+        public IReadOnlyObservable<TrackingOptions> Options => _options;
+
+        public TrackingFrame Current => _current;
+
+        public double ObservationsPerSecond => _rate.RateAt(_now);
+
+        /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
+        public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
+        {
+            return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock);
+        }
+
+        public Task InitializeAsync(CancellationToken cancellationToken)
+        {
+            _tick = _frameLoop.Register(Tick);
+            _log?.Information($"Tracking started with provider {_settings.Provider}{(_provider == null ? " (not available)" : string.Empty)}.");
+            if (_settings.Running)
+            {
+                Start();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task ShutdownAsync(CancellationToken cancellationToken)
+        {
+            // Saved before stopping, so tracking starts again next time if it was running.
+            NoteChanges();
+            StopProvider();
+            if (_saves != null)
+            {
+                await _saves.FlushAsync().ConfigureAwait(false);
+            }
+        }
+
+        public void Dispose()
+        {
+            _tick?.Dispose();
+            _tick = null;
+            StopProvider();
+            _provider?.Dispose();
+        }
+
+        public void Start()
+        {
+            if (_wanted)
+            {
+                return;
+            }
+
+            _wanted = true;
+            _processor.Reset();
+            _camera?.Start();
+            _provider?.Start(_options.Value);
+            _log?.Information($"Tracking on: {_options.Value}.");
+            Refresh();
+        }
+
+        public void Stop()
+        {
+            if (!_wanted)
+            {
+                return;
+            }
+
+            _wanted = false;
+            StopProvider();
+            _log?.Information("Tracking off.");
+            Refresh();
+        }
+
+        public void SetOptions(TrackingOptions options)
+        {
+            if (_options.Set(options) && _wanted)
+            {
+                _provider?.SetOptions(options);
+            }
+        }
+
+        /// <summary>
+        /// The state and problem to show, from the camera, the provider, and whether anyone is seen
+        /// (tracking detailed design 7.1, 11). Pure.
+        /// </summary>
+        internal static (TrackingState State, TrackingProblem Problem) Describe(
+            bool wanted,
+            bool hasProvider,
+            bool needsCamera,
+            CaptureState cameraState,
+            CaptureProblem cameraProblem,
+            TrackingState providerState,
+            bool personSeen)
+        {
+            if (!wanted)
+            {
+                return (TrackingState.Stopped, TrackingProblem.None);
+            }
+
+            if (!hasProvider)
+            {
+                return (TrackingState.Error, TrackingProblem.StartFailed);
+            }
+
+            if (needsCamera)
+            {
+                switch (cameraState)
+                {
+                    case CaptureState.Stopped when cameraProblem == CaptureProblem.DeviceNotChosen:
+                        return (TrackingState.Unavailable, TrackingProblem.CameraNotChosen);
+                    case CaptureState.Unavailable:
+                        return (TrackingState.Unavailable, TrackingProblem.CameraNotFound);
+                    case CaptureState.Error:
+                        return (TrackingState.Error, cameraProblem == CaptureProblem.DeviceInUse ? TrackingProblem.CameraInUse : TrackingProblem.StartFailed);
+                    case CaptureState.Stopped:
+                    case CaptureState.Starting:
+                    case CaptureState.Ready:
+                        return (TrackingState.Starting, TrackingProblem.None);
+                }
+            }
+
+            switch (providerState)
+            {
+                case TrackingState.Error:
+                    return (TrackingState.Error, TrackingProblem.StartFailed);
+                case TrackingState.Running:
+                    return (TrackingState.Running, personSeen ? TrackingProblem.None : TrackingProblem.NoPerson);
+                default:
+                    return (TrackingState.Starting, TrackingProblem.None);
+            }
+        }
+
+        /// <summary>The newest part time of an observation: how old the image behind it is. Pure.</summary>
+        internal static double Newest(TrackingFrame frame)
+        {
+            double newest = Math.Max(Math.Max(TimeOf(frame.Body), TimeOf(frame.Face)), Math.Max(TimeOf(frame.LeftHand), TimeOf(frame.RightHand)));
+            return double.IsNegativeInfinity(newest) ? frame.Time : newest;
+        }
+
+        internal void Tick()
+        {
+            _now = _clock.GetTimestamp() / (double)_clock.Frequency;
+            if (_wanted && _provider != null)
+            {
+                _provider.Tick();
+                bool observed = _provider.TryTakeLatest(_raw);
+                TrackingOptions options = _options.Value;
+                _processor.Process(observed ? _raw : null, _now, _provider.Supported, options.Regions, options.Smoothing, _current);
+                if (observed)
+                {
+                    NoteObservation(Newest(_raw));
+                }
+            }
+
+            Refresh();
+            NoteChanges();
+            _saves?.Tick();
+        }
+
+        private static double TimeOf(TrackedPart part)
+        {
+            return part.IsUsable ? part.Timestamp : double.NegativeInfinity;
+        }
+
+        private void NoteObservation(double imageTime)
+        {
+            _latency?.Record(TimeSpan.FromSeconds(Math.Max(0, _now - imageTime)));
+
+            // Parts of one image arrive separately; count each image once.
+            if (imageTime > _lastImage)
+            {
+                _lastImage = imageTime;
+                _rate = _rate.Next(_now);
+            }
+        }
+
+        private void StopProvider()
+        {
+            _provider?.Stop();
+            _camera?.Stop();
+            _processor.Reset();
+        }
+
+        private void Refresh()
+        {
+            bool personSeen = _current.Body.IsUsable || _current.Face.IsUsable || _current.LeftHand.IsUsable || _current.RightHand.IsUsable;
+            (TrackingState state, TrackingProblem problem) = Describe(
+                _wanted,
+                _provider != null,
+                _camera != null,
+                _camera?.State.Value ?? CaptureState.Stopped,
+                _camera?.Problem.Value ?? CaptureProblem.None,
+                _provider?.State.Value ?? TrackingState.Stopped,
+                personSeen);
+            if (_state.Set(state))
+            {
+                _log?.Information($"Tracking is {state}{(problem == TrackingProblem.None ? string.Empty : $" ({problem})")}.");
+            }
+
+            _problem.Set(problem);
+        }
+
+        private void NoteChanges()
+        {
+            // Compared every frame, so nothing is allocated unless something changed.
+            if (_options.Value.Equals(_settings.GetOptions()) && _wanted == _settings.Running)
+            {
+                return;
+            }
+
+            _settings = _settings.With(_options.Value, _wanted);
+            _saves?.Changed(_settings.Clone());
+        }
+    }
+}

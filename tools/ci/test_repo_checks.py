@@ -97,6 +97,40 @@ class SbomTests(unittest.TestCase):
         self.assertIn("SBOM: missing github-action:actions/checkout@v4", errors)
         self.assertIn("SBOM: asset:Old is listed but no longer used", errors)
 
+    def test_an_embedded_package_needs_the_pinned_version(self):
+        lock = '{"dependencies": {"com.example.plugin": {"version": "file:com.example.plugin", "source": "embedded"}}}'
+        pinned = repo_checks.pinned_packages(['{"package": "com.example.plugin", "version": "1.2.3", "url": "u"}', '{"other": 1}'])
+        self.assertEqual(pinned, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(repo_checks.sbom_requirements(lock, [], {}, pinned), {"unity-package:com.example.plugin": "1.2.3"})
+
+    def test_a_pinned_package_is_required_before_it_is_fetched(self):
+        required = repo_checks.sbom_requirements('{"dependencies": {}}', [], {}, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(required, {"unity-package:com.example.plugin": "1.2.3"})
+
+    MANIFEST = '{"package": "com.example.plugin", "version": "1.2.3", "url": "https://example.com/p.tgz", "sha256": "' + "a" * 64 + '"}'
+
+    def test_a_well_formed_manifest_passes(self):
+        self.assertEqual(repo_checks.check_deps_manifest("m.json", self.MANIFEST), [])
+
+    def test_a_manifest_needs_https_and_hashes(self):
+        bad = '{"package": "p", "version": "1", "url": "http://example.com/p.tgz", "sha256": "ABC", "models": [{"file": "m.bytes"}]}'
+        errors = repo_checks.check_deps_manifest("m.json", bad)
+        self.assertIn("m.json: url must be https", errors)
+        self.assertIn("m.json: sha256 must be 64 lowercase hex digits", errors)
+        self.assertIn("m.json: every model needs a file and a sha256", errors)
+
+    def test_the_sbom_records_the_pinned_download(self):
+        component = self.component("unity-package:com.example.plugin", "1.2.3")
+        component["hashes"] = [{"alg": "SHA-256", "content": "a" * 64}]
+        component["externalReferences"] = [{"type": "distribution", "url": "https://example.com/p.tgz"}]
+        self.assertEqual(repo_checks.check_pinned_sbom(self.sbom(component), [self.MANIFEST]), [])
+
+        component["hashes"] = [{"alg": "SHA-256", "content": "b" * 64}]
+        component["externalReferences"] = []
+        errors = repo_checks.check_pinned_sbom(self.sbom(component), [self.MANIFEST])
+        self.assertIn("SBOM: unity-package:com.example.plugin SHA-256 differs from tools/deps", errors)
+        self.assertIn("SBOM: unity-package:com.example.plugin distribution URL differs from tools/deps", errors)
+
     def test_nested_components_need_a_license_and_scope(self):
         parent = self.component("unity-package:com.unity.ugui", "2.6.0")
         parent["components"] = [{"bom-ref": "inner", "name": "inner", "version": "1"}]

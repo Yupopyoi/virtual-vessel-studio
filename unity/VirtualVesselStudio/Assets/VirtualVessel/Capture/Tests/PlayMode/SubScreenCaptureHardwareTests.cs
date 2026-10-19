@@ -18,6 +18,7 @@ namespace VirtualVessel.Capture.Tests
     /// The captured image stays in memory and is thrown away; only sizes and times are logged.
     /// </summary>
     [Explicit("Needs the native plugin and a monitor.")]
+    [Category("Explicit")]
     public sealed class SubScreenCaptureHardwareTests
     {
         [UnityTest]

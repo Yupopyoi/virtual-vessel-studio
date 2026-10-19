@@ -96,22 +96,54 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
+        public void TheTrackingCamera_IsSavedAndRestored_Too()
+        {
+            Camera.SelectDevice("Board A");
+            Camera.Start();
+            _service.ShutdownAsync(CancellationToken.None).Wait();
+
+            CaptureSettings saved = Load();
+            Assert.That(saved.CameraDeviceId, Is.EqualTo("Board A"));
+            Assert.That(saved.CameraEnabled, Is.True);
+            Assert.That(saved.GameEnabled, Is.False, "The other sources keep their own choices.");
+
+            _service.Dispose();
+            _service = Create();
+            Assert.That(Camera.State.Value, Is.Not.EqualTo(CaptureState.Stopped));
+        }
+
+        [Test]
+        public void IsOpen_MatchesTheDeviceTheOtherSourceHasOpen()
+        {
+            Game.SelectDevice("Board B");
+            Game.Start();
+            var game = (CaptureSourceBase)GameSource;
+
+            Assert.That(CaptureService.IsOpen(game, "Board B"), Is.True);
+            Assert.That(CaptureService.IsOpen(game, "Board A"), Is.False);
+            Assert.That(CaptureService.IsOpen(null, "Board B"), Is.False);
+        }
+
+        [Test]
         public void WasStarted_ReadsEachSourcesFlag()
         {
-            var settings = new CaptureSettings { GameEnabled = true };
+            var settings = new CaptureSettings { GameEnabled = true, CameraEnabled = true };
 
-            Assert.That(CaptureService.WasStarted(settings, GameCaptureSource.SourceId), Is.True);
+            Assert.That(CaptureService.WasStarted(settings, WebCamCaptureSource.GameSourceId), Is.True);
+            Assert.That(CaptureService.WasStarted(settings, WebCamCaptureSource.CameraSourceId), Is.True);
             Assert.That(CaptureService.WasStarted(settings, SubScreenCaptureSource.SourceId), Is.False);
             Assert.That(CaptureService.WasStarted(settings, "other"), Is.False);
         }
 
         private string SettingsFile => Path.Combine(_directory, CaptureSettings.FileName);
 
-        private IVideoCaptureSource GameSource => _service.Find(GameCaptureSource.SourceId);
+        private IVideoCaptureSource GameSource => _service.Find(WebCamCaptureSource.GameSourceId);
 
         private ICaptureDeviceSource Game => (ICaptureDeviceSource)GameSource;
 
         private ICaptureDeviceSource Sub => (ICaptureDeviceSource)_service.Find(SubScreenCaptureSource.SourceId);
+
+        private ICaptureDeviceSource Camera => (ICaptureDeviceSource)_service.Find(WebCamCaptureSource.CameraSourceId);
 
         private CaptureService Create()
         {
@@ -120,8 +152,9 @@ namespace VirtualVessel.Capture.Tests
             var saves = new ConfigSaveScheduler<CaptureSettings>(store, _clock, TimeSpan.FromSeconds(0.5), null);
             var sources = new CaptureSourceBase[]
             {
-                new GameCaptureSource(_cameras, settings, _clock, null, null),
+                WebCamCaptureSource.ForGame(_cameras, settings, _clock, null, null),
                 new SubScreenCaptureSource(_monitors, settings, _clock, null, null),
+                WebCamCaptureSource.ForTrackingCamera(_cameras, settings, _clock, null, null),
             };
             var service = new CaptureService(sources, _loop, _clock, null, settings, saves);
             service.InitializeAsync(CancellationToken.None).Wait();

@@ -15,6 +15,7 @@ namespace VirtualVessel.Capture.Tests
     /// board by name; without it the first camera is opened.
     /// </summary>
     [Explicit("Needs a capture board with a video input.")]
+    [Category("Explicit")]
     public sealed class GameCaptureHardwareTests
     {
         private const string DeviceVariable = "VV_GAME_CAPTURE_DEVICE";
@@ -24,7 +25,7 @@ namespace VirtualVessel.Capture.Tests
         {
             var clock = new StopwatchMonotonicClock();
             var settings = new CaptureSettings { GameDeviceId = Environment.GetEnvironmentVariable(DeviceVariable) };
-            var source = new GameCaptureSource(new UnityCameraDevices(), settings, clock, null, null);
+            var source = WebCamCaptureSource.ForGame(new UnityCameraDevices(), settings, clock, null, null);
             try
             {
                 source.Start();

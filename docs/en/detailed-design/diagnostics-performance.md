@@ -334,6 +334,19 @@ When detailed metrics are enabled, the following are obtained from Unity's `Prof
 
 Environment-dependent measurements such as GPU usage and GPU memory are added in the detailed design of the corresponding module.
 
+### 12.1 Load Shown on Screen (AppLoadSampler)
+
+The tracking Card on the setup screen (UI `setup.md` chapter 4) reads the following every second through `AppLoadSampler`. The computation is `AppLoadSampler.Compute` (a pure function).
+
+| Value | How |
+|---|---|
+| FPS | Frames in the second |
+| CPU | This process's CPU time (`Process.TotalProcessorTime`) ÷ (elapsed time × cores) |
+| GPU | The latest frame's GPU time (`FrameTimingManager`) ÷ the frame's length. NaN where unknown (shown as "—") |
+
+- For `FrameTimingManager`, the project's `Frame Timing Stats` (`enableFrameTimingStats`) setting is turned on.
+- System-wide GPU usage cannot be read from Unity and is not handled.
+
 ---
 
 ## 13. Error Handling

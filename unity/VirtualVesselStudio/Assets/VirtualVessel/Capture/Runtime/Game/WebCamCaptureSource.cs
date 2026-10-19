@@ -6,13 +6,32 @@ using VirtualVessel.Diagnostics.Performance;
 
 namespace VirtualVessel.Capture.Game
 {
-    /// <summary>
-    /// GameCapture: a capture board opened as a UVC camera through WebCamTexture, as the prototype
-    /// did (capture detailed design 8.1). Video only; the board's audio comes with the Audio module.
-    /// </summary>
-    internal sealed class GameCaptureSource : CaptureSourceBase
+    /// <summary>The size and frame rate a camera source asks for; the device may deliver something close.</summary>
+    internal readonly struct WebCamRequest
     {
-        public const string SourceId = "game";
+        public WebCamRequest(int width, int height, int frameRate)
+        {
+            Width = width;
+            Height = height;
+            FrameRate = frameRate;
+        }
+
+        public int Width { get; }
+
+        public int Height { get; }
+
+        public int FrameRate { get; }
+    }
+
+    /// <summary>
+    /// A UVC camera through WebCamTexture, as the prototype did (capture detailed design 8.1): the
+    /// capture board of GameCapture, and the webcam for tracking (tracking detailed design 5.4). Video
+    /// only; the board's audio comes with the Audio module.
+    /// </summary>
+    internal sealed class WebCamCaptureSource : CaptureSourceBase
+    {
+        public const string GameSourceId = "game";
+        public const string CameraSourceId = "camera";
 
         /// <summary>Without a frame this long, after opening or after the last frame, the board probably has no input.</summary>
         public static readonly TimeSpan NoSignalAfter = TimeSpan.FromSeconds(5);
@@ -24,7 +43,8 @@ namespace VirtualVessel.Capture.Game
         private const int PlaceholderSize = 16;
 
         private readonly ICameraDevices _devices;
-        private readonly CaptureSettings _settings;
+        private readonly WebCamRequest _request;
+        private readonly Func<string, bool> _inUseElsewhere;
         private readonly long _noSignalTicks;
         private readonly long _quietTicks;
         private readonly long _checkTicks;
@@ -34,16 +54,45 @@ namespace VirtualVessel.Capture.Game
         private long _lastDeviceCheck;
         private FrameRateMeter _rate;
 
-        public GameCaptureSource(ICameraDevices devices, CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
-            : base(SourceId, CaptureSourceKind.GameCapture, clock, metrics, log)
+        /// <param name="inUseElsewhere">Whether another source has a device open; null when no other source opens cameras.</param>
+        private WebCamCaptureSource(string id, CaptureSourceKind kind, ICameraDevices devices, WebCamRequest request, string deviceId, CaptureFlip flip, Func<string, bool> inUseElsewhere, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+            : base(id, kind, clock, metrics, log)
         {
             _devices = devices ?? throw new ArgumentNullException(nameof(devices));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _request = request;
+            _inUseElsewhere = inUseElsewhere;
             _noSignalTicks = ToTicks(NoSignalAfter, clock.Frequency);
             _quietTicks = ToTicks(QuietBeforeDeviceCheck, clock.Frequency);
             _checkTicks = ToTicks(RetryInterval, clock.Frequency);
-            SelectDevice(settings.GameDeviceId);
-            SetFlip(settings.GameFlip);
+            SelectDevice(deviceId);
+            SetFlip(flip);
+        }
+
+        /// <summary>The capture board of GameCapture.</summary>
+        public static WebCamCaptureSource ForGame(ICameraDevices devices, CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log, Func<string, bool> inUseElsewhere = null)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            var request = new WebCamRequest(settings.GameWidth, settings.GameHeight, settings.GameFrameRate);
+            return new WebCamCaptureSource(GameSourceId, CaptureSourceKind.GameCapture, devices, request, settings.GameDeviceId, settings.GameFlip, inUseElsewhere, clock, metrics, log);
+        }
+
+        /// <summary>
+        /// The webcam for tracking. Never flipped: left and right are decided by Tracking and Avatar
+        /// (tracking detailed design 5.4).
+        /// </summary>
+        public static WebCamCaptureSource ForTrackingCamera(ICameraDevices devices, CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log, Func<string, bool> inUseElsewhere = null)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            var request = new WebCamRequest(settings.CameraWidth, settings.CameraHeight, settings.CameraFrameRate);
+            return new WebCamCaptureSource(CameraSourceId, CaptureSourceKind.Camera, devices, request, settings.CameraDeviceId, CaptureFlip.None, inUseElsewhere, clock, metrics, log);
         }
 
         protected override bool RequiresChosenDevice => true;
@@ -78,10 +127,16 @@ namespace VirtualVessel.Capture.Game
 
         protected override void Open(CaptureDevice device)
         {
-            _stream = _devices.Open(device.Id, _settings.GameWidth, _settings.GameHeight, _settings.GameFrameRate);
+            // WebCamTexture cannot open one device twice; say so instead of failing to play.
+            if (_inUseElsewhere != null && _inUseElsewhere(device.Id))
+            {
+                throw new CaptureDeviceInUseException(device.DisplayName);
+            }
+
+            _stream = _devices.Open(device.Id, _request.Width, _request.Height, _request.FrameRate);
             if (!_stream.IsPlaying)
             {
-                // Typically the board is in use by another application.
+                // Typically the device is in use by another application.
                 throw new InvalidOperationException($"The camera '{device.DisplayName}' did not start playing.");
             }
 

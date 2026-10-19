@@ -139,7 +139,7 @@ public sealed class StageService : IApplicationService
 ## 7. State / Lifecycle
 
 - `StageService`はOptionalのApplication Serviceとし、Capture、Videoの後に起動する。どちらかがなければ登録しない（平面の映像を出す場所か、映像がないため）。
-- 起動時に`stage-settings.json`を読み、Capture Sourceごとに`CaptureScreen`を作り、板を`IStreamScreenLayer.Root`の下に置く。
+- 起動時に`stage-settings.json`を読み、Capture Sourceごとに`CaptureScreen`を作り、板を`IStreamScreenLayer.Root`の下に置く。種類が`Camera`のSource（トラッキング用カメラ）には作らない。利用者の顔や部屋を配信に出さないため（Tracking詳細設計5.4、`StageService.ShowsOnStream`）。
 - 映像（`Texture`）の変化を購読し、板の材質へ設定する。映像がなければ板を隠す。
 - 終了時に未保存の配置を保存し、板と材質を破棄する。
 

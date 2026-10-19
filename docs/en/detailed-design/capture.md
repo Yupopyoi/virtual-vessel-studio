@@ -43,7 +43,7 @@ flowchart LR
     Monitor["Sub Monitor"] --> Native["Native Plugin<br/>DXGI Desktop Duplication"]
 
     subgraph Capture["Capture Module"]
-        Game["GameCaptureSource"]
+        Game["WebCamCaptureSource (game)"]
         Sub["SubScreenCaptureSource"]
         Service["CaptureService"]
     end
@@ -95,7 +95,7 @@ flowchart LR
 | `CaptureDevice` | Class | A device's identifier and display name |
 | `CaptureSourceInfo` | Struct | The actual resolution, frame rate, and device display name |
 | `CaptureService` | Class (`IApplicationService`) | Creates, starts, stops, and updates sources every frame; measures |
-| `GameCaptureSource` | Class | GameCapture through `WebCamTexture` |
+| `WebCamCaptureSource` | Class | A source through `WebCamTexture`: GameCapture (`game`) and the tracking camera (`camera`, 8.5) |
 | `SubScreenCaptureSource` | Class | SubScreenCapture through the native plugin |
 | `IDesktopDuplication` | Interface (internal) | The boundary to the native plugin; replaced by a fake in tests |
 | `ICameraDevices` | Interface (internal) | The boundary to `WebCamTexture`; replaced by a fake in tests |
@@ -110,11 +110,13 @@ flowchart LR
 public interface IVideoCaptureSource
 {
     string Id { get; }                                       // "game", "subscreen". Stage refers to sources by this
-    CaptureSourceKind Kind { get; }                          // GameCapture, SubScreenCapture
+    CaptureSourceKind Kind { get; }                          // GameCapture, SubScreenCapture, Camera
     IReadOnlyObservable<CaptureState> State { get; }
     IReadOnlyObservable<CaptureProblem> Problem { get; }     // What to tell the user; None when there is nothing
     IReadOnlyObservable<CaptureSourceInfo> Info { get; }     // Actual resolution, frame rate, device name
     IReadOnlyObservable<Texture> Texture { get; }            // The video; a different texture when the resolution changes
+    long FrameCount { get; }                                 // Frames that have arrived; tells new images apart (Tracking)
+    long LastFrameTimestamp { get; }                         // When the latest frame arrived (monotonic clock ticks)
     IReadOnlyObservable<CaptureFlip> Flip { get; }           // Mirroring top-bottom and left-right; Texture is already mirrored
     void SetFlip(CaptureFlip flip);
     void Start();
@@ -169,6 +171,7 @@ public interface ICaptureSources
 | `NoSignal` | No video is arriving (check the game device's power and cable) |
 | `StartFailed` | The video couldn't be captured |
 | `PluginMissing` | A developer problem; users see it as `StartFailed` |
+| `DeviceInUse` | Another source of this application has the device open (the same camera for the game screen and tracking, 8.5) |
 
 The texts go into the UI string tables when the screens are built. Internal details such as DXGI or HRESULTs are not shown to users (system design 14.41).
 
@@ -284,6 +287,17 @@ The native plugin (`VirtualVessel.Capture.Native.dll`) acquires frames with DXGI
 - While flipped, every new frame is copied mirrored on the GPU into a render texture of the same size, and `Texture` shows that render texture, so its users need not handle the flip. Without a flip, the source's own texture is shown as it is.
 - A source's flip corrects the video itself. The left-right flip of a placement on the stream screen (the placement editor's `FrameLayout`) is separate, and both can be used.
 
+### 8.5 The Tracking Camera (camera)
+
+For Tracking detailed design 5.4, a third source, the tracking webcam, was added.
+
+- The same `WebCamCaptureSource` as GameCapture is created with another id and settings (`ForGame`, `ForTrackingCamera`). Its id is `camera` (`CaptureService.TrackingCameraId`) and its kind `CaptureSourceKind.Camera`.
+- It is not opened until a device is chosen. It asks for 1280×720 at 30 fps (`CameraWidth`, `CameraHeight`, `CameraFrameRate`) and is never flipped.
+- `game` and `camera` do not open the device the other has open, because `WebCamTexture` cannot open one device twice. Trying gives `Error` (`DeviceInUse`); choosing another device opens it.
+- It is not shown on the stream (Stage detailed design chapter 7). On the setup screen its device is chosen in the tracking Card, not a capture Card.
+- Tracking starts and stops it (Tracking detailed design 7.2). The chosen device and whether it was started are saved in `capture-settings.json`, like the other sources.
+- Every source gives the number of frames that have arrived (`FrameCount`) and when the latest one arrived (`LastFrameTimestamp`). Tracking uses them to infer each image once and to take the image time as the observation time.
+
 ---
 
 ## 9. Threading / Async
@@ -310,6 +324,11 @@ public sealed class CaptureSettings
     public bool SubScreenDrawPointer { get; set; } = true;   // Draw the mouse cursor
     public bool GameEnabled { get; set; }             // Whether it was started; restored at the next start
     public bool SubScreenEnabled { get; set; }
+    public string CameraDeviceId { get; set; }        // The tracking camera; nothing is opened when not set (8.5)
+    public int CameraWidth { get; set; } = 1280;
+    public int CameraHeight { get; set; } = 720;
+    public int CameraFrameRate { get; set; } = 30;
+    public bool CameraEnabled { get; set; }
 }
 ```
 
@@ -369,7 +388,7 @@ public sealed class CaptureSettings
 |---|---|
 | EditMode | `CaptureStateMachine` transitions, choosing the default device, monitor display names, deciding uploads from frame numbers, the flip UVs (pure functions) |
 | EditMode | Reading back a flipped render texture shows left and right swapped; a capture board is not opened until one is chosen |
-| EditMode | `GameCaptureSource` and `SubScreenCaptureSource` driven by fake `ICameraDevices` and `IDesktopDuplication`: states, recovering from `Unavailable`, choosing again, releasing on stop |
+| EditMode | `WebCamCaptureSource` (`game`, `camera`) and `SubScreenCaptureSource` driven by fake `ICameraDevices` and `IDesktopDuplication`: states, recovering from `Unavailable`, choosing again, releasing on stop, `DeviceInUse`, frame counts and times |
 | EditMode | `FrameLoop` order, isolating exceptions, removing registrations |
 | EditMode | Fake frames handed to `SubScreenCaptureSource` are uploaded as BGRA to a real `Texture2D` |
 | Hardware | SubScreenCapture shows a real monitor through the real plugin; GameCapture shows a real capture board. Marked `[Explicit]` and run only by name. Recovering from `ACCESS_LOST` (a resolution change) is checked by changing the resolution by hand |
@@ -401,7 +420,7 @@ Assets/VirtualVessel/Capture/
 │  ├─ CapturePluginMissingException.cs   The native plugin is missing or of another version
 │  ├─ FrameRateMeter.cs        Counts the frame rate that actually arrives (pure)
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
-│  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
+│  ├─ Game/          WebCamCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
 ├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll (built and copied here; not in Git; chapter 17)
 └─ Tests/

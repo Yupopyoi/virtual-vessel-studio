@@ -1,0 +1,28 @@
+{
+    "name": "VirtualVessel.Tracking.MediaPipe",
+    "rootNamespace": "VirtualVessel.Tracking.MediaPipe",
+    "references": [
+        "Mediapipe.Runtime",
+        "VirtualVessel.Capture",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.Tracking"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "VV_MEDIAPIPE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.github.homuler.mediapipe",
+            "expression": "",
+            "define": "VV_MEDIAPIPE"
+        }
+    ],
+    "noEngineReferences": false
+}

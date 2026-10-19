@@ -87,12 +87,25 @@ namespace VirtualVessel.Stage
             Mesh quad = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
             foreach (IVideoCaptureSource source in _captures.Sources)
             {
+                // The tracking camera shows the user's face and room; it never goes on the stream
+                // (tracking detailed design 5.4, 13).
+                if (!ShowsOnStream(source.Kind))
+                {
+                    continue;
+                }
+
                 _screens.Add(new CaptureScreen(source, LayoutFor(_settings, source.Id), _output.Screens, quad, shader, OnCommitted));
             }
 
             _tick = _frameLoop.Register(_saves.Tick);
             _log?.Information($"Stage started with {_screens.Count} stream screens; placements {loaded.Status} from {_store.FilePath}.");
             return Task.CompletedTask;
+        }
+
+        /// <summary>Whether a kind of capture source gets a screen on the stream. Pure.</summary>
+        internal static bool ShowsOnStream(CaptureSourceKind kind)
+        {
+            return kind != CaptureSourceKind.Camera;
         }
 
         public async Task ShutdownAsync(CancellationToken cancellationToken)

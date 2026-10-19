@@ -18,6 +18,12 @@
 # Release packages and test results written by tools/release and tools/unity.
 /build/
 
+# MediaPipeUnityPlugin and its models, put in place by tools/deps/fetch-mediapipe.ps1
+# (tracking detailed design 16.2). StreamingAssets holds nothing else yet.
+/unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/
+/unity/VirtualVesselStudio/Assets/StreamingAssets/
+/unity/VirtualVesselStudio/Assets/StreamingAssets.meta
+
 # Logs left at the repository root by Unity Hub before the project moved.
 /Logs/
 

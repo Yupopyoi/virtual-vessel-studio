@@ -11,8 +11,13 @@ using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Stage;
+using VirtualVessel.Tracking;
+#if VV_MEDIAPIPE
+using VirtualVessel.Tracking.MediaPipe;
+#endif
 using VirtualVessel.UI;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
@@ -202,6 +207,18 @@ namespace VirtualVessel.Application.Startup
                 }
             }
 
+            // Tracking runs on the tracking camera, one of the capture sources (tracking detailed design
+            // 5.3). Optional: without it the avatar keeps its rest pose and everything else runs.
+            TrackingService tracking = null;
+            if (context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    TrackingService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => tracking = CreateTracking(context, capture, metrics, logging.Provider.GetLog("Tracking", "Source")),
+                    new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
+            }
+
             // The UI comes last so that it is built after every service it shows has started, and it
             // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
             if (context.UiRoot != null && context.ConfigDirectory != null)
@@ -228,7 +245,8 @@ namespace VirtualVessel.Application.Startup
                             // there leave their part of the screens saying so.
                             video?.Preview,
                             stage?.Screens,
-                            capture)),
+                            capture,
+                            tracking)),
                     new[] { LoggingService.ServiceName }));
             }
 
@@ -253,6 +271,37 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        private static TrackingService CreateTracking(ApplicationCompositionContext context, CaptureService capture, IPerformanceMetrics metrics, ILog log)
+        {
+            ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            ConfigLoadResult<TrackingSettings> loaded = store.Load();
+            TrackingSettings settings = loaded.Value ?? new TrackingSettings();
+            log?.Information($"Tracking settings {loaded.Status} from {store.FilePath}.");
+            var saves = new ConfigSaveScheduler<TrackingSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the tracking settings to {store.FilePath}.", failure));
+            IVideoCaptureSource camera = capture?.Find(CaptureService.TrackingCameraId);
+            return new TrackingService(CreateTrackingProvider(context, camera, settings, metrics, log), camera, context.FrameLoop, context.MonotonicClock, settings, saves, metrics, log);
+        }
+
+        /// <summary>
+        /// The MediaPipe provider when the plugin is installed. Without it the project still compiles
+        /// and runs, and tracking reports that it cannot start (tracking detailed design 16.2).
+        /// </summary>
+        private static ITrackingProvider CreateTrackingProvider(ApplicationCompositionContext context, IVideoCaptureSource camera, TrackingSettings settings, IPerformanceMetrics metrics, ILog log)
+        {
+            if (camera == null)
+            {
+                return null;
+            }
+
+#if VV_MEDIAPIPE
+            string models = Path.Combine(UnityEngine.Application.streamingAssetsPath, MediaPipeTracking.ModelFolder);
+            return MediaPipeTracking.Create(camera, models, settings.PoseModel, context.MonotonicClock, metrics, log);
+#else
+            log?.Warning("MediaPipeUnityPlugin is not installed, so tracking is unavailable. Run tools/deps/fetch-mediapipe.ps1.");
+            return null;
+#endif
         }
 
         private static ApplicationLoggingService CreateLogging(ApplicationCompositionContext context)

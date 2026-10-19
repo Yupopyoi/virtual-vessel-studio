@@ -2,7 +2,10 @@
     "name": "VirtualVessel.Tracking",
     "rootNamespace": "VirtualVessel.Tracking",
     "references": [
-        "VirtualVessel.Core"
+        "VirtualVessel.Capture",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

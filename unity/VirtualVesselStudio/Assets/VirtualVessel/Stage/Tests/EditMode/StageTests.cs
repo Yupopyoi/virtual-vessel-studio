@@ -16,6 +16,14 @@ namespace VirtualVessel.Stage.Tests
 {
     public sealed class ScreenPlacementMathTests
     {
+        [TestCase(CaptureSourceKind.GameCapture, true)]
+        [TestCase(CaptureSourceKind.SubScreenCapture, true)]
+        [TestCase(CaptureSourceKind.Camera, false)]
+        public void TheTrackingCamera_NeverGoesOnTheStream(CaptureSourceKind kind, bool shown)
+        {
+            Assert.That(StageService.ShowsOnStream(kind), Is.EqualTo(shown));
+        }
+
         [Test]
         public void TheQuad_CoversThePlacement_UprightOnTheLayer()
         {
@@ -228,6 +236,10 @@ namespace VirtualVessel.Stage.Tests
         public IReadOnlyObservable<CaptureSourceInfo> Info => _info;
 
         public IReadOnlyObservable<Texture> Texture => _texture;
+
+        public long FrameCount => 0;
+
+        public long LastFrameTimestamp => 0;
 
         public IReadOnlyObservable<CaptureFlip> Flip { get; } = new ObservableValue<CaptureFlip>(CaptureFlip.None);
 

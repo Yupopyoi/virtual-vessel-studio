@@ -8,6 +8,7 @@
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
+        "VirtualVessel.Tracking",
         "VirtualVessel.UI",
         "VirtualVessel.UI.Editor"
     ],

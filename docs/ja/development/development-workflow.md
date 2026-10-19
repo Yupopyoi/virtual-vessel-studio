@@ -756,13 +756,23 @@ Pull Requestを作る前に、可能な範囲でLocal Testを実行する。
 
 | 対象 | コマンド |
 |---|---|
-| UnityのEditMode / PlayMode Test | `pwsh tools/unity/run-tests.ps1 -Platform EditMode`（または`PlayMode`）。`-Filter`で絞る。`[Explicit]`のTestは名前を指定したときだけ動く |
+| UnityのEditMode / PlayMode Test | `pwsh tools/unity/run-tests.ps1 -Platform EditMode`（または`PlayMode`）。`-Filter`で絞る。`Assets/VirtualVessel`のTest Assemblyだけが動く（PackageのTestは動かさない）。`[Explicit]`のTestは`Explicit`のCategoryを付け、名前を指定したときだけ動く |
+| MediaPipeUnityPluginとモデル | `pwsh tools/deps/fetch-mediapipe.ps1`。初めてProjectを開く前と、版を変えたときに実行する（Tracking詳細設計16.2） |
 | Native Plugin | `pwsh tools/native/build-capture.ps1`（BuildとTest） |
 | Repository checks | `python tools/ci/repo_checks.py` |
 | UIの画像 | `pwsh tools/ui/capture-ui.ps1` |
 
 - UnityのTestとBuildは、そのProjectをEditorで開いている間は実行できない（Unityが同じProjectを2つ同時に開けないため）。Editorを閉じるか、`git worktree`で作った別の作業Copyを`-Project`で指定する。
 - 結果とLogは`build/`（Gitの管理外）に出る。
+
+## 14.1 取得して使う依存の更新
+
+GitHubのRelease等から取得して使う依存（現在はMediaPipeUnityPlugin）は、`tools/deps/<name>.json`に版、ダウンロード先、SHA-256を書き、Scriptで取得する。更新は次の手順で、1つの`chore:`のBranchとする。
+
+1. `tools/deps/<name>.json`の版、URL、SHA-256（モデル等の中身のHashも）を新しい版に変える。
+2. 取得のScriptを`-Force`で実行し、UnityでCompileとTestを行う。
+3. SBOMの版、ダウンロード先、Hashを変える（Repository checksが食い違いを見つける）。
+4. 更新の前後で、Test、性能の計測（Tracking詳細設計15章の`AllTasks_Timing`）、実機での確認を比べ、結果をPull Requestに書く。
 
 ## Manual / System Test
 
@@ -876,7 +886,8 @@ PR CIが失敗している変更は原則Mergeしない。
 | GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
 | 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
+| 取得して使う依存 | `tools/deps/*.json`に、Package名、版、`https`のダウンロード先、SHA-256（モデル等の中身のHashも）があること |
 
 - 確認はgitで追跡しているファイルに対して行う。手元にだけあるファイルは対象にしないため、コミットし忘れや`.meta`の抜けを見つけられる。
 - 確認処理は`tools/ci/repo_checks.py`にあり、確認処理自体の単体テスト（`tools/ci/test_repo_checks.py`）もCIで実行する。

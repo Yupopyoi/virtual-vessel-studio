@@ -32,6 +32,7 @@ namespace VirtualVessel.UI.Tests
 
         [UnityTest]
         [Explicit("Writes screenshots; run it by name (UI foundation detailed design 7.10).")]
+        [Category("Explicit")]
         public IEnumerator Capture()
         {
             string projectPath = Path.GetDirectoryName(UnityEngine.Application.dataPath);
