@@ -25,6 +25,15 @@ namespace VirtualVessel.Tracking.MediaPipe
         /// <summary>Degrees of eye rotation at a look value of 1; provisional until checked with a camera.</summary>
         public const float MaxGazeDegrees = 25f;
 
+        /// <summary>
+        /// How far, as a share of the image width, a detected hand's wrist or a face's nose may be from the
+        /// body's (tracking detailed design 6.4, 8.3). Farther ones belong to something behind the person.
+        /// </summary>
+        public const float MaxDistanceFromBody = 0.12f;
+
+        /// <summary>The face mesh point at the tip of the nose.</summary>
+        public const int FaceNoseTip = 1;
+
         private const int Computed = -1;
 
         // The Pose landmark for each BodyJoint; Computed for the midpoints MediaPipe has no point for.
@@ -259,6 +268,47 @@ namespace VirtualVessel.Tracking.MediaPipe
             float asIs = (first - leftWrist).magnitude + (second - rightWrist).magnitude;
             float swapped = (first - rightWrist).magnitude + (second - leftWrist).magnitude;
             return asIs <= swapped;
+        }
+
+        /// <summary>
+        /// Whether a detected point belongs to the person: near the body's matching point when the body is
+        /// seen, and always when it is not, since there is nothing to compare with. Pure.
+        /// </summary>
+        public static bool IsNearBody(Vector2 detected, Vector2 body, bool bodySeen)
+        {
+            return !bodySeen || (detected - body).sqrMagnitude <= MaxDistanceFromBody * MaxDistanceFromBody;
+        }
+
+        /// <summary>
+        /// Which of <paramref name="count"/> detected faces is the person's: the one whose nose is nearest the
+        /// body's nose and near enough; the first (the most confident) when the body is not seen; -1 for
+        /// none. Pure.
+        /// </summary>
+        public static int ChooseFace(Vector2[] noses, int count, Vector2 bodyNose, bool bodySeen)
+        {
+            if (count <= 0)
+            {
+                return -1;
+            }
+
+            if (!bodySeen)
+            {
+                return 0;
+            }
+
+            int best = -1;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                float distance = (noses[i] - bodyNose).sqrMagnitude;
+                if (distance < bestDistance && IsNearBody(noses[i], bodyNose, true))
+                {
+                    best = i;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
         }
 
         private static void Midpoint(BodyPose body, BodyJoint joint, BodyJoint a, BodyJoint b)

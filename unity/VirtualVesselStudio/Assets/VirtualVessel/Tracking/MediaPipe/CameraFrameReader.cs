@@ -90,6 +90,7 @@ namespace VirtualVessel.Tracking.MediaPipe
             buffer.Reading = false;
             if (_disposed || request.hasError)
             {
+                buffer.Cancel();
                 return;
             }
 

@@ -39,6 +39,18 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [UnityTest]
+        public IEnumerator WithoutBackgroundRemoval_TheFaceIsFoundToo()
+        {
+            var image = Resources.Load<Texture2D>("lenna");
+            Assume.That(image, Is.Not.Null);
+            var result = new Result();
+            yield return Run(image, TrackingRegions.Face | TrackingRegions.Body, result, removeBackground: false);
+
+            Assert.That(result.FaceSeen, Is.GreaterThan(0));
+            Assert.That(result.Observations, Is.GreaterThanOrEqualTo(20));
+        }
+
+        [UnityTest]
         public IEnumerator AHand_IsFound()
         {
             var image = Resources.Load<Texture2D>("thumb-up");
@@ -57,7 +69,7 @@ namespace VirtualVessel.Tracking.Tests
         [UnityTest]
         [Explicit("Measures this PC; run it by name.")]
         [Category("Explicit")]
-        public IEnumerator AllTasks_Timing()
+        public IEnumerator AllTasks_Timing([Values(true, false)] bool removeBackground)
         {
             var image = Resources.Load<Texture2D>("lenna");
             Assume.That(image, Is.Not.Null);
@@ -71,7 +83,7 @@ namespace VirtualVessel.Tracking.Tests
             int observations = 0;
             double age = 0;
             double oldest = 0;
-            provider.Start(TrackingOptions.Default);
+            provider.Start(TrackingOptions.Default.WithRemoveBackground(removeBackground));
             try
             {
                 // 30 camera frames per second, as the tracking camera delivers.
@@ -109,11 +121,11 @@ namespace VirtualVessel.Tracking.Tests
 
             Assert.That(observations, Is.GreaterThan(0));
             double seconds = watch.Elapsed.TotalSeconds - firstAt;
-            TestContext.WriteLine($"Face, Pose (Full), Hand on {image.width}×{image.height} at 30 fps: first result after {firstAt:F2} s, " +
+            TestContext.WriteLine($"Face, Pose (Full), Hand{(removeBackground ? " after background removal" : string.Empty)} on {image.width}×{image.height} at 30 fps: first result after {firstAt:F2} s, " +
                 $"{observations / seconds:F1} observations/s, age {age / observations * 1000:F0} ms on average, {oldest * 1000:F0} ms at most.");
         }
 
-        private static IEnumerator Run(Texture2D image, TrackingRegions regions, Result result)
+        private static IEnumerator Run(Texture2D image, TrackingRegions regions, Result result, bool removeBackground = true)
         {
             var clock = new StopwatchMonotonicClock();
             var camera = new StillCamera(image, clock);
@@ -122,7 +134,7 @@ namespace VirtualVessel.Tracking.Tests
             ITrackingProvider provider = MediaPipeTracking.Create(camera, models, PoseModel.Full, clock, null, null);
             var frame = new TrackingFrame();
             var watch = Stopwatch.StartNew();
-            provider.Start(TrackingOptions.Default.WithRegions(regions));
+            provider.Start(TrackingOptions.Default.WithRegions(regions).WithRemoveBackground(removeBackground));
             try
             {
                 while (watch.Elapsed.TotalSeconds < TimeoutSeconds && result.Observations < 30)

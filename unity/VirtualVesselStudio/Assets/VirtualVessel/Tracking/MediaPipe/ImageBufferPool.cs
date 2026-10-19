@@ -8,18 +8,29 @@ using Unity.Collections.LowLevel.Unsafe;
 namespace VirtualVessel.Tracking.MediaPipe
 {
     /// <summary>
-    /// Camera pixels read back for inference. MediaPipe images wrap this memory without copying it and
-    /// use it on MediaPipe's threads after DetectAsync returns, so it is reused only after every image
-    /// made over it has been released (tracking detailed design 9.1).
+    /// Camera pixels for inference. MediaPipe images wrap this memory without copying it and use it on
+    /// MediaPipe's threads after DetectAsync returns, so it is reused only after every image made over
+    /// it has been released (tracking detailed design 9.1).
     /// </summary>
+    /// <remarks>
+    /// A buffer is taken (reserved), then filled by a readback or by background removal, then held by
+    /// MediaPipe images until each is released. It is free again only when none of these applies.
+    /// </remarks>
     internal sealed class ImageBuffer
     {
         private int _uses;
+        private int _reserved;
 
         /// <summary>A field, not a property: AsyncGPUReadback writes into it by reference.</summary>
         public NativeArray<byte> Data;
 
         public IntPtr Pointer { get; set; }
+
+        /// <summary>
+        /// The pixels through the pointer, for MediaPipe's threads: NativeArray's safety checks belong to
+        /// the job system and the main thread, and this memory is shared by the ownership rules above.
+        /// </summary>
+        public unsafe Span<byte> Bytes => new Span<byte>((void*)Pointer, Data.Length);
 
         /// <summary>Main thread: a readback into it is pending.</summary>
         public bool Reading { get; set; }
@@ -27,15 +38,34 @@ namespace VirtualVessel.Tracking.MediaPipe
         /// <summary>When it was handed to MediaPipe; for noticing images that are never released.</summary>
         public long HeldSince { get; private set; }
 
-        public bool IsFree => !Reading && Volatile.Read(ref _uses) == 0;
+        public bool IsFree => !Reading && Volatile.Read(ref _reserved) == 0 && Volatile.Read(ref _uses) == 0;
+
+        /// <summary>Taken and not yet free: being filled or held by MediaPipe.</summary>
+        public bool InUse => !IsFree;
 
         public bool IsHeld => Volatile.Read(ref _uses) > 0;
 
-        /// <summary>Hands it to <paramref name="images"/> MediaPipe images at <paramref name="now"/> (clock ticks).</summary>
+        /// <summary>Taken from the pool, to be filled and handed to MediaPipe.</summary>
+        public void Reserve()
+        {
+            Volatile.Write(ref _reserved, 1);
+        }
+
+        /// <summary>Not used after all, as when an image is dropped; on any thread.</summary>
+        public void Cancel()
+        {
+            Volatile.Write(ref _reserved, 0);
+        }
+
+        /// <summary>
+        /// Hands it to <paramref name="images"/> MediaPipe images at <paramref name="now"/> (clock ticks),
+        /// on any thread. The uses are counted before the reservation ends, so it never looks free between.
+        /// </summary>
         public void Hold(int images, long now)
         {
             HeldSince = now;
             Interlocked.Exchange(ref _uses, images);
+            Volatile.Write(ref _reserved, 0);
         }
 
         /// <summary>One image over it was released, on whatever thread MediaPipe releases it.</summary>
@@ -52,7 +82,8 @@ namespace VirtualVessel.Tracking.MediaPipe
     /// </summary>
     internal sealed class ImageBufferPool : IDisposable
     {
-        public const int Count = 3;
+        /// <summary>Two images in flight, each with a camera copy and a background-removed copy, and one being read.</summary>
+        public const int Count = 6;
 
         private static readonly ConcurrentDictionary<IntPtr, ImageBuffer> s_owners = new ConcurrentDictionary<IntPtr, ImageBuffer>();
 
@@ -69,26 +100,26 @@ namespace VirtualVessel.Tracking.MediaPipe
         /// <summary>Passed to every MediaPipe image made over a buffer. Kept in a field so the delegate is never collected.</summary>
         public static ImageFrame.Deleter Deleter { get; } = OnImageReleased;
 
-        /// <summary>Buffers handed to MediaPipe and not yet released.</summary>
-        public int Held
+        /// <summary>Buffers taken and not yet free.</summary>
+        public int InUse
         {
             get
             {
-                int held = 0;
+                int inUse = 0;
                 foreach (ImageBuffer buffer in _buffers)
                 {
-                    if (buffer.IsHeld)
+                    if (buffer.InUse)
                     {
-                        held++;
+                        inUse++;
                     }
                 }
 
-                return held;
+                return inUse;
             }
         }
 
-        /// <summary>A free buffer of <paramref name="bytes"/>, or null when all are in use. Main thread.</summary>
-        public ImageBuffer TakeFree(int bytes)
+        /// <summary>Reserves a free buffer of <paramref name="bytes"/>; null when all are in use. Main thread.</summary>
+        public ImageBuffer Take(int bytes)
         {
             foreach (ImageBuffer buffer in _buffers)
             {
@@ -103,6 +134,7 @@ namespace VirtualVessel.Tracking.MediaPipe
                     Allocate(buffer, bytes);
                 }
 
+                buffer.Reserve();
                 return buffer;
             }
 
@@ -134,7 +166,7 @@ namespace VirtualVessel.Tracking.MediaPipe
             int leaked = 0;
             foreach (ImageBuffer buffer in _buffers)
             {
-                if (buffer.IsHeld || buffer.Reading)
+                if (buffer.InUse)
                 {
                     leaked++;
                     continue;

@@ -19,6 +19,7 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.tracking.unavailable";
         public const string Track = "setup.tracking.track";
         public const string Mirror = "setup.tracking.mirror";
+        public const string RemoveBackground = "setup.tracking.background";
         public const string Load = "setup.tracking.load";
         public const string Camera = "setup.tracking.camera";
         public const string Face = "setup.tracking.part.face";
@@ -123,6 +124,10 @@ namespace VirtualVessel.UI.Screens
             MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
             card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
+            RemoveBackgroundToggle = new SwitchToggle();
+            RemoveBackgroundToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithRemoveBackground(evt.newValue)));
+            card.Add(Row(TrackingStrings.RemoveBackground, RemoveBackgroundToggle));
+
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
             card.Add(Row(TrackingStrings.Camera, Devices));
@@ -143,6 +148,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Shows the camera image as in a mirror; the avatar follows the same setting.</summary>
         public SwitchToggle MirrorToggle { get; }
+
+        /// <summary>Cuts the person out and paints the background over before tracking.</summary>
+        public SwitchToggle RemoveBackgroundToggle { get; }
 
         /// <summary>The load line as shown, for tests.</summary>
         public string LoadText => _load.text;
@@ -219,7 +227,7 @@ namespace VirtualVessel.UI.Screens
                 _tracking.Problem.Subscribe(_ => Show()),
                 _camera.Texture.Subscribe(ShowVideo),
                 _camera.State.Subscribe(_ => Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty)),
-                _tracking.Options.Subscribe(options => ShowMirror(options.Mirror)),
+                _tracking.Options.Subscribe(ShowOptions),
                 new DisposeAction(redraw.Pause),
                 new DisposeAction(load.Pause),
                 sampler,
@@ -248,8 +256,10 @@ namespace VirtualVessel.UI.Screens
             _load.text = _localizer?.Get(TrackingStrings.Load, ("fps", fps), ("rate", rate), ("cpu", cpu), ("gpu", gpu)) ?? $"{fps} fps · {rate} · CPU {cpu} · GPU {gpu}";
         }
 
-        private void ShowMirror(bool mirror)
+        private void ShowOptions(TrackingOptions options)
         {
+            RemoveBackgroundToggle.SetValueWithoutNotify(options.RemoveBackground);
+            bool mirror = options.Mirror;
             MirrorToggle.SetValueWithoutNotify(mirror);
 
             // The image and the points over it flip together; the caption inside is flipped back so it reads.
@@ -274,7 +284,7 @@ namespace VirtualVessel.UI.Screens
             Status.TextKey = stateKey;
             _problemText.Key = problemKey;
             Track.SetValueWithoutNotify(_tracking.State.Value != TrackingState.Stopped);
-            ShowMirror(_tracking.Options.Value.Mirror);
+            ShowOptions(_tracking.Options.Value);
             Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty);
         }
 

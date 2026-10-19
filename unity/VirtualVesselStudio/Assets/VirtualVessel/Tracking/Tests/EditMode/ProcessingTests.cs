@@ -8,6 +8,42 @@ using VirtualVessel.Tracking.Threading;
 
 namespace VirtualVessel.Tracking.Tests
 {
+    public sealed class BackgroundRemovalTests
+    {
+        [Test]
+        public void ThePerson_IsKept_TheBackground_IsGray_AndEdgesBlend()
+        {
+            // Two by one pixels: red on the person, blue on the background.
+            byte[] rgba = { 200, 0, 0, 255, 0, 0, 200, 255 };
+            var output = new byte[8];
+
+            BackgroundRemoval.Apply(rgba, output, 2, 1, new[] { 0.9f, 0.05f }, 2, 1);
+
+            Assert.That(output[0..4], Is.EqualTo(new byte[] { 200, 0, 0, 255 }), "The person is untouched.");
+            Assert.That(output[4..8], Is.EqualTo(new byte[] { BackgroundRemoval.Gray, BackgroundRemoval.Gray, BackgroundRemoval.Gray, 255 }));
+            Assert.That(BackgroundRemoval.Weight(0.4f), Is.GreaterThan(0f).And.LessThan(1f), "Between the limits the two blend.");
+        }
+
+        [Test]
+        public void ASmallerMask_IsSampledAtEachPixel()
+        {
+            var rgba = new byte[4 * 4 * 4];
+            for (int i = 0; i < rgba.Length; i++)
+            {
+                rgba[i] = 10;
+            }
+
+            var output = new byte[rgba.Length];
+
+            // A 2x2 mask over a 4x4 image: the left half is the person.
+            BackgroundRemoval.Apply(rgba, output, 4, 4, new[] { 1f, 0f, 1f, 0f }, 2, 2);
+
+            Assert.That(output[0], Is.EqualTo(10), "Top left: the person.");
+            Assert.That(output[(3 * 4) + 0], Is.EqualTo(BackgroundRemoval.Gray), "Top right: background.");
+            Assert.That(output[(15 * 4) + 0], Is.EqualTo(BackgroundRemoval.Gray), "Bottom right: background.");
+        }
+    }
+
     public sealed class EventRateTests
     {
         [Test]

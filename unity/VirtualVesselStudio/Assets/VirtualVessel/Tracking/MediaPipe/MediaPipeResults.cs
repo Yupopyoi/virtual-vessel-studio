@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using Mediapipe.Tasks.Components.Containers;
 using Mediapipe.Tasks.Vision.FaceLandmarker;
 using Mediapipe.Tasks.Vision.HandLandmarker;
+using Mediapipe.Tasks.Vision.ImageSegmenter;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
+using Mediapipe.Unity;
 using UnityEngine;
 using Landmark = Mediapipe.Tasks.Components.Containers.Landmark;
 using NormalizedLandmark = Mediapipe.Tasks.Components.Containers.NormalizedLandmark;
@@ -48,11 +50,13 @@ namespace VirtualVessel.Tracking.MediaPipe
         }
     }
 
-    /// <summary>Face results as arrays, with the blendshape names resolved once.</summary>
+    /// <summary>Face results converted into a <see cref="FacesObservation"/>, with the blendshape names resolved once.</summary>
     internal sealed class FaceResultReader
     {
         private readonly bool _sidesMirrored;
+        private readonly float[] _shapes = new float[FacePose.ShapeCount];
         private int[] _shapeOf;
+        private ulong _supported;
 
         /// <param name="sidesMirrored">Whether MediaPipe's left and right face values are the image's instead of the person's.</param>
         public FaceResultReader(bool sidesMirrored)
@@ -60,38 +64,41 @@ namespace VirtualVessel.Tracking.MediaPipe
             _sidesMirrored = sidesMirrored;
         }
 
-        public float[] Shapes { get; } = new float[FacePose.ShapeCount];
-
-        public ulong Supported { get; private set; }
-
-        public Matrix4x4 Matrix { get; private set; }
-
-        /// <summary>Copies the first face; false when there is none.</summary>
-        public bool TryRead(FaceLandmarkerResult result)
+        public void Read(FaceLandmarkerResult result, double time, FacesObservation into)
         {
-            if (result.faceBlendshapes == null || result.faceBlendshapes.Count == 0 || result.facialTransformationMatrixes == null || result.facialTransformationMatrixes.Count == 0)
+            into.Time = time;
+            into.Count = 0;
+            int count = Math.Min(FacesObservation.Capacity, Math.Min(
+                result.faceBlendshapes?.Count ?? 0,
+                Math.Min(result.facialTransformationMatrixes?.Count ?? 0, result.faceLandmarks?.Count ?? 0)));
+            for (int f = 0; f < count; f++)
             {
-                return false;
-            }
-
-            List<Category> categories = result.faceBlendshapes[0].categories;
-            if (_shapeOf == null || _shapeOf.Length != categories.Count)
-            {
-                _shapeOf = MapShapes(categories, _sidesMirrored, out ulong supported);
-                Supported = supported;
-            }
-
-            Array.Clear(Shapes, 0, Shapes.Length);
-            for (int i = 0; i < categories.Count; i++)
-            {
-                if (_shapeOf[i] >= 0)
+                List<Category> categories = result.faceBlendshapes[f].categories;
+                List<NormalizedLandmark> landmarks = result.faceLandmarks[f].landmarks;
+                if (categories == null || landmarks == null || landmarks.Count <= MediaPipeConversion.FaceNoseTip)
                 {
-                    Shapes[_shapeOf[i]] = categories[i].score;
+                    continue;
                 }
-            }
 
-            Matrix = result.facialTransformationMatrixes[0];
-            return true;
+                if (_shapeOf == null || _shapeOf.Length != categories.Count)
+                {
+                    _shapeOf = MapShapes(categories, _sidesMirrored, out _supported);
+                }
+
+                Array.Clear(_shapes, 0, _shapes.Length);
+                for (int i = 0; i < categories.Count; i++)
+                {
+                    if (_shapeOf[i] >= 0)
+                    {
+                        _shapes[_shapeOf[i]] = categories[i].score;
+                    }
+                }
+
+                int slot = into.Count++;
+                MediaPipeConversion.WriteFace(_shapes, _supported, result.facialTransformationMatrixes[f], time, into.Faces[slot]);
+                NormalizedLandmark nose = landmarks[MediaPipeConversion.FaceNoseTip];
+                into.Noses[slot] = new Vector2(nose.x, nose.y);
+            }
         }
 
         private static int[] MapShapes(List<Category> categories, bool sidesMirrored, out ulong supported)
@@ -114,6 +121,54 @@ namespace VirtualVessel.Tracking.MediaPipe
             }
 
             return map;
+        }
+    }
+
+    /// <summary>The person confidence mask as floats, top row first.</summary>
+    internal sealed class PersonMaskReader
+    {
+        public float[] Values { get; private set; } = Array.Empty<float>();
+
+        public int Width { get; private set; }
+
+        public int Height { get; private set; }
+
+        /// <summary>The masks belong to the callback; they are released when it ends.</summary>
+        public static void Dispose(ImageSegmenterResult result)
+        {
+            if (result.confidenceMasks != null)
+            {
+                foreach (Mediapipe.Image mask in result.confidenceMasks)
+                {
+                    mask?.Dispose();
+                }
+            }
+
+            result.categoryMask?.Dispose();
+        }
+
+        /// <summary>Copies the first confidence mask; false when there is none.</summary>
+        public bool TryRead(ImageSegmenterResult result)
+        {
+            if (result.confidenceMasks == null || result.confidenceMasks.Count == 0 || result.confidenceMasks[0] == null)
+            {
+                return false;
+            }
+
+            Mediapipe.Image mask = result.confidenceMasks[0];
+            int width = mask.Width();
+            int height = mask.Height();
+            if (Values.Length != width * height)
+            {
+                Values = new float[width * height];
+            }
+
+            Width = width;
+            Height = height;
+
+            // "Vertically flipped" keeps MediaPipe's row order, top row first, like the camera copy;
+            // without it the plugin turns the rows over for Unity textures.
+            return mask.TryReadChannel(0, Values, isHorizontallyFlipped: false, isVerticallyFlipped: true);
         }
     }
 
@@ -155,6 +210,39 @@ namespace VirtualVessel.Tracking.MediaPipe
         }
     }
 
+    /// <summary>Up to two faces as detected, handed to the main thread, which chooses the person's.</summary>
+    internal sealed class FacesObservation
+    {
+        public const int Capacity = 2;
+
+        public FacePose[] Faces { get; } = { new FacePose(), new FacePose() };
+
+        /// <summary>Each face's nose tip in the image, to compare with the body's.</summary>
+        public Vector2[] Noses { get; } = new Vector2[Capacity];
+
+        public int Count { get; set; }
+
+        public double Time { get; set; }
+
+        /// <summary>
+        /// Takes the face nearest the body's nose (tracking detailed design 6.3). A face elsewhere, such as
+        /// a poster behind the person, is not used.
+        /// </summary>
+        public void AssignTo(TrackingFrame frame)
+        {
+            BodyPose body = frame.Body;
+            int chosen = MediaPipeConversion.ChooseFace(Noses, Count, body.ImagePositions[(int)BodyJoint.Nose], body.IsUsable);
+            if (chosen < 0)
+            {
+                frame.Face.Status = TrackingStatus.Lost;
+                frame.Face.Timestamp = Time;
+                return;
+            }
+
+            frame.Face.CopyFrom(Faces[chosen]);
+        }
+    }
+
     /// <summary>Up to two hands as detected, handed to the main thread, which decides their sides.</summary>
     internal sealed class HandsObservation
     {
@@ -189,7 +277,10 @@ namespace VirtualVessel.Tracking.MediaPipe
 
         private void Place(HandPose target, HandPose detected, bool left, BodyPose body)
         {
-            if (detected == null)
+            Vector2 bodyWrist = body.ImagePositions[(int)(left ? BodyJoint.LeftWrist : BodyJoint.RightWrist)];
+
+            // A hand far from the body's wrist is something behind the person (tracking detailed design 6.4).
+            if (detected == null || !MediaPipeConversion.IsNearBody(detected.ImagePositions[0], bodyWrist, body.IsUsable))
             {
                 target.Status = TrackingStatus.Lost;
                 target.Timestamp = Time;

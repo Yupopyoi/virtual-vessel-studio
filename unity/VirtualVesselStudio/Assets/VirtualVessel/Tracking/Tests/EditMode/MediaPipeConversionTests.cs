@@ -213,6 +213,27 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void AHandOrFaceFarFromTheBody_IsNotThePersons()
+        {
+            var bodyWrist = new Vector2(0.3f, 0.6f);
+
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.32f, 0.62f), bodyWrist, bodySeen: true), Is.True);
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.8f, 0.2f), bodyWrist, bodySeen: true), Is.False, "Something behind the person.");
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.8f, 0.2f), bodyWrist, bodySeen: false), Is.True, "Nothing to compare with.");
+        }
+
+        [Test]
+        public void TheFaceNearestTheBodysNose_IsChosen()
+        {
+            var noses = new[] { new Vector2(0.9f, 0.1f), new Vector2(0.52f, 0.31f) };
+
+            Assert.That(MediaPipeConversion.ChooseFace(noses, 2, new Vector2(0.5f, 0.3f), bodySeen: true), Is.EqualTo(1), "Not the poster in the corner.");
+            Assert.That(MediaPipeConversion.ChooseFace(noses, 1, new Vector2(0.5f, 0.3f), bodySeen: true), Is.EqualTo(-1), "The only face is far from the body.");
+            Assert.That(MediaPipeConversion.ChooseFace(noses, 2, default, bodySeen: false), Is.EqualTo(0), "Without the body, the most confident.");
+            Assert.That(MediaPipeConversion.ChooseFace(noses, 0, default, bodySeen: false), Is.EqualTo(-1));
+        }
+
+        [Test]
         public void TwoHands_NeverGoToTheSameSide()
         {
             var leftWrist = new Vector2(0.7f, 0.6f);

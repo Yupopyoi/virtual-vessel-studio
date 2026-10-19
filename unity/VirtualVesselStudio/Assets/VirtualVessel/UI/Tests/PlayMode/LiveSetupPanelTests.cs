@@ -122,6 +122,10 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Preview.resolvedStyle.scale.value.x, Is.EqualTo(-1f), "The image and points flip together.");
             card.MirrorToggle.value = false;
             Assert.That(_tracking.Options.Value.Mirror, Is.False);
+            Assert.That(card.RemoveBackgroundToggle.value, Is.True, "Background removed by default.");
+            card.RemoveBackgroundToggle.value = false;
+            Assert.That(_tracking.Options.Value.RemoveBackground, Is.False);
+            Assert.That(_tracking.Options.Value.Mirror, Is.False, "One choice changes; the others stay.");
 
             var video = new Texture2D(4, 4);
             _camera.SetTexture(video);

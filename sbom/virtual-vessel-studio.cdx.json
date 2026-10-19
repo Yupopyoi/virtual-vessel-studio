@@ -92,7 +92,7 @@
           "supplier": {
             "name": "Google"
           },
-          "name": "MediaPipe Face, Pose, and Hand Landmarker models",
+          "name": "MediaPipe Face, Pose, and Hand Landmarker and Selfie Segmentation models",
           "version": "0.10.22",
           "licenses": [
             {
@@ -102,7 +102,7 @@
             }
           ],
           "scope": "required",
-          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe."
+          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, selfie_segmentation_landscape, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe."
         }
       ]
     },
