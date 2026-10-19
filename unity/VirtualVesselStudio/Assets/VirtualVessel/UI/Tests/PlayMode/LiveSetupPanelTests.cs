@@ -9,6 +9,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
+using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
@@ -23,6 +24,8 @@ namespace VirtualVessel.UI.Tests
         private UiRoot _root;
         private FakeDeviceSource _game;
         private FakePointerSource _sub;
+        private FakeDeviceSource _camera;
+        private FakeTracking _tracking;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -30,11 +33,13 @@ namespace VirtualVessel.UI.Tests
             _directory = Path.Combine(Path.GetTempPath(), "VirtualVesselTests", Guid.NewGuid().ToString("N"));
             _game = new FakeDeviceSource("game", CaptureSourceKind.GameCapture);
             _sub = new FakePointerSource("subscreen", CaptureSourceKind.SubScreenCapture);
+            _camera = new FakeDeviceSource(CaptureService.TrackingCameraId, CaptureSourceKind.Camera);
+            _tracking = new FakeTracking();
             _host = new GameObject(nameof(LiveSetupPanelTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub)));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking));
             yield return null;
         }
 
@@ -55,7 +60,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             var cards = _root.Content.Query<CaptureSourceCard>().ToList();
-            Assert.That(cards.Count, Is.EqualTo(2));
+            Assert.That(cards.Count, Is.EqualTo(2), "The tracking camera has no capture Card of its own.");
             Assert.That(cards[0].Pointer, Is.Null, "A capture board has no cursor.");
             Assert.That(cards[1].Pointer, Is.Not.Null);
             Assert.That(_root.Content.Q<AppSettingsCard>(), Is.Not.Null);
@@ -92,6 +97,65 @@ namespace VirtualVessel.UI.Tests
             _game.SetTexture(null);
             Assert.That(card.Preview.image, Is.Null);
             Object.Destroy(video);
+        }
+
+        [UnityTest]
+        public IEnumerator TheTrackingCard_StartsTracking_AndChoosesItsCamera()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card, Is.Not.Null);
+
+            card.Track.value = true;
+            Assert.That(_tracking.State.Value, Is.EqualTo(TrackingState.Running));
+            card.Devices.value = "Board A";
+            Assert.That(_camera.SelectedDeviceId, Is.EqualTo("Board A"));
+
+            _tracking.Set(TrackingState.Unavailable, TrackingProblem.CameraNotChosen);
+            Assert.That(card.Status.Status, Is.EqualTo(StatusKind.Warning));
+            Assert.That(card.ProblemKey, Is.EqualTo(TrackingStrings.ProblemChoose));
+            Assert.That(card.Track.value, Is.True, "Still on while it waits for the camera.");
+
+            var video = new Texture2D(4, 4);
+            _camera.SetTexture(video);
+            Assert.That(card.Preview.image, Is.SameAs(video), "The camera image is shown to check the points on.");
+            Object.Destroy(video);
+        }
+
+        [Test]
+        public void TrackingDescribe_PairsEveryStateWithAShapeAndText()
+        {
+            Assert.That(TrackingCard.Describe(TrackingState.Stopped, TrackingProblem.None), Is.EqualTo((StatusKind.Idle, TrackingStrings.Stopped, (string)null)));
+            Assert.That(TrackingCard.Describe(TrackingState.Running, TrackingProblem.None).Kind, Is.EqualTo(StatusKind.Success));
+            Assert.That(TrackingCard.Describe(TrackingState.Running, TrackingProblem.NoPerson), Is.EqualTo((StatusKind.Warning, TrackingStrings.NoPerson, TrackingStrings.ProblemNoPerson)));
+            Assert.That(TrackingCard.Describe(TrackingState.Error, TrackingProblem.CameraInUse).ProblemKey, Is.EqualTo(TrackingStrings.ProblemInUse));
+            Assert.That(TrackingCard.Describe(TrackingState.Error, TrackingProblem.StartFailed).Kind, Is.EqualTo(StatusKind.Error));
+            Assert.That(CaptureSourceCard.Describe(CaptureState.Error, CaptureProblem.DeviceInUse).ProblemKey, Is.EqualTo(CaptureStrings.ProblemInUse));
+        }
+
+        [Test]
+        public void ThePartsLine_MarksEachPartWithAShapeAndAWord()
+        {
+            var frame = new TrackingFrame();
+            frame.Face.Status = TrackingStatus.Tracked;
+            frame.Body.Status = TrackingStatus.LowConfidence;
+            frame.LeftHand.Status = TrackingStatus.Lost;
+            frame.RightHand.Status = TrackingStatus.Disabled;
+
+            Assert.That(TrackingCard.PartsLine(frame, true, key => key.Substring(key.LastIndexOf('.') + 1)), Is.EqualTo("face ✓   body ✓   lefthand –   righthand ×"));
+            Assert.That(TrackingCard.PartsLine(frame, false, key => key), Is.Empty, "Nothing while tracking is off.");
+        }
+
+        [Test]
+        public void ThePoints_FollowTheImageAsThePreviewFitsIt()
+        {
+            Rect wide = TrackingOverlay.FitRect(256, 144, 1280, 720);
+            Assert.That(wide, Is.EqualTo(new Rect(0, 0, 256, 144)));
+
+            Rect narrow = TrackingOverlay.FitRect(256, 144, 640, 480);
+            Assert.That(narrow.width, Is.EqualTo(192f).Within(1e-4f));
+            Assert.That(narrow.x, Is.EqualTo(32f).Within(1e-4f), "Centered, with bars on the sides.");
         }
 
         [UnityTest]
@@ -210,6 +274,54 @@ namespace VirtualVessel.UI.Tests
             public void SetDrawPointer(bool draw)
             {
                 _pointer.Value = draw;
+            }
+        }
+
+        private sealed class FakeTracking : ITrackingSource
+        {
+            private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
+            private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
+
+            public IReadOnlyObservable<TrackingState> State => _state;
+
+            public IReadOnlyObservable<TrackingProblem> Problem => _problem;
+
+            public TrackingRegions Supported => TrackingRegions.All;
+
+            public IReadOnlyObservable<TrackingRegions> Enabled { get; } = new ObservableValue<TrackingRegions>(TrackingRegions.All);
+
+            public IReadOnlyObservable<BodyRange> BodyRange { get; } = new ObservableValue<BodyRange>(Tracking.BodyRange.UpperBody);
+
+            public IReadOnlyObservable<SmoothingPreset> Smoothing { get; } = new ObservableValue<SmoothingPreset>(SmoothingPreset.Standard);
+
+            public TrackingFrame Current { get; } = new TrackingFrame();
+
+            public void Start()
+            {
+                Set(TrackingState.Running, TrackingProblem.None);
+            }
+
+            public void Stop()
+            {
+                Set(TrackingState.Stopped, TrackingProblem.None);
+            }
+
+            public void SetEnabled(TrackingRegions regions)
+            {
+            }
+
+            public void SetBodyRange(BodyRange range)
+            {
+            }
+
+            public void SetSmoothing(SmoothingPreset preset)
+            {
+            }
+
+            public void Set(TrackingState state, TrackingProblem problem)
+            {
+                _problem.Value = problem;
+                _state.Value = state;
             }
         }
 

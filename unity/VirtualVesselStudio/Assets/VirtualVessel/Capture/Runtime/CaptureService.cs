@@ -21,6 +21,9 @@ namespace VirtualVessel.Capture
     {
         public const string ServiceName = "Capture";
 
+        /// <summary>The id of the tracking camera among <see cref="Sources"/>, for Tracking and its setup.</summary>
+        public const string TrackingCameraId = Game.WebCamCaptureSource.CameraSourceId;
+
         private readonly List<CaptureSourceBase> _sources;
         private readonly IReadOnlyList<IVideoCaptureSource> _publicSources;
         private readonly IFrameLoop _frameLoop;

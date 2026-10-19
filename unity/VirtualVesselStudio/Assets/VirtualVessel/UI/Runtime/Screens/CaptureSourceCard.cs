@@ -36,6 +36,7 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemSignal = "setup.capture.problem.signal";
         public const string ProblemNotFound = "setup.capture.problem.notfound";
         public const string ProblemFailed = "setup.capture.problem.failed";
+        public const string ProblemInUse = "setup.capture.problem.inuse";
         public const string NoVideo = "setup.capture.preview.none";
     }
 
@@ -159,6 +160,7 @@ namespace VirtualVessel.UI.Screens
                 CaptureState.Ready => (StatusKind.Idle, CaptureStrings.Ready, null),
                 CaptureState.Capturing => (StatusKind.Success, CaptureStrings.Capturing, null),
                 CaptureState.Unavailable => (StatusKind.Warning, CaptureStrings.NotFound, CaptureStrings.ProblemNotFound),
+                CaptureState.Error when problem == CaptureProblem.DeviceInUse => (StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemInUse),
 
                 // A missing plugin is a developer problem; users see a failure (capture detailed design 6.2).
                 _ => (StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemFailed),

@@ -5,7 +5,8 @@
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
-        "VirtualVessel.ProjectData"
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.Tracking"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

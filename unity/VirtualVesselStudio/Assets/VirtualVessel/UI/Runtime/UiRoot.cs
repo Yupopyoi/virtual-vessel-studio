@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
 using VirtualVessel.Capture;
+using VirtualVessel.Tracking;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -49,7 +50,8 @@ namespace VirtualVessel.UI
             IReadOnlyList<Action<bool>> developerModeReceivers = null,
             IStreamPreviewSource streamPreview = null,
             IReadOnlyList<IFrameSource> frameSources = null,
-            ICaptureSources captures = null)
+            ICaptureSources captures = null,
+            ITrackingSource tracking = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -68,6 +70,7 @@ namespace VirtualVessel.UI
             StreamPreview = streamPreview;
             FrameSources = frameSources ?? Array.Empty<IFrameSource>();
             Captures = captures;
+            Tracking = tracking;
         }
 
         public string ConfigDirectory { get; }
@@ -93,6 +96,9 @@ namespace VirtualVessel.UI
         public IReadOnlyList<IFrameSource> FrameSources { get; }
 
         public ICaptureSources Captures { get; }
+
+        /// <summary>Tracking for the setup screen; null when it is unavailable.</summary>
+        public ITrackingSource Tracking { get; }
     }
 
     /// <summary>
@@ -428,7 +434,7 @@ namespace VirtualVessel.UI
             var screens = new List<ScreenDefinition>
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking)),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };

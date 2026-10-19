@@ -1,19 +1,21 @@
 using UnityEngine.UIElements;
 using VirtualVessel.Capture;
+using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
-    /// The setup screen: a capture Card per source, then the app settings
-    /// (docs/&lt;lang&gt;/ui/screens/setup.md).
+    /// The setup screen: a capture Card per source shown on the stream, the tracking Card, then the
+    /// app settings (docs/&lt;lang&gt;/ui/screens/setup.md).
     /// </summary>
     public sealed class SetupScreen : VisualElement
     {
         public const string UssClass = "vv-setup";
 
         /// <param name="captures">The capture sources; null says capture is unavailable.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings)
+        /// <param name="tracking">Tracking; null says it is unavailable.</param>
+        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null)
         {
             AddToClassList(UssClass);
             if (captures == null)
@@ -24,11 +26,21 @@ namespace VirtualVessel.UI.Screens
             {
                 foreach (IVideoCaptureSource source in captures.Sources)
                 {
-                    if (source is ICaptureDeviceSource device)
+                    // The tracking camera is set up in the tracking Card, which uses it.
+                    if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
                     {
                         Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source)));
                     }
                 }
+            }
+
+            if (tracking != null && captures?.Find(CaptureService.TrackingCameraId) is ICaptureDeviceSource camera)
+            {
+                Add(new TrackingCard(tracking, camera));
+            }
+            else
+            {
+                Add(Ui.Text(TrackingStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
             }
 
             if (appSettings != null)
