@@ -277,10 +277,10 @@ namespace VirtualVessel.Tracking.MediaPipe
 
         private void Place(HandPose target, HandPose detected, bool left, BodyPose body)
         {
-            Vector2 bodyWrist = body.ImagePositions[(int)(left ? BodyJoint.LeftWrist : BodyJoint.RightWrist)];
-
-            // A hand far from the body's wrist is something behind the person (tracking detailed design 6.4).
-            if (detected == null || !MediaPipeConversion.IsNearBody(detected.ImagePositions[0], bodyWrist, body.IsUsable))
+            // Hands are not checked against the body's wrists: the two come from separate inferences,
+            // often of different camera frames, and a moving hand is a frame's movement away from the
+            // body's wrist. Dropping such hands made them flicker (tracked in step 2, 2026-10-19).
+            if (detected == null)
             {
                 target.Status = TrackingStatus.Lost;
                 target.Timestamp = Time;

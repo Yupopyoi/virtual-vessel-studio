@@ -26,8 +26,8 @@ namespace VirtualVessel.Tracking.MediaPipe
         public const float MaxGazeDegrees = 25f;
 
         /// <summary>
-        /// How far, as a share of the image width, a detected hand's wrist or a face's nose may be from the
-        /// body's (tracking detailed design 6.4, 8.3). Farther ones belong to something behind the person.
+        /// How far, as a share of the image width, a face's nose may be from the body's (tracking detailed
+        /// design 6.3). Farther faces belong to something behind the person, such as a poster.
         /// </summary>
         public const float MaxDistanceFromBody = 0.12f;
 

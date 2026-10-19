@@ -259,7 +259,7 @@ Common to each part:
 | Positions | Person space. Combines the finger shape relative to the wrist (the 3D points of the Hand Landmarker) with the wrist position (Pose wrist) |
 | Palm orientation | A rotation from the wrist and the bases of the index and little fingers |
 | Image positions | The 21 points' positions in the image (0–1). Shown over the camera image on the setup screen and used to decide left and right |
-| Deciding left and right | MediaPipe's handedness depends on image orientation and can flicker between frames. The product assigns a detected hand to **whichever Pose wrist is nearer** (two hands take the pairing with the smaller total distance, so they never land on the same side). Handedness is used only when the body is not seen; it assumes a mirrored image, so on an unmirrored camera "Right" is the person's left hand. While the body is seen, a hand whose wrist is far from that side's body wrist (more than 12% of the image width) is not used |
+| Deciding left and right | MediaPipe's handedness depends on image orientation and can flicker between frames. The product assigns a detected hand to **whichever Pose wrist is nearer** (two hands take the pairing with the smaller total distance, so they never land on the same side). Handedness is used only when the body is not seen; it assumes a mirrored image, so on an unmirrored camera "Right" is the person's left hand. Hands away from the body are not left out: hands and body come from separate inferences, often of different image frames, so a moving hand looks a frame's movement away from the body's wrist. Leaving such hands out made moving hands flicker (tried in step 2 and undone, 2026-10-19) |
 
 ### 6.5 What Moves (BodyRange)
 
@@ -398,7 +398,7 @@ sequenceDiagram
 - MediaPipe results are delivered on MediaPipe's threads. They are converted to the common form there and put in `FrameSlot`. No Unity API is called there. Failures are counted and logged on the main thread, gathered, at most every 10 s.
 - When a person mask arrives, that thread makes the copy with a gray background and starts the face, body, and hand inference. A result carries only its time, so the image waiting for the mask is found by its time (`PendingImages`). On stop, the person task closes first, so a late result does not start new inference.
 - `FrameSlot<T>` cycles three objects (being written, latest, being read). Only a short lock, no waiting (the same idea as Capture detailed design 8.2). Objects are reused; nothing is allocated per observation. Face, body, and hands (both) have separate slots.
-- Assigning hands to left and right and leaving out hands and faces away from the body (6.3, 6.4) happen on the main thread, with the latest body.
+- Assigning hands to left and right and leaving out faces away from the body (6.3, 6.4) happen on the main thread, with the latest body.
 - Smoothing and status decisions run on the main thread once per frame.
 - The plugin allocates images and packets each time. Those allocations are the plugin's; our processing allocates nothing per frame.
 
@@ -419,7 +419,7 @@ To reduce body points being pulled toward things in the background (furniture an
 - The person is found with MediaPipe's Selfie Segmentation (`selfie_segmentation_landscape` for wide images, about 250 KB). The output is a mask of how likely each pixel is the person (0–1).
 - `BackgroundRemoval.Apply` (a pure function) treats mask values at or below 0.2 as background and at or above 0.6 as the person, blending smoothly between, and paints the background gray (128). Keeping soft edges avoids cutting off the ends of arms and hands. When the mask's size differs from the image's, each pixel looks up its matching value.
 - The copy is written into a second buffer; the original stays until the person inference is done.
-- Together with leaving out hands and faces away from the body (6.3, 6.4), it reduces mistaking things behind the person for the person.
+- Together with leaving out faces away from the body (6.3), it reduces mistaking things behind the person for the person.
 - It adds about 15 ms of lag on average (chapter 15). It can be turned off on the setup screen for settings where the cut-out does not fit.
 
 ---
@@ -618,7 +618,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 | Switching to the Holistic Landmarker | Judged unnecessary (the three inferences together kept 30 fps, chapter 15). Revisited if a real camera is not enough |
 | Left and right of MediaPipe's face values (6.3) | Assumed to be the person's sides (`MediaPipeTracking.FaceSidesMirrored = false`). Checked by winking in the demo |
 | Gaze angle range (`MaxGazeDegrees`, 25°) | Provisional. Decided in step 4 together with the avatar's eye movement |
-| Distance at which a hand or face counts as away from the body (12% of the image width), background removal thresholds (0.2–0.6) | Provisional. Revisited if mistakes remain with a real camera |
+| Distance at which a face counts as away from the body (12% of the image width), background removal thresholds (0.2–0.6) | Provisional. Revisited if mistakes remain with a real camera |
 | Adding full body (`FullBody`) | After v0.1.0 |
 | Combining lip sync from voice with face tracking | When designing Voice / Audio |
 | Moving tracking settings to Project / Profile | When designing Project / Profile |

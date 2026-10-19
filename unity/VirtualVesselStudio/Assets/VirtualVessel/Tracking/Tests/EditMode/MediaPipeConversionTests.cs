@@ -213,13 +213,13 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
-        public void AHandOrFaceFarFromTheBody_IsNotThePersons()
+        public void AFaceFarFromTheBody_IsNotThePersons()
         {
-            var bodyWrist = new Vector2(0.3f, 0.6f);
+            var bodyNose = new Vector2(0.5f, 0.3f);
 
-            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.32f, 0.62f), bodyWrist, bodySeen: true), Is.True);
-            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.8f, 0.2f), bodyWrist, bodySeen: true), Is.False, "Something behind the person.");
-            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.8f, 0.2f), bodyWrist, bodySeen: false), Is.True, "Nothing to compare with.");
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.52f, 0.32f), bodyNose, bodySeen: true), Is.True);
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.9f, 0.1f), bodyNose, bodySeen: true), Is.False, "Something behind the person.");
+            Assert.That(MediaPipeConversion.IsNearBody(new Vector2(0.9f, 0.1f), bodyNose, bodySeen: false), Is.True, "Nothing to compare with.");
         }
 
         [Test]
