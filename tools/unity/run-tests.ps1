@@ -12,6 +12,9 @@ EditMode (default) or PlayMode.
 
 .PARAMETER Filter
 Runs only tests whose full name matches, such as a class name. Explicit tests run only when named here.
+Only the project's own test assemblies (Assets/VirtualVessel) run: embedded packages such as
+MediaPipeUnityPlugin bring their own tests, which exercise their native libraries and are not ours
+to run (one crashes the Editor in batch mode).
 
 .PARAMETER Project
 The Unity project folder; the repository's unity/VirtualVesselStudio by default.
@@ -43,7 +46,20 @@ $log = Join-Path $Output 'log.txt'
 Remove-Item $results, $log -ErrorAction SilentlyContinue
 
 $arguments = @('-batchmode', '-projectPath', "`"$Project`"", '-runTests', '-testPlatform', $Platform, '-testResults', "`"$results`"", '-logFile', "`"$log`"")
-if ($Filter) { $arguments += @('-testFilter', "`"$Filter`"") }
+$assemblies = Get-ChildItem (Join-Path $Project 'Assets\VirtualVessel') -Recurse -Filter '*.asmdef' |
+    Where-Object { $_.FullName -match '\\Tests\\' } |
+    ForEach-Object { (Get-Content -Raw $_.FullName | ConvertFrom-Json).name }
+$arguments += @('-assemblyNames', "`"$($assemblies -join ';')`"")
+if ($Filter)
+{
+    $arguments += @('-testFilter', "`"$Filter`"")
+}
+else
+{
+    # Naming the assemblies would also run [Explicit] tests (hardware, screenshots), so leave out the
+    # category they carry; a filter that names them still runs them.
+    $arguments += @('-testCategory', '"!Explicit"')
+}
 $process = Start-Process -FilePath $unity -ArgumentList $arguments -PassThru -Wait
 
 if (-not (Test-Path $results))

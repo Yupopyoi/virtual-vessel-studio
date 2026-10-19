@@ -15,6 +15,7 @@ namespace VirtualVessel.Capture.Tests
     /// board by name; without it the first camera is opened.
     /// </summary>
     [Explicit("Needs a capture board with a video input.")]
+    [Category("Explicit")]
     public sealed class GameCaptureHardwareTests
     {
         private const string DeviceVariable = "VV_GAME_CAPTURE_DEVICE";
