@@ -39,10 +39,14 @@ namespace VirtualVessel.Tracking
         private readonly ObservableValue<TrackingRegions> _enabled;
         private readonly ObservableValue<BodyRange> _bodyRange;
         private readonly ObservableValue<SmoothingPreset> _smoothing;
+        private readonly ObservableValue<bool> _mirror;
         private readonly PerfTimer _latency;
         private TrackingSettings _settings;
         private TrackingChoices _saved;
         private bool _wanted;
+        private EventRate _rate;
+        private double _lastImage = double.NegativeInfinity;
+        private double _now;
         private IDisposable _tick;
 
         /// <param name="provider">Null when no provider can run, such as without the MediaPipe plugin; tracking then reports StartFailed.</param>
@@ -61,6 +65,7 @@ namespace VirtualVessel.Tracking
             _enabled = new ObservableValue<TrackingRegions>(_settings.Regions);
             _bodyRange = new ObservableValue<BodyRange>(Available(_settings.BodyRange));
             _smoothing = new ObservableValue<SmoothingPreset>(_settings.Smoothing);
+            _mirror = new ObservableValue<bool>(_settings.Mirror);
             _latency = metrics?.Timer("Tracking", "Latency");
         }
 
@@ -79,6 +84,10 @@ namespace VirtualVessel.Tracking
         public IReadOnlyObservable<SmoothingPreset> Smoothing => _smoothing;
 
         public TrackingFrame Current => _current;
+
+        public IReadOnlyObservable<bool> Mirror => _mirror;
+
+        public double ObservationsPerSecond => _rate.RateAt(_now);
 
         /// <summary>The settings as last saved, for the provider factory.</summary>
         public TrackingSettings Settings => _settings.Clone();
@@ -176,6 +185,11 @@ namespace VirtualVessel.Tracking
             _smoothing.Set(preset);
         }
 
+        public void SetMirror(bool mirror)
+        {
+            _mirror.Set(mirror);
+        }
+
         /// <summary>
         /// The state and problem to show, from the camera, the provider, and whether anyone is seen
         /// (tracking detailed design 7.1, 11). Pure.
@@ -230,6 +244,7 @@ namespace VirtualVessel.Tracking
         internal void Tick()
         {
             double now = Seconds(_clock.GetTimestamp());
+            _now = now;
             if (_wanted && _provider != null)
             {
                 _provider.Tick();
@@ -237,7 +252,15 @@ namespace VirtualVessel.Tracking
                 _processor.Process(observed ? _raw : null, now, _provider.Supported, _enabled.Value, _smoothing.Value, _current);
                 if (observed)
                 {
-                    _latency?.Record(TimeSpan.FromSeconds(Math.Max(0, now - Newest(_raw))));
+                    double image = Newest(_raw);
+                    _latency?.Record(TimeSpan.FromSeconds(Math.Max(0, now - image)));
+
+                    // Parts of one image arrive separately; count each image once.
+                    if (image > _lastImage)
+                    {
+                        _lastImage = image;
+                        _rate = _rate.Next(now);
+                    }
                 }
             }
 
@@ -286,7 +309,7 @@ namespace VirtualVessel.Tracking
 
         private void NoteChanges()
         {
-            var now = new TrackingChoices(_enabled.Value, _bodyRange.Value, _smoothing.Value, _wanted);
+            var now = new TrackingChoices(_enabled.Value, _bodyRange.Value, _smoothing.Value, _mirror.Value, _wanted);
             if (now.Equals(_saved))
             {
                 return;

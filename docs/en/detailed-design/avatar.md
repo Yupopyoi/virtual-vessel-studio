@@ -96,7 +96,7 @@ flowchart LR
 | `ExpressionMapping` | Class | Settings for converting expression values (`FaceShape`) to expressions (7.4) |
 | `ExpressionController` | Class | Applies expressions and gaze; produces the Expression Signal |
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
-| `AvatarSettings` | Class | The avatar in use, mirroring, and so on (chapter 10) |
+| `AvatarSettings` | Class | The avatar in use (chapter 10) |
 
 ---
 
@@ -115,7 +115,6 @@ public interface IAvatarService
     Task<AvatarEntry> ImportAsync(string path, CancellationToken cancellationToken);  // Registers (6.2)
     Task SelectAsync(string avatarId, CancellationToken cancellationToken);           // Loads and swaps
     Task RemoveAsync(string avatarId, CancellationToken cancellationToken);           // Unregisters (UI confirms)
-    void SetMirror(bool mirror);
 }
 ```
 
@@ -213,6 +212,7 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 ### 6.6 Mirroring
 
 - With mirroring (default: on), when the user raises the right hand, the avatar raises its left hand. On screen the hand on the same side goes up, so the user can move as if looking in a mirror.
+- The setting is `ITrackingSource.Mirror`: one setting with the left-right flip of the camera image on the setup screen, saved by Tracking in `tracking-settings.json` (Tracking detailed design chapter 10).
 - `TrackingFrame` holds the user's own left and right (Tracking detailed design 6.1). Mirroring swaps left and right and flips the X axis before application (input conversion of `PoseRetargeting`, a pure function). Left and right of expressions (a one-eye blink and so on) are swapped as well.
 
 ### 6.7 The File-picking Screen
@@ -343,12 +343,12 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 public sealed class AvatarSettings
 {
     public string CurrentAvatarId { get; set; }   // No avatar is shown when null
-    public bool Mirror { get; set; } = true;      // 6.6
 }
 ```
 
 - Saved to `avatar-settings.json` (settings folder, `ConfigFileStore`). Moves to Project / Profile once those exist.
 - Per-avatar settings are in `avatar-profile.json` (6.3).
+- Mirroring is a Tracking setting (6.6).
 
 ---
 

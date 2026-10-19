@@ -30,6 +30,9 @@ namespace VirtualVessel.Tracking
 
         public PoseModel PoseModel { get; set; } = PoseModel.Full;
 
+        /// <summary>Shown and moved as in a mirror (Avatar detailed design 6.6).</summary>
+        public bool Mirror { get; set; } = true;
+
         /// <summary>Whether tracking was started; it starts again at the next start.</summary>
         public bool Running { get; set; }
 
@@ -42,8 +45,9 @@ namespace VirtualVessel.Tracking
     /// <summary>The user's choices compared every frame to find changes to save. A value type, so comparing allocates nothing.</summary>
     internal readonly struct TrackingChoices : IEquatable<TrackingChoices>
     {
-        public TrackingChoices(TrackingRegions regions, BodyRange bodyRange, SmoothingPreset smoothing, bool running)
+        public TrackingChoices(TrackingRegions regions, BodyRange bodyRange, SmoothingPreset smoothing, bool mirror, bool running)
         {
+            Mirror = mirror;
             Regions = regions;
             BodyRange = bodyRange;
             Smoothing = smoothing;
@@ -56,11 +60,13 @@ namespace VirtualVessel.Tracking
 
         public SmoothingPreset Smoothing { get; }
 
+        public bool Mirror { get; }
+
         public bool Running { get; }
 
         public static TrackingChoices From(TrackingSettings settings)
         {
-            return new TrackingChoices(settings.Regions, settings.BodyRange, settings.Smoothing, settings.Running);
+            return new TrackingChoices(settings.Regions, settings.BodyRange, settings.Smoothing, settings.Mirror, settings.Running);
         }
 
         /// <summary>A copy of <paramref name="settings"/> with these choices; other values are kept. Pure.</summary>
@@ -70,13 +76,14 @@ namespace VirtualVessel.Tracking
             next.Regions = Regions;
             next.BodyRange = BodyRange;
             next.Smoothing = Smoothing;
+            next.Mirror = Mirror;
             next.Running = Running;
             return next;
         }
 
         public bool Equals(TrackingChoices other)
         {
-            return Regions == other.Regions && BodyRange == other.BodyRange && Smoothing == other.Smoothing && Running == other.Running;
+            return Regions == other.Regions && BodyRange == other.BodyRange && Smoothing == other.Smoothing && Mirror == other.Mirror && Running == other.Running;
         }
 
         public override bool Equals(object obj)
@@ -86,7 +93,7 @@ namespace VirtualVessel.Tracking
 
         public override int GetHashCode()
         {
-            return ((int)Regions * 31) ^ ((int)BodyRange << 8) ^ ((int)Smoothing << 12) ^ (Running ? 1 << 16 : 0);
+            return ((int)Regions * 31) ^ ((int)BodyRange << 8) ^ ((int)Smoothing << 12) ^ (Mirror ? 1 << 15 : 0) ^ (Running ? 1 << 16 : 0);
         }
     }
 }

@@ -132,6 +132,8 @@ public interface ITrackingSource
     IReadOnlyObservable<TrackingRegions> Enabled { get; }      // 有効にした部位（設定）
     IReadOnlyObservable<BodyRange> BodyRange { get; }
     IReadOnlyObservable<SmoothingPreset> Smoothing { get; }    // 平滑化の段階（8.2）
+    IReadOnlyObservable<bool> Mirror { get; }                  // 鏡写し（既定：オン、10章）
+    double ObservationsPerSecond { get; }                      // 直近1秒に推論した映像の数（セットアップ画面の表示用）
 
     // 平滑化した最新の観測。Main Threadで、毎Frame更新される。中身は次の更新で書き換わるため、
     // 使う側はそのFrameの間だけ読み、保持しない（Allocationを避けるため、毎回同じObjectを返す）。
@@ -142,6 +144,7 @@ public interface ITrackingSource
     void SetEnabled(TrackingRegions regions);
     void SetBodyRange(BodyRange range);
     void SetSmoothing(SmoothingPreset preset);
+    void SetMirror(bool mirror);
 }
 ```
 
@@ -408,6 +411,7 @@ public sealed class TrackingSettings
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
     public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth、Standard、Responsive
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
+    public bool Mirror { get; set; } = true;                              // 鏡写し
     // 基準の姿勢（8.5）は段階5で加える。
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
@@ -415,7 +419,7 @@ public sealed class TrackingSettings
 
 - `tracking-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Capture、Stageと同じく、Project / Profileができたらそちらへ移す（方式設計6.10の`Profiles/Tracking/`）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
-- 鏡写しはAvatarの設定とする（Avatar詳細設計10章）。
+- 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
 - `PoseModel`を変えたときは、トラッキングを開始し直すと反映される。設定の画面は段階7で作る。
 
 ---

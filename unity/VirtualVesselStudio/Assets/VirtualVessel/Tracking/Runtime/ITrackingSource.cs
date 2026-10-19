@@ -39,6 +39,18 @@ namespace VirtualVessel.Tracking
         IReadOnlyObservable<SmoothingPreset> Smoothing { get; }
 
         void SetSmoothing(SmoothingPreset preset);
+
+        /// <summary>
+        /// Whether the person sees themself as in a mirror: the camera image on the setup screen is
+        /// flipped, and the avatar raises its left hand for the person's right (Avatar detailed design
+        /// 6.6). <see cref="Current"/> keeps the person's own sides either way.
+        /// </summary>
+        IReadOnlyObservable<bool> Mirror { get; }
+
+        void SetMirror(bool mirror);
+
+        /// <summary>Camera images inferred per second over the last second; 0 while nothing arrives.</summary>
+        double ObservationsPerSecond { get; }
     }
 
     /// <summary>

@@ -132,6 +132,8 @@ public interface ITrackingSource
     IReadOnlyObservable<TrackingRegions> Enabled { get; }      // Enabled parts (settings)
     IReadOnlyObservable<BodyRange> BodyRange { get; }
     IReadOnlyObservable<SmoothingPreset> Smoothing { get; }    // Smoothing level (8.2)
+    IReadOnlyObservable<bool> Mirror { get; }                  // Mirroring (default: on, chapter 10)
+    double ObservationsPerSecond { get; }                      // Camera images inferred over the last second (shown on the setup screen)
 
     // The latest smoothed observation, updated every frame on the main thread. Its contents are
     // overwritten by the next update, so callers read it within that frame and do not keep it
@@ -143,6 +145,7 @@ public interface ITrackingSource
     void SetEnabled(TrackingRegions regions);
     void SetBodyRange(BodyRange range);
     void SetSmoothing(SmoothingPreset preset);
+    void SetMirror(bool mirror);
 }
 ```
 
@@ -409,6 +412,7 @@ public sealed class TrackingSettings
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
     public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth, Standard, Responsive
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy)
+    public bool Mirror { get; set; } = true;                              // Mirroring
     // The reference pose (8.5) is added in step 5.
     public bool Running { get; set; }                                     // Whether it was started; restored at the next launch
 }
@@ -416,7 +420,7 @@ public sealed class TrackingSettings
 
 - Saved to `tracking-settings.json` (settings folder, `ConfigFileStore`). Like Capture and Stage, it moves to Project / Profile once those exist (`Profiles/Tracking/` in system design 6.10).
 - The camera device choice is saved in `capture-settings.json` (`camera` source).
-- Mirroring is an Avatar setting (Avatar detailed design chapter 10).
+- Mirroring (user's decision, 2026-10-19): when on, the camera image and points on the setup screen are flipped left to right, like a mirror. The avatar follows the same setting, moving its left hand for the user's right (Avatar detailed design 6.6). Tracking holds it as one setting so the preview and the avatar never disagree. `Current` keeps the person's own sides whatever the setting.
 - A changed `PoseModel` takes effect when tracking is started again. Its settings screen comes in step 7.
 
 ---

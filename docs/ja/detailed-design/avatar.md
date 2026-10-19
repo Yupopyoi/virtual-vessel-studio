@@ -96,7 +96,7 @@ flowchart LR
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用、Expression Signalの生成 |
 | `AvatarProfile` | Class | 保存する利用の設定（6.3） |
-| `AvatarSettings` | Class | 使うアバターと鏡写し等（10章） |
+| `AvatarSettings` | Class | 使うアバター（10章） |
 
 ---
 
@@ -115,7 +115,6 @@ public interface IAvatarService
     Task<AvatarEntry> ImportAsync(string path, CancellationToken cancellationToken);  // 登録（6.2）
     Task SelectAsync(string avatarId, CancellationToken cancellationToken);           // 読み込んで差し替える
     Task RemoveAsync(string avatarId, CancellationToken cancellationToken);           // 登録を消す（確認はUI）
-    void SetMirror(bool mirror);
 }
 ```
 
@@ -213,6 +212,7 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 ### 6.6 鏡写し
 
 - 鏡写し（既定：オン）では、利用者が右手を上げると、アバターは左手を上げる。画面上では同じ側の手が上がり、鏡を見ているように動かせる。
+- 設定は`ITrackingSource.Mirror`を使う。セットアップ画面のカメラの映像の左右反転と同じ1つの設定で、Trackingが`tracking-settings.json`に保存する（Tracking詳細設計10章）。
 - `TrackingFrame`は利用者自身の左右を持つ（Tracking詳細設計6.1）。鏡写しでは、左右を入れ替え、X軸を反転してから適用する（`PoseRetargeting`の入力の変換、純粋関数）。表情の左右（片目のまばたき等）も入れ替える。
 
 ### 6.7 ファイルを選ぶ画面
@@ -343,12 +343,12 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 public sealed class AvatarSettings
 {
     public string CurrentAvatarId { get; set; }   // なければ、アバターを出さない
-    public bool Mirror { get; set; } = true;      // 6.6
 }
 ```
 
 - `avatar-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Project / Profileができたら移す。
 - アバターごとの設定は`avatar-profile.json`（6.3）。
+- 鏡写しはTrackingの設定（6.6）。
 
 ---
 
