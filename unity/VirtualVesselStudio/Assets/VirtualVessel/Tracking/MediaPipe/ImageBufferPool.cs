@@ -13,8 +13,8 @@ namespace VirtualVessel.Tracking.MediaPipe
     /// it has been released (tracking detailed design 9.1).
     /// </summary>
     /// <remarks>
-    /// A buffer is taken (reserved), then filled by a readback or by background removal, then held by
-    /// MediaPipe images until each is released. It is free again only when none of these applies.
+    /// A buffer is taken (reserved), then filled by a readback, then held by MediaPipe images until each
+    /// is released. It is free again only when none of these applies.
     /// </remarks>
     internal sealed class ImageBuffer
     {
@@ -25,12 +25,6 @@ namespace VirtualVessel.Tracking.MediaPipe
         public NativeArray<byte> Data;
 
         public IntPtr Pointer { get; set; }
-
-        /// <summary>
-        /// The pixels through the pointer, for MediaPipe's threads: NativeArray's safety checks belong to
-        /// the job system and the main thread, and this memory is shared by the ownership rules above.
-        /// </summary>
-        public unsafe Span<byte> Bytes => new Span<byte>((void*)Pointer, Data.Length);
 
         /// <summary>Main thread: a readback into it is pending.</summary>
         public bool Reading { get; set; }
@@ -82,8 +76,8 @@ namespace VirtualVessel.Tracking.MediaPipe
     /// </summary>
     internal sealed class ImageBufferPool : IDisposable
     {
-        /// <summary>Two images in flight, each with a camera copy and a background-removed copy, and one being read.</summary>
-        public const int Count = 6;
+        /// <summary>Two images in flight and one being read.</summary>
+        public const int Count = 3;
 
         private static readonly ConcurrentDictionary<IntPtr, ImageBuffer> s_owners = new ConcurrentDictionary<IntPtr, ImageBuffer>();
 

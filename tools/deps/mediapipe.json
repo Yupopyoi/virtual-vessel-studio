@@ -24,10 +24,6 @@
     {
       "file": "hand_landmarker.bytes",
       "sha256": "32d1eab97e80a9a20edb29231e15301ce65abfd0fa9d41cf1757e0ecc8078a4e"
-    },
-    {
-      "file": "selfie_segmentation_landscape.bytes",
-      "sha256": "a77d03f4659b9f6b6c1f5106947bf40e99d7655094b6527f214ea7d451106edd"
     }
   ]
 }

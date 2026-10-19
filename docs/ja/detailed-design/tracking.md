@@ -151,7 +151,6 @@ public readonly struct TrackingOptions
     BodyRange BodyRange;                // 動かす範囲（全身は近日対応のため上半身に戻す、6.5）
     SmoothingPreset Smoothing;          // 平滑化の段階（8.2）
     bool Mirror;                        // 鏡写し（10章）
-    bool RemoveBackground;              // 背景を消してから認識する（9.4）
 }
 ```
 
@@ -381,21 +380,17 @@ sequenceDiagram
 
     Main->>GPU: 新しいカメラの映像を上下反転して写し、読み出しを依頼
     GPU-->>Main: 画素（空いているBufferへ）
-    Main->>MP: 背景を消すとき：人物を探す（Selfie Segmentation）
-    MP->>MP: 人物のMaskで、背景を灰色にした写しを2つ目のBufferへ書く（9.4）
-    MP->>MP: DetectAsync（Face / Pose / Hand。写しのBufferをコピーせずに渡す）
-    Main->>MP: 背景を消さないとき：DetectAsync（読み出したBufferを渡す）
+    Main->>MP: DetectAsync（Face / Pose / Hand。同じBufferをコピーせずに渡す）
     MP-->>MP: 推論
     MP->>MP: 結果を共通の形へ変換し、FrameSlotへ置く
     MP-->>Main: 画像を解放（Deleter）→ Bufferが空く
     Main->>Main: 毎Frame：FrameSlotから最新を取り、平滑化してCurrentを更新
 ```
 
-- 新しい映像（`FrameCount`が変わった）だけを読む。読み出しは1つずつとし、MediaPipeが持っている映像は2つまでとする（背景を消すときは、1つの映像にBufferを2つ使う）。それを超える映像は待ち行列にためず、飛ばす（`Tracking/Dropped`）。遅れを増やさないため。
+- 新しい映像（`FrameCount`が変わった）だけを読む。読み出しは1つずつとし、MediaPipeが持っている映像は2つまでとする。それを超える映像は待ち行列にためず、飛ばす（`Tracking/Dropped`）。遅れを増やさないため。
 - 読み出しはGPUで上下反転して行う。Unityのテクスチャは下の行から、MediaPipeの画像は上の行から並ぶため。幅が1280pxを超える映像は縮める。
-- Buffer（`ImageBufferPool`、6つ）は、取り出し（予約）→読み出しまたは背景を消した写しの書き込み→MediaPipeの画像が参照、の順に使う。MediaPipeの画像は、Bufferをコピーせずに参照する。MediaPipeは`DetectAsync`から戻った後もBufferを読むため、そのBufferで作ったすべての画像が解放されたこと（PluginのDeleterの呼び出し）を数えてから使い直す。DeleterはPixelのPointerしか受け取らないため、PointerからBufferを引く表をPoolが持つ。2秒たっても返らないBufferがあれば、開発者向けLogに記録し、使い直さずに待つ（MediaPipeが読んでいるかもしれないメモリを書き換えないため）。
+- Buffer（`ImageBufferPool`、3つ）は、取り出し（予約）→読み出し→MediaPipeの画像が参照、の順に使う。MediaPipeの画像は、Bufferをコピーせずに参照する。MediaPipeは`DetectAsync`から戻った後もBufferを読むため、そのBufferで作ったすべての画像が解放されたこと（PluginのDeleterの呼び出し）を数えてから使い直す。DeleterはPixelのPointerしか受け取らないため、PointerからBufferを引く表をPoolが持つ。2秒たっても返らないBufferがあれば、開発者向けLogに記録し、使い直さずに待つ（MediaPipeが読んでいるかもしれないメモリを書き換えないため）。
 - MediaPipeの結果は、MediaPipeのThreadで呼ばれる。そこで共通の形へ変換し、`FrameSlot`へ置く。UnityのAPIは呼ばない。失敗は数えておき、Main Threadで、まとめて10秒に1回まで記録する。
-- 人物のMaskが届くと、そのThreadで背景を灰色にした写しを作り、続けて顔・体・手の推論を始める。結果は時刻しか持たないため、Maskを待つ映像を時刻で引く（`PendingImages`）。止めるときは、人物の推論を最初に閉じ、遅れて届いた結果が新しい推論を始めないようにする。
 - `FrameSlot<T>`は、3つのObjectを順に使う（書き込み中、最新、読み出し中）。短い排他だけで、待たない（Capture詳細設計8.2と同じ考え方）。Objectは使い回し、観測のたびに確保しない。顔、体、手（2つ分）で別々のSlotを使う。
 - 手の左右の割り当てと、体から離れた顔を除くこと（6.3、6.4）は、最新の体と合わせてMain Threadで行う。
 - 平滑化と状態の判断はMain Threadで、毎Frame1回行う。
@@ -411,15 +406,13 @@ sequenceDiagram
 - 読み込みの途中で止めた場合は、作り終えたときにTaskを閉じる。
 - 開発用PCで、開始から最初の結果まで0.69秒だった（15章）。
 
-### 9.4 背景の除去
+### 9.4 背景の除去（試して外した）
 
-背景の物（家具等）に体の点が引っ張られる誤りを減らすため、人物を切り抜き、背景を灰色にしてから顔・体・手を探す（利用者の決定、2026-10-19）。`TrackingOptions.RemoveBackground`で切り替え、既定はオン。
+背景の物に体の点が引っ張られる誤りへの対策として、人物を切り抜き（Selfie Segmentation）、背景を灰色にしてから顔・体・手を探す方式を試した（2026-10-19）。実際のカメラでは、かえって誤りが増えたため外した（利用者の判断）。
 
-- 人物はMediaPipeのSelfie Segmentation（横長の映像向けの`selfie_segmentation_landscape`、約250KB）で探す。出力は、画素ごとの人物らしさ（0〜1）のMask。
-- `BackgroundRemoval.Apply`（純粋関数）が、Maskの値0.2以下を背景、0.6以上を人物として、その間はなめらかに混ぜて灰色（128）にする。縁を残すことで、腕や手の端を削りにくくする。Maskの大きさが映像と違っても、画素ごとに対応する値を引く。
-- 写しは2つ目のBufferへ書き、元の映像は人物の推論が終わるまで残す。
-- 体から離れた顔を使わないこと（6.3）と合わせて、背景の物を人と取り違える誤りを減らす。
-- 遅れは平均で約15ms増える（15章）。切り抜きが合わない環境のために、セットアップ画面で切れるようにする。
+- 人物のMaskは粗く（144×256）、手や腕の先が背景として塗られ、点が乱れたと考えられる。遅れも平均で約15ms増えた（15章）。
+- 同じとき、体から離れた手を除く処理も試したが、手がちらついたため外した（6.4）。
+- 背景の誤りに再び取り組むときは、Maskを手の近くで広げる、体の推論だけに使う等を、記録した動き（12章）で比べてから決める。
 
 ---
 
@@ -434,7 +427,6 @@ public sealed class TrackingSettings
     public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth、Standard、Responsive
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
     public bool Mirror { get; set; } = true;                              // 鏡写し
-    public bool RemoveBackground { get; set; } = true;                    // 背景を消してから認識する（9.4）
     // 基準の姿勢（8.5）は段階5で加える。
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
@@ -455,7 +447,7 @@ public sealed class TrackingSettings
 
 | 計測 | 種類 | 内容 |
 |---|---|---|
-| `Tracking/person.Inference`、`face.Inference`、`body.Inference`、`hands.Inference` | Timer | 画像を渡してから結果が届くまで（待ち時間を含む）。personは背景の除去の人物の推論 |
+| `Tracking/face.Inference`、`body.Inference`、`hands.Inference` | Timer | 画像を渡してから結果が届くまで（待ち時間を含む） |
 | `Tracking/Latency` | Timer | 映像のFrameの時刻から、`Current`の更新までの時間 |
 | `Tracking/Readback` | Timer | 映像の読み出しの時間 |
 | `Tracking/Dropped` | Counter | MediaPipeが前の画像を処理中のため推論しなかった映像の数 |
@@ -540,14 +532,14 @@ public sealed class TrackingSettings
 
 - 3つの推論を同時に動かしても、30fpsを保てた。Holistic Landmarkerへの切り替え、手の推論の間引きは、今は必要ない。
 
-背景の除去（9.4）を加えて測り直した（同じ条件、2026-10-19）。
+背景の除去（9.4、試して外した）を加えて測った記録（同じ条件、2026-10-19）。
 
 | 背景の除去 | 開始から最初の結果まで | 結果の数 | 観測の古さ |
 |---|---|---|---|
 | なし | 0.24秒 | 89.8回/秒 | 平均15ms、最大57ms |
 | あり | 0.23秒 | 90.1回/秒 | 平均30ms、最大65ms |
 
-- 背景の除去で、遅れは平均で約15ms増え、30fpsは保てた。既定をオンにした。
+- 背景の除去で、遅れは平均で約15ms増えた。
 - 実際のカメラ（1280×720）での値は、デモで`Tracking/Latency`等を見て記録する。
 
 ---
@@ -565,7 +557,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, BackgroundRemoval, DepthEstimation（段階5）
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation（段階5）
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              TrackingRecorder（段階4〜5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）
@@ -573,7 +565,6 @@ Assets/VirtualVessel/Tracking/
 │  ├─ MediaPipeTrackingProvider.cs   開始・停止と、映像から結果までの流れ
 │  ├─ MediaPipeTasks.cs              Taskの作成、呼び出し、終了（PluginのTaskのAPIを使う部分）
 │  ├─ MediaPipeResults.cs            Pluginの結果を配列へ写す。顔と手の候補から本人のものを選ぶ（FacesObservation、HandsObservation）
-│  ├─ PendingImages.cs               人物のMaskを待つ映像
 │  ├─ MediaPipeTracking.cs           Composition向けの生成
 │  ├─ CameraFrameReader.cs           GPUでの上下反転とAsyncGPUReadback
 │  └─ ImageBufferPool.cs             MediaPipeが解放するまで使い直さないBuffer
@@ -591,7 +582,7 @@ Assets/VirtualVessel/Tracking/
   - `tools/deps/fetch-mediapipe.ps1`が、固定した版の`.tgz`を`build/deps/`へダウンロードし、SHA-256を確かめ、`unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/`へEmbedded Packageとして展開する（Gitの管理外）。Packagesの下に置いたPackageは`manifest.json`に書かなくてもUnityが見つけるため、Pluginがない作業Copyでも、Projectはそのまま開ける（MediaPipeのAssemblyがCompileされないだけ）。
   - `packages-lock.json`にはEmbedded Packageとして載る（版は`file:`）。Repositoryのチェックは、Embedded Packageの版を`tools/deps/mediapipe.json`の値で確かめる。
   - 手元とリリースのScript（`tools/release/build-release.ps1`）で同じScriptを使う。Native Pluginの扱い（DLLはGitに入れず、手順で作る）と同じ考え方である。
-- モデル（`face_landmarker_v2_with_blendshapes`、`pose_landmarker_lite` / `full` / `heavy`、`hand_landmarker`、`selfie_segmentation_landscape`）は、PluginのPackageに入っているものを使う。それぞれのSHA-256を`tools/deps/mediapipe.json`に固定し、Scriptが確かめてから`Assets/StreamingAssets/Tracking/MediaPipe/`へ写す（Gitの管理外。BuildのStreamingAssetsに入る）。
+- モデル（`face_landmarker_v2_with_blendshapes`、`pose_landmarker_lite` / `full` / `heavy`、`hand_landmarker`）は、PluginのPackageに入っているものを使う。それぞれのSHA-256を`tools/deps/mediapipe.json`に固定し、Scriptが確かめてから`Assets/StreamingAssets/Tracking/MediaPipe/`へ写す（Gitの管理外。BuildのStreamingAssetsに入る）。
 - 配布物には、Windows x64のNative Library（`mediapipe_c.dll`）だけが入る（PluginのImport設定による）。
 - ライセンス：Pluginは MIT、MediaPipeとモデルはApache-2.0。PluginのNative Libraryに組み込まれたLibrary（Abseil、OpenCV、Protocol Buffers、TensorFlow Lite、XNNPACK等。すべてPermissive）は、Pluginの`Third Party Notices.md`にあり、リリースのPackageへ同梱する。SBOMへ記録した（CLAUDE.md 35章）。
 
@@ -617,7 +608,7 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 | Holistic Landmarkerへの切り替え | 不要と判断した（3つの推論を同時に動かして30fpsを保てた、15章）。実際のカメラで足りなければ見直す |
 | MediaPipeの表情の値の左右（6.3） | 本人の左右と仮定した（`MediaPipeTracking.FaceSidesMirrored = false`）。デモでウインクして確かめる |
 | 視線の角度の範囲（`MaxGazeDegrees`、25°） | 仮の値。段階4で、アバターの目の動きと合わせて決める |
-| 体から離れた顔とみなす距離（画像の幅の12%）、背景の除去のしきい値（0.2〜0.6） | 仮の値。実際のカメラで誤りが残るときに見直す |
+| 体から離れた顔とみなす距離（画像の幅の12%） | 仮の値。実際のカメラで誤りが残るときに見直す |
 | 全身（`FullBody`）の追加 | v0.1.0の後 |
 | 声による口の動き（リップシンク）と顔のトラッキングの組み合わせ | Voice / Audioの設計時 |
 | トラッキング設定をProject / Profileへ移す | Project / Profileの設計時 |

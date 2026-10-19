@@ -31,8 +31,6 @@ namespace VirtualVessel.Tracking
 
         public bool Mirror { get; set; } = true;
 
-        public bool RemoveBackground { get; set; } = true;
-
         /// <summary>Whether tracking was started; it starts again at the next start.</summary>
         public bool Running { get; set; }
 
@@ -44,7 +42,7 @@ namespace VirtualVessel.Tracking
         /// <summary>The user's choices in these settings. A method, not a property, so it is not written to the file. Pure.</summary>
         public TrackingOptions GetOptions()
         {
-            return new TrackingOptions(Regions, BodyRange, Smoothing, Mirror, RemoveBackground);
+            return new TrackingOptions(Regions, BodyRange, Smoothing, Mirror);
         }
 
         /// <summary>A copy with <paramref name="options"/> and <paramref name="running"/>; other values are kept. Pure.</summary>
@@ -55,7 +53,6 @@ namespace VirtualVessel.Tracking
             next.BodyRange = options.BodyRange;
             next.Smoothing = options.Smoothing;
             next.Mirror = options.Mirror;
-            next.RemoveBackground = options.RemoveBackground;
             next.Running = running;
             return next;
         }

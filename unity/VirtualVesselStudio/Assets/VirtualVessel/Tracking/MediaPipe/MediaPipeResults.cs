@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using Mediapipe.Tasks.Components.Containers;
 using Mediapipe.Tasks.Vision.FaceLandmarker;
 using Mediapipe.Tasks.Vision.HandLandmarker;
-using Mediapipe.Tasks.Vision.ImageSegmenter;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
-using Mediapipe.Unity;
 using UnityEngine;
 using Landmark = Mediapipe.Tasks.Components.Containers.Landmark;
 using NormalizedLandmark = Mediapipe.Tasks.Components.Containers.NormalizedLandmark;
@@ -121,54 +119,6 @@ namespace VirtualVessel.Tracking.MediaPipe
             }
 
             return map;
-        }
-    }
-
-    /// <summary>The person confidence mask as floats, top row first.</summary>
-    internal sealed class PersonMaskReader
-    {
-        public float[] Values { get; private set; } = Array.Empty<float>();
-
-        public int Width { get; private set; }
-
-        public int Height { get; private set; }
-
-        /// <summary>The masks belong to the callback; they are released when it ends.</summary>
-        public static void Dispose(ImageSegmenterResult result)
-        {
-            if (result.confidenceMasks != null)
-            {
-                foreach (Mediapipe.Image mask in result.confidenceMasks)
-                {
-                    mask?.Dispose();
-                }
-            }
-
-            result.categoryMask?.Dispose();
-        }
-
-        /// <summary>Copies the first confidence mask; false when there is none.</summary>
-        public bool TryRead(ImageSegmenterResult result)
-        {
-            if (result.confidenceMasks == null || result.confidenceMasks.Count == 0 || result.confidenceMasks[0] == null)
-            {
-                return false;
-            }
-
-            Mediapipe.Image mask = result.confidenceMasks[0];
-            int width = mask.Width();
-            int height = mask.Height();
-            if (Values.Length != width * height)
-            {
-                Values = new float[width * height];
-            }
-
-            Width = width;
-            Height = height;
-
-            // "Vertically flipped" keeps MediaPipe's row order, top row first, like the camera copy;
-            // without it the plugin turns the rows over for Unity textures.
-            return mask.TryReadChannel(0, Values, isHorizontallyFlipped: false, isVerticallyFlipped: true);
         }
     }
 

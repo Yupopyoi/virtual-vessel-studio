@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Mediapipe;
 using Mediapipe.Tasks.Vision.FaceLandmarker;
 using Mediapipe.Tasks.Vision.HandLandmarker;
-using Mediapipe.Tasks.Vision.ImageSegmenter;
 using Mediapipe.Tasks.Vision.PoseLandmarker;
 using UnityEngine;
 using VirtualVessel.Capture;
@@ -12,7 +11,6 @@ using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
-using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Threading;
 using MediaPipeImage = Mediapipe.Image;
 
@@ -20,8 +18,8 @@ namespace VirtualVessel.Tracking.MediaPipe
 {
     /// <summary>
     /// Camera tracking with MediaPipe's Face, Pose, and Hand Landmarkers (tracking detailed design 5.2,
-    /// 9, 16): reads each new camera image once, paints its background gray when asked (9.4), gives it
-    /// to the enabled tasks, and hands their converted results to the main thread.
+    /// 9, 16): reads each new camera image once, gives it to the enabled tasks, and hands their
+    /// converted results to the main thread.
     /// </summary>
     /// <remarks>
     /// <see cref="MediaPipeTasks"/> and the result readers are the only code that uses the plugin's
@@ -52,9 +50,6 @@ namespace VirtualVessel.Tracking.MediaPipe
         private readonly PoseResultReader _pose = new PoseResultReader();
         private readonly FaceResultReader _face;
         private readonly HandResultReader _hands = new HandResultReader();
-        private readonly PersonMaskReader _mask = new PersonMaskReader();
-        private readonly PendingImages _pending = new PendingImages();
-        private readonly TaskTiming _personTiming;
         private readonly TaskTiming _faceTiming;
         private readonly TaskTiming _bodyTiming;
         private readonly TaskTiming _handsTiming;
@@ -64,12 +59,8 @@ namespace VirtualVessel.Tracking.MediaPipe
         private ImageBufferPool _buffers;
         private CameraFrameReader _reader;
         private Task<MediaPipeTasks> _loading;
-        // Read by OnPerson on MediaPipe's threads; null once stopping, so late results submit nothing.
-        private volatile MediaPipeTasks _tasks;
-        // Read on MediaPipe's threads too, when the landmarks are found after background removal.
-        private volatile TrackingRegions _regions;
-        private volatile bool _removeBackground;
-        private ImageBuffer _nextOutput;
+        private MediaPipeTasks _tasks;
+        private TrackingRegions _regions;
         private long _lastFrame = -1;
         private long _lastMilliseconds;
         private long _sequence;
@@ -88,8 +79,7 @@ namespace VirtualVessel.Tracking.MediaPipe
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _log = log;
             _face = new FaceResultReader(faceSidesMirrored);
-            _callbacks = new MediaPipeCallbacks(OnFace, OnPose, OnHands, OnPerson);
-            _personTiming = new TaskTiming(clock, metrics?.Timer("Tracking", "person.Inference"));
+            _callbacks = new MediaPipeCallbacks(OnFace, OnPose, OnHands);
             _faceTiming = new TaskTiming(clock, metrics?.Timer("Tracking", "face.Inference"));
             _bodyTiming = new TaskTiming(clock, metrics?.Timer("Tracking", "body.Inference"));
             _handsTiming = new TaskTiming(clock, metrics?.Timer("Tracking", "hands.Inference"));
@@ -126,7 +116,6 @@ namespace VirtualVessel.Tracking.MediaPipe
         {
             // All tasks run once started; a disabled one is simply not given images.
             _regions = options.Regions;
-            _removeBackground = options.RemoveBackground;
         }
 
         public void Tick()
@@ -206,8 +195,6 @@ namespace VirtualVessel.Tracking.MediaPipe
             tasks?.Dispose();
             _reader?.Dispose();
             _reader = null;
-            _nextOutput = null;
-            _pending.Clear();
             int leaked = _buffers?.FreeAll() ?? 0;
             if (leaked > 0)
             {
@@ -230,7 +217,7 @@ namespace VirtualVessel.Tracking.MediaPipe
             {
                 _tasks = loading.Result;
                 _state.Set(TrackingState.Running);
-                _log?.Information($"MediaPipe tasks ready: Face, Pose ({_poseModel}), Hand, Selfie Segmentation.");
+                _log?.Information($"MediaPipe tasks ready: Face, Pose ({_poseModel}), Hand.");
                 return;
             }
 
@@ -249,21 +236,14 @@ namespace VirtualVessel.Tracking.MediaPipe
 
             _lastFrame = frame;
             (int width, int height) = CameraFrameReader.Size(texture.width, texture.height);
-            int bytes = width * height * 4;
-
-            // With background removal an image needs a second buffer for the painted copy.
-            int perImage = _removeBackground ? 2 : 1;
-            ImageBuffer buffer = _buffers.InUse + perImage <= MaxImagesInFlight * perImage ? _buffers.Take(bytes) : null;
-            ImageBuffer output = buffer != null && _removeBackground ? _buffers.Take(bytes) : null;
-            if (buffer == null || (_removeBackground && output == null))
+            ImageBuffer buffer = _buffers.InUse < MaxImagesInFlight ? _buffers.Take(width * height * 4) : null;
+            if (buffer == null)
             {
                 // MediaPipe is still busy with earlier images; this one is skipped, not queued.
-                buffer?.Cancel();
                 _dropped?.Increment();
                 return;
             }
 
-            _nextOutput = output;
             double imageTime = _camera.LastFrameTimestamp / (double)_clock.Frequency;
             _reader.Read(texture, buffer, width, height, imageTime);
         }
@@ -271,48 +251,14 @@ namespace VirtualVessel.Tracking.MediaPipe
         private void OnImageRead(ImageBuffer buffer, int width, int height, double imageTime, double readbackSeconds)
         {
             _readback?.Record(TimeSpan.FromSeconds(readbackSeconds));
-            ImageBuffer output = _nextOutput;
-            _nextOutput = null;
-            if (_tasks == null)
-            {
-                buffer.Cancel();
-                output?.Cancel();
-                return;
-            }
 
             // Each task needs its timestamps to grow: the image time in milliseconds, kept increasing.
             long milliseconds = Math.Max(_lastMilliseconds + 1, (long)(imageTime * 1000));
             _lastMilliseconds = milliseconds;
-            if (output == null)
-            {
-                Detect(buffer, width, height, milliseconds);
-                return;
-            }
-
-            // The landmarks are found when the person mask arrives (OnPerson).
-            _pending.Add(new PendingImage(milliseconds, buffer, output, width, height));
-            buffer.Hold(1, _clock.GetTimestamp());
-            var image = new MediaPipeImage(ImageFormat.Types.Format.Srgba, width, height, width * 4, buffer.Data, ImageBufferPool.Deleter);
-            try
-            {
-                _personTiming.Submitted();
-                _tasks.FindPerson(image, milliseconds);
-            }
-            catch (Exception exception)
-            {
-                if (!image.isDisposed)
-                {
-                    image.Dispose();
-                }
-
-                _pending.Take(milliseconds);
-                output.Cancel();
-                CountFailure();
-                _log?.Error("MediaPipe did not take a camera image (person).", exception);
-            }
+            Detect(buffer, width, height, milliseconds);
         }
 
-        /// <summary>Gives the image in <paramref name="buffer"/> to the enabled landmark tasks. Main thread, or OnPerson.</summary>
+        /// <summary>Gives the image in <paramref name="buffer"/> to the enabled landmark tasks.</summary>
         private void Detect(ImageBuffer buffer, int width, int height, long milliseconds)
         {
             MediaPipeTasks tasks = _tasks;
@@ -373,38 +319,6 @@ namespace VirtualVessel.Tracking.MediaPipe
         }
 
         // The callbacks below run on MediaPipe's threads: no Unity API, no waiting.
-        private void OnPerson(ImageSegmenterResult result, MediaPipeImage image, long milliseconds)
-        {
-            PendingImage pending = _pending.Take(milliseconds);
-            try
-            {
-                if (pending == null)
-                {
-                    return;
-                }
-
-                if (!_mask.TryRead(result))
-                {
-                    pending.Output.Cancel();
-                    return;
-                }
-
-                // The camera copy is still held by the mask's image, so it can be read here.
-                BackgroundRemoval.Apply(pending.Input.Bytes, pending.Output.Bytes, pending.Width, pending.Height, _mask.Values, _mask.Width, _mask.Height);
-                _personTiming.Completed();
-                Detect(pending.Output, pending.Width, pending.Height, milliseconds);
-            }
-            catch (Exception)
-            {
-                pending?.Output.Cancel();
-                CountFailure();
-            }
-            finally
-            {
-                PersonMaskReader.Dispose(result);
-            }
-        }
-
         private void OnPose(PoseLandmarkerResult result, MediaPipeImage image, long milliseconds)
         {
             try

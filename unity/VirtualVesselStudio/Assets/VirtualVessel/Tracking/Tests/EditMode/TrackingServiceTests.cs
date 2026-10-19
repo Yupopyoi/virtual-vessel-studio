@@ -153,7 +153,6 @@ namespace VirtualVessel.Tracking.Tests
             _service.SetOptions(_service.Options.Value
                 .WithSmoothing(SmoothingPreset.Smooth)
                 .WithMirror(false)
-                .WithRemoveBackground(false)
                 .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
             _service.Start();
             _service.ShutdownAsync(CancellationToken.None).Wait();
@@ -165,7 +164,6 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(saved.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
             Assert.That(saved.Running, Is.True);
             Assert.That(saved.Mirror, Is.False);
-            Assert.That(saved.RemoveBackground, Is.False);
 
             _camera = new FakeCamera();
             _service = Create(saved);

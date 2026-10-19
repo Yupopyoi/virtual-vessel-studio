@@ -214,7 +214,6 @@
         "setup.tracking.problem.failed": "カメラを開けないか、トラッキングを始められませんでした。ほかのアプリがカメラを使っていないか確かめてください。",
         "setup.tracking.problem.noperson": "カメラの前に座り、顔と上半身が映るようにしてください。",
         "setup.tracking.mirror": "鏡写しにする",
-        "setup.tracking.load": "アプリ {fps} fps · トラッキング {rate} 回/秒 · CPU {cpu} · GPU {gpu}",
-        "setup.tracking.background": "背景を消してから認識する"
+        "setup.tracking.load": "アプリ {fps} fps · トラッキング {rate} 回/秒 · CPU {cpu} · GPU {gpu}"
     }
 }

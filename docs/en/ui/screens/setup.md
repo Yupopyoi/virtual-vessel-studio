@@ -48,7 +48,6 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 | Load | Description (monospace, Text 2) | Every second: "App 60 fps · Tracking 30/s · CPU 12% · GPU 8%". CPU is this application's share of all cores; GPU is the share of a frame the GPU spent on this application's work (Unity's FrameTimingManager; "—" where unknown). System-wide GPU usage cannot be read from Unity and is not shown |
 | Track | Toggle | On starts tracking (opening the camera), off stops it. Whether it was on is saved and restored at the next start |
 | Mirror | Toggle | On by default. Flips the camera image and points left to right, like a mirror. The avatar follows the same setting (Tracking detailed design chapter 10) |
-| Remove the background before tracking | Toggle | On by default. Cuts the person out and paints the background gray before the face, body, and hands are found, so things in the background pull the points less. Adds a little lag (about 15 ms) (Tracking detailed design 9.4) |
 | Camera | Dropdown | The devices found, with "Choose a camera" first. The camera is not opened until one is chosen |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 

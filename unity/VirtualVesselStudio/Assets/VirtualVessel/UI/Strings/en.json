@@ -214,7 +214,6 @@
         "setup.tracking.problem.failed": "The camera could not open or tracking could not start. Check that no other app is using the camera.",
         "setup.tracking.problem.noperson": "Sit in front of the camera so your face and upper body are in view.",
         "setup.tracking.mirror": "Mirror",
-        "setup.tracking.load": "App {fps} fps · Tracking {rate}/s · CPU {cpu} · GPU {gpu}",
-        "setup.tracking.background": "Remove the background before tracking"
+        "setup.tracking.load": "App {fps} fps · Tracking {rate}/s · CPU {cpu} · GPU {gpu}"
     }
 }
