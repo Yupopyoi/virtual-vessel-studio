@@ -9,6 +9,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
@@ -117,6 +118,11 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.ProblemKey, Is.EqualTo(TrackingStrings.ProblemChoose));
             Assert.That(card.Track.value, Is.True, "Still on while it waits for the camera.");
 
+            Assert.That(card.MirrorToggle.value, Is.True, "Mirrored by default.");
+            Assert.That(card.Preview.resolvedStyle.scale.value.x, Is.EqualTo(-1f), "The image and points flip together.");
+            card.MirrorToggle.value = false;
+            Assert.That(_tracking.Mirror.Value, Is.False);
+
             var video = new Texture2D(4, 4);
             _camera.SetTexture(video);
             Assert.That(card.Preview.image, Is.SameAs(video), "The camera image is shown to check the points on.");
@@ -145,6 +151,13 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(TrackingCard.PartsLine(frame, true, key => key.Substring(key.LastIndexOf('.') + 1)), Is.EqualTo("face ✓   body ✓   lefthand –   righthand ×"));
             Assert.That(TrackingCard.PartsLine(frame, false, key => key), Is.Empty, "Nothing while tracking is off.");
+        }
+
+        [Test]
+        public void TheLoadLine_ShowsNumbers_AndADashForAnUnknownGpu()
+        {
+            Assert.That(TrackingCard.LoadValues(new AppLoad(59.6, 12.4, 31.2), 29.8), Is.EqualTo(("60", "30", "12%", "31%")));
+            Assert.That(TrackingCard.LoadValues(new AppLoad(60, 5, double.NaN), 0).Gpu, Is.EqualTo("—"));
         }
 
         [Test]
@@ -295,6 +308,17 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<SmoothingPreset> Smoothing { get; } = new ObservableValue<SmoothingPreset>(SmoothingPreset.Standard);
 
             public TrackingFrame Current { get; } = new TrackingFrame();
+
+            public IReadOnlyObservable<bool> Mirror => _mirror;
+
+            public double ObservationsPerSecond => 30;
+
+            private readonly ObservableValue<bool> _mirror = new ObservableValue<bool>(true);
+
+            public void SetMirror(bool mirror)
+            {
+                _mirror.Value = mirror;
+            }
 
             public void Start()
             {

@@ -212,6 +212,8 @@
         "setup.tracking.problem.notfound": "The camera is not found. It is found again when you connect it.",
         "setup.tracking.problem.inuse": "The game screen capture uses this camera. Choose another camera.",
         "setup.tracking.problem.failed": "The camera could not open or tracking could not start. Check that no other app is using the camera.",
-        "setup.tracking.problem.noperson": "Sit in front of the camera so your face and upper body are in view."
+        "setup.tracking.problem.noperson": "Sit in front of the camera so your face and upper body are in view.",
+        "setup.tracking.mirror": "Mirror",
+        "setup.tracking.load": "App {fps} fps · Tracking {rate}/s · CPU {cpu} · GPU {gpu}"
     }
 }

@@ -57,3 +57,8 @@
     margin-top: var(--vv-space-xs);
     color: var(--vv-color-text-2);
 }
+
+.vv-tracking-card__load {
+    margin-top: var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}

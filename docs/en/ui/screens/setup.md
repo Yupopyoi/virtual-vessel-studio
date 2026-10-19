@@ -45,7 +45,9 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 | State | Status Indicator | The state and, if there is a problem, its explanation (4.1) |
 | Video | An image (256×144, fit to 16:9) with points and bones over it | The camera image with the tracked body points and bones and hand points and fingers drawn over it. Points in `Primary` and bones in `Accent Line`, each with an `On Accent` outline so they show on bright and dark images alike. Redrawn about every 33 ms. Never on the stream |
 | Detected | Description (Text 2) | A mark and a word per part: "Face ✓   Body ✓   Left hand –   Right hand ✓". ✓ tracked, – lost, × disabled; never color alone. Hidden while stopped |
+| Load | Description (monospace, Text 2) | Every second: "App 60 fps · Tracking 30/s · CPU 12% · GPU 8%". CPU is this application's share of all cores; GPU is the share of a frame the GPU spent on this application's work (Unity's FrameTimingManager; "—" where unknown). System-wide GPU usage cannot be read from Unity and is not shown |
 | Track | Toggle | On starts tracking (opening the camera), off stops it. Whether it was on is saved and restored at the next start |
+| Mirror | Toggle | On by default. Flips the camera image and points left to right, like a mirror. The avatar follows the same setting (Tracking detailed design chapter 10) |
 | Camera | Dropdown | The devices found, with "Choose a camera" first. The camera is not opened until one is chosen |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 

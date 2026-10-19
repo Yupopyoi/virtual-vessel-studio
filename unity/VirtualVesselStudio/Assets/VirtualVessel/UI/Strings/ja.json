@@ -212,6 +212,8 @@
         "setup.tracking.problem.notfound": "カメラが見つかりません。つなぐと自動で見つけ直します。",
         "setup.tracking.problem.inuse": "このカメラはゲーム画面の取り込みで使っています。別のカメラを選んでください。",
         "setup.tracking.problem.failed": "カメラを開けないか、トラッキングを始められませんでした。ほかのアプリがカメラを使っていないか確かめてください。",
-        "setup.tracking.problem.noperson": "カメラの前に座り、顔と上半身が映るようにしてください。"
+        "setup.tracking.problem.noperson": "カメラの前に座り、顔と上半身が映るようにしてください。",
+        "setup.tracking.mirror": "鏡写しにする",
+        "setup.tracking.load": "アプリ {fps} fps · トラッキング {rate} 回/秒 · CPU {cpu} · GPU {gpu}"
     }
 }

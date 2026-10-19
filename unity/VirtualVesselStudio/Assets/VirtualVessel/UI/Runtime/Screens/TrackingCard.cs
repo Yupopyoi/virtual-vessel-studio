@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine.UIElements;
 using VirtualVessel.Capture;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
@@ -17,6 +18,8 @@ namespace VirtualVessel.UI.Screens
         public const string Title = "setup.tracking.title";
         public const string Unavailable = "setup.tracking.unavailable";
         public const string Track = "setup.tracking.track";
+        public const string Mirror = "setup.tracking.mirror";
+        public const string Load = "setup.tracking.load";
         public const string Camera = "setup.tracking.camera";
         public const string Face = "setup.tracking.part.face";
         public const string Body = "setup.tracking.part.body";
@@ -44,6 +47,10 @@ namespace VirtualVessel.UI.Screens
     {
         public const string UssClass = "vv-tracking-card";
         public const string PartsClass = UssClass + "__parts";
+        public const string LoadClass = UssClass + "__load";
+
+        /// <summary>How often the load line is sampled: often enough to follow, slow enough to read.</summary>
+        public const long LoadIntervalMs = 1000;
 
         /// <summary>How often the points are redrawn, about the camera's rate.</summary>
         public const long RedrawIntervalMs = 33;
@@ -54,6 +61,7 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _problem;
         private readonly Label _noVideo;
         private readonly Label _parts;
+        private readonly Label _load;
         private ILocalizer _localizer;
 
         public TrackingCard(ITrackingSource tracking, ICaptureDeviceSource camera)
@@ -92,6 +100,11 @@ namespace VirtualVessel.UI.Screens
             _parts.AddToClassList("vv-text-body");
             card.Add(_parts);
 
+            _load = new Label();
+            _load.AddToClassList(LoadClass);
+            _load.AddToClassList("vv-text-mono");
+            card.Add(_load);
+
             Track = new SwitchToggle();
             Track.RegisterValueChangedCallback(evt =>
             {
@@ -105,6 +118,10 @@ namespace VirtualVessel.UI.Screens
                 }
             });
             card.Add(Row(TrackingStrings.Track, Track));
+
+            MirrorToggle = new SwitchToggle();
+            MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetMirror(evt.newValue));
+            card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
@@ -123,6 +140,12 @@ namespace VirtualVessel.UI.Screens
         public string ProblemKey => _problemText.Key;
 
         public SwitchToggle Track { get; }
+
+        /// <summary>Shows the camera image as in a mirror; the avatar follows the same setting.</summary>
+        public SwitchToggle MirrorToggle { get; }
+
+        /// <summary>The load line as shown, for tests.</summary>
+        public string LoadText => _load.text;
 
         public SelectField Devices { get; }
 
@@ -164,6 +187,16 @@ namespace VirtualVessel.UI.Screens
                 $"{Part(text(TrackingStrings.LeftHand), frame.LeftHand)}   {Part(text(TrackingStrings.RightHand), frame.RightHand)}";
         }
 
+        /// <summary>
+        /// The values of the load line: frames per second, images tracked per second, and the CPU and
+        /// GPU shares, which say "—" when unknown. Numbers only, so they read the same in every language. Pure.
+        /// </summary>
+        public static (string Fps, string Rate, string Cpu, string Gpu) LoadValues(AppLoad load, double trackedPerSecond)
+        {
+            string gpu = double.IsNaN(load.GpuPercent) ? "—" : $"{load.GpuPercent:0}%";
+            return ($"{load.FramesPerSecond:0}", $"{trackedPerSecond:0}", $"{load.CpuPercent:0}%", gpu);
+        }
+
         private static string Part(string name, TrackedPart part)
         {
             string mark = part.IsUsable ? "✓" : part.Status == TrackingStatus.Disabled ? "×" : "–";
@@ -177,13 +210,19 @@ namespace VirtualVessel.UI.Screens
             Show();
             ShowVideo(_camera.Texture.Value);
             IVisualElementScheduledItem redraw = schedule.Execute(Redraw).Every(RedrawIntervalMs);
+            var sampler = new AppLoadSampler();
+            sampler.Sample();
+            IVisualElementScheduledItem load = schedule.Execute(() => ShowLoad(sampler.Sample())).Every(LoadIntervalMs);
             var subscriptions = new List<IDisposable>
             {
                 _tracking.State.Subscribe(_ => Show()),
                 _tracking.Problem.Subscribe(_ => Show()),
                 _camera.Texture.Subscribe(ShowVideo),
                 _camera.State.Subscribe(_ => Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty)),
+                _tracking.Mirror.Subscribe(ShowMirror),
                 new DisposeAction(redraw.Pause),
+                new DisposeAction(load.Pause),
+                sampler,
             };
             return new DisposeAll(subscriptions);
         }
@@ -203,6 +242,21 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        private void ShowLoad(AppLoad load)
+        {
+            (string fps, string rate, string cpu, string gpu) = LoadValues(load, _tracking.ObservationsPerSecond);
+            _load.text = _localizer?.Get(TrackingStrings.Load, ("fps", fps), ("rate", rate), ("cpu", cpu), ("gpu", gpu)) ?? $"{fps} fps · {rate} · CPU {cpu} · GPU {gpu}";
+        }
+
+        private void ShowMirror(bool mirror)
+        {
+            MirrorToggle.SetValueWithoutNotify(mirror);
+
+            // The image and the points over it flip together; the caption inside is flipped back so it reads.
+            Preview.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));
+            _noVideo.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));
+        }
+
         private void RefreshDevices()
         {
             _camera.RefreshDevices();
@@ -220,6 +274,7 @@ namespace VirtualVessel.UI.Screens
             Status.TextKey = stateKey;
             _problemText.Key = problemKey;
             Track.SetValueWithoutNotify(_tracking.State.Value != TrackingState.Stopped);
+            ShowMirror(_tracking.Mirror.Value);
             Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty);
         }
 
