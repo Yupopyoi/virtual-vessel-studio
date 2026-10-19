@@ -129,10 +129,7 @@ public interface ITrackingSource
     IReadOnlyObservable<TrackingState> State { get; }          // Stopped, Starting, Running, Unavailable, Error
     IReadOnlyObservable<TrackingProblem> Problem { get; }      // Problem shown to the user (chapter 11)
     TrackingRegions Supported { get; }                         // Parts the provider can track
-    IReadOnlyObservable<TrackingRegions> Enabled { get; }      // Enabled parts (settings)
-    IReadOnlyObservable<BodyRange> BodyRange { get; }
-    IReadOnlyObservable<SmoothingPreset> Smoothing { get; }    // Smoothing level (8.2)
-    IReadOnlyObservable<bool> Mirror { get; }                  // Mirroring (default: on, chapter 10)
+    IReadOnlyObservable<TrackingOptions> Options { get; }      // What the user chose (chapter 10)
     double ObservationsPerSecond { get; }                      // Camera images inferred over the last second (shown on the setup screen)
 
     // The latest smoothed observation, updated every frame on the main thread. Its contents are
@@ -142,10 +139,20 @@ public interface ITrackingSource
 
     void Start();
     void Stop();
-    void SetEnabled(TrackingRegions regions);
-    void SetBodyRange(BodyRange range);
-    void SetSmoothing(SmoothingPreset preset);
-    void SetMirror(bool mirror);
+    void SetOptions(TrackingOptions options);                  // A change of parts takes effect at once
+}
+```
+
+`TrackingOptions` gathers what the user chose into one value (immutable: `With…` makes a changed value, given whole to `SetOptions`). New choices change neither the interface nor how saving compares.
+
+```csharp
+public readonly struct TrackingOptions
+{
+    TrackingRegions Regions;            // Parts inferred
+    BodyRange BodyRange;                // What moves (full body is coming soon and falls back to the upper body, 6.5)
+    SmoothingPreset Smoothing;          // Smoothing level (8.2)
+    bool Mirror;                        // Mirroring (chapter 10)
+    bool RemoveBackground;              // Remove the background before tracking (9.4)
 }
 ```
 
@@ -161,8 +168,8 @@ public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
     IReadOnlyObservable<TrackingState> State { get; }          // The same states for sources and providers
-    void Start(TrackingRegions regions);                       // Returns without waiting; the result comes through State
-    void SetRegions(TrackingRegions regions);                  // Changes the parts while running; inference for disabled parts stops
+    void Start(TrackingOptions options);                       // Returns without waiting; the result comes through State
+    void SetOptions(TrackingOptions options);                  // Changes them while running; inference for disabled parts stops
     void Stop();
     void Tick();                                               // Every frame on the main thread; advances reading the input
 
@@ -236,6 +243,7 @@ Common to each part:
 
 | Item | Content |
 |---|---|
+| Which face | Up to two faces are found, and the one whose nose tip is nearest the body's nose is the person's. If all are far (more than 12% of the image width), the face is lost, so a face on a poster behind the person is not picked up. Without the body, the most confident face is used |
 | Head rotation | Rotation (person space), from MediaPipe's facial transformation matrix. More stable than computing it from Pose points |
 | Head position | Position relative to the camera (meters), used for leaning and moving closer |
 | Expression values | 0–1 per `FaceShape`: the 52 that come from ARKit (`EyeBlinkLeft`, `JawOpen`, `MouthSmileLeft`, and so on). Values that cannot be tracked (`TongueOut` with MediaPipe) are `NotSupported` |
@@ -251,7 +259,7 @@ Common to each part:
 | Positions | Person space. Combines the finger shape relative to the wrist (the 3D points of the Hand Landmarker) with the wrist position (Pose wrist) |
 | Palm orientation | A rotation from the wrist and the bases of the index and little fingers |
 | Image positions | The 21 points' positions in the image (0–1). Shown over the camera image on the setup screen and used to decide left and right |
-| Deciding left and right | MediaPipe's handedness depends on image orientation and can flicker between frames. The product assigns a detected hand to **whichever Pose wrist is nearer** (two hands take the pairing with the smaller total distance, so they never land on the same side). Handedness is used only when the body is not seen; it assumes a mirrored image, so on an unmirrored camera "Right" is the person's left hand |
+| Deciding left and right | MediaPipe's handedness depends on image orientation and can flicker between frames. The product assigns a detected hand to **whichever Pose wrist is nearer** (two hands take the pairing with the smaller total distance, so they never land on the same side). Handedness is used only when the body is not seen; it assumes a mirrored image, so on an unmirrored camera "Right" is the person's left hand. While the body is seen, a hand whose wrist is far from that side's body wrist (more than 12% of the image width) is not used |
 
 ### 6.5 What Moves (BodyRange)
 
@@ -374,19 +382,23 @@ sequenceDiagram
 
     Main->>GPU: Copy a new camera image flipped upright, request the readback
     GPU-->>Main: Pixels (into a free buffer)
-    Main->>MP: DetectAsync (Face / Pose / Hand; the same buffer, not copied)
+    Main->>MP: With background removal: find the person (Selfie Segmentation)
+    MP->>MP: With the person mask, write a copy with a gray background into a second buffer (9.4)
+    MP->>MP: DetectAsync (Face / Pose / Hand; the copy's buffer, not copied)
+    Main->>MP: Without background removal: DetectAsync (the buffer read back)
     MP-->>MP: Inference
     MP->>MP: Convert the result to the common form and put it in FrameSlot
     MP-->>Main: Release the images (deleter) → the buffer is free
     Main->>Main: Every frame: take the latest from FrameSlot, smooth it, update Current
 ```
 
-- Only new images (`FrameCount` changed) are read. One read at a time, and MediaPipe holds at most two images. Images beyond that are skipped, not queued (`Tracking/Dropped`), so lag does not grow.
+- Only new images (`FrameCount` changed) are read. One read at a time, and MediaPipe holds at most two camera images (with background removal, an image uses two buffers). Images beyond that are skipped, not queued (`Tracking/Dropped`), so lag does not grow.
 - The read flips the image on the GPU: Unity textures start at the bottom row and MediaPipe images at the top one. Images wider than 1280 px are scaled down.
-- The buffers (`ImageBufferPool`, three) are referenced by MediaPipe images without copying. MediaPipe reads a buffer after `DetectAsync` returns, so a buffer is reused only after every image made over it has been released (counted through the plugin's deleter). The deleter receives only the pixel pointer, so the pool keeps a table from pointer to buffer. If a buffer is not given back within 2 s, the developer log records it and the buffer waits, rather than overwriting memory MediaPipe may still read.
-- MediaPipe results are delivered on MediaPipe's threads. They are converted to the common form there and put in `FrameSlot`. No Unity API is called there. Conversion failures are counted and logged on the main thread only when the count changes.
+- The buffers (`ImageBufferPool`, six) go through taking (reserving) → a readback or writing the background-removed copy → being referenced by MediaPipe images. MediaPipe images reference a buffer without copying it. MediaPipe reads a buffer after `DetectAsync` returns, so a buffer is reused only after every image made over it has been released (counted through the plugin's deleter). The deleter receives only the pixel pointer, so the pool keeps a table from pointer to buffer. If a buffer is not given back within 2 s, the developer log records it and the buffer waits, rather than overwriting memory MediaPipe may still read.
+- MediaPipe results are delivered on MediaPipe's threads. They are converted to the common form there and put in `FrameSlot`. No Unity API is called there. Failures are counted and logged on the main thread, gathered, at most every 10 s.
+- When a person mask arrives, that thread makes the copy with a gray background and starts the face, body, and hand inference. A result carries only its time, so the image waiting for the mask is found by its time (`PendingImages`). On stop, the person task closes first, so a late result does not start new inference.
 - `FrameSlot<T>` cycles three objects (being written, latest, being read). Only a short lock, no waiting (the same idea as Capture detailed design 8.2). Objects are reused; nothing is allocated per observation. Face, body, and hands (both) have separate slots.
-- Assigning hands to left and right (6.4) happens on the main thread, with the latest body.
+- Assigning hands to left and right and leaving out hands and faces away from the body (6.3, 6.4) happen on the main thread, with the latest body.
 - Smoothing and status decisions run on the main thread once per frame.
 - The plugin allocates images and packets each time. Those allocations are the plugin's; our processing allocates nothing per frame.
 
@@ -399,6 +411,16 @@ Face, body, and hand inferences run in parallel and their results arrive separat
 - Reading the models (`.bytes`) and creating the tasks happen on the thread pool. Models are given to the plugin as bytes; the plugin's asset loading is not used.
 - If tracking stops while loading, the tasks are closed when they finish being created.
 - On the development PC, the first result came 0.69 s after starting (chapter 15).
+
+### 9.4 Background Removal
+
+To reduce body points being pulled toward things in the background (furniture and so on), the person is cut out and the background painted gray before the face, body, and hands are found (user's decision, 2026-10-19). Switched by `TrackingOptions.RemoveBackground`; on by default.
+
+- The person is found with MediaPipe's Selfie Segmentation (`selfie_segmentation_landscape` for wide images, about 250 KB). The output is a mask of how likely each pixel is the person (0–1).
+- `BackgroundRemoval.Apply` (a pure function) treats mask values at or below 0.2 as background and at or above 0.6 as the person, blending smoothly between, and paints the background gray (128). Keeping soft edges avoids cutting off the ends of arms and hands. When the mask's size differs from the image's, each pixel looks up its matching value.
+- The copy is written into a second buffer; the original stays until the person inference is done.
+- Together with leaving out hands and faces away from the body (6.3, 6.4), it reduces mistaking things behind the person for the person.
+- It adds about 15 ms of lag on average (chapter 15). It can be turned off on the setup screen for settings where the cut-out does not fit.
 
 ---
 
@@ -413,11 +435,13 @@ public sealed class TrackingSettings
     public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth, Standard, Responsive
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy)
     public bool Mirror { get; set; } = true;                              // Mirroring
+    public bool RemoveBackground { get; set; } = true;                    // Remove the background before tracking (9.4)
     // The reference pose (8.5) is added in step 5.
     public bool Running { get; set; }                                     // Whether it was started; restored at the next launch
 }
 ```
 
+- What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices or whether tracking was started change.
 - Saved to `tracking-settings.json` (settings folder, `ConfigFileStore`). Like Capture and Stage, it moves to Project / Profile once those exist (`Profiles/Tracking/` in system design 6.10).
 - The camera device choice is saved in `capture-settings.json` (`camera` source).
 - Mirroring (user's decision, 2026-10-19): when on, the camera image and points on the setup screen are flipped left to right, like a mirror. The avatar follows the same setting, moving its left hand for the user's right (Avatar detailed design 6.6). Tracking holds it as one setting so the preview and the avatar never disagree. `Current` keeps the person's own sides whatever the setting.
@@ -432,7 +456,7 @@ public sealed class TrackingSettings
 
 | Metric | Kind | Content |
 |---|---|---|
-| `Tracking/face.Inference`, `body.Inference`, `hands.Inference` | Timer | From handing over the image to the result (including waiting) |
+| `Tracking/person.Inference`, `face.Inference`, `body.Inference`, `hands.Inference` | Timer | From handing over the image to the result (including waiting); person is the person inference of background removal |
 | `Tracking/Latency` | Timer | From the image frame time to the update of `Current` |
 | `Tracking/Readback` | Timer | Image readback time |
 | `Tracking/Dropped` | Counter | Images not inferred because MediaPipe was still busy with earlier ones |
@@ -516,6 +540,15 @@ Tools for choosing the smoothing and depth methods by comparison rather than by 
 | Age of an observation when taken | 13 ms on average, 92 ms at most |
 
 - The three inferences together kept 30 fps. Switching to the Holistic Landmarker or inferring hands less often is not needed now.
+
+Measured again with background removal (9.4), under the same conditions (2026-10-19).
+
+| Background removal | From start to the first result | Results | Age of an observation |
+|---|---|---|---|
+| Off | 0.24 s | 89.8 per second | 15 ms on average, 57 ms at most |
+| On | 0.23 s | 90.1 per second | 30 ms on average, 65 ms at most |
+
+- Background removal adds about 15 ms on average and keeps 30 fps. It is on by default.
 - Values with a real camera (1280×720) are recorded from `Tracking/Latency` and the others in the demo.
 
 ---
@@ -531,13 +564,17 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange, TrackingState, TrackingProblem, SmoothingPreset
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
 │  ├─ TrackingService.cs      TrackingService
+│  ├─ TrackingOptions.cs      TrackingOptions (what the user chose)
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, DepthEstimation (step 5)
+│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, BackgroundRemoval, DepthEstimation (step 5)
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              TrackingRecorder (steps 4–5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipe points to the common form (pure functions; no plugin types, so it lives here and is tested without the plugin)
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe (the only assembly that references MediaPipeUnityPlugin; compiled only with the plugin, through `VV_MEDIAPIPE`)
-│  ├─ MediaPipeTrackingProvider.cs   Creating and calling tasks (the part that uses the plugin API)
+│  ├─ MediaPipeTrackingProvider.cs   Starting and stopping, and the flow from image to result
+│  ├─ MediaPipeTasks.cs              Creating, calling, and closing tasks (the part that uses the plugin's task API)
+│  ├─ MediaPipeResults.cs            Copying the plugin's results into arrays; choosing the person's face and hands among candidates (FacesObservation, HandsObservation)
+│  ├─ PendingImages.cs               Images waiting for their person mask
 │  ├─ MediaPipeTracking.cs           Creation for the composition root
 │  ├─ CameraFrameReader.cs           Flipping on the GPU and AsyncGPUReadback
 │  └─ ImageBufferPool.cs             Buffers not reused until MediaPipe releases them
@@ -555,7 +592,7 @@ References: Core, Diagnostics, ProjectData, Capture. The MediaPipe assembly also
   - `tools/deps/fetch-mediapipe.ps1` downloads the pinned `.tgz` into `build/deps/`, checks its SHA-256, and unpacks it as an embedded package at `unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/` (outside Git's control). Unity finds packages under Packages without a `manifest.json` entry, so a working copy without the plugin still opens (only the MediaPipe assembly is not compiled).
   - `packages-lock.json` lists it as an embedded package (version `file:`). The repository checks compare an embedded package with the version in `tools/deps/mediapipe.json`.
   - Local machines and the release script (`tools/release/build-release.ps1`) use the same script, the same idea as the native plugin (the DLL is not in Git and is produced by a procedure).
-- The models (`face_landmarker_v2_with_blendshapes`, `pose_landmarker_lite` / `full` / `heavy`, `hand_landmarker`) are the ones in the plugin package. Their SHA-256 values are pinned in `tools/deps/mediapipe.json`; the script checks them and copies the files to `Assets/StreamingAssets/Tracking/MediaPipe/` (outside Git's control; part of the build's StreamingAssets).
+- The models (`face_landmarker_v2_with_blendshapes`, `pose_landmarker_lite` / `full` / `heavy`, `hand_landmarker`, `selfie_segmentation_landscape`) are the ones in the plugin package. Their SHA-256 values are pinned in `tools/deps/mediapipe.json`; the script checks them and copies the files to `Assets/StreamingAssets/Tracking/MediaPipe/` (outside Git's control; part of the build's StreamingAssets).
 - The distribution includes only the Windows x64 native library (`mediapipe_c.dll`), per the plugin's import settings.
 - Licenses: the plugin is MIT; MediaPipe and the models are Apache-2.0. The libraries built into the plugin's native library (Abseil, OpenCV, Protocol Buffers, TensorFlow Lite, XNNPACK, and others, all permissive) are listed in the plugin's `Third Party Notices.md`, which the release package includes. Recorded in the SBOM (CLAUDE.md chapter 35).
 
@@ -581,6 +618,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 | Switching to the Holistic Landmarker | Judged unnecessary (the three inferences together kept 30 fps, chapter 15). Revisited if a real camera is not enough |
 | Left and right of MediaPipe's face values (6.3) | Assumed to be the person's sides (`MediaPipeTracking.FaceSidesMirrored = false`). Checked by winking in the demo |
 | Gaze angle range (`MaxGazeDegrees`, 25°) | Provisional. Decided in step 4 together with the avatar's eye movement |
+| Distance at which a hand or face counts as away from the body (12% of the image width), background removal thresholds (0.2–0.6) | Provisional. Revisited if mistakes remain with a real camera |
 | Adding full body (`FullBody`) | After v0.1.0 |
 | Combining lip sync from voice with face tracking | When designing Voice / Audio |
 | Moving tracking settings to Project / Profile | When designing Project / Profile |
