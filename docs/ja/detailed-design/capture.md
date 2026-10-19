@@ -43,7 +43,7 @@ flowchart LR
     Monitor["Sub Monitor"] --> Native["Native Plugin<br/>DXGI Desktop Duplication"]
 
     subgraph Capture["Capture Module"]
-        Game["GameCaptureSource"]
+        Game["WebCamCaptureSource（game）"]
         Sub["SubScreenCaptureSource"]
         Service["CaptureService"]
     end
@@ -95,7 +95,7 @@ flowchart LR
 | `CaptureDevice` | Class | 機器の識別子と表示名 |
 | `CaptureSourceInfo` | Struct | 実際の解像度、Frame Rate、機器の表示名 |
 | `CaptureService` | Class（`IApplicationService`） | Sourceの生成・起動・停止・毎Frameの更新、計測 |
-| `GameCaptureSource` | Class | `WebCamTexture`によるGameCapture |
+| `WebCamCaptureSource` | Class | `WebCamTexture`によるSource。GameCapture（`game`）とトラッキング用カメラ（`camera`、8.5） |
 | `SubScreenCaptureSource` | Class | Native PluginによるSubScreenCapture |
 | `IDesktopDuplication` | Interface（internal） | Native Pluginの呼び出しの境界。Testでは偽物に差し替える |
 | `ICameraDevices` | Interface（internal） | `WebCamTexture`の境界。Testでは偽物に差し替える |
@@ -110,11 +110,13 @@ flowchart LR
 public interface IVideoCaptureSource
 {
     string Id { get; }                                       // "game"、"subscreen"。Stageはこれで参照する
-    CaptureSourceKind Kind { get; }                          // GameCapture、SubScreenCapture
+    CaptureSourceKind Kind { get; }                          // GameCapture、SubScreenCapture、Camera
     IReadOnlyObservable<CaptureState> State { get; }
     IReadOnlyObservable<CaptureProblem> Problem { get; }     // 利用者へ伝える問題。なければNone
     IReadOnlyObservable<CaptureSourceInfo> Info { get; }     // 実際の解像度、Frame Rate、機器名
     IReadOnlyObservable<Texture> Texture { get; }            // 映像。解像度が変わると別のTextureになる
+    long FrameCount { get; }                                 // 届いたFrameの数。新しい映像の判定に使う（Tracking）
+    long LastFrameTimestamp { get; }                         // 最新のFrameが届いた時刻（単調な時計のTick）
     IReadOnlyObservable<CaptureFlip> Flip { get; }           // 上下・左右の反転。Textureは反転済み
     void SetFlip(CaptureFlip flip);
     void Start();
@@ -169,6 +171,7 @@ public interface ICaptureSources
 | `NoSignal` | 映像が届いていません（ゲーム機の電源や接続を確認） |
 | `StartFailed` | 映像を取り込めませんでした |
 | `PluginMissing` | 開発者向けの問題。利用者には`StartFailed`として見せる |
+| `DeviceInUse` | このアプリの別のSourceが同じ機器を開いている（ゲーム画面とトラッキングで同じカメラ。8.5） |
 
 表示の文字は、UIの文字列表に置く（画面を作るときに追加する）。DXGI、HRESULT等の内部の情報は利用者へ出さない（方式設計14.41）。
 
@@ -284,6 +287,17 @@ Native Plugin（`VirtualVessel.Capture.Native.dll`）がDXGI Desktop Duplication
 - 反転していれば、新しいFrameのたびにGPUで同じ大きさのRender Textureへ反転してコピーし、`Texture`はそのRender Textureを出す。使う側は反転を気にしなくてよい。反転しなければ、元のTextureをそのまま出す。
 - Sourceの反転は、映像そのものの向きを直すためのもの。配信画面上の置き方としての左右反転（配置編集の`FrameLayout`）とは別に、両方使える。
 
+### 8.5 トラッキング用カメラ（camera）
+
+Tracking詳細設計5.4のため、3つ目のSourceとしてトラッキング用のWebカメラを加えた。
+
+- GameCaptureと同じ`WebCamCaptureSource`を、別のIdと設定で作る（`ForGame`、`ForTrackingCamera`）。Idは`camera`（`CaptureService.TrackingCameraId`）、種類は`CaptureSourceKind.Camera`。
+- 機器を選ぶまで開かない。希望の解像度とFrame Rateは1280×720、30fps（`CameraWidth`、`CameraHeight`、`CameraFrameRate`）。反転は使わない。
+- `game`と`camera`は、互いが開いている機器を開かない。`WebCamTexture`は1つの機器を2回開けないため。開こうとすると`Error`（`DeviceInUse`）になり、別の機器を選べば開く。
+- 配信画面には出さない（Stage詳細設計7章）。セットアップ画面では、取り込みのCardではなくトラッキングのCardで機器を選ぶ。
+- 開始と停止はTrackingが行う（Tracking詳細設計7.2）。選んだ機器と開始していたかは、他のSourceと同じく`capture-settings.json`に保存する。
+- すべてのSourceは、届いたFrameの数（`FrameCount`）と最新のFrameの時刻（`LastFrameTimestamp`）を出す。Trackingは、同じ映像を2回推論しないためと、映像の時刻を観測の時刻にするために使う。
+
 ---
 
 ## 9. Thread / async
@@ -310,6 +324,11 @@ public sealed class CaptureSettings
     public bool SubScreenDrawPointer { get; set; } = true;   // マウスカーソルを描く
     public bool GameEnabled { get; set; }             // 開始していたか。次の起動で戻す
     public bool SubScreenEnabled { get; set; }
+    public string CameraDeviceId { get; set; }        // トラッキング用カメラ。未設定なら開かない（8.5）
+    public int CameraWidth { get; set; } = 1280;
+    public int CameraHeight { get; set; } = 720;
+    public int CameraFrameRate { get; set; } = 30;
+    public bool CameraEnabled { get; set; }
 }
 ```
 
@@ -369,7 +388,7 @@ public sealed class CaptureSettings
 |---|---|
 | EditMode | `CaptureStateMachine`の遷移、機器の既定の選び方、モニターの表示名、Frameの連番による転送の判断、反転のUV（純粋関数） |
 | EditMode | 反転したRender Textureの画素を読み戻し、左右が入れ替わっていること。Capture Boardが選ぶまで開かれないこと |
-| EditMode | `GameCaptureSource`、`SubScreenCaptureSource`を偽の`ICameraDevices`、`IDesktopDuplication`で動かし、状態、`Unavailable`からの復帰、選び直し、停止時の解放を確かめる |
+| EditMode | `WebCamCaptureSource`（`game`、`camera`）、`SubScreenCaptureSource`を偽の`ICameraDevices`、`IDesktopDuplication`で動かし、状態、`Unavailable`からの復帰、選び直し、停止時の解放、`DeviceInUse`、Frameの数と時刻を確かめる |
 | EditMode | `FrameLoop`の順序、例外の分離、登録の解除 |
 | EditMode | 偽のFrameを`SubScreenCaptureSource`へ渡し、実際の`Texture2D`へBGRAのまま転送されること |
 | 実機 | 実際のPluginとモニターでSubScreenCaptureが映ること。実際のCapture BoardでGameCaptureが映ること。`[Explicit]`を付け、名前を指定したときだけ動かす。`ACCESS_LOST`（解像度の変更）からの復帰は、手で解像度を変えて確かめる |
@@ -401,7 +420,7 @@ Assets/VirtualVessel/Capture/
 │  ├─ CapturePluginMissingException.cs   Native Pluginがない、または版が違う
 │  ├─ FrameRateMeter.cs        実際に届くFrame Rateを数える（純粋）
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
-│  ├─ Game/          GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
+│  ├─ Game/          WebCamCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
 ├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll（ビルドして置く。Gitの管理外。17章）
 └─ Tests/
