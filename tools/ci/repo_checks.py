@@ -10,6 +10,8 @@ Checks the files tracked by git:
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
   license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
   against the version pinned there, since the lock file only says "file:".
+* Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
+  and the SBOM entry of its package records the same download URL and SHA-256.
 
 Run from the repository root:  python tools/ci/repo_checks.py
 Standard library only; Python 3.10 or later.
@@ -137,6 +139,58 @@ def pinned_packages(manifests: Iterable[str]) -> dict[str, str]:
     return pinned
 
 
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def check_deps_manifest(path: str, text: str) -> list[str]:
+    """Problems in a tools/deps manifest: the fields the fetch script relies on."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as error:
+        return [f"Invalid JSON in {path}: {error}"]
+
+    errors = []
+    for field in ("package", "version", "url", "sha256"):
+        if not isinstance(data.get(field), str) or not data[field]:
+            errors.append(f"{path}: needs {field}")
+
+    if isinstance(data.get("url"), str) and not data["url"].startswith("https://"):
+        errors.append(f"{path}: url must be https")
+    if isinstance(data.get("sha256"), str) and not _SHA256.match(data["sha256"]):
+        errors.append(f"{path}: sha256 must be 64 lowercase hex digits")
+
+    for model in data.get("models", []):
+        if not isinstance(model.get("file"), str) or not _SHA256.match(str(model.get("sha256", ""))):
+            errors.append(f"{path}: every model needs a file and a sha256")
+
+    return errors
+
+
+def check_pinned_sbom(sbom: str, manifests: Iterable[str]) -> list[str]:
+    """The SBOM entry of each fetched package records the manifest's download URL and SHA-256."""
+    try:
+        components = {c.get("bom-ref"): c for c in json.loads(sbom).get("components", [])}
+    except json.JSONDecodeError:
+        return []  # Reported by check_sbom.
+
+    errors = []
+    for text in manifests:
+        data = json.loads(text)
+        reference = f"unity-package:{data.get('package')}"
+        component = components.get(reference)
+        if component is None:
+            continue  # Reported by check_sbom as missing.
+
+        hashes = {h.get("alg"): h.get("content") for h in component.get("hashes", [])}
+        if hashes.get("SHA-256") != data.get("sha256"):
+            errors.append(f"SBOM: {reference} SHA-256 differs from tools/deps")
+        urls = {r.get("url") for r in component.get("externalReferences", []) if r.get("type") == "distribution"}
+        if data.get("url") not in urls:
+            errors.append(f"SBOM: {reference} distribution URL differs from tools/deps")
+
+    return errors
+
+
 def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str], pinned: Mapping[str, str] | None = None) -> dict[str, str | None]:
     """The SBOM entries the repository needs: bom-ref to required version (None when any version will do)."""
     pinned = pinned or {}
@@ -247,14 +301,19 @@ def run(repository: Path) -> list[str]:
         for p in tracked
         if posixpath.dirname(p) == WORKFLOWS_DIR and p.endswith((".yml", ".yaml"))
     }
-    manifests = [
-        (repository / p).read_text(encoding="utf-8")
+    manifest_files = {
+        p: (repository / p).read_text(encoding="utf-8")
         for p in tracked
         if posixpath.dirname(p) == DEPS_DIR and p.endswith(".json")
-    ]
+    }
+    manifest_errors = [e for p, text in sorted(manifest_files.items()) for e in check_deps_manifest(p, text)]
+    errors += manifest_errors
+    manifests = [] if manifest_errors else list(manifest_files.values())
     required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows, pinned_packages(manifests))
     if SBOM_PATH in tracked:
-        errors += check_sbom((repository / SBOM_PATH).read_text(encoding="utf-8"), required)
+        sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
+        errors += check_sbom(sbom, required)
+        errors += check_pinned_sbom(sbom, manifests)
     else:
         errors.append(f"Missing {SBOM_PATH}")
 

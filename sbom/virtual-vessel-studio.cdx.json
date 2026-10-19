@@ -103,6 +103,42 @@
           ],
           "scope": "required",
           "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe."
+        },
+        {
+          "type": "library",
+          "bom-ref": "nuget:Google.Protobuf",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "Google.Protobuf",
+          "version": "3.20.0",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "Managed protocol buffers, shipped in the plugin's Runtime/Plugins/Protobuf and used by its task API."
+        },
+        {
+          "type": "library",
+          "bom-ref": "nuget:System.Runtime.CompilerServices.Unsafe",
+          "supplier": {
+            "name": "Microsoft"
+          },
+          "name": "System.Runtime.CompilerServices.Unsafe",
+          "version": "4.6.26919.02",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "A dependency of Google.Protobuf, shipped in the plugin's Runtime/Plugins/Protobuf. The version is the file version."
         }
       ]
     },
