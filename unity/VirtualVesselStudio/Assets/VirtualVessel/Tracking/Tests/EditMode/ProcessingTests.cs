@@ -8,6 +8,24 @@ using VirtualVessel.Tracking.Threading;
 
 namespace VirtualVessel.Tracking.Tests
 {
+    public sealed class EventRateTests
+    {
+        [Test]
+        public void EventRate_CountsPerSecond_AndDropsToZeroWhenQuiet()
+        {
+            var rate = default(EventRate);
+            for (int i = 0; i <= 60; i++)
+            {
+                rate = rate.Next(i / 30.0);
+            }
+
+            Assert.That(rate.Rate, Is.EqualTo(30).Within(0.5));
+            Assert.That(rate.RateAt(2.5), Is.EqualTo(30).Within(0.5), "Half a second after the last event.");
+            Assert.That(rate.RateAt(3.5), Is.EqualTo(0), "A second without an event.");
+            Assert.That(rate.Next(5.0).Rate, Is.EqualTo(0), "Starts over after a gap.");
+        }
+    }
+
     public sealed class OutlierGateTests
     {
         [Test]
@@ -320,7 +338,7 @@ namespace VirtualVessel.Tracking.Tests
             var provider = new TrackingReplayProvider(frames, TrackingRegions.All, () => now, loop: false);
             var into = new TrackingFrame();
 
-            provider.Start(TrackingRegions.All);
+            provider.Start(TrackingOptions.Default);
             Assert.That(provider.State.Value, Is.EqualTo(TrackingState.Running));
             provider.Tick();
             Assert.That(provider.TryTakeLatest(into), Is.True);
@@ -340,7 +358,7 @@ namespace VirtualVessel.Tracking.Tests
             double now = 0;
             var provider = new TrackingReplayProvider(frames, TrackingRegions.All, () => now, loop: true);
             var into = new TrackingFrame();
-            provider.Start(TrackingRegions.All);
+            provider.Start(TrackingOptions.Default);
 
             now = 1.05;
             provider.Tick();

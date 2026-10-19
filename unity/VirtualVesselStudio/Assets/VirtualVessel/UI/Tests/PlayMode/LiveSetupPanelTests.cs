@@ -121,7 +121,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.MirrorToggle.value, Is.True, "Mirrored by default.");
             Assert.That(card.Preview.resolvedStyle.scale.value.x, Is.EqualTo(-1f), "The image and points flip together.");
             card.MirrorToggle.value = false;
-            Assert.That(_tracking.Mirror.Value, Is.False);
+            Assert.That(_tracking.Options.Value.Mirror, Is.False);
 
             var video = new Texture2D(4, 4);
             _camera.SetTexture(video);
@@ -294,6 +294,7 @@ namespace VirtualVessel.UI.Tests
         {
             private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
             private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
+            private readonly ObservableValue<TrackingOptions> _options = new ObservableValue<TrackingOptions>(TrackingOptions.Default);
 
             public IReadOnlyObservable<TrackingState> State => _state;
 
@@ -301,24 +302,11 @@ namespace VirtualVessel.UI.Tests
 
             public TrackingRegions Supported => TrackingRegions.All;
 
-            public IReadOnlyObservable<TrackingRegions> Enabled { get; } = new ObservableValue<TrackingRegions>(TrackingRegions.All);
-
-            public IReadOnlyObservable<BodyRange> BodyRange { get; } = new ObservableValue<BodyRange>(Tracking.BodyRange.UpperBody);
-
-            public IReadOnlyObservable<SmoothingPreset> Smoothing { get; } = new ObservableValue<SmoothingPreset>(SmoothingPreset.Standard);
+            public IReadOnlyObservable<TrackingOptions> Options => _options;
 
             public TrackingFrame Current { get; } = new TrackingFrame();
 
-            public IReadOnlyObservable<bool> Mirror => _mirror;
-
             public double ObservationsPerSecond => 30;
-
-            private readonly ObservableValue<bool> _mirror = new ObservableValue<bool>(true);
-
-            public void SetMirror(bool mirror)
-            {
-                _mirror.Value = mirror;
-            }
 
             public void Start()
             {
@@ -330,16 +318,9 @@ namespace VirtualVessel.UI.Tests
                 Set(TrackingState.Stopped, TrackingProblem.None);
             }
 
-            public void SetEnabled(TrackingRegions regions)
+            public void SetOptions(TrackingOptions options)
             {
-            }
-
-            public void SetBodyRange(BodyRange range)
-            {
-            }
-
-            public void SetSmoothing(SmoothingPreset preset)
-            {
+                _options.Value = options;
             }
 
             public void Set(TrackingState state, TrackingProblem problem)

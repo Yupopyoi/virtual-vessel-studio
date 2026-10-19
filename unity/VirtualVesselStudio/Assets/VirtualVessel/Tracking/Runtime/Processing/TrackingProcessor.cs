@@ -15,9 +15,9 @@ namespace VirtualVessel.Tracking.Processing
         public const float MaxJointSpeed = 8f;
 
         private readonly TrackingThresholds _thresholds;
-        private readonly BodyState _body = new BodyState(BodyPose.JointCount);
-        private readonly BodyState _leftHand = new BodyState(HandPose.JointCount);
-        private readonly BodyState _rightHand = new BodyState(HandPose.JointCount);
+        private readonly JointsState _body = new JointsState(BodyPose.JointCount);
+        private readonly JointsState _leftHand = new JointsState(HandPose.JointCount);
+        private readonly JointsState _rightHand = new JointsState(HandPose.JointCount);
         private readonly OneEuroFilter[] _shapes = new OneEuroFilter[FacePose.ShapeCount];
         private PartTracking _face = PartTracking.Initial;
         private RotationFilter _head;
@@ -81,7 +81,7 @@ namespace VirtualVessel.Tracking.Processing
             Array.Copy(raw.JointConfidence, output.JointConfidence, BodyPose.JointCount);
         }
 
-        private void ProcessHand(BodyState state, HandPose raw, TrackingRegions region, double now, TrackingRegions supported, TrackingRegions enabled, in SmoothingProfile profile, HandPose output)
+        private void ProcessHand(JointsState state, HandPose raw, TrackingRegions region, double now, TrackingRegions supported, TrackingRegions enabled, in SmoothingProfile profile, HandPose output)
         {
             bool observed = UpdateStatus(state, raw, region, now, supported, enabled, output);
             if (!observed)
@@ -131,7 +131,7 @@ namespace VirtualVessel.Tracking.Processing
             output.RightEyeGaze = new Vector2(_rightGazeYaw.Value, _rightGazePitch.Value);
         }
 
-        private bool UpdateStatus(BodyState state, TrackedPart raw, TrackingRegions region, double now, TrackingRegions supported, TrackingRegions enabled, TrackedPart output)
+        private bool UpdateStatus(JointsState state, TrackedPart raw, TrackingRegions region, double now, TrackingRegions supported, TrackingRegions enabled, TrackedPart output)
         {
             bool observed = IsNewObservation(raw, state.Tracking);
             bool wasUsable = IsUsable(state.Tracking.Status);
@@ -189,14 +189,14 @@ namespace VirtualVessel.Tracking.Processing
         }
 
         /// <summary>Filter state of a set of joints: the body or one hand.</summary>
-        private sealed class BodyState
+        private sealed class JointsState
         {
             private readonly PositionFilter[] _filters;
             private readonly OutlierGate[] _gates;
             private readonly Vector3[] _accepted;
             private readonly double[] _acceptedTimes;
 
-            public BodyState(int joints)
+            public JointsState(int joints)
             {
                 _filters = new PositionFilter[joints];
                 _gates = new OutlierGate[joints];

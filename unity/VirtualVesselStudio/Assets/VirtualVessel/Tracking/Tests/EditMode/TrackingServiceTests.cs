@@ -51,25 +51,10 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
-        public void EventRate_CountsPerSecond_AndDropsToZeroWhenQuiet()
-        {
-            var rate = default(Processing.EventRate);
-            for (int i = 0; i <= 60; i++)
-            {
-                rate = rate.Next(i / 30.0);
-            }
-
-            Assert.That(rate.Rate, Is.EqualTo(30).Within(0.5));
-            Assert.That(rate.RateAt(2.5), Is.EqualTo(30).Within(0.5), "Half a second after the last event.");
-            Assert.That(rate.RateAt(3.5), Is.EqualTo(0), "A second without an event.");
-            Assert.That(rate.Next(5.0).Rate, Is.EqualTo(0), "Starts over after a gap.");
-        }
-
-        [Test]
         public void FullBody_IsNotAvailableYet()
         {
-            Assert.That(TrackingService.Available(BodyRange.FullBody), Is.EqualTo(BodyRange.UpperBody));
-            Assert.That(TrackingService.Available(BodyRange.UpperBody), Is.EqualTo(BodyRange.UpperBody));
+            Assert.That(TrackingOptions.Available(BodyRange.FullBody), Is.EqualTo(BodyRange.UpperBody));
+            Assert.That(TrackingOptions.Available(BodyRange.UpperBody), Is.EqualTo(BodyRange.UpperBody));
         }
     }
 
@@ -144,14 +129,14 @@ namespace VirtualVessel.Tracking.Tests
 
             // The replay has images at 30 per second, taken by 60 frames per second.
             Assert.That(_service.ObservationsPerSecond, Is.EqualTo(30).Within(2));
-            Assert.That(_service.Mirror.Value, Is.True);
+            Assert.That(_service.Options.Value.Mirror, Is.True);
         }
 
         [Test]
         public void ADisabledPart_IsReportedDisabled()
         {
             _service = Create();
-            _service.SetEnabled(TrackingRegions.All & ~TrackingRegions.Face);
+            _service.SetOptions(_service.Options.Value.WithRegions(TrackingRegions.All & ~TrackingRegions.Face));
             _service.Start();
             for (int i = 0; i < 5; i++)
             {
@@ -165,9 +150,10 @@ namespace VirtualVessel.Tracking.Tests
         public void Choices_AreSaved_AndRunningTrackingStartsAgain()
         {
             _service = Create();
-            _service.SetSmoothing(SmoothingPreset.Smooth);
-            _service.SetMirror(false);
-            _service.SetEnabled(TrackingRegions.Face | TrackingRegions.Body);
+            _service.SetOptions(_service.Options.Value
+                .WithSmoothing(SmoothingPreset.Smooth)
+                .WithMirror(false)
+                .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
             _service.Start();
             _service.ShutdownAsync(CancellationToken.None).Wait();
             _service.Dispose();
@@ -182,8 +168,8 @@ namespace VirtualVessel.Tracking.Tests
             _camera = new FakeCamera();
             _service = Create(saved);
             Assert.That(_service.State.Value, Is.EqualTo(TrackingState.Running), "Started again at startup.");
-            Assert.That(_service.Smoothing.Value, Is.EqualTo(SmoothingPreset.Smooth));
-            Assert.That(_service.Mirror.Value, Is.False);
+            Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(SmoothingPreset.Smooth));
+            Assert.That(_service.Options.Value.Mirror, Is.False);
         }
 
         [Test]

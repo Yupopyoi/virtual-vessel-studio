@@ -35,7 +35,7 @@ namespace VirtualVessel.Tracking.Recording
 
         public IReadOnlyObservable<TrackingState> State => _state;
 
-        public void Start(TrackingRegions regions)
+        public void Start(TrackingOptions options)
         {
             _startedAt = _now();
             _loopOffset = 0;
@@ -45,7 +45,7 @@ namespace VirtualVessel.Tracking.Recording
         }
 
         /// <summary>A recording has what it has; the processor leaves out disabled parts.</summary>
-        public void SetRegions(TrackingRegions regions)
+        public void SetOptions(TrackingOptions options)
         {
         }
 

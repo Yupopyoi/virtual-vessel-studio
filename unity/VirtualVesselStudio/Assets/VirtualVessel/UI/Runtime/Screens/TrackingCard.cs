@@ -120,7 +120,7 @@ namespace VirtualVessel.UI.Screens
             card.Add(Row(TrackingStrings.Track, Track));
 
             MirrorToggle = new SwitchToggle();
-            MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetMirror(evt.newValue));
+            MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
             card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
             Devices = Ui.Select(null);
@@ -219,7 +219,7 @@ namespace VirtualVessel.UI.Screens
                 _tracking.Problem.Subscribe(_ => Show()),
                 _camera.Texture.Subscribe(ShowVideo),
                 _camera.State.Subscribe(_ => Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty)),
-                _tracking.Mirror.Subscribe(ShowMirror),
+                _tracking.Options.Subscribe(options => ShowMirror(options.Mirror)),
                 new DisposeAction(redraw.Pause),
                 new DisposeAction(load.Pause),
                 sampler,
@@ -274,7 +274,7 @@ namespace VirtualVessel.UI.Screens
             Status.TextKey = stateKey;
             _problemText.Key = problemKey;
             Track.SetValueWithoutNotify(_tracking.State.Value != TrackingState.Stopped);
-            ShowMirror(_tracking.Mirror.Value);
+            ShowMirror(_tracking.Options.Value.Mirror);
             Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty);
         }
 

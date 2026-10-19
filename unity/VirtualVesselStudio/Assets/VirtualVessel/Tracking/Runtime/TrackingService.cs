@@ -36,13 +36,9 @@ namespace VirtualVessel.Tracking
         private readonly TrackingFrame _current = new TrackingFrame();
         private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
         private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
-        private readonly ObservableValue<TrackingRegions> _enabled;
-        private readonly ObservableValue<BodyRange> _bodyRange;
-        private readonly ObservableValue<SmoothingPreset> _smoothing;
-        private readonly ObservableValue<bool> _mirror;
+        private readonly ObservableValue<TrackingOptions> _options;
         private readonly PerfTimer _latency;
         private TrackingSettings _settings;
-        private TrackingChoices _saved;
         private bool _wanted;
         private EventRate _rate;
         private double _lastImage = double.NegativeInfinity;
@@ -61,11 +57,7 @@ namespace VirtualVessel.Tracking
             _settings = settings?.Clone() ?? new TrackingSettings();
             _saves = saves;
             _log = log;
-            _saved = TrackingChoices.From(_settings);
-            _enabled = new ObservableValue<TrackingRegions>(_settings.Regions);
-            _bodyRange = new ObservableValue<BodyRange>(Available(_settings.BodyRange));
-            _smoothing = new ObservableValue<SmoothingPreset>(_settings.Smoothing);
-            _mirror = new ObservableValue<bool>(_settings.Mirror);
+            _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
             _latency = metrics?.Timer("Tracking", "Latency");
         }
 
@@ -77,34 +69,16 @@ namespace VirtualVessel.Tracking
 
         public TrackingRegions Supported => _provider?.Supported ?? TrackingRegions.None;
 
-        public IReadOnlyObservable<TrackingRegions> Enabled => _enabled;
-
-        public IReadOnlyObservable<BodyRange> BodyRange => _bodyRange;
-
-        public IReadOnlyObservable<SmoothingPreset> Smoothing => _smoothing;
+        public IReadOnlyObservable<TrackingOptions> Options => _options;
 
         public TrackingFrame Current => _current;
 
-        public IReadOnlyObservable<bool> Mirror => _mirror;
-
         public double ObservationsPerSecond => _rate.RateAt(_now);
-
-        /// <summary>The settings as last saved, for the provider factory.</summary>
-        public TrackingSettings Settings => _settings.Clone();
 
         /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
         public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
         {
             return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock);
-        }
-
-        /// <summary>
-        /// Full body is shown as coming soon and cannot be chosen yet (tracking detailed design 6.5);
-        /// a saved value from a later version falls back to the upper body. Pure.
-        /// </summary>
-        public static BodyRange Available(BodyRange range)
-        {
-            return range == Tracking.BodyRange.UpperBody ? range : Tracking.BodyRange.UpperBody;
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
@@ -148,8 +122,8 @@ namespace VirtualVessel.Tracking
             _wanted = true;
             _processor.Reset();
             _camera?.Start();
-            _provider?.Start(_enabled.Value);
-            _log?.Information($"Tracking on: {_enabled.Value}, {_bodyRange.Value}, {_smoothing.Value}.");
+            _provider?.Start(_options.Value);
+            _log?.Information($"Tracking on: {_options.Value}.");
             Refresh();
         }
 
@@ -166,28 +140,12 @@ namespace VirtualVessel.Tracking
             Refresh();
         }
 
-        public void SetEnabled(TrackingRegions regions)
+        public void SetOptions(TrackingOptions options)
         {
-            regions &= TrackingRegions.All;
-            if (_enabled.Set(regions) && _wanted)
+            if (_options.Set(options) && _wanted)
             {
-                _provider?.SetRegions(regions);
+                _provider?.SetOptions(options);
             }
-        }
-
-        public void SetBodyRange(BodyRange range)
-        {
-            _bodyRange.Set(Available(range));
-        }
-
-        public void SetSmoothing(SmoothingPreset preset)
-        {
-            _smoothing.Set(preset);
-        }
-
-        public void SetMirror(bool mirror)
-        {
-            _mirror.Set(mirror);
         }
 
         /// <summary>
@@ -241,26 +199,25 @@ namespace VirtualVessel.Tracking
             }
         }
 
+        /// <summary>The newest part time of an observation: how old the image behind it is. Pure.</summary>
+        internal static double Newest(TrackingFrame frame)
+        {
+            double newest = Math.Max(Math.Max(TimeOf(frame.Body), TimeOf(frame.Face)), Math.Max(TimeOf(frame.LeftHand), TimeOf(frame.RightHand)));
+            return double.IsNegativeInfinity(newest) ? frame.Time : newest;
+        }
+
         internal void Tick()
         {
-            double now = Seconds(_clock.GetTimestamp());
-            _now = now;
+            _now = _clock.GetTimestamp() / (double)_clock.Frequency;
             if (_wanted && _provider != null)
             {
                 _provider.Tick();
                 bool observed = _provider.TryTakeLatest(_raw);
-                _processor.Process(observed ? _raw : null, now, _provider.Supported, _enabled.Value, _smoothing.Value, _current);
+                TrackingOptions options = _options.Value;
+                _processor.Process(observed ? _raw : null, _now, _provider.Supported, options.Regions, options.Smoothing, _current);
                 if (observed)
                 {
-                    double image = Newest(_raw);
-                    _latency?.Record(TimeSpan.FromSeconds(Math.Max(0, now - image)));
-
-                    // Parts of one image arrive separately; count each image once.
-                    if (image > _lastImage)
-                    {
-                        _lastImage = image;
-                        _rate = _rate.Next(now);
-                    }
+                    NoteObservation(Newest(_raw));
                 }
             }
 
@@ -269,16 +226,21 @@ namespace VirtualVessel.Tracking
             _saves?.Tick();
         }
 
-        /// <summary>The newest part time of an observation: how old the image behind it is.</summary>
-        internal static double Newest(TrackingFrame frame)
-        {
-            double newest = Math.Max(Math.Max(TimeOf(frame.Body), TimeOf(frame.Face)), Math.Max(TimeOf(frame.LeftHand), TimeOf(frame.RightHand)));
-            return double.IsNegativeInfinity(newest) ? frame.Time : newest;
-        }
-
         private static double TimeOf(TrackedPart part)
         {
             return part.IsUsable ? part.Timestamp : double.NegativeInfinity;
+        }
+
+        private void NoteObservation(double imageTime)
+        {
+            _latency?.Record(TimeSpan.FromSeconds(Math.Max(0, _now - imageTime)));
+
+            // Parts of one image arrive separately; count each image once.
+            if (imageTime > _lastImage)
+            {
+                _lastImage = imageTime;
+                _rate = _rate.Next(_now);
+            }
         }
 
         private void StopProvider()
@@ -309,20 +271,14 @@ namespace VirtualVessel.Tracking
 
         private void NoteChanges()
         {
-            var now = new TrackingChoices(_enabled.Value, _bodyRange.Value, _smoothing.Value, _mirror.Value, _wanted);
-            if (now.Equals(_saved))
+            // Compared every frame, so nothing is allocated unless something changed.
+            if (_options.Value.Equals(_settings.GetOptions()) && _wanted == _settings.Running)
             {
                 return;
             }
 
-            _saved = now;
-            _settings = now.ApplyTo(_settings);
+            _settings = _settings.With(_options.Value, _wanted);
             _saves?.Changed(_settings.Clone());
-        }
-
-        private double Seconds(long ticks)
-        {
-            return ticks / (double)_clock.Frequency;
         }
     }
 }

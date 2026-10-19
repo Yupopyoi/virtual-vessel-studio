@@ -71,7 +71,7 @@ namespace VirtualVessel.Tracking.Tests
             int observations = 0;
             double age = 0;
             double oldest = 0;
-            provider.Start(TrackingRegions.All);
+            provider.Start(TrackingOptions.Default);
             try
             {
                 // 30 camera frames per second, as the tracking camera delivers.
@@ -122,7 +122,7 @@ namespace VirtualVessel.Tracking.Tests
             ITrackingProvider provider = MediaPipeTracking.Create(camera, models, PoseModel.Full, clock, null, null);
             var frame = new TrackingFrame();
             var watch = Stopwatch.StartNew();
-            provider.Start(regions);
+            provider.Start(TrackingOptions.Default.WithRegions(regions));
             try
             {
                 while (watch.Elapsed.TotalSeconds < TimeoutSeconds && result.Observations < 30)

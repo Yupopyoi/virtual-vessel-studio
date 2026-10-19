@@ -25,14 +25,16 @@ namespace VirtualVessel.Tracking.MediaPipe
         public bool Reading { get; set; }
 
         /// <summary>When it was handed to MediaPipe; for noticing images that are never released.</summary>
-        public long HeldSince { get; set; }
+        public long HeldSince { get; private set; }
 
         public bool IsFree => !Reading && Volatile.Read(ref _uses) == 0;
 
         public bool IsHeld => Volatile.Read(ref _uses) > 0;
 
-        public void Hold(int images)
+        /// <summary>Hands it to <paramref name="images"/> MediaPipe images at <paramref name="now"/> (clock ticks).</summary>
+        public void Hold(int images, long now)
         {
+            HeldSince = now;
             Interlocked.Exchange(ref _uses, images);
         }
 
