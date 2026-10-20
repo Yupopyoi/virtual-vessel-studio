@@ -222,6 +222,14 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyList<string> Extensions { get; } = new[] { ".vrm" };
 
+            public IReadOnlyObservable<FaceTuning> FaceTuning { get; } = new ObservableValue<FaceTuning>(new FaceTuning());
+
+            public FaceTarget Face => null;
+
+            public void SetFaceTuning(FaceTuning tuning)
+            {
+            }
+
             public void Add(string id, string name)
             {
                 var license = new AvatarLicense { Authors = { "Author " + name }, AvatarPermission = AvatarPermission.Everyone };

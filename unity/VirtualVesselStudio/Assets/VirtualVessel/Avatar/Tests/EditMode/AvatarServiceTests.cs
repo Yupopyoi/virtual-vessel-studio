@@ -187,6 +187,25 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public async Task FaceTuning_AppliesToTheAvatarAtOnce_AndIsSavedForTheNextStart()
+        {
+            _service = await StartAsync();
+            await _service.ImportAsync(Source(), null, CancellationToken.None);
+            FaceTuning tuning = new FaceTuning().With(FaceTuningPart.Eyes, 2f);
+
+            _service.SetFaceTuning(tuning);
+
+            Assert.That(_service.FaceTuning.Value, Is.EqualTo(tuning));
+            Assert.That(_service.Controller.Mapping.Blink, Is.EqualTo(ExpressionMapping.Default.Blink.Sensitive(2f)), "The avatar on the stream uses it now.");
+            await _service.ShutdownAsync(CancellationToken.None);
+            _service.Dispose();
+
+            _service = await StartAsync();
+            Assert.That(_service.FaceTuning.Value, Is.EqualTo(tuning), "It belongs to the user and stays across starts.");
+            Assert.That(_service.Controller.Mapping.Blink, Is.EqualTo(ExpressionMapping.Default.Blink.Sensitive(2f)));
+        }
+
+        [Test]
         public async Task EveryFrame_TheTrackedFaceTurnsTheHead_MirroredByTheTrackingOption()
         {
             var tracking = new FakeTracking();

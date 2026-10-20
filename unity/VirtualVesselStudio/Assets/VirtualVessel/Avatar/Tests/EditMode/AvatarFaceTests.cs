@@ -78,24 +78,66 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void AFeeling_NeedsAllItsSigns_AndStaysWeak()
+        public void TheBrows_ShowThroughFeelings_WhichStayBelowFull()
         {
             var face = new FacePose();
             var target = new FaceTarget();
             face[FaceShape.BrowInnerUp] = 1f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target[AvatarExpression.Surprised], Is.EqualTo(0f), "Raised brows alone are not surprise.");
-            Assert.That(target[AvatarExpression.Sad], Is.EqualTo(0f), "Nor sadness.");
+            Assert.That(target[AvatarExpression.Surprised], Is.EqualTo(0.4f).Within(Tolerance), "Raised brows alone are half a surprise.");
+            Assert.That(target[AvatarExpression.Sad], Is.EqualTo(0f), "Sadness also needs the frown.");
 
             face[FaceShape.EyeWideLeft] = 1f;
             face[FaceShape.EyeWideRight] = 1f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target[AvatarExpression.Surprised], Is.EqualTo(0.6f).Within(Tolerance));
+            Assert.That(target[AvatarExpression.Surprised], Is.EqualTo(0.8f).Within(Tolerance), "Wide eyes add the rest.");
 
+            face[FaceShape.BrowDownLeft] = 0.5f;
+            face[FaceShape.BrowDownRight] = 0.5f;
             face[FaceShape.MouthSmileLeft] = 1f;
             face[FaceShape.MouthSmileRight] = 1f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target[AvatarExpression.Happy], Is.EqualTo(0.6f).Within(Tolerance));
+            Assert.That(target[AvatarExpression.Angry], Is.EqualTo(0.8f).Within(Tolerance));
+            Assert.That(target[AvatarExpression.Happy], Is.EqualTo(0.8f).Within(Tolerance));
+        }
+
+        [Test]
+        public void Tuning_MakesAPartAsManyTimesAsSensitive()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+            face[FaceShape.EyeBlinkLeft] = 0.3f;
+            face[FaceShape.EyeBlinkRight] = 0.3f;
+            face[FaceShape.JawOpen] = 0.2f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            float blink = target[AvatarExpression.Blink];
+            float mouth = target[AvatarExpression.Aa];
+
+            var tuning = new FaceTuning().With(FaceTuningPart.Eyes, 2f).With(FaceTuningPart.Mouth, 2f);
+            ExpressionMapping.For(tuning).Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Blink], Is.EqualTo(1f).Within(Tolerance), "Twice as sensitive: half the closing closes the eyes.");
+            Assert.That(blink, Is.LessThan(0.1f));
+            Assert.That(target[AvatarExpression.Aa], Is.GreaterThan(mouth));
+
+            // A small difference between the eyes becomes a wink once winking is made easier.
+            face[FaceShape.EyeBlinkLeft] = 0.6f;
+            face[FaceShape.EyeBlinkRight] = 0.5f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.BlinkLeft], Is.EqualTo(0f), "Both eyes alike by default.");
+            ExpressionMapping.For(new FaceTuning().With(FaceTuningPart.Wink, 3f)).Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.BlinkLeft], Is.GreaterThan(target[AvatarExpression.BlinkRight]));
+        }
+
+        [Test]
+        public void Tuning_StaysWithinItsRange()
+        {
+            var tuning = new FaceTuning().With(FaceTuningPart.Gaze, 10f).With(FaceTuningPart.Smile, 0f);
+
+            Assert.That(tuning.Get(FaceTuningPart.Gaze), Is.EqualTo(FaceTuning.Max));
+            Assert.That(tuning.Get(FaceTuningPart.Smile), Is.EqualTo(FaceTuning.Min));
+            Assert.That(new FaceTuning { Eyes = float.NaN }.Get(FaceTuningPart.Eyes), Is.EqualTo(1f));
+            Assert.That(AvatarService.Normalized(null), Is.EqualTo(new FaceTuning()), "A file from before tuning reads the defaults.");
+            Assert.That(AvatarService.Normalized(new FaceTuning { Mouth = 9f }).Mouth, Is.EqualTo(FaceTuning.Max));
         }
 
         [Test]

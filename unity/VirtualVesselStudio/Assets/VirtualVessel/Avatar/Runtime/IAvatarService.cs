@@ -55,6 +55,18 @@ namespace VirtualVessel.Avatar
 
         /// <summary>Unregisters the avatar and deletes its folder; the UI asks first.</summary>
         Task RemoveAsync(string avatarId, CancellationToken cancellationToken);
+
+        /// <summary>How strongly the user's face moves the avatar (avatar detailed design 7.4). Never null.</summary>
+        IReadOnlyObservable<FaceTuning> FaceTuning { get; }
+
+        /// <summary>Applies <paramref name="tuning"/> from the next observation and saves it.</summary>
+        void SetFaceTuning(FaceTuning tuning);
+
+        /// <summary>
+        /// What the avatar's face shows this frame, for showing the result of tuning; null without an
+        /// avatar. Rewritten every frame, so read it within the frame and do not keep it.
+        /// </summary>
+        FaceTarget Face { get; }
     }
 
     /// <summary>Where the avatar goes on the stream: its Unity layer (Video) and spawn point (Stage).</summary>

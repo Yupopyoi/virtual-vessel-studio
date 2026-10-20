@@ -33,6 +33,13 @@ namespace VirtualVessel.Avatar
         /// <summary>What the face shows this frame.</summary>
         public FaceTarget Face => _face.Current;
 
+        /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
+        public ExpressionMapping Mapping
+        {
+            get => _face.Mapping;
+            set => _face.Mapping = value;
+        }
+
         /// <summary>
         /// Sets this frame's head, expressions, and gaze. The caller then applies the model
         /// (<see cref="IAvatarModel.Apply"/>).

@@ -30,7 +30,7 @@ namespace VirtualVessel.Avatar
         private const double MinInterval = 1.0 / 120.0;
         private const double MaxInterval = 0.2;
 
-        private readonly ExpressionMapping _mapping;
+        private ExpressionMapping _mapping;
         private readonly FaceTarget _observed = new FaceTarget();
         private readonly FaceTarget _from = new FaceTarget();
         private readonly FaceTarget _to = new FaceTarget();
@@ -51,6 +51,13 @@ namespace VirtualVessel.Avatar
 
         /// <summary>How much of the tracked face is shown: 1 tracked, 0 neutral.</summary>
         public float Presence { get; private set; }
+
+        /// <summary>The mapping in use; a new one, as the user tunes the face, applies from the next observation.</summary>
+        public ExpressionMapping Mapping
+        {
+            get => _mapping;
+            set => _mapping = value ?? throw new ArgumentNullException(nameof(value));
+        }
 
         /// <param name="face">The tracked face this frame; null when there is no tracking.</param>
         /// <param name="now">Seconds on the clock of the face's timestamps.</param>

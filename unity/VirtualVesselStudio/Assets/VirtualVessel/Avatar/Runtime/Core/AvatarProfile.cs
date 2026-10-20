@@ -53,9 +53,17 @@ namespace VirtualVessel.Avatar
         /// <summary>No avatar is shown when null.</summary>
         public string CurrentAvatarId { get; set; }
 
+        /// <summary>
+        /// How strongly the user's face moves the avatar (avatar detailed design 7.4). The user's, not an
+        /// avatar's, so it stays when the avatar changes. Files written before it existed read the defaults.
+        /// </summary>
+        public FaceTuning Face { get; set; } = new FaceTuning();
+
         public AvatarSettings Clone()
         {
-            return (AvatarSettings)MemberwiseClone();
+            var copy = (AvatarSettings)MemberwiseClone();
+            copy.Face = Face?.Clone() ?? new FaceTuning();
+            return copy;
         }
     }
 

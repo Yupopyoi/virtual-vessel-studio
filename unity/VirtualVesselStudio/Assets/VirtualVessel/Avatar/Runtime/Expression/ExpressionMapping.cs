@@ -11,55 +11,99 @@ namespace VirtualVessel.Avatar
     /// feelings stay weak so they do not take over the face.
     /// </summary>
     /// <remarks>
-    /// Settings, set when built and not changed while in use. The values are provisional until tuned
-    /// with a camera (avatar detailed design 17). MediaPipe's face values rarely reach 1, so the curves
-    /// end below it.
+    /// Settings, set when built and not changed while in use; <see cref="For"/> builds one from the
+    /// user's <see cref="FaceTuning"/>. MediaPipe's face values rarely reach 1, so the curves end well
+    /// below it. The defaults were raised after the first camera check (2026-10-20), where the eyes,
+    /// brows, and mouth moved too little; they are still provisional (avatar detailed design 17).
     /// </remarks>
     public sealed class ExpressionMapping
     {
         public static readonly ExpressionMapping Default = new ExpressionMapping();
 
         /// <summary>Eye closing: below the lower end the eye is open, above the upper end closed.</summary>
-        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.3f, 0.7f);
+        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.25f, 0.6f);
 
         /// <summary>Close both eyes alike unless one eye is closed this much more than the other (a wink).</summary>
         public bool SyncBlink { get; set; } = true;
 
-        public float WinkDifference { get; set; } = 0.5f;
+        /// <summary>
+        /// Closing one eye squints the other a little, so a wink shows as a difference rather than one
+        /// eye alone; this is the difference, after <see cref="Blink"/>, that counts as one.
+        /// </summary>
+        public float WinkDifference { get; set; } = 0.3f;
 
-        public ExpressionCurve JawOpen { get; set; } = new ExpressionCurve(0.05f, 0.55f);
+        public ExpressionCurve JawOpen { get; set; } = new ExpressionCurve(0.02f, 0.4f);
 
-        public ExpressionCurve Funnel { get; set; } = new ExpressionCurve(0.1f, 0.5f);
+        public ExpressionCurve Funnel { get; set; } = new ExpressionCurve(0.05f, 0.4f);
 
-        public ExpressionCurve Pucker { get; set; } = new ExpressionCurve(0.2f, 0.8f);
+        public ExpressionCurve Pucker { get; set; } = new ExpressionCurve(0.1f, 0.6f);
 
-        public ExpressionCurve Stretch { get; set; } = new ExpressionCurve(0.1f, 0.5f);
+        public ExpressionCurve Stretch { get; set; } = new ExpressionCurve(0.05f, 0.35f);
 
-        public ExpressionCurve Smile { get; set; } = new ExpressionCurve(0.2f, 0.7f);
+        public ExpressionCurve Smile { get; set; } = new ExpressionCurve(0.15f, 0.6f);
 
         /// <summary>How much a closed-mouth smile shows as the "i" mouth.</summary>
         public float IhFromSmile { get; set; } = 0.5f;
 
-        public ExpressionCurve Happy { get; set; } = new ExpressionCurve(0.2f, 0.7f, 0.6f);
+        public ExpressionCurve Happy { get; set; } = new ExpressionCurve(0.15f, 0.6f, 0.8f);
 
-        public ExpressionCurve CheekSquint { get; set; } = new ExpressionCurve(0.2f, 0.6f, 0.6f);
+        public ExpressionCurve CheekSquint { get; set; } = new ExpressionCurve(0.15f, 0.5f, 0.8f);
 
-        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.3f, 0.8f);
+        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.15f, 0.5f);
 
-        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.05f, 0.4f);
+        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.02f, 0.25f);
 
-        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.05f, 0.4f);
+        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.05f, 0.35f);
 
-        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.2f, 0.7f);
+        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.1f, 0.4f);
 
         /// <summary>The weight of the feelings Surprised, Sad, and Angry at their strongest.</summary>
-        public float FeelingGain { get; set; } = 0.6f;
+        public float FeelingGain { get; set; } = 0.8f;
 
         /// <summary>The look value (in minus out, up minus down) at which the eyes reach their range.</summary>
-        public float GazeFullScale { get; set; } = 0.5f;
+        public float GazeFullScale { get; set; } = 0.35f;
 
         /// <summary>How far the eyes turn at most, as a share of the model's eye range.</summary>
         public float MaxLook { get; set; } = 1f;
+
+        /// <summary>
+        /// The mapping for the user's <paramref name="tuning"/>: each part's curves made that many times
+        /// as sensitive, and a wink told apart by a difference that many times smaller. Pure.
+        /// </summary>
+        public static ExpressionMapping For(FaceTuning tuning)
+        {
+            ExpressionMapping d = Default;
+            if (tuning == null)
+            {
+                return d;
+            }
+
+            float eyes = tuning.Get(FaceTuningPart.Eyes);
+            float brows = tuning.Get(FaceTuningPart.Brows);
+            float mouth = tuning.Get(FaceTuningPart.Mouth);
+            float smile = tuning.Get(FaceTuningPart.Smile);
+            return new ExpressionMapping
+            {
+                Blink = d.Blink.Sensitive(eyes),
+                SyncBlink = d.SyncBlink,
+                WinkDifference = d.WinkDifference / tuning.Get(FaceTuningPart.Wink),
+                JawOpen = d.JawOpen.Sensitive(mouth),
+                Funnel = d.Funnel.Sensitive(mouth),
+                Pucker = d.Pucker.Sensitive(mouth),
+                Stretch = d.Stretch.Sensitive(mouth),
+                Smile = d.Smile.Sensitive(mouth),
+                IhFromSmile = d.IhFromSmile,
+                Happy = d.Happy.Sensitive(smile),
+                CheekSquint = d.CheekSquint.Sensitive(smile),
+                BrowInnerUp = d.BrowInnerUp.Sensitive(brows),
+                EyeWide = d.EyeWide.Sensitive(brows),
+                MouthFrown = d.MouthFrown.Sensitive(brows),
+                BrowDown = d.BrowDown.Sensitive(brows),
+                FeelingGain = d.FeelingGain,
+                GazeFullScale = d.GazeFullScale / tuning.Get(FaceTuningPart.Gaze),
+                MaxLook = d.MaxLook,
+            };
+        }
 
         /// <summary>
         /// Writes the expressions and gaze for <paramref name="face"/> into <paramref name="into"/>; the
@@ -119,12 +163,13 @@ namespace VirtualVessel.Avatar
             into[AvatarExpression.Ee] = ee * scale;
             into[AvatarExpression.Ih] = ih * scale;
 
-            // Feelings: each needs all of its signs, so one moving part alone does not show a feeling.
+            // Feelings. VRM has no brow expressions, so the brows show through these: raised brows alone
+            // give half a surprise and wide eyes the rest, while sadness also needs the frown.
             float browUp = BrowInnerUp.Evaluate(face[FaceShape.BrowInnerUp]);
             into[AvatarExpression.Happy] = Mathf.Max(
                 Happy.Evaluate(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight)),
                 CheekSquint.Evaluate(Both(FaceShape.CheekSquintLeft, FaceShape.CheekSquintRight)));
-            into[AvatarExpression.Surprised] = FeelingGain * Mathf.Min(browUp, EyeWide.Evaluate(Both(FaceShape.EyeWideLeft, FaceShape.EyeWideRight)));
+            into[AvatarExpression.Surprised] = FeelingGain * browUp * (0.5f + (0.5f * EyeWide.Evaluate(Both(FaceShape.EyeWideLeft, FaceShape.EyeWideRight))));
             into[AvatarExpression.Sad] = FeelingGain * Mathf.Min(browUp, MouthFrown.Evaluate(Both(FaceShape.MouthFrownLeft, FaceShape.MouthFrownRight)));
             into[AvatarExpression.Angry] = FeelingGain * BrowDown.Evaluate(Both(FaceShape.BrowDownLeft, FaceShape.BrowDownRight));
 

@@ -29,6 +29,15 @@ namespace VirtualVessel.Avatar
         /// <summary>The weight at the upper end; below 1 makes an expression weaker.</summary>
         public float Gain { get; }
 
+        /// <summary>
+        /// The same curve for a face that moves <paramref name="sensitivity"/> times as easily: both ends
+        /// divided by it, so 2 reaches the full weight with half the movement. Pure.
+        /// </summary>
+        public ExpressionCurve Sensitive(float sensitivity)
+        {
+            return sensitivity > 0f ? new ExpressionCurve(Lower / sensitivity, Upper / sensitivity, Gain) : this;
+        }
+
         /// <summary>The weight for <paramref name="value"/>. Pure.</summary>
         public float Evaluate(float value)
         {

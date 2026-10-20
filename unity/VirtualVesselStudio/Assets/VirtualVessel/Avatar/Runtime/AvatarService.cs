@@ -33,7 +33,7 @@ namespace VirtualVessel.Avatar
         private readonly IMonotonicClock _clock;
         private readonly ILog _log;
         private readonly ITrackingSource _tracking;
-        private readonly ExpressionMapping _mapping;
+        private readonly ObservableValue<FaceTuning> _faceTuning;
         private readonly ObservableValue<IReadOnlyList<AvatarEntry>> _avatars = new ObservableValue<IReadOnlyList<AvatarEntry>>(Array.Empty<AvatarEntry>());
         private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
         private readonly ObservableValue<AvatarState> _state = new ObservableValue<AvatarState>(AvatarState.None);
@@ -43,6 +43,7 @@ namespace VirtualVessel.Avatar
         private readonly PerfTimer _loadTimer;
         private readonly PerfTimer _loadFrameTimer;
         private AvatarSettings _settings;
+        private ExpressionMapping _mapping;
         private IAvatarModel _model;
         private AvatarController _controller;
         private CancellationTokenSource _loading;
@@ -77,7 +78,9 @@ namespace VirtualVessel.Avatar
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _log = log;
             _tracking = tracking;
-            _mapping = ExpressionMapping.Default;
+            FaceTuning tuning = Normalized(_settings.Face);
+            _faceTuning = new ObservableValue<FaceTuning>(tuning);
+            _mapping = ExpressionMapping.For(tuning);
             _importer = new AvatarImporter(store, loader, systemClock, log);
             _applyTimer = metrics?.Timer("Avatar", "Apply");
             _loadTimer = metrics?.Timer("Avatar", "Load");
@@ -96,6 +99,10 @@ namespace VirtualVessel.Avatar
 
         public IReadOnlyList<string> Extensions => _loader.Extensions;
 
+        public IReadOnlyObservable<FaceTuning> FaceTuning => _faceTuning;
+
+        public FaceTarget Face => _controller?.Face;
+
         /// <summary>The avatar on the stream, or null; for tests.</summary>
         internal IAvatarModel Model => _model;
 
@@ -106,6 +113,21 @@ namespace VirtualVessel.Avatar
         public static ConfigFileStore<AvatarSettings> CreateStore(string configDirectory, ISystemClock clock)
         {
             return new ConfigFileStore<AvatarSettings>(configDirectory, AvatarSettings.FileName, AvatarSettings.SchemaVersion, () => new AvatarSettings(), clock);
+        }
+
+        /// <summary>
+        /// <paramref name="tuning"/> with every part within range, or the defaults for none (a file
+        /// written before tuning existed). Pure.
+        /// </summary>
+        public static FaceTuning Normalized(FaceTuning tuning)
+        {
+            var normalized = new FaceTuning();
+            for (int i = 0; tuning != null && i < VirtualVessel.Avatar.FaceTuning.PartCount; i++)
+            {
+                normalized = normalized.With((FaceTuningPart)i, tuning.Get((FaceTuningPart)i));
+            }
+
+            return normalized;
         }
 
         /// <summary>A copy of <paramref name="entries"/> with <paramref name="added"/> at the end. Pure.</summary>
@@ -314,6 +336,26 @@ namespace VirtualVessel.Avatar
 
                 load.Dispose();
             }
+        }
+
+        public void SetFaceTuning(FaceTuning tuning)
+        {
+            FaceTuning next = Normalized(tuning);
+            if (next.Equals(_faceTuning.Value))
+            {
+                return;
+            }
+
+            _faceTuning.Value = next;
+            _mapping = ExpressionMapping.For(next);
+            if (_controller != null)
+            {
+                _controller.Mapping = _mapping;
+            }
+
+            _settings = _settings.Clone();
+            _settings.Face = next.Clone();
+            _saves?.Changed(_settings.Clone());
         }
 
         public async Task RemoveAsync(string avatarId, CancellationToken cancellationToken)
