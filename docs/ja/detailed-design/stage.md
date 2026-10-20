@@ -68,20 +68,28 @@ flowchart LR
 | `CaptureScreen` | Class（UIの`IFrameSource`） | 1つのCapture Sourceの板と配置。編集を受け付ける |
 | `StageSettings` | Class | 保存する内容（映像ごとの配置） |
 | `ScreenPlacementMath` | Static Class | 配置から板の位置、大きさ、UVを求める（純粋関数） |
-| `StageDefaults` | Static Class | 初めて使うときの配置 |
+| `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き |
+| `IAvatarSpawnPoints` | Interface | アバターの立つ位置（7.1） |
 
 ---
 
 ## 5. Public API
 
 ```csharp
-public sealed class StageService : IApplicationService
+public sealed class StageService : IApplicationService, IAvatarSpawnPoints
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // 配置編集へ渡す。重なり順ではなくSourceの順
+    public IAvatarSpawnPoints SpawnPoints { get; }        // アバターの立つ位置（7.1）
+}
+
+public interface IAvatarSpawnPoints
+{
+    Pose Default { get; }   // 基準の姿勢で+Zを向くアバターの、Worldの位置と向き
 }
 ```
 
 - Compositionは`Screens`をUIへ渡す。UIは`IFrameSource`だけを見る。
+- Compositionは`SpawnPoints.Default`を、`AvatarPlacement`の一部としてAvatarへ渡す（Avatar詳細設計3章）。
 
 ---
 
@@ -141,7 +149,12 @@ public sealed class StageService : IApplicationService
 - `StageService`はOptionalのApplication Serviceとし、Capture、Videoの後に起動する。どちらかがなければ登録しない（平面の映像を出す場所か、映像がないため）。
 - 起動時に`stage-settings.json`を読み、Capture Sourceごとに`CaptureScreen`を作り、板を`IStreamScreenLayer.Root`の下に置く。種類が`Camera`のSource（トラッキング用カメラ）には作らない。利用者の顔や部屋を配信に出さないため（Tracking詳細設計5.4、`StageService.ShowsOnStream`）。
 - 映像（`Texture`）の変化を購読し、板の材質へ設定する。映像がなければ板を隠す。
-- 終了時に未保存の配置を保存し、板と材質を破棄する。
+- 終了時に未保存の配置を保存し、板と材質と既定のライトを破棄する。
+
+### 7.1 アバターのSpawn Pointとライト（Stage Sceneができるまで）
+
+- Stage Sceneが自分のSpawn Pointを持つまでは（方式設計11.6）、Spawn Pointを1つだけ出す：原点で、-ZにあるMain Camera（Video詳細設計7.5）の方へ180°向ける。
+- Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時に平行光のライト`StageDefaultLight`を作る：カメラの上の少し左から（回転35°、15°、0°）、強さ1、影なし。自分のライトを持つStage Sceneができたら、それに置き換える。
 
 ---
 
@@ -224,8 +237,8 @@ Assets/VirtualVessel/Stage/
 │  ├─ StageService.cs
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs
-│  ├─ ScreenPlacementMath.cs
-│  ├─ StageDefaults.cs
+│  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
+│  ├─ IAvatarSpawnPoints.cs
 │  └─ Resources/StreamScreen.shader 光を受けない板のShader。切り抜きと反転を材質の値（_MainTex_ST）だけで表す。Buildに含めるためResourcesに置く
 └─ Tests/
    ├─ EditMode/

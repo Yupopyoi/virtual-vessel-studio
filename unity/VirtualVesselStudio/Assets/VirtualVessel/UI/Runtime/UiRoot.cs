@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
+using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
 using VirtualVessel.Core.Threading;
@@ -38,6 +39,8 @@ namespace VirtualVessel.UI
         /// <param name="streamPreview">The stream video for the live screen (Video); null shows "no video".</param>
         /// <param name="frameSources">The videos to place on the live screen (Stage); null for none.</param>
         /// <param name="captures">The capture sources for the setup screen (Capture); null says it is unavailable.</param>
+        /// <param name="avatars">Avatars for the setup screen (Avatar); null says they are unavailable.</param>
+        /// <param name="fileDialog">The file-picking screen, such as for registering avatars; null disables picking files.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
@@ -51,7 +54,9 @@ namespace VirtualVessel.UI
             IStreamPreviewSource streamPreview = null,
             IReadOnlyList<IFrameSource> frameSources = null,
             ICaptureSources captures = null,
-            ITrackingSource tracking = null)
+            ITrackingSource tracking = null,
+            IAvatarService avatars = null,
+            IFileDialog fileDialog = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -71,6 +76,8 @@ namespace VirtualVessel.UI
             FrameSources = frameSources ?? Array.Empty<IFrameSource>();
             Captures = captures;
             Tracking = tracking;
+            Avatars = avatars;
+            FileDialog = fileDialog;
         }
 
         public string ConfigDirectory { get; }
@@ -99,6 +106,11 @@ namespace VirtualVessel.UI
 
         /// <summary>Tracking for the setup screen; null when it is unavailable.</summary>
         public ITrackingSource Tracking { get; }
+
+        /// <summary>Avatars for the setup screen; null when they are unavailable.</summary>
+        public IAvatarService Avatars { get; }
+
+        public IFileDialog FileDialog { get; }
     }
 
     /// <summary>
@@ -434,7 +446,7 @@ namespace VirtualVessel.UI
             var screens = new List<ScreenDefinition>
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking)),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking, context.Avatars, context.FileDialog)),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };

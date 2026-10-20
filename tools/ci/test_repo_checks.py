@@ -107,6 +107,21 @@ class SbomTests(unittest.TestCase):
         required = repo_checks.sbom_requirements('{"dependencies": {}}', [], {}, {"com.example.plugin": "1.2.3"})
         self.assertEqual(required, {"unity-package:com.example.plugin": "1.2.3"})
 
+    GIT_LOCK = '{"dependencies": {"com.example.git": {"version": "https://example.com/r.git?path=/P#v0.131.4", "source": "git"}}}'
+
+    def test_a_git_package_needs_the_version_of_its_tag(self):
+        self.assertEqual(repo_checks.sbom_requirements(self.GIT_LOCK, [], {}), {"unity-package:com.example.git": "0.131.4"})
+        self.assertEqual(repo_checks.check_git_packages(self.GIT_LOCK), [])
+
+    def test_a_git_package_without_a_tag_is_an_error(self):
+        lock = '{"dependencies": {"com.example.git": {"version": "https://example.com/r.git?path=/P", "source": "git"}}}'
+        self.assertEqual(len(repo_checks.check_git_packages(lock)), 1)
+
+    def test_git_tag_versions(self):
+        self.assertEqual(repo_checks.git_tag_version("u#v1.2.3"), "1.2.3")
+        self.assertEqual(repo_checks.git_tag_version("u#release-1"), "release-1")
+        self.assertIsNone(repo_checks.git_tag_version("u"))
+
     MANIFEST = '{"package": "com.example.plugin", "version": "1.2.3", "url": "https://example.com/p.tgz", "sha256": "' + "a" * 64 + '"}'
 
     def test_a_well_formed_manifest_passes(self):

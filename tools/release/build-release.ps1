@@ -106,6 +106,17 @@ $mediapipe = Join-Path $project 'Packages\com.github.homuler.mediapipe'
 Copy-Item (Join-Path $mediapipe 'LICENSE.md') (Join-Path $licenses 'MediaPipeUnityPlugin-LICENSE.md')
 Copy-Item (Join-Path $mediapipe 'Third Party Notices.md') (Join-Path $licenses 'MediaPipeUnityPlugin-Third-Party-Notices.md')
 
+# UniVRM (avatar detailed design 16). Its VRM-1.0 package has no license file of its own, so the
+# repository's license is kept in tools/release/licenses; UniGLTF's comes from the resolved package.
+Copy-Item (Join-Path $PSScriptRoot 'licenses\*') $licenses
+$uniGltf = Get-ChildItem (Join-Path $project 'Library\PackageCache') -Directory -Filter 'com.vrmc.gltf@*' | Select-Object -First 1
+if ($null -eq $uniGltf)
+{
+    throw 'UniGLTF is missing from Library/PackageCache; the build should have resolved it.'
+}
+
+Copy-Item (Join-Path $uniGltf.FullName 'LICENSE.md') (Join-Path $licenses 'UniGLTF-LICENSE.md')
+
 # Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
 Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force
 

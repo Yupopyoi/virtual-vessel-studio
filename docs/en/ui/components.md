@@ -109,6 +109,7 @@ For each component, the following states are defined:
 - Title (17px, weight 700), body (Text 2), buttons at the bottom right.
 - When confirming an action that is hard to undo, the action button is Danger and the other is a Secondary "Cancel".
 - The body says what will happen if the action runs.
+- Read-only content needed to decide (such as a model's terms of use) may go under the body. Focus moves only between the buttons.
 
 ### 3.12 Tooltip
 

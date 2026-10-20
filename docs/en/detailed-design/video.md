@@ -101,6 +101,7 @@ public interface IStreamOutput
     IReadOnlyObservable<Texture> Video { get; }   // The Stream Render Target; a different texture when the resolution changes
     VideoSize Size { get; }                       // Size of the stream video (default 1920×1080)
     IStreamScreenLayer Screens { get; }
+    int AvatarLayer { get; }                      // The Unity layer avatars use (Avatar); -1 before start
 }
 
 public interface IStreamScreenLayer
@@ -120,6 +121,7 @@ public readonly struct VideoSize
 
 - What is placed under `IStreamScreenLayer.Root` is drawn only by the Screen Camera. Its `layer` must be `Layer`.
 - The flat video layer is drawn above the stage and below the avatar (7.2).
+- Avatar sets `AvatarLayer` on every part of an avatar, so only the Avatar Camera draws it. The composition passes it to Avatar (Avatar detailed design 3).
 
 ---
 
@@ -134,6 +136,8 @@ public sealed class VideoSettings
     public int Height { get; set; } = 1080;
     public int TargetFrameRate { get; set; } = 60;
     public Color BackgroundColor { get; set; }   // Background when there is no stage (dark navy by default)
+    public Vector3? CameraPosition { get; set; } = (0, 1.25, -1.9);   // Where the Main Camera starts (7.5); null leaves it
+    public float? CameraFieldOfView { get; set; } = 30;               // Vertical, degrees; null leaves it
 }
 ```
 
@@ -156,9 +160,9 @@ public sealed class VideoSettings
 ### 7.1 VideoService
 
 - An Optional application service that starts after logging and performance metrics. It needs the persistent scene's Main Camera, so the composition registers it only when `ApplicationBootstrap` passes one.
-- At start it creates the Stream Render Target, sets up the Main Camera, and creates the Screen Camera. It sets the target frame rate (`Application.targetFrameRate`, with VSync off).
+- At start it creates the Stream Render Target, sets up the Main Camera (including its default position, 7.5), and creates the Screen Camera and the Avatar Camera. It sets the target frame rate (`Application.targetFrameRate`, with VSync off).
 - Every frame it counts the actual frame rate through `IFrameLoop` and updates the preview numbers about every second.
-- At shutdown it removes the Main Camera's target and destroys the Screen Camera and the Stream Render Target. The Main Camera belongs to the scene and is not destroyed.
+- At shutdown it removes the Main Camera's target, gives back its culling mask, position, and field of view, and destroys the Screen Camera, the Avatar Camera, and the Stream Render Target. The Main Camera belongs to the scene and is not destroyed.
 
 ### 7.2 Camera Order
 
@@ -168,11 +172,12 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 |---|---|---|---|---|
 | 1 | Main Camera | Base, perspective | The stage (everything except the two layers below) | Background color |
 | 2 | Screen Camera | Overlay, orthographic | The flat video layer (`StreamScreens`) | Nothing |
-| 3 | Avatar Camera (later) | Overlay, same position and field of view as the Main Camera | The avatar layer | Depth only |
+| 3 | Avatar Camera | Overlay, same position and field of view as the Main Camera | The avatar layer (`Avatar`) | Depth only |
 
 - Flat videos go behind the avatar (the user's decision, 2026-10-17). The order is kept as a table so that choosing front or back per video can be added later.
 - The Screen Camera is not a child of the Main Camera. It sits at the origin with an orthographic projection and draws only the stream screen, so flat videos stay put when the Main Camera moves.
-- The Unity layer `StreamScreens` is added to the project settings.
+- The Unity layers `StreamScreens` and `Avatar` are added to the project settings. The Main Camera draws neither.
+- The Avatar Camera is a child of the Main Camera, so the avatar is seen from the stage camera. It copies the Main Camera's field of view and clip planes every frame. URP overlay cameras clear depth by default (the setting is read-only from code), so the stage's depth never hides the avatar.
 - With the Main Camera drawing into the Stream Render Target, no camera would draw the application window, and the UI drawn on top of the window would not show. A Window Camera that draws nothing and only clears (no layers, cleared to black) keeps it drawn.
 
 ### 7.3 Coordinates of the Flat Video Layer
@@ -185,6 +190,11 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 
 - When the resolution in `VideoSettings` changes, a new Stream Render Target is created and set on the Main Camera, `Video` becomes the new texture, and then the old one is released. The preview swaps on the change of `Video`.
 - For now only the value at startup is used (a screen to change it comes later).
+
+### 7.5 The Default Camera Position
+
+- Until Camera Points exist, the Main Camera starts at (0, 1.25, -1.9), looking along +Z, with a vertical field of view of 30°: in front of an avatar at the default spawn point (the origin, Stage detailed design 7.1), framing its upper body. A narrow field of view keeps a close-up of the face free of wide-angle distortion.
+- The values are in `VideoSettings`; null leaves the camera as the scene put it. The original values are given back at shutdown.
 
 ---
 

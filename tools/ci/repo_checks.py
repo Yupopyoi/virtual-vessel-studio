@@ -9,7 +9,8 @@ Checks the files tracked by git:
 * SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
   license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
-  against the version pinned there, since the lock file only says "file:".
+  against the version pinned there, since the lock file only says "file:". A package from a Git
+  URL must pin a tag (#v1.2.3), and the SBOM records that version.
 * Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
   and the SBOM entry of its package records the same download URL and SHA-256.
 
@@ -202,6 +203,9 @@ def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Map
         if package.get("source") == "embedded":
             # The lock file only says "file:<folder>"; the version is the one the fetch script pins.
             required[f"unity-package:{name}"] = pinned.get(name)
+        elif package.get("source") == "git":
+            # The lock file has the Git URL; the version is the tag it pins.
+            required[f"unity-package:{name}"] = git_tag_version(package.get("version", ""))
         else:
             required[f"unity-package:{name}"] = package.get("version")
 
@@ -223,6 +227,23 @@ def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Map
                 required[f"github-action:{action}"] = None
 
     return required
+
+
+def git_tag_version(url: str) -> str | None:
+    """The version a Git package URL pins with its tag (#v0.131.4 is 0.131.4), or None without one."""
+    _, _, tag = url.partition("#")
+    if not tag:
+        return None
+    return tag[1:] if re.fullmatch(r"v\d.*", tag) else tag
+
+
+def check_git_packages(packages_lock: str) -> list[str]:
+    """Unity packages from Git URLs that pin no tag, so a later resolve could fetch other code."""
+    errors = []
+    for name, package in json.loads(packages_lock).get("dependencies", {}).items():
+        if package.get("source") == "git" and not git_tag_version(package.get("version", "")):
+            errors.append(f"{PACKAGES_LOCK}: {name} comes from Git without a pinned tag (#vX.Y.Z)")
+    return errors
 
 
 def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
@@ -309,7 +330,9 @@ def run(repository: Path) -> list[str]:
     manifest_errors = [e for p, text in sorted(manifest_files.items()) for e in check_deps_manifest(p, text)]
     errors += manifest_errors
     manifests = [] if manifest_errors else list(manifest_files.values())
-    required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows, pinned_packages(manifests))
+    packages_lock = (repository / PACKAGES_LOCK).read_text(encoding="utf-8")
+    errors += check_git_packages(packages_lock)
+    required = sbom_requirements(packages_lock, tracked, workflows, pinned_packages(manifests))
     if SBOM_PATH in tracked:
         sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
         errors += check_sbom(sbom, required)

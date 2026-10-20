@@ -122,6 +122,21 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
+        public void TheDefaultSpawnPoint_IsTheOrigin_FacingTheCamera_AndALightIsMadeAndRemoved()
+        {
+            Assert.That(_stage.SpawnPoints.Default.position, Is.EqualTo(Vector3.zero));
+            Assert.That(_stage.SpawnPoints.Default.forward.z, Is.LessThan(-0.99f), "The Main Camera is on -Z.");
+            Light light = _stage.DefaultLight;
+            Assert.That(light, Is.Not.Null);
+            Assert.That(light.type, Is.EqualTo(LightType.Directional));
+            Assert.That(light.transform.forward.z, Is.GreaterThan(0.5f), "Lights the avatar's front.");
+
+            _stage.Dispose();
+
+            Assert.That(light == null, Is.True);
+        }
+
+        [Test]
         public void EachCaptureSource_GetsAScreen_WithTheDefaultPlacement_AndATranslatedName()
         {
             Assert.That(_stage.Screens.Count, Is.EqualTo(2));
@@ -323,6 +338,8 @@ namespace VirtualVessel.Stage.Tests
         public Transform Root { get; }
 
         public int Layer => 0;
+
+        public int AvatarLayer => 0;
     }
 
     internal sealed class ManualClock : IMonotonicClock

@@ -1,13 +1,15 @@
 using UnityEngine.UIElements;
+using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Dialogs;
 
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
-    /// The setup screen: a capture Card per source shown on the stream, the tracking Card, then the
-    /// app settings (docs/&lt;lang&gt;/ui/screens/setup.md).
+    /// The setup screen: a capture Card per source shown on the stream, the tracking Card, the avatar
+    /// Card, then the app settings (docs/&lt;lang&gt;/ui/screens/setup.md).
     /// </summary>
     public sealed class SetupScreen : VisualElement
     {
@@ -15,7 +17,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="captures">The capture sources; null says capture is unavailable.</param>
         /// <param name="tracking">Tracking; null says it is unavailable.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null)
+        /// <param name="avatars">Avatars; null says they are unavailable.</param>
+        /// <param name="files">The file-picking screen for registering avatars; null disables registering.</param>
+        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null)
         {
             AddToClassList(UssClass);
             if (captures == null)
@@ -41,6 +45,15 @@ namespace VirtualVessel.UI.Screens
             else
             {
                 Add(Ui.Text(TrackingStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
+            }
+
+            if (avatars != null)
+            {
+                Add(new AvatarCard(avatars, files));
+            }
+            else
+            {
+                Add(Ui.Text(AvatarStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
             }
 
             if (appSettings != null)

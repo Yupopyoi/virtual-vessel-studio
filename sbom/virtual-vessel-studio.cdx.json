@@ -3,7 +3,7 @@
   "specVersion": "1.6",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-18T00:00:00Z",
+    "timestamp": "2026-10-19T00:00:00Z",
     "component": {
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
@@ -313,6 +313,25 @@
     },
     {
       "type": "library",
+      "bom-ref": "unity-package:com.unity.mathematics",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.mathematics",
+      "version": "1.4.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Mathematics (a dependency of UniVRM's UniGLTF)"
+    },
+    {
+      "type": "library",
       "bom-ref": "unity-package:com.unity.nuget.mono-cecil",
       "supplier": {
         "name": "Unity Technologies"
@@ -584,6 +603,56 @@
       ],
       "scope": "required",
       "description": "Visual Scripting (from the project template; not used by Virtual Vessel code)"
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.vrmc.gltf",
+      "supplier": {
+        "name": "VRM Consortium"
+      },
+      "name": "com.vrmc.gltf (UniVRM UniGLTF)",
+      "version": "0.131.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/vrm-c/UniVRM/tree/v0.131.4/Packages/UniGLTF",
+          "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
+        }
+      ],
+      "description": "glTF loading for VRM (avatar detailed design 16). Includes UniJSON, UniHumanoid, and UniUnlit. Its LICENSE.md and UniVRM's LICENSE.txt (tools/release/licenses) go into the release package."
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.vrmc.vrm",
+      "supplier": {
+        "name": "VRM Consortium"
+      },
+      "name": "com.vrmc.vrm (UniVRM VRM-1.0)",
+      "version": "0.131.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/vrm-c/UniVRM/tree/v0.131.4/Packages/VRM10",
+          "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
+        }
+      ],
+      "description": "VRM 1.0 loading, VRM 0.x conversion, control rig, expressions, SpringBone, and the MToon 1.0 shaders (avatar detailed design 16). Used only by the VirtualVessel.Avatar.Vrm assembly. Copyright VRM Consortium and Masataka SUMI (MToon)."
     },
     {
       "type": "file",

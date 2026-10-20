@@ -16,9 +16,10 @@ namespace VirtualVessel.Stage
 {
     /// <summary>
     /// Puts each capture video on the stream screen where the placement editor put it, and saves the
-    /// placements (Stage detailed design 7). An Optional application service.
+    /// placements (Stage detailed design 7). Until Stage Scenes exist it also gives the avatar a
+    /// default spawn point and a light (Stage detailed design 7.4). An Optional application service.
     /// </summary>
-    public sealed class StageService : IApplicationService
+    public sealed class StageService : IApplicationService, IAvatarSpawnPoints
     {
         public const string ServiceName = "Stage";
 
@@ -35,6 +36,7 @@ namespace VirtualVessel.Stage
         private readonly ILog _log;
         private readonly List<CaptureScreen> _screens = new List<CaptureScreen>();
         private StageSettings _settings = new StageSettings();
+        private GameObject _light;
         private IDisposable _tick;
 
         public StageService(ICaptureSources captures, IStreamOutput output, IFrameLoop frameLoop, ConfigFileStore<StageSettings> store, IMonotonicClock clock, ILog log)
@@ -51,6 +53,13 @@ namespace VirtualVessel.Stage
 
         /// <summary>The placement editor's videos, in source order.</summary>
         public IReadOnlyList<IFrameSource> Screens => _screens;
+
+        public IAvatarSpawnPoints SpawnPoints => this;
+
+        public Pose Default => StageDefaults.AvatarSpawn;
+
+        /// <summary>The default light; for tests.</summary>
+        internal Light DefaultLight => _light != null ? _light.GetComponent<Light>() : null;
 
         /// <summary>Creates the store of stage-settings.json in the settings folder.</summary>
         public static ConfigFileStore<StageSettings> CreateStore(string configDirectory, ISystemClock clock)
@@ -97,6 +106,14 @@ namespace VirtualVessel.Stage
                 _screens.Add(new CaptureScreen(source, LayoutFor(_settings, source.Id), _output.Screens, quad, shader, OnCommitted));
             }
 
+            // The persistent scene has no light, and lit avatar materials would be black without one.
+            _light = new GameObject("StageDefaultLight");
+            _light.transform.rotation = StageDefaults.LightRotation;
+            Light light = _light.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1f;
+            light.shadows = LightShadows.None;
+
             _tick = _frameLoop.Register(_saves.Tick);
             _log?.Information($"Stage started with {_screens.Count} stream screens; placements {loaded.Status} from {_store.FilePath}.");
             return Task.CompletedTask;
@@ -123,6 +140,19 @@ namespace VirtualVessel.Stage
             }
 
             _screens.Clear();
+            if (_light != null)
+            {
+                if (UnityEngine.Application.isPlaying)
+                {
+                    UnityEngine.Object.Destroy(_light);
+                }
+                else
+                {
+                    UnityEngine.Object.DestroyImmediate(_light);
+                }
+
+                _light = null;
+            }
         }
 
         private void OnCommitted(CaptureScreen screen)
