@@ -1,0 +1,69 @@
+using System;
+using UnityEngine;
+
+namespace VirtualVessel.Avatar
+{
+    /// <summary>
+    /// What the face of the avatar should show: a weight per <see cref="AvatarExpression"/>, the gaze,
+    /// and the head's rotation in the avatar root's space (avatar detailed design 7.1, 7.4). Objects are
+    /// reused every frame, never allocated per observation (CLAUDE.md 23).
+    /// </summary>
+    public sealed class FaceTarget
+    {
+        public static readonly int ExpressionCount = Enum.GetValues(typeof(AvatarExpression)).Length;
+
+        /// <summary>0 to 1 per <see cref="AvatarExpression"/>.</summary>
+        public float[] Weights { get; } = new float[ExpressionCount];
+
+        /// <summary>Degrees, positive toward the avatar's own right.</summary>
+        public float LookYaw { get; set; }
+
+        /// <summary>Degrees, positive up.</summary>
+        public float LookPitch { get; set; }
+
+        /// <summary>In the avatar root's space; identity looks straight ahead.</summary>
+        public Quaternion Head { get; set; } = Quaternion.identity;
+
+        public float this[AvatarExpression expression]
+        {
+            get => Weights[(int)expression];
+            set => Weights[(int)expression] = value;
+        }
+
+        /// <summary>No expression, eyes ahead, head straight: what a lost face goes back to (avatar detailed design 8.4).</summary>
+        public void SetNeutral()
+        {
+            Array.Clear(Weights, 0, Weights.Length);
+            LookYaw = 0f;
+            LookPitch = 0f;
+            Head = Quaternion.identity;
+        }
+
+        public void CopyFrom(FaceTarget other)
+        {
+            Array.Copy(other.Weights, Weights, Weights.Length);
+            LookYaw = other.LookYaw;
+            LookPitch = other.LookPitch;
+            Head = other.Head;
+        }
+
+        /// <summary>
+        /// Writes into <paramref name="into"/> the target <paramref name="t"/> of the way from
+        /// <paramref name="from"/> to <paramref name="to"/>: weights and gaze linearly, the head along
+        /// the shortest arc. <paramref name="into"/> may be either input. Pure apart from writing the
+        /// caller's buffer, which is reused every frame (CLAUDE.md 15.1, 23).
+        /// </summary>
+        public static void Lerp(FaceTarget from, FaceTarget to, float t, FaceTarget into)
+        {
+            t = Mathf.Clamp01(t);
+            for (int i = 0; i < into.Weights.Length; i++)
+            {
+                into.Weights[i] = Mathf.Lerp(from.Weights[i], to.Weights[i], t);
+            }
+
+            into.LookYaw = Mathf.Lerp(from.LookYaw, to.LookYaw, t);
+            into.LookPitch = Mathf.Lerp(from.LookPitch, to.LookPitch, t);
+            into.Head = Quaternion.Slerp(from.Head, to.Head, t);
+        }
+    }
+}
