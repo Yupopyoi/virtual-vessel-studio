@@ -382,6 +382,8 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             yield return null;
             var card = _root.Shell.Host.GetScreen("setup").Q<AppSettingsCard>();
+            card.Q<Card>().Expanded = true;
+            yield return null;
             VisualElement box = card.Motion.Q(className: SelectField.UssClass + "__box");
             float widthOn = box.worldBound.width;
 
