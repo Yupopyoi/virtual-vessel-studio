@@ -448,7 +448,7 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - Per-frame application (`Avatar/Apply`) targets 0.3 ms or less (measured on the development PC and recorded here).
 - A single frame while loading targets 50 ms or less, so switching avatars during a stream does not visibly freeze the image.
 - SpringBone load depends on the model. It is measured and recorded.
-- Measured (2026-10-20, development PC, `VrmLoaderTests`): with the two VRM 1.0 samples (14 MB, 17 MB), loading took 0.33–0.37 s and the longest frame while loading was 47 ms. Per-frame application (`Avatar/Apply`) is measured from step 4, when Tracking is applied.
+- Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) is measured from step 4, when Tracking is applied.
 
 ---
 
@@ -487,7 +487,7 @@ Assets/VirtualVessel/Avatar/
 | Item | Plan |
 |---|---|
 | Whether to accept VRM 0.x models | Decided: accepted by converting to 1.0 at load (6.8, system design 7.3; user's decision, 2026-10-18) |
-| A VRM model for tests | Checked with the user's samples (outside the repository, in `E:\VirtualVessel\samples\`; two VRM 1.0 models). A 0.x sample is requested to check the 0.x conversion with a real model. If a small model with a license that allows committing exists, use it for automated tests |
+| A VRM model for tests | Checked with the user's samples (outside the repository, in `E:\VirtualVessel\samples\`; two VRM 1.0 models and one 0.x model). After conversion, the 0.x model passed the tests of bones, root-space rotation, expressions, and disposal. If a small model with a license that allows committing exists, use it for automated tests |
 | Models without a thumbnail | "No image" is shown for now. Capturing one at load is considered if wanted |
 | How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
 | Position matching such as touching the face (IK) | Considered together with full body |
