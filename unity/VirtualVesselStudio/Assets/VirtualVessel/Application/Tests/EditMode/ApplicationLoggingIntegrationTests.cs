@@ -168,6 +168,13 @@ namespace VirtualVessel.Application.Tests
             Assert.That(Path.GetDirectoryName(directory), Is.EqualTo(dataRoot.GetDirectory(DataRootDirectory.Logs)));
         }
 
+        [TestCase(RuntimeEnvironment.Editor, @"C:\repo\unity\VirtualVesselStudio\Assets", @"C:\repo")]
+        [TestCase(RuntimeEnvironment.Player, @"C:\Apps\VirtualVesselStudio\VirtualVesselStudio_Data", @"C:\Apps\VirtualVesselStudio")]
+        public void GetCreditFolder_IsTheRepositoryInTheEditor_AndTheApplicationFolderInABuild(RuntimeEnvironment environment, string dataPath, string expected)
+        {
+            Assert.That(ApplicationComposition.GetCreditFolder(environment, dataPath), Is.EqualTo(expected));
+        }
+
         [Test]
         public async Task Runtime_WithRealComposition_WritesFoundationLogsToFile()
         {

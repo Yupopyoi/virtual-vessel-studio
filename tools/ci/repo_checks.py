@@ -13,6 +13,9 @@ Checks the files tracked by git:
   URL must pin a tag (#v1.2.3), and the SBOM records that version.
 * Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
   and the SBOM entry of its package records the same download URL and SHA-256.
+* License files: tools/release/license-files.json maps each shipped license file to its source.
+  Every file an SBOM component names (property virtual-vessel-studio:license-file) is in it, every
+  license file of Assets/ThirdParty is shipped, and sources kept in Git exist.
 
 Run from the repository root:  python tools/ci/repo_checks.py
 Standard library only; Python 3.10 or later.
@@ -37,6 +40,16 @@ PACKAGES_LOCK = "unity/VirtualVesselStudio/Packages/packages-lock.json"
 THIRD_PARTY_ROOT = "unity/VirtualVesselStudio/Assets/ThirdParty"
 WORKFLOWS_DIR = ".github/workflows"
 DEPS_DIR = "tools/deps"
+LICENSE_FILES_PATH = "tools/release/license-files.json"
+LICENSE_FILE_PROPERTY = "virtual-vessel-studio:license-file"
+
+# Sources that are not in Git: fetched by tools/deps or resolved by Unity, so only the build sees them.
+UNTRACKED_SOURCE_ROOTS = (
+    "unity/VirtualVesselStudio/Library/",
+    "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/",
+)
+
+_THIRD_PARTY_LICENSE = re.compile(r"^(OFL|LICENSE|COPYING|NOTICE)", re.IGNORECASE)
 
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 
@@ -291,6 +304,66 @@ def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
     return errors
 
 
+def sbom_license_files(sbom: str) -> dict[str, list[str]]:
+    """The license files each SBOM component names, by bom-ref, including the application itself."""
+    try:
+        document = json.loads(sbom)
+    except json.JSONDecodeError:
+        return {}  # Reported by check_sbom.
+
+    files: dict[str, list[str]] = {}
+    pending = [document.get("metadata", {}).get("component", {})] + list(document.get("components", []))
+    while pending:
+        component = pending.pop()
+        pending.extend(component.get("components", []))
+        names = [p.get("value") for p in component.get("properties", []) if p.get("name") == LICENSE_FILE_PROPERTY]
+        if names:
+            files[component.get("bom-ref", component.get("name", "?"))] = names
+    return files
+
+
+def is_safe_relative_path(path: str) -> bool:
+    """A path inside its root: relative, with forward slashes and no '..', '.', or empty parts."""
+    if not path or path.startswith("/") or "\\" in path or ":" in path:
+        return False
+    return all(part not in ("", ".", "..") for part in path.split("/"))
+
+
+def check_license_files(text: str, sbom_files: Mapping[str, list[str]], tracked: Iterable[str]) -> list[str]:
+    """Problems in tools/release/license-files.json and in the SBOM's references to it."""
+    try:
+        files = json.loads(text).get("files")
+    except (json.JSONDecodeError, AttributeError) as error:
+        return [f"{LICENSE_FILES_PATH} is not a valid JSON object: {error}"]
+    if not isinstance(files, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+        return [f"{LICENSE_FILES_PATH}: 'files' must map package paths to source paths"]
+
+    tracked_set = set(tracked)
+    errors = []
+    for target, source in sorted(files.items()):
+        if not is_safe_relative_path(target):
+            errors.append(f"{LICENSE_FILES_PATH}: {target} must be a relative path inside the package")
+        if not is_safe_relative_path(source):
+            errors.append(f"{LICENSE_FILES_PATH}: the source of {target} must be a relative path inside the repository")
+        elif not source.startswith(UNTRACKED_SOURCE_ROOTS):
+            if "*" in source:
+                errors.append(f"{LICENSE_FILES_PATH}: only sources outside Git may use '*' ({target})")
+            elif source not in tracked_set:
+                errors.append(f"{LICENSE_FILES_PATH}: the source of {target} is not in Git: {source}")
+
+    for reference, names in sorted(sbom_files.items()):
+        for name in names:
+            if name not in files:
+                errors.append(f"SBOM: {reference} names {name}, which {LICENSE_FILES_PATH} does not ship")
+
+    sources = set(files.values())
+    for path in sorted(tracked_set):
+        if posixpath.dirname(posixpath.dirname(path)) == THIRD_PARTY_ROOT and not path.endswith(".meta"):
+            if _THIRD_PARTY_LICENSE.match(posixpath.basename(path)) and path not in sources:
+                errors.append(f"{LICENSE_FILES_PATH}: {path} is not shipped")
+    return errors
+
+
 def tracked_files(repository: Path) -> list[str]:
     output = subprocess.run(
         ["git", "ls-files", "-z"], cwd=repository, check=True, capture_output=True
@@ -337,6 +410,11 @@ def run(repository: Path) -> list[str]:
         sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
         errors += check_sbom(sbom, required)
         errors += check_pinned_sbom(sbom, manifests)
+        if LICENSE_FILES_PATH in tracked:
+            license_files = (repository / LICENSE_FILES_PATH).read_text(encoding="utf-8")
+            errors += check_license_files(license_files, sbom_license_files(sbom), tracked)
+        else:
+            errors.append(f"Missing {LICENSE_FILES_PATH}")
     else:
         errors.append(f"Missing {SBOM_PATH}")
 

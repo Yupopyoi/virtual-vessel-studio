@@ -11,7 +11,8 @@ in GitHub's hosted CI yet. In order:
    plugin and models in place (tools/deps).
 3. Runs the Unity EditMode and PlayMode tests (tools/unity/run-tests.ps1), unless -SkipTests.
 4. Builds the Windows player with the build identifier v<version>+<commit>.
-5. Adds LICENSE, NOTICE, TRADEMARKS.md, the third-party licenses, and the SBOM.
+5. Adds TRADEMARKS.md and the files of tools/release/license-files.json: LICENSE, NOTICE, the
+   third-party licenses, and the SBOM.
 6. Writes VirtualVesselStudio-v<version>-win-x64.zip and SHA256SUMS.txt to build/release.
 7. With -Upload, uploads both to the draft GitHub Release of tag v<version>, creating the draft if
    the Release workflow has not. The tag must already be on GitHub; publishing stays a manual step.
@@ -91,31 +92,25 @@ if ($process.ExitCode -ne 0)
     throw "The Unity build failed (exit code $($process.ExitCode)). See $log."
 }
 
-# 5. Licenses and the SBOM travel with the application.
-Copy-Item (Join-Path $repository 'LICENSE'), (Join-Path $repository 'NOTICE'), (Join-Path $repository 'TRADEMARKS.md') $stage
-$licenses = New-Item -ItemType Directory -Force (Join-Path $stage 'licenses')
-Get-ChildItem (Join-Path $project 'Assets\ThirdParty') -Directory | ForEach-Object {
-    Get-ChildItem $_.FullName -File | Where-Object { $_.Name -match '^(OFL|LICENSE|COPYING|NOTICE)' -and $_.Extension -ne '.meta' } | ForEach-Object {
-        Copy-Item $_.FullName (Join-Path $licenses "$($_.Directory.Name)-$($_.Name)")
-    }
-}
-Copy-Item (Join-Path $repository 'sbom\virtual-vessel-studio.cdx.json') $licenses
-
-# MediaPipeUnityPlugin and the libraries built into its native library (tracking detailed design 16.2).
-$mediapipe = Join-Path $project 'Packages\com.github.homuler.mediapipe'
-Copy-Item (Join-Path $mediapipe 'LICENSE.md') (Join-Path $licenses 'MediaPipeUnityPlugin-LICENSE.md')
-Copy-Item (Join-Path $mediapipe 'Third Party Notices.md') (Join-Path $licenses 'MediaPipeUnityPlugin-Third-Party-Notices.md')
-
-# UniVRM (avatar detailed design 16). Its VRM-1.0 package has no license file of its own, so the
-# repository's license is kept in tools/release/licenses; UniGLTF's comes from the resolved package.
-Copy-Item (Join-Path $PSScriptRoot 'licenses\*') $licenses
-$uniGltf = Get-ChildItem (Join-Path $project 'Library\PackageCache') -Directory -Filter 'com.vrmc.gltf@*' | Select-Object -First 1
-if ($null -eq $uniGltf)
+# 5. Licenses and the SBOM travel with the application. license-files.json lists them, the same list
+# the credits on the settings screen read (docs/<lang>/ui/screens/setup.md 8). Sources under
+# Library/PackageCache carry a package hash, so they are matched with '*', and must match exactly once.
+# UniVRM's VRM-1.0 package has no license file of its own, so the UniVRM repository's license is kept
+# in tools/release/licenses.
+Copy-Item (Join-Path $repository 'TRADEMARKS.md') $stage
+$licenseFiles = (Get-Content (Join-Path $PSScriptRoot 'license-files.json') -Raw | ConvertFrom-Json).files
+foreach ($entry in $licenseFiles.PSObject.Properties)
 {
-    throw 'UniGLTF is missing from Library/PackageCache; the build should have resolved it.'
-}
+    $sources = @(Get-Item -Path (Join-Path $repository $entry.Value) -ErrorAction SilentlyContinue)
+    if ($sources.Count -ne 1)
+    {
+        throw "License file $($entry.Name): $($entry.Value) matched $($sources.Count) files; the build should have resolved exactly one."
+    }
 
-Copy-Item (Join-Path $uniGltf.FullName 'LICENSE.md') (Join-Path $licenses 'UniGLTF-LICENSE.md')
+    $target = Join-Path $stage $entry.Name
+    New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
+    Copy-Item -LiteralPath $sources[0].FullName $target
+}
 
 # Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
 Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force

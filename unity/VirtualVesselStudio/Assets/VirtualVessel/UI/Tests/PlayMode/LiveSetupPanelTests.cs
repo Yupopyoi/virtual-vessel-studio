@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -12,6 +13,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
 
@@ -40,7 +42,7 @@ namespace VirtualVessel.UI.Tests
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking, credits: new FakeCredits()));
             yield return null;
         }
 
@@ -74,12 +76,20 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             VisualElement screen = _root.Shell.Host.GetScreen("setup");
             List<Card> cards = screen.Query<Card>().ToList();
-            Assert.That(cards.Count, Is.EqualTo(4), "Two capture Cards, tracking, and the app settings.");
+            Assert.That(cards.Count, Is.EqualTo(5), "Two capture Cards, tracking, the app settings, and the credits.");
             foreach (Card each in cards)
             {
                 Assert.That(each.Collapsible, Is.True);
                 Assert.That(each.Expanded, Is.False, "Each start begins closed; nothing is saved.");
                 Assert.That(each.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            }
+
+            // Measured on the real styles: everything on the screen keeps M (16px) from the next, whichever module built it.
+            List<VisualElement> items = screen.Children().ToList();
+            for (int i = 1; i < items.Count; i++)
+            {
+                float gap = items[i].worldBound.yMin - items[i - 1].worldBound.yMax;
+                Assert.That(gap, Is.EqualTo(16f).Within(0.5f), $"Between {items[i - 1].GetType().Name} and {items[i].GetType().Name}.");
             }
 
             CaptureSourceCard capture = screen.Q<CaptureSourceCard>();
@@ -97,6 +107,33 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(card.Expanded, Is.False, "Enter or Space on the focused title closes it again.");
             Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
+        public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            CreditsCard credits = _root.Shell.Host.GetScreen("setup").Q<CreditsCard>();
+            Assert.That(credits.parent.Children().Last(), Is.SameAs(credits), "The credits come last.");
+            Assert.That(credits.Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "App", "Plugin", "Inside", "Tool part" }));
+            Assert.That(credits.Rows[2].Row.ClassListContains(CreditsCard.NestedClass), Is.True, "A component built into another is indented.");
+            Assert.That(credits.Rows[2].Toggle, Is.Null, "No full text, no button.");
+
+            CreditsCard.CreditRow plugin = credits.Rows[1];
+            Assert.That(plugin.Shown, Is.False);
+            Assert.That(plugin.Text.Query<Label>().ToList(), Is.Empty, "Texts are read when first shown.");
+            Submit(plugin.Toggle);
+            yield return null;
+            Assert.That(plugin.Shown, Is.True);
+            Assert.That(plugin.Toggle.TextKey, Is.EqualTo(CreditStrings.Hide));
+            List<Label> labels = plugin.Text.Query<Label>().ToList();
+            Assert.That(labels.Select(label => label.text), Is.EqualTo(new[] { "licenses/a.md", "<b>MIT</b> text", "licenses/gone.md", _root.Localizer.Get(CreditStrings.Missing) }), "Each file is named when there are several; a missing one says so.");
+            Assert.That(labels[1].enableRichText, Is.False, "License texts are shown as written.");
+
+            Submit(plugin.Toggle);
+            Assert.That(plugin.Shown, Is.False);
+            Assert.That(plugin.Toggle.TextKey, Is.EqualTo(CreditStrings.Show));
         }
 
         [UnityTest]
@@ -248,6 +285,29 @@ namespace VirtualVessel.UI.Tests
             {
                 evt.target = target;
                 target.SendEvent(evt);
+            }
+        }
+
+        private sealed class FakeCredits : ICreditFiles
+        {
+            private readonly Dictionary<string, string> _files = new Dictionary<string, string>
+            {
+                [CreditFiles.SbomPath] = @"{ ""bomFormat"": ""CycloneDX"",
+                    ""metadata"": { ""component"": { ""name"": ""App"", ""version"": ""0.1.0"", ""licenses"": [ { ""license"": { ""id"": ""Apache-2.0"" } } ] } },
+                    ""components"": [
+                        { ""name"": ""Plugin"", ""version"": ""1.0"", ""licenses"": [ { ""license"": { ""id"": ""MIT"" } } ],
+                          ""properties"": [
+                            { ""name"": ""virtual-vessel-studio:license-file"", ""value"": ""licenses/a.md"" },
+                            { ""name"": ""virtual-vessel-studio:license-file"", ""value"": ""licenses/gone.md"" } ],
+                          ""components"": [ { ""name"": ""Inside"" } ] },
+                        { ""name"": ""Tool"", ""scope"": ""excluded"" },
+                        { ""name"": ""Tool part"" } ] }",
+                ["licenses/a.md"] = "<b>MIT</b> text",
+            };
+
+            public string ReadText(string packagePath)
+            {
+                return _files.TryGetValue(packagePath, out string text) ? text : null;
             }
         }
 

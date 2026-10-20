@@ -3,7 +3,7 @@
   "specVersion": "1.6",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-19T00:00:00Z",
+    "timestamp": "2026-10-20T00:00:00Z",
     "component": {
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
@@ -14,6 +14,16 @@
           "license": {
             "id": "Apache-2.0"
           }
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "LICENSE"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "NOTICE"
         }
       ]
     }
@@ -67,6 +77,16 @@
         }
       ],
       "description": "Camera tracking (tracking detailed design 16.2). Not in Git: tools/deps/fetch-mediapipe.ps1 fetches the pinned release (tools/deps/mediapipe.json) as an embedded package. Its native library bundles the components in its 'Third Party Notices.md' (Abseil, OpenCV, Protocol Buffers, TensorFlow Lite, XNNPACK, and others, all permissive), which the release package includes.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/MediaPipeUnityPlugin-LICENSE.md"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+        }
+      ],
       "components": [
         {
           "type": "library",
@@ -84,7 +104,13 @@
             }
           ],
           "scope": "required",
-          "description": "Built into the plugin's mediapipe_c.dll."
+          "description": "Built into the plugin's mediapipe_c.dll.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
         },
         {
           "type": "library",
@@ -102,7 +128,13 @@
             }
           ],
           "scope": "required",
-          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe."
+          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
         },
         {
           "type": "library",
@@ -120,7 +152,13 @@
             }
           ],
           "scope": "required",
-          "description": "Managed protocol buffers, shipped in the plugin's Runtime/Plugins/Protobuf and used by its task API."
+          "description": "Managed protocol buffers, shipped in the plugin's Runtime/Plugins/Protobuf and used by its task API.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
         },
         {
           "type": "library",
@@ -138,7 +176,13 @@
             }
           ],
           "scope": "required",
-          "description": "A dependency of Google.Protobuf, shipped in the plugin's Runtime/Plugins/Protobuf. The version is the file version."
+          "description": "A dependency of Google.Protobuf, shipped in the plugin's Runtime/Plugins/Protobuf. The version is the file version.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
         }
       ]
     },
@@ -391,6 +435,12 @@
               "type": "website",
               "url": "https://www.newtonsoft.com/json"
             }
+          ],
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/Newtonsoft.Json-Third-Party-Notices.md"
+            }
           ]
         }
       ]
@@ -627,7 +677,13 @@
           "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
         }
       ],
-      "description": "glTF loading for VRM (avatar detailed design 16). Includes UniJSON, UniHumanoid, and UniUnlit. Its LICENSE.md and UniVRM's LICENSE.txt (tools/release/licenses) go into the release package."
+      "description": "glTF loading for VRM (avatar detailed design 16). Includes UniJSON, UniHumanoid, and UniUnlit. Its LICENSE.md and UniVRM's LICENSE.txt (tools/release/licenses) go into the release package.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/UniGLTF-LICENSE.md"
+        }
+      ]
     },
     {
       "type": "library",
@@ -652,7 +708,13 @@
           "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
         }
       ],
-      "description": "VRM 1.0 loading, VRM 0.x conversion, control rig, expressions, SpringBone, and the MToon 1.0 shaders (avatar detailed design 16). Used only by the VirtualVessel.Avatar.Vrm assembly. Copyright VRM Consortium and Masataka SUMI (MToon)."
+      "description": "VRM 1.0 loading, VRM 0.x conversion, control rig, expressions, SpringBone, and the MToon 1.0 shaders (avatar detailed design 16). Used only by the VirtualVessel.Avatar.Vrm assembly. Copyright VRM Consortium and Masataka SUMI (MToon).",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/UniVRM-LICENSE.txt"
+        }
+      ]
     },
     {
       "type": "file",
@@ -675,6 +737,12 @@
         {
           "type": "vcs",
           "url": "https://github.com/notofonts/noto-cjk"
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/NotoSansJP-OFL.txt"
         }
       ]
     },
@@ -699,6 +767,12 @@
         {
           "type": "vcs",
           "url": "https://github.com/notofonts/latin-greek-cyrillic"
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/NotoSansMono-OFL.txt"
         }
       ]
     },
