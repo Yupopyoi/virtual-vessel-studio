@@ -84,6 +84,14 @@ namespace VirtualVessel.UI.Tests
                 Assert.That(each.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
             }
 
+            // Measured on the real styles: everything on the screen keeps M (16px) from the next, whichever module built it.
+            List<VisualElement> items = screen.Children().ToList();
+            for (int i = 1; i < items.Count; i++)
+            {
+                float gap = items[i].worldBound.yMin - items[i - 1].worldBound.yMax;
+                Assert.That(gap, Is.EqualTo(16f).Within(0.5f), $"Between {items[i - 1].GetType().Name} and {items[i].GetType().Name}.");
+            }
+
             CaptureSourceCard capture = screen.Q<CaptureSourceCard>();
             Card card = capture.Q<Card>();
             Assert.That(capture.Status.parent, Is.SameAs(card.HeaderEnd), "The state shows while the Card is closed.");
