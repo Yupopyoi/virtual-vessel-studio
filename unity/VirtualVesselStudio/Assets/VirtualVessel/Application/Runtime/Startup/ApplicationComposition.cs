@@ -5,6 +5,8 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Avatar;
+using VirtualVessel.Avatar.Vrm;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
@@ -219,6 +221,18 @@ namespace VirtualVessel.Application.Startup
                     new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
             }
 
+            // Avatar puts the chosen avatar on the stream (avatar detailed design 8.1): on Video's avatar
+            // layer at Stage's spawn point, so it needs both. Optional: without it the stream has no avatar.
+            AvatarService avatar = null;
+            if (context.MainCamera != null && context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    AvatarService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => avatar = CreateAvatar(context, video, stage, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
+                    new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName }));
+            }
+
             // The UI comes last so that it is built after every service it shows has started, and it
             // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
             if (context.UiRoot != null && context.ConfigDirectory != null)
@@ -271,6 +285,27 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        private static AvatarService CreateAvatar(ApplicationCompositionContext context, VideoService video, StageService stage, IPerformanceMetrics metrics, ILog log)
+        {
+            ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            ConfigLoadResult<AvatarSettings> loaded = store.Load();
+            log?.Information($"Avatar settings {loaded.Status} from {store.FilePath}.");
+            var saves = new ConfigSaveScheduler<AvatarSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the avatar settings to {store.FilePath}.", failure));
+
+            // UniVRM stays behind VrmAvatarLoader; the rest of Avatar sees only IAvatarLoader (avatar detailed design 3).
+            return new AvatarService(
+                new VrmAvatarLoader(),
+                new AvatarStore(context.DataRoot.GetDirectory(DataRootDirectory.Avatars), context.SystemClock),
+                loaded.Value,
+                saves,
+                () => new AvatarPlacement(video.AvatarLayer, stage.SpawnPoints.Default),
+                context.FrameLoop,
+                context.MonotonicClock,
+                context.SystemClock,
+                metrics,
+                log);
         }
 
         private static TrackingService CreateTracking(ApplicationCompositionContext context, CaptureService capture, IPerformanceMetrics metrics, ILog log)

@@ -2,6 +2,8 @@
     "name": "VirtualVessel.Application",
     "rootNamespace": "VirtualVessel.Application",
     "references": [
+        "VirtualVessel.Avatar",
+        "VirtualVessel.Avatar.Vrm",
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
