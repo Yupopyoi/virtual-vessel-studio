@@ -10,13 +10,14 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Tracking;
 
 namespace VirtualVessel.Avatar
 {
     /// <summary>
     /// The registered avatars and the one on the stream (avatar detailed design 8.1): lists the avatar
-    /// folders, loads the chosen avatar at startup without holding startup up, places it, and runs it
-    /// every frame. An Optional application service; without it the stream has no avatar.
+    /// folders, loads the chosen avatar at startup without holding startup up, places it, and drives it
+    /// from tracking every frame. An Optional application service; without it the stream has no avatar.
     /// </summary>
     /// <remarks>Main thread only; file work runs on other threads.</remarks>
     public sealed class AvatarService : IApplicationService, IAvatarService
@@ -31,6 +32,8 @@ namespace VirtualVessel.Avatar
         private readonly IFrameLoop _frameLoop;
         private readonly IMonotonicClock _clock;
         private readonly ILog _log;
+        private readonly ITrackingSource _tracking;
+        private readonly ExpressionMapping _mapping;
         private readonly ObservableValue<IReadOnlyList<AvatarEntry>> _avatars = new ObservableValue<IReadOnlyList<AvatarEntry>>(Array.Empty<AvatarEntry>());
         private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
         private readonly ObservableValue<AvatarState> _state = new ObservableValue<AvatarState>(AvatarState.None);
@@ -41,6 +44,7 @@ namespace VirtualVessel.Avatar
         private readonly PerfTimer _loadFrameTimer;
         private AvatarSettings _settings;
         private IAvatarModel _model;
+        private AvatarController _controller;
         private CancellationTokenSource _loading;
         private string _loadingId;
         private int _generation;
@@ -50,6 +54,7 @@ namespace VirtualVessel.Avatar
 
         /// <param name="placement">Where the avatar goes; asked each time one is placed.</param>
         /// <param name="saves">Where changes of the avatar in use go; null to save nothing, as in tests.</param>
+        /// <param name="tracking">What moves the avatar; null leaves it in its rest pose with a neutral face.</param>
         public AvatarService(
             IAvatarLoader loader,
             AvatarStore store,
@@ -60,7 +65,8 @@ namespace VirtualVessel.Avatar
             IMonotonicClock clock,
             ISystemClock systemClock,
             IPerformanceMetrics metrics,
-            ILog log)
+            ILog log,
+            ITrackingSource tracking = null)
         {
             _loader = loader ?? throw new ArgumentNullException(nameof(loader));
             _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -70,6 +76,8 @@ namespace VirtualVessel.Avatar
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _log = log;
+            _tracking = tracking;
+            _mapping = ExpressionMapping.Default;
             _importer = new AvatarImporter(store, loader, systemClock, log);
             _applyTimer = metrics?.Timer("Avatar", "Apply");
             _loadTimer = metrics?.Timer("Avatar", "Load");
@@ -90,6 +98,9 @@ namespace VirtualVessel.Avatar
 
         /// <summary>The avatar on the stream, or null; for tests.</summary>
         internal IAvatarModel Model => _model;
+
+        /// <summary>What drives the avatar on the stream, or null; for tests.</summary>
+        internal AvatarController Controller => _controller;
 
         /// <summary>Creates the store of avatar-settings.json in the settings folder.</summary>
         public static ConfigFileStore<AvatarSettings> CreateStore(string configDirectory, ISystemClock clock)
@@ -256,6 +267,7 @@ namespace VirtualVessel.Avatar
                 Place(model, _placement());
                 IAvatarModel old = _model;
                 _model = model;
+                _controller = new AvatarController(model, _mapping);
                 model = null;
                 old?.Dispose();
                 SetCurrent(avatarId);
@@ -393,7 +405,10 @@ namespace VirtualVessel.Avatar
             _lastFrame = now;
             if (_model != null)
             {
+                // Tracking registers with the frame loop before Avatar, so its frame is this frame's.
                 long begin = _applyTimer?.Begin() ?? 0;
+                bool mirror = _tracking?.Options.Value.Mirror ?? true;
+                _controller.Update(_tracking?.Current, mirror, now / (double)_clock.Frequency);
                 _model.Apply();
                 _applyTimer?.End(begin);
             }
@@ -412,6 +427,7 @@ namespace VirtualVessel.Avatar
         {
             IAvatarModel model = _model;
             _model = null;
+            _controller = null;
             model?.Dispose();
         }
 

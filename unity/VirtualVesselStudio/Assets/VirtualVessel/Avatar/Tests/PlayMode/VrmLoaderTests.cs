@@ -10,6 +10,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Avatar.Vrm;
+using VirtualVessel.Tracking;
 
 namespace VirtualVessel.Avatar.Tests
 {
@@ -90,6 +91,59 @@ namespace VirtualVessel.Avatar.Tests
                 model.Apply();
 
                 Assert.That(TotalBlendShapeWeight(renderers), Is.GreaterThan(before));
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget([ValueSource(nameof(Samples))] string sample)
+        {
+            var load = new LoadResult();
+            yield return Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                Transform head = model.Root.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
+                Quaternion rest = head.rotation;
+                SkinnedMeshRenderer[] renderers = model.Root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                float before = TotalBlendShapeWeight(renderers);
+
+                // The person turns 30 degrees to their right, closes both eyes, and opens the mouth.
+                var frame = new TrackingFrame();
+                frame.Face.Status = TrackingStatus.Tracked;
+                frame.Face.Timestamp = 1.0;
+                frame.Face.HeadRotation = Quaternion.AngleAxis(30f, Vector3.up);
+                frame.Face[FaceShape.EyeBlinkLeft] = 0.9f;
+                frame.Face[FaceShape.EyeBlinkRight] = 0.9f;
+                frame.Face[FaceShape.JawOpen] = 0.8f;
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+                model.Apply();
+
+                // The avatar faces +Z with its right at +X, so turning to its own right is +30 degrees around Y.
+                float error = Quaternion.Angle(head.rotation * Quaternion.Inverse(rest), Quaternion.AngleAxis(30f, Vector3.up));
+                Assert.That(error, Is.LessThan(2f), "The head turned to the avatar's own right.");
+                Assert.That(TotalBlendShapeWeight(renderers), Is.GreaterThan(before), "The eyes and mouth moved.");
+
+                // Per-frame cost of the face and of UniVRM's update, secondary motion included (avatar detailed design 15).
+                const int Frames = 300;
+                var times = new double[Frames];
+                var watch = new Stopwatch();
+                for (int i = 0; i < Frames; i++)
+                {
+                    // 30 observations a second at 60 frames: a new one every other frame.
+                    frame.Face.Timestamp = 2.0 + ((i / 2) / 30.0);
+                    frame.Face.HeadRotation = Quaternion.AngleAxis(20f * Mathf.Sin(i * 0.1f), Vector3.up);
+                    frame.Face[FaceShape.JawOpen] = 0.5f + (0.5f * Mathf.Sin(i * 0.3f));
+                    watch.Restart();
+                    controller.Update(frame, mirror: true, now: 2.0 + (i / 60.0));
+                    model.Apply();
+                    times[i] = watch.Elapsed.TotalMilliseconds;
+                }
+
+                Array.Sort(times);
+                double median = times[Frames / 2];
+                UnityEngine.Debug.Log($"[Avatar/Apply] {sample}: median {median:F3} ms, 95th {times[Frames * 95 / 100]:F3} ms, max {times[Frames - 1]:F3} ms");
+                Assert.That(median, Is.LessThan(1.0), "Far over the 0.3 ms target; see avatar detailed design 15.");
             }
         }
 
