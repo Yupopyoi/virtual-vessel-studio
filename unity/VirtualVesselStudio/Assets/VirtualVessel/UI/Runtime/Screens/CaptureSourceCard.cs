@@ -69,7 +69,7 @@ namespace VirtualVessel.UI.Screens
             Add(card);
 
             Status = Ui.Chip(StatusKind.Idle, CaptureStrings.Stopped);
-            card.Add(Status);
+            card.HeaderEnd.Add(Status);
             _problem = new Label();
             _problem.AddToClassList(ProblemClass);
             _problem.AddToClassList("vv-text-body");

@@ -163,7 +163,7 @@ Each part in `components.md` is implemented as a class derived from `VisualEleme
 | Numeric Field | `NumberInput` | `<vv:NumberInput label-key="audio.sampleRate" unit="Hz" />` |
 | Tab | `TabBar` | `<vv:TabBar />` |
 | Setting Row | `SettingRow` | `<vv:SettingRow name-key="audio.noise" description-key="audio.noise.desc">…</vv:SettingRow>` |
-| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>` |
+| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>`; a collapsible card adds `collapsible="true" expanded="false"` |
 | Dialog | `ConfirmDialog` | Shown from C# with `ConfirmAsync` (6.4) |
 | Status Indicator | `StatusChip` | `<vv:StatusChip status="Success" text-key="trk.good" />` |
 | Notification | `Notice` | Shown from C# through `NotificationService` |

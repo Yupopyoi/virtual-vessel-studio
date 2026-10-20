@@ -68,6 +68,38 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Setup_CardsStartClosed_ShowTheirStateInTheTitle_AndTheTitleOpensThem()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            VisualElement screen = _root.Shell.Host.GetScreen("setup");
+            List<Card> cards = screen.Query<Card>().ToList();
+            Assert.That(cards.Count, Is.EqualTo(4), "Two capture Cards, tracking, and the app settings.");
+            foreach (Card each in cards)
+            {
+                Assert.That(each.Collapsible, Is.True);
+                Assert.That(each.Expanded, Is.False, "Each start begins closed; nothing is saved.");
+                Assert.That(each.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            }
+
+            CaptureSourceCard capture = screen.Q<CaptureSourceCard>();
+            Card card = capture.Q<Card>();
+            Assert.That(capture.Status.parent, Is.SameAs(card.HeaderEnd), "The state shows while the Card is closed.");
+            Assert.That(screen.Q<TrackingCard>().Status.parent, Is.SameAs(screen.Q<TrackingCard>().Q<Card>().HeaderEnd));
+
+            Click(card.Header);
+            yield return null;
+            Assert.That(card.Expanded, Is.True, "A click on the title opens the Card.");
+            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(cards[1].Expanded, Is.False, "Each Card opens on its own.");
+
+            Submit(card.Header);
+            yield return null;
+            Assert.That(card.Expanded, Is.False, "Enter or Space on the focused title closes it again.");
+            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
         public IEnumerator TheCardsControls_GoToTheSource_AndFollowIt()
         {
             _root.Shell.Open("setup");
@@ -192,6 +224,31 @@ namespace VirtualVessel.UI.Tests
             Assert.That(CaptureSourceCard.Describe(CaptureState.Unavailable, CaptureProblem.MonitorNotFound), Is.EqualTo((StatusKind.Warning, CaptureStrings.NotFound, CaptureStrings.ProblemNotFound)));
             Assert.That(CaptureSourceCard.Describe(CaptureState.Error, CaptureProblem.PluginMissing), Is.EqualTo((StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemFailed)), "Users see a missing plugin as a failure.");
             Assert.That(CaptureSourceCard.InfoText(default), Is.EqualTo("—"));
+        }
+
+        private static void Click(VisualElement target)
+        {
+            Pointer(target, EventType.MouseDown);
+            Pointer(target, EventType.MouseUp);
+        }
+
+        private static void Pointer(VisualElement target, EventType type)
+        {
+            var system = new Event { type = type, mousePosition = target.worldBound.center, button = 0, clickCount = 1 };
+            using (EventBase evt = type == EventType.MouseDown ? PointerDownEvent.GetPooled(system) : PointerUpEvent.GetPooled(system))
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
+        private static void Submit(VisualElement target)
+        {
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
         }
 
         private class FakeDeviceSource : ICaptureDeviceSource

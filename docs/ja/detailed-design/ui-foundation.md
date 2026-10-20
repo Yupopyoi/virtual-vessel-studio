@@ -163,7 +163,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Numeric Field | `NumberInput` | `<vv:NumberInput label-key="audio.sampleRate" unit="Hz" />` |
 | Tab | `TabBar` | `<vv:TabBar />` |
 | Setting Row | `SettingRow` | `<vv:SettingRow name-key="audio.noise" description-key="audio.noise.desc">…</vv:SettingRow>` |
-| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>` |
+| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>`。折りたためるCardは`collapsible="true" expanded="false"` |
 | Dialog | `ConfirmDialog` | C#から`ConfirmAsync`で表示（6.4） |
 | Status Indicator | `StatusChip` | `<vv:StatusChip status="Success" text-key="trk.good" />` |
 | Notification | `Notice` | C#から`NotificationService`で表示 |

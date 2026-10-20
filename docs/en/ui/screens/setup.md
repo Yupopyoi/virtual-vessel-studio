@@ -17,6 +17,8 @@ Cards stacked from the top:
 5. App settings
 
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
+- Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
+- The state (Status Indicator) sits at the right end of the Card's title band, so it shows while the Card is closed. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
 

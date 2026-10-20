@@ -137,6 +137,33 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void Card_Collapsible_HidesOnlyTheBody_WhileClosed()
+        {
+            var card = new Card("voice.title");
+            card.Expanded = false;
+            Assert.That(card.contentContainer.style.display.value, Is.EqualTo(DisplayStyle.Flex), "A Card that is not collapsible always shows its body.");
+            Assert.That(card.Header.focusable, Is.False);
+
+            card.Collapsible = true;
+            Assert.That(card.contentContainer.style.display.value, Is.EqualTo(DisplayStyle.None));
+            Assert.That(card.ClassListContains(Card.CollapsedClass), Is.True);
+            Assert.That(card.Header.focusable, Is.True, "The title takes keyboard focus to open and close.");
+
+            card.Expanded = true;
+            Assert.That(card.contentContainer.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(card.ClassListContains(Card.CollapsedClass), Is.False);
+        }
+
+        [TestCase(false, false, true)]
+        [TestCase(false, true, true)]
+        [TestCase(true, false, false)]
+        [TestCase(true, true, true)]
+        public void Card_IsBodyShown(bool collapsible, bool expanded, bool shown)
+        {
+            Assert.That(Card.IsBodyShown(collapsible, expanded), Is.EqualTo(shown));
+        }
+
+        [Test]
         public void FocusRing_OnlyForKeyboardDirections()
         {
             Assert.That(FocusRing.IsFromKeyboard(FocusChangeDirection.unspecified), Is.False);

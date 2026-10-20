@@ -9,7 +9,7 @@ namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The setup screen: a capture Card per source shown on the stream, the tracking Card, the avatar
-    /// Card, then the app settings (docs/&lt;lang&gt;/ui/screens/setup.md).
+    /// Card, then the app settings (docs/&lt;lang&gt;/ui/screens/setup.md), each closed until opened.
     /// </summary>
     public sealed class SetupScreen : VisualElement
     {
@@ -60,6 +60,21 @@ namespace VirtualVessel.UI.Screens
             {
                 Add(appSettings);
             }
+
+            CloseCards(this);
+        }
+
+        /// <summary>
+        /// Makes every Card under <paramref name="screen"/> collapsible and closes it, so the screen
+        /// starts as a short list of titles and states (setup.md 2). Not saved: each start is closed.
+        /// </summary>
+        private static void CloseCards(VisualElement screen)
+        {
+            screen.Query<Card>().ForEach(card =>
+            {
+                card.Collapsible = true;
+                card.Expanded = false;
+            });
         }
 
         /// <summary>The Card title of a source. Pure.</summary>
