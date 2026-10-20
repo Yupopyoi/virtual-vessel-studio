@@ -166,3 +166,40 @@ class DocPairTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LicenseFileTests(unittest.TestCase):
+    MAP = """{ "files": {
+        "LICENSE": "LICENSE",
+        "licenses/Font-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt",
+        "licenses/Pkg-LICENSE.md": "unity/VirtualVesselStudio/Library/PackageCache/com.example@*/LICENSE.md"
+    } }"""
+    TRACKED = ["LICENSE", "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt", "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt.meta"]
+
+    def test_a_complete_map_passes(self):
+        sbom_files = {"app": ["LICENSE"], "asset:Font": ["licenses/Font-OFL.txt"], "pkg": ["licenses/Pkg-LICENSE.md"]}
+        self.assertEqual(repo_checks.check_license_files(self.MAP, sbom_files, self.TRACKED), [])
+
+    def test_the_sbom_names_a_file_that_is_not_shipped(self):
+        errors = repo_checks.check_license_files(self.MAP, {"pkg": ["licenses/Other.md"]}, self.TRACKED)
+        self.assertEqual(errors, ["SBOM: pkg names licenses/Other.md, which tools/release/license-files.json does not ship"])
+
+    def test_a_third_party_license_must_be_shipped(self):
+        tracked = self.TRACKED + ["unity/VirtualVesselStudio/Assets/ThirdParty/Icons/LICENSE.txt"]
+        errors = repo_checks.check_license_files(self.MAP, {}, tracked)
+        self.assertEqual(errors, ["tools/release/license-files.json: unity/VirtualVesselStudio/Assets/ThirdParty/Icons/LICENSE.txt is not shipped"])
+
+    def test_sources_in_git_must_exist_and_paths_stay_inside(self):
+        text = """{ "files": { "NOTICE": "NOTICE", "../x": "LICENSE", "licenses/a": "docs/*.md" } }"""
+        errors = repo_checks.check_license_files(text, {}, ["LICENSE"])
+        self.assertEqual(errors, [
+            "tools/release/license-files.json: ../x must be a relative path inside the package",
+            "tools/release/license-files.json: the source of NOTICE is not in Git: NOTICE",
+            "tools/release/license-files.json: only sources outside Git may use '*' (licenses/a)",
+        ])
+
+    def test_sbom_license_files_include_the_application_and_nested_components(self):
+        sbom = """{ "metadata": { "component": { "bom-ref": "app", "properties": [ { "name": "virtual-vessel-studio:license-file", "value": "LICENSE" } ] } },
+            "components": [ { "bom-ref": "a", "components": [ { "bom-ref": "b", "properties": [
+                { "name": "virtual-vessel-studio:license-file", "value": "licenses/b.txt" }, { "name": "other", "value": "x" } ] } ] } ] }"""
+        self.assertEqual(repo_checks.sbom_license_files(sbom), {"app": ["LICENSE"], "b": ["licenses/b.txt"]})

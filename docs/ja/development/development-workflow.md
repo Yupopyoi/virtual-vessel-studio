@@ -888,6 +888,7 @@ PR CIが失敗している変更は原則Mergeしない。
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
 | SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
 | 取得して使う依存 | `tools/deps/*.json`に、Package名、版、`https`のダウンロード先、SHA-256（モデル等の中身のHashも）があること |
+| ライセンスのファイル | `tools/release/license-files.json`が、配布物に入れるライセンスのファイルと、その元のファイルを対応づけていること。SBOMの項目が挙げるファイル（18.1.2）がすべてそこにあること。`Assets/ThirdParty`のライセンスのファイルがすべて配布されること。Gitで管理する元のファイルが存在すること |
 
 - 確認はgitで追跡しているファイルに対して行う。手元にだけあるファイルは対象にしないため、コミットし忘れや`.meta`の抜けを見つけられる。
 - 確認処理は`tools/ci/repo_checks.py`にあり、確認処理自体の単体テスト（`tools/ci/test_repo_checks.py`）もCIで実行する。
@@ -910,6 +911,9 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 - 追加、更新、削除と同じ変更でSBOMを直す。
 - 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
 - Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
+- 配布物に含まれる項目には、その項目に当てはまるライセンスの全文のファイルを、Property `virtual-vessel-studio:license-file`で挙げる（値は配布物の中のパス。例：`licenses/UniGLTF-LICENSE.md`）。1つの項目に複数のファイルを挙げてよく、複数の項目が同じファイルを挙げてもよい。アプリ自身（`metadata.component`）は`LICENSE`と`NOTICE`を挙げる。
+- 挙げたファイルは`tools/release/license-files.json`に、配布物の中のパスと、リポジトリの中の元のファイルの組で書く。Gitに入らない元のファイル（Unityが展開するPackage、取得して使うPackage）は、Packageのハッシュの部分を`*`で書ける。リリースの手順（21章）は、この表のとおりにファイルを配布物へ写す。設定画面のクレジット（`docs/ja/ui/screens/setup.md` 8章）は、SBOMとこれらのファイルを読んで表示する。
+- Unity Package（Unity Companion License等）、Unity本体、Microsoft C/C++ Runtimeのように、配布に全文の同梱を求めないものは、ファイルを挙げずにライセンスの名前だけを載せる。
 
 ## 18.2 Release Build
 
@@ -1059,7 +1063,7 @@ flowchart LR
 6. 下書きの内容を確かめ、GitHub上で手で公開する。
 
 - ReleaseのBuildは、Build識別子`vX.Y.Z+<commit>`を`StreamingAssets/build-id.txt`に書く。Applicationは起動時にそれを読み、Logと診断に出す（方式設計5.29）。開発中のBuildやEditorでは`development`となる。
-- Packageには、`LICENSE`、`NOTICE`、`TRADEMARKS.md`、`Assets/ThirdParty`の各License、SBOMを入れる。
+- Packageには、`TRADEMARKS.md`と、`tools/release/license-files.json`に挙げたファイル（`LICENSE`、`NOTICE`、`licenses/`以下の各License、SBOM）を入れる（18.1.2）。
 
 生成物例:
 
