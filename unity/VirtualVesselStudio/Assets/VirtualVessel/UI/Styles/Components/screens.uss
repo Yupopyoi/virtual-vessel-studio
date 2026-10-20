@@ -62,3 +62,31 @@
     margin-top: var(--vv-space-xs);
     color: var(--vv-color-text-2);
 }
+
+/* The avatar Card (setup.md 5): the model's own image, square, and its terms of use. */
+.vv-avatar-card__thumbnail {
+    width: 96px;
+    height: 96px;
+    margin-top: var(--vv-space-s);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+.vv-avatar-card__license-title {
+    margin-top: var(--vv-space-m);
+    color: var(--vv-color-text);
+}
+
+.vv-avatar-card__license-line {
+    flex-shrink: 1;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* The terms in the registration dialog scroll when the window is short. */
+.vv-dialog__details.unity-scroll-view {
+    max-height: 280px;
+}

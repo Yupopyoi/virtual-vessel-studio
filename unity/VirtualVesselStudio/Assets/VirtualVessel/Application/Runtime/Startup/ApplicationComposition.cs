@@ -21,6 +21,7 @@ using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.MediaPipe;
 #endif
 using VirtualVessel.UI;
+using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 
@@ -260,7 +261,9 @@ namespace VirtualVessel.Application.Startup
                             video?.Preview,
                             stage?.Screens,
                             capture,
-                            tracking)),
+                            tracking,
+                            avatar,
+                            new WindowsFileDialog())),
                     new[] { LoggingService.ServiceName }));
             }
 
