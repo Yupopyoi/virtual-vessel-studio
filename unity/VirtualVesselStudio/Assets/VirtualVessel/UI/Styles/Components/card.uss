@@ -39,9 +39,14 @@
     color: var(--vv-color-text);
 }
 
+/*
+ * A status chip is 8px taller than the title line; it reaches into the band's 10px padding so that
+ * a band with a chip is as tall as one without, and closed Cards stack evenly.
+ */
 .vv-card__header-end {
     flex-direction: row;
     align-items: center;
+    margin: -4px 0 -4px var(--vv-space-s);
 }
 
 .vv-card--alt {
@@ -54,4 +59,52 @@
 
 .vv-card--alt .vv-card__bar {
     background-color: var(--vv-color-secondary);
+}
+
+/*
+ * A collapsible Card (components.md 3.10): the title band opens and closes the body, with a chevron
+ * at its right end that points down while closed and up while open.
+ */
+.vv-card__chevron {
+    display: none;
+    width: 16px;
+    height: 16px;
+    margin-left: var(--vv-space-s);
+    color: var(--vv-color-text-2);
+    rotate: 180deg;
+}
+
+.vv-card--collapsible > .vv-card__header > .vv-card__chevron {
+    display: flex;
+}
+
+.vv-card--collapsible > .vv-card__header:hover > .vv-card__chevron {
+    color: var(--vv-color-text);
+}
+
+.vv-card--collapsed > .vv-card__header > .vv-card__chevron {
+    rotate: 0deg;
+}
+
+/* Closed, the Card is only its title band, rounded at the bottom as well (Radius M less the 1px border). */
+.vv-card--collapsed {
+    padding-bottom: 0;
+}
+
+.vv-card--collapsed > .vv-card__header {
+    margin-bottom: 0;
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+}
+
+/*
+ * The focus outline goes just inside the band: the band reaches the Card's edges, so an outline
+ * outside it would cross the Card's border and could be clipped by the scrolling screen.
+ */
+.vv-card__header > .vv-focus-ring {
+    left: 2px;
+    top: 2px;
+    right: 2px;
+    bottom: 2px;
+    border-radius: 9px;
 }

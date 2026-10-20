@@ -260,6 +260,14 @@ button, input, select { font: inherit; color: inherit; }
 .card-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; color: var(--text); letter-spacing: .04em; }
 .card-title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--deco); flex: none; }
 .card-title .chip { margin-left: auto; }
+/* Collapsible card (components.md 3.10): the title opens and closes the body; the chevron points down while closed, up while open. */
+details.card:not([open]) { gap: 0; }
+details.card > summary { list-style: none; cursor: pointer; }
+details.card > summary::-webkit-details-marker { display: none; }
+.card-title .chev { width: 16px; height: 16px; margin-left: auto; color: var(--text-2); transform: rotate(180deg); flex: none; }
+.card-title .chip ~ .chev { margin-left: 0; }
+details.card:not([open]) .chev { transform: none; }
+details.card > summary:hover .chev { color: var(--text); }
 .row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .row .label { flex: 1; min-width: 0; }
 .row .label small { display: block; color: var(--text-3); font-size: 12px; }
@@ -746,6 +754,18 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
           </div>
         </div>
         <div class="cell">
+          <span class="cap" data-i18n="c.fold">折りたためるカード</span>
+          <details class="card">
+            <summary class="card-title"><span data-i18n="c.fold1">映像の取り込み（ゲーム画面）</span><span class="chip ok"><span class="dot"></span><span data-i18n="c.capturing">取り込み中</span></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+            <div class="row"><div class="label"><span data-i18n="c.fold3">取り込む</span></div><button class="toggle" role="switch" aria-checked="true" aria-label="Capture"></button></div>
+          </details>
+          <details class="card alt" open>
+            <summary class="card-title"><span data-i18n="c.fold2">アプリの設定</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+            <div class="row"><div class="label"><span data-i18n="c.row2">ノイズ抑制</span></div><button class="toggle" role="switch" aria-checked="true" aria-label="Noise suppression"></button></div>
+          </details>
+          <p class="note" data-i18n="c.foldnote">タイトルを押すか、選んで Enter / Space で開閉します。状態の表示はタイトルの右にあるので、閉じていても見えます。</p>
+        </div>
+        <div class="cell">
           <span class="cap" data-i18n="c.notices">お知らせと進捗</span>
           <div class="notice success"><span class="bullet"></span><div><b data-i18n="c.ok">音声モデルを登録しました</b><span data-i18n="c.okd">Kirara v3 がライブ画面で選べるようになりました。</span></div></div>
           <div class="notice error"><span class="bullet"></span><div><b data-i18n="c.err">カメラが見つかりません</b><span data-i18n="c.errd">USB の接続を確認してから、もう一度お試しください。</span></div></div>
@@ -837,6 +857,8 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.table": "Table", "t.name": "Name", "t.current": "Current", "t.max": "Max", "t.count": "Count", "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
     "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
+    "c.fold": "Collapsible card", "c.fold1": "Capture (game screen)", "c.fold2": "App settings", "c.fold3": "Capture", "c.capturing": "Capturing",
+    "c.foldnote": "Press the title, or focus it and press Enter / Space, to open or close. The status sits right of the title, so it shows while closed.",
     "c.tipnote": "Appears after resting about half a second, and on keyboard focus. Keep it to what the control does and its shortcut; on a disabled button, say why it cannot be pressed.",
     "fs.hint": "Press Esc to exit full screen",
     "vision": "Color view", "v.none": "Typical", "v.rg": "Red–green", "v.by": "Blue–yellow", "v.gray": "Gray",
