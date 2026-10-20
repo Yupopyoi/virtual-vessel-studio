@@ -68,20 +68,28 @@ flowchart LR
 | `CaptureScreen` | Class (the UI's `IFrameSource`) | One capture source's quad and placement; accepts edits |
 | `StageSettings` | Class | What is saved (a placement per video) |
 | `ScreenPlacementMath` | Static class | The quad's position, size, and UVs from a placement (pure functions) |
-| `StageDefaults` | Static class | Placements for the first use |
+| `StageDefaults` | Static class | Placements for the first use, the default avatar spawn point, and the default light's direction |
+| `IAvatarSpawnPoints` | Interface | Where avatars stand (7.1) |
 
 ---
 
 ## 5. Public API
 
 ```csharp
-public sealed class StageService : IApplicationService
+public sealed class StageService : IApplicationService, IAvatarSpawnPoints
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // Passed to the placement editor; in source order, not stacking order
+    public IAvatarSpawnPoints SpawnPoints { get; }        // Where avatars stand (7.1)
+}
+
+public interface IAvatarSpawnPoints
+{
+    Pose Default { get; }   // World position and rotation for an avatar whose reference pose faces +Z
 }
 ```
 
 - The composition passes `Screens` to the UI. The UI sees only `IFrameSource`.
+- The composition passes `SpawnPoints.Default` to Avatar as part of `AvatarPlacement` (Avatar detailed design 3).
 
 ---
 
@@ -139,9 +147,14 @@ public sealed class StageService : IApplicationService
 ## 7. State / Lifecycle
 
 - `StageService` is an Optional application service that starts after Capture and Video. It is not registered without either (there would be no place for flat videos, or no videos).
-- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`.
+- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`. Sources of the `Camera` kind (the tracking camera) get none, so the user's face and room never go on the stream (Tracking detailed design 5.4, `StageService.ShowsOnStream`).
 - It subscribes to changes of the video (`Texture`) and sets it on the quad's material. Without a video the quad is hidden.
-- At shutdown it saves unsaved placements and destroys the quads and materials.
+- At shutdown it saves unsaved placements and destroys the quads, the materials, and the default light.
+
+### 7.1 Avatar Spawn Point and Light (until Stage Scenes)
+
+- Until Stage Scenes provide their own (system design 11.6), there is one spawn point: the origin, turned 180° to face the Main Camera on -Z (Video detailed design 7.5).
+- The persistent scene has no light, and lit avatar materials (MToon) would be dark without one. At start Stage creates a directional light, `StageDefaultLight`: from above the camera and a little to its left (rotation 35°, 15°, 0°), intensity 1, no shadows. A Stage Scene with its own lights will replace it.
 
 ---
 
@@ -224,8 +237,8 @@ Assets/VirtualVessel/Stage/
 │  ├─ StageService.cs
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs
-│  ├─ ScreenPlacementMath.cs
-│  ├─ StageDefaults.cs
+│  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
+│  ├─ IAvatarSpawnPoints.cs
 │  └─ Resources/StreamScreen.shader An unlit quad shader: the crop and flip are only material values (_MainTex_ST); in Resources so that builds include it
 └─ Tests/
    ├─ EditMode/

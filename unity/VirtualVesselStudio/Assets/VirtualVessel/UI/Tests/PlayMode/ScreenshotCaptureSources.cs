@@ -62,6 +62,10 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyObservable<Texture> Texture { get; } = new ObservableValue<Texture>(null);
 
+            public long FrameCount => 0;
+
+            public long LastFrameTimestamp => 0;
+
             public IReadOnlyObservable<CaptureFlip> Flip { get; } = new ObservableValue<CaptureFlip>(CaptureFlip.None);
 
             public IReadOnlyList<CaptureDevice> Devices { get; }

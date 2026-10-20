@@ -16,6 +16,14 @@ namespace VirtualVessel.Stage.Tests
 {
     public sealed class ScreenPlacementMathTests
     {
+        [TestCase(CaptureSourceKind.GameCapture, true)]
+        [TestCase(CaptureSourceKind.SubScreenCapture, true)]
+        [TestCase(CaptureSourceKind.Camera, false)]
+        public void TheTrackingCamera_NeverGoesOnTheStream(CaptureSourceKind kind, bool shown)
+        {
+            Assert.That(StageService.ShowsOnStream(kind), Is.EqualTo(shown));
+        }
+
         [Test]
         public void TheQuad_CoversThePlacement_UprightOnTheLayer()
         {
@@ -111,6 +119,21 @@ namespace VirtualVessel.Stage.Tests
             {
                 Directory.Delete(_directory, recursive: true);
             }
+        }
+
+        [Test]
+        public void TheDefaultSpawnPoint_IsTheOrigin_FacingTheCamera_AndALightIsMadeAndRemoved()
+        {
+            Assert.That(_stage.SpawnPoints.Default.position, Is.EqualTo(Vector3.zero));
+            Assert.That(_stage.SpawnPoints.Default.forward.z, Is.LessThan(-0.99f), "The Main Camera is on -Z.");
+            Light light = _stage.DefaultLight;
+            Assert.That(light, Is.Not.Null);
+            Assert.That(light.type, Is.EqualTo(LightType.Directional));
+            Assert.That(light.transform.forward.z, Is.GreaterThan(0.5f), "Lights the avatar's front.");
+
+            _stage.Dispose();
+
+            Assert.That(light == null, Is.True);
         }
 
         [Test]
@@ -229,6 +252,10 @@ namespace VirtualVessel.Stage.Tests
 
         public IReadOnlyObservable<Texture> Texture => _texture;
 
+        public long FrameCount => 0;
+
+        public long LastFrameTimestamp => 0;
+
         public IReadOnlyObservable<CaptureFlip> Flip { get; } = new ObservableValue<CaptureFlip>(CaptureFlip.None);
 
         public void SetFlip(CaptureFlip flip)
@@ -311,6 +338,8 @@ namespace VirtualVessel.Stage.Tests
         public Transform Root { get; }
 
         public int Layer => 0;
+
+        public int AvatarLayer => 0;
     }
 
     internal sealed class ManualClock : IMonotonicClock

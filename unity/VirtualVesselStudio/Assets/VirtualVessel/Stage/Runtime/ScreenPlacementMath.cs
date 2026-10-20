@@ -68,6 +68,18 @@ namespace VirtualVessel.Stage
             };
         }
 
+        /// <summary>
+        /// The default spawn point: the origin, turned to face the Main Camera, which looks along +Z from
+        /// in front of it (video detailed design 7.5).
+        /// </summary>
+        public static Pose AvatarSpawn => new Pose(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
+
+        /// <summary>
+        /// The default light's direction: from above the camera and a little to its left, so the face is
+        /// lit from the front with soft shading toward one side.
+        /// </summary>
+        public static Quaternion LightRotation => Quaternion.Euler(35f, 15f, 0f);
+
         /// <summary>The string table key of a capture source's name on the stream screen.</summary>
         public static string NameKey(string screenId)
         {

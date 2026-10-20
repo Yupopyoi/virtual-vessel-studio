@@ -136,9 +136,9 @@ namespace VirtualVessel.Application.Tests
             try
             {
                 Assert.That(runtime.State, Is.EqualTo(ApplicationState.Running));
-                Assert.That(frameLoop.Count, Is.EqualTo(1), "Capture updates its sources every frame.");
+                Assert.That(frameLoop.Count, Is.EqualTo(2), "Capture updates its sources and Tracking its frame every frame.");
 
-                // Every source starts stopped, so a frame opens no capture board or monitor.
+                // Every source starts stopped and tracking is off, so a frame opens no device.
                 frameLoop.Tick(exception => Assert.Fail(exception.ToString()));
             }
             finally
@@ -166,6 +166,13 @@ namespace VirtualVessel.Application.Tests
 
             Assert.That(Path.GetFileName(directory), Is.EqualTo(expectedFolder));
             Assert.That(Path.GetDirectoryName(directory), Is.EqualTo(dataRoot.GetDirectory(DataRootDirectory.Logs)));
+        }
+
+        [TestCase(RuntimeEnvironment.Editor, @"C:\repo\unity\VirtualVesselStudio\Assets", @"C:\repo")]
+        [TestCase(RuntimeEnvironment.Player, @"C:\Apps\VirtualVesselStudio\VirtualVesselStudio_Data", @"C:\Apps\VirtualVesselStudio")]
+        public void GetCreditFolder_IsTheRepositoryInTheEditor_AndTheApplicationFolderInABuild(RuntimeEnvironment environment, string dataPath, string expected)
+        {
+            Assert.That(ApplicationComposition.GetCreditFolder(environment, dataPath), Is.EqualTo(expected));
         }
 
         [Test]

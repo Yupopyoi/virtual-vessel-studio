@@ -101,6 +101,10 @@ For each component, the following states are defined:
 - A title at the top (13px, weight 700, Text). A status chip (3.13) can sit at its right end.
 - Cards in the same row share padding and layout.
 - Add the top line, the title bar, and the wash behind the title. Every other card in a row uses Secondary (`design-system.md` 3.6).
+- A collapsible card opens and closes its body when its title band is pressed.
+  - A chevron (Text 2, 16px) sits at the right end of the title band. It points down while closed and up while open, and turns Text on hover.
+  - The title band takes keyboard focus; Enter or Space opens and closes it. The focus outline is drawn 2px inside the title band (the band reaches the card's edges, so an outline outside it would cross the card's border and be clipped by the scrolling screen).
+  - While closed, only the title band shows, with its bottom corners rounded too. The status chip sits in the title band, so it stays visible while closed.
 
 ### 3.11 Dialog
 
@@ -109,6 +113,7 @@ For each component, the following states are defined:
 - Title (17px, weight 700), body (Text 2), buttons at the bottom right.
 - When confirming an action that is hard to undo, the action button is Danger and the other is a Secondary "Cancel".
 - The body says what will happen if the action runs.
+- Read-only content needed to decide (such as a model's terms of use) may go under the body. Focus moves only between the buttons.
 
 ### 3.12 Tooltip
 

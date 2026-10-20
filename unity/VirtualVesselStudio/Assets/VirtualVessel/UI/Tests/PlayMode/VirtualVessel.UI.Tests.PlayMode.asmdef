@@ -3,10 +3,12 @@
     "rootNamespace": "VirtualVessel.UI.Tests",
     "references": [
         "UnityEngine.TestRunner",
+        "VirtualVessel.Avatar",
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
+        "VirtualVessel.Tracking",
         "VirtualVessel.UI"
     ],
     "includePlatforms": [],

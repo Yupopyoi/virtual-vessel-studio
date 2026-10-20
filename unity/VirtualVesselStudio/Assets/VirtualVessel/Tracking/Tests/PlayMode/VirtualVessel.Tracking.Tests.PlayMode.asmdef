@@ -1,0 +1,32 @@
+{
+    "name": "VirtualVessel.Tracking.Tests.PlayMode",
+    "rootNamespace": "VirtualVessel.Tracking.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "VirtualVessel.Capture",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.Tracking",
+        "VirtualVessel.Tracking.MediaPipe"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "VV_MEDIAPIPE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.github.homuler.mediapipe",
+            "expression": "",
+            "define": "VV_MEDIAPIPE"
+        }
+    ],
+    "noEngineReferences": false
+}

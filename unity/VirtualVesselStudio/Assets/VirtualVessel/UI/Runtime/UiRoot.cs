@@ -5,13 +5,16 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
+using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
+using VirtualVessel.Tracking;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Localization;
@@ -37,6 +40,9 @@ namespace VirtualVessel.UI
         /// <param name="streamPreview">The stream video for the live screen (Video); null shows "no video".</param>
         /// <param name="frameSources">The videos to place on the live screen (Stage); null for none.</param>
         /// <param name="captures">The capture sources for the setup screen (Capture); null says it is unavailable.</param>
+        /// <param name="avatars">Avatars for the setup screen (Avatar); null says they are unavailable.</param>
+        /// <param name="fileDialog">The file-picking screen, such as for registering avatars; null disables picking files.</param>
+        /// <param name="credits">The shipped license files for the credits on the settings screen; null leaves the credits out.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
@@ -49,7 +55,11 @@ namespace VirtualVessel.UI
             IReadOnlyList<Action<bool>> developerModeReceivers = null,
             IStreamPreviewSource streamPreview = null,
             IReadOnlyList<IFrameSource> frameSources = null,
-            ICaptureSources captures = null)
+            ICaptureSources captures = null,
+            ITrackingSource tracking = null,
+            IAvatarService avatars = null,
+            IFileDialog fileDialog = null,
+            ICreditFiles credits = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -68,6 +78,10 @@ namespace VirtualVessel.UI
             StreamPreview = streamPreview;
             FrameSources = frameSources ?? Array.Empty<IFrameSource>();
             Captures = captures;
+            Tracking = tracking;
+            Avatars = avatars;
+            FileDialog = fileDialog;
+            Credits = credits;
         }
 
         public string ConfigDirectory { get; }
@@ -93,6 +107,17 @@ namespace VirtualVessel.UI
         public IReadOnlyList<IFrameSource> FrameSources { get; }
 
         public ICaptureSources Captures { get; }
+
+        /// <summary>Tracking for the setup screen; null when it is unavailable.</summary>
+        public ITrackingSource Tracking { get; }
+
+        /// <summary>Avatars for the setup screen; null when they are unavailable.</summary>
+        public IAvatarService Avatars { get; }
+
+        public IFileDialog FileDialog { get; }
+
+        /// <summary>The shipped license files for the credits; null leaves them out.</summary>
+        public ICreditFiles Credits { get; }
     }
 
     /// <summary>
@@ -428,7 +453,7 @@ namespace VirtualVessel.UI
             var screens = new List<ScreenDefinition>
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking, context.Avatars, context.FileDialog, context.Credits)),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };

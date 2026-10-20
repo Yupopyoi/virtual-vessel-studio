@@ -40,6 +40,10 @@
     color: var(--vv-color-text-2);
 }
 
+.vv-dialog__details {
+    margin-top: var(--vv-space-m);
+}
+
 .vv-dialog__buttons {
     flex-direction: row;
     flex-wrap: wrap;

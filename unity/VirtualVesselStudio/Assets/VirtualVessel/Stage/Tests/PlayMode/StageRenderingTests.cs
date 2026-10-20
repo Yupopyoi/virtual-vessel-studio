@@ -108,6 +108,10 @@ namespace VirtualVessel.Stage.Tests
 
             public IReadOnlyObservable<Texture> Texture { get; }
 
+            public long FrameCount => 0;
+
+            public long LastFrameTimestamp => 0;
+
             public IReadOnlyObservable<CaptureFlip> Flip { get; } = new ObservableValue<CaptureFlip>(CaptureFlip.None);
 
             public void SetFlip(CaptureFlip flip)

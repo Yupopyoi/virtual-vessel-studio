@@ -163,7 +163,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | Numeric Field | `NumberInput` | `<vv:NumberInput label-key="audio.sampleRate" unit="Hz" />` |
 | Tab | `TabBar` | `<vv:TabBar />` |
 | Setting Row | `SettingRow` | `<vv:SettingRow name-key="audio.noise" description-key="audio.noise.desc">…</vv:SettingRow>` |
-| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>` |
+| Card | `Card` | `<vv:Card title-key="voice.title">…</vv:Card>`。折りたためるCardは`collapsible="true" expanded="false"` |
 | Dialog | `ConfirmDialog` | C#から`ConfirmAsync`で表示（6.4） |
 | Status Indicator | `StatusChip` | `<vv:StatusChip status="Success" text-key="trk.good" />` |
 | Notification | `Notice` | C#から`NotificationService`で表示 |
@@ -1097,7 +1097,8 @@ Assets/VirtualVessel/
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, CreditsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

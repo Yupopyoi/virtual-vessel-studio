@@ -126,11 +126,11 @@ flowchart LR
 ```csharp
 public interface ITrackingSource
 {
-    IReadOnlyObservable<TrackingSourceState> State { get; }    // Stopped、Starting、Running、Unavailable、Error
+    IReadOnlyObservable<TrackingState> State { get; }          // Stopped、Starting、Running、Unavailable、Error
     IReadOnlyObservable<TrackingProblem> Problem { get; }      // 利用者へ伝える問題（11章）
     TrackingRegions Supported { get; }                         // Providerが取れる部位
-    IReadOnlyObservable<TrackingRegions> Enabled { get; }      // 有効にした部位（設定）
-    IReadOnlyObservable<BodyRange> BodyRange { get; }
+    IReadOnlyObservable<TrackingOptions> Options { get; }      // 利用者が選んだこと（10章）
+    double ObservationsPerSecond { get; }                      // 直近1秒に推論した映像の数（セットアップ画面の表示用）
 
     // 平滑化した最新の観測。Main Threadで、毎Frame更新される。中身は次の更新で書き換わるため、
     // 使う側はそのFrameの間だけ読み、保持しない（Allocationを避けるため、毎回同じObjectを返す）。
@@ -138,15 +138,26 @@ public interface ITrackingSource
 
     void Start();
     void Stop();
-    void SetEnabled(TrackingRegions regions);
-    void SetBodyRange(BodyRange range);
-    void Recenter();                                           // 今の姿勢を正面・基準にする（8.5）
+    void SetOptions(TrackingOptions options);                  // 部位の変更はすぐに反映する
+}
+```
+
+`TrackingOptions`は、利用者が選んだことを1つの値にまとめる（不変。`With…`で変えた値を作り、`SetOptions`で丸ごと渡す）。選択肢が増えても、Interfaceと保存の比較は変わらない。
+
+```csharp
+public readonly struct TrackingOptions
+{
+    TrackingRegions Regions;            // 推論する部位
+    BodyRange BodyRange;                // 動かす範囲（全身は近日対応のため上半身に戻す、6.5）
+    SmoothingPreset Smoothing;          // 平滑化の段階（8.2）
+    bool Mirror;                        // 鏡写し（10章）
 }
 ```
 
 - すべての操作と通知はMain Threadで行う。
 - `Current`は`TrackingService`が毎Frame（`IFrameLoop`）更新する。Avatarは`LateUpdate`相当の時点で読む（Avatar詳細設計8.3）。
 - 1人分の`ITrackingSource`を1つ作る。複数人に広げるときは、Sourceを人数分にする（方式設計8.12）。Singletonにはしない。
+- 今の姿勢を基準にする`Recenter()`（8.5）は、基準の姿勢を使う段階5で加える。
 
 ### 5.2 ITrackingProvider
 
@@ -154,37 +165,40 @@ public interface ITrackingSource
 public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
-    IReadOnlyObservable<TrackingProviderState> State { get; }
-    void Start(TrackingRegions regions);                       // 待たずに戻る。結果はStateで知らせる
+    IReadOnlyObservable<TrackingState> State { get; }          // SourceとProviderで同じ状態を使う
+    void Start(TrackingOptions options);                       // 待たずに戻る。結果はStateで知らせる
+    void SetOptions(TrackingOptions options);                  // 動作中に変える。無効にした部位の推論は止まる
     void Stop();
     void Tick();                                               // Main Threadで毎Frame。入力の読み出しを進める
 
     // 最新の観測を、渡されたObjectへ写す。新しい観測がなければfalse。
     // 呼び出し元のObjectへ写すのは、毎Frameの確保を避けるため（CLAUDE.md 15.1の例外、23章）。
-    bool TryTakeLatest(TrackingObservation into);
+    bool TryTakeLatest(TrackingFrame into);
 }
 ```
 
-- `TrackingObservation`は平滑化する前の観測で、形は`TrackingFrame`と同じ（6章）。Providerごとの違い（座標系、点の番号、左右）は、Providerの中で共通の形へ変換してから出す（方式設計8.8）。
+- Providerが出す観測は、平滑化する前の`TrackingFrame`である（6章。平滑化の前と後で同じ型を使い、写すだけで済むようにする）。Providerごとの違い（座標系、点の番号、左右）は、Providerの中で共通の形へ変換してから出す（方式設計8.8）。
 - 新しいProvider（mocopi等）は、この契約を実装するだけで追加できる。
 
 ### 5.3 TrackingService
 
-- OptionalのApplication Serviceとし、Logging、性能計測、Captureの後に起動する。Captureがなければ、カメラのProviderは`Unavailable`になる（再生のProviderは使える）。
-- 起動時に`tracking-settings.json`を読み、設定の`Provider`（既定`mediapipe`）を作る。
+- OptionalのApplication Serviceとし、Logging、性能計測、Captureの後に起動する。Captureが動いていなければ作らない。
+- 起動時に`tracking-settings.json`を読み、Providerを作る。MediaPipeのProviderは、Pluginが入っているときだけ作る（Compositionの`#if VV_MEDIAPIPE`、16.2）。Pluginがなければ、Projectはそのまま動き、トラッキングを始めると`Error`（`StartFailed`）になり、開発者向けLogに導入のScriptを示す。
 - 前回動いていれば、次の起動で自動で開始する（Captureと同じ扱い）。
 
 ### 5.4 トラッキング用カメラ（Captureへの追加）
 
-Captureに3つ目のSourceとして、トラッキング用のWebカメラ`camera`を加える。GameCaptureと同じく`WebCamTexture`で開く。追加の内容は、実装の段階でCapture詳細設計に書く。
+Captureに3つ目のSourceとして、トラッキング用のWebカメラ`camera`を加えた。GameCaptureと同じ`WebCamCaptureSource`（`WebCamTexture`）で開く（Capture詳細設計8.5）。
 
 | 項目 | 値 |
 |---|---|
-| Id、種類 | `camera`、`CaptureSourceKind.Camera` |
+| Id、種類 | `camera`（`CaptureService.TrackingCameraId`）、`CaptureSourceKind.Camera` |
 | 機器を選ぶまで | 開かない（`DeviceNotChosen`）。Capture詳細設計6.3と同じ理由 |
-| 希望の解像度、Frame Rate | 1280×720、30fps（推論の入力には十分で、読み出しの負荷が小さい）。設定で変えられる |
-| 同じ機器の重複 | `game`と同じ機器は選べない（`WebCamTexture`は1つの機器を2回開けない）。選ぶと`DeviceInUse`の問題を示す |
+| 希望の解像度、Frame Rate | 1280×720、30fps（推論の入力には十分で、読み出しの負荷が小さい）。`capture-settings.json`の`CameraWidth`等 |
+| 同じ機器の重複 | `game`と`camera`は、互いが開いている機器を開かない（`WebCamTexture`は1つの機器を2回開けない）。`Error`（`DeviceInUse`）として示す |
+| 新しい映像の判定 | `IVideoCaptureSource.FrameCount`と`LastFrameTimestamp`（Captureに追加）。同じ映像を2回推論せず、映像の時刻を観測の時刻にする |
 | 配信画面への表示 | しない。Stageは`Camera`の種類のSourceに板を作らない。利用者の顔や部屋が意図せず配信に出ることを防ぐ（13章） |
+| セットアップ画面 | 取り込みのCardは作らない。トラッキングのCardで機器を選ぶ（UI `setup.md` 4章） |
 | 反転 | Captureの反転（`CaptureFlip`）は使わない。左右の扱いはTrackingの座標の定義（6.1）とAvatarの鏡写しで決める |
 
 ---
@@ -227,6 +241,7 @@ TrackingFrame
 
 | 項目 | 内容 |
 |---|---|
+| どの顔か | 顔は2つまで探し、鼻の先が体の鼻に最も近い顔を本人の顔とする。どれも離れていれば（画像の幅の12%を超える）見失ったとする。背景のポスター等の顔を拾わないため。体が見えないときは、最も確からしい顔を使う |
 | 頭の向き | 回転（本人の空間）。MediaPipeの顔の変換行列（Facial Transformation Matrix）から求める。Poseの点から求めるより安定する |
 | 頭の位置 | カメラからの相対位置（メートル）。前後左右の傾き・寄りの表現に使う |
 | 表情の値 | `FaceShape`ごとに0〜1。ARKitに由来する52個（`EyeBlinkLeft`、`JawOpen`、`MouthSmileLeft`等）。取れない値（MediaPipeでは`TongueOut`）は`NotSupported` |
@@ -241,7 +256,8 @@ TrackingFrame
 | 関節 | `HandJoint`：手首、親指（CMC、MCP、IP、先端）、他の4本の指（MCP、PIP、DIP、先端）の21点 |
 | 位置 | 本人の空間。手首を基準にした指の形（Hand Landmarkerの3Dの点）と、手首の位置（Poseの手首）を合わせる |
 | 手のひらの向き | 手首、人差し指と小指の付け根の3点から求めた回転 |
-| 左右の決め方 | MediaPipeの左右の判定（Handedness）は、画像の向きで変わり、Frameごとに揺れることがある。製品では、検出した手を**Poseの左右の手首に近い方**へ割り当てる。判定は補助に使う |
+| 画像上の位置 | 21点の画像上の位置（0〜1）。セットアップ画面で点を重ねて表示し、左右の割り当てにも使う |
+| 左右の決め方 | MediaPipeの左右の判定（Handedness）は、画像の向きで変わり、Frameごとに揺れることがある。製品では、検出した手を**Poseの左右の手首に近い方**へ割り当てる（2つの手は、合計の距離が近い組み合わせにし、同じ側に重ならない）。体が見えないときだけ判定を使う。判定は鏡写しの画像を前提とするため、鏡写しでないカメラでは「Right」が本人の左手になる。体から離れた手を除くことはしない。手と体は別々の推論で、違う映像のFrameのことが多く、動いている手は体の手首から1Frame分離れて見えるため。除くと、動かした手がちらついた（段階2で試して戻した、2026-10-19） |
 
 ### 6.5 動かす範囲（BodyRange）
 
@@ -269,7 +285,7 @@ TrackingFrame
 
 ### 7.2 開始と停止
 
-1. `Start()`：Captureの`camera` Sourceを開始する（Trackingが開始したことを覚え、停止のときに止める。利用者がCaptureの画面で開始していた場合は止めない）。
+1. `Start()`：Captureの`camera` Sourceを開始する。トラッキング用カメラはトラッキングだけが使うため、トラッキングと一緒に開始し、一緒に止める。
 2. カメラの映像が届くと、Providerがモデルを読み込み（Main Threadを止めない、9章）、推論を始める。`Running`。
 3. `Stop()`：推論を止め、未処理の読み出しを待たずに捨て、Bufferとモデルを解放する。
 
@@ -310,6 +326,21 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 - 時刻は映像のFrameの時刻を使う（処理した時刻ではない）。Frameの間隔が揺れても、平滑化の強さが変わらない。
 - 部位ごとにパラメータを持つ（顔は速く、胴はゆっくり等）。利用者には「なめらか／標準／きびきび」の3段階で見せる（10章）。
 - 計算は純粋関数（状態を引数で受け取り、新しい状態を返す）とし、EditModeで入力と出力だけで確かめる。
+- 回転の速さは、向きを持った角速度（ベクトル）として平滑化する。角度の大きさ（常に正）だけを平滑化すると、逆向きの揺れが打ち消し合わず、静止していても動いているように見積もってしまう（最初の実装で、静止時の揺れが平均の約3倍になった）。
+
+#### 計測した結果（段階1、2026-10-18）
+
+合成の動き（2°の揺れを加えた角度、30回/秒。静止3秒、0.3秒で90°上げる、保持、0.5Hzで±30°振る）を、乱数を変えて20通り比べた（`OneEuroComparisonTests`、`SmoothingProfile`）。
+
+| 方法 | 静止時の揺れ（1Frameの変化のRMS） | 遅れ | ゆっくり振る間の誤差 |
+|---|---|---|---|
+| Voomの方法（30Frameの平均） | 0.097° | 483ms | 23.2° |
+| なめらか（MinCutoff 0.05Hz、Beta 0.003） | 0.057° | 99ms | 9.6° |
+| 標準（0.1Hz、0.005） | 0.088° | 66ms | 7.5° |
+| きびきび（0.2Hz、0.01） | 0.160° | 56ms | 5.2° |
+
+- 標準は、静止時の揺れが平均と同程度以下で、遅れは約1/7になる。1つの乱数だけで比べると、どちらの方法も3割ほど有利・不利が出るため、Testは10通りの平均で比べる。
+- 位置（関節）は、腕の長さで1cm≈2°としてBetaを換算した仮の値（標準：0.1Hz、1.0）。1cmの揺れを加えた腕の動きでは、角度の揺れが4.7°から0.13°になり、遅れは100msだった。顔の値も仮の値で、カメラで記録した動きで段階2〜5に調整する（17章）。
 
 ### 8.3 外れ値の除去
 
@@ -347,18 +378,23 @@ sequenceDiagram
     participant GPU as GPU（AsyncGPUReadback）
     participant MP as MediaPipeのThread
 
-    Main->>GPU: カメラのTextureを読み出し（前の読み出しが終わっていれば）
-    GPU-->>Main: 画素（使い回すBufferへ）
-    Main->>MP: DetectAsync（Face / Pose / Hand）
+    Main->>GPU: 新しいカメラの映像を上下反転して写し、読み出しを依頼
+    GPU-->>Main: 画素（空いているBufferへ）
+    Main->>MP: DetectAsync（Face / Pose / Hand。同じBufferをコピーせずに渡す）
     MP-->>MP: 推論
     MP->>MP: 結果を共通の形へ変換し、FrameSlotへ置く
+    MP-->>Main: 画像を解放（Deleter）→ Bufferが空く
     Main->>Main: 毎Frame：FrameSlotから最新を取り、平滑化してCurrentを更新
 ```
 
-- 読み出しは、前の読み出しと推論が終わっていなければ行わない。古いFrameを待ち行列にためず、常に最新の映像だけを推論する（遅れを増やさないため）。
-- MediaPipeの結果は、MediaPipeのThreadで呼ばれる。そこで共通の形へ変換し、`FrameSlot`へ置く。UnityのAPIは呼ばない。
-- `FrameSlot<T>`は、3つのObjectを順に使う（書き込み中、最新、読み出し中）。短い排他だけで、待たない（Capture詳細設計8.2と同じ考え方）。Objectは使い回し、観測のたびに確保しない。
+- 新しい映像（`FrameCount`が変わった）だけを読む。読み出しは1つずつとし、MediaPipeが持っている映像は2つまでとする。それを超える映像は待ち行列にためず、飛ばす（`Tracking/Dropped`）。遅れを増やさないため。
+- 読み出しはGPUで上下反転して行う。Unityのテクスチャは下の行から、MediaPipeの画像は上の行から並ぶため。幅が1280pxを超える映像は縮める。
+- Buffer（`ImageBufferPool`、3つ）は、取り出し（予約）→読み出し→MediaPipeの画像が参照、の順に使う。MediaPipeの画像は、Bufferをコピーせずに参照する。MediaPipeは`DetectAsync`から戻った後もBufferを読むため、そのBufferで作ったすべての画像が解放されたこと（PluginのDeleterの呼び出し）を数えてから使い直す。DeleterはPixelのPointerしか受け取らないため、PointerからBufferを引く表をPoolが持つ。2秒たっても返らないBufferがあれば、開発者向けLogに記録し、使い直さずに待つ（MediaPipeが読んでいるかもしれないメモリを書き換えないため）。
+- MediaPipeの結果は、MediaPipeのThreadで呼ばれる。そこで共通の形へ変換し、`FrameSlot`へ置く。UnityのAPIは呼ばない。失敗は数えておき、Main Threadで、まとめて10秒に1回まで記録する。
+- `FrameSlot<T>`は、3つのObjectを順に使う（書き込み中、最新、読み出し中）。短い排他だけで、待たない（Capture詳細設計8.2と同じ考え方）。Objectは使い回し、観測のたびに確保しない。顔、体、手（2つ分）で別々のSlotを使う。
+- 手の左右の割り当てと、体から離れた顔を除くこと（6.3、6.4）は、最新の体と合わせてMain Threadで行う。
 - 平滑化と状態の判断はMain Threadで、毎Frame1回行う。
+- Pluginは、画像やPacketを毎回確保する。この確保はPluginの中のものとし、こちらの処理では毎Frameの確保をしない。
 
 ### 9.2 部位ごとの時刻
 
@@ -366,7 +402,17 @@ sequenceDiagram
 
 ### 9.3 モデルの読み込み
 
-- モデル（`.bytes`）の読み込みと推論の準備は、Main Threadを止めないよう非同期に行う。かかった時間を計測する。
+- モデル（`.bytes`）をファイルから読み、Taskを作る処理は、Thread Poolで行う。モデルはバイト列でPluginへ渡し、PluginのAsset読み込みの仕組みは使わない。
+- 読み込みの途中で止めた場合は、作り終えたときにTaskを閉じる。
+- 開発用PCで、開始から最初の結果まで0.69秒だった（15章）。
+
+### 9.4 背景の除去（試して外した）
+
+背景の物に体の点が引っ張られる誤りへの対策として、人物を切り抜き（Selfie Segmentation）、背景を灰色にしてから顔・体・手を探す方式を試した（2026-10-19）。実際のカメラでは、かえって誤りが増えたため外した（利用者の判断）。
+
+- 人物のMaskは粗く（144×256）、手や腕の先が背景として塗られ、点が乱れたと考えられる。遅れも平均で約15ms増えた（15章）。
+- 同じとき、体から離れた手を除く処理も試したが、手がちらついたため外した（6.4）。
+- 背景の誤りに再び取り組むときは、Maskを手の近くで広げる、体の推論だけに使う等を、記録した動き（12章）で比べてから決める。
 
 ---
 
@@ -380,14 +426,17 @@ public sealed class TrackingSettings
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
     public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth、Standard、Responsive
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
-    public TrackingCalibration Calibration { get; set; }                  // 基準の姿勢（8.5）。なければ未測定
+    public bool Mirror { get; set; } = true;                              // 鏡写し
+    // 基準の姿勢（8.5）は段階5で加える。
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
 ```
 
+- 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだことか開始していたかが変わったときだけ行う。
 - `tracking-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Capture、Stageと同じく、Project / Profileができたらそちらへ移す（方式設計6.10の`Profiles/Tracking/`）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
-- 鏡写しはAvatarの設定とする（Avatar詳細設計10章）。
+- 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
+- `PoseModel`を変えたときは、トラッキングを開始し直すと反映される。設定の画面は段階7で作る。
 
 ---
 
@@ -398,12 +447,12 @@ public sealed class TrackingSettings
 
 | 計測 | 種類 | 内容 |
 |---|---|---|
-| `Tracking/<region>.Inference` | Timer | 推論の時間（顔、体、手） |
-| `Tracking/<region>.Interval` | Timer | 新しい観測が届く間隔 |
+| `Tracking/face.Inference`、`body.Inference`、`hands.Inference` | Timer | 画像を渡してから結果が届くまで（待ち時間を含む） |
 | `Tracking/Latency` | Timer | 映像のFrameの時刻から、`Current`の更新までの時間 |
 | `Tracking/Readback` | Timer | 映像の読み出しの時間 |
-| `Tracking/Dropped` | Counter | 前の推論が終わっていないため推論しなかった映像の数 |
-| `Tracking/Outliers` | Counter | 外れ値として捨てた値の数 |
+| `Tracking/Dropped` | Counter | MediaPipeが前の画像を処理中のため推論しなかった映像の数 |
+
+- 外れ値として捨てた値の数は`TrackingProcessor.Outliers`で数えている。Diagnostics画面への表示は段階7で加える。
 
 - 利用者へ伝える問題（`TrackingProblem`）：`CameraNotChosen`（カメラを選んでください）、`CameraNotFound`、`CameraInUse`（ゲーム画面と同じカメラ）、`StartFailed`（トラッキングを始められませんでした）、`NoPerson`（人が映っていません。状態の表示だけ）。PluginやモデルのPath等は利用者へ出さない。
 - セットアップ画面では、カメラの映像に点と骨を重ねて表示し、正しく取れているかを確かめられるようにする（配信には出さない）。
@@ -414,7 +463,7 @@ public sealed class TrackingSettings
 
 平滑化や奥行きの方法を、勘ではなく比べて決めるための仕組み。
 
-- `TrackingRecorder`：Providerの観測（平滑化する前の`TrackingObservation`）を、時刻とともにファイルへ記録する。**映像は記録しない**。
+- `TrackingRecorder`：Providerの観測（平滑化する前の`TrackingFrame`）を、時刻とともにファイルへ記録する。**映像は記録しない**。カメラで記録した動きで調整する段階4〜5で作る。
 - `TrackingReplayProvider`：記録を`ITrackingProvider`として再生する。カメラなしで、同じ動きを何度でも再現できる。
 - 評価の値（EditModeで計算する純粋関数）：
 
@@ -450,8 +499,11 @@ public sealed class TrackingSettings
 | EditMode | `TrackingStateMachine`、外れ値の除去、`FrameSlot`（Threadをまたぐ受け渡しを含む） |
 | EditMode | 評価の値（12章）：合成の動きで、平滑化の遅れと揺れが目標の範囲にあること。Voomの方法（30Frameのオイラー角の平均）を比較用に実装し、同じ入力で遅れが小さいこと |
 | EditMode | `TrackingService`を再生のProviderで動かし、開始・停止、部位の有効・無効、範囲の切り替え、設定の保存 |
-| 実機 | 実際のカメラとMediaPipeで、顔・体・手が取れること。`[Explicit]`を付ける |
-| 性能 | 推論の時間（顔、体、手、同時）、読み出しの時間、遅れを、開発用PCで記録する（15章） |
+| PlayMode | Pluginのテスト用の画像（`lenna.png`、`thumb-up.jpg`、Repositoryにはコピーしない）を止まったカメラとして`MediaPipeTrackingProvider`へ渡し、顔が見つかる（上下の向きが正しいときだけ見つかる）、正面を向いている、手が見つかる、結果が届き続ける（Bufferが返っている）ことを確かめる。Pluginが入っているときだけCompileする |
+| 実機 | 実際のカメラで、顔・体・手が取れること、左右（ウインクで確かめる）。デモブランチで目視する |
+| 性能 | `MediaPipeProviderTests.AllTasks_Timing`（`[Explicit]`）：3つの推論を同時に動かしたときの観測の数と古さ（15章） |
+
+- `tools/unity/run-tests.ps1`は、Projectの`Assets/VirtualVessel`のTest Assemblyだけを動かす。PluginはPackage自身のTestを持ち、Batch Modeで動かすとEditorが落ちるものがあるため。`[Explicit]`のTestは`Explicit`のCategoryを付け、名前を指定したときだけ動かす。
 
 ---
 
@@ -468,6 +520,28 @@ public sealed class TrackingSettings
   - 将来、Unity Inference Engine（旧Sentis）でGPUで推論するProviderを作る（方式設計16.3の範囲）。
 - 推論はMediaPipeのThreadで行い、Main Threadを待たせない。
 
+#### 計測した結果（段階2、2026-10-19、開発用PC）
+
+`MediaPipeProviderTests.AllTasks_Timing`：静止画（512×512）を30fpsのカメラとして、Face、Pose（Full）、Handを同時に動かした。
+
+| 値 | 結果 |
+|---|---|
+| 開始から最初の結果まで | 0.69秒 |
+| 結果の数 | 90.3回/秒（30fpsの映像ごとに3つの部位の結果が届く） |
+| 観測を受け取った時点の古さ | 平均13ms、最大92ms |
+
+- 3つの推論を同時に動かしても、30fpsを保てた。Holistic Landmarkerへの切り替え、手の推論の間引きは、今は必要ない。
+
+背景の除去（9.4、試して外した）を加えて測った記録（同じ条件、2026-10-19）。
+
+| 背景の除去 | 開始から最初の結果まで | 結果の数 | 観測の古さ |
+|---|---|---|---|
+| なし | 0.24秒 | 89.8回/秒 | 平均15ms、最大57ms |
+| あり | 0.23秒 | 90.1回/秒 | 平均30ms、最大65ms |
+
+- 背景の除去で、遅れは平均で約15ms増えた。
+- 実際のカメラ（1280×720）での値は、デモで`Tracking/Latency`等を見て記録する。
+
 ---
 
 ## 16. Directory / Namespace と依存
@@ -477,33 +551,40 @@ public sealed class TrackingSettings
 ```text
 Assets/VirtualVessel/Tracking/
 ├─ Runtime/                                    VirtualVessel.Tracking
-│  ├─ TrackingFrame.cs        TrackingFrame, BodyPose, HandPose, FacePose, TrackingObservation
-│  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange
+│  ├─ TrackingFrame.cs        TrackingFrame, TrackedPart, BodyPose, HandPose, FacePose
+│  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange, TrackingState, TrackingProblem, SmoothingPreset
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
-│  ├─ TrackingService.cs      TrackingService, TrackingSettings
-│  ├─ Processing/             OneEuroFilter, RotationFilter, TrackingProcessor, TrackingStateMachine, DepthEstimation
+│  ├─ TrackingService.cs      TrackingService
+│  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
+│  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation（段階5）
 │  ├─ Threading/FrameSlot.cs
-│  └─ Recording/              TrackingRecorder, TrackingReplayProvider, TrackingMetrics
-├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe（MediaPipeUnityPluginを参照する唯一のAssembly）
-│  ├─ MediaPipeTrackingProvider.cs   Taskの作成と呼び出し（PluginのAPIを使う部分）
-│  ├─ MediaPipeConversion.cs
-│  └─ CameraFrameReader.cs    AsyncGPUReadbackとBufferの使い回し
+│  ├─ Recording/              TrackingRecorder（段階4〜5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
+│  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）
+├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe（MediaPipeUnityPluginを参照する唯一のAssembly。Pluginがあるときだけ`VV_MEDIAPIPE`でCompileする）
+│  ├─ MediaPipeTrackingProvider.cs   開始・停止と、映像から結果までの流れ
+│  ├─ MediaPipeTasks.cs              Taskの作成、呼び出し、終了（PluginのTaskのAPIを使う部分）
+│  ├─ MediaPipeResults.cs            Pluginの結果を配列へ写す。顔と手の候補から本人のものを選ぶ（FacesObservation、HandsObservation）
+│  ├─ MediaPipeTracking.cs           Composition向けの生成
+│  ├─ CameraFrameReader.cs           GPUでの上下反転とAsyncGPUReadback
+│  └─ ImageBufferPool.cs             MediaPipeが解放するまで使い直さないBuffer
 └─ Tests/
    ├─ EditMode/
-   └─ PlayMode/
+   └─ PlayMode/                                Pluginがあるときだけ（`VV_MEDIAPIPE`）
 ```
 
-参照：Core、Diagnostics、ProjectData、Capture。MediaPipeのAssemblyは、加えてMediaPipeUnityPluginを参照する。
+参照：Core、Diagnostics、ProjectData、Capture。MediaPipeのAssemblyは、加えてMediaPipeUnityPlugin（`Mediapipe.Runtime`）を参照し、`allowUnsafeCode`を使う（BufferのPointerを取るため）。
 
 ### 16.2 MediaPipeUnityPluginの導入
 
-- 版は導入の時点の最新（現在v0.16.3、MediaPipe v0.10.22）に固定する。Unity 6.6で動くことを導入の段階で確かめる。
-- PluginはGitHubのReleaseで配られる`.tgz`（UnityのPackage）を使う。Repositoryには入れない。大きく（Voomの展開後で約380MB、多くは他のPlatformのNative Library）、Gitの履歴を重くするため。
-  - `tools/deps/fetch-mediapipe.ps1`が、固定した版の`.tgz`をダウンロードし、SHA-256を確かめて、Gitの管理外の場所に置く。`Packages/manifest.json`はそのファイルを参照する。
-  - 手元とCIで同じScriptを使う。Native Pluginの扱い（DLLはGitに入れず、手順で作る）と同じ考え方である。
-- モデル（Face Landmarker、Pose Landmarker、Hand Landmarker）も同じScriptで、固定した版とHashで取得し、配布物に含める。
-- 配布物には、Windows x64のNative Libraryだけを含める。
-- ライセンス：Pluginは MIT、MediaPipeとモデルはApache-2.0。同じ変更でSBOMへ記録する（CLAUDE.md 35章）。
+- 版はv0.16.3（MediaPipe v0.10.22）に固定した。Unity 6.6でCompileでき、動くことを確かめた（2026-10-19）。
+- PluginはGitHubのReleaseで配られる`.tgz`（約290MB）を使い、Repositoryには入れない。Gitの履歴を重くするため。
+  - `tools/deps/fetch-mediapipe.ps1`が、固定した版の`.tgz`を`build/deps/`へダウンロードし、SHA-256を確かめ、`unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/`へEmbedded Packageとして展開する（Gitの管理外）。Packagesの下に置いたPackageは`manifest.json`に書かなくてもUnityが見つけるため、Pluginがない作業Copyでも、Projectはそのまま開ける（MediaPipeのAssemblyがCompileされないだけ）。
+  - `packages-lock.json`にはEmbedded Packageとして載る（版は`file:`）。Repositoryのチェックは、Embedded Packageの版を`tools/deps/mediapipe.json`の値で確かめる。
+  - 手元とリリースのScript（`tools/release/build-release.ps1`）で同じScriptを使う。Native Pluginの扱い（DLLはGitに入れず、手順で作る）と同じ考え方である。
+- モデル（`face_landmarker_v2_with_blendshapes`、`pose_landmarker_lite` / `full` / `heavy`、`hand_landmarker`）は、PluginのPackageに入っているものを使う。それぞれのSHA-256を`tools/deps/mediapipe.json`に固定し、Scriptが確かめてから`Assets/StreamingAssets/Tracking/MediaPipe/`へ写す（Gitの管理外。BuildのStreamingAssetsに入る）。
+- 配布物には、Windows x64のNative Library（`mediapipe_c.dll`）だけが入る（PluginのImport設定による）。
+- ライセンス：Pluginは MIT、MediaPipeとモデルはApache-2.0。PluginのNative Libraryに組み込まれたLibrary（Abseil、OpenCV、Protocol Buffers、TensorFlow Lite、XNNPACK等。すべてPermissive）は、Pluginの`Third Party Notices.md`にあり、リリースのPackageへ同梱する。SBOMへ記録した（CLAUDE.md 35章）。
 
 #### 更新への備え
 
@@ -512,9 +593,9 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 - 版、ダウンロード先、SHA-256は、`tools/deps/mediapipe.json`の1か所に書く。Script、CI、SBOMの確認は、この値を読む。更新は、この値とSBOMを変える1つの変更（`chore:`のBranch）とする。
 - Pluginの型を使うのはMediaPipeのAssemblyだけで、その中でも、Pluginを呼ぶ部分（Taskの作成、`DetectAsync`、結果の受け取り）と、結果を共通の形へ変える部分（`MediaPipeConversion`）を分ける。PluginのAPIが変わったときに直す場所を、Taskを呼ぶ部分に限るため。
 - `MediaPipeConversion`は、Pluginの型ではなく、点の配列（位置、信頼度）を受け取る純粋関数とする。PluginのAPIが変わっても、変換のTestはそのまま使える。
-- モデルのファイルは、Pluginとは別に版とHashを持つ。Pluginを更新しても、モデルは変えずに済む（逆も同じ）。
-- 更新の確認：EditModeのTest、`[Explicit]`の実機のTest（顔・体・手が取れること）、性能の計測（推論の時間、遅れ）を、更新の前後で比べる。結果をPull Requestに書く。
-- 更新の手順は、開発運用方針の依存の更新の節に書く（導入の段階で加える）。
+- モデルのファイルは、Pluginとは別にHashを持つ。Pluginを更新してモデルが変わった場合は、Scriptが止まって知らせるため、気づかずにモデルが変わることはない。
+- 更新の確認：EditModeとPlayModeのTest（静止画で顔・体・手が取れること）、`AllTasks_Timing`の計測、実機での目視を、更新の前後で比べる。結果をPull Requestに書く。
+- 更新の手順は、開発運用方針14.1に書いた。
 
 ---
 
@@ -524,7 +605,10 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 |---|---|
 | 奥行きの推定の方法（8.4）とWorld Landmarksの比較 | 段階2〜5で、記録した動きを再生して比べて決める |
 | 平滑化の既定のパラメータ | 段階2〜5で、評価の値と目視で決める |
-| Holistic Landmarkerへの切り替え | 段階2で、3つの推論を同時に動かした負荷を測ってから |
+| Holistic Landmarkerへの切り替え | 不要と判断した（3つの推論を同時に動かして30fpsを保てた、15章）。実際のカメラで足りなければ見直す |
+| MediaPipeの表情の値の左右（6.3） | 本人の左右と仮定した（`MediaPipeTracking.FaceSidesMirrored = false`）。デモでウインクして確かめる |
+| 視線の角度の範囲（`MaxGazeDegrees`、25°） | 仮の値。段階4で、アバターの目の動きと合わせて決める |
+| 体から離れた顔とみなす距離（画像の幅の12%） | 仮の値。実際のカメラで誤りが残るときに見直す |
 | 全身（`FullBody`）の追加 | v0.1.0の後 |
 | 声による口の動き（リップシンク）と顔のトラッキングの組み合わせ | Voice / Audioの設計時 |
 | トラッキング設定をProject / Profileへ移す | Project / Profileの設計時 |
@@ -536,4 +620,4 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 各段階を1つのBranchとし、それぞれにTestと、試すためのデモブランチを付ける（CLAUDE.md 29.2）。Avatarと合わせた順序はAvatar詳細設計18章に示す。
 
 1. Trackingの土台：`TrackingFrame`、契約、`OneEuroFilter`、`RotationFilter`、`FrameSlot`、状態の判断、評価の値と再生（合成の動き）
-2. MediaPipe：Pluginとモデルの導入（SBOM）、Captureの`camera` Source、`MediaPipeTrackingProvider`、セットアップ画面のカメラと点の表示、負荷と遅れの計測
+2. MediaPipe：Pluginとモデルの導入（SBOM）、Captureの`camera` Source、`TrackingService`、`MediaPipeTrackingProvider`、セットアップ画面のカメラと点の表示、負荷と遅れの計測（完了）

@@ -748,13 +748,23 @@ Examples:
 
 | Target | Command |
 |---|---|
-| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. `[Explicit]` tests run only when named |
+| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. Only the test assemblies under `Assets/VirtualVessel` run (not packages' own tests). `[Explicit]` tests carry the `Explicit` category and run only when named |
+| MediaPipeUnityPlugin and models | `pwsh tools/deps/fetch-mediapipe.ps1`. Run it before opening the project for the first time and after changing the version (Tracking detailed design 16.2) |
 | Native plugins | `pwsh tools/native/build-capture.ps1` (build and tests) |
 | Repository checks | `python tools/ci/repo_checks.py` |
 | UI images | `pwsh tools/ui/capture-ui.ps1` |
 
 - Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). Close the Editor, or pass another working copy made with `git worktree` as `-Project`.
 - Results and logs go to `build/` (not in Git).
+
+## 14.1 Updating Fetched Dependencies
+
+Dependencies fetched from GitHub releases and the like (currently MediaPipeUnityPlugin) have their version, download URL, and SHA-256 in `tools/deps/<name>.json` and are fetched by a script. An update is one `chore:` branch:
+
+1. Change the version, URL, and SHA-256 (and the hashes of contents such as models) in `tools/deps/<name>.json`.
+2. Run the fetch script with `-Force`, then compile and test in Unity.
+3. Change the version, download URL, and hash in the SBOM (the repository checks find a mismatch).
+4. Compare tests, performance measurements (`AllTasks_Timing` in Tracking detailed design chapter 15), and a check with real devices before and after the update, and write the results in the pull request.
 
 ## Manual / System Test
 
@@ -868,7 +878,9 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 | Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
 | String tables | Each locale's JSON parses, and every locale has the same keys |
 | Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`) |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`). Fetched dependencies (`tools/deps/*.json`, embedded packages) are listed at the version pinned there, with the same download URL and SHA-256 |
+| Fetched dependencies | Each `tools/deps/*.json` has a package name, a version, an `https` download URL, and SHA-256 values (also for contents such as models) |
+| License files | `tools/release/license-files.json` maps each license file shipped in the package to its source file. Every file an SBOM entry names (18.1.2) is in it, every license file of `Assets/ThirdParty` is shipped, and the sources kept in Git exist |
 
 - The checks look at the files tracked by git, not files that exist only locally, so they catch files that were not committed and missing `.meta` files.
 - The checks are in `tools/ci/repo_checks.py`, and their own unit tests (`tools/ci/test_repo_checks.py`) also run in CI.
@@ -891,6 +903,9 @@ Everything used beyond the language standard libraries and the operating system 
 - The SBOM is updated in the same change that adds, updates, or removes a component.
 - Each entry has a version, a license, and a scope: `required` for what is distributed, `excluded` for what is used only in development and CI.
 - The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, and GitHub Actions. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
+- A distributed entry names the files holding the full license texts that apply to it, with the property `virtual-vessel-studio:license-file` (the value is the path in the package, such as `licenses/UniGLTF-LICENSE.md`). An entry may name several files, and several entries may name the same file. The application itself (`metadata.component`) names `LICENSE` and `NOTICE`.
+- Those files are listed in `tools/release/license-files.json` as pairs of the path in the package and the source file in the repository. A source outside Git (a package Unity resolves, or a fetched package) may write the package hash as `*`. The release procedure (chapter 21) copies the files as listed. The credits on the settings screen (`docs/en/ui/screens/setup.md` chapter 8) read the SBOM and these files.
+- Entries whose terms do not ask for the full text to be shipped, such as Unity packages (Unity Companion License and others), the Unity engine, and the Microsoft C/C++ runtime, name no files and show only the license name.
 
 ## 18.2 Release Build
 
@@ -1040,7 +1055,7 @@ Steps:
 6. Check the draft and publish it by hand on GitHub.
 
 - A release build writes the build identifier `vX.Y.Z+<commit>` to `StreamingAssets/build-id.txt`. The application reads it at startup and shows it in logs and diagnostics (system design 5.29). Development builds and the Editor show `development`.
-- The package contains `LICENSE`, `NOTICE`, `TRADEMARKS.md`, the licenses in `Assets/ThirdParty`, and the SBOM.
+- The package contains `TRADEMARKS.md` and the files listed in `tools/release/license-files.json` (`LICENSE`, `NOTICE`, the licenses under `licenses/`, and the SBOM) (18.1.2).
 
 Example artifacts:
 

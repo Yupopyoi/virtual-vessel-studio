@@ -20,7 +20,8 @@ namespace VirtualVessel.UI.Dialogs
     public interface IDialogService
     {
         /// <summary>Returns true when the user confirms; false for Cancel, Esc, or a canceled token.</summary>
-        Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default);
+        /// <param name="details">Read-only content under the body, such as a model's terms of use; null for none.</param>
+        Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default, VisualElement details = null);
     }
 
     /// <summary>
@@ -51,7 +52,7 @@ namespace VirtualVessel.UI.Dialogs
             _root = root ?? throw new ArgumentNullException(nameof(root));
         }
 
-        public async Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default)
+        public async Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default, VisualElement details = null)
         {
             if (_root == null)
             {
@@ -61,7 +62,7 @@ namespace VirtualVessel.UI.Dialogs
             await _turn.WaitAsync(cancellationToken);
             try
             {
-                return await ShowAsync(titleKey, bodyKey, confirmKey, style, cancellationToken);
+                return await ShowAsync(titleKey, bodyKey, confirmKey, style, details, cancellationToken);
             }
             finally
             {
@@ -69,13 +70,13 @@ namespace VirtualVessel.UI.Dialogs
             }
         }
 
-        private async Task<bool> ShowAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, CancellationToken cancellationToken)
+        private async Task<bool> ShowAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, VisualElement details, CancellationToken cancellationToken)
         {
             var result = new TaskCompletionSource<bool>();
             Focusable previousFocus = _root.focusController?.focusedElement;
             var overlay = new VisualElement();
             overlay.AddToClassList(OverlayClass);
-            var dialog = new ConfirmDialog(titleKey, bodyKey, confirmKey, style);
+            var dialog = new ConfirmDialog(titleKey, bodyKey, confirmKey, style, details);
             overlay.Add(dialog);
 
             dialog.Confirm.clicked += () => result.TrySetResult(true);
@@ -140,7 +141,10 @@ namespace VirtualVessel.UI.Dialogs
     {
         public const string UssClass = "vv-dialog";
 
-        public ConfirmDialog(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style)
+        public const string DetailsClass = UssClass + "__details";
+
+        /// <param name="details">Read-only content under the body; focus stays on the buttons.</param>
+        public ConfirmDialog(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, VisualElement details = null)
         {
             AddToClassList(UssClass);
             var title = new Label();
@@ -153,6 +157,11 @@ namespace VirtualVessel.UI.Dialogs
             new KeyedText(body, text => body.text = text) { Key = bodyKey };
             Add(title);
             Add(body);
+            if (details != null)
+            {
+                details.AddToClassList(DetailsClass);
+                Add(details);
+            }
 
             var buttons = new VisualElement();
             buttons.AddToClassList(UssClass + "__buttons");

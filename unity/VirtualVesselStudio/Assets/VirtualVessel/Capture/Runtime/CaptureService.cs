@@ -21,6 +21,9 @@ namespace VirtualVessel.Capture
     {
         public const string ServiceName = "Capture";
 
+        /// <summary>The id of the tracking camera among <see cref="Sources"/>, for Tracking and its setup.</summary>
+        public const string TrackingCameraId = Game.WebCamCaptureSource.CameraSourceId;
+
         private readonly List<CaptureSourceBase> _sources;
         private readonly IReadOnlyList<IVideoCaptureSource> _publicSources;
         private readonly IFrameLoop _frameLoop;
@@ -128,7 +131,8 @@ namespace VirtualVessel.Capture
         {
             return sourceId switch
             {
-                Game.GameCaptureSource.SourceId => settings.GameEnabled,
+                Game.WebCamCaptureSource.GameSourceId => settings.GameEnabled,
+                Game.WebCamCaptureSource.CameraSourceId => settings.CameraEnabled,
                 SubScreen.SubScreenCaptureSource.SourceId => settings.SubScreenEnabled,
                 _ => false,
             };
@@ -171,12 +175,25 @@ namespace VirtualVessel.Capture
 
         private static CaptureSourceBase[] CreateSources(CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            // Neither touches a device or the native plugin until it is started.
+            // None touches a device or the native plugin until it is started. The two camera sources
+            // keep off each other's device, which WebCamTexture cannot open twice.
+            var cameras = new UnityCameraDevices();
+            WebCamCaptureSource game = null;
+            WebCamCaptureSource camera = null;
+            game = WebCamCaptureSource.ForGame(cameras, settings, clock, metrics, log, id => IsOpen(camera, id));
+            camera = WebCamCaptureSource.ForTrackingCamera(cameras, settings, clock, metrics, log, id => IsOpen(game, id));
             return new CaptureSourceBase[]
             {
-                new GameCaptureSource(new UnityCameraDevices(), settings, clock, metrics, log),
+                game,
                 new SubScreenCaptureSource(new DesktopDuplicationNative(), settings, clock, metrics, log),
+                camera,
             };
+        }
+
+        /// <summary>Whether <paramref name="source"/> has the device <paramref name="deviceId"/> open.</summary>
+        internal static bool IsOpen(CaptureSourceBase source, string deviceId)
+        {
+            return source != null && string.Equals(source.OpenDeviceId, deviceId, StringComparison.Ordinal);
         }
     }
 }

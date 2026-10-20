@@ -36,7 +36,7 @@ flowchart LR
     Store --> Loader["VrmAvatarLoader（UniVRM）"]
 
     subgraph Avatar["Avatar Module"]
-        Loader --> Runtime["AvatarRuntime<br/>Skeleton / Expressions"]
+        Loader --> Runtime["IAvatarModel<br/>Rig / Expressions"]
         Runtime --> Ctrl["AvatarController"]
         Ctrl --> Pose["PoseController<br/>（Retargeting）"]
         Ctrl --> Expr["ExpressionController"]
@@ -68,7 +68,8 @@ flowchart LR
 
 ## 3. Module境界
 
-- Avatarは、Core、Diagnostics、ProjectData、Trackingの公開Contract（`ITrackingSource`、`TrackingFrame`）、Videoの公開Contract（アバターの層）を参照する。Capture、UIは参照しない。
+- Avatarは、Core、Diagnostics、ProjectData、Trackingの公開Contract（`ITrackingSource`、`TrackingFrame`）を参照する。Capture、UI、Video、Stageは参照しない（Trackingの参照は段階4で加える）。
+- 置く場所（Videoのアバターの層と、StageのSpawn Point）は、Composition Rootが`AvatarPlacement`（層の番号と位置・向き）として渡す。UIがAvatarを参照し、VideoとStageがUIを参照するため、AvatarがVideoやStageを参照するとAssemblyの参照が循環するためである（「UI → Avatar → Video → UI」）。
 - UniVRMの型（`UniVRM10.*`、`UniGLTF.*`）は、VRMのLoader（別のAssembly、16章）の中だけで使う。Avatarの他の部分は、`IAvatarRig`、`IAvatarExpressions`（5.2）だけを使う（方式設計7.2）。
 - 他のModuleは`IAvatarService`（5.1）だけを使う。TransformやBlendShapeを直接操作しない（方式設計7.2 Avatar Controller）。
 - Trackingの`MediaPipe`の型には依存しない。入力は`TrackingFrame`だけである。
@@ -81,11 +82,16 @@ flowchart LR
 |---|---|---|
 | `IAvatarService` | Interface | 登録済みのアバターの一覧、登録、選択、現在のアバターの状態（5.1） |
 | `AvatarService` | Class（`IApplicationService`） | 上の実装。読み込み、配置、毎Frameの適用の呼び出し |
-| `AvatarEntry` | Class | 登録済みのアバター：Id、表示名、形式、サムネイル、ライセンス情報 |
-| `AvatarImporter` | Class | ファイルを確かめ、Data Rootへコピーし、Profileを作る（6.2） |
+| `AvatarPlacement` | Struct | 置く場所：Videoのアバターの層と、StageのSpawn Point（3章） |
+| `AvatarEntry` | Class | 登録済みのアバター：Id、Profile（読めないときはnull）、サムネイルのPath |
+| `AvatarStore` | Class | Data Rootのアバターのフォルダー：一覧、一時フォルダー、移動、削除（6.1） |
+| `AvatarFileCheck` | Static Class | 解析の前の確認：拡張子、大きさ、glTFの印（純粋関数、6.2） |
+| `AvatarImporter` | Class | ファイルを確かめ、Data Rootへコピーし、Profileを作る（6.2）。結果は`AvatarImportResult` |
 | `IAvatarLoader` | Interface | 形式ごとの読み込み（方式設計7.3） |
-| `VrmAvatarLoader` | Class（internal） | UniVRMによるVRMの読み込み |
-| `AvatarRuntime` | Class | 読み込んだ1体：Rig、表情、Profile、状態（方式設計7.2） |
+| `VrmAvatarLoader` | Class | UniVRMによるVRMの読み込み。Composition Rootが作る、UniVRM側の唯一のClass |
+| `IAvatarModel` | Interface | 読み込んだ1体：Root、Rig、表情、モデルの情報（`AvatarModelInfo`）、表示、毎Frameの反映、破棄（方式設計7.2） |
+| `AvatarLicense` | Class | 作者が決めた利用条件。形式に依存しない（6.4） |
+| `AvatarRestPose` | Static Class | 何も動かしていないときの姿勢：腕を下ろした基準の姿勢（7.2） |
 | `IAvatarRig` | Interface | 形式に依存しない骨格。標準の骨（`AvatarBone`）の回転を、基準の姿勢を単位とした空間で設定する（7.1） |
 | `IAvatarExpressions` | Interface | 形式に依存しない表情。標準の表情（`AvatarExpression`）の重みと視線を設定する |
 | `AvatarBone` | Enum | 標準の人体の骨（Unity Humanoidと同じ並び） |
@@ -96,7 +102,7 @@ flowchart LR
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用、Expression Signalの生成 |
 | `AvatarProfile` | Class | 保存する利用の設定（6.3） |
-| `AvatarSettings` | Class | 使うアバターと鏡写し等（10章） |
+| `AvatarSettings` | Class | 使うアバター（10章） |
 
 ---
 
@@ -112,12 +118,16 @@ public interface IAvatarService
     IReadOnlyObservable<AvatarState> State { get; }                     // None、Loading、Ready、Error
     IReadOnlyObservable<AvatarProblem> Problem { get; }                 // 利用者へ伝える問題（11章）
 
-    Task<AvatarEntry> ImportAsync(string path, CancellationToken cancellationToken);  // 登録（6.2）
-    Task SelectAsync(string avatarId, CancellationToken cancellationToken);           // 読み込んで差し替える
-    Task RemoveAsync(string avatarId, CancellationToken cancellationToken);           // 登録を消す（確認はUI）
-    void SetMirror(bool mirror);
+    IReadOnlyList<string> Extensions { get; }                           // 登録できる拡張子（ファイルを選ぶ画面用）
+
+    // 登録（6.2）。confirmは登録の前にモデルの情報と利用条件を見せ、falseなら登録しない
+    Task<AvatarImportResult> ImportAsync(string path, Func<AvatarModelInfo, Task<bool>> confirm, CancellationToken cancellationToken);
+    Task SelectAsync(string avatarId, CancellationToken cancellationToken);   // 読み込んで差し替える。nullで外す
+    Task RemoveAsync(string avatarId, CancellationToken cancellationToken);   // 登録を消す（確認はUI）
 }
 ```
+
+- `AvatarImportResult`は、登録した（`Imported`）、利用者がやめた（`Declined`）、問題（`Problem`。`AlreadyImported`のときは登録済みのアバターを`Entry`に持つ）のどれかを表す。
 
 - すべての操作と通知はMain Threadで行う。ファイルのコピーとHashの計算は別のThreadで行う。
 - `SelectAsync`は、新しいアバターを読み込み終えてから、古いアバターと入れ替える。読み込みに失敗したら、古いアバターのままにする。
@@ -131,6 +141,7 @@ public interface IAvatarRig
     float BoneLength(AvatarBone bone);                       // 子の骨までの長さ（メートル）
     void SetRotation(AvatarBone bone, Quaternion rotation);  // 基準の姿勢（7.1）からの回転。アバターのRoot空間
     void SetRootPosition(Vector3 position);                  // 全身のとき（後続）
+    void ResetPose();                                        // 基準の姿勢へ戻す
 }
 
 public interface IAvatarExpressions
@@ -143,7 +154,20 @@ public interface IAvatarExpressions
 ```
 
 - VRMでは、`IAvatarRig`をUniVRMのControl Rig（基準の姿勢でどの骨の回転も単位になる正規化した骨格）で実装する。モデルごとの骨の軸の違い（ある骨はX軸が前、別の骨はZ軸が前等）を、UniVRMが吸収する。FBXのLoaderを作るときは、同じ正規化をLoaderの中で行う。
+- `SetRotation`の値は`IAvatarModel.Apply`でまとめて反映する。親の骨から順に反映するため、呼ぶ順序は問わない。
 - VRMでは、`IAvatarExpressions`をVRM 1.0のExpression（Preset）とLookAtで実装する。
+
+```csharp
+public interface IAvatarModel : IDisposable
+{
+    Transform Root { get; }            // 基準の姿勢で+Zを向く
+    IAvatarRig Rig { get; }
+    IAvatarExpressions Expressions { get; }
+    AvatarModelInfo Info { get; }      // 名前、形式、元の版、変換したか、利用条件、サムネイル
+    void SetVisible(bool visible);
+    void Apply();                      // そのFrameに設定した値を反映し、揺れもの（SpringBone）を動かす
+}
+```
 
 ---
 
@@ -155,20 +179,23 @@ public interface IAvatarExpressions
 DataRoot/Avatars/<AvatarId>/
 ├─ model.vrm               コピーしたモデル（元のファイルは変更しない）
 ├─ avatar-profile.json     利用の設定（6.3）
-└─ thumbnail.png           サムネイル（VRMのメタ情報の画像。なければ読み込み時に撮る）
+└─ thumbnail.png / .jpg    サムネイル（VRMのメタ情報の画像を、ファイルに入っている形式のまま保存する）
 ```
 
 - `AvatarId`は登録時に作るGUID（`N`形式）。名前やファイル名を使わない（重複、使えない文字を避けるため）。
-- 一覧は、起動時に`Avatars/`の下を読んで作る。`avatar-profile.json`が読めないものは一覧に「読み込めないアバター」として出し、消すかどうかは利用者が選ぶ（勝手に消さない、CLAUDE.md 25章）。
+- 一覧は、起動時に`Avatars/`の下を読んで作る。`avatar-profile.json`が読めないもの（またはモデルのファイルがないもの）は一覧に「読み込めないアバター」として出し、消すかどうかは利用者が選ぶ（勝手に消さない、CLAUDE.md 25章）。
+- AvatarIdの形をしたフォルダーだけを扱い、消す。利用者が置いた他のフォルダーには触れない。Profileの`format`と`thumbnail`は、小文字の英数字や決まった名前だけを受け付ける。Profileを書き換えて、フォルダーの外を指させないためである。
+- 起動時に`Avatars/.importing/`を消す。中断した登録の残りである。
 
 ### 6.2 登録（AvatarImporter）
 
 1. 利用者がファイルを選ぶ（UIの`IFileDialog`）。
 2. 確かめる：拡張子`.vrm`、大きさの上限（既定1GB）、ファイルの先頭がglTFのBinary形式（`glTF`の印）であること。
 3. 一時Folder（`Avatars/.importing/<AvatarId>/`）へコピーする（別のThread）。SHA-256を計算し、同じHashのアバターが登録済みなら、そのアバターを示して登録しない。
-4. 一時Folderのコピーを、実際に読み込んで確かめる（`VrmAvatarLoader`、6.4）。標準の骨がそろっていること、メタ情報を取り出す。
-5. `avatar-profile.json`とサムネイルを書き、一時Folderを`Avatars/<AvatarId>/`へ移す。途中で失敗したら一時Folderを消す。
-6. 一覧に加える。最初の1体なら、使うアバターにする。
+4. 一時Folderのコピーを、実際に読み込んで確かめる（`VrmAvatarLoader`、6.4）。必須の骨（8.2）がそろっていること、メタ情報を取り出す。確かめたら破棄する。
+5. モデルの名前と利用条件（6.4）を確認のダイアログで見せる。利用者がやめたら登録しない。
+6. `avatar-profile.json`とサムネイルを書き、一時Folderを`Avatars/<AvatarId>/`へ移す。途中で失敗したとき、取り消したときは一時Folderを消す。
+7. 一覧に加える。使うアバターがまだなければ、使うアバターにする。
 
 - 元のファイルのPathは、`avatar-profile.json`に参考として残すが、実行時には使わない（方式設計7.11）。
 
@@ -200,24 +227,30 @@ DataRoot/Avatars/<AvatarId>/
 
 VRMには、作者がアバターの使い方の条件を書く（アバターとして使ってよい人、商用利用、暴力・性的表現、改変、再配布等）。
 
-- 登録時と、アバターの詳細で、作者、条件、ライセンスのURLを利用者に表示する。
-- 条件を理由に登録や使用を止めることはしない（判断するのは利用者）。ただし、`avatarPermission`が作者のみ等の場合は、登録の前に注意を表示する。
-- ライセンスのURLは、利用者が押したときだけ外部のブラウザで開く。
+- 登録の確認のダイアログと、セットアップ画面のアバターのCardで、作者、条件、ライセンスのURLを利用者に表示する（`docs/ja/ui/screens/setup.md` 5章）。
+- 条件を理由に登録や使用を止めることはしない（判断するのは利用者）。ただし、アバターとして使える人が「誰でも」でない場合（作者のみ、許可された人、記載なし）は、確認のダイアログに注意を表示する。
+- ファイルに書かれていない条件は「記載なし」と表示する。表示しないと、許されていると読み違えるおそれがあるため。
+- ライセンスのURLは、`https`のものだけを、利用者が押したときだけ外部のブラウザで開く。他の形式（`file:`等）は文字として見せるだけにする。
+- `avatar-profile.json`の`license`には、形式に依存しない`AvatarLicense`を書く。
 
 ### 6.5 アバターの配置
 
 - アバターは、アプリが持つPersistentな場所（Stage Sceneの外）に置く（方式設計7.10）。
-- Stage SceneのSpawn Pointができるまでは、Stageが既定のSpawn Pointを1つ出す（`IAvatarSpawnPoints`、Stage詳細設計に追加する）：原点、カメラの方を向く。Main Cameraの既定の位置は、上半身が配信画面に収まるように合わせる（Video）。
+- Stage SceneのSpawn Pointができるまでは、Stageが既定のSpawn Pointを1つ出す（`IAvatarSpawnPoints`、Stage詳細設計7.1）：原点、カメラの方（-Z）を向く。Main Cameraの既定の位置は、上半身が配信画面に収まるように合わせる（Video詳細設計7.5）。
+- 置くときは、全部の部分の層を`Avatar`にし、Spawn Pointへ動かし、腕を下ろした姿勢（`AvatarRestPose`、既定70°）にしてから表示する。読み込みは非表示で行うため、原点や違う層に一瞬出ることはない。
 - 描く層はUnityの層`Avatar`とし、VideoのAvatar Camera（Video詳細設計7.2、Main Cameraと同じ位置と画角、Overlay）が描く。平面の映像の前に出る（利用者の決定、2026-10-17）。
 
 ### 6.6 鏡写し
 
 - 鏡写し（既定：オン）では、利用者が右手を上げると、アバターは左手を上げる。画面上では同じ側の手が上がり、鏡を見ているように動かせる。
+- 設定は`ITrackingSource.Options`の`Mirror`を使う。セットアップ画面のカメラの映像の左右反転と同じ1つの設定で、Trackingが`tracking-settings.json`に保存する（Tracking詳細設計10章）。
 - `TrackingFrame`は利用者自身の左右を持つ（Tracking詳細設計6.1）。鏡写しでは、左右を入れ替え、X軸を反転してから適用する（`PoseRetargeting`の入力の変換、純粋関数）。表情の左右（片目のまばたき等）も入れ替える。
 
 ### 6.7 ファイルを選ぶ画面
 
-- UIに`IFileDialog`（`Task<string> OpenAsync(FileDialogOptions options)`）を加える。WindowsではCOMの`IFileOpenDialog`を専用のSTAのThreadで開く。Main Threadで開くと、ダイアログを開いている間、描画と配信の映像が止まるためである。
+- UIに`IFileDialog`（`Task<string> OpenAsync(FileDialogOptions options)`。やめたらnull）を加える。Windowsでは`GetOpenFileNameW`（comdlg32）を専用のSTAのThreadで開く（`WindowsFileDialog`）。Main Threadで開くと、ダイアログを開いている間、描画と配信の映像が止まるためである。
+- COMの`IFileOpenDialog`ではなく`GetOpenFileNameW`を使う。同じExplorer形式の画面が出て、MonoとIL2CPPで対応にばらつきのあるCOM Interopが要らないため。
+- アプリのWindowを持ち主にするので、ダイアログは前に出たままになり、閉じるまでアプリのWindowは操作できない。同時に開けるのは1つだけ。
 - 追加の依存（Libraryの導入）はしない。
 
 ### 6.8 VRM 0.x
@@ -225,7 +258,7 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 - VRM 0.xのモデルも受け付ける（利用者の決定、2026-10-18。方式設計7.3）。UniVRMの読み込みで、VRM 0.xをVRM 1.0へ変換する（`Vrm10`の0.xの変換を有効にする）。
 - 保存するのは元のファイル（`model.vrm`）のままとし、変換は読み込みのたびに行う。変換の結果をファイルとして保存しない。UniVRMの変換が良くなったとき、そのまま反映されるようにするため。
 - Profileの`formatVersion`は元の版（`0.x`）とし、変換したことを`converted`で示す。
-- ライセンス（6.4）は、0.xのメタ情報の項目を1.0の項目へ対応させて表示する。対応しない項目は元の値のまま表示する。
+- ライセンス（6.4）は、変換する前の0.xのメタ情報から、0.xの項目を1.0の項目へ対応させて表示する（`VrmLicense`）。UniVRMの変換はライセンスのURLをVRM 1.0のライセンスに置き換えるため、その結果は使わない。0.xに項目のない条件（政治・宗教、再配布、改変等）は「記載なし」とし、0.xのライセンス名（`CC_BY`等）とその他の許可のURLは、元の値のまま表示する。商用利用の「可」は、UniVRMの変換と同じく「個人なら営利も可」とする。
 - 0.xと1.0では、骨の基準の向きや表情の名前が違うが、変換の後は1.0として同じに扱う。違いが残る場合（視線の範囲等）は、Testで確かめる。
 
 ---
@@ -296,16 +329,18 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 
 ### 8.1 AvatarService
 
-- OptionalのApplication Serviceとし、Logging、Video、Stage、Trackingの後に起動する。Trackingがなくても、アバターは基準の姿勢で表示する。
-- 起動時に一覧を作り、`avatar-settings.json`の使うアバターを読み込む（Main Threadを長く止めない、9章）。
+- OptionalのApplication Serviceとし、Logging、Video、Stageの後に起動する（VideoとStageがないときは作らない）。Trackingがなくても、アバターは基準の姿勢で表示する。
+- 起動時に一覧を作り、`avatar-settings.json`の使うアバターの読み込みを始める。読み込みの完了は待たずに起動を続ける（Main Threadを長く止めない、9章）。使うアバターが登録されていなければ、使うアバターをなしにする。
 - 終了時に、アバターのGameObject、Texture、Mesh、Materialを破棄する（UniVRMの`RuntimeGltfInstance`の破棄を使う）。
 
 ### 8.2 読み込み
 
 1. `Loading`。`VrmAvatarLoader`がファイルを読み、UniVRMで組み立てる。
-2. Rigと表情を確かめる。必須の骨（Hips、Spine、Chest、Neck、Head、左右の上腕・前腕・手）がなければ`Error`（`MissingBones`）。
-3. 層を`Avatar`にし、Spawn Pointに置く。
+2. Rigと表情を確かめる。必須の骨（Hips、Spine、Head、左右の上腕・前腕・手）がなければ`Error`（`MissingBones`）。VRM 1.0が必須とする上半身の骨に合わせた。Chest、Upper Chest、NeckはVRM 1.0では任意のため、ない場合はその回転を近い骨へ配る。
+3. 層を`Avatar`にし、Spawn Pointに置く（6.5）。
 4. `Ready`。古いアバターがあれば破棄する。
+
+- 読み込み中に別のアバターが選ばれたら、前の読み込みを取り消す。差し替えに失敗したら、`Problem`を出したまま、古いアバターで`Ready`を保つ。
 
 ### 8.3 毎Frameの適用
 
@@ -343,12 +378,12 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 public sealed class AvatarSettings
 {
     public string CurrentAvatarId { get; set; }   // なければ、アバターを出さない
-    public bool Mirror { get; set; } = true;      // 6.6
 }
 ```
 
 - `avatar-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Project / Profileができたら移す。
 - アバターごとの設定は`avatar-profile.json`（6.3）。
+- 鏡写しはTrackingの設定（6.6）。
 
 ---
 
@@ -404,6 +439,8 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
+段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む）。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
+
 ---
 
 ## 15. 性能
@@ -411,6 +448,7 @@ public sealed class AvatarSettings
 - 毎Frameの適用（`Avatar/Apply`）は0.3ms以下を目標とする（開発用PCで計測し、本書に記録する）。
 - 読み込み中の1Frameは50ms以下を目標とする。配信中にアバターを切り替えても、映像が目立って止まらないようにするため。
 - SpringBoneの負荷はモデルに依存する。計測して記録する。
+- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は、Trackingを適用する段階4以降で計測する。
 
 ---
 
@@ -419,25 +457,28 @@ public sealed class AvatarSettings
 ```text
 Assets/VirtualVessel/Avatar/
 ├─ Runtime/                                   VirtualVessel.Avatar
-│  ├─ IAvatarService.cs     IAvatarService, AvatarEntry, AvatarState, AvatarProblem
-│  ├─ AvatarService.cs      AvatarService, AvatarSettings
-│  ├─ Core/                 AvatarRuntime, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression, AvatarProfile
-│  ├─ Loading/              IAvatarLoader, AvatarImporter, AvatarStore
-│  ├─ Pose/                 PoseRetargeting, PoseController, PoseInterpolation
-│  ├─ Expression/           ExpressionMapping, ExpressionController, ExpressionSignal
-│  └─ Runtime/              AvatarController
+│  ├─ IAvatarService.cs     IAvatarService, AvatarState, AvatarPlacement
+│  ├─ AvatarService.cs      AvatarService
+│  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
+│  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
+│  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
+│  ├─ Pose/                 AvatarRestPose（段階5でPoseRetargeting, PoseController, PoseInterpolation）
+│  ├─ Expression/           （段階4でExpressionMapping, ExpressionController, ExpressionSignal）
+│  └─ Runtime/              （段階4でAvatarController）
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
+│  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する
 │  ├─ VrmAvatarRig.cs       Control RigによるIAvatarRig
-│  └─ VrmAvatarExpressions.cs
+│  ├─ VrmAvatarExpressions.cs
+│  └─ VrmLicense.cs         VRMのメタ情報からAvatarLicenseへ（純粋関数）
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/
 ```
 
-- 参照：Core、Diagnostics、ProjectData、Tracking、Video。VRMのAssemblyは、加えてUniVRM（`com.vrmc.vrm`、`com.vrmc.gltf`）を参照する。
-- UniVRMは、UPMのGitのURLで、版のTagを固定して導入する（現在v0.131.3。`path=/Packages/VRM10`等、v0.131からの配置）。`packages-lock.json`がCommitを固定する。Unity 6.6で動くことを導入の段階で確かめる。ライセンスはMIT。同じ変更でSBOMへ記録する。
-- VRMのShader（MToon、URP用）が配布物のBuildに含まれることを確かめる（実行時に読み込むモデルのMaterialが使うため、Buildから外れると表示されない）。
+- 参照：Core、Diagnostics、ProjectData（段階4からTracking）。VRMのAssemblyは、Avatarと、UniVRM（`UniGLTF`、`UniGLTF.Utils`、`UniHumanoid`、`VRM10`、`VrmLib`）を参照する。Composition Root（Application）が`VrmAvatarLoader`を作る。
+- UniVRMは、UPMのGitのURLで、版のTagを固定して導入した（v0.131.4。`https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4`と`...?path=/Packages/VRM10#v0.131.4`）。`packages-lock.json`がCommit（`efd20f6`）を固定する。Unity 6.6で動くことを確かめた。ライセンスはMIT。SBOMに`com.vrmc.gltf`、`com.vrmc.vrm`と、依存する`com.unity.mathematics`を記録した。リポジトリのCheckは、GitのPackageの版をTagから読み、Tagのないものを誤りとする。
+- 実行時に読み込むモデルのMaterialは、UniVRMがShaderを名前で探す。そのため、MToon 1.0（URP）、UniUnlit、URP Litを、Graphics Settingsの常に含めるShaderに入れた。配布物のライセンスには、UniVRMの`LICENSE.txt`（`tools/release/licenses`）とUniGLTFの`LICENSE.md`を入れる。
 
 ---
 
@@ -446,7 +487,9 @@ Assets/VirtualVessel/Avatar/
 | 項目 | 対応予定 |
 |---|---|
 | VRM 0.xのモデルを受け付けるか | 決定：読み込み時に1.0へ変換して受け付ける（6.8、方式設計7.3。利用者の決定、2026-10-18） |
-| Test用のVRMモデル | 利用者からサンプルを受け取る（Repository外の`E:\VirtualVessel\samples\`）。VRM 1.0から始め、0.xの変換のTestに0.xのモデルが必要になったら依頼する。Repositoryに入れられるライセンスの小さなモデルがあれば、自動のTestに使う |
+| Test用のVRMモデル | 利用者から受け取ったサンプル（Repository外の`E:\VirtualVessel\samples\`、VRM 1.0の2体と0.xの1体）で確かめた。0.xも、変換の後に骨、Root空間での回転、表情、破棄がTestを通った。Repositoryに入れられるライセンスの小さなモデルがあれば、自動のTestに使う |
+| サムネイルのないモデル | 今は「画像なし」を表示する。読み込み時に撮るかは、要望に応じて検討する |
+| 身長の違うモデルの写り方 | カメラの既定の位置は固定（Video詳細設計7.5）。身長の差が大きいモデルで上半身が収まらない場合は、Camera Pointの設計時に頭の高さへ合わせる方式を検討する |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |
 | Perfect Sync（ARKitの52個の表情を持つモデル） | v0.1.0の後 |
 | FBX | Libraryの選択から。v0.1.0の後 |

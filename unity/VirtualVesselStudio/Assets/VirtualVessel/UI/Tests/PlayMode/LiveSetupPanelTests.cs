@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -9,7 +10,10 @@ using UnityEngine.UIElements;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
+using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
 
@@ -23,6 +27,8 @@ namespace VirtualVessel.UI.Tests
         private UiRoot _root;
         private FakeDeviceSource _game;
         private FakePointerSource _sub;
+        private FakeDeviceSource _camera;
+        private FakeTracking _tracking;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -30,11 +36,13 @@ namespace VirtualVessel.UI.Tests
             _directory = Path.Combine(Path.GetTempPath(), "VirtualVesselTests", Guid.NewGuid().ToString("N"));
             _game = new FakeDeviceSource("game", CaptureSourceKind.GameCapture);
             _sub = new FakePointerSource("subscreen", CaptureSourceKind.SubScreenCapture);
+            _camera = new FakeDeviceSource(CaptureService.TrackingCameraId, CaptureSourceKind.Camera);
+            _tracking = new FakeTracking();
             _host = new GameObject(nameof(LiveSetupPanelTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub)));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking, credits: new FakeCredits()));
             yield return null;
         }
 
@@ -55,10 +63,77 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             var cards = _root.Content.Query<CaptureSourceCard>().ToList();
-            Assert.That(cards.Count, Is.EqualTo(2));
+            Assert.That(cards.Count, Is.EqualTo(2), "The tracking camera has no capture Card of its own.");
             Assert.That(cards[0].Pointer, Is.Null, "A capture board has no cursor.");
             Assert.That(cards[1].Pointer, Is.Not.Null);
             Assert.That(_root.Content.Q<AppSettingsCard>(), Is.Not.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator Setup_CardsStartClosed_ShowTheirStateInTheTitle_AndTheTitleOpensThem()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            VisualElement screen = _root.Shell.Host.GetScreen("setup");
+            List<Card> cards = screen.Query<Card>().ToList();
+            Assert.That(cards.Count, Is.EqualTo(5), "Two capture Cards, tracking, the app settings, and the credits.");
+            foreach (Card each in cards)
+            {
+                Assert.That(each.Collapsible, Is.True);
+                Assert.That(each.Expanded, Is.False, "Each start begins closed; nothing is saved.");
+                Assert.That(each.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            }
+
+            // Measured on the real styles: everything on the screen keeps M (16px) from the next, whichever module built it.
+            List<VisualElement> items = screen.Children().ToList();
+            for (int i = 1; i < items.Count; i++)
+            {
+                float gap = items[i].worldBound.yMin - items[i - 1].worldBound.yMax;
+                Assert.That(gap, Is.EqualTo(16f).Within(0.5f), $"Between {items[i - 1].GetType().Name} and {items[i].GetType().Name}.");
+            }
+
+            CaptureSourceCard capture = screen.Q<CaptureSourceCard>();
+            Card card = capture.Q<Card>();
+            Assert.That(capture.Status.parent, Is.SameAs(card.HeaderEnd), "The state shows while the Card is closed.");
+            Assert.That(screen.Q<TrackingCard>().Status.parent, Is.SameAs(screen.Q<TrackingCard>().Q<Card>().HeaderEnd));
+
+            Click(card.Header);
+            yield return null;
+            Assert.That(card.Expanded, Is.True, "A click on the title opens the Card.");
+            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(cards[1].Expanded, Is.False, "Each Card opens on its own.");
+
+            Submit(card.Header);
+            yield return null;
+            Assert.That(card.Expanded, Is.False, "Enter or Space on the focused title closes it again.");
+            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
+        public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            CreditsCard credits = _root.Shell.Host.GetScreen("setup").Q<CreditsCard>();
+            Assert.That(credits.parent.Children().Last(), Is.SameAs(credits), "The credits come last.");
+            Assert.That(credits.Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "App", "Plugin", "Inside", "Tool part" }));
+            Assert.That(credits.Rows[2].Row.ClassListContains(CreditsCard.NestedClass), Is.True, "A component built into another is indented.");
+            Assert.That(credits.Rows[2].Toggle, Is.Null, "No full text, no button.");
+
+            CreditsCard.CreditRow plugin = credits.Rows[1];
+            Assert.That(plugin.Shown, Is.False);
+            Assert.That(plugin.Text.Query<Label>().ToList(), Is.Empty, "Texts are read when first shown.");
+            Submit(plugin.Toggle);
+            yield return null;
+            Assert.That(plugin.Shown, Is.True);
+            Assert.That(plugin.Toggle.TextKey, Is.EqualTo(CreditStrings.Hide));
+            List<Label> labels = plugin.Text.Query<Label>().ToList();
+            Assert.That(labels.Select(label => label.text), Is.EqualTo(new[] { "licenses/a.md", "<b>MIT</b> text", "licenses/gone.md", _root.Localizer.Get(CreditStrings.Missing) }), "Each file is named when there are several; a missing one says so.");
+            Assert.That(labels[1].enableRichText, Is.False, "License texts are shown as written.");
+
+            Submit(plugin.Toggle);
+            Assert.That(plugin.Shown, Is.False);
+            Assert.That(plugin.Toggle.TextKey, Is.EqualTo(CreditStrings.Show));
         }
 
         [UnityTest]
@@ -95,6 +170,77 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTrackingCard_StartsTracking_AndChoosesItsCamera()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card, Is.Not.Null);
+
+            card.Track.value = true;
+            Assert.That(_tracking.State.Value, Is.EqualTo(TrackingState.Running));
+            card.Devices.value = "Board A";
+            Assert.That(_camera.SelectedDeviceId, Is.EqualTo("Board A"));
+
+            _tracking.Set(TrackingState.Unavailable, TrackingProblem.CameraNotChosen);
+            Assert.That(card.Status.Status, Is.EqualTo(StatusKind.Warning));
+            Assert.That(card.ProblemKey, Is.EqualTo(TrackingStrings.ProblemChoose));
+            Assert.That(card.Track.value, Is.True, "Still on while it waits for the camera.");
+
+            Assert.That(card.MirrorToggle.value, Is.True, "Mirrored by default.");
+            Assert.That(card.Preview.resolvedStyle.scale.value.x, Is.EqualTo(-1f), "The image and points flip together.");
+            card.MirrorToggle.value = false;
+            Assert.That(_tracking.Options.Value.Mirror, Is.False);
+
+            var video = new Texture2D(4, 4);
+            _camera.SetTexture(video);
+            Assert.That(card.Preview.image, Is.SameAs(video), "The camera image is shown to check the points on.");
+            Object.Destroy(video);
+        }
+
+        [Test]
+        public void TrackingDescribe_PairsEveryStateWithAShapeAndText()
+        {
+            Assert.That(TrackingCard.Describe(TrackingState.Stopped, TrackingProblem.None), Is.EqualTo((StatusKind.Idle, TrackingStrings.Stopped, (string)null)));
+            Assert.That(TrackingCard.Describe(TrackingState.Running, TrackingProblem.None).Kind, Is.EqualTo(StatusKind.Success));
+            Assert.That(TrackingCard.Describe(TrackingState.Running, TrackingProblem.NoPerson), Is.EqualTo((StatusKind.Warning, TrackingStrings.NoPerson, TrackingStrings.ProblemNoPerson)));
+            Assert.That(TrackingCard.Describe(TrackingState.Error, TrackingProblem.CameraInUse).ProblemKey, Is.EqualTo(TrackingStrings.ProblemInUse));
+            Assert.That(TrackingCard.Describe(TrackingState.Error, TrackingProblem.StartFailed).Kind, Is.EqualTo(StatusKind.Error));
+            Assert.That(CaptureSourceCard.Describe(CaptureState.Error, CaptureProblem.DeviceInUse).ProblemKey, Is.EqualTo(CaptureStrings.ProblemInUse));
+        }
+
+        [Test]
+        public void ThePartsLine_MarksEachPartWithAShapeAndAWord()
+        {
+            var frame = new TrackingFrame();
+            frame.Face.Status = TrackingStatus.Tracked;
+            frame.Body.Status = TrackingStatus.LowConfidence;
+            frame.LeftHand.Status = TrackingStatus.Lost;
+            frame.RightHand.Status = TrackingStatus.Disabled;
+
+            Assert.That(TrackingCard.PartsLine(frame, true, key => key.Substring(key.LastIndexOf('.') + 1)), Is.EqualTo("face ✓   body ✓   lefthand –   righthand ×"));
+            Assert.That(TrackingCard.PartsLine(frame, false, key => key), Is.Empty, "Nothing while tracking is off.");
+        }
+
+        [Test]
+        public void TheLoadLine_ShowsNumbers_AndADashForAnUnknownGpu()
+        {
+            Assert.That(TrackingCard.LoadValues(new AppLoad(59.6, 12.4, 31.2), 29.8), Is.EqualTo(("60", "30", "12%", "31%")));
+            Assert.That(TrackingCard.LoadValues(new AppLoad(60, 5, double.NaN), 0).Gpu, Is.EqualTo("—"));
+        }
+
+        [Test]
+        public void ThePoints_FollowTheImageAsThePreviewFitsIt()
+        {
+            Rect wide = TrackingOverlay.FitRect(256, 144, 1280, 720);
+            Assert.That(wide, Is.EqualTo(new Rect(0, 0, 256, 144)));
+
+            Rect narrow = TrackingOverlay.FitRect(256, 144, 640, 480);
+            Assert.That(narrow.width, Is.EqualTo(192f).Within(1e-4f));
+            Assert.That(narrow.x, Is.EqualTo(32f).Within(1e-4f), "Centered, with bars on the sides.");
+        }
+
+        [UnityTest]
         public IEnumerator Live_ShowsThePreview_AndTheLayers()
         {
             _root.Shell.Open("live");
@@ -115,6 +261,54 @@ namespace VirtualVessel.UI.Tests
             Assert.That(CaptureSourceCard.Describe(CaptureState.Unavailable, CaptureProblem.MonitorNotFound), Is.EqualTo((StatusKind.Warning, CaptureStrings.NotFound, CaptureStrings.ProblemNotFound)));
             Assert.That(CaptureSourceCard.Describe(CaptureState.Error, CaptureProblem.PluginMissing), Is.EqualTo((StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemFailed)), "Users see a missing plugin as a failure.");
             Assert.That(CaptureSourceCard.InfoText(default), Is.EqualTo("—"));
+        }
+
+        private static void Click(VisualElement target)
+        {
+            Pointer(target, EventType.MouseDown);
+            Pointer(target, EventType.MouseUp);
+        }
+
+        private static void Pointer(VisualElement target, EventType type)
+        {
+            var system = new Event { type = type, mousePosition = target.worldBound.center, button = 0, clickCount = 1 };
+            using (EventBase evt = type == EventType.MouseDown ? PointerDownEvent.GetPooled(system) : PointerUpEvent.GetPooled(system))
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
+        private static void Submit(VisualElement target)
+        {
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
+        private sealed class FakeCredits : ICreditFiles
+        {
+            private readonly Dictionary<string, string> _files = new Dictionary<string, string>
+            {
+                [CreditFiles.SbomPath] = @"{ ""bomFormat"": ""CycloneDX"",
+                    ""metadata"": { ""component"": { ""name"": ""App"", ""version"": ""0.1.0"", ""licenses"": [ { ""license"": { ""id"": ""Apache-2.0"" } } ] } },
+                    ""components"": [
+                        { ""name"": ""Plugin"", ""version"": ""1.0"", ""licenses"": [ { ""license"": { ""id"": ""MIT"" } } ],
+                          ""properties"": [
+                            { ""name"": ""virtual-vessel-studio:license-file"", ""value"": ""licenses/a.md"" },
+                            { ""name"": ""virtual-vessel-studio:license-file"", ""value"": ""licenses/gone.md"" } ],
+                          ""components"": [ { ""name"": ""Inside"" } ] },
+                        { ""name"": ""Tool"", ""scope"": ""excluded"" },
+                        { ""name"": ""Tool part"" } ] }",
+                ["licenses/a.md"] = "<b>MIT</b> text",
+            };
+
+            public string ReadText(string packagePath)
+            {
+                return _files.TryGetValue(packagePath, out string text) ? text : null;
+            }
         }
 
         private class FakeDeviceSource : ICaptureDeviceSource
@@ -145,6 +339,10 @@ namespace VirtualVessel.UI.Tests
             private readonly ObservableValue<Texture> _texture = new ObservableValue<Texture>(null);
 
             public IReadOnlyObservable<Texture> Texture => _texture;
+
+            public long FrameCount => 0;
+
+            public long LastFrameTimestamp => 0;
 
             public void SetTexture(Texture texture)
             {
@@ -206,6 +404,46 @@ namespace VirtualVessel.UI.Tests
             public void SetDrawPointer(bool draw)
             {
                 _pointer.Value = draw;
+            }
+        }
+
+        private sealed class FakeTracking : ITrackingSource
+        {
+            private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
+            private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
+            private readonly ObservableValue<TrackingOptions> _options = new ObservableValue<TrackingOptions>(TrackingOptions.Default);
+
+            public IReadOnlyObservable<TrackingState> State => _state;
+
+            public IReadOnlyObservable<TrackingProblem> Problem => _problem;
+
+            public TrackingRegions Supported => TrackingRegions.All;
+
+            public IReadOnlyObservable<TrackingOptions> Options => _options;
+
+            public TrackingFrame Current { get; } = new TrackingFrame();
+
+            public double ObservationsPerSecond => 30;
+
+            public void Start()
+            {
+                Set(TrackingState.Running, TrackingProblem.None);
+            }
+
+            public void Stop()
+            {
+                Set(TrackingState.Stopped, TrackingProblem.None);
+            }
+
+            public void SetOptions(TrackingOptions options)
+            {
+                _options.Value = options;
+            }
+
+            public void Set(TrackingState state, TrackingProblem problem)
+            {
+                _problem.Value = problem;
+                _state.Value = state;
             }
         }
 
