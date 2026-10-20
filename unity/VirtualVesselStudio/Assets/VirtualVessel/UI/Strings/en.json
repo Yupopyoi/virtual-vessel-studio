@@ -63,11 +63,11 @@
         "settings.save-failed.title": "Couldn't save the settings",
         "settings.save-failed.body": "Your changes apply until you quit. Check that the settings folder can be written to.",
         "nav.live": "Live",
-        "nav.setup": "Setup",
+        "nav.setup": "Settings",
         "nav.lab": "Voice Lab",
         "nav.diagnostics": "Diagnostics",
         "tip.nav.live": "Everything you use while streaming",
-        "tip.nav.setup": "Set up avatars and devices before you stream",
+        "tip.nav.setup": "Set up devices and avatars, change app settings, and see the credits of the software in use",
         "tip.nav.lab": "Create your own voice models",
         "tip.nav.diagnostics": "Inspect how things are running (for developers)",
         "screen.placeholder": "This screen is on its way",
@@ -274,6 +274,12 @@
         "setup.avatar.value.required": "Required",
         "setup.avatar.value.notrequired": "Not required",
         "setup.avatar.value.modification": "Allowed (not redistributing what you changed)",
-        "setup.avatar.value.modificationredistribution": "Allowed, including redistributing what you changed"
+        "setup.avatar.value.modificationredistribution": "Allowed, including redistributing what you changed",
+        "setup.credits.title": "Credits and licenses",
+        "setup.credits.intro": "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with \"Show full text\".",
+        "setup.credits.unavailable": "The credits could not be read. Reinstalling the app may fix this.",
+        "setup.credits.show": "Show full text",
+        "setup.credits.hide": "Hide full text",
+        "setup.credits.missing": "The full license text is missing."
     }
 }

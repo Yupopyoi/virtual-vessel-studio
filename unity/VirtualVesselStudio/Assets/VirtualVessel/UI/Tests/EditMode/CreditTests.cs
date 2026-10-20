@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using NUnit.Framework;
 using VirtualVessel.UI.Credits;
+using VirtualVessel.UI.Screens;
 
 namespace VirtualVessel.UI.Tests
 {
@@ -139,6 +140,21 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheCard_SaysSo_WhenTheSbomCannotBeRead()
+        {
+            Assert.That(new CreditsCard(new MapFiles()).Catalog, Is.Null);
+            Assert.That(new CreditsCard(new MapFiles { [CreditFiles.SbomPath] = "{ }" }).Catalog, Is.Null);
+        }
+
+        [Test]
+        public void Details_JoinThePartsTheSbomGives()
+        {
+            Assert.That(CreditsCard.Details(new CreditEntry("A", "1.0", "Someone", "MIT", null, 0)), Is.EqualTo("1.0 · Someone · MIT"));
+            Assert.That(CreditsCard.Details(new CreditEntry("A", null, null, "MIT", null, 0)), Is.EqualTo("MIT"));
+            Assert.That(CreditsCard.Details(new CreditEntry("A", null, null, null, null, 0)), Is.Empty);
+        }
+
+        [Test]
         public void Split_BreaksBetweenLines_AndCutsOnlyOverlongLines()
         {
             Assert.That(CreditText.Split("ab\r\ncd\nef\n", 5), Is.EqualTo(new[] { "ab\ncd", "ef" }));
@@ -146,6 +162,14 @@ namespace VirtualVessel.UI.Tests
             Assert.That(CreditText.Split("x\nabcdefgh", 3), Is.EqualTo(new[] { "x", "abc", "def", "gh" }));
             Assert.That(CreditText.Split(string.Empty), Is.Empty);
             Assert.That(CreditText.Split(new string('a', 20000)).Max(part => part.Length), Is.LessThanOrEqualTo(CreditText.MaxCharactersPerPart));
+        }
+
+        private sealed class MapFiles : System.Collections.Generic.Dictionary<string, string>, ICreditFiles
+        {
+            public string ReadText(string packagePath)
+            {
+                return TryGetValue(packagePath, out string text) ? text : null;
+            }
         }
     }
 }

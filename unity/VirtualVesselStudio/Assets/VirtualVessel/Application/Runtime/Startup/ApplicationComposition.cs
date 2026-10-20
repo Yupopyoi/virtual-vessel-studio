@@ -21,6 +21,7 @@ using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.MediaPipe;
 #endif
 using VirtualVessel.UI;
+using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
@@ -263,7 +264,8 @@ namespace VirtualVessel.Application.Startup
                             capture,
                             tracking,
                             avatar,
-                            new WindowsFileDialog())),
+                            new WindowsFileDialog(),
+                            CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")))),
                     new[] { LoggingService.ServiceName }));
             }
 
@@ -276,6 +278,27 @@ namespace VirtualVessel.Application.Startup
             // from pushing logs of real use out of retention (logging detailed design 7.3).
             string folder = environment == RuntimeEnvironment.Editor ? EditorLogFolder : ApplicationLogFolder;
             return Path.Combine(dataRoot.GetDirectory(DataRootDirectory.Logs), folder);
+        }
+
+        /// <summary>
+        /// The license files for the credits: next to the executable in a built application, at their
+        /// sources in the repository in the Editor (development workflow 18.1.2).
+        /// </summary>
+        /// <param name="dataPath">Unity's <c>Application.dataPath</c>: the project's Assets folder in the Editor, &lt;name&gt;_Data in a build.</param>
+        public static CreditFiles CreateCreditFiles(RuntimeEnvironment environment, string dataPath, ILog log)
+        {
+            return environment == RuntimeEnvironment.Editor
+                ? CreditFiles.ForRepository(GetCreditFolder(environment, dataPath), log)
+                : CreditFiles.ForPackage(GetCreditFolder(environment, dataPath), log);
+        }
+
+        /// <summary>The repository root (Assets → unity/VirtualVesselStudio → unity → root) or the application folder. Pure.</summary>
+        public static string GetCreditFolder(RuntimeEnvironment environment, string dataPath)
+        {
+            string full = Path.GetFullPath(dataPath);
+            return environment == RuntimeEnvironment.Editor
+                ? Path.GetFullPath(Path.Combine(full, "..", "..", ".."))
+                : Path.GetDirectoryName(full);
         }
 
         /// <summary>

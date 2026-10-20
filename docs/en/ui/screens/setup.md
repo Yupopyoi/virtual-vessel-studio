@@ -2,9 +2,12 @@
 
 ## 1. Purpose
 
-The screen for preparing devices and settings before streaming.
+The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the tracking Card, the avatar Card, and the app settings Card (UI foundation detailed design 7.7). Other settings are added with their features.
+It has the capture Cards, the tracking Card, the avatar Card, the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+
+- The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
+- Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
 
 ## 2. Layout
 
@@ -15,6 +18,7 @@ Cards stacked from the top:
 3. Tracking (chapter 4)
 4. Avatar (chapter 5)
 5. App settings
+6. Credits and licenses (chapter 8)
 
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
 - Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
@@ -131,4 +135,21 @@ Shape, color, and text are always combined (`design-system.md` 3.4).
 
 ## 7. Strings
 
-Keys are `setup.capture.*` for the capture Cards, `setup.tracking.*` for the tracking Card, and `setup.avatar.*` for the avatar Card. The texts are those in the tables of chapters 3–6 (Japanese with the same meaning).
+Keys are `setup.capture.*` for the capture Cards, `setup.tracking.*` for the tracking Card, `setup.avatar.*` for the avatar Card, and `setup.credits.*` for the credits Card. The texts are those in the tables of chapters 3–6 and 8 (Japanese with the same meaning).
+
+## 8. Credits and Licenses Card
+
+Lists the software and assets in use from the SBOM shipped with the application (`sbom/virtual-vessel-studio.cdx.json`). The full license texts are read from the files shipped with the application (development workflow 18.1.2).
+
+| Row | Component | Content |
+|---|---|---|
+| Introduction | Description (Text 2) | "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with "Show full text"." |
+| A row per component | Looks like a Setting Row | The name on the left, and below it "version · supplier · license" (only what the SBOM gives; Caption, Text 3). The application itself comes first, then the distributed components in the SBOM's order, with the ones built into another indented by spacing L (24px) under it. Development-only components (`excluded`) are left out |
+| Full text | Button (Secondary) "Show full text" / "Hide full text" | Only on components whose SBOM entry names license files. Opens the full text below the row. With several files, each starts with its file name (monospace) |
+| Full text box | A scrolling box (up to 320px high, Surface 3 background, Radius S) | The full text (Caption, Text 2). It scrolls on its own so that a long notices file does not stretch the screen |
+
+- Names, versions, license names, and full texts are shown as written in the files, as text (never parsed as Rich Text), and the same in every language.
+- The SBOM is read when the screen is built; a full text when it is first opened.
+- When the SBOM cannot be read, the Card says "The credits could not be read. Reinstalling the app may fix this." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
+- Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.
+- Paths written in the SBOM are read only inside that folder (paths with `..`, absolute paths, and `\` are not read). The SBOM ships with the application, so no trust boundary is crossed, but even an edited SBOM cannot make the screen read other files.

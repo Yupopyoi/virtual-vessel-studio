@@ -90,3 +90,35 @@
 .vv-dialog__details.unity-scroll-view {
     max-height: 280px;
 }
+
+/*
+ * The credits Card (setup.md 8): a row per component, the ones built into another indented, and a
+ * license text in a box that scrolls on its own so a long notices file does not stretch the screen.
+ */
+.vv-credits-card__intro {
+    margin-bottom: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-credits-card__entry--nested {
+    padding-left: var(--vv-space-l);
+}
+
+.vv-credits-card__text {
+    max-height: 320px;
+    margin-bottom: var(--vv-space-s);
+    padding: var(--vv-space-s) var(--vv-space-m);
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-credits-card__file {
+    margin-top: var(--vv-space-s);
+    color: var(--vv-color-text);
+}
+
+.vv-credits-card__part {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
