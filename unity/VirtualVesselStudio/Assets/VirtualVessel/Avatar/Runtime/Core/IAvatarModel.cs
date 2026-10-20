@@ -38,7 +38,12 @@ namespace VirtualVessel.Avatar
         /// <summary>0 to 1; ignored for an expression the model does not have.</summary>
         void SetWeight(AvatarExpression expression, float weight);
 
-        void SetLookAt(float yawDegrees, float pitchDegrees);
+        /// <summary>
+        /// Where the eyes look, as a share of the model's own eye range, -1 to 1: positive
+        /// <paramref name="yaw"/> toward the avatar's own right, positive <paramref name="pitch"/> up.
+        /// A share, not an angle, because each model maps look angles onto its eyes differently.
+        /// </summary>
+        void SetLook(float yaw, float pitch);
 
         /// <summary>The model's own expression names, for passing values straight through later (Perfect Sync).</summary>
         IReadOnlyList<string> CustomNames { get; }

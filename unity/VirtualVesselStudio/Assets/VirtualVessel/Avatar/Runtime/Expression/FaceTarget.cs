@@ -15,10 +15,10 @@ namespace VirtualVessel.Avatar
         /// <summary>0 to 1 per <see cref="AvatarExpression"/>.</summary>
         public float[] Weights { get; } = new float[ExpressionCount];
 
-        /// <summary>Degrees, positive toward the avatar's own right.</summary>
+        /// <summary>A share of the model's eye range, -1 to 1, positive toward the avatar's own right.</summary>
         public float LookYaw { get; set; }
 
-        /// <summary>Degrees, positive up.</summary>
+        /// <summary>A share of the model's eye range, -1 to 1, positive up.</summary>
         public float LookPitch { get; set; }
 
         /// <summary>In the avatar root's space; identity looks straight ahead.</summary>

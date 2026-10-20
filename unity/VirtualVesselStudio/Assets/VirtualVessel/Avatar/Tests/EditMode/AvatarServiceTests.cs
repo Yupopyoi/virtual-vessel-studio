@@ -344,7 +344,7 @@ namespace VirtualVessel.Avatar.Tests
             {
             }
 
-            public void SetLookAt(float yawDegrees, float pitchDegrees)
+            public void SetLook(float yaw, float pitch)
             {
             }
 

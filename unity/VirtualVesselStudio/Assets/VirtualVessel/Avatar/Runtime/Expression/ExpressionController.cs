@@ -38,7 +38,7 @@ namespace VirtualVessel.Avatar
                 _expressions.SetWeight((AvatarExpression)i, _signal[i]);
             }
 
-            _expressions.SetLookAt(face.LookYaw, face.LookPitch);
+            _expressions.SetLook(face.LookYaw, face.LookPitch);
         }
 
         /// <summary>

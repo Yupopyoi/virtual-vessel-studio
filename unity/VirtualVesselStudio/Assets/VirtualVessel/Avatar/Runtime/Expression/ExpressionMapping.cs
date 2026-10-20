@@ -58,9 +58,8 @@ namespace VirtualVessel.Avatar
         /// <summary>The look value (in minus out, up minus down) at which the eyes reach their range.</summary>
         public float GazeFullScale { get; set; } = 0.5f;
 
-        public float MaxLookYaw { get; set; } = 12f;
-
-        public float MaxLookPitch { get; set; } = 10f;
+        /// <summary>How far the eyes turn at most, as a share of the model's eye range.</summary>
+        public float MaxLook { get; set; } = 1f;
 
         /// <summary>
         /// Writes the expressions and gaze for <paramref name="face"/> into <paramref name="into"/>; the
@@ -132,10 +131,10 @@ namespace VirtualVessel.Avatar
             // Gaze: both eyes together. Looking in is toward the nose, the person's right for the left eye.
             float yaw = ((face[FaceShape.EyeLookInLeft] - face[FaceShape.EyeLookOutLeft]) + (face[FaceShape.EyeLookOutRight] - face[FaceShape.EyeLookInRight])) * 0.5f;
             float pitch = ((face[FaceShape.EyeLookUpLeft] - face[FaceShape.EyeLookDownLeft]) + (face[FaceShape.EyeLookUpRight] - face[FaceShape.EyeLookDownRight])) * 0.5f;
-            into.LookYaw = (mirror ? -1f : 1f) * Mathf.Clamp(yaw / GazeFullScale, -1f, 1f) * MaxLookYaw;
+            into.LookYaw = (mirror ? -1f : 1f) * Mathf.Clamp(yaw / GazeFullScale, -1f, 1f) * MaxLook;
 
             // A closing lid reads as looking down, so the eyes look up and down only as far as they are open.
-            into.LookPitch = Mathf.Clamp(pitch / GazeFullScale, -1f, 1f) * MaxLookPitch * (1f - Mathf.Max(blinkLeft, blinkRight));
+            into.LookPitch = Mathf.Clamp(pitch / GazeFullScale, -1f, 1f) * MaxLook * (1f - Mathf.Max(blinkLeft, blinkRight));
         }
 
         /// <summary>

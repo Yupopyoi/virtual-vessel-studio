@@ -124,6 +124,23 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(error, Is.LessThan(2f), "The head turned to the avatar's own right.");
                 Assert.That(TotalBlendShapeWeight(renderers), Is.GreaterThan(before), "The eyes and mouth moved.");
 
+                // Looking to the side moves the eyes by bones or by expressions, whichever the model uses.
+                // Expressions go first: a model's blink usually blocks the gaze (overrideLookAt).
+                foreach (AvatarExpression expression in (AvatarExpression[])Enum.GetValues(typeof(AvatarExpression)))
+                {
+                    model.Expressions.SetWeight(expression, 0f);
+                }
+
+                model.Expressions.SetLook(0f, 0f);
+                model.Apply();
+                Transform eye = ((VrmAvatarModel)model).ModelBone(HumanBodyBones.LeftEye);
+                Quaternion eyeAhead = eye != null ? eye.rotation : Quaternion.identity;
+                float faceAhead = TotalBlendShapeWeight(renderers);
+                model.Expressions.SetLook(1f, 0f);
+                model.Apply();
+                bool eyeTurned = eye != null && Quaternion.Angle(eyeAhead, eye.rotation) > 3f;
+                Assert.That(eyeTurned || !Mathf.Approximately(TotalBlendShapeWeight(renderers), faceAhead), Is.True, "The eyes look to the side.");
+
                 // Per-frame cost of the face and of UniVRM's update, secondary motion included (avatar detailed design 15).
                 const int Frames = 300;
                 var times = new double[Frames];

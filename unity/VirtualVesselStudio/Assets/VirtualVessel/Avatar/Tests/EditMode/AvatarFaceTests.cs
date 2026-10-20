@@ -108,14 +108,14 @@ namespace VirtualVessel.Avatar.Tests
             face[FaceShape.EyeLookInLeft] = 0.5f;
             face[FaceShape.EyeLookOutRight] = 0.5f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target.LookYaw, Is.EqualTo(12f).Within(Tolerance));
+            Assert.That(target.LookYaw, Is.EqualTo(1f).Within(Tolerance), "The whole of the model's eye range.");
             ExpressionMapping.Default.Evaluate(face, true, target);
-            Assert.That(target.LookYaw, Is.EqualTo(-12f).Within(Tolerance));
+            Assert.That(target.LookYaw, Is.EqualTo(-1f).Within(Tolerance));
 
             face[FaceShape.EyeLookDownLeft] = 0.5f;
             face[FaceShape.EyeLookDownRight] = 0.5f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target.LookPitch, Is.EqualTo(-10f).Within(Tolerance));
+            Assert.That(target.LookPitch, Is.EqualTo(-1f).Within(Tolerance));
             face[FaceShape.EyeBlinkLeft] = 0.9f;
             face[FaceShape.EyeBlinkRight] = 0.9f;
             ExpressionMapping.Default.Evaluate(face, false, target);
@@ -248,7 +248,7 @@ namespace VirtualVessel.Avatar.Tests
             AssertSame(model.Rotations[AvatarBone.Head], Quaternion.AngleAxis(-30f, Vector3.up));
             AssertSame(model.Rotations[AvatarBone.Neck], Quaternion.AngleAxis(-12f, Vector3.up));
             Assert.That(model.Weights[AvatarExpression.Aa], Is.EqualTo(1f).Within(Tolerance));
-            Assert.That(model.Yaw, Is.EqualTo(-12f).Within(Tolerance));
+            Assert.That(model.Yaw, Is.EqualTo(-1f).Within(Tolerance));
             Assert.That(controller.Expressions.Signal[(int)AvatarExpression.Aa], Is.EqualTo(1f).Within(Tolerance), "What was set is the Expression Signal.");
         }
 
@@ -318,9 +318,9 @@ namespace VirtualVessel.Avatar.Tests
                 Weights[expression] = weight;
             }
 
-            public void SetLookAt(float yawDegrees, float pitchDegrees)
+            public void SetLook(float yaw, float pitch)
             {
-                Yaw = yawDegrees;
+                Yaw = yaw;
             }
 
             public void SetVisible(bool visible)
