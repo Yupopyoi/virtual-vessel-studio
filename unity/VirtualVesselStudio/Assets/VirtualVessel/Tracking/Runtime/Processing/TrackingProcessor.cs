@@ -53,9 +53,9 @@ namespace VirtualVessel.Tracking.Processing
         /// <param name="observation">The newest raw observation, or null when none arrived this frame.</param>
         /// <param name="now">The current time on the clock of the part timestamps.</param>
         /// <param name="output">The smoothed frame; values of parts not observed stay as they were.</param>
-        public void Process(TrackingFrame observation, double now, TrackingRegions supported, TrackingRegions enabled, SmoothingPreset preset, TrackingFrame output)
+        public void Process(TrackingFrame observation, double now, TrackingRegions supported, TrackingRegions enabled, int smoothing, TrackingFrame output)
         {
-            SmoothingProfile profile = SmoothingProfile.For(preset);
+            SmoothingProfile profile = SmoothingProfile.For(smoothing);
             output.Time = now;
             if (observation != null)
             {

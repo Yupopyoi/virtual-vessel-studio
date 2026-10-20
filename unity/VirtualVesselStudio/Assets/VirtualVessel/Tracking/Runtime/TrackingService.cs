@@ -78,7 +78,7 @@ namespace VirtualVessel.Tracking
         /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
         public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
         {
-            return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock);
+            return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock, TrackingSettings.Migrations);
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)

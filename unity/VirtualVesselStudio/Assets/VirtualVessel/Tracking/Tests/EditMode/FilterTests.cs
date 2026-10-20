@@ -9,7 +9,7 @@ namespace VirtualVessel.Tracking.Tests
 {
     public sealed class OneEuroFilterTests
     {
-        private static readonly OneEuroParameters s_standard = SmoothingProfile.For(SmoothingPreset.Standard).Angle;
+        private static readonly OneEuroParameters s_standard = SmoothingProfile.For(SmoothingLevel.Standard).Angle;
 
         [Test]
         public void TheFirstSample_PassesThrough()
@@ -140,7 +140,7 @@ namespace VirtualVessel.Tracking.Tests
             {
                 (List<float> truth, List<float> raw) = NoisyMotion(seed);
                 List<float> average = MovingAverage(raw, 30);
-                List<float> oneEuro = RotationFiltered(raw, SmoothingPreset.Standard);
+                List<float> oneEuro = RotationFiltered(raw, SmoothingLevel.Standard);
                 averageStill += TrackingMetrics.Jitter(average, 15, StillEnd) / Seeds;
                 oneEuroStill += TrackingMetrics.Jitter(oneEuro, 15, StillEnd) / Seeds;
                 averageHold += TrackingMetrics.Jitter(average, HoldStart, HoldEnd) / Seeds;
@@ -162,12 +162,57 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void TheLevels_KeepTheMeasuredPresets_AndStepEvenlyInBetween()
+        {
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Standard).Angle.MinCutoff, Is.EqualTo(0.1f));
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Smooth).Angle.Beta, Is.EqualTo(0.003f));
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Responsive).Face.MinCutoff, Is.EqualTo(2f));
+            Assert.That(SmoothingProfile.For(6).Angle.MinCutoff, Is.EqualTo(0.1f * Mathf.Sqrt(2f)).Within(1e-5f), "Half the ratio from 5 to 7.");
+            Assert.That(SmoothingProfile.For(0).Angle.MinCutoff, Is.EqualTo(SmoothingProfile.For(SmoothingLevel.Min).Angle.MinCutoff), "Kept within the levels.");
+            Assert.That(SmoothingProfile.For(99).Angle.MinCutoff, Is.EqualTo(SmoothingProfile.For(SmoothingLevel.Max).Angle.MinCutoff));
+            for (int level = SmoothingLevel.Min + 1; level <= SmoothingLevel.Max; level++)
+            {
+                SmoothingProfile lower = SmoothingProfile.For(level - 1);
+                SmoothingProfile higher = SmoothingProfile.For(level);
+                Assert.That(higher.Angle.MinCutoff, Is.GreaterThan(lower.Angle.MinCutoff), $"Level {level} follows faster.");
+                Assert.That(higher.Position.Beta, Is.GreaterThan(lower.Position.Beta));
+                Assert.That(higher.Face.MinCutoff, Is.GreaterThan(lower.Face.MinCutoff));
+            }
+        }
+
+        [Test]
+        public void EachLevel_IsLessSteady_ButLessBehind_ThanTheOneBelow()
+        {
+            const int Seeds = 10;
+            var jitter = new double[SmoothingLevel.Max + 1];
+            var lag = new double[SmoothingLevel.Max + 1];
+            for (int level = SmoothingLevel.Min; level <= SmoothingLevel.Max; level++)
+            {
+                for (int seed = 0; seed < Seeds; seed++)
+                {
+                    (List<float> truth, List<float> raw) = NoisyMotion(seed);
+                    List<float> filtered = RotationFiltered(raw, level);
+                    jitter[level] += TrackingMetrics.Jitter(filtered, 15, StillEnd) / Seeds;
+                    lag[level] += TrackingMetrics.Lag(truth, filtered, 30) * 1000.0 / Rate / Seeds;
+                }
+
+                TestContext.WriteLine($"level {level}: still jitter {jitter[level]:F3}°, lag {lag[level]:F0} ms");
+            }
+
+            for (int level = SmoothingLevel.Min + 1; level <= SmoothingLevel.Max; level++)
+            {
+                Assert.That(jitter[level], Is.GreaterThan(jitter[level - 1]), $"Level {level} moves more while still.");
+                Assert.That(lag[level], Is.LessThanOrEqualTo(lag[level - 1]), $"Level {level} is not further behind.");
+            }
+        }
+
+        [Test]
         public void ThePresets_TradeSteadinessForLag()
         {
             (List<float> truth, List<float> raw) = NoisyMotion(2);
 
-            List<float> smooth = RotationFiltered(raw, SmoothingPreset.Smooth);
-            List<float> responsive = RotationFiltered(raw, SmoothingPreset.Responsive);
+            List<float> smooth = RotationFiltered(raw, SmoothingLevel.Smooth);
+            List<float> responsive = RotationFiltered(raw, SmoothingLevel.Responsive);
 
             Assert.That(TrackingMetrics.Jitter(smooth, 15, StillEnd), Is.LessThan(TrackingMetrics.Jitter(responsive, 15, StillEnd)));
             Assert.That(TrackingMetrics.Error(truth, responsive, WaveStart, Samples), Is.LessThan(TrackingMetrics.Error(truth, smooth, WaveStart, Samples)));
@@ -188,7 +233,7 @@ namespace VirtualVessel.Tracking.Tests
             return (truth, raw);
         }
 
-        private static List<float> RotationFiltered(List<float> degrees, SmoothingPreset preset)
+        private static List<float> RotationFiltered(List<float> degrees, int preset)
         {
             OneEuroParameters parameters = SmoothingProfile.For(preset).Angle;
             var output = new List<float>();

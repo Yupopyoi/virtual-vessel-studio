@@ -188,11 +188,25 @@ namespace VirtualVessel.Tracking
         NoPerson,
     }
 
-    /// <summary>Smoothing levels the user sees (tracking detailed design 8.2).</summary>
-    public enum SmoothingPreset
+    /// <summary>
+    /// The smoothing levels the user chooses from (tracking detailed design 8.2): 1 is the steadiest,
+    /// 10 follows movement fastest. Levels 3, 5, and 7 are the presets measured first.
+    /// </summary>
+    public static class SmoothingLevel
     {
-        Smooth,
-        Standard,
-        Responsive,
+        public const int Min = 1;
+        public const int Max = 10;
+
+        public const int Smooth = 3;
+        public const int Standard = 5;
+        public const int Responsive = 7;
+
+        public const int Default = Standard;
+
+        /// <summary>A level within <see cref="Min"/> to <see cref="Max"/>. Pure.</summary>
+        public static int Clamp(int level)
+        {
+            return level < Min ? Min : level > Max ? Max : level;
+        }
     }
 }

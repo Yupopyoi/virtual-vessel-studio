@@ -9,23 +9,24 @@ namespace VirtualVessel.Tracking
     /// </summary>
     public readonly struct TrackingOptions : IEquatable<TrackingOptions>
     {
-        public TrackingOptions(TrackingRegions regions, BodyRange bodyRange, SmoothingPreset smoothing, bool mirror)
+        public TrackingOptions(TrackingRegions regions, BodyRange bodyRange, int smoothing, bool mirror)
         {
             Regions = regions & TrackingRegions.All;
             BodyRange = Available(bodyRange);
-            Smoothing = smoothing;
+            Smoothing = SmoothingLevel.Clamp(smoothing);
             Mirror = mirror;
         }
 
         /// <summary>Everything tracked, upper body, standard smoothing, mirrored.</summary>
-        public static TrackingOptions Default => new TrackingOptions(TrackingRegions.All, BodyRange.UpperBody, SmoothingPreset.Standard, mirror: true);
+        public static TrackingOptions Default => new TrackingOptions(TrackingRegions.All, BodyRange.UpperBody, SmoothingLevel.Default, mirror: true);
 
         /// <summary>The parts tracked; inference for the others does not run.</summary>
         public TrackingRegions Regions { get; }
 
         public BodyRange BodyRange { get; }
 
-        public SmoothingPreset Smoothing { get; }
+        /// <summary>The smoothing level, <see cref="SmoothingLevel.Min"/> (steadiest) to <see cref="SmoothingLevel.Max"/> (fastest).</summary>
+        public int Smoothing { get; }
 
         /// <summary>
         /// Shown and moved as in a mirror: the camera image on the setup screen is flipped, and the
@@ -53,7 +54,7 @@ namespace VirtualVessel.Tracking
             return new TrackingOptions(Regions, bodyRange, Smoothing, Mirror);
         }
 
-        public TrackingOptions WithSmoothing(SmoothingPreset smoothing)
+        public TrackingOptions WithSmoothing(int smoothing)
         {
             return new TrackingOptions(Regions, BodyRange, smoothing, Mirror);
         }
@@ -75,12 +76,12 @@ namespace VirtualVessel.Tracking
 
         public override int GetHashCode()
         {
-            return ((int)Regions * 31) ^ ((int)BodyRange << 8) ^ ((int)Smoothing << 12) ^ (Mirror ? 1 << 15 : 0);
+            return ((int)Regions * 31) ^ ((int)BodyRange << 8) ^ (Smoothing << 12) ^ (Mirror ? 1 << 17 : 0);
         }
 
         public override string ToString()
         {
-            return $"{Regions}, {BodyRange}, {Smoothing}{(Mirror ? ", mirrored" : string.Empty)}";
+            return $"{Regions}, {BodyRange}, smoothing {Smoothing}{(Mirror ? ", mirrored" : string.Empty)}";
         }
     }
 }
