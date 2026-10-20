@@ -36,7 +36,7 @@ flowchart LR
     Store --> Loader["VrmAvatarLoader (UniVRM)"]
 
     subgraph Avatar["Avatar Module"]
-        Loader --> Runtime["AvatarRuntime<br/>Skeleton / Expressions"]
+        Loader --> Runtime["IAvatarModel<br/>Rig / Expressions"]
         Runtime --> Ctrl["AvatarController"]
         Ctrl --> Pose["PoseController<br/>(retargeting)"]
         Ctrl --> Expr["ExpressionController"]
@@ -68,7 +68,8 @@ flowchart LR
 
 ## 3. Module Boundaries
 
-- Avatar references Core, Diagnostics, ProjectData, the public contracts of Tracking (`ITrackingSource`, `TrackingFrame`), and the public contract of Video (the avatar layer). It does not reference Capture or UI.
+- Avatar references Core, Diagnostics, ProjectData, and the public contracts of Tracking (`ITrackingSource`, `TrackingFrame`). It does not reference Capture, UI, Video, or Stage (the Tracking reference is added in step 4).
+- Where the avatar goes (Video's avatar layer and Stage's spawn point) is passed by the composition root as `AvatarPlacement` (the layer number and a position and rotation). UI references Avatar, and Video and Stage reference UI, so Avatar referencing Video or Stage would make the assembly references circular ("UI → Avatar → Video → UI").
 - UniVRM types (`UniVRM10.*`, `UniGLTF.*`) are used only inside the VRM loader (a separate assembly, chapter 16). The rest of Avatar uses only `IAvatarRig` and `IAvatarExpressions` (5.2) (system design 7.2).
 - Other modules use only `IAvatarService` (5.1). They do not operate transforms or blendshapes directly (system design 7.2 Avatar Controller).
 - It does not depend on Tracking's MediaPipe types. Its only input is `TrackingFrame`.
@@ -81,11 +82,16 @@ flowchart LR
 |---|---|---|
 | `IAvatarService` | Interface | The list of registered avatars, registering, choosing, the state of the current avatar (5.1) |
 | `AvatarService` | Class (`IApplicationService`) | Implements the above. Loads, places, and calls the per-frame application |
-| `AvatarEntry` | Class | A registered avatar: id, display name, format, thumbnail, license information |
-| `AvatarImporter` | Class | Checks the file, copies it into the Data Root, and creates the profile (6.2) |
+| `AvatarPlacement` | Struct | Where the avatar goes: Video's avatar layer and Stage's spawn point (chapter 3) |
+| `AvatarEntry` | Class | A registered avatar: id, profile (null when unreadable), thumbnail path |
+| `AvatarStore` | Class | The avatar folders in the Data Root: listing, the temporary folder, moving in, deleting (6.1) |
+| `AvatarFileCheck` | Static class | Checks before parsing: extension, size, glTF magic (pure functions, 6.2) |
+| `AvatarImporter` | Class | Checks the file, copies it into the Data Root, and creates the profile (6.2). Returns an `AvatarImportResult` |
 | `IAvatarLoader` | Interface | Per-format loading (system design 7.3) |
-| `VrmAvatarLoader` | Class (internal) | Loads VRM with UniVRM |
-| `AvatarRuntime` | Class | One loaded avatar: rig, expressions, profile, state (system design 7.2) |
+| `VrmAvatarLoader` | Class | Loads VRM with UniVRM. The only UniVRM-side class, created by the composition root |
+| `IAvatarModel` | Interface | One loaded avatar: root, rig, expressions, model information (`AvatarModelInfo`), visibility, per-frame application, disposal (system design 7.2) |
+| `AvatarLicense` | Class | The terms of use the author set, independent of the format (6.4) |
+| `AvatarRestPose` | Static class | The pose when nothing moves the avatar: the reference pose with the arms lowered (7.2) |
 | `IAvatarRig` | Interface | A format-independent skeleton. Sets standard bone (`AvatarBone`) rotations in a space where the reference pose is identity (7.1) |
 | `IAvatarExpressions` | Interface | Format-independent expressions. Sets the weights of standard expressions (`AvatarExpression`) and the gaze |
 | `AvatarBone` | Enum | Standard human bones (same order as Unity Humanoid) |
@@ -112,11 +118,16 @@ public interface IAvatarService
     IReadOnlyObservable<AvatarState> State { get; }                     // None, Loading, Ready, Error
     IReadOnlyObservable<AvatarProblem> Problem { get; }                 // Problem shown to the user (chapter 11)
 
-    Task<AvatarEntry> ImportAsync(string path, CancellationToken cancellationToken);  // Registers (6.2)
-    Task SelectAsync(string avatarId, CancellationToken cancellationToken);           // Loads and swaps
-    Task RemoveAsync(string avatarId, CancellationToken cancellationToken);           // Unregisters (UI confirms)
+    IReadOnlyList<string> Extensions { get; }                           // Extensions that can be registered (for the file-picking screen)
+
+    // Registers (6.2). confirm shows the model's information and terms before registering; false declines
+    Task<AvatarImportResult> ImportAsync(string path, Func<AvatarModelInfo, Task<bool>> confirm, CancellationToken cancellationToken);
+    Task SelectAsync(string avatarId, CancellationToken cancellationToken);   // Loads and swaps; null takes the avatar away
+    Task RemoveAsync(string avatarId, CancellationToken cancellationToken);   // Unregisters (UI confirms)
 }
 ```
+
+- `AvatarImportResult` is one of: registered (`Imported`), declined by the user (`Declined`), or a problem (`Problem`; for `AlreadyImported`, `Entry` is the avatar already registered).
 
 - All operations and notifications happen on the main thread. Copying files and computing hashes happen on another thread.
 - `SelectAsync` swaps out the old avatar only after the new one has loaded. If loading fails, the old avatar stays.
@@ -130,6 +141,7 @@ public interface IAvatarRig
     float BoneLength(AvatarBone bone);                       // Length to the child bone (meters)
     void SetRotation(AvatarBone bone, Quaternion rotation);  // Rotation from the reference pose (7.1), in the avatar root space
     void SetRootPosition(Vector3 position);                  // For full body (later)
+    void ResetPose();                                        // Back to the reference pose
 }
 
 public interface IAvatarExpressions
@@ -142,7 +154,20 @@ public interface IAvatarExpressions
 ```
 
 - For VRM, `IAvatarRig` is implemented with UniVRM's control rig (a normalized skeleton where every bone's rotation is identity in the reference pose). UniVRM absorbs per-model differences in bone axes (one bone's X axis points forward, another's Z axis, and so on). An FBX loader will do the same normalization inside the loader.
+- Values given to `SetRotation` are applied together by `IAvatarModel.Apply`, parents first, so the order of calls does not matter.
 - For VRM, `IAvatarExpressions` is implemented with VRM 1.0 expressions (presets) and LookAt.
+
+```csharp
+public interface IAvatarModel : IDisposable
+{
+    Transform Root { get; }            // Faces +Z in the reference pose
+    IAvatarRig Rig { get; }
+    IAvatarExpressions Expressions { get; }
+    AvatarModelInfo Info { get; }      // Name, format, original version, whether converted, terms, thumbnail
+    void SetVisible(bool visible);
+    void Apply();                      // Applies the values set this frame and moves secondary motion (SpringBone)
+}
+```
 
 ---
 
@@ -154,20 +179,23 @@ public interface IAvatarExpressions
 DataRoot/Avatars/<AvatarId>/
 ├─ model.vrm               The copied model (the original file is not changed)
 ├─ avatar-profile.json     Usage settings (6.3)
-└─ thumbnail.png           Thumbnail (the image in the VRM meta; captured at load if missing)
+└─ thumbnail.png / .jpg    Thumbnail (the image in the VRM meta, saved in the format stored in the file)
 ```
 
 - `AvatarId` is a GUID (`N` format) created at registration. Names and file names are not used (to avoid duplicates and invalid characters).
-- The list is built at startup by reading under `Avatars/`. An entry whose `avatar-profile.json` cannot be read is listed as "an avatar that cannot be loaded", and the user decides whether to remove it (never removed silently, CLAUDE.md chapter 25).
+- The list is built at startup by reading under `Avatars/`. An entry whose `avatar-profile.json` cannot be read (or whose model file is missing) is listed as "an avatar that cannot be loaded", and the user decides whether to remove it (never removed silently, CLAUDE.md chapter 25).
+- Only folders named like an AvatarId are handled and deleted; other folders the user put there are left alone. The profile's `format` and `thumbnail` accept only lower-case letters and digits or the fixed name, so editing a profile cannot point outside the folder.
+- `Avatars/.importing/` is deleted at startup; it holds what an interrupted registration left behind.
 
 ### 6.2 Registering (AvatarImporter)
 
 1. The user picks a file (UI `IFileDialog`).
 2. Check: the `.vrm` extension, a size limit (default 1 GB), and that the file starts as glTF binary (the `glTF` magic).
 3. Copy into a temporary folder (`Avatars/.importing/<AvatarId>/`) on another thread. Compute SHA-256; if an avatar with the same hash is registered, point to it and do not register.
-4. Check the copy in the temporary folder by actually loading it (`VrmAvatarLoader`, 6.4): the standard bones are present; extract the meta information.
-5. Write `avatar-profile.json` and the thumbnail, then move the temporary folder to `Avatars/<AvatarId>/`. If anything fails on the way, delete the temporary folder.
-6. Add it to the list. If it is the first avatar, make it the one in use.
+4. Check the copy in the temporary folder by actually loading it (`VrmAvatarLoader`, 6.4): the required bones (8.2) are present; extract the meta information. Then destroy it.
+5. Show the model's name and terms of use (6.4) in a confirmation dialog. If the user declines, nothing is registered.
+6. Write `avatar-profile.json` and the thumbnail, then move the temporary folder to `Avatars/<AvatarId>/`. If anything fails on the way, or it is canceled, delete the temporary folder.
+7. Add it to the list. If no avatar is in use yet, make it the one in use.
 
 - The original file path is kept in `avatar-profile.json` for reference but is not used at run time (system design 7.11).
 
@@ -199,14 +227,17 @@ DataRoot/Avatars/<AvatarId>/
 
 In VRM, the author writes the conditions for using the avatar (who may use it as an avatar, commercial use, violent or sexual expression, modification, redistribution, and so on).
 
-- At registration and in the avatar details, the author, conditions, and license URL are shown to the user.
-- Registration or use is not blocked because of the conditions (the user judges). However, when `avatarPermission` is author-only or similar, a notice is shown before registering.
-- The license URL opens in the external browser only when the user presses it.
+- The author, conditions, and license URL are shown in the registration confirmation dialog and on the setup screen's avatar Card (`docs/en/ui/screens/setup.md` chapter 5).
+- Registration or use is not blocked because of the conditions (the user judges). However, when who may use the model as an avatar is not "everyone" (the author only, people the author allows, or not stated), the confirmation dialog shows a notice.
+- Conditions the file does not state are shown as "not stated". Leaving them out could be read as allowed.
+- Only `https` license URLs are opened, in the external browser, and only when the user presses them. Other kinds (`file:` and so on) are shown as text only.
+- `license` in `avatar-profile.json` holds the format-independent `AvatarLicense`.
 
 ### 6.5 Placing the Avatar
 
 - The avatar is placed in the persistent area owned by the application (outside Stage Scenes) (system design 7.10).
-- Until Stage Scene spawn points exist, Stage provides one default spawn point (`IAvatarSpawnPoints`, added to the Stage detailed design): at the origin, facing the camera. The default Main Camera position is set so the upper body fits the stream (Video).
+- Until Stage Scene spawn points exist, Stage provides one default spawn point (`IAvatarSpawnPoints`, Stage detailed design 7.1): at the origin, facing the camera (-Z). The default Main Camera position is set so the upper body fits the stream (Video detailed design 7.5).
+- Placing puts every part on the `Avatar` layer, moves it to the spawn point, and lowers the arms (`AvatarRestPose`, 70° by default) before showing it. Loading happens hidden, so it never shows for a moment at the origin or on the wrong layer.
 - It is drawn on the Unity layer `Avatar`, by Video's Avatar Camera (Video detailed design 7.2: same position and field of view as the Main Camera, overlay). It appears in front of the flat videos (user's decision, 2026-10-17).
 
 ### 6.6 Mirroring
@@ -217,7 +248,9 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 ### 6.7 The File-picking Screen
 
-- UI gets `IFileDialog` (`Task<string> OpenAsync(FileDialogOptions options)`). On Windows, the COM `IFileOpenDialog` is opened on a dedicated STA thread. Opening it on the main thread would stop rendering and the stream image while the dialog is open.
+- UI gets `IFileDialog` (`Task<string> OpenAsync(FileDialogOptions options)`; null when canceled). On Windows, `GetOpenFileNameW` (comdlg32) is opened on a dedicated STA thread (`WindowsFileDialog`). Opening it on the main thread would stop rendering and the stream image while the dialog is open.
+- `GetOpenFileNameW` is used instead of the COM `IFileOpenDialog`: it shows the same Explorer-style screen and needs no COM interop, which Mono and IL2CPP support unevenly.
+- The application window owns the dialog, so it stays in front and the window takes no input until it closes. Only one can be open at a time.
 - No additional dependency (library) is added.
 
 ### 6.8 VRM 0.x
@@ -225,7 +258,7 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 - VRM 0.x models are accepted too (user's decision, 2026-10-18; system design 7.3). UniVRM's loading converts VRM 0.x to VRM 1.0 (enabling the 0.x conversion of `Vrm10`).
 - The original file (`model.vrm`) is stored as it is, and the conversion runs at every load. The converted result is not saved as a file, so improvements to UniVRM's conversion take effect without re-importing.
 - The profile's `formatVersion` is the original version (`0.x`), and `converted` shows that it was converted.
-- The license (6.4) is shown by mapping the 0.x meta fields to the 1.0 fields. Fields without a counterpart are shown with their original values.
+- The license (6.4) is shown from the 0.x meta before conversion, mapping the 0.x fields to the 1.0 fields (`VrmLicense`). UniVRM's conversion replaces the license URL with the VRM 1.0 license, so its result is not used. Conditions 0.x has no field for (political or religious use, redistribution, modification, and so on) are "not stated"; the 0.x license name (such as `CC_BY`) and the other-permission URL are shown with their original values. Commercial use "allowed" maps to "personal profit allowed", as UniVRM's conversion does.
 - Bone reference orientations and expression names differ between 0.x and 1.0, but after conversion the model is handled as 1.0. Remaining differences (such as the gaze range) are checked by tests.
 
 ---
@@ -296,16 +329,18 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 
 ### 8.1 AvatarService
 
-- An optional application service, started after Logging, Video, Stage, and Tracking. Without Tracking, the avatar is shown in the reference pose.
-- At startup it builds the list and loads the avatar in use from `avatar-settings.json` (without blocking the main thread for long, chapter 9).
+- An optional application service, started after Logging, Video, and Stage (not created without Video and Stage). Without Tracking, the avatar is shown in the reference pose.
+- At startup it builds the list and starts loading the avatar in use from `avatar-settings.json`. Startup goes on without waiting for the load (not blocking the main thread for long, chapter 9). If the avatar in use is no longer registered, no avatar is in use.
 - At shutdown it destroys the avatar's GameObjects, textures, meshes, and materials (using the disposal of UniVRM's `RuntimeGltfInstance`).
 
 ### 8.2 Loading
 
 1. `Loading`. `VrmAvatarLoader` reads the file and builds it with UniVRM.
-2. Check the rig and expressions. If a required bone (Hips, Spine, Chest, Neck, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`).
-3. Set the layer to `Avatar` and place it at the spawn point.
+2. Check the rig and expressions. If a required bone (Hips, Spine, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`). These are the upper-body bones VRM 1.0 requires. Chest, Upper Chest, and Neck are optional in VRM 1.0, so when one is missing its rotation goes to the nearest bone.
+3. Set the layer to `Avatar` and place it at the spawn point (6.5).
 4. `Ready`. Destroy the old avatar, if any.
+
+- If another avatar is chosen while one is loading, the earlier load is canceled. When a swap fails, the old avatar stays `Ready` and `Problem` says what failed.
 
 ### 8.3 Per-frame Application
 
@@ -404,6 +439,8 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
+Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository). The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
+
 ---
 
 ## 15. Performance
@@ -411,6 +448,7 @@ public sealed class AvatarSettings
 - Per-frame application (`Avatar/Apply`) targets 0.3 ms or less (measured on the development PC and recorded here).
 - A single frame while loading targets 50 ms or less, so switching avatars during a stream does not visibly freeze the image.
 - SpringBone load depends on the model. It is measured and recorded.
+- Measured (2026-10-20, development PC, `VrmLoaderTests`): with the two VRM 1.0 samples (14 MB, 17 MB), loading took 0.33–0.37 s and the longest frame while loading was 47 ms. Per-frame application (`Avatar/Apply`) is measured from step 4, when Tracking is applied.
 
 ---
 
@@ -419,25 +457,28 @@ public sealed class AvatarSettings
 ```text
 Assets/VirtualVessel/Avatar/
 ├─ Runtime/                                   VirtualVessel.Avatar
-│  ├─ IAvatarService.cs     IAvatarService, AvatarEntry, AvatarState, AvatarProblem
-│  ├─ AvatarService.cs      AvatarService, AvatarSettings
-│  ├─ Core/                 AvatarRuntime, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression, AvatarProfile
-│  ├─ Loading/              IAvatarLoader, AvatarImporter, AvatarStore
-│  ├─ Pose/                 PoseRetargeting, PoseController, PoseInterpolation
-│  ├─ Expression/           ExpressionMapping, ExpressionController, ExpressionSignal
-│  └─ Runtime/              AvatarController
+│  ├─ IAvatarService.cs     IAvatarService, AvatarState, AvatarPlacement
+│  ├─ AvatarService.cs      AvatarService
+│  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
+│  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
+│  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
+│  ├─ Pose/                 AvatarRestPose (PoseRetargeting, PoseController, PoseInterpolation in step 5)
+│  ├─ Expression/           (ExpressionMapping, ExpressionController, ExpressionSignal in step 4)
+│  └─ Runtime/              (AvatarController in step 4)
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
+│  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
 │  ├─ VrmAvatarRig.cs       IAvatarRig on the control rig
-│  └─ VrmAvatarExpressions.cs
+│  ├─ VrmAvatarExpressions.cs
+│  └─ VrmLicense.cs         VRM meta to AvatarLicense (pure functions)
 └─ Tests/
    ├─ EditMode/
    └─ PlayMode/
 ```
 
-- References: Core, Diagnostics, ProjectData, Tracking, Video. The VRM assembly also references UniVRM (`com.vrmc.vrm`, `com.vrmc.gltf`).
-- UniVRM is added by UPM Git URL with a pinned version tag (currently v0.131.3; `path=/Packages/VRM10` and so on, the layout since v0.131). `packages-lock.json` pins the commit. Whether it runs on Unity 6.6 is checked in that step. The license is MIT. It is recorded in the SBOM in the same change.
-- The VRM shaders (MToon for URP) must be confirmed to be included in the distribution build (materials of models loaded at run time use them, and they would not render if left out of the build).
+- References: Core, Diagnostics, ProjectData (Tracking from step 4). The VRM assembly references Avatar and UniVRM (`UniGLTF`, `UniGLTF.Utils`, `UniHumanoid`, `VRM10`, `VrmLib`). The composition root (Application) creates `VrmAvatarLoader`.
+- UniVRM was added by UPM Git URL with a pinned version tag (v0.131.4: `https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4` and `...?path=/Packages/VRM10#v0.131.4`). `packages-lock.json` pins the commit (`efd20f6`). It was confirmed to run on Unity 6.6. The license is MIT. The SBOM records `com.vrmc.gltf`, `com.vrmc.vrm`, and the `com.unity.mathematics` they depend on. The repository checks read a Git package's version from its tag and fail for one without a tag.
+- UniVRM finds the shaders of run-time loaded models' materials by name, so MToon 1.0 (URP), UniUnlit, and URP Lit are in the Graphics Settings' always-included shaders. The release package's licenses include UniVRM's `LICENSE.txt` (`tools/release/licenses`) and UniGLTF's `LICENSE.md`.
 
 ---
 
@@ -446,7 +487,9 @@ Assets/VirtualVessel/Avatar/
 | Item | Plan |
 |---|---|
 | Whether to accept VRM 0.x models | Decided: accepted by converting to 1.0 at load (6.8, system design 7.3; user's decision, 2026-10-18) |
-| A VRM model for tests | Receive a sample from the user (outside the repository, in `E:\VirtualVessel\samples\`). Start with VRM 1.0; ask for a 0.x model when the 0.x conversion tests need one. If a small model with a license that allows committing exists, use it for automated tests |
+| A VRM model for tests | Checked with the user's samples (outside the repository, in `E:\VirtualVessel\samples\`; two VRM 1.0 models). A 0.x sample is requested to check the 0.x conversion with a real model. If a small model with a license that allows committing exists, use it for automated tests |
+| Models without a thumbnail | "No image" is shown for now. Capturing one at load is considered if wanted |
+| How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
 | Position matching such as touching the face (IK) | Considered together with full body |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | FBX | Starting with the choice of library. After v0.1.0 |

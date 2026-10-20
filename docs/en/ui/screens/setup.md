@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming.
 
-It has the capture Cards, the tracking Card, and the app settings Card (UI foundation detailed design 7.7). Other settings are added with their features.
+It has the capture Cards, the tracking Card, the avatar Card, and the app settings Card (UI foundation detailed design 7.7). Other settings are added with their features.
 
 ## 2. Layout
 
@@ -13,7 +13,8 @@ Cards stacked from the top:
 1. Capture (game screen)
 2. Capture (sub monitor)
 3. Tracking (chapter 4)
-4. App settings
+4. Avatar (chapter 5)
+5. App settings
 
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
 
@@ -23,7 +24,7 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 
 | Row | Component | Content |
 |---|---|---|
-| State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 4) |
+| State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 6) |
 | Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
 | Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
@@ -67,7 +68,48 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 - Developer problems such as a missing MediaPipe plugin are shown to users as a failure.
 - The toggle stays on while waiting for the camera or MediaPipe.
 
-## 5. Capture State Display
+## 5. Avatar Card
+
+Shows `IAvatarService` (Avatar) directly (Avatar detailed design 5.1, 6.2, 6.4).
+
+| Row | Part | Content |
+|---|---|---|
+| State | Status Indicator | The state, and an explanation when there is a problem (5.1) |
+| Image | Image (96×96, fitted in a square) | The image in the model of the avatar in use; "No image" when there is none |
+| Avatar to use | Dropdown | "None" first, then the registered avatars' names. One that cannot be loaded is "Avatar that cannot be loaded". Choosing loads and swaps at once |
+| Format | Description (Text 2) | "VRM 1.0". VRM 0.x is "VRM 0.x (converted to 1.0 when loaded)". "—" when none |
+| Register | Button (Primary) "Register an avatar…" | Opens the file-picking screen (VRM files only) and registers after the confirmation dialog (5.2) |
+| Unregister | Button (Danger) "Unregister" | Unregisters the avatar in use, after a Danger confirmation dialog ("The copy of the model in this app is deleted. Your original file is kept.") |
+| Terms of use (set by the model's author) | Rows of name and value (values in Text 2) | Model name, authors, who may use it as an avatar, commercial use, excessive violence, excessive sexual content, political or religious use, antisocial or hateful content, credit, redistribution, modification, (VRM 0.x only) the license name, the license URL, and other terms' URLs. Conditions the file does not state say "Not stated". Only `https` URLs get an "Open" button beside them, which opens the browser only when pressed |
+
+- During an operation (picking a file, registering, unregistering, loading) the buttons are disabled; one operation runs at a time.
+- A failed registration (not VRM, too large, missing bones, cannot load, already registered, cannot save) shows the explanation of 5.1 in a failure notice (`components.md` Notice).
+- Text written by the author is shown as plain text (never read as rich text).
+
+### 5.1 Avatar State Display
+
+| State | Chip | Text |
+|---|---|---|
+| Not chosen | Idle | Not chosen |
+| Loading | Idle | Loading |
+| Shown | Success | Shown. When a swap failed, its explanation is added |
+| Cannot load | Error | Cannot load. The explanation depends on the problem: "This model cannot be used because its humanoid bones are incomplete." "The avatar could not be loaded. Check that the file is not damaged." "Could not save. Check the free space at the save location." |
+
+Explanations of registration problems:
+
+| Problem | Explanation |
+|---|---|
+| Not VRM | This is not a VRM file. Choose a file ending in .vrm. |
+| Too large | The file is too large. Choose a file of 1 GB or less. |
+| Already registered | This model is already registered. |
+
+### 5.2 Registration Confirmation Dialog
+
+- Title "Register this avatar?", action button "Register" (Primary).
+- The body is "Check the terms of use set by the author before registering." When who may use it as an avatar is not "everyone", it is "This model is not set to be usable as an avatar by everyone. Check the terms of use to see whether you may use it."
+- Under the body, the terms rows of chapter 5 are shown (read only: no "Open" buttons, and Tab moves only between the buttons). When long, only that part scrolls (up to 280px high).
+
+## 6. Capture State Display
 
 Shape, color, and text are always combined (`design-system.md` 3.4).
 
@@ -85,6 +127,6 @@ Shape, color, and text are always combined (`design-system.md` 3.4).
 
 - A missing plugin (`PluginMissing`) is shown to users as a failure (Capture detailed design 6.2).
 
-## 6. Strings
+## 7. Strings
 
-Keys are `setup.capture.*` for the capture Cards and `setup.tracking.*` for the tracking Card. The texts are those in the tables of chapters 3–5 (Japanese with the same meaning).
+Keys are `setup.capture.*` for the capture Cards, `setup.tracking.*` for the tracking Card, and `setup.avatar.*` for the avatar Card. The texts are those in the tables of chapters 3–6 (Japanese with the same meaning).
