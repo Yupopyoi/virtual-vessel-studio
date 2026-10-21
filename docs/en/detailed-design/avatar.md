@@ -95,7 +95,7 @@ flowchart LR
 | `IAvatarRig` | Interface | A format-independent skeleton. Sets standard bone (`AvatarBone`) rotations in a space where the reference pose is identity (7.1) |
 | `IAvatarExpressions` | Interface | Format-independent expressions. Sets the weights of standard expressions (`AvatarExpression`) and the gaze |
 | `IAvatarFaceShapes` | Interface | The model's own face shapes (blend shapes) by name, and their weights (7.4) |
-| `FacePart` | Enum | The parts moved one by one: eyes (closing, smiling, wide, angry), brows, and mouth (a, i, u, e, o, closed smile, open smile, frown) |
+| `FacePart` | Enum | The parts moved one by one: eyes (closing, wide, angry), brows, and mouth (a, i, u, e, o, closed smile, open smile, frown) |
 | `FacePartProfile` | Class | Which of a model's shape names is which part (VRoid and so on); decides whether a model fits (pure functions) |
 | `AvatarBone` | Enum | Standard human bones (same order as Unity Humanoid) |
 | `AvatarExpression` | Enum | Standard expressions: `Blink`, `BlinkLeft`, `BlinkRight`, `Aa`, `Ih`, `Ou`, `Ee`, `Oh`, `Happy`, `Angry`, `Sad`, `Relaxed`, `Surprised`, `Neutral` |
@@ -342,7 +342,7 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 - VRM has no brow expressions, so the brows show through the feelings (surprise, anger, sadness).
 - How feelings overlap blinks, the mouth, and the gaze (VRM 1.0 `overrideBlink`, `overrideMouth`, `overrideLookAt`) follows the model's settings and is applied by UniVRM.
 - The gaze is given as a share, not an angle (5.2). VRM divides a look angle by its range (90° on the sample models) to turn the eyes, so the angles first given (±12°) moved the eyes only about an eighth of their range (2026-10-20).
-- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more).
+- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more, then eyes and brows 120% more).
 - The weights actually set (after substituting blinks) are the Expression Signal (a 0–1 value per expression; `ExpressionController.Signal`). v0.1.0 has no consumer (Extension Motion) yet (system design 7.7).
 - For a model with only a blink of both eyes (`Blink`), the per-eye values go to it; for one with only per-eye blinks, the both-eye value goes to each eye. The substitution uses the smaller value so one closed eye does not close both.
 
@@ -356,8 +356,7 @@ VRM's standard expressions are whole-face expressions, and on some models the sm
 
 | Part | VRoid shape | How |
 |---|---|---|
-| Eye closing (left, right) | `Fcl_EYE_Close_L/R` | As the standard blink (both eyes together, winks), less the smiling eyes, so the two never add up past closed |
-| Smiling eyes (left, right) | `Fcl_EYE_Joy_L/R` | The larger of the raised corners (`MouthSmile`, at most 0.6) and the raised cheeks (`CheekSquint`, at most 0.8): the eyes smile with the mouth |
+| Eye closing (left, right) | `Fcl_EYE_Close_L/R` | As the standard blink (both eyes together, winks). A smile does not close them |
 | Wide eyes | `Fcl_EYE_Spread` | `EyeWide` |
 | Angry eyes | `Fcl_EYE_Angry` | Half the lowered brows |
 | Raised brows | `Fcl_BRW_Surprised` | The larger of `BrowInnerUp` and `BrowOuterUp`, less the sad brows |
@@ -370,6 +369,7 @@ VRM's standard expressions are whole-face expressions, and on some models the sm
 | Frown | `Fcl_MTH_Sorrow` | `MouthFrown` |
 
 - The open mouth shapes (a, i, u, e, o, open smile) are distributed by ratio so their sum does not exceed 1.
+- The smiling eyes (`Fcl_EYE_Joy`) are not used: eyes closing into "^^" along with a smile were what looked unnatural (user's decision, 2026-10-21). The eyes move only with their own lids. A model without part shapes cannot separate the eyes from the mouth, so it uses the standard `Happy` expression.
 - The six tuning parts (below) work on the part values alike. The bars of the tuning screen come from the part values.
 - Models with the 52 ARKit shapes (Perfect Sync) can be added later with one more convention in the same mechanism (chapter 17).
 
