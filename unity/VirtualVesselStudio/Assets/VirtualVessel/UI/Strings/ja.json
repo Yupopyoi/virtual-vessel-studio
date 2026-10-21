@@ -294,6 +294,9 @@
         "setup.face.reset": "すべて既定に戻す",
         "setup.face.reset.button": "既定に戻す",
         "setup.face.picture.height": "映像の高さ",
+        "setup.face.picture.zoom": "拡大",
+        "setup.face.light": "照明の強さ",
+        "setup.face.light.description": "配信の照明も変わり、保存されます。",
         "setup.face.winks": "ウインク",
         "setup.face.winks.description": "オンにすると、片目だけを閉じられます。顔を向けたときなどに片目が誤って閉じる場合はオフにします。"
     }

@@ -14,6 +14,7 @@ using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
 
@@ -27,6 +28,7 @@ namespace VirtualVessel.UI.Tests
         private UiRoot _root;
         private FakeAvatars _avatars;
         private FakeFiles _files;
+        private FakeLighting _lighting;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -34,11 +36,12 @@ namespace VirtualVessel.UI.Tests
             _directory = Path.Combine(Path.GetTempPath(), "VirtualVesselTests", Guid.NewGuid().ToString("N"));
             _avatars = new FakeAvatars();
             _files = new FakeFiles();
+            _lighting = new FakeLighting();
             _host = new GameObject(nameof(AvatarCardPanelTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, avatars: _avatars, fileDialog: _files));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, avatars: _avatars, fileDialog: _files, lighting: _lighting));
             _root.Shell.Open("setup");
             yield return null;
         }
@@ -133,11 +136,61 @@ namespace VirtualVessel.UI.Tests
             card.PictureHeight.value = 100f;
             yield return null;
             Assert.That(card.Preview.worldBound.yMin, Is.EqualTo(frame.yMin).Within(0.5f), "The top of the stream at the frame's top.");
-            Assert.That(card.Preview.worldBound.width, Is.EqualTo(frame.width / FaceTuningCard.FaceCrop.width).Within(1f), "Enlarged, and only moved.");
-            Assert.That(FaceTuningCard.Crop(250f), Is.EqualTo(FaceTuningCard.Crop(100f)), "Kept within the stream.");
+            Assert.That(card.Preview.worldBound.width, Is.EqualTo(frame.width * FaceTuningCard.DefaultZoom / 100f).Within(1f), "Enlarged, and only moved.");
+            Assert.That(FaceTuningCard.Crop(250f, FaceTuningCard.DefaultZoom), Is.EqualTo(FaceTuningCard.Crop(100f, FaceTuningCard.DefaultZoom)), "Kept within the stream.");
 
             (float left, float top, float width, float height) = FaceTuningCard.Layout(new Rect(0.25f, 0.5f, 0.5f, 0.5f));
             Assert.That((left, top, width, height), Is.EqualTo((-50f, 0f, 200f, 200f)), "The top middle quarter, twice as large.");
+        }
+
+        [UnityTest]
+        public IEnumerator ThePicture_ZoomsAboutTheStreamsMiddle_WithinTheStream()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            card.Q<Card>().Expanded = true;
+            yield return null;
+            Rect frame = card.Frame.worldBound;
+            Assert.That(card.PictureZoom.value, Is.EqualTo(FaceTuningCard.DefaultZoom));
+
+            card.PictureZoom.value = 100f;
+            yield return null;
+            Assert.That(card.Preview.worldBound.width, Is.EqualTo(frame.width).Within(0.5f), "100% shows the whole stream.");
+            Assert.That(card.Preview.worldBound.xMin, Is.EqualTo(frame.xMin).Within(0.5f));
+
+            card.PictureZoom.value = 400f;
+            yield return null;
+            Assert.That(card.Preview.worldBound.width, Is.EqualTo(frame.width * 4f).Within(1f));
+            Assert.That(card.Preview.worldBound.center.x, Is.EqualTo(frame.center.x).Within(0.5f), "About the middle.");
+
+            Assert.That(FaceTuningCard.Crop(100f, 200f), Is.EqualTo(new Rect(0.25f, 0.5f, 0.5f, 0.5f)), "The top middle quarter.");
+            Assert.That(FaceTuningCard.Crop(0f, 50f), Is.EqualTo(new Rect(0f, 0f, 1f, 1f)), "Never smaller than the stream.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheLight_IsChangedBesideThePicture_AndFollowsTheStage()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            card.Q<Card>().Expanded = true;
+            yield return null;
+            Assert.That(card.Light, Is.Not.Null);
+            Assert.That(card.Light.value, Is.EqualTo(100f), "100% is the light as made.");
+            Assert.That(card.Light.LowValue, Is.EqualTo(StageLightIntensity.Min * 100f));
+
+            card.Light.value = 60f;
+            Assert.That(_lighting.Intensity.Value, Is.EqualTo(0.6f).Within(1e-5f));
+
+            _lighting.SetIntensity(1.2f);
+            Assert.That(card.Light.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
+            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Not.Null, "Says the stream changes too.");
+        }
+
+        [Test]
+        public void TheLight_IsLeftOut_WithoutTheStage()
+        {
+            var card = new FaceTuningCard(_avatars, null);
+
+            Assert.That(card.Light, Is.Null);
+            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Null);
         }
 
         [Test]
@@ -274,6 +327,18 @@ namespace VirtualVessel.UI.Tests
             {
                 Assert.That(options.Filters.Single().Extensions, Is.EqualTo(new[] { ".vrm" }));
                 return Task.FromResult(Path);
+            }
+        }
+
+        private sealed class FakeLighting : IStageLighting
+        {
+            private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
+
+            public IReadOnlyObservable<float> Intensity => _intensity;
+
+            public void SetIntensity(float intensity)
+            {
+                _intensity.Value = StageLightIntensity.Clamp(intensity);
             }
         }
 
