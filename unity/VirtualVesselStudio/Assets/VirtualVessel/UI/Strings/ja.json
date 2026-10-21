@@ -280,6 +280,21 @@
         "setup.credits.unavailable": "クレジットを読み込めませんでした。アプリを入れ直すと直る場合があります。",
         "setup.credits.show": "全文を見る",
         "setup.credits.hide": "全文を閉じる",
-        "setup.credits.missing": "ライセンスの全文が見つかりません。"
+        "setup.credits.missing": "ライセンスの全文が見つかりません。",
+        "setup.tracking.speed": "動きの速さ",
+        "setup.tracking.speed.description": "大きくするほど動きが速く、小さくするほど揺れが少なくなります。",
+        "setup.face.title": "表情の調整",
+        "setup.face.intro": "トラッキングを動かし、アバターを見ながら合わせます。大きくするほど、小さな動きで表情が出ます。各スライダーの下は、いまのアバターの動きです。",
+        "setup.face.eyes": "目の閉じやすさ",
+        "setup.face.wink": "ウインクのしやすさ",
+        "setup.face.brows": "眉の動き（驚き・怒り・悲しみ）",
+        "setup.face.mouth": "口の動き",
+        "setup.face.gaze": "視線の動き",
+        "setup.face.smile": "笑顔の強さ",
+        "setup.face.reset": "すべて既定に戻す",
+        "setup.face.reset.button": "既定に戻す",
+        "setup.face.picture.height": "映像の高さ",
+        "setup.face.winks": "ウインク",
+        "setup.face.winks.description": "オンにすると、片目だけを閉じられます。顔を向けたときなどに片目が誤って閉じる場合はオフにします。"
     }
 }

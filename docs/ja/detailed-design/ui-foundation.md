@@ -1098,7 +1098,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, CreditsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

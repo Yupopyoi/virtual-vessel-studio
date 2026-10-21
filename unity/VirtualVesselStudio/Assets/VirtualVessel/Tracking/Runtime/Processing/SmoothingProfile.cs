@@ -1,7 +1,9 @@
+using System;
+
 namespace VirtualVessel.Tracking.Processing
 {
     /// <summary>
-    /// One Euro parameters for each kind of value at a <see cref="SmoothingPreset"/> (tracking detailed
+    /// One Euro parameters for each kind of value at a <see cref="SmoothingLevel"/> (tracking detailed
     /// design 8.2). Beta depends on the unit, so angles, positions, and face values each have their own.
     /// </summary>
     /// <remarks>
@@ -11,6 +13,8 @@ namespace VirtualVessel.Tracking.Processing
     /// is steadier with 99 ms, Responsive follows closer with 56 ms. Positions scale beta by 1 cm ≈ 2°
     /// at arm length; face values are kept fast so blinks survive. Positions and face values are
     /// provisional until they are tuned on recorded camera data (tracking detailed design 17).
+    /// Those three presets are levels 3, 5, and 7; the levels between and beyond take the same ratio
+    /// per level, so each step changes the cutoffs by the same factor.
     /// </remarks>
     public readonly struct SmoothingProfile
     {
@@ -30,26 +34,53 @@ namespace VirtualVessel.Tracking.Processing
         /// <summary>For face values and gaze, 0 to 1.</summary>
         public OneEuroParameters Face { get; }
 
-        public static SmoothingProfile For(SmoothingPreset preset)
+        private static readonly SmoothingProfile s_smooth = new SmoothingProfile(
+            new OneEuroParameters(0.05f, 0.003f),
+            new OneEuroParameters(0.05f, 0.6f),
+            new OneEuroParameters(0.5f, 0.5f));
+
+        private static readonly SmoothingProfile s_standard = new SmoothingProfile(
+            new OneEuroParameters(0.1f, 0.005f),
+            new OneEuroParameters(0.1f, 1f),
+            new OneEuroParameters(1f, 1f));
+
+        private static readonly SmoothingProfile s_responsive = new SmoothingProfile(
+            new OneEuroParameters(0.2f, 0.01f),
+            new OneEuroParameters(0.2f, 2f),
+            new OneEuroParameters(2f, 2f));
+
+        /// <summary>
+        /// The parameters of <paramref name="level"/>, kept within the levels: the measured presets at 3,
+        /// 5, and 7, and geometric steps from the standard toward and past the nearer of the other two. Pure.
+        /// </summary>
+        public static SmoothingProfile For(int level)
         {
-            switch (preset)
+            level = SmoothingLevel.Clamp(level);
+            switch (level)
             {
-                case SmoothingPreset.Smooth:
-                    return new SmoothingProfile(
-                        new OneEuroParameters(0.05f, 0.003f),
-                        new OneEuroParameters(0.05f, 0.6f),
-                        new OneEuroParameters(0.5f, 0.5f));
-                case SmoothingPreset.Responsive:
-                    return new SmoothingProfile(
-                        new OneEuroParameters(0.2f, 0.01f),
-                        new OneEuroParameters(0.2f, 2f),
-                        new OneEuroParameters(2f, 2f));
-                default:
-                    return new SmoothingProfile(
-                        new OneEuroParameters(0.1f, 0.005f),
-                        new OneEuroParameters(0.1f, 1f),
-                        new OneEuroParameters(1f, 1f));
+                case SmoothingLevel.Smooth:
+                    return s_smooth;
+                case SmoothingLevel.Standard:
+                    return s_standard;
+                case SmoothingLevel.Responsive:
+                    return s_responsive;
             }
+
+            // Two levels lead from the standard to the next preset, so each level is half of that ratio.
+            SmoothingProfile toward = level < SmoothingLevel.Standard ? s_smooth : s_responsive;
+            float steps = Math.Abs(level - SmoothingLevel.Standard) / 2f;
+            return new SmoothingProfile(
+                Step(s_standard.Angle, toward.Angle, steps),
+                Step(s_standard.Position, toward.Position, steps),
+                Step(s_standard.Face, toward.Face, steps));
+        }
+
+        private static OneEuroParameters Step(OneEuroParameters from, OneEuroParameters to, float steps)
+        {
+            return new OneEuroParameters(
+                from.MinCutoff * (float)Math.Pow(to.MinCutoff / from.MinCutoff, steps),
+                from.Beta * (float)Math.Pow(to.Beta / from.Beta, steps),
+                from.DerivativeCutoff);
         }
     }
 }

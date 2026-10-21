@@ -27,12 +27,21 @@ namespace VirtualVessel.Avatar.Vrm
         };
 
         private readonly Vrm10Runtime _runtime;
+        private readonly float _horizontalRange;
+        private readonly float _upRange;
+        private readonly float _downRange;
         private readonly ExpressionKey[] _keys = new ExpressionKey[s_presets.Length];
         private readonly bool[] _has = new bool[s_presets.Length];
 
-        public VrmAvatarExpressions(Vrm10Runtime runtime)
+        /// <param name="lookAt">The model's look-at settings; null uses UniVRM's default of 90 degrees.</param>
+        public VrmAvatarExpressions(Vrm10Runtime runtime, VRM10ObjectLookAt lookAt)
         {
             _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+
+            // VRM maps a look angle up to each range onto the eyes' full turn; most models use 90 degrees.
+            _horizontalRange = Range(Mathf.Max(Range(lookAt?.HorizontalOuter), Range(lookAt?.HorizontalInner)));
+            _upRange = Range(lookAt?.VerticalUp);
+            _downRange = Range(lookAt?.VerticalDown);
             var custom = new List<string>();
             var present = new HashSet<ExpressionKey>(runtime.Expression.ExpressionKeys);
             for (int i = 0; i < s_presets.Length; i++)
@@ -71,9 +80,31 @@ namespace VirtualVessel.Avatar.Vrm
             }
         }
 
-        public void SetLookAt(float yawDegrees, float pitchDegrees)
+        public void SetLook(float yaw, float pitch)
         {
+            (float yawDegrees, float pitchDegrees) = ToDegrees(yaw, pitch, _horizontalRange, _upRange, _downRange);
             _runtime.LookAt.SetYawPitchManually(yawDegrees, pitchDegrees);
+        }
+
+        /// <summary>
+        /// The look angles for shares of the eye range: the share times the input range VRM maps onto the
+        /// eyes' full turn, up and down separately. Pure.
+        /// </summary>
+        internal static (float Yaw, float Pitch) ToDegrees(float yaw, float pitch, float horizontalRange, float upRange, float downRange)
+        {
+            yaw = Mathf.Clamp(yaw, -1f, 1f);
+            pitch = Mathf.Clamp(pitch, -1f, 1f);
+            return (yaw * horizontalRange, pitch * (pitch >= 0f ? upRange : downRange));
+        }
+
+        private static float Range(CurveMapper mapper)
+        {
+            return Range(mapper?.CurveXRangeDegree ?? 0f);
+        }
+
+        private static float Range(float degrees)
+        {
+            return degrees > 0f ? degrees : 90f;
         }
     }
 }

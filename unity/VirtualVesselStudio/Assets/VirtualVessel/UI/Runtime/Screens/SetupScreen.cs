@@ -5,13 +5,14 @@ using VirtualVessel.Tracking;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Preview;
 
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The settings screen (id "setup"): a capture Card per source shown on the stream, the tracking
-    /// Card, the avatar Card, the app settings, then the credits (docs/&lt;lang&gt;/ui/screens/setup.md),
-    /// each closed until opened.
+    /// Card, the avatar Card, face tuning, the app settings, then the credits
+    /// (docs/&lt;lang&gt;/ui/screens/setup.md), each closed until opened.
     /// </summary>
     public sealed class SetupScreen : VisualElement
     {
@@ -22,7 +23,8 @@ namespace VirtualVessel.UI.Screens
         /// <param name="avatars">Avatars; null says they are unavailable.</param>
         /// <param name="files">The file-picking screen for registering avatars; null disables registering.</param>
         /// <param name="credits">The shipped license files; null leaves the credits out.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null)
+        /// <param name="stream">The stream video, to watch the avatar while tuning the face; null shows no picture.</param>
+        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null, IStreamPreviewSource stream = null)
         {
             AddToClassList(UssClass);
             if (captures == null)
@@ -53,6 +55,7 @@ namespace VirtualVessel.UI.Screens
             if (avatars != null)
             {
                 Add(new AvatarCard(avatars, files));
+                Add(new FaceTuningCard(avatars, stream));
             }
             else
             {

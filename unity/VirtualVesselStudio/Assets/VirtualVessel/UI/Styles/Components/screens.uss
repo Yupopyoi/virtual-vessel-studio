@@ -127,3 +127,58 @@
     white-space: normal;
     color: var(--vv-color-text-2);
 }
+
+/*
+ * The face tuning Card (setup.md 9): the stream, larger than the device previews so the avatar's face
+ * can be seen, beside a slider per part with the avatar's movement of that part as a bar under it.
+ */
+.vv-face-card__intro {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-face-card__layout {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.vv-face-card__picture {
+    flex-shrink: 0;
+    width: 384px;
+    margin: var(--vv-space-m) var(--vv-space-l) 0 0;
+}
+
+.vv-face-card__picture > .vv-slider {
+    margin-top: var(--vv-space-s);
+}
+
+/* The frame the enlarged stream is seen through; the image inside is placed by the Card. */
+.vv-face-card__preview {
+    width: 384px;
+    height: 216px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+.vv-face-card__parts {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 320px;
+}
+
+.vv-face-card__part {
+    margin-top: var(--vv-space-m);
+}
+
+/* The bar needs no title of its own; the introduction says what it shows. */
+.vv-face-card__part > .vv-progress {
+    margin-top: var(--vv-space-xs);
+}
+
+.vv-face-card__part > .vv-progress > .vv-progress__header {
+    display: none;
+}
