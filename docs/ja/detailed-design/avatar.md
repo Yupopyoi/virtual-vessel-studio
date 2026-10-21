@@ -43,7 +43,7 @@ flowchart LR
     end
 
     Tracking["Tracking：ITrackingSource.Current"] --> Ctrl
-    Expr --> Signal["Expression Signal<br/>（Extension Motionは後続）"]
+    Ctrl --> Signal["Expression Signal<br/>（モデルに依存しない。Extension Motionは後続）"]
     Runtime --> Layer["Video：アバターの層"]
 ```
 
@@ -103,8 +103,9 @@ flowchart LR
 | `PoseRetargeting` | Static Class | 観測から骨の回転を求める（純粋関数、7章） |
 | `PoseController` | Class | 補間、見失ったときの扱い、範囲（`BodyRange`）に応じた適用 |
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
-| `ExpressionController` | Class | 表情と視線の適用、Expression Signalの生成 |
-| `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、視線、頭の向き。毎Frame使い回す |
+| `ExpressionController` | Class | 表情と視線の適用：部位ごと、または顔全体の表情。モデルにないまばたきの置き換え |
+| `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、部位ごとの重み、Expression Signal、視線、頭の向き。毎Frame使い回す |
+| `ExpressionSignal` | Enum | Expression Signalの値：笑顔、怒り、悲しみ、驚き、左右の目の開き、口の開き（7.4、方式設計7.7） |
 | `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4） |
 | `HeadPose` | Static Class | 頭の向き：鏡写し、上限、首への配分（純粋関数、7.1） |
 | `ExpressionCurve` | Struct | 値から表情の重みへの応答の曲線（7.4） |
@@ -186,13 +187,13 @@ classDiagram
             +float LookYaw
             +float LookPitch
             +Quaternion Head
+            +float[] Signals
         }
         class HeadPose {
             +FromTracking(Quaternion tracked, bool mirror)$ Quaternion
             +Neck(Quaternion head)$ Quaternion
         }
         class ExpressionController {
-            +IReadOnlyList~float~ Signal
             +FacePartProfile Profile
             +Apply(FaceTarget face)
         }
@@ -500,7 +501,8 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 - 感情の表情とまばたき・口・視線の重なり（VRM 1.0の`overrideBlink`、`overrideMouth`、`overrideLookAt`）は、モデルの設定に従ってUniVRMが処理する。
 - 視線は角度ではなく割合で渡す（5.2）。VRMは視線の角度を範囲（サンプルのモデルでは90°）で割って目の回転に対応させるため、角度（当初は±12°）を渡すと、目は可動域の約1/8しか動かなかった（2026-10-20）。
 - 既定値は、カメラで試して決めた。最初の値（2026-10-20）では目、眉、口の動きが小さすぎたため強め、その後、利用者が調整した値を新しい既定（100%）とした（2026-10-21。目70%、眉120%、口70%の後、さらに目110%、視線70%、その後さらに目と眉120%、最後に目120%）。
-- 実際に設定した重み（まばたきの置き換えの後）を、Expression Signal（表情ごとの0〜1）とする（`ExpressionController.Signal`）。v0.1.0では使う側（Extension Motion）はまだない（方式設計7.7）。
+- Expression Signal（`FaceTarget.Signals`、`ExpressionSignal`ごとの0〜1）は、他の制御（猫耳、尻尾等のExtension Motion）が反応する値で、モデルの形式にも、顔を部位ごとと顔全体のどちらで動かすかにも依存しない（方式設計7.7、7.8）。値は、感情（笑顔、怒り、悲しみ、驚き）の重みと、左右の目の開き（1で開いている。アバター自身の左右）、口の開き。モデルに合わせる前（まばたきの置き換え、部位ごとに動かすときに顔全体の表情を0にする前）に`ExpressionMapping`が求め、他の値と同じく補間し、見失ったときは中立（目は開き、他は0）へ戻す。v0.1.0では使う側（Extension Motion）はまだない。
+  - 段階4では、モデルに設定した表情の重み（`ExpressionController.Signal`）をExpression Signalとしていた。これはモデルによって値が変わり（まばたきの置き換え、部位ごとに動かすときはすべて0）、目と口の連続的な値も持たなかったため、方式設計7.7に合わせて直した（2026-10-21）。
 - モデルが両目のまばたき（`Blink`）しか持たない場合は左右の値をそれに、片目ずつしか持たない場合は両目の値を左右に置き換える。片目しか閉じていないときに両目を閉じないよう、置き換えは小さい方の値を使う。
 
 #### 部位ごとに動かす（FacePart）
@@ -510,6 +512,7 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 - モデルの形の名前が、知っている決まり（`FacePartProfile`。今はVRoidの`Fcl_EYE_*`、`Fcl_BRW_*`、`Fcl_MTH_*`）に合うときだけ部位ごとに動かす。両目の閉じる形と、口の5つの母音の形がそろわないモデルは、標準の表情を使う。
 - 部位ごとに動かす間は、標準の表情を0にする（重なって形が崩れないように）。視線はどちらもLookAtで動かす。
 - 決まりに合ったかは、読み込みのLogに出す。
+- 決まりに合うかは、読み込むたびに形の名前で決める。方式設計7.12は、表情の認識とマッピングをSetupで行いAvatar Profileへ保存するとする。今は利用者が選ぶものがなく、形の名前の照合だけで軽く、モデルのファイルは登録の後に変わらない（方式設計7.11）ため、毎回同じ結果になる。利用者が表情の対応を選べるSetupの画面を作るときに、Avatar Profileへ保存する（17章）。
 
 | 部位 | VRoidの形 | 決め方 |
 |---|---|---|
@@ -546,7 +549,7 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 
 - ウインクは、顔を向けたときに片目が細くなる等で誤って出やすいため、利用者が選ぶ（利用者の決定、2026-10-21）。既定はオフで、両目をいつもそろえて閉じる。
 - 値は感度（0.5〜3、画面では50〜300%）で、曲線の両端を感度で割る。2なら半分の動きで同じ表情になる。範囲の外の値（手で書き換えたファイル等）は、近い端として読む。
-- 調整は利用者のもので、アバターを替えても変わらない（利用者の決定、2026-10-20）。`avatar-settings.json`に保存する（10章）。
+- 調整は利用者のもので、アバターを替えても変わらない（利用者の決定、2026-10-20）。`avatar-settings.json`に保存する（10章）。方式設計7.2のAvatar Profileが持つ表情マッピングとトラッキングの補正は、モデルに固有のものである。人の顔の動きの大きさは、モデルではなく人によるため、Avatar Profileには置かない。
 - 変えるとすぐに、使っているアバターに反映する（次の観測から）。調整の画面はUI `setup.md` 9章。
 - モデルがARKitの52個の表情を独自に持つ場合（Perfect Sync）は、値をそのまま渡す方式を後で足せるよう、`IAvatarExpressions.CustomNames`を用意しておく（17章）。
 
@@ -676,7 +679,7 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
-段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔、いとえ、笑い目、眉）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
+段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔で目は閉じない、いとえ、眉）、Expression Signal（感情、目、口、左右、中立、部位ごとと顔全体で同じ値）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
 
 段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む）。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
@@ -703,7 +706,7 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose（段階5でPoseRetargeting, PoseController）
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController（Expression Signal）, FaceTarget, FaceTuning, FacePart, FacePartProfile
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
@@ -733,6 +736,7 @@ Assets/VirtualVessel/Avatar/
 | 身長の違うモデルの写り方 | カメラの既定の位置は固定（Video詳細設計7.5）。身長の差が大きいモデルで上半身が収まらない場合は、Camera Pointの設計時に頭の高さへ合わせる方式を検討する |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |
 | Perfect Sync（ARKitの52個の表情を持つモデル） | v0.1.0の後 |
+| 部位ごとの決まりをAvatar Profileへ保存する（方式設計7.12） | 今は読み込むたびに形の名前で決める（7.4）。利用者が表情の対応を選べるSetupの画面を作るときに、登録時に決めて保存する |
 | 頬を膨らませる | MediaPipeの`CheekPuff`はほとんど反応せず、VRMの標準の表情にもない。サンプルの3体（VRoid）も、その表情や形（BlendShape）を持たない。Perfect Syncの対応と合わせて検討する（利用者の要望、2026-10-21） |
 | 表情の調整の映像の切り抜き | 決定：利用者が上下の位置を変えられる（UI `setup.md` 9章。顔の位置はアバターの身長による）。保存はしない。頭の位置から自動で決める方式は、Camera Pointと合わせて検討する |
 | 表情の既定値 | 決定：利用者がカメラで調整した値を既定とした（7.4、2026-10-21）。ほかの人の顔で合わない場合は、調整の画面で変える |

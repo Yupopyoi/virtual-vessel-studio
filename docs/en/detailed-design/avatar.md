@@ -43,7 +43,7 @@ flowchart LR
     end
 
     Tracking["Tracking: ITrackingSource.Current"] --> Ctrl
-    Expr --> Signal["Expression Signal<br/>(Extension Motion comes later)"]
+    Ctrl --> Signal["Expression Signal<br/>(model-independent; Extension Motion comes later)"]
     Runtime --> Layer["Video: avatar layer"]
 ```
 
@@ -103,8 +103,9 @@ flowchart LR
 | `PoseRetargeting` | Static class | Computes bone rotations from observations (pure functions, chapter 7) |
 | `PoseController` | Class | Interpolation, handling lost tracking, application according to the range (`BodyRange`) |
 | `ExpressionMapping` | Class | Settings for converting expression values (`FaceShape`) to expressions (7.4) |
-| `ExpressionController` | Class | Applies expressions and gaze; produces the Expression Signal |
-| `FaceTarget` | Class | What the avatar's face shows: a weight per expression, the gaze, and the head's turn. Reused every frame |
+| `ExpressionController` | Class | Applies expressions and gaze: part by part or as whole-face expressions, substituting blinks the model lacks |
+| `FaceTarget` | Class | What the avatar's face shows: a weight per expression, a weight per part, the Expression Signal, the gaze, and the head's turn. Reused every frame |
+| `ExpressionSignal` | Enum | The values of the Expression Signal: smile, anger, sadness, surprise, each eye's opening, and the mouth's opening (7.4, system design 7.7) |
 | `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4) |
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
@@ -186,13 +187,13 @@ classDiagram
             +float LookYaw
             +float LookPitch
             +Quaternion Head
+            +float[] Signals
         }
         class HeadPose {
             +FromTracking(Quaternion tracked, bool mirror)$ Quaternion
             +Neck(Quaternion head)$ Quaternion
         }
         class ExpressionController {
-            +IReadOnlyList~float~ Signal
             +FacePartProfile Profile
             +Apply(FaceTarget face)
         }
@@ -500,7 +501,8 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 - How feelings overlap blinks, the mouth, and the gaze (VRM 1.0 `overrideBlink`, `overrideMouth`, `overrideLookAt`) follows the model's settings and is applied by UniVRM.
 - The gaze is given as a share, not an angle (5.2). VRM divides a look angle by its range (90° on the sample models) to turn the eyes, so the angles first given (±12°) moved the eyes only about an eighth of their range (2026-10-20).
 - The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more, then eyes and brows 120% more, and last eyes 120% more).
-- The weights actually set (after substituting blinks) are the Expression Signal (a 0–1 value per expression; `ExpressionController.Signal`). v0.1.0 has no consumer (Extension Motion) yet (system design 7.7).
+- The Expression Signal (`FaceTarget.Signals`, 0 to 1 per `ExpressionSignal`) is what other control (Extension Motion for cat ears, tails, and so on) reacts to. It depends neither on the model's format nor on whether the face is moved part by part or as a whole (system design 7.7, 7.8). Its values are the feelings' weights (smile, anger, sadness, surprise), each eye's opening (1 when open; the avatar's own sides), and the mouth's opening. `ExpressionMapping` computes them before anything is fitted to the model (before substituting blinks, and before the whole-face expressions are set to 0 for a face moved part by part). They are interpolated like the other values and go back to neutral (eyes open, everything else 0) when the face is lost. v0.1.0 has no consumer (Extension Motion) yet.
+  - In step 4, the weights set on the model (`ExpressionController.Signal`) were the Expression Signal. They changed with the model (substituted blinks, and all 0 for a face moved part by part) and held no continuous values for the eyes and mouth, so they were changed to follow system design 7.7 (2026-10-21).
 - For a model with only a blink of both eyes (`Blink`), the per-eye values go to it; for one with only per-eye blinks, the both-eye value goes to each eye. The substitution uses the smaller value so one closed eye does not close both.
 
 #### Moving the Face Part by Part (FacePart)
@@ -510,6 +512,7 @@ VRM's standard expressions are whole-face expressions, and on some models the sm
 - The face is moved part by part only when the model's shape names fit a known convention (`FacePartProfile`; for now VRoid's `Fcl_EYE_*`, `Fcl_BRW_*`, `Fcl_MTH_*`). A model without both eyes' closing and the five vowel shapes keeps the standard expressions.
 - While moving part by part, the standard expressions stay at 0, so they do not add up into a broken face. The gaze moves by LookAt either way.
 - Whether a model fits is logged when it loads.
+- Whether a model fits is decided from its shape names each time it loads. System design 7.12 does expression recognition and mapping in Setup and saves them to the Avatar Profile. For now the user chooses nothing here, matching the names is cheap, and the model's file does not change after registration (system design 7.11), so the result is the same every time. It is saved to the Avatar Profile when a Setup screen lets the user choose the expression mapping (chapter 17).
 
 | Part | VRoid shape | How |
 |---|---|---|
@@ -546,7 +549,7 @@ How much a face moves differs from person to person, so the user can change the 
 
 - Winks are easily misread, for example when one eye narrows as the head turns, so the user chooses (user's decision, 2026-10-21). They are off by default, and both eyes always close together.
 - Each value is a sensitivity (0.5 to 3, shown as 50 to 300%) that divides both ends of the curves: 2 gives the same expression for half the movement. A value outside the range (such as a hand-edited file) is read as the nearest end.
-- The tuning belongs to the user and stays when the avatar changes (user's decision, 2026-10-20). It is saved in `avatar-settings.json` (chapter 10).
+- The tuning belongs to the user and stays when the avatar changes (user's decision, 2026-10-20). It is saved in `avatar-settings.json` (chapter 10). The expression mapping and tracking corrections in system design 7.2's Avatar Profile are specific to a model. How much a person's face moves depends on the person, not the model, so it is not kept in the Avatar Profile.
 - A change applies to the avatar in use at once (from the next observation). The tuning screen is UI `setup.md` chapter 9.
 - `IAvatarExpressions.CustomNames` exists so a method passing values straight through can be added later for models that have their own 52 ARKit expressions (Perfect Sync) (chapter 17).
 
@@ -676,7 +679,7 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
-Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (closed smile, i and e, smiling eyes, brows), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
+Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (a closed smile that keeps the eyes open, i and e, brows), the Expression Signal (feelings, eyes, mouth, sides, neutral, the same values part by part and whole-face), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
 
 Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository). The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
 
@@ -703,7 +706,7 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose (PoseRetargeting, PoseController in step 5)
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController (Expression Signal), FaceTarget, FaceTuning, FacePart, FacePartProfile
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
@@ -733,6 +736,7 @@ Assets/VirtualVessel/Avatar/
 | How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
 | Position matching such as touching the face (IK) | Considered together with full body |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
+| Saving the part convention to the Avatar Profile (system design 7.12) | For now it is decided from the shape names each time a model loads (7.4). When a Setup screen lets the user choose the expression mapping, it is decided at registration and saved |
 | Puffing the cheeks | MediaPipe's `CheekPuff` hardly responds, and VRM has no standard expression for it. The three samples (VRoid) have neither such an expression nor a blend shape for it. Considered together with Perfect Sync (user's request, 2026-10-21) |
 | The cropped video of the face tuning Card | Decided: the user moves it up and down (UI `setup.md` chapter 9; where the face is depends on the avatar's height). Not saved. Choosing the part from the head's position automatically is considered with Camera Points |
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
