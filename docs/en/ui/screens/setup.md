@@ -165,8 +165,9 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Introduction | Description (Text 2) | "With tracking running, watch the avatar while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
 | Video | Image (384×216, 16:9) | The middle of the stream, enlarged about 2.2 times so the expression can be seen. "No video" when there is none |
 | Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the stream is shown (0% the bottom, 100% the top). 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
+| Winks | Toggle | Whether one eye may close alone. Description: "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head." Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
-| Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% |
+| Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% and turns winks off |
 
 - The video is on the left and the sliders on the right, so the avatar stays in view whichever slider moves. On a narrow window the sliders wrap below the video.
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.

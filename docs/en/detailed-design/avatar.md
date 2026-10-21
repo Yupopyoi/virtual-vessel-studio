@@ -324,7 +324,7 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 
 | Expression | Source values | How (including Voom's knowledge) |
 |---|---|---|
-| `Blink` (both), `BlinkLeft`, `BlinkRight` | `EyeBlinkLeft/Right` | Both eyes together. One eye (a wink) only when the eyes differ by 0.3 or more after the curve, because closing one eye squints the other a little, so a wink never reads as one eye alone |
+| `Blink` (both), `BlinkLeft`, `BlinkRight` | `EyeBlinkLeft/Right` | Both eyes together. Only when winks are allowed (face tuning, off by default), one eye (a wink) when the eyes differ by 0.3 or more after the curve, because closing one eye squints the other a little, so a wink never reads as one eye alone |
 | `Aa` | `JawOpen` | Mouth opening; the `MouthFunnel` share goes to `Oh` |
 | `Oh` | `JawOpen` and `MouthFunnel` | Rounded and open |
 | `Ou` | `MouthPucker`, `MouthFunnel` | Pursed lips, as far as the mouth is open |
@@ -342,7 +342,7 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 - VRM has no brow expressions, so the brows show through the feelings (surprise, anger, sadness).
 - How feelings overlap blinks, the mouth, and the gaze (VRM 1.0 `overrideBlink`, `overrideMouth`, `overrideLookAt`) follows the model's settings and is applied by UniVRM.
 - The gaze is given as a share, not an angle (5.2). VRM divides a look angle by its range (90° on the sample models) to turn the eyes, so the angles first given (±12°) moved the eyes only about an eighth of their range (2026-10-20).
-- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more, then eyes and brows 120% more).
+- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more, then eyes and brows 120% more, and last eyes 120% more).
 - The weights actually set (after substituting blinks) are the Expression Signal (a 0–1 value per expression; `ExpressionController.Signal`). v0.1.0 has no consumer (Extension Motion) yet (system design 7.7).
 - For a model with only a blink of both eyes (`Blink`), the per-eye values go to it; for one with only per-eye blinks, the both-eye value goes to each eye. The substitution uses the smaller value so one closed eye does not close both.
 
@@ -380,12 +380,14 @@ How much a face moves differs from person to person, so the user can change the 
 | Part | What changes |
 |---|---|
 | Eye closing | The blink curve |
-| Winking | The difference between the eyes that counts as a wink |
+| Winks | Whether one eye may close alone (on or off, off by default) |
+| Winking | The difference between the eyes that counts as a wink (only with winks on) |
 | Brows | The curves of the brows, wide eyes, and the frown (surprise, anger, sadness) |
 | Mouth | The curves of the mouth opening and shapes |
 | Gaze | The value at which the eyes reach the end of their range |
 | Smile | The smile curve |
 
+- Winks are easily misread, for example when one eye narrows as the head turns, so the user chooses (user's decision, 2026-10-21). They are off by default, and both eyes always close together.
 - Each value is a sensitivity (0.5 to 3, shown as 50 to 300%) that divides both ends of the curves: 2 gives the same expression for half the movement. A value outside the range (such as a hand-edited file) is read as the nearest end.
 - The tuning belongs to the user and stays when the avatar changes (user's decision, 2026-10-20). It is saved in `avatar-settings.json` (chapter 10).
 - A change applies to the avatar in use at once (from the next observation). The tuning screen is UI `setup.md` chapter 9.
@@ -454,7 +456,7 @@ How much a face moves differs from person to person, so the user can change the 
 public sealed class AvatarSettings
 {
     public string CurrentAvatarId { get; set; }   // No avatar is shown when null
-    public FaceTuning Face { get; set; }          // Face tuning (7.4); the user's
+    public FaceTuning Face { get; set; }          // Face tuning (7.4): sensitivity per part and whether winks are allowed; the user's
 }
 ```
 
