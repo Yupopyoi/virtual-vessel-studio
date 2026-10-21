@@ -1,13 +1,12 @@
 using System;
-using System.Collections.Generic;
 
 namespace VirtualVessel.Avatar
 {
     /// <summary>
     /// Puts a <see cref="FaceTarget"/> and its gaze on one avatar (avatar detailed design 7.4): part by
     /// part on a model whose face shapes fit a <see cref="FacePartProfile"/>, otherwise as whole-face
-    /// expressions, standing in for blinks the model lacks. Keeps the expression weights as the
-    /// Expression Signal for Extension Motion later (system design 7.7).
+    /// expressions, standing in for blinks the model lacks. The Expression Signal is not kept here: it is
+    /// the model-independent <see cref="FaceTarget.Signals"/> (system design 7.7).
     /// </summary>
     /// <remarks>
     /// How expressions override blinking and the mouth (VRM 1.0 overrideBlink and overrideMouth) is the
@@ -19,7 +18,7 @@ namespace VirtualVessel.Avatar
         private readonly IAvatarFaceShapes _shapes;
         private readonly int[] _partShapes;
         private readonly bool[] _has = new bool[FaceTarget.ExpressionCount];
-        private readonly float[] _signal = new float[FaceTarget.ExpressionCount];
+        private readonly float[] _weights = new float[FaceTarget.ExpressionCount];
 
         /// <param name="shapes">The model's face shapes; null moves the face by whole-face expressions.</param>
         public ExpressionController(IAvatarExpressions expressions, IAvatarFaceShapes shapes = null)
@@ -38,20 +37,17 @@ namespace VirtualVessel.Avatar
             }
         }
 
-        /// <summary>The weight of each <see cref="AvatarExpression"/> this frame: the Expression Signal.</summary>
-        public IReadOnlyList<float> Signal => _signal;
-
         /// <summary>The convention the face is moved part by part with; null for whole-face expressions.</summary>
         public FacePartProfile Profile { get; }
 
         public void Apply(FaceTarget face)
         {
-            Substitute(face.Weights, _has, _signal);
+            Substitute(face.Weights, _has, _weights);
             bool parts = _partShapes != null;
-            for (int i = 0; i < _signal.Length; i++)
+            for (int i = 0; i < _weights.Length; i++)
             {
                 // Moved part by part, the whole-face expressions stay off so they do not add up.
-                _expressions.SetWeight((AvatarExpression)i, parts ? 0f : _signal[i]);
+                _expressions.SetWeight((AvatarExpression)i, parts ? 0f : _weights[i]);
             }
 
             if (parts)

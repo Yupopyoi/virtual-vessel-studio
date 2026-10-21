@@ -321,6 +321,8 @@ namespace VirtualVessel.Avatar.Tests
 
             Assert.That(motion.Presence, Is.EqualTo(0f));
             Assert.That(motion.Current.Weights, Has.All.EqualTo(0f));
+            Assert.That(motion.Current[ExpressionSignal.EyeOpenLeft], Is.EqualTo(1f));
+            Assert.That(motion.Current[ExpressionSignal.Smile], Is.EqualTo(0f));
         }
 
         [Test]
@@ -369,7 +371,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void Parts_SmileWithAClosedMouth_AndTheEyesSmileAlong()
+        public void Parts_SmileWithAClosedMouth_WithoutClosingTheEyes()
         {
             var face = new FacePose();
             var target = new FaceTarget();
@@ -482,7 +484,63 @@ namespace VirtualVessel.Avatar.Tests
             AssertSame(model.Rotations[AvatarBone.Neck], Quaternion.AngleAxis(-12f, Vector3.up));
             Assert.That(model.Weights[AvatarExpression.Aa], Is.EqualTo(1f).Within(Tolerance));
             Assert.That(model.Yaw, Is.EqualTo(-1f).Within(Tolerance));
-            Assert.That(controller.Expressions.Signal[(int)AvatarExpression.Aa], Is.EqualTo(1f).Within(Tolerance), "What was set is the Expression Signal.");
+            Assert.That(controller.Face[ExpressionSignal.MouthOpen], Is.EqualTo(1f).Within(Tolerance), "The open mouth is in the Expression Signal.");
+        }
+
+        [Test]
+        public void TheExpressionSignal_HoldsFeelingsEyesAndMouth_InTheAvatarsOwnSides()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+            Assert.That(target[ExpressionSignal.EyeOpenLeft], Is.EqualTo(1f), "A new face has its eyes open.");
+            Assert.That(target[ExpressionSignal.MouthOpen], Is.EqualTo(0f));
+
+            face[FaceShape.EyeBlinkLeft] = 0.95f;
+            face[FaceShape.JawOpen] = 1f;
+            face[FaceShape.BrowDownLeft] = 1f;
+            face[FaceShape.BrowDownRight] = 1f;
+            face[FaceShape.CheekSquintLeft] = 1f;
+            face[FaceShape.CheekSquintRight] = 1f;
+            ExpressionMapping.Default.Evaluate(face, mirror: true, target);
+
+            Assert.That(target[ExpressionSignal.EyeOpenRight], Is.EqualTo(0f).Within(Tolerance), "Mirrored, the person's closed left eye is the avatar's right.");
+            Assert.That(target[ExpressionSignal.EyeOpenLeft], Is.EqualTo(1f).Within(Tolerance));
+            Assert.That(target[ExpressionSignal.MouthOpen], Is.EqualTo(1f).Within(Tolerance));
+            Assert.That(target[ExpressionSignal.Angry], Is.EqualTo(target[AvatarExpression.Angry]).And.GreaterThan(0f));
+            Assert.That(target[ExpressionSignal.Smile], Is.EqualTo(target[AvatarExpression.Happy]).And.GreaterThan(0f));
+            Assert.That(target[ExpressionSignal.Sad], Is.EqualTo(0f));
+            Assert.That(target.Signals, Has.All.InRange(0f, 1f));
+
+            target.SetNeutral();
+            Assert.That(target[ExpressionSignal.EyeOpenRight], Is.EqualTo(1f), "A neutral face has its eyes open.");
+            Assert.That(target[ExpressionSignal.Angry], Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void TheExpressionSignal_IsTheSame_WhicheverWayTheModelMovesItsFace()
+        {
+            var parts = new AvatarController(new RecordingModel(s_vroidShapes), ExpressionMapping.Default);
+            var whole = new AvatarController(new RecordingModel(), ExpressionMapping.Default);
+            var frame = new TrackingFrame();
+            frame.Face.Status = TrackingStatus.Tracked;
+            frame.Face.Timestamp = 1.0;
+            frame.Face[FaceShape.JawOpen] = 0.4f;
+            frame.Face[FaceShape.EyeBlinkLeft] = 0.95f;
+            frame.Face[FaceShape.EyeBlinkRight] = 0.9f;
+            frame.Face[FaceShape.MouthSmileLeft] = 0.7f;
+            frame.Face[FaceShape.MouthSmileRight] = 0.7f;
+
+            foreach (AvatarController controller in new[] { parts, whole })
+            {
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+            }
+
+            Assert.That(parts.Expressions.Profile, Is.Not.Null);
+            Assert.That(whole.Expressions.Profile, Is.Null);
+            Assert.That(parts.Face.Signals, Is.EqualTo(whole.Face.Signals));
+            Assert.That(parts.Face[ExpressionSignal.EyeOpenLeft], Is.EqualTo(0f).Within(Tolerance), "Both eyes closed, before any blink is moved to what the model has.");
+            Assert.That(parts.Face[ExpressionSignal.Smile], Is.GreaterThan(0f));
         }
 
         private static void Substitute(float[] weights, float[] into, bool hasBoth, bool hasEach)
