@@ -112,6 +112,163 @@ flowchart LR
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
 | `AvatarSettings` | Class | The avatar in use and the face tuning (chapter 10) |
 
+### Class Diagram (the face, as of step 4)
+
+The classes from a tracking observation to the avatar's head, expressions, and gaze. The body and arms (`PoseController`, `PoseRetargeting`) come in step 5.
+
+- There are two kinds of abstraction, shown by color and by a stereotype. **Interfaces** (`<<interface>>`, a thick solid purple border) hide the concrete implementations at module boundaries. **Data contracts** (`<<contract>>`, a dashed green border) carry values in a form independent of formats and libraries. Classes without a stereotype are concrete processing on top of the abstractions.
+- Every dependency points from the concrete to the abstract. Avatar's computation knows neither MediaPipe's types nor UniVRM's, and UniVRM's types are used only inside Avatar.Vrm (chapter 3).
+- Relation notes: `reads` is the read every frame, and `neck, head` sets the neck and head rotations. The per-frame order is in 8.3.
+
+```mermaid
+classDiagram
+    direction LR
+
+    namespace Tracking {
+        class ITrackingSource {
+            <<interface>>
+            +TrackingFrame Current
+            +IReadOnlyObservable~TrackingOptions~ Options
+        }
+        class TrackingFrame {
+            <<contract>>
+            +double Time
+            +FacePose Face
+            +BodyPose Body
+        }
+        class FacePose {
+            <<contract>>
+            +float[52] Shapes
+            +Quaternion HeadRotation
+            +TrackingStatus Status
+            +double Timestamp
+        }
+    }
+
+    namespace Avatar {
+        class IAvatarService {
+            <<interface>>
+            +IReadOnlyObservable~FaceTuning~ FaceTuning
+            +FaceTarget Face
+            +SetFaceTuning(FaceTuning tuning)
+        }
+        class AvatarService {
+            -Tick()
+            +Normalized(FaceTuning)$ FaceTuning
+        }
+        class AvatarController {
+            +ExpressionMapping Mapping
+            +Update(TrackingFrame frame, bool mirror, double now)
+        }
+        class FaceMotion {
+            +FaceTarget Current
+            +float Presence
+            +Update(FacePose face, bool mirror, double now)
+            +Progress(now, arrivedAt, interval)$ float
+            +NextPresence(presence, usable, lost, elapsed)$ float
+        }
+        class ExpressionMapping {
+            +Evaluate(FacePose face, bool mirror, FaceTarget into)
+            +For(FaceTuning tuning)$ ExpressionMapping
+        }
+        class ExpressionCurve {
+            +Evaluate(float value) float
+            +Sensitive(float sensitivity) ExpressionCurve
+        }
+        class FaceTuning {
+            +float Eyes, Wink, Brows, Mouth, Gaze, Smile
+            +bool Winks
+        }
+        class FaceTarget {
+            <<contract>>
+            +float[] Weights
+            +float[] Parts
+            +float LookYaw
+            +float LookPitch
+            +Quaternion Head
+        }
+        class HeadPose {
+            +FromTracking(Quaternion tracked, bool mirror)$ Quaternion
+            +Neck(Quaternion head)$ Quaternion
+        }
+        class ExpressionController {
+            +IReadOnlyList~float~ Signal
+            +FacePartProfile Profile
+            +Apply(FaceTarget face)
+        }
+        class FacePartProfile {
+            <<contract>>
+            +VRoid$ FacePartProfile
+            +Resolve(IReadOnlyList~string~ names) int[]
+        }
+        class IAvatarModel {
+            <<interface>>
+            +IAvatarRig Rig
+            +IAvatarExpressions Expressions
+            +IAvatarFaceShapes FaceShapes
+            +Apply()
+        }
+        class IAvatarRig {
+            <<interface>>
+            +SetRotation(AvatarBone bone, Quaternion rotation)
+        }
+        class IAvatarExpressions {
+            <<interface>>
+            +SetWeight(AvatarExpression expression, float weight)
+            +SetLook(float yaw, float pitch)
+        }
+        class IAvatarFaceShapes {
+            <<interface>>
+            +IReadOnlyList~string~ Names
+            +SetWeight(int index, float weight)
+        }
+    }
+
+    namespace AvatarVrm {
+        class VrmAvatarModel
+        class VrmAvatarRig
+        class VrmAvatarExpressions
+        class VrmAvatarFaceShapes
+    }
+
+    namespace UI {
+        class FaceTuningCard
+    }
+
+    classDef interfaceLayer fill:#7c6cf033,stroke:#7c6cf0,stroke-width:3px
+    classDef contractLayer fill:#2aa58f26,stroke:#2aa58f,stroke-width:2px,stroke-dasharray:6 4
+    cssClass "ITrackingSource,IAvatarService,IAvatarModel,IAvatarRig,IAvatarExpressions,IAvatarFaceShapes" interfaceLayer
+    cssClass "TrackingFrame,FacePose,FaceTarget,FacePartProfile" contractLayer
+
+    TrackingFrame *-- FacePose
+    ITrackingSource --> TrackingFrame
+    AvatarService ..|> IAvatarService
+    AvatarService --> ITrackingSource : reads
+    AvatarService --> IAvatarModel : Apply()
+    AvatarService *-- AvatarController
+    AvatarService ..> ExpressionMapping : For(tuning)
+    AvatarController *-- FaceMotion
+    AvatarController *-- ExpressionController
+    AvatarController --> IAvatarRig : neck, head
+    AvatarController ..> HeadPose
+    FaceMotion --> ExpressionMapping : Evaluate
+    FaceMotion *-- FaceTarget
+    FaceMotion ..> HeadPose
+    ExpressionMapping *-- ExpressionCurve
+    ExpressionMapping ..> FaceTuning
+    ExpressionController --> IAvatarExpressions
+    ExpressionController --> IAvatarFaceShapes
+    ExpressionController ..> FacePartProfile
+    IAvatarModel *-- IAvatarRig
+    IAvatarModel *-- IAvatarExpressions
+    IAvatarModel *-- IAvatarFaceShapes
+    VrmAvatarModel ..|> IAvatarModel
+    VrmAvatarRig ..|> IAvatarRig
+    VrmAvatarExpressions ..|> IAvatarExpressions
+    VrmAvatarFaceShapes ..|> IAvatarFaceShapes
+    FaceTuningCard --> IAvatarService
+```
+
 ---
 
 ## 5. Public API
