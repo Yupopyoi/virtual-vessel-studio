@@ -68,7 +68,7 @@ flowchart LR
 
 ## 3. Module境界
 
-- Avatarは、Core、Diagnostics、ProjectData、Trackingの公開Contract（`ITrackingSource`、`TrackingFrame`）を参照する。Capture、UI、Video、Stageは参照しない（Trackingの参照は段階4で加える）。
+- Avatarは、Core、Diagnostics、ProjectData、Trackingの公開Contract（`ITrackingSource`、`TrackingFrame`）を参照する。Capture、UI、Video、Stageは参照しない（Trackingの参照は段階4で加えた）。
 - 置く場所（Videoのアバターの層と、StageのSpawn Point）は、Composition Rootが`AvatarPlacement`（層の番号と位置・向き）として渡す。UIがAvatarを参照し、VideoとStageがUIを参照するため、AvatarがVideoやStageを参照するとAssemblyの参照が循環するためである（「UI → Avatar → Video → UI」）。
 - UniVRMの型（`UniVRM10.*`、`UniGLTF.*`）は、VRMのLoader（別のAssembly、16章）の中だけで使う。Avatarの他の部分は、`IAvatarRig`、`IAvatarExpressions`（5.2）だけを使う（方式設計7.2）。
 - 他のModuleは`IAvatarService`（5.1）だけを使う。TransformやBlendShapeを直接操作しない（方式設計7.2 Avatar Controller）。
@@ -101,8 +101,13 @@ flowchart LR
 | `PoseController` | Class | 補間、見失ったときの扱い、範囲（`BodyRange`）に応じた適用 |
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用、Expression Signalの生成 |
+| `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、視線、頭の向き。毎Frame使い回す |
+| `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4） |
+| `HeadPose` | Static Class | 頭の向き：鏡写し、上限、首への配分（純粋関数、7.1） |
+| `ExpressionCurve` | Struct | 値から表情の重みへの応答の曲線（7.4） |
+| `FaceTuning` | Class | 利用者の表情の調整：部位ごとの感度（7.4） |
 | `AvatarProfile` | Class | 保存する利用の設定（6.3） |
-| `AvatarSettings` | Class | 使うアバター（10章） |
+| `AvatarSettings` | Class | 使うアバターと表情の調整（10章） |
 
 ---
 
@@ -124,6 +129,10 @@ public interface IAvatarService
     Task<AvatarImportResult> ImportAsync(string path, Func<AvatarModelInfo, Task<bool>> confirm, CancellationToken cancellationToken);
     Task SelectAsync(string avatarId, CancellationToken cancellationToken);   // 読み込んで差し替える。nullで外す
     Task RemoveAsync(string avatarId, CancellationToken cancellationToken);   // 登録を消す（確認はUI）
+
+    IReadOnlyObservable<FaceTuning> FaceTuning { get; }                        // 表情の調整（7.4）
+    void SetFaceTuning(FaceTuning tuning);                                     // すぐに反映して保存する
+    FaceTarget Face { get; }                                                   // このFrameの顔。アバターがなければnull
 }
 ```
 
@@ -148,7 +157,7 @@ public interface IAvatarExpressions
 {
     bool Has(AvatarExpression expression);
     void SetWeight(AvatarExpression expression, float weight);   // 0〜1
-    void SetLookAt(float yawDegrees, float pitchDegrees);
+    void SetLook(float yaw, float pitch);                         // モデルの目の可動域に対する割合（-1〜1）
     IReadOnlyList<string> CustomNames { get; }                   // モデル独自の表情の名前（Perfect Sync等、後続）
 }
 ```
@@ -156,6 +165,7 @@ public interface IAvatarExpressions
 - VRMでは、`IAvatarRig`をUniVRMのControl Rig（基準の姿勢でどの骨の回転も単位になる正規化した骨格）で実装する。モデルごとの骨の軸の違い（ある骨はX軸が前、別の骨はZ軸が前等）を、UniVRMが吸収する。FBXのLoaderを作るときは、同じ正規化をLoaderの中で行う。
 - `SetRotation`の値は`IAvatarModel.Apply`でまとめて反映する。親の骨から順に反映するため、呼ぶ順序は問わない。
 - VRMでは、`IAvatarExpressions`をVRM 1.0のExpression（Preset）とLookAtで実装する。
+- 視線は角度ではなく、モデルの目の可動域に対する割合で渡す。モデルごとに、視線の角度を目の動きへ対応させる範囲が違うためである（7.4）。VRMでは、割合にモデルのLookAtの入力の範囲（左右、上、下）を掛けて角度にする。
 
 ```csharp
 public interface IAvatarModel : IDisposable
@@ -214,7 +224,6 @@ DataRoot/Avatars/<AvatarId>/
   "importedAt": "2026-10-20T12:00:00Z",
   "license": { "...": "VRMのメタ情報のライセンスの項目（6.4）" },
   "scale": 1.0,
-  "expressionMapping": { "...": "既定から変えた項目だけ（7.4）" },
   "pose": { "armDownAngle": 70 },
   "extensions": {}
 }
@@ -222,6 +231,7 @@ DataRoot/Avatars/<AvatarId>/
 
 - 知らない項目は消さずに残す（CLAUDE.md 25章）。`extensions`は、Extension Motion等の後続の設定を入れる場所とする。
 - 既定値と同じ項目は書かない。既定を良くしたとき、変えていない利用者にも届くようにするため。
+- 表情の調整は、アバターごとではなく利用者ごととし、`avatar-settings.json`に置く（7.4、10章。利用者の決定、2026-10-20）。
 
 ### 6.4 モデルのライセンス（VRMのメタ情報）
 
@@ -273,12 +283,13 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 | 骨 | 向き | ねじれを決める向き |
 |---|---|---|
 | 胴（Spine、Chest） | 腰から首へ | 左右の肩を結ぶ線 |
-| 首、頭 | 顔の変換行列の回転（Tracking詳細設計6.3）を、首と頭へ配分する（既定：首40%、頭60%） | 同じ |
+| 首、頭 | 顔の変換行列の回転（Tracking詳細設計6.3）を、首と頭へ配分する（既定：首40%、頭60%）。75°を超える回転は止める | 同じ |
 | 上腕 | 肩から肘へ | 肘の曲がる面（上腕と前腕が作る面の法線） |
 | 前腕 | 肘から手首へ | 手のひらの向き（Hand Landmarkerから。なければ上腕から引き継ぐ） |
 | 手 | 手首から中指の付け根へ | 手のひらの法線 |
 | 指 | 各関節の曲げの角度（7.5） | 手のひら |
 
+- 首と頭（段階4、`HeadPose`）：本人の空間とアバターのRoot空間は向きが同じ（+Xが右、+Yが上、+Zが前）ため、回転をそのまま使う。鏡写しでは、X=0の面で写した回転にする（左右を向く向きと首をかしげる向きが逆になり、うなずきは同じ）。Root空間で、頭に全体の回転を、首にその40%を設定するため、頭は首に対して残りの60%だけ回る。75°を超える回転は、顔がカメラからほとんど外れて値が当てにならないため止める。
 - 回転だけを適用し、位置は適用しない。そのため、アバターと利用者の体格（腕の長さ等）が違っても、骨の向きは同じになる（方式設計7.6の体格差の吸収）。手を顔に当てる等、位置が合うことが必要な動きは、全身の対応と合わせてIK（関節の位置から回転を解く）を後で検討する（17章）。
 - 計算は`PoseRetargeting`（純粋関数）で行う：入力は`TrackingFrame`の体と手、鏡写し、Profileの補正。出力は骨ごとの回転の配列（呼び出し元が渡す、毎Frameの確保を避けるため）。
 
@@ -292,29 +303,54 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 
 ### 7.3 観測の間の補間
 
-- 描画のFrameごとに、直近2回の観測の間を、描画の時刻で補間する（回転は球面補間）。描画の時刻は「今 − 観測1回分の間隔」とし、常に2つの観測の間に入るようにする。遅れは観測1回分（30回/秒で約33ms）増えるが、推論の回数より描画の回数が多いことによる段差が消える。
-- 次の観測が遅れたときは、最後の観測で止める（先の予測はしない。外れたときに戻る動きが目立つため）。
+- 描画のFrameごとに、表示している値から最新の観測へ、観測の間隔をかけて移る（回転は球面補間）。新しい観測が届いた時点の表示から始めるため、描画は常に直前の表示と最新の観測の間にあり、途中で飛ばない。遅れは観測1回分（30回/秒で約33ms）増えるが、推論の回数より描画の回数が多いことによる段差が消える。
+- 移る時間は2つの観測の時刻の差とし、1/120秒〜0.2秒に収める（遅れた観測で、ゆっくり引きずられないように）。
+- 次の観測が遅れたときは、最新の観測で止める（先の予測はしない。外れたときに戻る動きが目立つため）。
+- 段階4では顔（表情、視線、頭の向き）に使う（`FaceMotion`）。体と手は段階5、6で同じ考え方を使う。
 
 ### 7.4 表情（ExpressionMapping）
 
-表情の値（`FaceShape`、0〜1）から、アバターの表情（`AvatarExpression`）への変換。値ごとに応答の曲線（下限、上限、曲がり方）を持つ。既定は次のとおりとし、Avatar Profileで変えられる。
+表情の値（`FaceShape`、0〜1）から、アバターの表情（`AvatarExpression`）と視線への変換（`ExpressionMapping`）。値ごとに応答の曲線（`ExpressionCurve`：下端以下は0、上端以上で最大、その間はなめらかに上がる）を持つ。MediaPipeの値は1に届きにくいため、上端は1より小さい。
 
-| 表情 | 元の値 | 調整（Voomの知見を含む） |
+| 表情 | 元の値 | 決め方（Voomの知見を含む） |
 |---|---|---|
-| `BlinkLeft` / `BlinkRight` | `EyeBlinkLeft` / `EyeBlinkRight` | 目の閉じやすさ（下限と上限）。左右をそろえる（既定：オン。両目の差が大きいときだけ片目のまばたきとする） |
-| `Aa` | `JawOpen` | 口の開き |
-| `Ou` | `MouthPucker`、`MouthFunnel` | 口をすぼめる |
-| `Oh` | `MouthFunnel`と`JawOpen` | 丸く開く |
-| `Ee` | `MouthStretchLeft/Right` | 横に広げる |
-| `Ih` | `MouthSmileLeft/Right`と小さい`JawOpen` | 横に引いて少し開く |
-| `Happy` | `MouthSmileLeft/Right`、`CheekSquintLeft/Right` | 既定：弱め（0.6倍） |
-| `Surprised` | `BrowInnerUp`、`EyeWideLeft/Right` | 既定：弱め |
-| `Angry` | `BrowDownLeft/Right` | 既定：弱め |
-| `Sad` | `MouthFrownLeft/Right`、`BrowInnerUp` | 既定：弱め |
-| 視線 | `EyeLookIn/Out/Up/Down`（左右） | 角度の範囲（既定：左右±12°、上下±10°） |
+| `Blink`（両目）、`BlinkLeft`、`BlinkRight` | `EyeBlinkLeft/Right` | 両目をそろえる。曲線を通した後の両目の差が0.3以上のときだけ片目（ウインク）とする。片目を閉じると反対の目も少し細くなり、片目だけが閉じた値にはならないため |
+| `Aa` | `JawOpen` | 口の開き。`MouthFunnel`の分だけ`Oh`へ回す |
+| `Oh` | `JawOpen`と`MouthFunnel` | 丸く開く |
+| `Ou` | `MouthPucker`、`MouthFunnel` | すぼめる。口が開いている分だけ |
+| `Ee` | `MouthStretchLeft/Right` | 横に広げる。口が開いている分だけ |
+| `Ih` | `MouthSmileLeft/Right` | 横に引いて少し開く（笑顔の半分）。口が開いている分だけ |
+| `Happy` | `MouthSmileLeft/Right`、`CheekSquintLeft/Right` | 大きい方。最大0.8 |
+| `Surprised` | `BrowInnerUp`、`EyeWideLeft/Right` | 眉を上げるだけで半分、目を見開くと残り。最大0.8 |
+| `Angry` | `BrowDownLeft/Right` | 最大0.8 |
+| `Sad` | `BrowInnerUp`と`MouthFrownLeft/Right` | 両方がそろったとき。最大0.8 |
+| 視線 | `EyeLookIn/Out/Up/Down`（両目の平均） | モデルの目の可動域に対する割合（-1〜1）。値0.35で端まで。上下は、まぶたが閉じている分だけ弱める（閉じかけたまぶたは下を見た値になるため。Voomも上下の動きを既定で止めていた） |
 
-- 口の5つの形（`Aa`等）は、合計が1を超えないよう比で配分する。感情の表情（`Happy`等）を強く出すと、まばたきや口と重なって崩れるモデルがあるため、感情の表情が出ている間はまばたきと口を弱める（VRM 1.0の`overrideBlink`、`overrideMouth`の設定に従う）。
-- 変換の結果から、Expression Signal（表情ごとの0〜1の値）を作る。v0.1.0では使う側（Extension Motion）はまだないが、出す形は決めておく（方式設計7.7）。
+- 口が開いているか（`JawOpen`の0.04〜0.12）を見て、閉じていれば`Ou`、`Ee`、`Ih`を出さない。唇を閉じて力を抜いているだけでも`MouthPucker`や`MouthSmile`が0.1〜0.3ほど出て、閉じた口に小さく開いた「う」が出たため（2026-10-21）。
+- 口の5つの形は、合計が1を超えないよう比で配分する。
+- VRMには眉の表情がないため、眉は感情の表情（驚き、怒り、悲しみ）を通して動く。
+- 感情の表情とまばたき・口・視線の重なり（VRM 1.0の`overrideBlink`、`overrideMouth`、`overrideLookAt`）は、モデルの設定に従ってUniVRMが処理する。
+- 視線は角度ではなく割合で渡す（5.2）。VRMは視線の角度を範囲（サンプルのモデルでは90°）で割って目の回転に対応させるため、角度（当初は±12°）を渡すと、目は可動域の約1/8しか動かなかった（2026-10-20）。
+- 既定値は、カメラで試して決めた。最初の値（2026-10-20）では目、眉、口の動きが小さすぎたため強め、その後、利用者が調整した値（目70%、眉120%、口70%、ほかは100%）を新しい既定（100%）とした（2026-10-21）。
+- 実際に設定した重み（まばたきの置き換えの後）を、Expression Signal（表情ごとの0〜1）とする（`ExpressionController.Signal`）。v0.1.0では使う側（Extension Motion）はまだない（方式設計7.7）。
+- モデルが両目のまばたき（`Blink`）しか持たない場合は左右の値をそれに、片目ずつしか持たない場合は両目の値を左右に置き換える。片目しか閉じていないときに両目を閉じないよう、置き換えは小さい方の値を使う。
+
+#### 表情の調整（FaceTuning）
+
+顔の動きの大きさは人によって違うため、利用者が部位ごとに感度を変えられる（利用者の要望、2026-10-20）。
+
+| 部位 | 変えるもの |
+|---|---|
+| 目の閉じやすさ | まばたきの曲線 |
+| ウインクのしやすさ | 片目とみなす両目の差 |
+| 眉の動き | 眉、目の見開き、口角の下がり（驚き、怒り、悲しみ）の曲線 |
+| 口の動き | 口の開きと形の曲線 |
+| 視線の動き | 目が端まで動く値 |
+| 笑顔の強さ | 笑顔の曲線 |
+
+- 値は感度（0.5〜3、画面では50〜300%）で、曲線の両端を感度で割る。2なら半分の動きで同じ表情になる。範囲の外の値（手で書き換えたファイル等）は、近い端として読む。
+- 調整は利用者のもので、アバターを替えても変わらない（利用者の決定、2026-10-20）。`avatar-settings.json`に保存する（10章）。
+- 変えるとすぐに、使っているアバターに反映する（次の観測から）。調整の画面はUI `setup.md` 9章。
 - モデルがARKitの52個の表情を独自に持つ場合（Perfect Sync）は、値をそのまま渡す方式を後で足せるよう、`IAvatarExpressions.CustomNames`を用意しておく（17章）。
 
 ### 7.5 手指
@@ -345,8 +381,8 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 ### 8.3 毎Frameの適用
 
 - Avatar CameraがRenderingする前に、次の順で行う（`LateUpdate`相当、`IFrameLoop`の後段）：
-  1. `ITrackingSource.Current`を読む。
-  2. `PoseController`：補間、見失った部位の戻し、`PoseRetargeting`、Rigへの設定。
+  1. `ITrackingSource.Current`を読む。Trackingは、Avatarより先に毎Frameの処理（`IFrameLoop`）へ登録されるため、同じFrameに更新した観測を読める。
+  2. `AvatarController`：顔（`FaceMotion`：観測の間の補間、見失ったときの扱い、`ExpressionMapping`）と、首と頭の向き。体と腕（`PoseController`：補間、見失った部位の戻し、`PoseRetargeting`）は段階5で加える。
   3. `ExpressionController`：表情と視線。
   4. UniVRMの処理（Control Rigの反映、Expression、LookAt、SpringBone）を明示的に1回呼ぶ。UniVRMの自動の更新は止め、順序をこちらで決める（SpringBoneが姿勢の後に動くようにするため）。
 - 毎Frame確保しない。骨の回転の配列、表情の値の配列は使い回す。
@@ -361,6 +397,8 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 | `Lost`（0.5秒を超えた） | 1秒かけて、基準の姿勢（腕は下ろす、手は軽く握る、表情はなし）へ戻す |
 | 戻ったとき | 0.2秒かけて観測へ寄せる |
 | `Disabled`、`NotSupported` | 基準の姿勢 |
+
+- 顔では次のように作った（段階4、`FaceMotion`）：見失ってからの時間は、最後に使えた観測の時刻から数える。表示の強さ（0〜1）を持ち、見つかっている間は0.2秒で1へ、見失って0.5秒を過ぎたら1秒で0へ動かし、その強さで、何もない顔（表情なし、目は正面、頭はまっすぐ）と混ぜる。`LowConfidence`では、新しい観測を、信頼度の分だけ前の観測から寄せる。Trackingがない、止まっているときは、何もない顔になる。
 
 ---
 
@@ -378,11 +416,13 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 public sealed class AvatarSettings
 {
     public string CurrentAvatarId { get; set; }   // なければ、アバターを出さない
+    public FaceTuning Face { get; set; }          // 表情の調整（7.4）。利用者のもの
 }
 ```
 
 - `avatar-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Project / Profileができたら移す。
 - アバターごとの設定は`avatar-profile.json`（6.3）。
+- `Face`がない古いファイルは、既定の調整として読む（項目を足しただけのため、版は変えない）。
 - 鏡写しはTrackingの設定（6.6）。
 
 ---
@@ -439,6 +479,8 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
+段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
+
 段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む）。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
 ---
@@ -448,7 +490,8 @@ public sealed class AvatarSettings
 - 毎Frameの適用（`Avatar/Apply`）は0.3ms以下を目標とする（開発用PCで計測し、本書に記録する）。
 - 読み込み中の1Frameは50ms以下を目標とする。配信中にアバターを切り替えても、映像が目立って止まらないようにするため。
 - SpringBoneの負荷はモデルに依存する。計測して記録する。
-- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は、Trackingを適用する段階4以降で計測する。
+- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は段階4で計測した。
+- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：顔の計算とUniVRMの処理（SpringBoneを含む）を合わせた毎Frameの適用は、サンプルの3体で、中央値0.031〜0.033ms、95パーセンタイル0.035〜0.038ms、最大0.044〜0.146msだった。目標の0.3msに収まる。
 
 ---
 
@@ -462,9 +505,9 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose（段階5でPoseRetargeting, PoseController, PoseInterpolation）
-│  ├─ Expression/           （段階4でExpressionMapping, ExpressionController, ExpressionSignal）
-│  └─ Runtime/              （段階4でAvatarController）
+│  ├─ Pose/                 AvatarRestPose, HeadPose（段階5でPoseRetargeting, PoseController）
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController（Expression Signal）, FaceTarget, FaceTuning
+│  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する
@@ -476,7 +519,7 @@ Assets/VirtualVessel/Avatar/
    └─ PlayMode/
 ```
 
-- 参照：Core、Diagnostics、ProjectData（段階4からTracking）。VRMのAssemblyは、Avatarと、UniVRM（`UniGLTF`、`UniGLTF.Utils`、`UniHumanoid`、`VRM10`、`VrmLib`）を参照する。Composition Root（Application）が`VrmAvatarLoader`を作る。
+- 参照：Core、Diagnostics、ProjectData、Tracking（段階4から）。VRMのAssemblyは、Avatarと、UniVRM（`UniGLTF`、`UniGLTF.Utils`、`UniHumanoid`、`VRM10`、`VrmLib`）を参照する。Composition Root（Application）が`VrmAvatarLoader`を作る。
 - UniVRMは、UPMのGitのURLで、版のTagを固定して導入した（v0.131.4。`https://github.com/vrm-c/UniVRM.git?path=/Packages/UniGLTF#v0.131.4`と`...?path=/Packages/VRM10#v0.131.4`）。`packages-lock.json`がCommit（`efd20f6`）を固定する。Unity 6.6で動くことを確かめた。ライセンスはMIT。SBOMに`com.vrmc.gltf`、`com.vrmc.vrm`と、依存する`com.unity.mathematics`を記録した。リポジトリのCheckは、GitのPackageの版をTagから読み、Tagのないものを誤りとする。
 - 実行時に読み込むモデルのMaterialは、UniVRMがShaderを名前で探す。そのため、MToon 1.0（URP）、UniUnlit、URP Litを、Graphics Settingsの常に含めるShaderに入れた。配布物のライセンスには、UniVRMの`LICENSE.txt`（`tools/release/licenses`）とUniGLTFの`LICENSE.md`を入れる。
 
@@ -492,6 +535,9 @@ Assets/VirtualVessel/Avatar/
 | 身長の違うモデルの写り方 | カメラの既定の位置は固定（Video詳細設計7.5）。身長の差が大きいモデルで上半身が収まらない場合は、Camera Pointの設計時に頭の高さへ合わせる方式を検討する |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |
 | Perfect Sync（ARKitの52個の表情を持つモデル） | v0.1.0の後 |
+| 頬を膨らませる | MediaPipeの`CheekPuff`はほとんど反応せず、VRMの標準の表情にもない。サンプルの3体（VRoid）も、その表情や形（BlendShape）を持たない。Perfect Syncの対応と合わせて検討する（利用者の要望、2026-10-21） |
+| 表情の調整の映像の切り抜き | 固定の範囲（カメラの既定の位置で顔と胸が入る所）。身長の差が大きいアバターで顔が外れる場合は、頭の位置から決める方式を、Camera Pointと合わせて検討する |
+| 表情の既定値 | 決定：利用者がカメラで調整した値を既定とした（7.4、2026-10-21）。ほかの人の顔で合わない場合は、調整の画面で変える |
 | FBX | Libraryの選択から。v0.1.0の後 |
 | Spawn Point、カメラの位置の調整の画面 | Stage Scene、Camera Pointの設計時 |
 | 設定をProject / Profileへ移す | Project / Profileの設計時 |
@@ -505,7 +551,7 @@ TrackingとAvatarを合わせて、次の順で進める。各段階を1つのBr
 1. Trackingの土台（Tracking詳細設計18章の1）
 2. MediaPipeとカメラ（Tracking詳細設計18章の2）
 3. アバターの読み込み：UniVRMの導入（SBOM）、登録、Data Root、`IFileDialog`、Videoのアバターの層とAvatar Camera、既定のSpawn Point、セットアップ画面のアバターのCard
-4. 顔：表情、視線、頭の向き
+4. 顔：表情、視線、頭の向き。表情の調整の画面と、動きの速さの10段階（Tracking詳細設計8.2）を含む
 5. 上半身：胴、肩、腕。奥行きの推定の比較（Tracking詳細設計8.4）
 6. 手指
 7. トラッキングの設定画面（範囲の選択と「全身：近日対応」、平滑化の段階、鏡写し、基準の姿勢）、診断の仕上げ

@@ -149,7 +149,7 @@ public readonly struct TrackingOptions
 {
     TrackingRegions Regions;            // 推論する部位
     BodyRange BodyRange;                // 動かす範囲（全身は近日対応のため上半身に戻す、6.5）
-    SmoothingPreset Smoothing;          // 平滑化の段階（8.2）
+    int Smoothing;                      // 平滑化の段階、1〜10（8.2）
     bool Mirror;                        // 鏡写し（10章）
 }
 ```
@@ -324,7 +324,7 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 - 値の変化の速さから、ローパスフィルタの強さを毎回決める。ゆっくりの動きでは揺れを強く抑え、速い動きではすぐ追いつく。パラメータは、最小の強さ（`MinCutoff`）と、速さによる緩め方（`Beta`）の2つ。
 - 位置は軸ごと、表情の値は値ごとに適用する。回転（頭の向き等）は、Quaternionの差の角度を速さとして、球面補間で同じ考え方を適用する（`RotationFilter`）。
 - 時刻は映像のFrameの時刻を使う（処理した時刻ではない）。Frameの間隔が揺れても、平滑化の強さが変わらない。
-- 部位ごとにパラメータを持つ（顔は速く、胴はゆっくり等）。利用者には「なめらか／標準／きびきび」の3段階で見せる（10章）。
+- 部位ごとにパラメータを持つ（顔は速く、胴はゆっくり等）。利用者には「動きの速さ」の10段階（1：いちばん安定、10：いちばん速い）で見せる（10章、UI `setup.md` 4章）。段階1で計測した3つの段階（なめらか、標準、きびきび）を3、5、7段目とし、その間と外は、1段ごとに同じ比でパラメータを変える（5から7への比の半分ずつ）。既定は7（利用者の決定、2026-10-21。カメラで試し、標準では動きが遅いと感じたため）。
 - 計算は純粋関数（状態を引数で受け取り、新しい状態を返す）とし、EditModeで入力と出力だけで確かめる。
 - 回転の速さは、向きを持った角速度（ベクトル）として平滑化する。角度の大きさ（常に正）だけを平滑化すると、逆向きの揺れが打ち消し合わず、静止していても動いているように見積もってしまう（最初の実装で、静止時の揺れが平均の約3倍になった）。
 
@@ -341,6 +341,23 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 
 - 標準は、静止時の揺れが平均と同程度以下で、遅れは約1/7になる。1つの乱数だけで比べると、どちらの方法も3割ほど有利・不利が出るため、Testは10通りの平均で比べる。
 - 位置（関節）は、腕の長さで1cm≈2°としてBetaを換算した仮の値（標準：0.1Hz、1.0）。1cmの揺れを加えた腕の動きでは、角度の揺れが4.7°から0.13°になり、遅れは100msだった。顔の値も仮の値で、カメラで記録した動きで段階2〜5に調整する（17章）。
+
+#### 10段階の計測（段階4、2026-10-21）
+
+同じ合成の動きを、乱数を変えて10通り比べた（`FilterTests.EachLevel_IsLessSteady_ButLessBehind_ThanTheOneBelow`）。遅れは観測1回分（33ms）刻みで測る。この上に、Avatarの観測の間の補間で観測1回分が加わる（Avatar詳細設計7.3）。
+
+| 段階 | 静止時の揺れ | 遅れ |
+|---|---|---|
+| 1 | 0.041° | 133ms |
+| 2 | 0.049° | 133ms |
+| 3（旧なめらか） | 0.059° | 100ms |
+| 4 | 0.073° | 100ms |
+| 5（旧標準） | 0.091° | 67ms |
+| 6 | 0.121° | 67ms |
+| 7（旧きびきび、既定） | 0.162° | 60ms |
+| 8 | 0.217° | 33ms |
+| 9 | 0.290° | 33ms |
+| 10 | 0.386° | 33ms |
 
 ### 8.3 外れ値の除去
 
@@ -424,7 +441,7 @@ public sealed class TrackingSettings
     public string Provider { get; set; } = "mediapipe";
     public TrackingRegions Regions { get; set; } = TrackingRegions.All;   // 有効にした部位：顔、体、両手
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
-    public SmoothingPreset Smoothing { get; set; } = SmoothingPreset.Standard;  // Smooth、Standard、Responsive
+    public int SmoothingLevel { get; set; } = 7;                          // 平滑化の段階、1〜10（8.2）
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
     public bool Mirror { get; set; } = true;                              // 鏡写し
     // 基準の姿勢（8.5）は段階5で加える。
@@ -437,6 +454,7 @@ public sealed class TrackingSettings
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
 - 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
 - `PoseModel`を変えたときは、トラッキングを開始し直すと反映される。設定の画面は段階7で作る。
+- 版2（段階4）：3段階の`smoothing`（0〜2）を、10段階の`smoothingLevel`（1〜10）に変えた。版1のファイルは読み込むときに移す。版1には段階を選ぶ画面がなく、標準（1）は利用者が選んだ値ではないため、新しい既定の7にする。なめらか（0）ときびきび（2）はファイルを手で変えたときだけのため、計測した値のまま3と7にする。ほかの値と知らない項目は残す。
 
 ---
 
@@ -552,7 +570,7 @@ public sealed class TrackingSettings
 Assets/VirtualVessel/Tracking/
 ├─ Runtime/                                    VirtualVessel.Tracking
 │  ├─ TrackingFrame.cs        TrackingFrame, TrackedPart, BodyPose, HandPose, FacePose
-│  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange, TrackingState, TrackingProblem, SmoothingPreset
+│  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange, TrackingState, TrackingProblem, SmoothingLevel
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
@@ -604,10 +622,10 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 | 項目 | 対応予定 |
 |---|---|
 | 奥行きの推定の方法（8.4）とWorld Landmarksの比較 | 段階2〜5で、記録した動きを再生して比べて決める |
-| 平滑化の既定のパラメータ | 段階2〜5で、評価の値と目視で決める |
+| 平滑化の既定のパラメータ | 段階4で、利用者が10段階から選べるようにし、既定を7とした（8.2）。各部位のパラメータの比は、段階5の体の動きで見直す |
 | Holistic Landmarkerへの切り替え | 不要と判断した（3つの推論を同時に動かして30fpsを保てた、15章）。実際のカメラで足りなければ見直す |
 | MediaPipeの表情の値の左右（6.3） | 本人の左右と仮定した（`MediaPipeTracking.FaceSidesMirrored = false`）。デモでウインクして確かめる |
-| 視線の角度の範囲（`MaxGazeDegrees`、25°） | 仮の値。段階4で、アバターの目の動きと合わせて決める |
+| 視線の角度の範囲（`MaxGazeDegrees`、25°） | Avatarは`FacePose`の視線の角度を使わず、表情の値（`EyeLook*`）から、モデルの目の可動域に対する割合を求める（Avatar詳細設計7.4）。そのため、この値はアバターに影響しない。角度が要る使い方ができたときに決める |
 | 体から離れた顔とみなす距離（画像の幅の12%） | 仮の値。実際のカメラで誤りが残るときに見直す |
 | 全身（`FullBody`）の追加 | v0.1.0の後 |
 | 声による口の動き（リップシンク）と顔のトラッキングの組み合わせ | Voice / Audioの設計時 |
