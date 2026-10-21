@@ -13,15 +13,16 @@ namespace VirtualVessel.Avatar
     /// <remarks>
     /// Settings, set when built and not changed while in use; <see cref="For"/> builds one from the
     /// user's <see cref="FaceTuning"/>. MediaPipe's face values rarely reach 1, so the curves end well
-    /// below it. The defaults were raised after the first camera check (2026-10-20), where the eyes,
-    /// brows, and mouth moved too little; they are still provisional (avatar detailed design 17).
+    /// below it. The defaults come from camera checks: raised after the first (2026-10-20), where the
+    /// eyes, brows, and mouth moved too little, then set to what the user tuned on the second
+    /// (2026-10-21): eyes 70%, brows 120%, mouth 70% of the raised curves (avatar detailed design 7.4).
     /// </remarks>
     public sealed class ExpressionMapping
     {
         public static readonly ExpressionMapping Default = new ExpressionMapping();
 
         /// <summary>Eye closing: below the lower end the eye is open, above the upper end closed.</summary>
-        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.25f, 0.6f);
+        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.36f, 0.86f);
 
         /// <summary>Close both eyes alike unless one eye is closed this much more than the other (a wink).</summary>
         public bool SyncBlink { get; set; } = true;
@@ -32,15 +33,22 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public float WinkDifference { get; set; } = 0.3f;
 
-        public ExpressionCurve JawOpen { get; set; } = new ExpressionCurve(0.02f, 0.4f);
+        public ExpressionCurve JawOpen { get; set; } = new ExpressionCurve(0.03f, 0.57f);
 
-        public ExpressionCurve Funnel { get; set; } = new ExpressionCurve(0.05f, 0.4f);
+        /// <summary>
+        /// How far the lips are apart, from the jaw: the rounded and wide mouths (u, e, i) show only
+        /// as far as the mouth is open. Pucker and smile values stay well above 0 with the lips at
+        /// rest, which otherwise showed a small open "u" on a closed mouth (2026-10-21).
+        /// </summary>
+        public ExpressionCurve LipsApart { get; set; } = new ExpressionCurve(0.04f, 0.12f);
 
-        public ExpressionCurve Pucker { get; set; } = new ExpressionCurve(0.1f, 0.6f);
+        public ExpressionCurve Funnel { get; set; } = new ExpressionCurve(0.07f, 0.57f);
 
-        public ExpressionCurve Stretch { get; set; } = new ExpressionCurve(0.05f, 0.35f);
+        public ExpressionCurve Pucker { get; set; } = new ExpressionCurve(0.14f, 0.86f);
 
-        public ExpressionCurve Smile { get; set; } = new ExpressionCurve(0.15f, 0.6f);
+        public ExpressionCurve Stretch { get; set; } = new ExpressionCurve(0.07f, 0.5f);
+
+        public ExpressionCurve Smile { get; set; } = new ExpressionCurve(0.21f, 0.86f);
 
         /// <summary>How much a closed-mouth smile shows as the "i" mouth.</summary>
         public float IhFromSmile { get; set; } = 0.5f;
@@ -49,13 +57,13 @@ namespace VirtualVessel.Avatar
 
         public ExpressionCurve CheekSquint { get; set; } = new ExpressionCurve(0.15f, 0.5f, 0.8f);
 
-        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.15f, 0.5f);
+        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.125f, 0.42f);
 
-        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.02f, 0.25f);
+        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.017f, 0.21f);
 
-        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.05f, 0.35f);
+        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.042f, 0.29f);
 
-        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.1f, 0.4f);
+        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.083f, 0.33f);
 
         /// <summary>The weight of the feelings Surprised, Sad, and Angry at their strongest.</summary>
         public float FeelingGain { get; set; } = 0.8f;
@@ -88,6 +96,7 @@ namespace VirtualVessel.Avatar
                 SyncBlink = d.SyncBlink,
                 WinkDifference = d.WinkDifference / tuning.Get(FaceTuningPart.Wink),
                 JawOpen = d.JawOpen.Sensitive(mouth),
+                LipsApart = d.LipsApart.Sensitive(mouth),
                 Funnel = d.Funnel.Sensitive(mouth),
                 Pucker = d.Pucker.Sensitive(mouth),
                 Stretch = d.Stretch.Sensitive(mouth),
@@ -145,17 +154,18 @@ namespace VirtualVessel.Avatar
                 into[AvatarExpression.BlinkRight] = right;
             }
 
-            // Mouth: the five shapes share one opening.
+            // Mouth: the five shapes share one opening, and a closed mouth shows none of them.
             float jaw = JawOpen.Evaluate(face[FaceShape.JawOpen]);
+            float apart = LipsApart.Evaluate(face[FaceShape.JawOpen]);
             float funnel = Funnel.Evaluate(face[FaceShape.MouthFunnel]);
             float pucker = Pucker.Evaluate(face[FaceShape.MouthPucker]);
             float stretch = Stretch.Evaluate(Both(FaceShape.MouthStretchLeft, FaceShape.MouthStretchRight));
             float smile = Smile.Evaluate(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight));
             float aa = jaw * (1f - funnel);
             float oh = jaw * funnel;
-            float ou = Mathf.Max(pucker, funnel) * (1f - jaw);
-            float ee = stretch;
-            float ih = smile * IhFromSmile * (1f - jaw);
+            float ou = Mathf.Max(pucker, funnel) * (1f - jaw) * apart;
+            float ee = stretch * apart;
+            float ih = smile * IhFromSmile * (1f - jaw) * apart;
             float scale = MouthScale(aa + oh + ou + ee + ih);
             into[AvatarExpression.Aa] = aa * scale;
             into[AvatarExpression.Oh] = oh * scale;

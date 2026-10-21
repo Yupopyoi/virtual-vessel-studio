@@ -40,8 +40,8 @@ namespace VirtualVessel.Avatar.Tests
         {
             var face = new FacePose();
             var target = new FaceTarget();
-            face[FaceShape.EyeBlinkLeft] = 0.9f;
-            face[FaceShape.EyeBlinkRight] = 0.85f;
+            face[FaceShape.EyeBlinkLeft] = 0.95f;
+            face[FaceShape.EyeBlinkRight] = 0.9f;
             ExpressionMapping.Default.Evaluate(face, mirror: true, target);
             Assert.That(target[AvatarExpression.Blink], Is.EqualTo(1f).Within(Tolerance));
             Assert.That(target[AvatarExpression.BlinkLeft], Is.EqualTo(0f));
@@ -78,6 +78,29 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void AClosedMouth_ShowsNoShape_WhateverTheLipsDo()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+
+            // Lips at rest give pucker and smile values well above 0 (2026-10-21).
+            face[FaceShape.MouthPucker] = 0.4f;
+            face[FaceShape.MouthSmileLeft] = 0.5f;
+            face[FaceShape.MouthSmileRight] = 0.5f;
+            face[FaceShape.MouthStretchLeft] = 0.3f;
+            face[FaceShape.MouthStretchRight] = 0.3f;
+            face[FaceShape.JawOpen] = 0.02f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            float total = target[AvatarExpression.Aa] + target[AvatarExpression.Ih] + target[AvatarExpression.Ou] + target[AvatarExpression.Ee] + target[AvatarExpression.Oh];
+            Assert.That(total, Is.EqualTo(0f), "A closed mouth stays closed.");
+            Assert.That(target[AvatarExpression.Happy], Is.GreaterThan(0f), "A closed-mouth smile still smiles.");
+
+            face[FaceShape.JawOpen] = 0.3f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Ou], Is.GreaterThan(0f), "Once the lips part, the rounded mouth shows.");
+        }
+
+        [Test]
         public void TheBrows_ShowThroughFeelings_WhichStayBelowFull()
         {
             var face = new FacePose();
@@ -106,8 +129,8 @@ namespace VirtualVessel.Avatar.Tests
         {
             var face = new FacePose();
             var target = new FaceTarget();
-            face[FaceShape.EyeBlinkLeft] = 0.3f;
-            face[FaceShape.EyeBlinkRight] = 0.3f;
+            face[FaceShape.EyeBlinkLeft] = 0.45f;
+            face[FaceShape.EyeBlinkRight] = 0.45f;
             face[FaceShape.JawOpen] = 0.2f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             float blink = target[AvatarExpression.Blink];
