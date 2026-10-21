@@ -14,15 +14,16 @@ namespace VirtualVessel.Avatar
     /// Settings, set when built and not changed while in use; <see cref="For"/> builds one from the
     /// user's <see cref="FaceTuning"/>. MediaPipe's face values rarely reach 1, so the curves end well
     /// below it. The defaults come from camera checks: raised after the first (2026-10-20), where the
-    /// eyes, brows, and mouth moved too little, then set to what the user tuned on the second
-    /// (2026-10-21): eyes 70%, brows 120%, mouth 70% of the raised curves (avatar detailed design 7.4).
+    /// eyes, brows, and mouth moved too little, then set to what the user tuned on later checks
+    /// (2026-10-21): eyes 77% (70%, then 110% of that), brows 120%, mouth 70%, and gaze 70% of the
+    /// raised curves (avatar detailed design 7.4).
     /// </remarks>
     public sealed class ExpressionMapping
     {
         public static readonly ExpressionMapping Default = new ExpressionMapping();
 
         /// <summary>Eye closing: below the lower end the eye is open, above the upper end closed.</summary>
-        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.36f, 0.86f);
+        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.33f, 0.78f);
 
         /// <summary>Close both eyes alike unless one eye is closed this much more than the other (a wink).</summary>
         public bool SyncBlink { get; set; } = true;
@@ -69,7 +70,7 @@ namespace VirtualVessel.Avatar
         public float FeelingGain { get; set; } = 0.8f;
 
         /// <summary>The look value (in minus out, up minus down) at which the eyes reach their range.</summary>
-        public float GazeFullScale { get; set; } = 0.35f;
+        public float GazeFullScale { get; set; } = 0.5f;
 
         /// <summary>How far the eyes turn at most, as a share of the model's eye range.</summary>
         public float MaxLook { get; set; } = 1f;
@@ -177,7 +178,7 @@ namespace VirtualVessel.Avatar
             // give half a surprise and wide eyes the rest, while sadness also needs the frown.
             float browUp = BrowInnerUp.Evaluate(face[FaceShape.BrowInnerUp]);
             into[AvatarExpression.Happy] = Mathf.Max(
-                Happy.Evaluate(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight)),
+                Happy.Evaluate(SmileBeyondStretch(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight), Both(FaceShape.MouthStretchLeft, FaceShape.MouthStretchRight))),
                 CheekSquint.Evaluate(Both(FaceShape.CheekSquintLeft, FaceShape.CheekSquintRight)));
             into[AvatarExpression.Surprised] = FeelingGain * browUp * (0.5f + (0.5f * EyeWide.Evaluate(Both(FaceShape.EyeWideLeft, FaceShape.EyeWideRight))));
             into[AvatarExpression.Sad] = FeelingGain * Mathf.Min(browUp, MouthFrown.Evaluate(Both(FaceShape.MouthFrownLeft, FaceShape.MouthFrownRight)));
@@ -205,6 +206,17 @@ namespace VirtualVessel.Avatar
             }
 
             return (left, right, false);
+        }
+
+        /// <summary>
+        /// How much of a smile is a smile and not the "i" mouth: the corners raised beyond the lips
+        /// pulled sideways. Saying "i" pulls the lips sideways and raises the corners a little, which
+        /// showed a smile, and many models close the eyes in their smile (2026-10-21). Raised cheeks
+        /// still show a smile on their own. Pure.
+        /// </summary>
+        public static float SmileBeyondStretch(float smile, float stretch)
+        {
+            return Mathf.Max(0f, smile - stretch);
         }
 
         /// <summary>The factor that keeps the mouth shapes at most fully open together: 1, or less above it. Pure.</summary>

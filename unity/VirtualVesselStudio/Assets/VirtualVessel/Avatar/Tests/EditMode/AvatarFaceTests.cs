@@ -101,6 +101,37 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void TheIMouth_IsNotASmile_ButRaisedCheeksAre()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+
+            // Saying "i": the lips pulled sideways, the corners raised a little (2026-10-21).
+            face[FaceShape.MouthStretchLeft] = 0.4f;
+            face[FaceShape.MouthStretchRight] = 0.4f;
+            face[FaceShape.MouthSmileLeft] = 0.35f;
+            face[FaceShape.MouthSmileRight] = 0.35f;
+            face[FaceShape.JawOpen] = 0.15f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Happy], Is.EqualTo(0f), "No smile, so a model's smiling eyes stay open.");
+            Assert.That(target[AvatarExpression.Ee] + target[AvatarExpression.Ih], Is.GreaterThan(0f), "The mouth still shows the shape.");
+
+            face[FaceShape.MouthStretchLeft] = 0.1f;
+            face[FaceShape.MouthStretchRight] = 0.1f;
+            face[FaceShape.MouthSmileLeft] = 0.8f;
+            face[FaceShape.MouthSmileRight] = 0.8f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Happy], Is.GreaterThan(0.5f), "Corners raised beyond the stretch are a smile.");
+
+            face[FaceShape.MouthStretchLeft] = 0.8f;
+            face[FaceShape.MouthStretchRight] = 0.8f;
+            face[FaceShape.CheekSquintLeft] = 0.6f;
+            face[FaceShape.CheekSquintRight] = 0.6f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Happy], Is.EqualTo(0.8f).Within(Tolerance), "A wide grin with raised cheeks is still a smile.");
+        }
+
+        [Test]
         public void TheBrows_ShowThroughFeelings_WhichStayBelowFull()
         {
             var face = new FacePose();
@@ -129,8 +160,8 @@ namespace VirtualVessel.Avatar.Tests
         {
             var face = new FacePose();
             var target = new FaceTarget();
-            face[FaceShape.EyeBlinkLeft] = 0.45f;
-            face[FaceShape.EyeBlinkRight] = 0.45f;
+            face[FaceShape.EyeBlinkLeft] = 0.4f;
+            face[FaceShape.EyeBlinkRight] = 0.4f;
             face[FaceShape.JawOpen] = 0.2f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             float blink = target[AvatarExpression.Blink];
@@ -144,7 +175,7 @@ namespace VirtualVessel.Avatar.Tests
 
             // A small difference between the eyes becomes a wink once winking is made easier.
             face[FaceShape.EyeBlinkLeft] = 0.6f;
-            face[FaceShape.EyeBlinkRight] = 0.5f;
+            face[FaceShape.EyeBlinkRight] = 0.55f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             Assert.That(target[AvatarExpression.BlinkLeft], Is.EqualTo(0f), "Both eyes alike by default.");
             ExpressionMapping.For(new FaceTuning().With(FaceTuningPart.Wink, 3f)).Evaluate(face, false, target);
