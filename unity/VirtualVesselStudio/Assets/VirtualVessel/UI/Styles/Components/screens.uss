@@ -143,11 +143,19 @@
     align-items: flex-start;
 }
 
-.vv-face-card__preview {
+.vv-face-card__picture {
     flex-shrink: 0;
     width: 384px;
-    height: 216px;
     margin: var(--vv-space-m) var(--vv-space-l) 0 0;
+}
+
+.vv-face-card__picture > .vv-slider {
+    margin-top: var(--vv-space-s);
+}
+
+.vv-face-card__preview {
+    width: 384px;
+    height: 216px;
     align-items: center;
     justify-content: center;
     border-radius: var(--vv-radius-s);

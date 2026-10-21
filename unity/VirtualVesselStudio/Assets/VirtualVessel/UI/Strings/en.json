@@ -292,6 +292,7 @@
         "setup.face.gaze": "Gaze",
         "setup.face.smile": "Smile",
         "setup.face.reset": "Reset everything",
-        "setup.face.reset.button": "Reset"
+        "setup.face.reset.button": "Reset",
+        "setup.face.picture.height": "Picture height"
     }
 }

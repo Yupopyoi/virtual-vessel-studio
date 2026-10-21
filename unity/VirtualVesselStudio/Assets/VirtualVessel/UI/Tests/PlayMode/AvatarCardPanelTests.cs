@@ -109,6 +109,21 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Sliders[(int)FaceTuningPart.Eyes].value, Is.EqualTo(100f));
         }
 
+        [UnityTest]
+        public IEnumerator ThePicture_MovesUpAndDown_KeepingItsShape()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            yield return null;
+            Assert.That(card.Preview.uv, Is.EqualTo(FaceTuningCard.Crop(FaceTuningCard.DefaultPictureHeight)));
+
+            card.PictureHeight.value = 0f;
+            Assert.That(card.Preview.uv.y, Is.EqualTo(0f), "The bottom of the stream.");
+            card.PictureHeight.value = 100f;
+            Assert.That(card.Preview.uv.yMax, Is.EqualTo(1f).Within(1e-5f), "The top of the stream.");
+            Assert.That(card.Preview.uv.size, Is.EqualTo(FaceTuningCard.FaceCrop.size), "Only the height changes.");
+            Assert.That(FaceTuningCard.Crop(250f), Is.EqualTo(FaceTuningCard.Crop(100f)), "Kept within the stream.");
+        }
+
         [Test]
         public void Movement_IsNothing_WithoutAnAvatar()
         {

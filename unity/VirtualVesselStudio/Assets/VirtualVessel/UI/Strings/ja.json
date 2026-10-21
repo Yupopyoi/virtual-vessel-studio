@@ -292,6 +292,7 @@
         "setup.face.gaze": "視線の動き",
         "setup.face.smile": "笑顔の強さ",
         "setup.face.reset": "すべて既定に戻す",
-        "setup.face.reset.button": "既定に戻す"
+        "setup.face.reset.button": "既定に戻す",
+        "setup.face.picture.height": "映像の高さ"
     }
 }

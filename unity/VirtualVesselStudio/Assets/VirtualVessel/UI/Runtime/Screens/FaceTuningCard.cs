@@ -24,6 +24,7 @@ namespace VirtualVessel.UI.Screens
         public const string Smile = "setup.face.smile";
         public const string Reset = "setup.face.reset";
         public const string ResetButton = "setup.face.reset.button";
+        public const string PictureHeight = "setup.face.picture.height";
     }
 
     /// <summary>
@@ -36,6 +37,7 @@ namespace VirtualVessel.UI.Screens
         public const string UssClass = "vv-face-card";
         public const string IntroClass = UssClass + "__intro";
         public const string LayoutClass = UssClass + "__layout";
+        public const string PictureClass = UssClass + "__picture";
         public const string PreviewClass = UssClass + "__preview";
         public const string PartsClass = UssClass + "__parts";
         public const string PartClass = UssClass + "__part";
@@ -44,11 +46,17 @@ namespace VirtualVessel.UI.Screens
         public const float PercentPerUnit = 100f;
 
         /// <summary>
-        /// The part of the stream shown, in UV (0 to 1 from the bottom left): the middle, upper part,
-        /// where the camera's default position puts the avatar's face and chest (video detailed design
-        /// 7.5), enlarged about 2.2 times so the expression can be seen. The same 16:9 shape as the stream.
+        /// The part of the stream shown, in UV (0 to 1 from the bottom left): the middle, enlarged about
+        /// 2.2 times so the expression can be seen, in the same 16:9 shape as the stream. Its height is
+        /// <see cref="Crop"/>'s, because where the face is depends on the avatar's height.
         /// </summary>
-        public static readonly Rect FaceCrop = new Rect(0.275f, 0.48f, 0.45f, 0.45f);
+        public static readonly Rect FaceCrop = new Rect(0.275f, 0f, 0.45f, 0.45f);
+
+        /// <summary>
+        /// The picture height at first, in percent: the upper part, where the camera's default position
+        /// puts the face of an avatar of average height (video detailed design 7.5).
+        /// </summary>
+        public const float DefaultPictureHeight = 85f;
 
         // Often enough to follow a blink, rarely enough to stay light.
         private const long MeterIntervalMs = 50;
@@ -80,7 +88,7 @@ namespace VirtualVessel.UI.Screens
             Add(card);
             card.Add(Ui.Text(FaceTuningStrings.Intro, IntroClass, "vv-text-body"));
 
-            Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore, uv = FaceCrop };
+            Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore, uv = Crop(DefaultPictureHeight) };
             Preview.AddToClassList(PreviewClass);
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Preview.Add(_noVideo);
@@ -90,7 +98,17 @@ namespace VirtualVessel.UI.Screens
             layout.AddToClassList(LayoutClass);
             var parts = new VisualElement();
             parts.AddToClassList(PartsClass);
-            layout.Add(Preview);
+            // The face sits higher or lower with the avatar's height; the user moves the picture to it.
+            // Not saved: it is only for looking while tuning.
+            var picture = new VisualElement();
+            picture.AddToClassList(PictureClass);
+            PictureHeight = Ui.Slider(FaceTuningStrings.PictureHeight, 0f, 100f, "%");
+            PictureHeight.Step = 5f;
+            PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
+            PictureHeight.RegisterValueChangedCallback(evt => Preview.uv = Crop(evt.newValue));
+            picture.Add(Preview);
+            picture.Add(PictureHeight);
+            layout.Add(picture);
             layout.Add(parts);
             card.Add(layout);
 
@@ -130,6 +148,16 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Puts every part back to the default.</summary>
         public ActionButton ResetButton { get; }
+
+        /// <summary>Which height of the stream the picture shows, 0 (bottom) to 100% (top).</summary>
+        public ValueSlider PictureHeight { get; }
+
+        /// <summary>The part of the stream shown at <paramref name="heightPercent"/>, 0 (bottom) to 100 (top). Pure.</summary>
+        public static Rect Crop(float heightPercent)
+        {
+            float y = Mathf.Clamp01(heightPercent / 100f) * (1f - FaceCrop.height);
+            return new Rect(FaceCrop.x, y, FaceCrop.width, FaceCrop.height);
+        }
 
         /// <summary>
         /// How far the avatar moves <paramref name="part"/> in <paramref name="face"/>, 0 to 1: what the
@@ -193,7 +221,9 @@ namespace VirtualVessel.UI.Screens
 
         private void ShowVideo(Texture texture)
         {
+            // Setting the image puts the shown part back to the whole texture, so the crop follows it.
             Preview.image = texture;
+            Preview.uv = Crop(PictureHeight.value);
             _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
