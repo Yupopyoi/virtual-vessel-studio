@@ -25,6 +25,8 @@ namespace VirtualVessel.UI.Screens
         public const string Reset = "setup.face.reset";
         public const string ResetButton = "setup.face.reset.button";
         public const string PictureHeight = "setup.face.picture.height";
+        public const string Winks = "setup.face.winks";
+        public const string WinksDescription = "setup.face.winks.description";
     }
 
     /// <summary>
@@ -118,6 +120,14 @@ namespace VirtualVessel.UI.Screens
             layout.Add(parts);
             card.Add(layout);
 
+            // Winks are easily misread, so the user chooses whether one eye may close alone; the wink
+            // slider only matters while it may.
+            WinksToggle = new SwitchToggle();
+            WinksToggle.RegisterValueChangedCallback(evt => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.WithWinks(evt.newValue)));
+            SettingRow winks = Ui.SettingRow(FaceTuningStrings.Winks, FaceTuningStrings.WinksDescription);
+            winks.Add(WinksToggle);
+            parts.Add(winks);
+
             for (int i = 0; i < FaceTuning.PartCount; i++)
             {
                 var part = (FaceTuningPart)i;
@@ -154,6 +164,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The avatar's movement of each part now, 0 to 1.</summary>
         public IReadOnlyList<ProgressMeter> Meters => _meters;
+
+        /// <summary>Whether one eye may close alone.</summary>
+        public SwitchToggle WinksToggle { get; }
 
         /// <summary>Puts every part back to the default.</summary>
         public ActionButton ResetButton { get; }
@@ -229,6 +242,9 @@ namespace VirtualVessel.UI.Screens
             {
                 _sliders[i].SetValueWithoutNotify(tuning.Get((FaceTuningPart)i) * PercentPerUnit);
             }
+
+            WinksToggle.SetValueWithoutNotify(tuning.Winks);
+            _sliders[(int)FaceTuningPart.Wink].SetEnabled(tuning.Winks);
         }
 
         private void ShowMovement()

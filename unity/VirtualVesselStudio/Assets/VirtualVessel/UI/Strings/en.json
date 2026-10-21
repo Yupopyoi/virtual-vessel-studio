@@ -293,6 +293,8 @@
         "setup.face.smile": "Smile",
         "setup.face.reset": "Reset everything",
         "setup.face.reset.button": "Reset",
-        "setup.face.picture.height": "Picture height"
+        "setup.face.picture.height": "Picture height",
+        "setup.face.winks": "Winks",
+        "setup.face.winks.description": "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head."
     }
 }

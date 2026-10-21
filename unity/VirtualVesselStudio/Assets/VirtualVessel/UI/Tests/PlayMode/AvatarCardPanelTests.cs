@@ -104,6 +104,12 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Meters[(int)FaceTuningPart.Gaze].Progress, Is.EqualTo(0.6f).Within(1e-4f));
             Assert.That(card.Meters[(int)FaceTuningPart.Smile].Progress, Is.EqualTo(0f));
 
+            Assert.That(card.WinksToggle.value, Is.False, "Winks are off by default.");
+            Assert.That(card.Sliders[(int)FaceTuningPart.Wink].enabledSelf, Is.False, "The wink slider matters only with winks on.");
+            card.WinksToggle.value = true;
+            Assert.That(_avatars.FaceTuning.Value.Winks, Is.True);
+            Assert.That(card.Sliders[(int)FaceTuningPart.Wink].enabledSelf, Is.True);
+
             Submit(card.ResetButton);
             Assert.That(_avatars.FaceTuning.Value, Is.EqualTo(new FaceTuning()));
             Assert.That(card.Sliders[(int)FaceTuningPart.Eyes].value, Is.EqualTo(100f));
