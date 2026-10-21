@@ -517,6 +517,26 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void OneReadingOfTheFace_FeedsTheExpressions_TheParts_AndTheSignal()
+        {
+            var features = new FaceFeatures { CloseLeft = 0.2f, CloseRight = 0.6f, Jaw = 0.5f, Corners = 0.4f, BrowUp = 0.6f, BrowRaised = 0.8f, Frown = 0.4f, BrowDown = 0.3f, Sad = 0.32f };
+            var target = new FaceTarget();
+
+            ExpressionMapping.WriteExpressions(features, 0.5f, target);
+            ExpressionMapping.WriteParts(features, 0.5f, target);
+            ExpressionMapping.WriteSignals(features, target);
+
+            Assert.That(target[AvatarExpression.BlinkRight], Is.EqualTo(0.6f), "Apart, each eye on its own.");
+            Assert.That(target[AvatarExpression.Sad], Is.EqualTo(0.32f), "The feeling as read.");
+            Assert.That(target[FacePart.BrowSad], Is.EqualTo(0.4f), "Raised inner brows with a frown.");
+            Assert.That(target[FacePart.BrowUp], Is.EqualTo(0.4f).Within(Tolerance), "The rest of the raise.");
+            Assert.That(target[FacePart.EyeAngry], Is.EqualTo(0.15f).Within(Tolerance));
+            Assert.That(target[FacePart.MouthOpenSmile], Is.GreaterThan(0f), "Corners raised with the jaw open.");
+            Assert.That(target[ExpressionSignal.EyeOpenRight], Is.EqualTo(0.4f).Within(Tolerance));
+            Assert.That(target[ExpressionSignal.Sad], Is.EqualTo(0.32f));
+        }
+
+        [Test]
         public void TheExpressionSignal_IsTheSame_WhicheverWayTheModelMovesItsFace()
         {
             var parts = new AvatarController(new RecordingModel(s_vroidShapes), ExpressionMapping.Default);

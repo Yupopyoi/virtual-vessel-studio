@@ -103,6 +103,7 @@ flowchart LR
 | `PoseRetargeting` | Static class | Computes bone rotations from observations (pure functions, chapter 7) |
 | `PoseController` | Class | Interpolation, handling lost tracking, application according to the range (`BodyRange`) |
 | `ExpressionMapping` | Class | Settings for converting expression values (`FaceShape`) to expressions (7.4) |
+| `FaceFeatures` | Struct (internal) | The face values put through the curves once. The whole-face expressions, the part values, and the Expression Signal are all made from it (7.4) |
 | `ExpressionController` | Class | Applies expressions and gaze: part by part or as whole-face expressions, substituting blinks the model lacks |
 | `FaceTarget` | Class | What the avatar's face shows: a weight per expression, a weight per part, the Expression Signal, the gaze, and the head's turn. Reused every frame |
 | `ExpressionSignal` | Enum | The values of the Expression Signal: smile, anger, sadness, surprise, each eye's opening, and the mouth's opening (7.4, system design 7.7) |
@@ -171,6 +172,10 @@ classDiagram
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
             +For(FaceTuning tuning)$ ExpressionMapping
+            ~Read(FacePose face, bool mirror) FaceFeatures
+            ~WriteExpressions(FaceFeatures f, float ihFromSmile, FaceTarget into)$
+            ~WriteParts(FaceFeatures f, float eyeAngryFromBrows, FaceTarget into)$
+            ~WriteSignals(FaceFeatures f, FaceTarget into)$
         }
         class ExpressionCurve {
             +Evaluate(float value) float
@@ -480,6 +485,8 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressions (`AvatarExpression`) and gaze (`ExpressionMapping`). Each value has a response curve (`ExpressionCurve`: 0 at or below the lower end, the most at or above the upper end, rising smoothly between). MediaPipe's values rarely reach 1, so the upper ends are below 1.
 
+- Each time, the face values are put through the curves once into `FaceFeatures` (the avatar's own sides). The whole-face expressions (`WriteExpressions`), the part values (`WriteParts`), and the Expression Signal (`WriteSignals`) are written from it. The three writers are pure functions that know no curves. Before, the whole-face expressions and the part values were computed separately, each putting the same brow and mouth values through the curves, so a tuning fix had to go into two places (2026-10-21).
+
 | Expression | Source values | How (including Voom's knowledge) |
 |---|---|---|
 | `Blink` (both), `BlinkLeft`, `BlinkRight` | `EyeBlinkLeft/Right` | Both eyes together. Only when winks are allowed (face tuning, off by default), one eye (a wink) when the eyes differ by 0.3 or more after the curve, because closing one eye squints the other a little, so a wink never reads as one eye alone |
@@ -706,7 +713,7 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose (PoseRetargeting, PoseController in step 5)
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
