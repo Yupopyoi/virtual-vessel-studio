@@ -160,8 +160,8 @@ namespace VirtualVessel.Avatar.Tests
         {
             var face = new FacePose();
             var target = new FaceTarget();
-            face[FaceShape.EyeBlinkLeft] = 0.33f;
-            face[FaceShape.EyeBlinkRight] = 0.33f;
+            face[FaceShape.EyeBlinkLeft] = 0.28f;
+            face[FaceShape.EyeBlinkRight] = 0.28f;
             face[FaceShape.JawOpen] = 0.2f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             float blink = target[AvatarExpression.Blink];
@@ -174,12 +174,32 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(target[AvatarExpression.Aa], Is.GreaterThan(mouth));
 
             // A small difference between the eyes becomes a wink once winking is made easier.
-            face[FaceShape.EyeBlinkLeft] = 0.6f;
-            face[FaceShape.EyeBlinkRight] = 0.55f;
+            face[FaceShape.EyeBlinkLeft] = 0.5f;
+            face[FaceShape.EyeBlinkRight] = 0.45f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             Assert.That(target[AvatarExpression.BlinkLeft], Is.EqualTo(0f), "Both eyes alike by default.");
-            ExpressionMapping.For(new FaceTuning().With(FaceTuningPart.Wink, 3f)).Evaluate(face, false, target);
+            ExpressionMapping.For(new FaceTuning().WithWinks(true).With(FaceTuningPart.Wink, 3f)).Evaluate(face, false, target);
             Assert.That(target[AvatarExpression.BlinkLeft], Is.GreaterThan(target[AvatarExpression.BlinkRight]));
+        }
+
+        [Test]
+        public void Winks_AreOff_UntilTheUserAllowsThem()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+            face[FaceShape.EyeBlinkLeft] = 0.95f;
+            face[FaceShape.EyeBlinkRight] = 0f;
+
+            ExpressionMapping.For(new FaceTuning()).Evaluate(face, false, target);
+            Assert.That(target[AvatarExpression.Blink], Is.EqualTo(0.5f).Within(Tolerance), "Off by default: both eyes close alike.");
+            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(target[FacePart.EyeCloseRight]));
+
+            ExpressionMapping.For(new FaceTuning().WithWinks(true)).Evaluate(face, false, target);
+            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(1f).Within(Tolerance), "Allowed, one eye closes alone.");
+            Assert.That(target[FacePart.EyeCloseRight], Is.EqualTo(0f));
+
+            Assert.That(AvatarService.Normalized(new FaceTuning().WithWinks(true)).Winks, Is.True, "Kept when read back.");
+            Assert.That(new FaceTuning().WithWinks(true), Is.Not.EqualTo(new FaceTuning()));
         }
 
         [Test]

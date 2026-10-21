@@ -116,12 +116,12 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// <paramref name="tuning"/> with every part within range, or the defaults for none (a file
-        /// written before tuning existed). Pure.
+        /// <paramref name="tuning"/> with every part within range and its wink choice, or the defaults
+        /// for none (a file written before tuning existed). Pure.
         /// </summary>
         public static FaceTuning Normalized(FaceTuning tuning)
         {
-            var normalized = new FaceTuning();
+            var normalized = new FaceTuning { Winks = tuning?.Winks ?? false };
             for (int i = 0; tuning != null && i < VirtualVessel.Avatar.FaceTuning.PartCount; i++)
             {
                 normalized = normalized.With((FaceTuningPart)i, tuning.Get((FaceTuningPart)i));

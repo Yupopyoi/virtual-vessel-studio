@@ -47,6 +47,21 @@ namespace VirtualVessel.Avatar
 
         public float Smile { get; set; } = 1f;
 
+        /// <summary>
+        /// Whether one eye may close alone. Off by default: a wink is easily misread (one eye squints
+        /// when the head turns), so both eyes close together unless the user turns it on (user's
+        /// decision, 2026-10-21).
+        /// </summary>
+        public bool Winks { get; set; }
+
+        /// <summary>A copy with winks allowed or not. Pure.</summary>
+        public FaceTuning WithWinks(bool winks)
+        {
+            FaceTuning next = Clone();
+            next.Winks = winks;
+            return next;
+        }
+
         /// <summary>The value of <paramref name="part"/>, within <see cref="Min"/> to <see cref="Max"/>. Pure.</summary>
         public float Get(FaceTuningPart part)
         {
@@ -111,7 +126,7 @@ namespace VirtualVessel.Avatar
 
         public bool Equals(FaceTuning other)
         {
-            if (other == null)
+            if (other == null || Winks != other.Winks)
             {
                 return false;
             }
@@ -134,7 +149,7 @@ namespace VirtualVessel.Avatar
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Get(FaceTuningPart.Eyes), Get(FaceTuningPart.Wink), Get(FaceTuningPart.Brows), Get(FaceTuningPart.Mouth), Get(FaceTuningPart.Gaze), Get(FaceTuningPart.Smile));
+            return HashCode.Combine(Get(FaceTuningPart.Eyes), Get(FaceTuningPart.Wink), Get(FaceTuningPart.Brows), Get(FaceTuningPart.Mouth), Get(FaceTuningPart.Gaze), Get(FaceTuningPart.Smile), Winks);
         }
     }
 }
