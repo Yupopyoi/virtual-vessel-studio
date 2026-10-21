@@ -5,6 +5,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Preview;
 
@@ -25,6 +26,9 @@ namespace VirtualVessel.UI.Screens
         public const string Reset = "setup.face.reset";
         public const string ResetButton = "setup.face.reset.button";
         public const string PictureHeight = "setup.face.picture.height";
+        public const string PictureZoom = "setup.face.picture.zoom";
+        public const string Light = "setup.face.light";
+        public const string LightDescription = "setup.face.light.description";
         public const string Winks = "setup.face.winks";
         public const string WinksDescription = "setup.face.winks.description";
     }
@@ -33,6 +37,7 @@ namespace VirtualVessel.UI.Screens
     /// Tunes how strongly the user's face moves the avatar while watching it (docs/&lt;lang&gt;/ui/screens/setup.md
     /// 9, avatar detailed design 7.4): the stream with the avatar, a slider per part, and under each the
     /// avatar's movement of that part now, so the user can raise a part until it reaches the full movement.
+    /// Beside the picture, the stage's light, which washes out the face when too bright.
     /// </summary>
     public sealed class FaceTuningCard : VisualElement
     {
@@ -43,16 +48,22 @@ namespace VirtualVessel.UI.Screens
         public const string PreviewClass = UssClass + "__preview";
         public const string PartsClass = UssClass + "__parts";
         public const string PartClass = UssClass + "__part";
+        public const string LightNoteClass = UssClass + "__light-note";
 
         /// <summary>The sliders show percent: 100 is the default sensitivity.</summary>
         public const float PercentPerUnit = 100f;
 
         /// <summary>
-        /// The part of the stream shown, in UV (0 to 1 from the bottom left): the middle, enlarged about
-        /// 2.2 times so the expression can be seen, in the same 16:9 shape as the stream. Its height is
-        /// <see cref="Crop"/>'s, because where the face is depends on the avatar's height.
+        /// How much the picture enlarges the stream at first, in percent, so the expression can be seen.
+        /// The picture keeps the stream's 16:9 shape and its middle; the user changes the zoom and the
+        /// height (<see cref="Crop"/>), because the face's size and place depend on the avatar.
         /// </summary>
-        public static readonly Rect FaceCrop = new Rect(0.275f, 0f, 0.45f, 0.45f);
+        public const float DefaultZoom = 220f;
+
+        /// <summary>100% shows the whole stream.</summary>
+        public const float MinZoom = 100f;
+
+        public const float MaxZoom = 400f;
 
         /// <summary>
         /// The picture height at first, in percent: the upper part, where the camera's default position
@@ -75,12 +86,14 @@ namespace VirtualVessel.UI.Screens
 
         private readonly IAvatarService _avatars;
         private readonly IStreamPreviewSource _stream;
+        private readonly IStageLighting _lighting;
         private readonly Label _noVideo;
         private readonly ValueSlider[] _sliders = new ValueSlider[FaceTuning.PartCount];
         private readonly ProgressMeter[] _meters = new ProgressMeter[FaceTuning.PartCount];
 
         /// <param name="stream">The stream video, to watch the avatar; null shows no picture.</param>
-        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream)
+        /// <param name="lighting">The stage's light; null leaves its slider out.</param>
+        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream, IStageLighting lighting = null)
         {
             _avatars = avatars ?? throw new ArgumentNullException(nameof(avatars));
             _stream = stream;
@@ -99,23 +112,41 @@ namespace VirtualVessel.UI.Screens
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Frame.Add(Preview);
             Frame.Add(_noVideo);
-            Place(Preview, Crop(DefaultPictureHeight));
+            Place(Preview, Crop(DefaultPictureHeight, DefaultZoom));
             // The stream beside the sliders, so the avatar stays in view while any part is tuned; on a
             // narrow window the sliders wrap below it.
             var layout = new VisualElement();
             layout.AddToClassList(LayoutClass);
             var parts = new VisualElement();
             parts.AddToClassList(PartsClass);
-            // The face sits higher or lower with the avatar's height; the user moves the picture to it.
-            // Not saved: it is only for looking while tuning.
+            // The face sits higher or lower, and looks larger or smaller, with the avatar; the user moves
+            // and zooms the picture to it. Not saved: it is only for looking while tuning.
             var picture = new VisualElement();
             picture.AddToClassList(PictureClass);
             PictureHeight = Ui.Slider(FaceTuningStrings.PictureHeight, 0f, 100f, "%");
             PictureHeight.Step = 5f;
             PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
-            PictureHeight.RegisterValueChangedCallback(evt => Place(Preview, Crop(evt.newValue)));
+            PictureHeight.RegisterValueChangedCallback(evt => Place(Preview, Crop(evt.newValue, PictureZoom.value)));
+            PictureZoom = Ui.Slider(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, "%");
+            PictureZoom.Step = 10f;
+            PictureZoom.SetValueWithoutNotify(DefaultZoom);
+            PictureZoom.RegisterValueChangedCallback(evt => Place(Preview, Crop(PictureHeight.value, evt.newValue)));
             picture.Add(Frame);
             picture.Add(PictureHeight);
+            picture.Add(PictureZoom);
+
+            // The light is the stage's and changes the stream too, so it is saved; it sits by the
+            // picture because a washed-out face is seen there.
+            _lighting = lighting;
+            if (lighting != null)
+            {
+                Light = Ui.Slider(FaceTuningStrings.Light, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, "%");
+                Light.Step = 5f;
+                Light.RegisterValueChangedCallback(evt => _lighting.SetIntensity(evt.newValue / PercentPerUnit));
+                picture.Add(Light);
+                picture.Add(Ui.Text(FaceTuningStrings.LightDescription, LightNoteClass, "vv-text-caption"));
+            }
+
             layout.Add(picture);
             layout.Add(parts);
             card.Add(layout);
@@ -174,7 +205,12 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Which height of the stream the picture shows, 0 (bottom) to 100% (top).</summary>
         public ValueSlider PictureHeight { get; }
 
-        /// <summary>The part of the stream shown at <paramref name="heightPercent"/>, 0 (bottom) to 100 (top). Pure.</summary>
+        /// <summary>How much the picture enlarges the stream, in percent.</summary>
+        public ValueSlider PictureZoom { get; }
+
+        /// <summary>The stage light's scale in percent; null without the stage.</summary>
+        public ValueSlider Light { get; }
+
         /// <summary>
         /// Where the whole stream goes, in percent of the frame, so that the frame shows
         /// <paramref name="crop"/> (UV, from the bottom left): larger by 1 / the crop's size, and
@@ -187,10 +223,16 @@ namespace VirtualVessel.UI.Screens
             return (-crop.x * width, -(1f - crop.yMax) * height, width, height);
         }
 
-        public static Rect Crop(float heightPercent)
+        /// <summary>
+        /// The part of the stream shown, in UV (0 to 1 from the bottom left), at
+        /// <paramref name="heightPercent"/>, 0 (bottom) to 100 (top), enlarged by
+        /// <paramref name="zoomPercent"/>: the stream's middle, in its own shape, kept within it. Pure.
+        /// </summary>
+        public static Rect Crop(float heightPercent, float zoomPercent)
         {
-            float y = Mathf.Clamp01(heightPercent / 100f) * (1f - FaceCrop.height);
-            return new Rect(FaceCrop.x, y, FaceCrop.width, FaceCrop.height);
+            float size = 100f / Mathf.Clamp(zoomPercent, MinZoom, MaxZoom);
+            float y = Mathf.Clamp01(heightPercent / 100f) * (1f - size);
+            return new Rect((1f - size) / 2f, y, size, size);
         }
 
         /// <summary>
@@ -233,6 +275,12 @@ namespace VirtualVessel.UI.Screens
             }
 
             ShowVideo(_stream?.Video.Value);
+            if (_lighting != null)
+            {
+                subscriptions.Add(_lighting.Intensity.Subscribe(ShowLight));
+                ShowLight(_lighting.Intensity.Value);
+            }
+
             return new DisposeAll(subscriptions);
         }
 
@@ -245,6 +293,11 @@ namespace VirtualVessel.UI.Screens
 
             WinksToggle.SetValueWithoutNotify(tuning.Winks);
             _sliders[(int)FaceTuningPart.Wink].SetEnabled(tuning.Winks);
+        }
+
+        private void ShowLight(float intensity)
+        {
+            Light.SetValueWithoutNotify(intensity * PercentPerUnit);
         }
 
         private void ShowMovement()

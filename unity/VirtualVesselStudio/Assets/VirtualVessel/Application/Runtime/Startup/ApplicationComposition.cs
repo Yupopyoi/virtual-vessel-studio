@@ -266,7 +266,8 @@ namespace VirtualVessel.Application.Startup
                             tracking,
                             avatar,
                             new WindowsFileDialog(),
-                            CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")))),
+                            CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
+                            stage)),
                     new[] { LoggingService.ServiceName }));
             }
 

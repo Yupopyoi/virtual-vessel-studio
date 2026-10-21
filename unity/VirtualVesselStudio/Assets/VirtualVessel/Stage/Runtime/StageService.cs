@@ -9,7 +9,9 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Core.State;
 using VirtualVessel.UI.Frames;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage
@@ -17,9 +19,10 @@ namespace VirtualVessel.Stage
     /// <summary>
     /// Puts each capture video on the stream screen where the placement editor put it, and saves the
     /// placements (Stage detailed design 7). Until Stage Scenes exist it also gives the avatar a
-    /// default spawn point and a light (Stage detailed design 7.4). An Optional application service.
+    /// default spawn point and a light, whose brightness the user may change (Stage detailed design
+    /// 7.1). An Optional application service.
     /// </summary>
-    public sealed class StageService : IApplicationService, IAvatarSpawnPoints
+    public sealed class StageService : IApplicationService, IAvatarSpawnPoints, IStageLighting
     {
         public const string ServiceName = "Stage";
 
@@ -35,6 +38,7 @@ namespace VirtualVessel.Stage
         private readonly ConfigSaveScheduler<StageSettings> _saves;
         private readonly ILog _log;
         private readonly List<CaptureScreen> _screens = new List<CaptureScreen>();
+        private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
         private StageSettings _settings = new StageSettings();
         private GameObject _light;
         private IDisposable _tick;
@@ -57,6 +61,8 @@ namespace VirtualVessel.Stage
         public IAvatarSpawnPoints SpawnPoints => this;
 
         public Pose Default => StageDefaults.AvatarSpawn;
+
+        public IReadOnlyObservable<float> Intensity => _intensity;
 
         /// <summary>The default light; for tests.</summary>
         internal Light DefaultLight => _light != null ? _light.GetComponent<Light>() : null;
@@ -93,6 +99,7 @@ namespace VirtualVessel.Stage
 
             ConfigLoadResult<StageSettings> loaded = _store.Load();
             _settings = loaded.Value?.Clone() ?? new StageSettings();
+            _intensity.Value = IntensityFor(_settings);
             Mesh quad = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
             foreach (IVideoCaptureSource source in _captures.Sources)
             {
@@ -111,12 +118,40 @@ namespace VirtualVessel.Stage
             _light.transform.rotation = StageDefaults.LightRotation;
             Light light = _light.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.intensity = 1f;
+            light.intensity = _intensity.Value;
             light.shadows = LightShadows.None;
 
             _tick = _frameLoop.Register(_saves.Tick);
             _log?.Information($"Stage started with {_screens.Count} stream screens; placements {loaded.Status} from {_store.FilePath}.");
             return Task.CompletedTask;
+        }
+
+        /// <summary>The light's scale to use: the saved one within the range, else the default. Pure.</summary>
+        public static float IntensityFor(StageSettings settings)
+        {
+            return settings?.LightIntensity is float saved ? StageLightIntensity.Clamp(saved) : StageLightIntensity.Default;
+        }
+
+        /// <summary>Main thread: changes the light, which Unity reads when it renders.</summary>
+        public void SetIntensity(float intensity)
+        {
+            float next = StageLightIntensity.Clamp(intensity);
+            if (!_intensity.Set(next))
+            {
+                return;
+            }
+
+            Light light = DefaultLight;
+            if (light != null)
+            {
+                light.intensity = next;
+            }
+
+            // A slider gives many values while dragged; the save waits until they stop (6.3).
+            StageSettings settings = _settings.Clone();
+            settings.LightIntensity = next;
+            _settings = settings;
+            _saves.Changed(settings.Clone());
         }
 
         /// <summary>Whether a kind of capture source gets a screen on the stream. Pure.</summary>

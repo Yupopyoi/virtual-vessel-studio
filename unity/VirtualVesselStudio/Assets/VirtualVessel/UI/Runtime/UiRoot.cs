@@ -17,6 +17,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Notifications;
@@ -43,6 +44,7 @@ namespace VirtualVessel.UI
         /// <param name="avatars">Avatars for the setup screen (Avatar); null says they are unavailable.</param>
         /// <param name="fileDialog">The file-picking screen, such as for registering avatars; null disables picking files.</param>
         /// <param name="credits">The shipped license files for the credits on the settings screen; null leaves the credits out.</param>
+        /// <param name="lighting">The stage's light for the settings screen (Stage); null leaves it out.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
@@ -59,7 +61,8 @@ namespace VirtualVessel.UI
             ITrackingSource tracking = null,
             IAvatarService avatars = null,
             IFileDialog fileDialog = null,
-            ICreditFiles credits = null)
+            ICreditFiles credits = null,
+            IStageLighting lighting = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -82,6 +85,7 @@ namespace VirtualVessel.UI
             Avatars = avatars;
             FileDialog = fileDialog;
             Credits = credits;
+            Lighting = lighting;
         }
 
         public string ConfigDirectory { get; }
@@ -118,6 +122,9 @@ namespace VirtualVessel.UI
 
         /// <summary>The shipped license files for the credits; null leaves them out.</summary>
         public ICreditFiles Credits { get; }
+
+        /// <summary>The stage's light; null leaves it out.</summary>
+        public IStageLighting Lighting { get; }
     }
 
     /// <summary>
@@ -453,7 +460,7 @@ namespace VirtualVessel.UI
             var screens = new List<ScreenDefinition>
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking, context.Avatars, context.FileDialog, context.Credits, context.StreamPreview)),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), context.Tracking, context.Avatars, context.FileDialog, context.Credits, context.StreamPreview, context.Lighting)),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
             };

@@ -5,6 +5,7 @@ using VirtualVessel.Tracking;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
 
 namespace VirtualVessel.UI.Screens
@@ -24,7 +25,8 @@ namespace VirtualVessel.UI.Screens
         /// <param name="files">The file-picking screen for registering avatars; null disables registering.</param>
         /// <param name="credits">The shipped license files; null leaves the credits out.</param>
         /// <param name="stream">The stream video, to watch the avatar while tuning the face; null shows no picture.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null, IStreamPreviewSource stream = null)
+        /// <param name="lighting">The stage's light, changed beside the face picture; null leaves it out.</param>
+        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null, IStreamPreviewSource stream = null, IStageLighting lighting = null)
         {
             AddToClassList(UssClass);
             if (captures == null)
@@ -55,7 +57,7 @@ namespace VirtualVessel.UI.Screens
             if (avatars != null)
             {
                 Add(new AvatarCard(avatars, files));
-                Add(new FaceTuningCard(avatars, stream));
+                Add(new FaceTuningCard(avatars, stream, lighting));
             }
             else
             {

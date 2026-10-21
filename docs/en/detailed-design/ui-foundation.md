@@ -1092,6 +1092,7 @@ Assets/VirtualVessel/
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/ (IUiCommand, CommandRunner, DangerCommand)
    │  ├─ Preview/           StreamPreview, IStreamPreviewSource, PreviewMath   VirtualVessel.UI.Preview
+   │  ├─ Lighting/          IStageLighting, StageLightIntensity (the contract Stage implements)   VirtualVessel.UI.Lighting
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications

@@ -153,6 +153,13 @@
     margin-top: var(--vv-space-s);
 }
 
+/* The stage light changes the stream too; the note under its slider says so. */
+.vv-face-card__light-note {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
 /* The frame the enlarged stream is seen through; the image inside is placed by the Card. */
 .vv-face-card__preview {
     width: 384px;

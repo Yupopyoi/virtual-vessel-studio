@@ -163,8 +163,10 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Row | Component | Content |
 |---|---|---|
 | Introduction | Description (Text 2) | "With tracking running, watch the avatar while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
-| Video | Image (384×216, 16:9) | The middle of the stream, enlarged about 2.2 times so the expression can be seen. "No video" when there is none |
+| Video | Image (384×216, 16:9) | The middle of the stream, enlarged so the expression can be seen. "No video" when there is none |
 | Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the stream is shown (0% the bottom, 100% the top). 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
+| Zoom | Slider (100 to 400%, steps of 10%), under the picture height | How much the stream is enlarged. 100% shows the whole stream; 220% at first. It zooms about the stream's horizontal middle and never shows past the stream's edges. The face's size depends on the avatar, so the user sets it (user's request, 2026-10-21). Not saved |
+| Light brightness | Slider (10 to 150%, steps of 5%), under the zoom | The brightness of the stage's light (Stage detailed design 7.1). 100% is the default. Caption: "This also changes the light on the stream, and is saved." Lowered when the face is washed out (user's request, 2026-10-21). Beside the picture, so it is changed while watching the face (user's decision, 2026-10-21). Left out without Stage |
 | Winks | Toggle | Whether one eye may close alone. Description: "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head." Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
 | Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% and turns winks off |
@@ -173,4 +175,5 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.
 - A change applies to the avatar on the stream at once and is saved (`avatar-settings.json`).
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
-- The crop is made by placing the whole stream about 2.2 times larger inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).
+- The light's brightness reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3). "Reset" puts back only the face tuning, not the light.
+- The crop is made by placing the whole stream enlarged inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).
