@@ -42,7 +42,7 @@ namespace VirtualVessel.UI.Tests
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking, credits: new FakeCredits()));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Captures = new FakeSources(_game, _sub, _camera), Tracking = _tracking, Credits = new FakeCredits() }));
             yield return null;
         }
 

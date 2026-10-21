@@ -2,11 +2,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
-using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Controls;
-using VirtualVessel.UI.Dialogs;
-using VirtualVessel.UI.Lighting;
-using VirtualVessel.UI.Preview;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -19,15 +15,14 @@ namespace VirtualVessel.UI.Screens
     {
         public const string UssClass = "vv-setup";
 
-        /// <param name="captures">The capture sources; null says capture is unavailable.</param>
-        /// <param name="tracking">Tracking; null says it is unavailable.</param>
-        /// <param name="avatars">Avatars; null says they are unavailable.</param>
-        /// <param name="files">The file-picking screen for registering avatars; null disables registering.</param>
-        /// <param name="credits">The shipped license files; null leaves the credits out.</param>
-        /// <param name="stream">The stream video, to watch the avatar while tuning the face; null shows no picture.</param>
-        /// <param name="lighting">The stage's light, changed beside the face picture; null leaves it out.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null, IStreamPreviewSource stream = null, IStageLighting lighting = null)
+        /// <param name="services">What the Cards show; a service that is null is said to be unavailable or left out.</param>
+        /// <param name="appSettings">The app settings Card, which the UI root builds from the UI's own settings.</param>
+        public SetupScreen(ScreenServices services, VisualElement appSettings)
         {
+            services ??= new ScreenServices();
+            ICaptureSources captures = services.Captures;
+            ITrackingSource tracking = services.Tracking;
+            IAvatarService avatars = services.Avatars;
             AddToClassList(UssClass);
             if (captures == null)
             {
@@ -56,8 +51,8 @@ namespace VirtualVessel.UI.Screens
 
             if (avatars != null)
             {
-                Add(new AvatarCard(avatars, files));
-                Add(new FaceTuningCard(avatars, stream, lighting));
+                Add(new AvatarCard(avatars, services.FileDialog));
+                Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
             }
             else
             {
@@ -69,9 +64,9 @@ namespace VirtualVessel.UI.Screens
                 Add(appSettings);
             }
 
-            if (credits != null)
+            if (services.Credits != null)
             {
-                Add(new CreditsCard(credits));
+                Add(new CreditsCard(services.Credits));
             }
 
             CloseCards(this);

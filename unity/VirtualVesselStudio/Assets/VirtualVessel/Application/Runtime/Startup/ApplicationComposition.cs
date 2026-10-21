@@ -23,6 +23,7 @@ using VirtualVessel.Tracking.MediaPipe;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 
@@ -260,14 +261,17 @@ namespace VirtualVessel.Application.Startup
 
                             // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
                             // there leave their part of the screens saying so.
-                            video?.Preview,
-                            stage?.Screens,
-                            capture,
-                            tracking,
-                            avatar,
-                            new WindowsFileDialog(),
-                            CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
-                            stage)),
+                            new ScreenServices
+                            {
+                                StreamPreview = video?.Preview,
+                                FrameSources = stage?.Screens,
+                                Captures = capture,
+                                Tracking = tracking,
+                                Avatars = avatar,
+                                FileDialog = new WindowsFileDialog(),
+                                Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
+                                Lighting = stage,
+                            })),
                     new[] { LoggingService.ServiceName }));
             }
 
