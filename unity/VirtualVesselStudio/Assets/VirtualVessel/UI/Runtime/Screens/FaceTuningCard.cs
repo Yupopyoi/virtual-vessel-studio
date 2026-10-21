@@ -88,10 +88,16 @@ namespace VirtualVessel.UI.Screens
             Add(card);
             card.Add(Ui.Text(FaceTuningStrings.Intro, IntroClass, "vv-text-body"));
 
-            Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore, uv = Crop(DefaultPictureHeight) };
-            Preview.AddToClassList(PreviewClass);
+            // The whole stream, enlarged and shifted inside a frame that hides the rest. Layout, not the
+            // image's UV rectangle, does the cropping: a changed UV rectangle was not redrawn.
+            Frame = new VisualElement { pickingMode = PickingMode.Ignore };
+            Frame.AddToClassList(PreviewClass);
+            Preview = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
+            Preview.style.position = Position.Absolute;
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
-            Preview.Add(_noVideo);
+            Frame.Add(Preview);
+            Frame.Add(_noVideo);
+            Place(Preview, Crop(DefaultPictureHeight));
             // The stream beside the sliders, so the avatar stays in view while any part is tuned; on a
             // narrow window the sliders wrap below it.
             var layout = new VisualElement();
@@ -105,8 +111,8 @@ namespace VirtualVessel.UI.Screens
             PictureHeight = Ui.Slider(FaceTuningStrings.PictureHeight, 0f, 100f, "%");
             PictureHeight.Step = 5f;
             PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
-            PictureHeight.RegisterValueChangedCallback(evt => Preview.uv = Crop(evt.newValue));
-            picture.Add(Preview);
+            PictureHeight.RegisterValueChangedCallback(evt => Place(Preview, Crop(evt.newValue)));
+            picture.Add(Frame);
             picture.Add(PictureHeight);
             layout.Add(picture);
             layout.Add(parts);
@@ -140,6 +146,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The stream, to watch the avatar while tuning.</summary>
         public Image Preview { get; }
 
+        /// <summary>The 16:9 frame the enlarged stream is seen through.</summary>
+        public VisualElement Frame { get; }
+
         /// <summary>The slider of each <see cref="FaceTuningPart"/>, in percent.</summary>
         public IReadOnlyList<ValueSlider> Sliders => _sliders;
 
@@ -153,6 +162,18 @@ namespace VirtualVessel.UI.Screens
         public ValueSlider PictureHeight { get; }
 
         /// <summary>The part of the stream shown at <paramref name="heightPercent"/>, 0 (bottom) to 100 (top). Pure.</summary>
+        /// <summary>
+        /// Where the whole stream goes, in percent of the frame, so that the frame shows
+        /// <paramref name="crop"/> (UV, from the bottom left): larger by 1 / the crop's size, and
+        /// shifted so the crop's top left is at the frame's. Pure.
+        /// </summary>
+        public static (float Left, float Top, float Width, float Height) Layout(Rect crop)
+        {
+            float width = 100f / crop.width;
+            float height = 100f / crop.height;
+            return (-crop.x * width, -(1f - crop.yMax) * height, width, height);
+        }
+
         public static Rect Crop(float heightPercent)
         {
             float y = Mathf.Clamp01(heightPercent / 100f) * (1f - FaceCrop.height);
@@ -161,7 +182,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>
         /// How far the avatar moves <paramref name="part"/> in <paramref name="face"/>, 0 to 1: what the
-        /// user raises a slider for until doing the movement fully reaches 1. Pure.
+        /// user raises a slider for until doing the movement fully reaches 1. Read from the face parts,
+        /// which follow the same tuning as the whole-face expressions. Pure.
         /// </summary>
         public static float Movement(FaceTarget face, FaceTuningPart part)
         {
@@ -172,12 +194,12 @@ namespace VirtualVessel.UI.Screens
 
             float value = part switch
             {
-                FaceTuningPart.Eyes => Mathf.Max(face[AvatarExpression.Blink], Mathf.Max(face[AvatarExpression.BlinkLeft], face[AvatarExpression.BlinkRight])),
-                FaceTuningPart.Wink => Mathf.Abs(face[AvatarExpression.BlinkLeft] - face[AvatarExpression.BlinkRight]),
-                FaceTuningPart.Brows => Mathf.Max(face[AvatarExpression.Surprised], Mathf.Max(face[AvatarExpression.Angry], face[AvatarExpression.Sad])),
-                FaceTuningPart.Mouth => face[AvatarExpression.Aa] + face[AvatarExpression.Ih] + face[AvatarExpression.Ou] + face[AvatarExpression.Ee] + face[AvatarExpression.Oh],
+                FaceTuningPart.Eyes => Mathf.Max(Mathf.Max(face[FacePart.EyeCloseLeft], face[FacePart.EyeCloseRight]), Mathf.Max(face[FacePart.EyeSmileLeft], face[FacePart.EyeSmileRight])),
+                FaceTuningPart.Wink => Mathf.Abs(face[FacePart.EyeCloseLeft] - face[FacePart.EyeCloseRight]),
+                FaceTuningPart.Brows => Mathf.Max(face[FacePart.BrowUp], Mathf.Max(face[FacePart.BrowDown], face[FacePart.BrowSad])),
+                FaceTuningPart.Mouth => face[FacePart.MouthA] + face[FacePart.MouthI] + face[FacePart.MouthU] + face[FacePart.MouthE] + face[FacePart.MouthO] + face[FacePart.MouthOpenSmile],
                 FaceTuningPart.Gaze => Mathf.Max(Mathf.Abs(face.LookYaw), Mathf.Abs(face.LookPitch)),
-                FaceTuningPart.Smile => face[AvatarExpression.Happy],
+                FaceTuningPart.Smile => Mathf.Max(Mathf.Max(face[FacePart.MouthSmile], face[FacePart.MouthOpenSmile]), Mathf.Max(face[FacePart.EyeSmileLeft], face[FacePart.EyeSmileRight])),
                 _ => 0f,
             };
             return Mathf.Clamp01(value);
@@ -219,11 +241,18 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        private static void Place(Image image, Rect crop)
+        {
+            (float left, float top, float width, float height) = Layout(crop);
+            image.style.left = Length.Percent(left);
+            image.style.top = Length.Percent(top);
+            image.style.width = Length.Percent(width);
+            image.style.height = Length.Percent(height);
+        }
+
         private void ShowVideo(Texture texture)
         {
-            // Setting the image puts the shown part back to the whole texture, so the crop follows it.
             Preview.image = texture;
-            Preview.uv = Crop(PictureHeight.value);
             _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
         }
 

@@ -153,6 +153,7 @@
     margin-top: var(--vv-space-s);
 }
 
+/* The frame the enlarged stream is seen through; the image inside is placed by the Card. */
 .vv-face-card__preview {
     width: 384px;
     height: 216px;

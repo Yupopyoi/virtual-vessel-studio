@@ -93,9 +93,9 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Sliders[(int)FaceTuningPart.Mouth].value, Is.EqualTo(50f), "Follows a change made elsewhere.");
 
             var face = new FaceTarget();
-            face[AvatarExpression.Aa] = 0.4f;
-            face[AvatarExpression.Oh] = 0.3f;
-            face[AvatarExpression.BlinkLeft] = 1f;
+            face[FacePart.MouthA] = 0.4f;
+            face[FacePart.MouthO] = 0.3f;
+            face[FacePart.EyeCloseLeft] = 1f;
             face.LookYaw = -0.6f;
             _avatars.Face = face;
             yield return new WaitForSeconds(0.2f);
@@ -114,14 +114,24 @@ namespace VirtualVessel.UI.Tests
         {
             FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
             yield return null;
-            Assert.That(card.Preview.uv, Is.EqualTo(FaceTuningCard.Crop(FaceTuningCard.DefaultPictureHeight)));
+            card.Q<Card>().Expanded = true;
+            yield return null;
+            Rect frame = card.Frame.worldBound;
+            float topAtDefault = card.Preview.worldBound.yMin;
 
             card.PictureHeight.value = 0f;
-            Assert.That(card.Preview.uv.y, Is.EqualTo(0f), "The bottom of the stream.");
+            yield return null;
+            Assert.That(card.Preview.worldBound.yMax, Is.EqualTo(frame.yMax).Within(0.5f), "The bottom of the stream fills the frame's bottom.");
+            Assert.That(card.Preview.worldBound.yMin, Is.LessThan(topAtDefault), "The picture moved.");
+
             card.PictureHeight.value = 100f;
-            Assert.That(card.Preview.uv.yMax, Is.EqualTo(1f).Within(1e-5f), "The top of the stream.");
-            Assert.That(card.Preview.uv.size, Is.EqualTo(FaceTuningCard.FaceCrop.size), "Only the height changes.");
+            yield return null;
+            Assert.That(card.Preview.worldBound.yMin, Is.EqualTo(frame.yMin).Within(0.5f), "The top of the stream at the frame's top.");
+            Assert.That(card.Preview.worldBound.width, Is.EqualTo(frame.width / FaceTuningCard.FaceCrop.width).Within(1f), "Enlarged, and only moved.");
             Assert.That(FaceTuningCard.Crop(250f), Is.EqualTo(FaceTuningCard.Crop(100f)), "Kept within the stream.");
+
+            (float left, float top, float width, float height) = FaceTuningCard.Layout(new Rect(0.25f, 0.5f, 0.5f, 0.5f));
+            Assert.That((left, top, width, height), Is.EqualTo((-50f, 0f, 200f, 200f)), "The top middle quarter, twice as large.");
         }
 
         [Test]
@@ -129,8 +139,9 @@ namespace VirtualVessel.UI.Tests
         {
             Assert.That(FaceTuningCard.Movement(null, FaceTuningPart.Eyes), Is.EqualTo(0f));
             var face = new FaceTarget();
-            face[AvatarExpression.Blink] = 0.8f;
-            face[AvatarExpression.Angry] = 0.5f;
+            face[FacePart.EyeCloseLeft] = 0.8f;
+            face[FacePart.EyeCloseRight] = 0.8f;
+            face[FacePart.BrowDown] = 0.5f;
             Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Eyes), Is.EqualTo(0.8f));
             Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Brows), Is.EqualTo(0.5f));
         }
