@@ -10,6 +10,7 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage.Tests
@@ -84,6 +85,18 @@ namespace VirtualVessel.Stage.Tests
             Assert.That(StageService.LayoutFor(settings, "subscreen").Placement, Is.EqualTo(new NormalizedRect(0.5, 0.5, 0.2, 0.2)));
             Assert.That(StageService.LayoutFor(null, "subscreen"), Is.EqualTo(StageDefaults.For("subscreen")));
         }
+
+        [Test]
+        public void TheLight_IsTheDefaultUntilChanged_AndASavedValueIsKeptInRange()
+        {
+            Assert.That(StageService.IntensityFor(new StageSettings()), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(StageService.IntensityFor(null), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0.6f }), Is.EqualTo(0.6f));
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 9f }), Is.EqualTo(StageLightIntensity.Max), "A hand-edited value is read as the nearest end.");
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0f }), Is.EqualTo(StageLightIntensity.Min), "Never dark.");
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = float.NaN }), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(new StageSettings { LightIntensity = 0.6f }.Clone().LightIntensity, Is.EqualTo(0.6f));
+        }
     }
 
     public sealed class StageServiceTests
@@ -134,6 +147,33 @@ namespace VirtualVessel.Stage.Tests
             _stage.Dispose();
 
             Assert.That(light == null, Is.True);
+        }
+
+        [Test]
+        public void ChangingTheLight_AppliesAtOnce_AndIsSaved_AfterTheDelay()
+        {
+            var seen = new List<float>();
+            using IDisposable subscription = _stage.Intensity.Subscribe(seen.Add);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Default));
+
+            _stage.SetIntensity(0.6f);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(0.6f));
+            Assert.That(_stage.Intensity.Value, Is.EqualTo(0.6f));
+            _stage.SetIntensity(5f);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "Kept within the range.");
+            Assert.That(seen, Is.EqualTo(new[] { 0.6f, StageLightIntensity.Max }));
+
+            string file = Path.Combine(_directory, StageSettings.FileName);
+            _loop.Tick(null);
+            Assert.That(File.Exists(file), Is.False, "Not while a slider may still be moving.");
+            _clock.Advance(0.5);
+            _loop.Tick(null);
+            _stage.ShutdownAsync(CancellationToken.None).Wait();
+
+            _stage.Dispose();
+            _stage = Create();
+            Assert.That(_stage.Intensity.Value, Is.EqualTo(StageLightIntensity.Max));
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "The new light starts as saved.");
         }
 
         [Test]
