@@ -172,4 +172,4 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.
 - A change applies to the avatar on the stream at once and is saved (`avatar-settings.json`).
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
-- Unity's Image shows the whole texture again when its image changes, so the crop is set again whenever the video changes.
+- The crop is made by placing the whole stream about 2.2 times larger inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).

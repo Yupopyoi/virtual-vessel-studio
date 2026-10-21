@@ -94,6 +94,9 @@ flowchart LR
 | `AvatarRestPose` | Static Class | 何も動かしていないときの姿勢：腕を下ろした基準の姿勢（7.2） |
 | `IAvatarRig` | Interface | 形式に依存しない骨格。標準の骨（`AvatarBone`）の回転を、基準の姿勢を単位とした空間で設定する（7.1） |
 | `IAvatarExpressions` | Interface | 形式に依存しない表情。標準の表情（`AvatarExpression`）の重みと視線を設定する |
+| `IAvatarFaceShapes` | Interface | モデルが持つ顔の形（BlendShape）を名前で扱い、重みを設定する（7.4） |
+| `FacePart` | Enum | 部位ごとに動かすときの部位：目（閉じる、笑い目、見開き、怒り目）、眉、口（あいうえお、閉じた笑顔、開いた笑顔、への字） |
+| `FacePartProfile` | Class | 部位と、モデルの形の名前の対応（VRoid等）。モデルに合うかを決める（純粋関数） |
 | `AvatarBone` | Enum | 標準の人体の骨（Unity Humanoidと同じ並び） |
 | `AvatarExpression` | Enum | 標準の表情：`Blink`、`BlinkLeft`、`BlinkRight`、`Aa`、`Ih`、`Ou`、`Ee`、`Oh`、`Happy`、`Angry`、`Sad`、`Relaxed`、`Surprised`、`Neutral` |
 | `AvatarController` | Class | 1体のアバターの制御の窓口。姿勢と表情へ振り分ける |
@@ -160,11 +163,18 @@ public interface IAvatarExpressions
     void SetLook(float yaw, float pitch);                         // モデルの目の可動域に対する割合（-1〜1）
     IReadOnlyList<string> CustomNames { get; }                   // モデル独自の表情の名前（Perfect Sync等、後続）
 }
+
+public interface IAvatarFaceShapes
+{
+    IReadOnlyList<string> Names { get; }                         // モデルが持つ顔の形（BlendShape）の名前
+    void SetWeight(int index, float weight);                     // 0〜1。Applyで表情の後に反映する
+}
 ```
 
 - VRMでは、`IAvatarRig`をUniVRMのControl Rig（基準の姿勢でどの骨の回転も単位になる正規化した骨格）で実装する。モデルごとの骨の軸の違い（ある骨はX軸が前、別の骨はZ軸が前等）を、UniVRMが吸収する。FBXのLoaderを作るときは、同じ正規化をLoaderの中で行う。
 - `SetRotation`の値は`IAvatarModel.Apply`でまとめて反映する。親の骨から順に反映するため、呼ぶ順序は問わない。
 - VRMでは、`IAvatarExpressions`をVRM 1.0のExpression（Preset）とLookAtで実装する。
+- `IAvatarModel.FaceShapes`は、モデルが持つ顔の形を返す（なければnull）。VRMでは、すべてのSkinnedMeshRendererのBlendShapeを名前でまとめ、UniVRMの処理の後に書き込む。UniVRMの表情が同じ形を動かしても、部位ごとの値が優先される。
 - 視線は角度ではなく、モデルの目の可動域に対する割合で渡す。モデルごとに、視線の角度を目の動きへ対応させる範囲が違うためである（7.4）。VRMでは、割合にモデルのLookAtの入力の範囲（左右、上、下）を掛けて角度にする。
 
 ```csharp
@@ -336,6 +346,33 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 - 実際に設定した重み（まばたきの置き換えの後）を、Expression Signal（表情ごとの0〜1）とする（`ExpressionController.Signal`）。v0.1.0では使う側（Extension Motion）はまだない（方式設計7.7）。
 - モデルが両目のまばたき（`Blink`）しか持たない場合は左右の値をそれに、片目ずつしか持たない場合は両目の値を左右に置き換える。片目しか閉じていないときに両目を閉じないよう、置き換えは小さい方の値を使う。
 
+#### 部位ごとに動かす（FacePart）
+
+VRMの標準の表情は顔全体の表情であり、モデルによっては笑顔（`happy`）で目を閉じ、口も開ける（VRoidの`Fcl_ALL_Joy`）。そのため、口を閉じたまま口角を上げるだけで口が開いた（2026-10-21）。部位ごとの形を持つモデルでは、目、眉、口を別々に動かす（利用者の決定、2026-10-21。Voomも、VRoidの部位ごとの形を動かしていた）。元の値は、標準の表情と同じMediaPipeの表情の値とする。
+
+- モデルの形の名前が、知っている決まり（`FacePartProfile`。今はVRoidの`Fcl_EYE_*`、`Fcl_BRW_*`、`Fcl_MTH_*`）に合うときだけ部位ごとに動かす。両目の閉じる形と、口の5つの母音の形がそろわないモデルは、標準の表情を使う。
+- 部位ごとに動かす間は、標準の表情を0にする（重なって形が崩れないように）。視線はどちらもLookAtで動かす。
+- 決まりに合ったかは、読み込みのLogに出す。
+
+| 部位 | VRoidの形 | 決め方 |
+|---|---|---|
+| 目を閉じる（左右） | `Fcl_EYE_Close_L/R` | 標準の表情のまばたきと同じ（両目をそろえる、ウインク）。笑い目の分だけ減らし、合わせて閉じきる以上にならないようにする |
+| 笑い目（左右） | `Fcl_EYE_Joy_L/R` | 口角の上がり（`MouthSmile`、最大0.6）と頬の上がり（`CheekSquint`、最大0.8）の大きい方。笑うと目も笑う |
+| 見開き | `Fcl_EYE_Spread` | `EyeWide` |
+| 怒り目 | `Fcl_EYE_Angry` | 眉の下がりの半分 |
+| 眉を上げる | `Fcl_BRW_Surprised` | `BrowInnerUp`と`BrowOuterUp`の大きい方から、困り眉の分を引く |
+| 眉を下げる | `Fcl_BRW_Angry` | `BrowDown` |
+| 困り眉 | `Fcl_BRW_Sorrow` | 眉の内側が上がり、口角が下がっているとき（`BrowInnerUp`と`MouthFrown`の小さい方） |
+| あ、お、う | `Fcl_MTH_A/O/U` | 標準の表情と同じ。「あ」は口角が上がった分だけ開いた笑顔へ回す |
+| い、え | `Fcl_MTH_I/E` | 唇を横に引き（`MouthStretch`）、少し開くと「い」、もっと開くと「え」 |
+| 閉じた笑顔 | `Fcl_MTH_Fun` | 口角の上がり × 口が閉じている分。口を閉じたまま笑える |
+| 開いた笑顔 | `Fcl_MTH_Joy` | 口角の上がり × 口の開き |
+| への字 | `Fcl_MTH_Sorrow` | `MouthFrown` |
+
+- 口の開いた形（あいうえお、開いた笑顔）は、合計が1を超えないよう比で配分する。
+- 調整（下）の6つの部位は、部位ごとの値にも同じように効く。調整の画面の帯は、部位ごとの値から求める。
+- 将来、ARKitの52個の形を持つモデル（Perfect Sync）は、同じ仕組みに決まりを1つ足して対応する（17章）。
+
 #### 表情の調整（FaceTuning）
 
 顔の動きの大きさは人によって違うため、利用者が部位ごとに感度を変えられる（利用者の要望、2026-10-20）。
@@ -480,7 +517,7 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
-段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
+段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔、いとえ、笑い目、眉）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
 
 段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む）。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
@@ -492,7 +529,7 @@ public sealed class AvatarSettings
 - 読み込み中の1Frameは50ms以下を目標とする。配信中にアバターを切り替えても、映像が目立って止まらないようにするため。
 - SpringBoneの負荷はモデルに依存する。計測して記録する。
 - 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は段階4で計測した。
-- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：顔の計算とUniVRMの処理（SpringBoneを含む）を合わせた毎Frameの適用は、サンプルの3体で、中央値0.031〜0.033ms、95パーセンタイル0.035〜0.038ms、最大0.044〜0.146msだった。目標の0.3msに収まる。
+- 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：顔の計算とUniVRMの処理（SpringBoneを含む）を合わせた毎Frameの適用は、サンプルの3体で、中央値0.031〜0.033ms、95パーセンタイル0.035〜0.038ms、最大0.044〜0.146msだった。部位ごとに動かすようにした後（2026-10-21）は、中央値0.034〜0.035ms、95パーセンタイル0.038〜0.040ms、最大0.057〜0.130ms。目標の0.3msに収まる。
 
 ---
 
@@ -507,13 +544,14 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose（段階5でPoseRetargeting, PoseController）
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController（Expression Signal）, FaceTarget, FaceTuning
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController（Expression Signal）, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する
 │  ├─ VrmAvatarRig.cs       Control RigによるIAvatarRig
 │  ├─ VrmAvatarExpressions.cs
+│  ├─ VrmAvatarFaceShapes.cs  IAvatarFaceShapes。BlendShapeを名前で扱い、UniVRMの処理の後に書き込む
 │  └─ VrmLicense.cs         VRMのメタ情報からAvatarLicenseへ（純粋関数）
 └─ Tests/
    ├─ EditMode/

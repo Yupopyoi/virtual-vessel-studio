@@ -94,6 +94,9 @@ flowchart LR
 | `AvatarRestPose` | Static class | The pose when nothing moves the avatar: the reference pose with the arms lowered (7.2) |
 | `IAvatarRig` | Interface | A format-independent skeleton. Sets standard bone (`AvatarBone`) rotations in a space where the reference pose is identity (7.1) |
 | `IAvatarExpressions` | Interface | Format-independent expressions. Sets the weights of standard expressions (`AvatarExpression`) and the gaze |
+| `IAvatarFaceShapes` | Interface | The model's own face shapes (blend shapes) by name, and their weights (7.4) |
+| `FacePart` | Enum | The parts moved one by one: eyes (closing, smiling, wide, angry), brows, and mouth (a, i, u, e, o, closed smile, open smile, frown) |
+| `FacePartProfile` | Class | Which of a model's shape names is which part (VRoid and so on); decides whether a model fits (pure functions) |
 | `AvatarBone` | Enum | Standard human bones (same order as Unity Humanoid) |
 | `AvatarExpression` | Enum | Standard expressions: `Blink`, `BlinkLeft`, `BlinkRight`, `Aa`, `Ih`, `Ou`, `Ee`, `Oh`, `Happy`, `Angry`, `Sad`, `Relaxed`, `Surprised`, `Neutral` |
 | `AvatarController` | Class | The control entry point for one avatar; dispatches to pose and expressions |
@@ -160,11 +163,18 @@ public interface IAvatarExpressions
     void SetLook(float yaw, float pitch);                         // A share of the model's eye range (-1 to 1)
     IReadOnlyList<string> CustomNames { get; }                   // The model's own expression names (Perfect Sync and so on, later)
 }
+
+public interface IAvatarFaceShapes
+{
+    IReadOnlyList<string> Names { get; }                         // The model's face shape (blend shape) names
+    void SetWeight(int index, float weight);                     // 0–1; Apply puts it on after the expressions
+}
 ```
 
 - For VRM, `IAvatarRig` is implemented with UniVRM's control rig (a normalized skeleton where every bone's rotation is identity in the reference pose). UniVRM absorbs per-model differences in bone axes (one bone's X axis points forward, another's Z axis, and so on). An FBX loader will do the same normalization inside the loader.
 - Values given to `SetRotation` are applied together by `IAvatarModel.Apply`, parents first, so the order of calls does not matter.
 - For VRM, `IAvatarExpressions` is implemented with VRM 1.0 expressions (presets) and LookAt.
+- `IAvatarModel.FaceShapes` gives the model's face shapes (null when it has none). For VRM, the blend shapes of every SkinnedMeshRenderer are gathered by name and written after UniVRM's processing, so the part values win even where UniVRM's expressions move the same shapes.
 - The gaze is given as a share of the model's eye range, not as an angle, because each model maps look angles onto its eyes over a different range (7.4). For VRM, the share is multiplied by the model's LookAt input range (sideways, up, and down) to make an angle.
 
 ```csharp
@@ -336,6 +346,33 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 - The weights actually set (after substituting blinks) are the Expression Signal (a 0–1 value per expression; `ExpressionController.Signal`). v0.1.0 has no consumer (Extension Motion) yet (system design 7.7).
 - For a model with only a blink of both eyes (`Blink`), the per-eye values go to it; for one with only per-eye blinks, the both-eye value goes to each eye. The substitution uses the smaller value so one closed eye does not close both.
 
+#### Moving the Face Part by Part (FacePart)
+
+VRM's standard expressions are whole-face expressions, and on some models the smile (`happy`) closes the eyes and opens the mouth (VRoid's `Fcl_ALL_Joy`). So raising the corners with the mouth closed opened the mouth (2026-10-21). On a model with a shape per part, the eyes, brows, and mouth are moved separately (user's decision, 2026-10-21; Voom also moved VRoid's part shapes). The source values are MediaPipe's face values, as for the standard expressions.
+
+- The face is moved part by part only when the model's shape names fit a known convention (`FacePartProfile`; for now VRoid's `Fcl_EYE_*`, `Fcl_BRW_*`, `Fcl_MTH_*`). A model without both eyes' closing and the five vowel shapes keeps the standard expressions.
+- While moving part by part, the standard expressions stay at 0, so they do not add up into a broken face. The gaze moves by LookAt either way.
+- Whether a model fits is logged when it loads.
+
+| Part | VRoid shape | How |
+|---|---|---|
+| Eye closing (left, right) | `Fcl_EYE_Close_L/R` | As the standard blink (both eyes together, winks), less the smiling eyes, so the two never add up past closed |
+| Smiling eyes (left, right) | `Fcl_EYE_Joy_L/R` | The larger of the raised corners (`MouthSmile`, at most 0.6) and the raised cheeks (`CheekSquint`, at most 0.8): the eyes smile with the mouth |
+| Wide eyes | `Fcl_EYE_Spread` | `EyeWide` |
+| Angry eyes | `Fcl_EYE_Angry` | Half the lowered brows |
+| Raised brows | `Fcl_BRW_Surprised` | The larger of `BrowInnerUp` and `BrowOuterUp`, less the sad brows |
+| Lowered brows | `Fcl_BRW_Angry` | `BrowDown` |
+| Sad brows | `Fcl_BRW_Sorrow` | Inner brows raised with the corners down (the smaller of `BrowInnerUp` and `MouthFrown`) |
+| a, o, u | `Fcl_MTH_A/O/U` | As the standard expressions; "a" gives way to the open smile as far as the corners rise |
+| i, e | `Fcl_MTH_I/E` | Lips pulled sideways (`MouthStretch`): a little apart is "i", more open is "e" |
+| Closed smile | `Fcl_MTH_Fun` | Raised corners × how closed the mouth is: a smile with the mouth closed |
+| Open smile | `Fcl_MTH_Joy` | Raised corners × the opening |
+| Frown | `Fcl_MTH_Sorrow` | `MouthFrown` |
+
+- The open mouth shapes (a, i, u, e, o, open smile) are distributed by ratio so their sum does not exceed 1.
+- The six tuning parts (below) work on the part values alike. The bars of the tuning screen come from the part values.
+- Models with the 52 ARKit shapes (Perfect Sync) can be added later with one more convention in the same mechanism (chapter 17).
+
 #### Face Tuning (FaceTuning)
 
 How much a face moves differs from person to person, so the user can change the sensitivity of each part (user's request, 2026-10-20).
@@ -480,7 +517,7 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
-Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
+Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (closed smile, i and e, smiling eyes, brows), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
 
 Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository). The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
 
@@ -492,7 +529,7 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - A single frame while loading targets 50 ms or less, so switching avatars during a stream does not visibly freeze the image.
 - SpringBone load depends on the model. It is measured and recorded.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) was measured in step 4.
-- Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples, within the 0.3 ms target.
+- Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples. Moving the face part by part (2026-10-21), it took a median of 0.034–0.035 ms, a 95th percentile of 0.038–0.040 ms, and at most 0.057–0.130 ms. Within the 0.3 ms target.
 
 ---
 
@@ -507,13 +544,14 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose (PoseRetargeting, PoseController in step 5)
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController (Expression Signal), FaceTarget, FaceTuning
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController (Expression Signal), FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
 │  ├─ VrmAvatarRig.cs       IAvatarRig on the control rig
 │  ├─ VrmAvatarExpressions.cs
+│  ├─ VrmAvatarFaceShapes.cs  IAvatarFaceShapes: blend shapes by name, written after UniVRM's processing
 │  └─ VrmLicense.cs         VRM meta to AvatarLicense (pure functions)
 └─ Tests/
    ├─ EditMode/
