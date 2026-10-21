@@ -17,7 +17,7 @@ namespace VirtualVessel.Tracking
             Mirror = mirror;
         }
 
-        /// <summary>Everything tracked, upper body, standard smoothing, mirrored.</summary>
+        /// <summary>Everything tracked, upper body, the default smoothing level, mirrored.</summary>
         public static TrackingOptions Default => new TrackingOptions(TrackingRegions.All, BodyRange.UpperBody, SmoothingLevel.Default, mirror: true);
 
         /// <summary>The parts tracked; inference for the others does not run.</summary>

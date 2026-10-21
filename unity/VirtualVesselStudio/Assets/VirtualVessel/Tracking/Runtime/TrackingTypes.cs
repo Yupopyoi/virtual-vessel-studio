@@ -201,7 +201,11 @@ namespace VirtualVessel.Tracking
         public const int Standard = 5;
         public const int Responsive = 7;
 
-        public const int Default = Standard;
+        /// <summary>
+        /// The level for new settings: the user found 7 the right balance on a camera check
+        /// (2026-10-21). Files from before levels keep the preset they chose (see TrackingSettings).
+        /// </summary>
+        public const int Default = Responsive;
 
         /// <summary>A level within <see cref="Min"/> to <see cref="Max"/>. Pure.</summary>
         public static int Clamp(int level)

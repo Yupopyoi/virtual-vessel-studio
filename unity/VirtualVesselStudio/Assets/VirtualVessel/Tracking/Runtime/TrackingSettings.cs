@@ -52,8 +52,9 @@ namespace VirtualVessel.Tracking
         };
 
         /// <summary>
-        /// The level of a version 1 preset: Smooth (0), Standard (1), and Responsive (2) keep their
-        /// measured values as levels 3, 5, and 7; anything else is the default. Pure.
+        /// The level of a version 1 preset. Version 1 had no screen to choose one, so Standard (1) was
+        /// never the user's choice and becomes the default; Smooth (0) and Responsive (2), set only by
+        /// editing the file, keep their measured values as levels 3 and 7. Pure.
         /// </summary>
         public static int LevelOfPreset(int preset)
         {
@@ -61,7 +62,7 @@ namespace VirtualVessel.Tracking
             {
                 0 => Tracking.SmoothingLevel.Smooth,
                 2 => Tracking.SmoothingLevel.Responsive,
-                _ => Tracking.SmoothingLevel.Standard,
+                _ => Tracking.SmoothingLevel.Default,
             };
         }
 

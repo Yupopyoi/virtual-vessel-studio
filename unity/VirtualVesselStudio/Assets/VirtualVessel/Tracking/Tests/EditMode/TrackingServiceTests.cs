@@ -147,7 +147,7 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [TestCase(0, SmoothingLevel.Smooth)]
-        [TestCase(1, SmoothingLevel.Standard)]
+        [TestCase(1, SmoothingLevel.Default)]
         [TestCase(2, SmoothingLevel.Responsive)]
         public void AFileWithThreePresets_ReadsAsTheirLevels_KeepingTheOtherValues(int preset, int level)
         {
