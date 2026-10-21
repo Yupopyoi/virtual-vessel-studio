@@ -103,6 +103,7 @@ flowchart LR
 | `PoseRetargeting` | Static Class | 観測から骨の回転を求める（純粋関数、7章） |
 | `PoseController` | Class | 補間、見失ったときの扱い、範囲（`BodyRange`）に応じた適用 |
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
+| `FaceFeatures` | Struct（internal） | 顔の値を曲線に1度だけ通した結果。顔全体の表情、部位ごとの値、Expression Signalは、すべてこれから求める（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用：部位ごと、または顔全体の表情。モデルにないまばたきの置き換え |
 | `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、部位ごとの重み、Expression Signal、視線、頭の向き。毎Frame使い回す |
 | `ExpressionSignal` | Enum | Expression Signalの値：笑顔、怒り、悲しみ、驚き、左右の目の開き、口の開き（7.4、方式設計7.7） |
@@ -171,6 +172,10 @@ classDiagram
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
             +For(FaceTuning tuning)$ ExpressionMapping
+            ~Read(FacePose face, bool mirror) FaceFeatures
+            ~WriteExpressions(FaceFeatures f, float ihFromSmile, FaceTarget into)$
+            ~WriteParts(FaceFeatures f, float eyeAngryFromBrows, FaceTarget into)$
+            ~WriteSignals(FaceFeatures f, FaceTarget into)$
         }
         class ExpressionCurve {
             +Evaluate(float value) float
@@ -480,6 +485,8 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 
 表情の値（`FaceShape`、0〜1）から、アバターの表情（`AvatarExpression`）と視線への変換（`ExpressionMapping`）。値ごとに応答の曲線（`ExpressionCurve`：下端以下は0、上端以上で最大、その間はなめらかに上がる）を持つ。MediaPipeの値は1に届きにくいため、上端は1より小さい。
 
+- 顔の値は、毎回1度だけ曲線に通して`FaceFeatures`（アバター自身の左右）にまとめ、そこから顔全体の表情（`WriteExpressions`）、部位ごとの値（`WriteParts`）、Expression Signal（`WriteSignals`）を書く。書く3つは曲線を知らない純粋関数である。以前は顔全体の表情と部位ごとの値を別々に求め、眉や口の同じ値をそれぞれで曲線に通していたため、調整の直しを2か所に入れる必要があった（2026-10-21）。
+
 | 表情 | 元の値 | 決め方（Voomの知見を含む） |
 |---|---|---|
 | `Blink`（両目）、`BlinkLeft`、`BlinkRight` | `EyeBlinkLeft/Right` | 両目をそろえる。ウインクを許すとき（表情の調整、既定はオフ）だけ、曲線を通した後の両目の差が0.3以上で片目（ウインク）とする。片目を閉じると反対の目も少し細くなり、片目だけが閉じた値にはならないため |
@@ -706,7 +713,7 @@ Assets/VirtualVessel/Avatar/
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose（段階5でPoseRetargeting, PoseController）
-│  ├─ Expression/           ExpressionCurve, ExpressionMapping, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
+│  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs

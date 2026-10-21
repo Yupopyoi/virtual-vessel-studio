@@ -526,7 +526,8 @@ The delay and the position numbers are current defaults and may change. The numb
 
 Live and Setup follow their screen specifications (`docs/en/ui/screens/live.md`, `setup.md`): Live has the stream preview and placement editing, Setup the capture Cards and the App settings. Until its specification exists, Voice Lab shows only its heading and "This screen is on its way".
 
-- The composition passes what they need in `UiRootContext`: `IStreamPreviewSource` (Video), the list of `IFrameSource` (Stage), and `ICaptureSources` (Capture). Anything missing is not passed, and that part says it is unavailable.
+- The composition passes what they need together in `UiRootContext.Screens` (`ScreenServices`): `IStreamPreviewSource` (Video), the list of `IFrameSource` and `IStageLighting` (Stage), `ICaptureSources` (Capture), `ITrackingSource` (Tracking), `IAvatarService` (Avatar), `IFileDialog`, and `ICreditFiles`. Anything missing stays `null`, and that part says it is unavailable or is left out.
+- A new service for the screens is added once to `ScreenServices` and passed only to the Cards that use it. Before, it was a new parameter of `UiRootContext` and of `SetupScreen` in turn, so each new service brought pass-through changes in four places (2026-10-21).
 - The UI may reference Capture's public contracts (`ICaptureSources`, `ICaptureDeviceSource`, `IPointerOption`), as it shows Capture's state. Capture does not reference the UI.
 
 Two more screens get minimal content that may be revised later:
@@ -1099,7 +1100,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText (setup.md chapter 8)   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
