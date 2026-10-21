@@ -369,7 +369,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void Parts_SmileWithAClosedMouth_AndTheEyesSmileAlong()
+        public void Parts_SmileWithAClosedMouth_WithoutClosingTheEyes()
         {
             var face = new FacePose();
             var target = new FaceTarget();
