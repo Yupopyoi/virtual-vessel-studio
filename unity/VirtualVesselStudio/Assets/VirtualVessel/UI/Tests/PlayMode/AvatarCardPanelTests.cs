@@ -77,6 +77,50 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator FaceTuning_SlidersTuneEachPart_FollowChanges_AndShowTheAvatarsMovement()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            Assert.That(card, Is.Not.Null, "Placed with the avatar Card.");
+            card.Q<Card>().Expanded = true;
+            yield return null;
+            Assert.That(card.Sliders[(int)FaceTuningPart.Eyes].value, Is.EqualTo(100f), "100% is the default.");
+
+            card.Sliders[(int)FaceTuningPart.Eyes].value = 200f;
+            Assert.That(_avatars.FaceTuning.Value.Eyes, Is.EqualTo(2f));
+            Assert.That(_avatars.FaceTuning.Value.Mouth, Is.EqualTo(1f), "Only that part changes.");
+
+            _avatars.SetFaceTuning(_avatars.FaceTuning.Value.With(FaceTuningPart.Mouth, 0.5f));
+            Assert.That(card.Sliders[(int)FaceTuningPart.Mouth].value, Is.EqualTo(50f), "Follows a change made elsewhere.");
+
+            var face = new FaceTarget();
+            face[AvatarExpression.Aa] = 0.4f;
+            face[AvatarExpression.Oh] = 0.3f;
+            face[AvatarExpression.BlinkLeft] = 1f;
+            face.LookYaw = -0.6f;
+            _avatars.Face = face;
+            yield return new WaitForSeconds(0.2f);
+            Assert.That(card.Meters[(int)FaceTuningPart.Mouth].Progress, Is.EqualTo(0.7f).Within(1e-4f), "The mouth's shapes together.");
+            Assert.That(card.Meters[(int)FaceTuningPart.Wink].Progress, Is.EqualTo(1f), "One eye closed alone.");
+            Assert.That(card.Meters[(int)FaceTuningPart.Gaze].Progress, Is.EqualTo(0.6f).Within(1e-4f));
+            Assert.That(card.Meters[(int)FaceTuningPart.Smile].Progress, Is.EqualTo(0f));
+
+            Submit(card.ResetButton);
+            Assert.That(_avatars.FaceTuning.Value, Is.EqualTo(new FaceTuning()));
+            Assert.That(card.Sliders[(int)FaceTuningPart.Eyes].value, Is.EqualTo(100f));
+        }
+
+        [Test]
+        public void Movement_IsNothing_WithoutAnAvatar()
+        {
+            Assert.That(FaceTuningCard.Movement(null, FaceTuningPart.Eyes), Is.EqualTo(0f));
+            var face = new FaceTarget();
+            face[AvatarExpression.Blink] = 0.8f;
+            face[AvatarExpression.Angry] = 0.5f;
+            Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Eyes), Is.EqualTo(0.8f));
+            Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Brows), Is.EqualTo(0.5f));
+        }
+
+        [UnityTest]
         public IEnumerator CancelingTheFileScreen_RegistersNothing()
         {
             AvatarCard card = _root.Content.Q<AvatarCard>();
@@ -222,12 +266,15 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyList<string> Extensions { get; } = new[] { ".vrm" };
 
-            public IReadOnlyObservable<FaceTuning> FaceTuning { get; } = new ObservableValue<FaceTuning>(new FaceTuning());
+            private readonly ObservableValue<FaceTuning> _tuning = new ObservableValue<FaceTuning>(new FaceTuning());
 
-            public FaceTarget Face => null;
+            public IReadOnlyObservable<FaceTuning> FaceTuning => _tuning;
+
+            public FaceTarget Face { get; set; }
 
             public void SetFaceTuning(FaceTuning tuning)
             {
+                _tuning.Value = tuning;
             }
 
             public void Add(string id, string name)

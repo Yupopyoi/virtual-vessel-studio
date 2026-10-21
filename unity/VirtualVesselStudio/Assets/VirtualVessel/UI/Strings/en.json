@@ -280,6 +280,18 @@
         "setup.credits.unavailable": "The credits could not be read. Reinstalling the app may fix this.",
         "setup.credits.show": "Show full text",
         "setup.credits.hide": "Hide full text",
-        "setup.credits.missing": "The full license text is missing."
+        "setup.credits.missing": "The full license text is missing.",
+        "setup.tracking.speed": "Movement speed",
+        "setup.tracking.speed.description": "Higher follows your movement faster; lower keeps the avatar steadier.",
+        "setup.face.title": "Face tuning",
+        "setup.face.intro": "With tracking running, watch the avatar while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now.",
+        "setup.face.eyes": "Eye closing",
+        "setup.face.wink": "Winking",
+        "setup.face.brows": "Brows (surprise, anger, sadness)",
+        "setup.face.mouth": "Mouth",
+        "setup.face.gaze": "Gaze",
+        "setup.face.smile": "Smile",
+        "setup.face.reset": "Reset everything",
+        "setup.face.reset.button": "Reset"
     }
 }

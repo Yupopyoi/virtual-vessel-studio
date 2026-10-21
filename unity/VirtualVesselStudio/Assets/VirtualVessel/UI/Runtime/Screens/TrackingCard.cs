@@ -19,6 +19,8 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.tracking.unavailable";
         public const string Track = "setup.tracking.track";
         public const string Mirror = "setup.tracking.mirror";
+        public const string Speed = "setup.tracking.speed";
+        public const string SpeedDescription = "setup.tracking.speed.description";
         public const string Load = "setup.tracking.load";
         public const string Camera = "setup.tracking.camera";
         public const string Face = "setup.tracking.part.face";
@@ -123,6 +125,14 @@ namespace VirtualVessel.UI.Screens
             MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
             card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
+            // Fast and steady trade against each other; the user picks a level (tracking detailed design 8.2).
+            Speed = Ui.Slider(null, SmoothingLevel.Min, SmoothingLevel.Max);
+            Speed.Step = 1f;
+            Speed.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(LevelOf(evt.newValue))));
+            SettingRow speed = Ui.SettingRow(TrackingStrings.Speed, TrackingStrings.SpeedDescription);
+            speed.Add(Speed);
+            card.Add(speed);
+
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
             card.Add(Row(TrackingStrings.Camera, Devices));
@@ -143,6 +153,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Shows the camera image as in a mirror; the avatar follows the same setting.</summary>
         public SwitchToggle MirrorToggle { get; }
+
+        /// <summary>The smoothing level, 1 (steadiest) to 10 (fastest).</summary>
+        public ValueSlider Speed { get; }
 
         /// <summary>The load line as shown, for tests.</summary>
         public string LoadText => _load.text;
@@ -248,10 +261,17 @@ namespace VirtualVessel.UI.Screens
             _load.text = _localizer?.Get(TrackingStrings.Load, ("fps", fps), ("rate", rate), ("cpu", cpu), ("gpu", gpu)) ?? $"{fps} fps · {rate} · CPU {cpu} · GPU {gpu}";
         }
 
+        /// <summary>The smoothing level a slider value stands for: the nearest whole level, kept within the levels. Pure.</summary>
+        public static int LevelOf(float value)
+        {
+            return SmoothingLevel.Clamp((int)Math.Round(value, MidpointRounding.AwayFromZero));
+        }
+
         private void ShowOptions(TrackingOptions options)
         {
             bool mirror = options.Mirror;
             MirrorToggle.SetValueWithoutNotify(mirror);
+            Speed.SetValueWithoutNotify(options.Smoothing);
 
             // The image and the points over it flip together; the caption inside is flipped back so it reads.
             Preview.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));

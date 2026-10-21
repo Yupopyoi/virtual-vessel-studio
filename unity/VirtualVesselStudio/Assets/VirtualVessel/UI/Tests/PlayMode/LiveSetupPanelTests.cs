@@ -110,6 +110,25 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTrackingCard_ChoosesTheMovementSpeed_AndFollowsIt()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card.Speed.value, Is.EqualTo((float)SmoothingLevel.Default));
+
+            card.Speed.value = 8f;
+            Assert.That(_tracking.Options.Value.Smoothing, Is.EqualTo(8));
+
+            _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(2));
+            Assert.That(card.Speed.value, Is.EqualTo(2f), "Follows a change made elsewhere.");
+
+            Assert.That(TrackingCard.LevelOf(7.5f), Is.EqualTo(8));
+            Assert.That(TrackingCard.LevelOf(0f), Is.EqualTo(SmoothingLevel.Min));
+            Assert.That(TrackingCard.LevelOf(12f), Is.EqualTo(SmoothingLevel.Max));
+        }
+
+        [UnityTest]
         public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
         {
             _root.Shell.Open("setup");
