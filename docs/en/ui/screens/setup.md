@@ -56,7 +56,7 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 | Load | Description (monospace, Text 2) | Every second: "App 60 fps · Tracking 30/s · CPU 12% · GPU 8%". CPU is this application's share of all cores; GPU is the share of a frame the GPU spent on this application's work (Unity's FrameTimingManager; "—" where unknown). System-wide GPU usage cannot be read from Unity and is not shown |
 | Track | Toggle | On starts tracking (opening the camera), off stops it. Whether it was on is saved and restored at the next start |
 | Mirror | Toggle | On by default. Flips the camera image and points left to right, like a mirror. The avatar follows the same setting (Tracking detailed design chapter 10) |
-| Movement speed | Slider (1 to 10, steps of 1) | The smoothing level (Tracking detailed design 8.2). Description: "Higher follows your movement faster; lower keeps the avatar steadier." 7 by default. A change applies at once and is saved |
+| Movement speed | Slider (1 to 10, steps of 1) | The smoothing level (Tracking detailed design 8.2). Description: "Higher follows your movement faster; lower keeps the avatar steadier." 5 by default. A change applies at once and is saved |
 | Camera | Dropdown | The devices found, with "Choose a camera" first. The camera is not opened until one is chosen |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 
@@ -163,7 +163,8 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Row | Component | Content |
 |---|---|---|
 | Introduction | Description (Text 2) | "With tracking running, watch the avatar while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
-| Video | Image (384×216, 16:9) | The middle, upper part of the stream (where the camera's default position puts the avatar's face and chest), enlarged about 2.2 times so the expression can be seen. "No video" when there is none |
+| Video | Image (384×216, 16:9) | The middle of the stream, enlarged about 2.2 times so the expression can be seen. "No video" when there is none |
+| Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the stream is shown (0% the bottom, 100% the top). 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
 | Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% |
 
@@ -171,4 +172,4 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.
 - A change applies to the avatar on the stream at once and is saved (`avatar-settings.json`).
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
-- The cropped part of the video is fixed, so the face of an avatar of a very different height can fall outside it (Avatar detailed design chapter 17).
+- Unity's Image shows the whole texture again when its image changes, so the crop is set again whenever the video changes.

@@ -320,18 +320,19 @@ Conversion from expression values (`FaceShape`, 0–1) to the avatar's expressio
 | `Ou` | `MouthPucker`, `MouthFunnel` | Pursed lips, as far as the mouth is open |
 | `Ee` | `MouthStretchLeft/Right` | Stretched sideways, as far as the mouth is open |
 | `Ih` | `MouthSmileLeft/Right` | Pulled sideways and slightly open (half the smile), as far as the mouth is open |
-| `Happy` | `MouthSmileLeft/Right`, `CheekSquintLeft/Right` | The larger; at most 0.8 |
+| `Happy` | `MouthSmileLeft/Right` less `MouthStretchLeft/Right`, `CheekSquintLeft/Right` | The larger; at most 0.8. Only the corners raised beyond the lips pulled sideways count as a smile |
 | `Surprised` | `BrowInnerUp`, `EyeWideLeft/Right` | Raised brows alone give half, wide eyes the rest; at most 0.8 |
 | `Angry` | `BrowDownLeft/Right` | At most 0.8 |
 | `Sad` | `BrowInnerUp` and `MouthFrownLeft/Right` | When both show; at most 0.8 |
-| Gaze | `EyeLookIn/Out/Up/Down` (mean of both eyes) | A share of the model's eye range (-1 to 1), reaching the end at a value of 0.35. Up and down are weakened as far as the lids are closed (a closing lid reads as looking down; Voom also stopped the up-and-down movement by default) |
+| Gaze | `EyeLookIn/Out/Up/Down` (mean of both eyes) | A share of the model's eye range (-1 to 1), reaching the end at a value of 0.5. Up and down are weakened as far as the lids are closed (a closing lid reads as looking down; Voom also stopped the up-and-down movement by default) |
 
 - Whether the mouth is open (`JawOpen` from 0.04 to 0.12) gates `Ou`, `Ee`, and `Ih`: a closed mouth shows none of them. Lips at rest give `MouthPucker` and `MouthSmile` values of about 0.1–0.3, which showed a small open "u" on a closed mouth (2026-10-21).
+- Saying "i" pulls the lips sideways and raises the corners a little, which showed a smile, and on models that close the eyes in their smile (VRoid and others) the eyes closed too (2026-10-21). So the smile is the corner value less the sideways pull. Raised cheeks (`CheekSquint`) still make a smile on their own.
 - The five mouth shapes are distributed by ratio so their sum does not exceed 1.
 - VRM has no brow expressions, so the brows show through the feelings (surprise, anger, sadness).
 - How feelings overlap blinks, the mouth, and the gaze (VRM 1.0 `overrideBlink`, `overrideMouth`, `overrideLookAt`) follows the model's settings and is applied by UniVRM.
 - The gaze is given as a share, not an angle (5.2). VRM divides a look angle by its range (90° on the sample models) to turn the eyes, so the angles first given (±12°) moved the eyes only about an eighth of their range (2026-10-20).
-- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned (eyes 70%, brows 120%, mouth 70%, others 100%) became the new defaults (100%) (2026-10-21).
+- The defaults come from camera checks. The first values (2026-10-20) moved the eyes, brows, and mouth too little and were raised; then the values the user tuned became the new defaults (100%) (2026-10-21: eyes 70%, brows 120%, mouth 70%, then eyes 110% and gaze 70% more).
 - The weights actually set (after substituting blinks) are the Expression Signal (a 0–1 value per expression; `ExpressionController.Signal`). v0.1.0 has no consumer (Extension Motion) yet (system design 7.7).
 - For a model with only a blink of both eyes (`Blink`), the per-eye values go to it; for one with only per-eye blinks, the both-eye value goes to each eye. The substitution uses the smaller value so one closed eye does not close both.
 
@@ -536,7 +537,7 @@ Assets/VirtualVessel/Avatar/
 | Position matching such as touching the face (IK) | Considered together with full body |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | Puffing the cheeks | MediaPipe's `CheekPuff` hardly responds, and VRM has no standard expression for it. The three samples (VRoid) have neither such an expression nor a blend shape for it. Considered together with Perfect Sync (user's request, 2026-10-21) |
-| The cropped video of the face tuning Card | A fixed part (where the camera's default position puts the face and chest). If the face of an avatar of a very different height falls outside, choosing the part from the head's position is considered with Camera Points |
+| The cropped video of the face tuning Card | Decided: the user moves it up and down (UI `setup.md` chapter 9; where the face is depends on the avatar's height). Not saved. Choosing the part from the head's position automatically is considered with Camera Points |
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
 | FBX | Starting with the choice of library. After v0.1.0 |
 | Screens for adjusting the spawn point and camera position | When designing Stage Scenes and Camera Points |
