@@ -326,6 +326,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public IAvatarExpressions Expressions => this;
 
+            public IAvatarFaceShapes FaceShapes => null;
+
             public AvatarModelInfo Info { get; }
 
             public IReadOnlyList<string> CustomNames { get; } = Array.Empty<string>();

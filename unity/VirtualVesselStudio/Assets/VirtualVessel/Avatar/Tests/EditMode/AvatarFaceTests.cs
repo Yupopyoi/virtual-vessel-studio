@@ -325,6 +325,121 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(into[(int)AvatarExpression.BlinkLeft], Is.EqualTo(1f), "A model with both kinds gets the values as they are.");
         }
 
+        private static readonly string[] s_vroidShapes =
+        {
+            "Fcl_ALL_Joy", "Fcl_BRW_Angry", "Fcl_BRW_Sorrow", "Fcl_BRW_Surprised", "Fcl_EYE_Angry", "Fcl_EYE_Close",
+            "Fcl_EYE_Close_R", "Fcl_EYE_Close_L", "Fcl_EYE_Joy_R", "Fcl_EYE_Joy_L", "Fcl_EYE_Spread",
+            "Fcl_MTH_Fun", "Fcl_MTH_Joy", "Fcl_MTH_Sorrow", "Fcl_MTH_A", "Fcl_MTH_I", "Fcl_MTH_U", "Fcl_MTH_E", "Fcl_MTH_O",
+        };
+
+        [Test]
+        public void AProfile_FitsAModelWithItsEssentialShapes_Only()
+        {
+            int[] indices = FacePartProfile.VRoid.Resolve(s_vroidShapes);
+            Assert.That(indices[(int)FacePart.MouthSmile], Is.EqualTo(Array.IndexOf(s_vroidShapes, "Fcl_MTH_Fun")));
+            Assert.That(indices[(int)FacePart.EyeCloseLeft], Is.EqualTo(Array.IndexOf(s_vroidShapes, "Fcl_EYE_Close_L")));
+
+            string[] withoutI = Array.FindAll(s_vroidShapes, name => name != "Fcl_MTH_I");
+            Assert.That(FacePartProfile.VRoid.Resolve(withoutI), Is.Null, "Without a vowel, the model keeps whole-face expressions.");
+            Assert.That(FacePartProfile.Find(new[] { "Blink", "A" }), Is.Null);
+            Assert.That(FacePartProfile.Find(s_vroidShapes)?.Profile, Is.SameAs(FacePartProfile.VRoid));
+
+            string[] withoutBrows = Array.FindAll(s_vroidShapes, name => !name.StartsWith("Fcl_BRW", StringComparison.Ordinal));
+            Assert.That(FacePartProfile.VRoid.Resolve(withoutBrows)[(int)FacePart.BrowUp], Is.EqualTo(-1), "Parts the model lacks are left out.");
+        }
+
+        [Test]
+        public void Parts_SmileWithAClosedMouth_AndTheEyesSmileAlong()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+
+            // The corners raised with the lips together, as for a closed "i" (2026-10-21).
+            face[FaceShape.MouthStretchLeft] = 0.4f;
+            face[FaceShape.MouthStretchRight] = 0.4f;
+            face[FaceShape.MouthSmileLeft] = 0.5f;
+            face[FaceShape.MouthSmileRight] = 0.5f;
+            face[FaceShape.JawOpen] = 0.02f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.MouthSmile], Is.GreaterThan(0.5f), "A closed smile.");
+            float open = target[FacePart.MouthA] + target[FacePart.MouthI] + target[FacePart.MouthU] + target[FacePart.MouthE] + target[FacePart.MouthO] + target[FacePart.MouthOpenSmile];
+            Assert.That(open, Is.EqualTo(0f), "The mouth stays closed.");
+            Assert.That(target[FacePart.EyeSmileLeft], Is.GreaterThan(0f), "The eyes smile along.");
+
+            face[FaceShape.JawOpen] = 0.5f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.MouthOpenSmile], Is.GreaterThan(target[FacePart.MouthSmile]), "Opened, it is an open smile.");
+        }
+
+        [Test]
+        public void Parts_TellIFromE_ByHowFarTheMouthOpens()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+            face[FaceShape.MouthStretchLeft] = 0.5f;
+            face[FaceShape.MouthStretchRight] = 0.5f;
+
+            face[FaceShape.JawOpen] = 0.1f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.MouthI], Is.GreaterThan(target[FacePart.MouthE]), "A little apart: i.");
+
+            face[FaceShape.JawOpen] = 0.4f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.MouthE], Is.GreaterThan(target[FacePart.MouthI]), "More open: e.");
+        }
+
+        [Test]
+        public void Parts_SmilingEyes_TakeThePlaceOfClosing_AndBrowsMoveAlone()
+        {
+            var face = new FacePose();
+            var target = new FaceTarget();
+            face[FaceShape.EyeBlinkLeft] = 0.95f;
+            face[FaceShape.EyeBlinkRight] = 0.95f;
+            face[FaceShape.CheekSquintLeft] = 0.6f;
+            face[FaceShape.CheekSquintRight] = 0.6f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.EyeSmileLeft], Is.EqualTo(0.8f).Within(Tolerance));
+            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(0.2f).Within(Tolerance), "Closing and smiling never add up past closed.");
+
+            face = new FacePose();
+            face[FaceShape.BrowInnerUp] = 0.5f;
+            face[FaceShape.BrowOuterUpLeft] = 0.5f;
+            face[FaceShape.BrowOuterUpRight] = 0.5f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.BrowUp], Is.EqualTo(1f).Within(Tolerance), "Raised brows alone.");
+            Assert.That(target[FacePart.MouthSmile] + target[FacePart.EyeSmileLeft], Is.EqualTo(0f), "Nothing else moves.");
+
+            face[FaceShape.MouthFrownLeft] = 0.3f;
+            face[FaceShape.MouthFrownRight] = 0.3f;
+            ExpressionMapping.Default.Evaluate(face, false, target);
+            Assert.That(target[FacePart.BrowSad], Is.EqualTo(1f).Within(Tolerance), "With a frown, the brows are sad.");
+            Assert.That(target[FacePart.BrowUp], Is.EqualTo(0f).Within(Tolerance));
+        }
+
+        [Test]
+        public void TheController_MovesAPartFace_ByItsShapes_WithTheExpressionsOff()
+        {
+            var model = new RecordingModel(s_vroidShapes);
+            var controller = new AvatarController(model, ExpressionMapping.Default);
+            var frame = new TrackingFrame();
+            frame.Face.Status = TrackingStatus.Tracked;
+            frame.Face.Timestamp = 1.0;
+            frame.Face[FaceShape.JawOpen] = 1f;
+            frame.Face[FaceShape.EyeBlinkLeft] = 0.95f;
+            frame.Face[FaceShape.EyeBlinkRight] = 0f;
+
+            controller.Update(frame, mirror: true, now: 1.0);
+            controller.Update(frame, mirror: true, now: 1.5);
+
+            Assert.That(controller.Expressions.Profile, Is.SameAs(FacePartProfile.VRoid));
+            Assert.That(model.Shapes["Fcl_MTH_A"], Is.EqualTo(1f).Within(Tolerance));
+            Assert.That(model.Shapes["Fcl_EYE_Close_R"], Is.EqualTo(1f).Within(Tolerance), "A wink of the person's left eye closes the avatar's right, mirrored.");
+            Assert.That(model.Shapes["Fcl_EYE_Close_L"], Is.EqualTo(0f));
+            Assert.That(model.Weights[AvatarExpression.Aa], Is.EqualTo(0f), "Whole-face expressions stay off.");
+            Assert.That(model.Weights[AvatarExpression.BlinkRight], Is.EqualTo(0f));
+            Assert.That(model.Shapes.ContainsKey("Fcl_ALL_Joy"), Is.False, "Shapes outside the profile are left alone.");
+        }
+
         [Test]
         public void TheController_TurnsTheNeckAndHead_AndSetsTheExpressionsAndGaze()
         {
@@ -362,9 +477,28 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(Quaternion.Angle(actual, expected), Is.LessThan(0.01f), $"{actual.eulerAngles} vs {expected.eulerAngles}");
         }
 
-        private sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions
+        private sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions, IAvatarFaceShapes
         {
+            private readonly IReadOnlyList<string> _shapeNames;
+
+            /// <param name="shapeNames">The model's face shapes; null for a model without any.</param>
+            public RecordingModel(IReadOnlyList<string> shapeNames = null)
+            {
+                _shapeNames = shapeNames;
+            }
+
             public Dictionary<AvatarBone, Quaternion> Rotations { get; } = new Dictionary<AvatarBone, Quaternion>();
+
+            public Dictionary<string, float> Shapes { get; } = new Dictionary<string, float>();
+
+            public IAvatarFaceShapes FaceShapes => _shapeNames == null ? null : this;
+
+            IReadOnlyList<string> IAvatarFaceShapes.Names => _shapeNames;
+
+            void IAvatarFaceShapes.SetWeight(int index, float weight)
+            {
+                Shapes[_shapeNames[index]] = weight;
+            }
 
             public Dictionary<AvatarExpression, float> Weights { get; } = new Dictionary<AvatarExpression, float>();
 

@@ -50,6 +50,23 @@ namespace VirtualVessel.Avatar
     }
 
     /// <summary>
+    /// A model's own face shapes (blend shapes), by name, for moving the face part by part
+    /// (avatar detailed design 7.4). The names follow the model maker's convention, such as VRoid's;
+    /// <see cref="FacePartProfile"/> says which name is which part. Main thread only.
+    /// </summary>
+    public interface IAvatarFaceShapes
+    {
+        /// <summary>Every face shape the model has, each name once.</summary>
+        IReadOnlyList<string> Names { get; }
+
+        /// <summary>
+        /// 0 to 1 for the shape at <paramref name="index"/> in <see cref="Names"/>, applied by
+        /// <see cref="IAvatarModel.Apply"/> after the expressions, so it wins over them.
+        /// </summary>
+        void SetWeight(int index, float weight);
+    }
+
+    /// <summary>
     /// One avatar built by an <see cref="IAvatarLoader"/>: its objects, skeleton, expressions, and what
     /// the file says about it. Disposing destroys every object, mesh, texture, and material it made.
     /// </summary>
@@ -61,6 +78,9 @@ namespace VirtualVessel.Avatar
         IAvatarRig Rig { get; }
 
         IAvatarExpressions Expressions { get; }
+
+        /// <summary>The model's own face shapes; null when it has none to move.</summary>
+        IAvatarFaceShapes FaceShapes { get; }
 
         AvatarModelInfo Info { get; }
 

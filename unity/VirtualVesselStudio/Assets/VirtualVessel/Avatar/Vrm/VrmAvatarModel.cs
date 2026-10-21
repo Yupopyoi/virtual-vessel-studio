@@ -15,6 +15,7 @@ namespace VirtualVessel.Avatar.Vrm
         private readonly Vrm10Instance _instance;
         private readonly RuntimeGltfInstance _gltf;
         private readonly VrmAvatarRig _rig;
+        private readonly VrmAvatarFaceShapes _faceShapes;
 
         public VrmAvatarModel(Vrm10Instance instance, AvatarModelInfo info)
         {
@@ -26,6 +27,8 @@ namespace VirtualVessel.Avatar.Vrm
             Vrm10Runtime runtime = _instance.Runtime;
             _rig = new VrmAvatarRig(runtime.ControlRig, _instance.transform);
             Expressions = new VrmAvatarExpressions(runtime, _instance.Vrm != null ? _instance.Vrm.LookAt : null);
+            var faceShapes = new VrmAvatarFaceShapes(_instance.GetComponentsInChildren<SkinnedMeshRenderer>(true));
+            _faceShapes = faceShapes.Names.Count > 0 ? faceShapes : null;
         }
 
         public Transform Root => _instance != null ? _instance.transform : null;
@@ -33,6 +36,8 @@ namespace VirtualVessel.Avatar.Vrm
         public IAvatarRig Rig => _rig;
 
         public IAvatarExpressions Expressions { get; }
+
+        public IAvatarFaceShapes FaceShapes => _faceShapes;
 
         public AvatarModelInfo Info { get; }
 
@@ -67,6 +72,9 @@ namespace VirtualVessel.Avatar.Vrm
 
             _rig.Apply();
             _instance.Runtime.Process();
+
+            // After UniVRM, which sets the shapes its expressions use, so the face parts win.
+            _faceShapes?.Apply();
         }
 
         public void Dispose()

@@ -301,6 +301,7 @@ namespace VirtualVessel.Avatar
                 _loadFrameTimer?.Record(_longestLoadingFrame);
                 _log?.Information($"Avatar {avatarId} is on the stream: {entry.Profile.Format} {entry.Profile.FormatVersion}{(entry.Profile.Converted ? " (converted)" : string.Empty)}, loaded in {took.TotalSeconds:F2} s, longest frame {_longestLoadingFrame.TotalMilliseconds:F0} ms.");
                 LogMissingParts(avatarId, _model);
+                _log?.Information($"Avatar {avatarId} moves its face {(_controller.Expressions.Profile != null ? $"part by part ({_controller.Expressions.Profile.Name} shapes)" : "by whole-face expressions")}.");
             }
             catch (OperationCanceledException) when (load.IsCancellationRequested)
             {

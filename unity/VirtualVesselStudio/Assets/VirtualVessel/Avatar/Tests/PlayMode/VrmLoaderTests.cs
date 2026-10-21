@@ -123,6 +123,7 @@ namespace VirtualVessel.Avatar.Tests
                 float error = Quaternion.Angle(head.rotation * Quaternion.Inverse(rest), Quaternion.AngleAxis(30f, Vector3.up));
                 Assert.That(error, Is.LessThan(2f), "The head turned to the avatar's own right.");
                 Assert.That(TotalBlendShapeWeight(renderers), Is.GreaterThan(before), "The eyes and mouth moved.");
+                Assert.That(controller.Expressions.Profile, Is.SameAs(FacePartProfile.VRoid), "The VRoid samples are moved part by part.");
 
                 // Looking to the side moves the eyes by bones or by expressions, whichever the model uses.
                 // Expressions go first: a model's blink usually blocks the gaze (overrideLookAt).

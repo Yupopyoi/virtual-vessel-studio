@@ -278,6 +278,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public IAvatarExpressions Expressions => null;
 
+            public IAvatarFaceShapes FaceShapes => null;
+
             public AvatarModelInfo Info { get; }
 
             public bool Has(AvatarBone bone)

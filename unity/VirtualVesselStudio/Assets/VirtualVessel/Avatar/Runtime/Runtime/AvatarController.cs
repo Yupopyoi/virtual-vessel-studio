@@ -25,7 +25,7 @@ namespace VirtualVessel.Avatar
             _rig = model.Rig;
             _hasNeck = _rig.Has(AvatarBone.Neck);
             _face = new FaceMotion(mapping);
-            Expressions = new ExpressionController(model.Expressions);
+            Expressions = new ExpressionController(model.Expressions, model.FaceShapes);
         }
 
         public ExpressionController Expressions { get; }
