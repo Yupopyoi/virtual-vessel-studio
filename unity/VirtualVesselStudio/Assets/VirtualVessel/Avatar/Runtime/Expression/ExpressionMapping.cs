@@ -133,8 +133,8 @@ namespace VirtualVessel.Avatar
         /// <paramref name="face"/> into <paramref name="into"/>; the head is left as it is. Both the
         /// whole-face expressions and the parts are written; the model in use takes one of them
         /// (<see cref="ExpressionController"/>). With <paramref name="mirror"/>, the person's left drives
-        /// the avatar's right (avatar detailed design 6.6). Pure apart from writing the caller's buffer, which is
-        /// reused per observation (CLAUDE.md 15.1, 23).
+        /// the avatar's right (avatar detailed design 6.6). Pure apart from writing the caller's buffer,
+        /// which is reused per observation (CLAUDE.md 15.1, 23).
         /// </summary>
         public void Evaluate(FacePose face, bool mirror, FaceTarget into)
         {
@@ -143,46 +143,95 @@ namespace VirtualVessel.Avatar
                 throw new ArgumentNullException(nameof(face));
             }
 
+            FaceFeatures features = Read(face, mirror);
+            Array.Clear(into.Weights, 0, into.Weights.Length);
+            Array.Clear(into.Parts, 0, into.Parts.Length);
+            WriteExpressions(features, IhFromSmile, into);
+            WriteParts(features, EyeAngryFromBrows, into);
+            WriteSignals(features, into);
+            into.LookYaw = features.LookYaw;
+            into.LookPitch = features.LookPitch;
+        }
+
+        /// <summary>
+        /// The tracked face through this mapping's curves, each value read once, in the avatar's own
+        /// sides. Pure.
+        /// </summary>
+        internal FaceFeatures Read(FacePose face, bool mirror)
+        {
             // The avatar's own side: the person's same side, or the other side when mirrored.
             float Side(FaceShape personLeft, FaceShape personRight, bool avatarLeft)
             {
                 return face[avatarLeft != mirror ? personLeft : personRight];
             }
 
-            float Both(FaceShape left, FaceShape right)
-            {
-                return (face[left] + face[right]) * 0.5f;
-            }
+            float lidLeft = Blink.Evaluate(Side(FaceShape.EyeBlinkLeft, FaceShape.EyeBlinkRight, avatarLeft: true));
+            float lidRight = Blink.Evaluate(Side(FaceShape.EyeBlinkLeft, FaceShape.EyeBlinkRight, avatarLeft: false));
+            (float left, float right, bool together) = Eyes(lidLeft, lidRight, SyncBlink, WinkDifference);
+            float smile = Mean(face, FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight);
+            float stretch = Mean(face, FaceShape.MouthStretchLeft, FaceShape.MouthStretchRight);
+            float browUp = BrowInnerUp.Evaluate(face[FaceShape.BrowInnerUp]);
+            float eyeWide = EyeWide.Evaluate(Mean(face, FaceShape.EyeWideLeft, FaceShape.EyeWideRight));
+            float frown = MouthFrown.Evaluate(Mean(face, FaceShape.MouthFrownLeft, FaceShape.MouthFrownRight));
+            float browDown = BrowDown.Evaluate(Mean(face, FaceShape.BrowDownLeft, FaceShape.BrowDownRight));
 
-            Array.Clear(into.Weights, 0, into.Weights.Length);
-            Array.Clear(into.Parts, 0, into.Parts.Length);
+            // Gaze: both eyes together. Looking in is toward the nose, the person's right for the left eye.
+            float yaw = ((face[FaceShape.EyeLookInLeft] - face[FaceShape.EyeLookOutLeft]) + (face[FaceShape.EyeLookOutRight] - face[FaceShape.EyeLookInRight])) * 0.5f;
+            float pitch = ((face[FaceShape.EyeLookUpLeft] - face[FaceShape.EyeLookDownLeft]) + (face[FaceShape.EyeLookUpRight] - face[FaceShape.EyeLookDownRight])) * 0.5f;
 
-            // Eyes.
-            float blinkLeft = Blink.Evaluate(Side(FaceShape.EyeBlinkLeft, FaceShape.EyeBlinkRight, avatarLeft: true));
-            float blinkRight = Blink.Evaluate(Side(FaceShape.EyeBlinkLeft, FaceShape.EyeBlinkRight, avatarLeft: false));
-            (float left, float right, bool together) = Eyes(blinkLeft, blinkRight, SyncBlink, WinkDifference);
-            if (together)
+            return new FaceFeatures
             {
-                into[AvatarExpression.Blink] = left;
+                CloseLeft = left,
+                CloseRight = right,
+                Together = together,
+                Jaw = JawOpen.Evaluate(face[FaceShape.JawOpen]),
+                Apart = LipsApart.Evaluate(face[FaceShape.JawOpen]),
+                Funnel = Funnel.Evaluate(face[FaceShape.MouthFunnel]),
+                Pucker = Pucker.Evaluate(face[FaceShape.MouthPucker]),
+                Stretch = Stretch.Evaluate(stretch),
+                Smile = Smile.Evaluate(smile),
+                Corners = SmileMouth.Evaluate(smile),
+                BrowUp = browUp,
+                BrowRaised = Mathf.Max(browUp, BrowOuterUp.Evaluate(Mean(face, FaceShape.BrowOuterUpLeft, FaceShape.BrowOuterUpRight))),
+                BrowDown = browDown,
+                Frown = frown,
+                EyeWide = eyeWide,
+
+                // VRM has no brow expressions, so the brows show through the feelings: raised brows alone
+                // give half a surprise and wide eyes the rest, while sadness also needs the frown.
+                Happy = Mathf.Max(Happy.Evaluate(SmileBeyondStretch(smile, stretch)), CheekSquint.Evaluate(Mean(face, FaceShape.CheekSquintLeft, FaceShape.CheekSquintRight))),
+                Surprised = FeelingGain * browUp * (0.5f + (0.5f * eyeWide)),
+                Sad = FeelingGain * Mathf.Min(browUp, frown),
+                Angry = FeelingGain * browDown,
+                LookYaw = (mirror ? -1f : 1f) * Mathf.Clamp(yaw / GazeFullScale, -1f, 1f) * MaxLook,
+
+                // A closing lid reads as looking down, so the eyes look up and down only as far as they are open.
+                LookPitch = Mathf.Clamp(pitch / GazeFullScale, -1f, 1f) * MaxLook * (1f - Mathf.Max(lidLeft, lidRight)),
+            };
+        }
+
+        /// <summary>
+        /// The whole-face expressions (VRM's standard ones) from <paramref name="f"/>. Pure apart from
+        /// writing the caller's buffer.
+        /// </summary>
+        internal static void WriteExpressions(in FaceFeatures f, float ihFromSmile, FaceTarget into)
+        {
+            if (f.Together)
+            {
+                into[AvatarExpression.Blink] = f.CloseLeft;
             }
             else
             {
-                into[AvatarExpression.BlinkLeft] = left;
-                into[AvatarExpression.BlinkRight] = right;
+                into[AvatarExpression.BlinkLeft] = f.CloseLeft;
+                into[AvatarExpression.BlinkRight] = f.CloseRight;
             }
 
             // Mouth: the five shapes share one opening, and a closed mouth shows none of them.
-            float jaw = JawOpen.Evaluate(face[FaceShape.JawOpen]);
-            float apart = LipsApart.Evaluate(face[FaceShape.JawOpen]);
-            float funnel = Funnel.Evaluate(face[FaceShape.MouthFunnel]);
-            float pucker = Pucker.Evaluate(face[FaceShape.MouthPucker]);
-            float stretch = Stretch.Evaluate(Both(FaceShape.MouthStretchLeft, FaceShape.MouthStretchRight));
-            float smile = Smile.Evaluate(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight));
-            float aa = jaw * (1f - funnel);
-            float oh = jaw * funnel;
-            float ou = Mathf.Max(pucker, funnel) * (1f - jaw) * apart;
-            float ee = stretch * apart;
-            float ih = smile * IhFromSmile * (1f - jaw) * apart;
+            float aa = f.Jaw * (1f - f.Funnel);
+            float oh = f.Jaw * f.Funnel;
+            float ou = Mathf.Max(f.Pucker, f.Funnel) * (1f - f.Jaw) * f.Apart;
+            float ee = f.Stretch * f.Apart;
+            float ih = f.Smile * ihFromSmile * (1f - f.Jaw) * f.Apart;
             float scale = MouthScale(aa + oh + ou + ee + ih);
             into[AvatarExpression.Aa] = aa * scale;
             into[AvatarExpression.Oh] = oh * scale;
@@ -190,84 +239,39 @@ namespace VirtualVessel.Avatar
             into[AvatarExpression.Ee] = ee * scale;
             into[AvatarExpression.Ih] = ih * scale;
 
-            // Feelings. VRM has no brow expressions, so the brows show through these: raised brows alone
-            // give half a surprise and wide eyes the rest, while sadness also needs the frown.
-            float browUp = BrowInnerUp.Evaluate(face[FaceShape.BrowInnerUp]);
-            float happy = Mathf.Max(
-                Happy.Evaluate(SmileBeyondStretch(Both(FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight), Both(FaceShape.MouthStretchLeft, FaceShape.MouthStretchRight))),
-                CheekSquint.Evaluate(Both(FaceShape.CheekSquintLeft, FaceShape.CheekSquintRight)));
-            float surprised = FeelingGain * browUp * (0.5f + (0.5f * EyeWide.Evaluate(Both(FaceShape.EyeWideLeft, FaceShape.EyeWideRight))));
-            float sad = FeelingGain * Mathf.Min(browUp, MouthFrown.Evaluate(Both(FaceShape.MouthFrownLeft, FaceShape.MouthFrownRight)));
-            float angry = FeelingGain * BrowDown.Evaluate(Both(FaceShape.BrowDownLeft, FaceShape.BrowDownRight));
-            into[AvatarExpression.Happy] = happy;
-            into[AvatarExpression.Surprised] = surprised;
-            into[AvatarExpression.Sad] = sad;
-            into[AvatarExpression.Angry] = angry;
-
-            WriteParts(face, left, right, jaw, apart, funnel, pucker, stretch, browUp, into);
-
-            // The Expression Signal: the feelings as weighed above and the eyes and jaw as shown, before
-            // anything is fitted to the model.
-            into[ExpressionSignal.Smile] = happy;
-            into[ExpressionSignal.Angry] = angry;
-            into[ExpressionSignal.Sad] = sad;
-            into[ExpressionSignal.Surprised] = surprised;
-            into[ExpressionSignal.EyeOpenLeft] = 1f - left;
-            into[ExpressionSignal.EyeOpenRight] = 1f - right;
-            into[ExpressionSignal.MouthOpen] = jaw;
-
-            // Gaze: both eyes together. Looking in is toward the nose, the person's right for the left eye.
-            float yaw = ((face[FaceShape.EyeLookInLeft] - face[FaceShape.EyeLookOutLeft]) + (face[FaceShape.EyeLookOutRight] - face[FaceShape.EyeLookInRight])) * 0.5f;
-            float pitch = ((face[FaceShape.EyeLookUpLeft] - face[FaceShape.EyeLookDownLeft]) + (face[FaceShape.EyeLookUpRight] - face[FaceShape.EyeLookDownRight])) * 0.5f;
-            into.LookYaw = (mirror ? -1f : 1f) * Mathf.Clamp(yaw / GazeFullScale, -1f, 1f) * MaxLook;
-
-            // A closing lid reads as looking down, so the eyes look up and down only as far as they are open.
-            into.LookPitch = Mathf.Clamp(pitch / GazeFullScale, -1f, 1f) * MaxLook * (1f - Mathf.Max(blinkLeft, blinkRight));
+            into[AvatarExpression.Happy] = f.Happy;
+            into[AvatarExpression.Surprised] = f.Surprised;
+            into[AvatarExpression.Sad] = f.Sad;
+            into[AvatarExpression.Angry] = f.Angry;
         }
 
         /// <summary>
         /// The parts, each on its own (avatar detailed design 7.4), as the Voom prototype moved VRoid's
         /// face: the eyes open and close on their own, the mouth smiles closed or open, the brows rise
-        /// or fall alone. <paramref name="closeLeft"/> and <paramref name="closeRight"/> are the
-        /// avatar's own eyes, already mirrored and kept together or apart.
+        /// or fall alone. Pure apart from writing the caller's buffer.
         /// </summary>
-        private void WriteParts(
-            FacePose face,
-            float closeLeft,
-            float closeRight,
-            float jaw,
-            float apart,
-            float funnel,
-            float pucker,
-            float stretch,
-            float browUp,
-            FaceTarget into)
+        internal static void WriteParts(in FaceFeatures f, float eyeAngryFromBrows, FaceTarget into)
         {
             // The eyes follow only their own closing; a smile does not close them.
-            float rawSmile = Mean(face, FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight);
-            into[FacePart.EyeCloseLeft] = closeLeft;
-            into[FacePart.EyeCloseRight] = closeRight;
-            into[FacePart.EyeWide] = EyeWide.Evaluate(Mean(face, FaceShape.EyeWideLeft, FaceShape.EyeWideRight));
-            float browDown = BrowDown.Evaluate(Mean(face, FaceShape.BrowDownLeft, FaceShape.BrowDownRight));
-            into[FacePart.EyeAngry] = browDown * EyeAngryFromBrows;
+            into[FacePart.EyeCloseLeft] = f.CloseLeft;
+            into[FacePart.EyeCloseRight] = f.CloseRight;
+            into[FacePart.EyeWide] = f.EyeWide;
+            into[FacePart.EyeAngry] = f.BrowDown * eyeAngryFromBrows;
 
             // Brows: raised inner brows with a frown are sad; raised brows otherwise are raised.
-            float frown = MouthFrown.Evaluate(Mean(face, FaceShape.MouthFrownLeft, FaceShape.MouthFrownRight));
-            float sad = Mathf.Min(browUp, frown);
-            float raised = Mathf.Max(browUp, BrowOuterUp.Evaluate(Mean(face, FaceShape.BrowOuterUpLeft, FaceShape.BrowOuterUpRight)));
+            float sad = Mathf.Min(f.BrowUp, f.Frown);
             into[FacePart.BrowSad] = sad;
-            into[FacePart.BrowUp] = Mathf.Max(0f, raised - sad);
-            into[FacePart.BrowDown] = browDown;
+            into[FacePart.BrowUp] = Mathf.Max(0f, f.BrowRaised - sad);
+            into[FacePart.BrowDown] = f.BrowDown;
 
             // Mouth: raised corners are a smile, closed or open with the jaw; the vowels share the rest
             // of the opening. "i" is lips pulled sideways a little apart, "e" the same more open.
-            float corners = SmileMouth.Evaluate(rawSmile);
-            float a = jaw * (1f - funnel) * (1f - corners);
-            float o = jaw * funnel;
-            float u = Mathf.Max(pucker, funnel) * (1f - jaw) * apart;
-            float e = stretch * jaw;
-            float i = stretch * apart * (1f - jaw);
-            float openSmile = corners * jaw;
+            float a = f.Jaw * (1f - f.Funnel) * (1f - f.Corners);
+            float o = f.Jaw * f.Funnel;
+            float u = Mathf.Max(f.Pucker, f.Funnel) * (1f - f.Jaw) * f.Apart;
+            float e = f.Stretch * f.Jaw;
+            float i = f.Stretch * f.Apart * (1f - f.Jaw);
+            float openSmile = f.Corners * f.Jaw;
             float scale = MouthScale(a + o + u + e + i + openSmile);
             into[FacePart.MouthA] = a * scale;
             into[FacePart.MouthO] = o * scale;
@@ -275,8 +279,23 @@ namespace VirtualVessel.Avatar
             into[FacePart.MouthE] = e * scale;
             into[FacePart.MouthI] = i * scale;
             into[FacePart.MouthOpenSmile] = openSmile * scale;
-            into[FacePart.MouthSmile] = corners * (1f - jaw);
-            into[FacePart.MouthFrown] = frown;
+            into[FacePart.MouthSmile] = f.Corners * (1f - f.Jaw);
+            into[FacePart.MouthFrown] = f.Frown;
+        }
+
+        /// <summary>
+        /// The Expression Signal: the feelings and the eyes and jaw as shown, before anything is fitted
+        /// to the model. Pure apart from writing the caller's buffer.
+        /// </summary>
+        internal static void WriteSignals(in FaceFeatures f, FaceTarget into)
+        {
+            into[ExpressionSignal.Smile] = f.Happy;
+            into[ExpressionSignal.Angry] = f.Angry;
+            into[ExpressionSignal.Sad] = f.Sad;
+            into[ExpressionSignal.Surprised] = f.Surprised;
+            into[ExpressionSignal.EyeOpenLeft] = 1f - f.CloseLeft;
+            into[ExpressionSignal.EyeOpenRight] = 1f - f.CloseRight;
+            into[ExpressionSignal.MouthOpen] = f.Jaw;
         }
 
         /// <summary>
