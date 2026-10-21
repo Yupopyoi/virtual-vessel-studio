@@ -5,17 +5,14 @@ namespace VirtualVessel.Avatar
 {
     /// <summary>
     /// Parts of the face moved one by one on a model that has a shape for each (avatar detailed design
-    /// 7.4), instead of whole-face expressions: smiling eyes with a closed mouth, raised brows alone,
-    /// and so on. Sides are the avatar's own.
+    /// 7.4), instead of whole-face expressions: a smile with the mouth closed, raised brows alone, and
+    /// so on. Sides are the avatar's own. There are no smiling eyes: eyes closing into a smile along
+    /// with the mouth looked unnatural (user's decision, 2026-10-21).
     /// </summary>
     public enum FacePart
     {
         EyeCloseLeft,
         EyeCloseRight,
-
-        /// <summary>Eyes closed in a smile, curved up.</summary>
-        EyeSmileLeft,
-        EyeSmileRight,
 
         EyeWide,
         EyeAngry,
@@ -61,8 +58,6 @@ namespace VirtualVessel.Avatar
         {
             [FacePart.EyeCloseLeft] = "Fcl_EYE_Close_L",
             [FacePart.EyeCloseRight] = "Fcl_EYE_Close_R",
-            [FacePart.EyeSmileLeft] = "Fcl_EYE_Joy_L",
-            [FacePart.EyeSmileRight] = "Fcl_EYE_Joy_R",
             [FacePart.EyeWide] = "Fcl_EYE_Spread",
             [FacePart.EyeAngry] = "Fcl_EYE_Angry",
             [FacePart.BrowUp] = "Fcl_BRW_Surprised",

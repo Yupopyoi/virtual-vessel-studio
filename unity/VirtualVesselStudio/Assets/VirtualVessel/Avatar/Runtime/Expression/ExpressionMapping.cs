@@ -15,15 +15,15 @@ namespace VirtualVessel.Avatar
     /// user's <see cref="FaceTuning"/>. MediaPipe's face values rarely reach 1, so the curves end well
     /// below it. The defaults come from camera checks: raised after the first (2026-10-20), where the
     /// eyes, brows, and mouth moved too little, then set to what the user tuned on later checks
-    /// (2026-10-21): eyes 77% (70%, then 110% of that), brows 120%, mouth 70%, and gaze 70% of the
-    /// raised curves (avatar detailed design 7.4).
+    /// (2026-10-21): eyes 92% (70%, then 110%, then 120% of that), brows 144% (120%, then 120%),
+    /// mouth 70%, and gaze 70% of the raised curves (avatar detailed design 7.4).
     /// </remarks>
     public sealed class ExpressionMapping
     {
         public static readonly ExpressionMapping Default = new ExpressionMapping();
 
         /// <summary>Eye closing: below the lower end the eye is open, above the upper end closed.</summary>
-        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.33f, 0.78f);
+        public ExpressionCurve Blink { get; set; } = new ExpressionCurve(0.275f, 0.65f);
 
         /// <summary>Close both eyes alike unless one eye is closed this much more than the other (a wink).</summary>
         public bool SyncBlink { get; set; } = true;
@@ -58,19 +58,16 @@ namespace VirtualVessel.Avatar
 
         public ExpressionCurve CheekSquint { get; set; } = new ExpressionCurve(0.15f, 0.5f, 0.8f);
 
-        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.125f, 0.42f);
+        public ExpressionCurve BrowInnerUp { get; set; } = new ExpressionCurve(0.104f, 0.35f);
 
-        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.017f, 0.21f);
+        public ExpressionCurve EyeWide { get; set; } = new ExpressionCurve(0.014f, 0.175f);
 
-        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.042f, 0.29f);
+        public ExpressionCurve MouthFrown { get; set; } = new ExpressionCurve(0.035f, 0.242f);
 
-        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.083f, 0.33f);
+        public ExpressionCurve BrowDown { get; set; } = new ExpressionCurve(0.069f, 0.275f);
 
         /// <summary>The outer brows raised, for raised brows on a face moved part by part.</summary>
-        public ExpressionCurve BrowOuterUp { get; set; } = new ExpressionCurve(0.125f, 0.42f);
-
-        /// <summary>How far a mouth smile curves the eyes on a face moved part by part (the eyes smile along).</summary>
-        public ExpressionCurve SmileEyes { get; set; } = new ExpressionCurve(0.15f, 0.6f, 0.6f);
+        public ExpressionCurve BrowOuterUp { get; set; } = new ExpressionCurve(0.104f, 0.35f);
 
         /// <summary>The mouth's corners raised, on a face moved part by part.</summary>
         public ExpressionCurve SmileMouth { get; set; } = new ExpressionCurve(0.15f, 0.6f);
@@ -122,7 +119,6 @@ namespace VirtualVessel.Avatar
                 MouthFrown = d.MouthFrown.Sensitive(brows),
                 BrowDown = d.BrowDown.Sensitive(brows),
                 BrowOuterUp = d.BrowOuterUp.Sensitive(brows),
-                SmileEyes = d.SmileEyes.Sensitive(smile),
                 SmileMouth = d.SmileMouth.Sensitive(smile),
                 EyeAngryFromBrows = d.EyeAngryFromBrows,
                 FeelingGain = d.FeelingGain,
@@ -215,8 +211,8 @@ namespace VirtualVessel.Avatar
 
         /// <summary>
         /// The parts, each on its own (avatar detailed design 7.4), as the Voom prototype moved VRoid's
-        /// face: the eyes smile without the mouth opening, the mouth smiles closed or open, the brows
-        /// rise or fall alone. <paramref name="closeLeft"/> and <paramref name="closeRight"/> are the
+        /// face: the eyes open and close on their own, the mouth smiles closed or open, the brows rise
+        /// or fall alone. <paramref name="closeLeft"/> and <paramref name="closeRight"/> are the
         /// avatar's own eyes, already mirrored and kept together or apart.
         /// </summary>
         private void WriteParts(
@@ -231,14 +227,10 @@ namespace VirtualVessel.Avatar
             float browUp,
             FaceTarget into)
         {
-            // A smile curves the eyes, and the curved eyes take the place of part of the closing, so
-            // the two do not add up to more than closed.
+            // The eyes follow only their own closing; a smile does not close them.
             float rawSmile = Mean(face, FaceShape.MouthSmileLeft, FaceShape.MouthSmileRight);
-            float eyeSmile = Mathf.Max(SmileEyes.Evaluate(rawSmile), CheekSquint.Evaluate(Mean(face, FaceShape.CheekSquintLeft, FaceShape.CheekSquintRight)));
-            into[FacePart.EyeCloseLeft] = closeLeft * (1f - eyeSmile);
-            into[FacePart.EyeCloseRight] = closeRight * (1f - eyeSmile);
-            into[FacePart.EyeSmileLeft] = eyeSmile;
-            into[FacePart.EyeSmileRight] = eyeSmile;
+            into[FacePart.EyeCloseLeft] = closeLeft;
+            into[FacePart.EyeCloseRight] = closeRight;
             into[FacePart.EyeWide] = EyeWide.Evaluate(Mean(face, FaceShape.EyeWideLeft, FaceShape.EyeWideRight));
             float browDown = BrowDown.Evaluate(Mean(face, FaceShape.BrowDownLeft, FaceShape.BrowDownRight));
             into[FacePart.EyeAngry] = browDown * EyeAngryFromBrows;

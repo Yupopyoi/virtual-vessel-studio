@@ -160,8 +160,8 @@ namespace VirtualVessel.Avatar.Tests
         {
             var face = new FacePose();
             var target = new FaceTarget();
-            face[FaceShape.EyeBlinkLeft] = 0.4f;
-            face[FaceShape.EyeBlinkRight] = 0.4f;
+            face[FaceShape.EyeBlinkLeft] = 0.33f;
+            face[FaceShape.EyeBlinkRight] = 0.33f;
             face[FaceShape.JawOpen] = 0.2f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             float blink = target[AvatarExpression.Blink];
@@ -364,7 +364,7 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(target[FacePart.MouthSmile], Is.GreaterThan(0.5f), "A closed smile.");
             float open = target[FacePart.MouthA] + target[FacePart.MouthI] + target[FacePart.MouthU] + target[FacePart.MouthE] + target[FacePart.MouthO] + target[FacePart.MouthOpenSmile];
             Assert.That(open, Is.EqualTo(0f), "The mouth stays closed.");
-            Assert.That(target[FacePart.EyeSmileLeft], Is.GreaterThan(0f), "The eyes smile along.");
+            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(0f), "The eyes stay open: a smile does not close them.");
 
             face[FaceShape.JawOpen] = 0.5f;
             ExpressionMapping.Default.Evaluate(face, false, target);
@@ -389,7 +389,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void Parts_SmilingEyes_TakeThePlaceOfClosing_AndBrowsMoveAlone()
+        public void Parts_EyesCloseOnTheirOwn_AndBrowsMoveAlone()
         {
             var face = new FacePose();
             var target = new FaceTarget();
@@ -397,9 +397,11 @@ namespace VirtualVessel.Avatar.Tests
             face[FaceShape.EyeBlinkRight] = 0.95f;
             face[FaceShape.CheekSquintLeft] = 0.6f;
             face[FaceShape.CheekSquintRight] = 0.6f;
+            face[FaceShape.MouthSmileLeft] = 0.8f;
+            face[FaceShape.MouthSmileRight] = 0.8f;
             ExpressionMapping.Default.Evaluate(face, false, target);
-            Assert.That(target[FacePart.EyeSmileLeft], Is.EqualTo(0.8f).Within(Tolerance));
-            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(0.2f).Within(Tolerance), "Closing and smiling never add up past closed.");
+            Assert.That(target[FacePart.EyeCloseLeft], Is.EqualTo(1f).Within(Tolerance), "Closed eyes close, smiling or not.");
+            Assert.That(target[FacePart.MouthSmile], Is.GreaterThan(0.5f), "The mouth smiles alone.");
 
             face = new FacePose();
             face[FaceShape.BrowInnerUp] = 0.5f;
@@ -407,7 +409,7 @@ namespace VirtualVessel.Avatar.Tests
             face[FaceShape.BrowOuterUpRight] = 0.5f;
             ExpressionMapping.Default.Evaluate(face, false, target);
             Assert.That(target[FacePart.BrowUp], Is.EqualTo(1f).Within(Tolerance), "Raised brows alone.");
-            Assert.That(target[FacePart.MouthSmile] + target[FacePart.EyeSmileLeft], Is.EqualTo(0f), "Nothing else moves.");
+            Assert.That(target[FacePart.MouthSmile] + target[FacePart.EyeCloseLeft], Is.EqualTo(0f), "Nothing else moves.");
 
             face[FaceShape.MouthFrownLeft] = 0.3f;
             face[FaceShape.MouthFrownRight] = 0.3f;

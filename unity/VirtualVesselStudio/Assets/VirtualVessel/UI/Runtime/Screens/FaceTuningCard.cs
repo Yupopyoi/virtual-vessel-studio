@@ -194,12 +194,12 @@ namespace VirtualVessel.UI.Screens
 
             float value = part switch
             {
-                FaceTuningPart.Eyes => Mathf.Max(Mathf.Max(face[FacePart.EyeCloseLeft], face[FacePart.EyeCloseRight]), Mathf.Max(face[FacePart.EyeSmileLeft], face[FacePart.EyeSmileRight])),
+                FaceTuningPart.Eyes => Mathf.Max(face[FacePart.EyeCloseLeft], face[FacePart.EyeCloseRight]),
                 FaceTuningPart.Wink => Mathf.Abs(face[FacePart.EyeCloseLeft] - face[FacePart.EyeCloseRight]),
                 FaceTuningPart.Brows => Mathf.Max(face[FacePart.BrowUp], Mathf.Max(face[FacePart.BrowDown], face[FacePart.BrowSad])),
                 FaceTuningPart.Mouth => face[FacePart.MouthA] + face[FacePart.MouthI] + face[FacePart.MouthU] + face[FacePart.MouthE] + face[FacePart.MouthO] + face[FacePart.MouthOpenSmile],
                 FaceTuningPart.Gaze => Mathf.Max(Mathf.Abs(face.LookYaw), Mathf.Abs(face.LookPitch)),
-                FaceTuningPart.Smile => Mathf.Max(Mathf.Max(face[FacePart.MouthSmile], face[FacePart.MouthOpenSmile]), Mathf.Max(face[FacePart.EyeSmileLeft], face[FacePart.EyeSmileRight])),
+                FaceTuningPart.Smile => Mathf.Max(face[FacePart.MouthSmile], face[FacePart.MouthOpenSmile]),
                 _ => 0f,
             };
             return Mathf.Clamp01(value);
