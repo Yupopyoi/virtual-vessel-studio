@@ -664,6 +664,15 @@ Read:
 3. relevant detailed design,
 4. relevant architecture decisions.
 
+Read the relevant system design sections themselves, not only the module's detailed design.
+
+Before implementing, report to the user:
+
+- which system design sections were read,
+- the constraints they set for the task.
+
+This makes visible whether the architecture was checked.
+
 ## Step 3: Inspect the implementation
 
 Inspect:
@@ -719,6 +728,15 @@ Run relevant:
 ## Step 9: Self-review
 
 Review the complete diff.
+
+Also check whether the code is getting harder to change. Small additions accumulate: adding a parameter, or writing a second copy of a computation for a new variant, is easier than restructuring. So check:
+
+- files that grew large,
+- constructors and methods with many parameters,
+- the same computation in more than one place,
+- changes that only pass a value through to where it is used.
+
+Report what was found with the step (section 37). Propose a cleanup before the next step when it would make the next change cheaper. Do not wait for the user to notice.
 
 Check:
 
@@ -1775,6 +1793,11 @@ When refactoring performance-sensitive code, verify that performance has not reg
 
 Maintain public behavior unless the task explicitly changes it.
 
+Show that a refactoring did not change behavior:
+
+- When practical, run the old and the new implementation on the same inputs and compare the results. The old one may be kept temporarily in a test and removed before committing.
+- State in the commit message and the Pull Request what was compared and how.
+
 ---
 
 # 35. Dependency Policy
@@ -1866,6 +1889,10 @@ State when benchmarks were not applicable.
 Documents created or updated.
 
 Confirm Japanese/English synchronization where applicable.
+
+## Complexity
+
+What the complexity check (section 13, step 9) found, and any cleanup proposed.
 
 ## Remaining issues
 
