@@ -129,7 +129,7 @@
 }
 
 /*
- * The face tuning Card (setup.md 6): the stream, larger than the device previews so the avatar's face
+ * The face tuning Card (setup.md 9): the stream, larger than the device previews so the avatar's face
  * can be seen, beside a slider per part with the avatar's movement of that part as a bar under it.
  */
 .vv-face-card__intro {

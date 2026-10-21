@@ -10,7 +10,7 @@ using VirtualVessel.UI.Preview;
 
 namespace VirtualVessel.UI.Screens
 {
-    /// <summary>String table keys of the face tuning Card (docs/&lt;lang&gt;/ui/screens/setup.md 6).</summary>
+    /// <summary>String table keys of the face tuning Card (docs/&lt;lang&gt;/ui/screens/setup.md 9).</summary>
     [StringKeys]
     public static class FaceTuningStrings
     {
@@ -28,7 +28,7 @@ namespace VirtualVessel.UI.Screens
 
     /// <summary>
     /// Tunes how strongly the user's face moves the avatar while watching it (docs/&lt;lang&gt;/ui/screens/setup.md
-    /// 6, avatar detailed design 7.4): the stream with the avatar, a slider per part, and under each the
+    /// 9, avatar detailed design 7.4): the stream with the avatar, a slider per part, and under each the
     /// avatar's movement of that part now, so the user can raise a part until it reaches the full movement.
     /// </summary>
     public sealed class FaceTuningCard : VisualElement
@@ -42,6 +42,13 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The sliders show percent: 100 is the default sensitivity.</summary>
         public const float PercentPerUnit = 100f;
+
+        /// <summary>
+        /// The part of the stream shown, in UV (0 to 1 from the bottom left): the middle, upper part,
+        /// where the camera's default position puts the avatar's face and chest (video detailed design
+        /// 7.5), enlarged about 2.2 times so the expression can be seen. The same 16:9 shape as the stream.
+        /// </summary>
+        public static readonly Rect FaceCrop = new Rect(0.275f, 0.48f, 0.45f, 0.45f);
 
         // Often enough to follow a blink, rarely enough to stay light.
         private const long MeterIntervalMs = 50;
@@ -73,7 +80,7 @@ namespace VirtualVessel.UI.Screens
             Add(card);
             card.Add(Ui.Text(FaceTuningStrings.Intro, IntroClass, "vv-text-body"));
 
-            Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
+            Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore, uv = FaceCrop };
             Preview.AddToClassList(PreviewClass);
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Preview.Add(_noVideo);
