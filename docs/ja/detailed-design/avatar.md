@@ -100,27 +100,29 @@ flowchart LR
 | `AvatarBone` | Enum | 標準の人体の骨（Unity Humanoidと同じ並び） |
 | `AvatarExpression` | Enum | 標準の表情：`Blink`、`BlinkLeft`、`BlinkRight`、`Aa`、`Ih`、`Ou`、`Ee`、`Oh`、`Happy`、`Angry`、`Sad`、`Relaxed`、`Surprised`、`Neutral` |
 | `AvatarController` | Class | 1体のアバターの制御の窓口。姿勢と表情へ振り分ける |
-| `PoseRetargeting` | Static Class | 観測から骨の回転を求める（純粋関数、7章） |
-| `PoseController` | Class | 補間、見失ったときの扱い、範囲（`BodyRange`）に応じた適用 |
+| `PoseRetargeting` | Static Class | 観測から上半身の骨の回転を求める（純粋関数、7.2） |
+| `BodyMotion` | Class | 上半身の観測の間の補間と、胴と左右の腕ごとの見失ったときの扱い（7.2、7.3、8.4）。設計の当初の名前は`PoseController`だったが、顔の`FaceMotion`とそろえた |
+| `BodyTarget` | Class | アバターの上半身に出すもの：骨ごとの回転と、観測が見た部位。毎Frame使い回す |
+| `MotionTiming` | Static Class | 顔と体が共有する時間の扱い：観測への移り方と、見失ったときの表示の強さ（純粋関数、7.3、8.4） |
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
 | `FaceFeatures` | Struct（internal） | 顔の値を曲線に1度だけ通した結果。顔全体の表情、部位ごとの値、Expression Signalは、すべてこれから求める（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用：部位ごと、または顔全体の表情。モデルにないまばたきの置き換え |
 | `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、部位ごとの重み、Expression Signal、視線、頭の向き。毎Frame使い回す |
 | `ExpressionSignal` | Enum | Expression Signalの値：笑顔、怒り、悲しみ、驚き、左右の目の開き、口の開き（7.4、方式設計7.7） |
-| `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4） |
+| `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4、時間の扱いは`MotionTiming`） |
 | `HeadPose` | Static Class | 頭の向き：鏡写し、上限、首への配分（純粋関数、7.1） |
 | `ExpressionCurve` | Struct | 値から表情の重みへの応答の曲線（7.4） |
 | `FaceTuning` | Class | 利用者の表情の調整：部位ごとの感度（7.4） |
 | `AvatarProfile` | Class | 保存する利用の設定（6.3） |
 | `AvatarSettings` | Class | 使うアバターと表情の調整（10章） |
 
-### クラス図（顔の動き、段階4時点）
+### クラス図（顔と上半身、段階5時点）
 
-トラッキングの観測から、アバターの頭、表情、視線を動かすまでのクラスの関係。体と腕（`PoseController`、`PoseRetargeting`）は段階5で加える。
+トラッキングの観測から、アバターの上半身（胴、肩、腕）、頭、表情、視線を動かすまでのクラスの関係。手と指は段階6で加える。
 
 - 抽象層は2種類あり、色と印で示す。**インターフェース**（`<<interface>>`、紫の実線の太枠）はモジュールの境目で具体的な実装を隠す。**データの契約**（`<<contract>>`、緑の破線の枠）は形式やライブラリに依存しない形で値を受け渡す。印のないクラスは、抽象の上で動く具体的な処理である。
 - 依存はどれも「具体 → 抽象」の向きである。Avatarの計算はMediaPipeの型もUniVRMの型も知らず、UniVRMの型はAvatar.Vrmの中だけで使う（3章）。
-- 関係の注記：`reads`は毎Frameの読み取り、`neck, head`は首と頭の回転の設定。毎Frameの順番は8.3。
+- 関係の注記：`reads`は毎Frameの読み取り、`upper body, neck, head`は上半身、首、頭の回転の設定。毎Frameの順番は8.3。
 
 ```mermaid
 classDiagram
@@ -137,6 +139,12 @@ classDiagram
             +double Time
             +FacePose Face
             +BodyPose Body
+        }
+        class BodyPose {
+            <<contract>>
+            +Vector3[20] Positions
+            +float[20] JointConfidence
+            +TrackingStatus Status
         }
         class FacePose {
             <<contract>>
@@ -166,8 +174,26 @@ classDiagram
             +FaceTarget Current
             +float Presence
             +Update(FacePose face, bool mirror, double now)
+        }
+        class MotionTiming {
             +Progress(now, arrivedAt, interval)$ float
             +NextPresence(presence, usable, lost, elapsed)$ float
+            +Interval(fresh, observedAt, previous)$ double
+        }
+        class BodyMotion {
+            +BodyTarget Current
+            +float TorsoPresence
+            +Update(BodyPose body, bool mirror, double now)
+        }
+        class PoseRetargeting {
+            +Retarget(BodyPose body, bool mirror, bool hasUpperChest, float armDown, BodyTarget into)$
+            +Arm(left, shoulder, elbow, wrist, torso)$
+            +WithoutWrist(left, upper, previousUpper, previousLower)$
+        }
+        class BodyTarget {
+            <<contract>>
+            +Quaternion[] Rotations
+            +bool TorsoSeen, LeftArmSeen, RightArmSeen
         }
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
@@ -244,7 +270,7 @@ classDiagram
     classDef interfaceLayer fill:#7c6cf033,stroke:#7c6cf0,stroke-width:3px
     classDef contractLayer fill:#2aa58f26,stroke:#2aa58f,stroke-width:2px,stroke-dasharray:6 4
     cssClass "ITrackingSource,IAvatarService,IAvatarModel,IAvatarRig,IAvatarExpressions,IAvatarFaceShapes" interfaceLayer
-    cssClass "TrackingFrame,FacePose,FaceTarget,FacePartProfile" contractLayer
+    cssClass "TrackingFrame,FacePose,BodyPose,FaceTarget,BodyTarget,FacePartProfile" contractLayer
 
     TrackingFrame *-- FacePose
     ITrackingSource --> TrackingFrame
@@ -254,8 +280,14 @@ classDiagram
     AvatarService *-- AvatarController
     AvatarService ..> ExpressionMapping : For(tuning)
     AvatarController *-- FaceMotion
+    AvatarController *-- BodyMotion
+    TrackingFrame *-- BodyPose
+    BodyMotion --> PoseRetargeting : Retarget
+    BodyMotion *-- BodyTarget
+    BodyMotion ..> MotionTiming
+    FaceMotion ..> MotionTiming
     AvatarController *-- ExpressionController
-    AvatarController --> IAvatarRig : neck, head
+    AvatarController --> IAvatarRig : upper body, neck, head
     AvatarController ..> HeadPose
     FaceMotion --> ExpressionMapping : Evaluate
     FaceMotion *-- FaceTarget
@@ -468,18 +500,26 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 
 ### 7.2 上半身（BodyRange.UpperBody）
 
-- 腰（Hips）は動かさない。胴は、肩の線の傾きと、首の前後の傾きから、Spine、Chest、Upper Chestへ配分する（既定：30%、35%、35%）。座っていても胴の傾きが出るようにするため。
+段階5で作った（`PoseRetargeting`、`BodyMotion`）。どの骨も、基準の姿勢からの回転をアバターのRoot空間で求め、骨ごとに設定する（`IAvatarRig.SetRotation`）。向きだけを使い位置は使わないため、利用者とアバターの体格が違っても骨は同じ向きになる（方式設計7.6）。試作のVoomは両肩の線で胸を傾けるだけだったため、引き継ぐ方法はない（1章）。
+
+- 腰（Hips）は動かさない。胴の回転は、右向きを両肩を結ぶ線、上向きを腰から首（両肩の中点）への線として求め、Spine、Chest、Upper Chestへ配分する（Spineに30%、Chestまでで65%、Upper Chestで全部。つまり30%、35%、35%）。座っていても胴の傾きが出るようにするため。Upper Chestのないモデルでは、Chestが全部を受け持つ。
 - 胴の回転には上限を付ける（左右の傾き±30°、前後±25°、ひねり±40°）。推論の誤りで胴が不自然に曲がるのを防ぐ。
-- 肩（Shoulder）は、腕を上げたときだけ少し上げる（上腕の上げ角の一部を肩へ配分する）。
-- 腕を見失ったときは、腕を下ろした姿勢（`pose.armDownAngle`、既定70°下げる）へ戻す。T Poseへは戻さない。
+- 首は、胴の上端（Upper Chest）から頭の向きへ40%回す（7.1）。胴が傾いても首が頭とつながる。
+- 上腕は肘へ向ける。上腕のねじれ（骨を軸にした回転）は、肘の曲がる面（上腕と前腕が作る面）で決める。腕がほぼまっすぐのときは曲がる面が分からないため、胴から最短で振ったときのねじれを使い、その間はなめらかにつなぐ（上腕と前腕の間の角の正弦が0.10未満で胴から、0.35以上で曲がる面から）。前腕は手首へ向け、上腕のねじれを引き継ぐ（手のひらによるねじれは段階6）。
+- 肩（Shoulder）は、腕を水平より上げたときだけ、上げた角度の25%（最大20°）上げる。
+- 関節の見え方（MediaPipeのVisibility）が0.5未満の関節は使わない。両肩が見えれば胴、肩と肘が見えれば上腕を動かす。手首は前腕の向きだけに使う。
+- 手首が隠れている間（頭の後ろへ回す等）は、上腕は肘へ向け、前腕は最後に見えたときの曲がり（上腕に対する前腕の回転）を保つ。上腕のねじれも直前のものを引き継ぎ、向きの変化だけを足す（`PoseRetargeting.WithoutWrist`）。曲がる面が分からないため、ねじれを新しく求めると跳ぶ。利用者の記録（2026-10-22、手を頭の後ろへ回す）では、肩と肘は100%見えていたが、手首は28%しか見えず、手首まで要る判断では腕の7割が下がった。
+- 腕を見失った（肩か肘が見えない）ときは、胴から下ろした姿勢（既定70°下げる）へ戻す。T Poseへは戻さない。下ろす角度をProfileの`pose.armDownAngle`で変える仕組みはまだ作っていない（17章）。
+- 鏡写しでは、本人の左右を入れ替え、X=0の面で写してから計算する（`PoseRetargeting.Joint`）。本人の右手がアバターの左手を動かす。関節の見え方も、本人の側で見る。
 - 下半身は、腕を下ろした基準の姿勢のまま（座っていても立っていても違和感の少ない、真っすぐ立った姿勢）。
+- 利用者の記録3本（腕を前へ伸ばす、胸の前で手を組む、手を頭の後ろへ回す。各約10秒）で、計算した回転に数でない値はなく、腕はどれも100%動いた。平滑化の前の観測で、上腕が観測1回で30°を超えて跳んだのは、約300回のうち1、1、3回だった（`AvatarRecordingTests`、Explicit）。骨の長さは±5〜10%揺れており、奥行きの推定（Tracking詳細設計8.4）で比べる基準とする。
 
 ### 7.3 観測の間の補間
 
 - 描画のFrameごとに、表示している値から最新の観測へ、観測の間隔をかけて移る（回転は球面補間）。新しい観測が届いた時点の表示から始めるため、描画は常に直前の表示と最新の観測の間にあり、途中で飛ばない。遅れは観測1回分（30回/秒で約33ms）増えるが、推論の回数より描画の回数が多いことによる段差が消える。
 - 移る時間は2つの観測の時刻の差とし、1/120秒〜0.2秒に収める（遅れた観測で、ゆっくり引きずられないように）。
 - 次の観測が遅れたときは、最新の観測で止める（先の予測はしない。外れたときに戻る動きが目立つため）。
-- 段階4では顔（表情、視線、頭の向き）に使う（`FaceMotion`）。体と手は段階5、6で同じ考え方を使う。
+- 顔（`FaceMotion`、段階4）と上半身（`BodyMotion`、段階5）で使う。時間の扱いは共通の`MotionTiming`にまとめた（2026-10-22）。手は段階6で同じ考え方を使う。
 
 ### 7.4 表情（ExpressionMapping）
 
@@ -589,7 +629,7 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 
 - Avatar CameraがRenderingする前に、次の順で行う（`LateUpdate`相当、`IFrameLoop`の後段）：
   1. `ITrackingSource.Current`を読む。Trackingは、Avatarより先に毎Frameの処理（`IFrameLoop`）へ登録されるため、同じFrameに更新した観測を読める。
-  2. `AvatarController`：顔（`FaceMotion`：観測の間の補間、見失ったときの扱い、`ExpressionMapping`）と、首と頭の向き。体と腕（`PoseController`：補間、見失った部位の戻し、`PoseRetargeting`）は段階5で加える。
+  2. `AvatarController`：顔（`FaceMotion`：観測の間の補間、見失ったときの扱い、`ExpressionMapping`）と、首と頭の向き。上半身（`BodyMotion`：補間、見失った部位の戻し、`PoseRetargeting`）を骨へ設定し、首は胴の上端から頭へ回す（段階5）。
   3. `ExpressionController`：表情と視線。
   4. UniVRMの処理（Control Rigの反映、Expression、LookAt、SpringBone）を明示的に1回呼ぶ。UniVRMの自動の更新は止め、順序をこちらで決める（SpringBoneが姿勢の後に動くようにするため）。
 - 毎Frame確保しない。骨の回転の配列、表情の値の配列は使い回す。
@@ -677,7 +717,8 @@ public sealed class AvatarSettings
 
 | 種類 | 対象 |
 |---|---|
-| EditMode | `PoseRetargeting`：既知の姿勢（腕を横へ90°、前へ90°、肘を曲げる、手のひらを返す、胴を傾ける）の合成の観測から、期待する骨の回転になること。鏡写し。可動域の上限 |
+| EditMode | `PoseRetargeting`：既知の姿勢（腕を横へ、下へ、前へ、肘を前や上へ曲げる、胴を傾ける）の合成の観測から、期待する骨の回転になること。鏡写し。胴の上限、肩の上げ方、見えない腕。`BodyMotion`：見失った腕を保ってから下ろす、戻る、手首が隠れても前腕の曲がりを保つ。手のひらを返す動きは段階6 |
+| EditMode（Explicit） | `AvatarRecordingTests`：開発者の記録（Repository外）で、回転に数でない値がないこと。腕が動いた割合、骨の長さの揺れ、跳びをLogへ出す |
 | EditMode | 補間（7.3）、見失ったときの戻し（8.4）、`LowConfidence`の混ぜ方 |
 | EditMode | `ExpressionMapping`：応答の曲線、左右をそろえる、口の形の配分、感情の表情との重なり |
 | EditMode | `AvatarImporter`：拡張子・大きさ・形式の印の確認、一時Folderの後始末、同じHashの検出、Profileの読み書き（知らない項目を残す） |
@@ -685,6 +726,8 @@ public sealed class AvatarSettings
 | PlayMode | 実際のVRMを読み込み、骨と表情がそろうこと、破棄で漏れがないこと。Repositoryに入れられる小さなTest用のモデルがあれば使い、なければ利用者から渡されたサンプル（Repository外）で`[Explicit]` |
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
+
+段階5で作ったTest：`AvatarBodyTests`（EditMode。腕を横、下、前へ、肘を前や上へ曲げる、鏡写し、胴の傾きと上限、肩の上がり方、見えない腕、見失った腕を保ってから下ろす、手首が隠れても前腕の曲がりを保つ、Trackingがないときの基準の姿勢、`AvatarController`と首）、`AvatarRecordingTests`（EditMode、Explicit。開発者の記録で）、`VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`（実際のモデルで、腕と前腕の骨が観測の向きを向くこと、適用の時間）。
 
 段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔で目は閉じない、いとえ、眉）、Expression Signal（感情、目、口、左右、中立、部位ごとと顔全体で同じ値）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
 
@@ -699,6 +742,7 @@ public sealed class AvatarSettings
 - SpringBoneの負荷はモデルに依存する。計測して記録する。
 - 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は段階4で計測した。
 - 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：顔の計算とUniVRMの処理（SpringBoneを含む）を合わせた毎Frameの適用は、サンプルの3体で、中央値0.031〜0.033ms、95パーセンタイル0.035〜0.038ms、最大0.044〜0.146msだった。部位ごとに動かすようにした後（2026-10-21）は、中央値0.034〜0.035ms、95パーセンタイル0.038〜0.040ms、最大0.057〜0.130ms。目標の0.3msに収まる。
+- 計測（2026-10-22、段階5）：上半身を加えた後、顔だけの観測では中央値0.038〜0.039ms。体も動かした観測（腕を上げて振る合成の動き）では、中央値0.041ms、95パーセンタイル0.044〜0.049ms、最大0.062〜2.808ms（2.8msは1体の最初のFrameだけ）。目標に収まる。
 
 ---
 
@@ -712,9 +756,9 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose（段階5でPoseRetargeting, PoseController）
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する
@@ -742,6 +786,10 @@ Assets/VirtualVessel/Avatar/
 | サムネイルのないモデル | 今は「画像なし」を表示する。読み込み時に撮るかは、要望に応じて検討する |
 | 身長の違うモデルの写り方 | カメラの既定の位置は固定（Video詳細設計7.5）。身長の差が大きいモデルで上半身が収まらない場合は、Camera Pointの設計時に頭の高さへ合わせる方式を検討する |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |
+| 腕を下ろす角度をProfileで変える（`pose.armDownAngle`、6.3） | 未実装。今は既定の70°。モデルによって腕が体にめり込む等の要望が出たら、Profileの読み込みとアバターのCardに加える |
+| 奥行きの推定（Tracking詳細設計8.4） | 段階5の続きで、記録を再生して、今のWorld Landmarksの奥行きと比べて決める。基準は7.2の記録での値（骨の長さの揺れ±5〜10%、上腕の跳び約300回に1〜3回）。**現状の問題**（利用者のカメラでの確認、2026-10-22）：腕を前へ突き出してもまっすぐにならない。記録「腕を前へ伸ばす」では、肘の曲がりが中央値33〜40°、手首は肩の36〜39cm前にしかなく（腕の長さは約43〜45cm）、MediaPipeが奥行きを少なく見積もっている。骨の長さから奥行きを求め直す方法（8.4）で直す |
+| 前腕のねじれ（手のひらの向き） | 段階6で手と合わせて加える。今は上腕のねじれを引き継ぐ。**現状の問題**（同上）：肘の曲がる向きがおかしく見える。前腕は手首へ向いているため、主に前腕と手のねじれ（手のひらの向き）が原因と見ている。ほぼまっすぐな腕では、奥行きの誤差による曲がりで上腕のねじれが不安定になることも重なるため、奥行きの推定でも減るはず。順序は、奥行きの推定、次に段階6（利用者の決定、2026-10-22） |
+| 上半身の確認（2026-10-22、利用者のカメラ） | 鏡写しの左右は合っている。手を頭の後ろへ回したときの腕は及第点。腕の向きと曲がり方は上の2つの問題がある |
 | Perfect Sync（ARKitの52個の表情を持つモデル） | v0.1.0の後 |
 | 部位ごとの決まりをAvatar Profileへ保存する（方式設計7.12） | 今は読み込むたびに形の名前で決める（7.4）。利用者が表情の対応を選べるSetupの画面を作るときに、登録時に決めて保存する |
 | 頬を膨らませる | MediaPipeの`CheekPuff`はほとんど反応せず、VRMの標準の表情にもない。サンプルの3体（VRoid）も、その表情や形（BlendShape）を持たない。Perfect Syncの対応と合わせて検討する（利用者の要望、2026-10-21） |

@@ -52,13 +52,13 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// The neck's rotation in the root's space when the head is <paramref name="head"/>: a share of
-        /// the turn. The head bone keeps <paramref name="head"/> itself, so it turns by the rest relative
-        /// to the neck.
+        /// The neck's rotation in the root's space when the top of the torso is <paramref name="torsoTop"/>
+        /// and the head is <paramref name="head"/>: a share of the way from the torso to the head. The head
+        /// bone keeps <paramref name="head"/> itself, so it turns by the rest relative to the neck.
         /// </summary>
-        public static Quaternion Neck(Quaternion head)
+        public static Quaternion Neck(Quaternion torsoTop, Quaternion head)
         {
-            return Quaternion.Slerp(Quaternion.identity, head, NeckShare);
+            return Quaternion.Slerp(torsoTop, head, NeckShare);
         }
 
         private static Quaternion Normalized(Quaternion q)
