@@ -23,6 +23,7 @@ using VirtualVessel.Tracking.MediaPipe;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 
@@ -231,7 +232,8 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     AvatarService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => avatar = CreateAvatar(context, video, stage, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
+                    // Tracking, when it started, was created just before: its frame work runs first each frame.
+                    () => avatar = CreateAvatar(context, video, stage, tracking, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
                     new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName }));
             }
 
@@ -259,13 +261,17 @@ namespace VirtualVessel.Application.Startup
 
                             // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
                             // there leave their part of the screens saying so.
-                            video?.Preview,
-                            stage?.Screens,
-                            capture,
-                            tracking,
-                            avatar,
-                            new WindowsFileDialog(),
-                            CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")))),
+                            new ScreenServices
+                            {
+                                StreamPreview = video?.Preview,
+                                FrameSources = stage?.Screens,
+                                Captures = capture,
+                                Tracking = tracking,
+                                Avatars = avatar,
+                                FileDialog = new WindowsFileDialog(),
+                                Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
+                                Lighting = stage,
+                            })),
                     new[] { LoggingService.ServiceName }));
             }
 
@@ -313,7 +319,7 @@ namespace VirtualVessel.Application.Startup
             };
         }
 
-        private static AvatarService CreateAvatar(ApplicationCompositionContext context, VideoService video, StageService stage, IPerformanceMetrics metrics, ILog log)
+        private static AvatarService CreateAvatar(ApplicationCompositionContext context, VideoService video, StageService stage, TrackingService tracking, IPerformanceMetrics metrics, ILog log)
         {
             ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(context.ConfigDirectory, context.SystemClock);
             ConfigLoadResult<AvatarSettings> loaded = store.Load();
@@ -331,7 +337,8 @@ namespace VirtualVessel.Application.Startup
                 context.MonotonicClock,
                 context.SystemClock,
                 metrics,
-                log);
+                log,
+                tracking);
         }
 
         private static TrackingService CreateTracking(ApplicationCompositionContext context, CaptureService capture, IPerformanceMetrics metrics, ILog log)

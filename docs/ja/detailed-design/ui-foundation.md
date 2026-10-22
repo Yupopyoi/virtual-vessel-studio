@@ -526,7 +526,8 @@ public interface IUiCommand
 
 ライブとセットアップは、画面の仕様（`docs/ja/ui/screens/live.md`、`setup.md`）に従う。ライブは配信プレビューと配置編集、セットアップは映像の取り込みのCardとアプリの設定を置く。Voice Labは、画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する。
 
-- 必要な相手は、Compositionが`UiRootContext`で渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧（Stage）、`ICaptureSources`（Capture）。ないものは渡さず、その部分は「使えません」と表示する。
+- 必要な相手は、Compositionが`UiRootContext.Screens`（`ScreenServices`）にまとめて渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧と`IStageLighting`（Stage）、`ICaptureSources`（Capture）、`ITrackingSource`（Tracking）、`IAvatarService`（Avatar）、`IFileDialog`、`ICreditFiles`。ないものは`null`のままにし、その部分は「使えません」と表示するか、置かない。
+- 画面に新しい相手を足すときは、`ScreenServices`に1つ足し、使うCardへ渡すだけにする。以前は`UiRootContext`と`SetupScreen`の引数を順に足しており、相手を1つ足すたびに受け渡しだけの変更が4か所に出た（2026-10-21）。
 - UIはCaptureの公開Contract（`ICaptureSources`、`ICaptureDeviceSource`、`IPointerOption`）を参照してよい（Captureの状態を表示する流れ）。CaptureはUIを参照しない。
 
 このほか、次の2つの画面を最小限の内容で作る。後で見直す可能性がある。
@@ -1092,13 +1093,14 @@ Assets/VirtualVessel/
    │  ├─ Frames/            IFrameSource, FrameCanvas, MediaFrame, FrameCanvasMath, FrameCommands, FrameHistory, LayerList, CursorService   VirtualVessel.UI.Frames
    │  ├─ Binding/, Commands/（IUiCommand、CommandRunner、DangerCommand）
    │  ├─ Preview/           StreamPreview, IStreamPreviewSource, PreviewMath   VirtualVessel.UI.Preview
+   │  ├─ Lighting/          IStageLighting, StageLightIntensity（Stageが実装する窓口）   VirtualVessel.UI.Lighting
    │  ├─ Tooltips/          TooltipService, TooltipOptions, TooltipPlacement   VirtualVessel.UI.Tooltips
    │  ├─ Dialogs/           DialogService, ConfirmDialog          VirtualVessel.UI.Dialogs
    │  ├─ Notifications/     NotificationService, Notice, WaitingCount, NotificationOptions, NotificationPolicy   VirtualVessel.UI.Notifications
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, AppSettingsCard, CreditsCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

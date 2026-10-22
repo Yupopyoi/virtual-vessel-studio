@@ -15,6 +15,7 @@ namespace VirtualVessel.Avatar.Vrm
         private readonly Vrm10Instance _instance;
         private readonly RuntimeGltfInstance _gltf;
         private readonly VrmAvatarRig _rig;
+        private readonly VrmAvatarFaceShapes _faceShapes;
 
         public VrmAvatarModel(Vrm10Instance instance, AvatarModelInfo info)
         {
@@ -25,7 +26,9 @@ namespace VirtualVessel.Avatar.Vrm
             _instance.LookAtTargetType = VRM10ObjectLookAt.LookAtTargetTypes.YawPitchValue;
             Vrm10Runtime runtime = _instance.Runtime;
             _rig = new VrmAvatarRig(runtime.ControlRig, _instance.transform);
-            Expressions = new VrmAvatarExpressions(runtime);
+            Expressions = new VrmAvatarExpressions(runtime, _instance.Vrm != null ? _instance.Vrm.LookAt : null);
+            var faceShapes = new VrmAvatarFaceShapes(_instance.GetComponentsInChildren<SkinnedMeshRenderer>(true));
+            _faceShapes = faceShapes.Names.Count > 0 ? faceShapes : null;
         }
 
         public Transform Root => _instance != null ? _instance.transform : null;
@@ -34,7 +37,18 @@ namespace VirtualVessel.Avatar.Vrm
 
         public IAvatarExpressions Expressions { get; }
 
+        public IAvatarFaceShapes FaceShapes => _faceShapes;
+
         public AvatarModelInfo Info { get; }
+
+        /// <summary>
+        /// One of the model's own bones, for tests. UniVRM points the Animator at its control rig, so the
+        /// Animator's bones are the rig's, which UniVRM copies onto these before gaze moves the eyes.
+        /// </summary>
+        internal Transform ModelBone(HumanBodyBones bone)
+        {
+            return _instance != null ? _instance.Humanoid.GetBoneTransform(bone) : null;
+        }
 
         public void SetVisible(bool visible)
         {
@@ -58,6 +72,9 @@ namespace VirtualVessel.Avatar.Vrm
 
             _rig.Apply();
             _instance.Runtime.Process();
+
+            // After UniVRM, which sets the shapes its expressions use, so the face parts win.
+            _faceShapes?.Apply();
         }
 
         public void Dispose()

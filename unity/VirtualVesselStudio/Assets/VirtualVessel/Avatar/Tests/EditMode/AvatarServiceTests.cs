@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Tracking;
 
 namespace VirtualVessel.Avatar.Tests
 {
@@ -184,7 +186,60 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(list, Is.EqualTo(new[] { a }));
         }
 
-        private async Task<AvatarService> StartAsync()
+        [Test]
+        public async Task FaceTuning_AppliesToTheAvatarAtOnce_AndIsSavedForTheNextStart()
+        {
+            _service = await StartAsync();
+            await _service.ImportAsync(Source(), null, CancellationToken.None);
+            FaceTuning tuning = new FaceTuning().With(FaceTuningPart.Eyes, 2f);
+
+            _service.SetFaceTuning(tuning);
+
+            Assert.That(_service.FaceTuning.Value, Is.EqualTo(tuning));
+            Assert.That(_service.Controller.Mapping.Blink, Is.EqualTo(ExpressionMapping.Default.Blink.Sensitive(2f)), "The avatar on the stream uses it now.");
+            await _service.ShutdownAsync(CancellationToken.None);
+            _service.Dispose();
+
+            _service = await StartAsync();
+            Assert.That(_service.FaceTuning.Value, Is.EqualTo(tuning), "It belongs to the user and stays across starts.");
+            Assert.That(_service.Controller.Mapping.Blink, Is.EqualTo(ExpressionMapping.Default.Blink.Sensitive(2f)));
+        }
+
+        [Test]
+        public async Task EveryFrame_TheTrackedFaceTurnsTheHead_MirroredByTheTrackingOption()
+        {
+            var tracking = new FakeTracking();
+            var loop = new FrameLoop();
+            var clock = new ManualClock();
+            _service = await StartAsync(tracking, loop, clock);
+            await _service.ImportAsync(Source(), null, CancellationToken.None);
+            FakeModel model = (FakeModel)_service.Model;
+            Assert.That(model.Rotations.ContainsKey(AvatarBone.Head), Is.False, "Placing leaves the head as it is.");
+
+            FacePose face = tracking.Current.Face;
+            face.Status = TrackingStatus.Tracked;
+            face.Timestamp = 10.0;
+            face.HeadRotation = Quaternion.AngleAxis(30f, Vector3.up);
+            clock.Seconds = 10.0;
+            loop.Tick(null);
+            clock.Seconds = 10.5;
+            loop.Tick(null);
+
+            Assert.That(Quaternion.Angle(model.Rotations[AvatarBone.Head], Quaternion.AngleAxis(-30f, Vector3.up)), Is.LessThan(0.01f), "Mirrored by default.");
+
+            tracking.SetOptions(TrackingOptions.Default.WithMirror(false));
+            face.Timestamp = 10.6;
+            clock.Seconds = 10.6;
+            loop.Tick(null);
+            clock.Seconds = 11.0;
+            loop.Tick(null);
+            Assert.That(Quaternion.Angle(model.Rotations[AvatarBone.Head], Quaternion.AngleAxis(30f, Vector3.up)), Is.LessThan(0.01f), "Not mirrored once the option is off.");
+
+            // Ticking also saves the settings on a worker thread; let it finish before the folder goes.
+            await _service.ShutdownAsync(CancellationToken.None);
+        }
+
+        private async Task<AvatarService> StartAsync(ITrackingSource tracking = null, FrameLoop loop = null, IMonotonicClock clock = null)
         {
             ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(_config, new UtcSystemClock());
             var saves = new ConfigSaveScheduler<AvatarSettings>(store, new StopwatchMonotonicClock(), TimeSpan.Zero, null);
@@ -194,11 +249,12 @@ namespace VirtualVessel.Avatar.Tests
                 store.Load().Value,
                 saves,
                 () => new AvatarPlacement(5, s_spawn),
-                new FrameLoop(),
-                new StopwatchMonotonicClock(),
+                loop ?? new FrameLoop(),
+                clock ?? new StopwatchMonotonicClock(),
                 new UtcSystemClock(),
                 null,
-                null);
+                null,
+                tracking);
             await service.InitializeAsync(CancellationToken.None);
             return service;
         }
@@ -270,6 +326,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public IAvatarExpressions Expressions => this;
 
+            public IAvatarFaceShapes FaceShapes => null;
+
             public AvatarModelInfo Info { get; }
 
             public IReadOnlyList<string> CustomNames { get; } = Array.Empty<string>();
@@ -307,7 +365,7 @@ namespace VirtualVessel.Avatar.Tests
             {
             }
 
-            public void SetLookAt(float yawDegrees, float pitchDegrees)
+            public void SetLook(float yaw, float pitch)
             {
             }
 
@@ -327,6 +385,55 @@ namespace VirtualVessel.Avatar.Tests
                 {
                     UnityEngine.Object.DestroyImmediate(_root);
                 }
+            }
+        }
+    
+        private sealed class ManualClock : IMonotonicClock
+        {
+            public double Seconds { get; set; }
+
+            public long Frequency => 1_000_000;
+
+            public long GetTimestamp()
+            {
+                return (long)(Seconds * Frequency);
+            }
+
+            public TimeSpan GetElapsed(long startTimestamp, long endTimestamp)
+            {
+                return TimeSpan.FromSeconds((endTimestamp - startTimestamp) / (double)Frequency);
+            }
+        }
+
+        private sealed class FakeTracking : ITrackingSource
+        {
+            private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Running);
+            private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
+            private readonly ObservableValue<TrackingOptions> _options = new ObservableValue<TrackingOptions>(TrackingOptions.Default);
+
+            public IReadOnlyObservable<TrackingState> State => _state;
+
+            public IReadOnlyObservable<TrackingProblem> Problem => _problem;
+
+            public TrackingRegions Supported => TrackingRegions.All;
+
+            public IReadOnlyObservable<TrackingOptions> Options => _options;
+
+            public double ObservationsPerSecond => 30;
+
+            public TrackingFrame Current { get; } = new TrackingFrame();
+
+            public void Start()
+            {
+            }
+
+            public void Stop()
+            {
+            }
+
+            public void SetOptions(TrackingOptions options)
+            {
+                _options.Value = options;
             }
         }
     }

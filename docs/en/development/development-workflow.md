@@ -599,6 +599,8 @@ Then organize:
 If anything contradicts the system design, point it out instead of implementing.
 ```
 
+Before implementing, Claude Code reports the system design sections it read and the constraints they set. It reads the system design itself, not only the module's detailed design, so the user can see that the architecture was checked (CLAUDE.md section 13, step 2).
+
 ---
 
 # 11. Detailed Design
@@ -793,8 +795,13 @@ Review targets:
 - privacy
 - missing tests
 - inconsistencies with documentation
+- complexity: files that grew large, constructors and methods with many parameters, the same computation in more than one place, and changes that only pass a value through
 
 If problems are found, fix them within the task scope before proceeding to the pull request.
+
+Complexity grows a little with each feature, because adding a parameter or a second similar computation is easier than restructuring. Claude Code checks the points above at each step and reports them. When a cleanup would make the next change cheaper, it proposes the cleanup before the next step (CLAUDE.md section 13, step 9, and section 37).
+
+A refactoring shows that behavior did not change. When practical, the old and the new implementation get the same inputs and their results are compared; the old one may be kept temporarily in a test and removed before committing. The commit message and the pull request say what was compared and how (CLAUDE.md section 34).
 
 ---
 

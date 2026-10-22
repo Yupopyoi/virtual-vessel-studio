@@ -54,7 +54,7 @@ flowchart LR
 
 ## 3. Module境界
 
-- StageはCaptureの公開Contract（`ICaptureSources`、`IVideoCaptureSource`）、Videoの公開Contract（`IStreamScreenLayer`）、UIの公開Contract（`IFrameSource`）を使う。
+- StageはCaptureの公開Contract（`ICaptureSources`、`IVideoCaptureSource`）、Videoの公開Contract（`IStreamScreenLayer`）、UIの公開Contract（`IFrameSource`、`IStageLighting`）を使う。
 - 映像は`IVideoCaptureSource.Texture`をそのまま板に貼る。Captureの反転は映像そのものの向きの補正で、配置の左右反転（`FrameLayout.FlipHorizontal`）とは別に重なる。
 - Stageは映像をCopyしない。板の材質へTextureを設定するだけである。
 
@@ -66,20 +66,31 @@ flowchart LR
 |---|---|---|
 | `StageService` | Class（`IApplicationService`） | Stream Screenを作り、配置を読み込み、保存する |
 | `CaptureScreen` | Class（UIの`IFrameSource`） | 1つのCapture Sourceの板と配置。編集を受け付ける |
-| `StageSettings` | Class | 保存する内容（映像ごとの配置） |
+| `StageSettings` | Class | 保存する内容（映像ごとの配置、ライトの強さ） |
 | `ScreenPlacementMath` | Static Class | 配置から板の位置、大きさ、UVを求める（純粋関数） |
 | `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き |
 | `IAvatarSpawnPoints` | Interface | アバターの立つ位置（7.1） |
+| `IStageLighting`（UI） | Interface | ライトの強さ。設定画面が変え、Stageが実装する（7.1） |
+| `StageLightIntensity`（UI） | Static Class | ライトの強さの範囲と既定、範囲に収める関数（純粋関数） |
 
 ---
 
 ## 5. Public API
 
 ```csharp
-public sealed class StageService : IApplicationService, IAvatarSpawnPoints
+public sealed class StageService : IApplicationService, IAvatarSpawnPoints, IStageLighting
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // 配置編集へ渡す。重なり順ではなくSourceの順
     public IAvatarSpawnPoints SpawnPoints { get; }        // アバターの立つ位置（7.1）
+    public IReadOnlyObservable<float> Intensity { get; }  // ライトの強さ（7.1）。1が作ったときのライト
+    public void SetIntensity(float intensity);            // すぐにライトへ反映し、保存する。Main Threadから
+}
+
+// UI（VirtualVessel.UI.Lighting）。StageはUIを参照するため、窓口はUIに置く（IFrameSourceと同じ）
+public interface IStageLighting
+{
+    IReadOnlyObservable<float> Intensity { get; }
+    void SetIntensity(float intensity);
 }
 
 public interface IAvatarSpawnPoints
@@ -90,6 +101,7 @@ public interface IAvatarSpawnPoints
 
 - Compositionは`Screens`をUIへ渡す。UIは`IFrameSource`だけを見る。
 - Compositionは`SpawnPoints.Default`を、`AvatarPlacement`の一部としてAvatarへ渡す（Avatar詳細設計3章）。
+- Compositionは`StageService`を`IStageLighting`としてUIへ渡す。設定画面の表情の調整のCardが、映像の横で強さを変える（UI `setup.md` 9章）。
 
 ---
 
@@ -122,13 +134,16 @@ public interface IAvatarSpawnPoints
   "screens": {
     "game": { "placement": [0, 0, 1, 1], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 0 },
     "subscreen": { "placement": [0.66, 0.04, 0.3, 0.3], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 1 }
-  }
+  },
+  "lightIntensity": 0.7
 }
 ```
 
 - 設定のFolder（UIの`ui-settings.json`と同じ、方式設計6.8）に置き、`ConfigFileStore`（ProjectData）で読み書きする。壊れていたら退避して既定に戻す。
 - 知らないIdの配置は消さずに残す（CLAUDE.md 25章）。
 - 確定（`LayoutCommitted`）のたびに、最後の確定から0.5秒後に保存する。終了時に未保存の分を保存する。
+- `lightIntensity`はライトの強さ（7.1）。変えるまでは`null`で、既定（1）を使う。既定を良くしたとき、変えていない利用者にも届くようにするため。範囲の外の値（手で書き換えたファイル等）は近い端として、数でない値は既定として読む。Sliderで続けて変えている間は保存せず、最後の変更から0.5秒後に保存する。
+- `lightIntensity`がない古いファイルは既定で読むため、版（`schemaVersion`）は1のままとする。
 - Project / Profileができたら、そちらへ移す（17章）。
 
 ### 6.4 名前の翻訳
@@ -154,7 +169,9 @@ public interface IAvatarSpawnPoints
 ### 7.1 アバターのSpawn Pointとライト（Stage Sceneができるまで）
 
 - Stage Sceneが自分のSpawn Pointを持つまでは（方式設計11.6）、Spawn Pointを1つだけ出す：原点で、-ZにあるMain Camera（Video詳細設計7.5）の方へ180°向ける。
-- Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時に平行光のライト`StageDefaultLight`を作る：カメラの上の少し左から（回転35°、15°、0°）、強さ1、影なし。自分のライトを持つStage Sceneができたら、それに置き換える。
+- Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時に平行光のライト`StageDefaultLight`を作る：カメラの上の少し左から（回転35°、15°、0°）、影なし。自分のライトを持つStage Sceneができたら、それに置き換える。
+- ライトの強さは、利用者が設定画面で変えられる（`IStageLighting`。利用者の要望、2026-10-21）。強さ1のライトでは、顔が白く飛んで表情が見にくかったため。範囲は10〜150%、既定は100%（強さ1）。強さは作ったときのライトに掛ける倍率とし、Stage Sceneができたときもその照明全体の明るさの調整として使えるようにする（17章）。
+- 方式設計11.7では、照明はStageが管理する。強さの設定もStageが持ち、`stage-settings.json`に保存する（6.3）。配信の映像も変わるため、表示を見るためだけの映像の高さや拡大（UI `setup.md` 9章）とは違い、保存する。
 
 ---
 
@@ -218,6 +235,7 @@ public interface IAvatarSpawnPoints
 |---|---|
 | EditMode | `ScreenPlacementMath`（位置、大きさ、UV、上下の入れ替え、左右反転、重なり）、`StageSettings`の読み書きと既定（純粋関数と偽のStore） |
 | EditMode | `CaptureScreen`：映像の変化で表示が切り替わる、確定で保存が予約される、不正な配置を拒否する |
+| EditMode | ライトの強さ：既定、範囲に収める、保存した値の読み込み（純粋関数）、変えるとすぐにライトへ反映し、遅れて保存し、次の起動で読み戻す |
 | PlayMode | 置いた映像が、Stream Render Targetの決めた位置に描かれること（画素を読み戻す） |
 
 ---
@@ -257,6 +275,7 @@ Assets/VirtualVessel/Stage/
 | 3Dの舞台の中のScreen Surface | Stage Sceneの設計時 |
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
 | 配置をProject / Profileへ移す | Project / Profileの設計時 |
+| Stage Sceneの照明とライトの強さ | Stage Sceneの設計時。強さを、Stage Sceneの照明全体に掛ける倍率として使うかを決める |
 
 ---
 

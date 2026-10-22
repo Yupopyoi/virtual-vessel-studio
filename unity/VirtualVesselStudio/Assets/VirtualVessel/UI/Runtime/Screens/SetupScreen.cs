@@ -2,28 +2,27 @@ using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
-using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Controls;
-using VirtualVessel.UI.Dialogs;
 
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The settings screen (id "setup"): a capture Card per source shown on the stream, the tracking
-    /// Card, the avatar Card, the app settings, then the credits (docs/&lt;lang&gt;/ui/screens/setup.md),
-    /// each closed until opened.
+    /// Card, the avatar Card, face tuning, the app settings, then the credits
+    /// (docs/&lt;lang&gt;/ui/screens/setup.md), each closed until opened.
     /// </summary>
     public sealed class SetupScreen : VisualElement
     {
         public const string UssClass = "vv-setup";
 
-        /// <param name="captures">The capture sources; null says capture is unavailable.</param>
-        /// <param name="tracking">Tracking; null says it is unavailable.</param>
-        /// <param name="avatars">Avatars; null says they are unavailable.</param>
-        /// <param name="files">The file-picking screen for registering avatars; null disables registering.</param>
-        /// <param name="credits">The shipped license files; null leaves the credits out.</param>
-        public SetupScreen(ICaptureSources captures, VisualElement appSettings, ITrackingSource tracking = null, IAvatarService avatars = null, IFileDialog files = null, ICreditFiles credits = null)
+        /// <param name="services">What the Cards show; a service that is null is said to be unavailable or left out.</param>
+        /// <param name="appSettings">The app settings Card, which the UI root builds from the UI's own settings.</param>
+        public SetupScreen(ScreenServices services, VisualElement appSettings)
         {
+            services ??= new ScreenServices();
+            ICaptureSources captures = services.Captures;
+            ITrackingSource tracking = services.Tracking;
+            IAvatarService avatars = services.Avatars;
             AddToClassList(UssClass);
             if (captures == null)
             {
@@ -52,7 +51,8 @@ namespace VirtualVessel.UI.Screens
 
             if (avatars != null)
             {
-                Add(new AvatarCard(avatars, files));
+                Add(new AvatarCard(avatars, services.FileDialog));
+                Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
             }
             else
             {
@@ -64,9 +64,9 @@ namespace VirtualVessel.UI.Screens
                 Add(appSettings);
             }
 
-            if (credits != null)
+            if (services.Credits != null)
             {
-                Add(new CreditsCard(credits));
+                Add(new CreditsCard(services.Credits));
             }
 
             CloseCards(this);

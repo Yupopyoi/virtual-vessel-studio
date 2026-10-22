@@ -42,7 +42,7 @@ namespace VirtualVessel.UI.Tests
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, captures: new FakeSources(_game, _sub, _camera), tracking: _tracking, credits: new FakeCredits()));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Captures = new FakeSources(_game, _sub, _camera), Tracking = _tracking, Credits = new FakeCredits() }));
             yield return null;
         }
 
@@ -107,6 +107,25 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(card.Expanded, Is.False, "Enter or Space on the focused title closes it again.");
             Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
+        public IEnumerator TheTrackingCard_ChoosesTheMovementSpeed_AndFollowsIt()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card.Speed.value, Is.EqualTo((float)SmoothingLevel.Default));
+
+            card.Speed.value = 8f;
+            Assert.That(_tracking.Options.Value.Smoothing, Is.EqualTo(8));
+
+            _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(2));
+            Assert.That(card.Speed.value, Is.EqualTo(2f), "Follows a change made elsewhere.");
+
+            Assert.That(TrackingCard.LevelOf(7.5f), Is.EqualTo(8));
+            Assert.That(TrackingCard.LevelOf(0f), Is.EqualTo(SmoothingLevel.Min));
+            Assert.That(TrackingCard.LevelOf(12f), Is.EqualTo(SmoothingLevel.Max));
         }
 
         [UnityTest]
