@@ -749,7 +749,7 @@ Assets/VirtualVessel/Avatar/
 | 表情の既定値 | 決定：利用者がカメラで調整した値を既定とした（7.4、2026-10-21）。ほかの人の顔で合わない場合は、調整の画面で変える |
 | FBX | Libraryの選択から。v0.1.0の後 |
 | Spawn Point、カメラの位置の調整の画面 | Stage Scene、Camera Pointの設計時 |
-| 設定をProject / Profileへ移す | Project / Profileの設計時 |
+| 設定をProject / Profileへ移す | 段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
 
 ---
 

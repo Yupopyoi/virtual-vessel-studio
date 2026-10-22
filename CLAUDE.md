@@ -586,7 +586,10 @@ The local reference directories are:
 
 ```text
 E:\VirtualVessel\benchmarks\VCBM
-    Voice: VoxCPM voice generation driven from Unity, RVC training and conversion.
+    Voice: VoxCPM voice generation driven from Unity (branch main), and RVC: ONNX export of
+    ContentVec, RMVPE, and RVC v2 and their inference with Unity Inference Engine on the GPU,
+    converting WAV files in chunks (branch feature/rvc). The user confirmed real-time conversion
+    within 200 ms in a prototype; that real-time code is not in this snapshot.
 
 E:\VirtualVessel\benchmarks\GameCaptureUnityPlugin
     Capture: capture-board video and audio input into Unity.

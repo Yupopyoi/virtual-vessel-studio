@@ -749,7 +749,7 @@ Assets/VirtualVessel/Avatar/
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
 | FBX | Starting with the choice of library. After v0.1.0 |
 | Screens for adjusting the spawn point and camera position | When designing Stage Scenes and Camera Points |
-| Moving settings to Project / Profile | When designing Project / Profile |
+| Moving settings to Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
 
 ---
 

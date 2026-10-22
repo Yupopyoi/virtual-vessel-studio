@@ -6609,9 +6609,11 @@ Audio input is obtained from the microphone device selected by the user.
 For output destinations, at least the following are handled separately:
 
 - monitor output for the user to check themselves
-- output passed to streaming software such as OBS
+- output passed to the stream
 
-For streaming output, the basic approach is to use a virtual microphone, etc. so that other applications can use it as a normal audio input device.
+For streaming output, the basic approach is to pass it to the streaming within this application (chapter 10).
+
+A virtual microphone (an output other applications see as an audio input device) is not a standard feature (user's decision, 2026-10-22). It needs a signed audio driver, which this application cannot provide on its own, and existing products cannot be bundled for distribution. Its original purpose was testing without speaking aloud; how to do that is decided with the audio module's design.
 
 ### Rationale
 
@@ -6636,6 +6638,8 @@ Inference runs inside Unity; processing is not requested in real time from the P
 On the Unity side, the inference model is loaded, and the required pre-processing, feature extraction, F0 estimation, RVC inference, etc. are executed.
 
 The current configuration is based on inference with Unity Inference Engine (formerly Unity Sentis).
+
+The user confirmed in a prototype that real-time RVC inference with Unity Inference Engine runs within 200 ms (15.4), and that the load is acceptable while tracking and the rest run at the same time (as of 2026-10-22). The reference prototype (ONNX export of ContentVec, RMVPE, and RVC v2, and WAV conversion on the GPU) is on the `feature/rvc` branch of VCBM, outside the repository. The real-time code is not included there.
 
 ### Rationale
 
@@ -7307,6 +7311,8 @@ IVideoEncoder
 ```
 
 In environments where it is available, hardware encoding provided by the GPU, etc. can be used preferentially.
+
+The encoder is built on Windows' own features (Media Foundation and the like), using external libraries as little as possible (user's decision, 2026-10-22). The concrete method is decided when the streaming implementation starts.
 
 ### Rationale
 

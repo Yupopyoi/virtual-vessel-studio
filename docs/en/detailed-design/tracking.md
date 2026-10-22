@@ -630,7 +630,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 | Distance at which a face counts as away from the body (12% of the image width) | Provisional. Revisited if mistakes remain with a real camera |
 | Adding full body (`FullBody`) | After v0.1.0 |
 | Combining lip sync from voice with face tracking | When designing Voice / Audio |
-| Moving tracking settings to Project / Profile | When designing Project / Profile |
+| Moving tracking settings to Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
 
 ---
 

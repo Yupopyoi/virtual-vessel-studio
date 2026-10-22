@@ -274,7 +274,7 @@ Assets/VirtualVessel/Stage/
 | Stage Scene、Camera Point、Avatar Spawn Point | Stage Sceneの設計時 |
 | 3Dの舞台の中のScreen Surface | Stage Sceneの設計時 |
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
-| 配置をProject / Profileへ移す | Project / Profileの設計時 |
+| 配置をProject / Profileへ移す | 段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
 | Stage Sceneの照明とライトの強さ | Stage Sceneの設計時。強さを、Stage Sceneの照明全体に掛ける倍率として使うかを決める |
 
 ---
