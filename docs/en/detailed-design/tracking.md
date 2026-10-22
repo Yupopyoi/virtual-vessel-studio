@@ -630,6 +630,7 @@ Pure functions computed in EditMode (`TrackingMetrics`).
 
 - The camera image shows the user's face and room. It never leaves the process and is not written to files, logs, or diagnostics. Reading for inference happens only inside reused buffers.
 - The tracking camera image is not put on the stream (5.4).
+- The skeleton comparison on the developer Diagnostics screen (UI foundation detailed design 7.7) shows the camera image with the face covered, and covers the whole image while the face's place is not known. The image is not recorded either.
 - Observations (face points, expression values, body points) can also contain personal characteristics. Recording (chapter 12) happens only when a developer starts it on the Diagnostics screen, and goes to `Cache/TrackingRecordings/` in the Data Root. What a recording holds is not written to logs or included in diagnostics exports, and never leaves the PC. While recording, the Diagnostics screen shows "Recording" with an icon and text. Logs carry only the file name, the length, and the count.
 - MediaPipe runs inference inside the process and does not communicate over the network. Model files are included in the distribution and are not downloaded at run time. The versions and hashes (SHA-256) of models and the plugin are pinned in the SBOM and the setup script (16.2).
 - Inference failures (invalid input, plugin exceptions) are caught inside the provider and become `Error`; they do not crash the application.

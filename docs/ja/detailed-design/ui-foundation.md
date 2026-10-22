@@ -561,6 +561,7 @@ public interface IUiCommand
   - 観測は、アバターと同じく鏡写しの設定に従って左右を入れ替えて描く（`PoseRetargeting.Joint`）。
   - 下に表を置き、左右の上腕の上げ角（水平から上）と前への角（真横から）、肘の曲がり、胴の左右と前後の傾きを、観測とアバターで並べる（度、整数）。値は純粋関数（`SkeletonProjection`、`SkeletonCard.Rows`）で求める。
   - 表示している間だけ、約50msごとに描き直す。アバターがないときは観測だけを描き、体の観測がないときは「体の観測がありません」と出す。記録の再生でも使える。
+  - 2枚の図の横に、トラッキング用カメラの映像を、観測した点を重ねて出す（利用者の要望、2026-10-23。実際の腕と見比べるため）。**顔は隠す**：両耳の中点（耳が見えなければ鼻）を中心に、肩幅から決めた大きめの不透明な楕円で塗りつぶす（`FaceCover`）。肩幅を使うのは、頭を横に向けても小さくならないため。大きめにするのは、頭の位置が映像より推論1回分（約80ms）遅れて届くため。鼻か両肩が見えないとき、体を見失ったときは、映像全体を隠す。ぼかしは使わない（強さによっては顔が分かるため）。画面を隠したら映像を外す。再生中はカメラが止まるため「映像なし」になる。
 - Component Gallery（部品見本）：`styleboard.html`の「共通コンポーネント」と同じ部品をUnity上で並べ、見た目と動きを確認する（`ComponentGalleryScreen`）。
   - UIを作るための道具であり、アプリの一部ではないため、Unityエディタで実行したときだけ含める（`#if UNITY_EDITOR`）。配布するアプリ（開発用ビルドを含む）には、画面もコードも入らない。文字列表のKeyは残るが、表示されることはない。
   - エディタでも、Developer Modeのときだけ、ナビゲーションの診断の下に表示する。アイコンは`Gallery`（2×2の四角）。
@@ -1123,7 +1124,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, FaceCover, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
