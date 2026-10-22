@@ -756,7 +756,7 @@ Examples:
 | Repository checks | `python tools/ci/repo_checks.py` |
 | UI images | `pwsh tools/ui/capture-ui.ps1` |
 
-- Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). Close the Editor, or pass another working copy made with `git worktree` as `-Project`.
+- Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). To keep the Editor open, add `-Copy`: it mirrors the working tree, uncommitted changes included, into a folder next to it (`VirtualVesselStudio-test`) and runs there. The copy keeps its own Library, so the first run imports the whole project and takes a while; later runs copy only the files that changed. Otherwise, close the Editor, or pass another working copy made with `git worktree` as `-Project`.
 - Results and logs go to `build/` (not in Git).
 
 ## 14.1 Updating Fetched Dependencies

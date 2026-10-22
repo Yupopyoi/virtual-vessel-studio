@@ -764,7 +764,7 @@ Pull Requestを作る前に、可能な範囲でLocal Testを実行する。
 | Repository checks | `python tools/ci/repo_checks.py` |
 | UIの画像 | `pwsh tools/ui/capture-ui.ps1` |
 
-- UnityのTestとBuildは、そのProjectをEditorで開いている間は実行できない（Unityが同じProjectを2つ同時に開けないため）。Editorを閉じるか、`git worktree`で作った別の作業Copyを`-Project`で指定する。
+- UnityのTestとBuildは、そのProjectをEditorで開いている間は実行できない（Unityが同じProjectを2つ同時に開けないため）。Editorを開いたまま動かすときは`-Copy`を付ける：作業中の内容（Commitしていない変更を含む）を隣のFolder（`VirtualVesselStudio-test`）へ写し、そこで動かす。写した側は自分のLibraryを持つため、最初の1回はProject全体の読み込みで時間がかかり、2回目からは変わったFileだけを写す。ほかに、Editorを閉じるか、`git worktree`で作った別の作業Copyを`-Project`で指定してもよい。
 - 結果とLogは`build/`（Gitの管理外）に出る。
 
 ## 14.1 取得して使う依存の更新

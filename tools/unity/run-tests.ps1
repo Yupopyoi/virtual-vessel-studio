@@ -5,7 +5,8 @@ Runs the Unity tests in batch mode and prints a summary.
 .DESCRIPTION
 Runs EditMode or PlayMode tests of the Unity project with the project's Unity version and writes
 the results and the log next to each other (development workflow 14). Unity must not have the
-project open: close the Editor first, or pass -Project for another working copy (a git worktree).
+project open: close the Editor first, pass -Copy to test a mirrored copy of the working tree, or
+pass -Project for another working copy (a git worktree).
 
 .PARAMETER Platform
 EditMode (default) or PlayMode.
@@ -22,14 +23,25 @@ The Unity project folder; the repository's unity/VirtualVesselStudio by default.
 .PARAMETER Output
 Folder for results.xml and log.txt; build/test-results/<platform> by default.
 
+.PARAMETER Copy
+Mirrors the working tree, uncommitted changes included, into -CopyRoot and runs the tests there,
+so the Editor can stay open on this project. The copy keeps its own Library: the first run imports
+the whole project and takes a while; later runs copy only what changed.
+
+.PARAMETER CopyRoot
+Where -Copy mirrors the repository; a VirtualVesselStudio-test folder next to it by default.
+
 .EXAMPLE
 pwsh tools/unity/run-tests.ps1 -Platform PlayMode -Filter VirtualVessel.Video.Tests
+pwsh tools/unity/run-tests.ps1 -Copy
 #>
 param(
     [ValidateSet('EditMode', 'PlayMode')] [string] $Platform = 'EditMode',
     [string] $Filter,
     [string] $Project,
     [string] $Output,
+    [switch] $Copy,
+    [string] $CopyRoot,
     [string] $UnityPath
 )
 
@@ -37,6 +49,20 @@ $ErrorActionPreference = 'Stop'
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (-not $Project) { $Project = Join-Path $repository 'unity\VirtualVesselStudio' }
 if (-not $Output) { $Output = Join-Path $repository "build\test-results\$Platform" }
+if ($Copy)
+{
+    if (-not $CopyRoot) { $CopyRoot = Join-Path (Split-Path $repository -Parent) ((Split-Path $repository -Leaf) + '-test') }
+
+    # Unity's own folders are excluded by name, so the copy keeps its Library between runs; the
+    # repository's output folders by full path, because Assets has a Build folder of its own.
+    $excluded = @('.git', '.claude', '.vs', '.vscode', 'Library', 'Temp', 'Logs', 'obj', 'UserSettings',
+        (Join-Path $repository 'build'), (Join-Path $repository 'screenshots'))
+    robocopy $repository $CopyRoot /MIR /NFL /NDL /NJH /NJS /NP /R:1 /W:1 /XD @excluded | Out-Null
+
+    # robocopy reports copies with codes below 8; 8 and above are failures.
+    if ($LASTEXITCODE -ge 8) { throw "Mirroring the repository to $CopyRoot failed (robocopy exit code $LASTEXITCODE)." }
+    $Project = Join-Path $CopyRoot 'unity\VirtualVesselStudio'
+}
 . (Join-Path $PSScriptRoot 'unity-path.ps1')
 $unity = Get-UnityPath -Project $Project -UnityPath $UnityPath
 
