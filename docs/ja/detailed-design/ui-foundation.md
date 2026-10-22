@@ -555,6 +555,12 @@ public interface IUiCommand
   - 説明はデータの文字として表示し、Rich Textとして解釈しない。
   - 経過時間は、記録中だけ1秒ごとに描き直す。
   - Developer Modeをオフにしたら、記録と再生を止める（`DeveloperModeReceivers`）。
+- 骨格の見比べ（`SkeletonCard`、2026-10-22）：トラッキングが観測した上半身と、アバターが出している上半身を並べて描き、腕の向きや高さのずれが、トラッキングの入力にあるのか、アバターへの移し方（Avatar詳細設計7.2）にあるのかを見分ける。Trackingの`ITrackingSource`が使えるときだけ、記録のCardの下に置く。
+  - 正面（左右と上下）と横（アバターの右から見て、前が右）の2枚を描く（`SkeletonView`）。観測は実線、アバターは破線とし、色だけでなく線の形で見分ける。腰を通る水平の線を薄く引く。
+  - アバターの腕は、観測した肩から、アバターの骨の向きに、観測した骨の長さで描く。向きが合っていれば観測と重なる。胴も、観測した腰から、アバターの胴の向きに描く。
+  - 観測は、アバターと同じく鏡写しの設定に従って左右を入れ替えて描く（`PoseRetargeting.Joint`）。
+  - 下に表を置き、左右の上腕の上げ角（水平から上）と前への角（真横から）、肘の曲がり、胴の左右と前後の傾きを、観測とアバターで並べる（度、整数）。値は純粋関数（`SkeletonProjection`、`SkeletonCard.Rows`）で求める。
+  - 表示している間だけ、約50msごとに描き直す。アバターがないときは観測だけを描き、体の観測がないときは「体の観測がありません」と出す。記録の再生でも使える。
 - Component Gallery（部品見本）：`styleboard.html`の「共通コンポーネント」と同じ部品をUnity上で並べ、見た目と動きを確認する（`ComponentGalleryScreen`）。
   - UIを作るための道具であり、アプリの一部ではないため、Unityエディタで実行したときだけ含める（`#if UNITY_EDITOR`）。配布するアプリ（開発用ビルドを含む）には、画面もコードも入らない。文字列表のKeyは残るが、表示されることはない。
   - エディタでも、Developer Modeのときだけ、ナビゲーションの診断の下に表示する。アイコンは`Gallery`（2×2の四角）。
@@ -1117,7 +1123,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

@@ -331,6 +331,7 @@ public interface IAvatarService
     IReadOnlyObservable<FaceTuning> FaceTuning { get; }                        // Face tuning (7.4)
     void SetFaceTuning(FaceTuning tuning);                                     // Applies at once and saves
     FaceTarget Face { get; }                                                   // The face this frame; null without an avatar
+    BodyTarget Body { get; }                                                   // The upper body this frame, for the skeleton comparison on the Diagnostics screen; null without an avatar
 }
 ```
 

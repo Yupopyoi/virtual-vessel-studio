@@ -331,6 +331,7 @@ public interface IAvatarService
     IReadOnlyObservable<FaceTuning> FaceTuning { get; }                        // 表情の調整（7.4）
     void SetFaceTuning(FaceTuning tuning);                                     // すぐに反映して保存する
     FaceTarget Face { get; }                                                   // このFrameの顔。アバターがなければnull
+    BodyTarget Body { get; }                                                   // このFrameの上半身。診断画面の骨格の見比べ用。アバターがなければnull
 }
 ```
 

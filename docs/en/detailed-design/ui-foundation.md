@@ -555,6 +555,12 @@ Two more screens get minimal content that may be revised later:
   - The description is shown as data text and never parsed as rich text.
   - The elapsed time is redrawn once a second, only while recording.
   - Turning Developer Mode off stops recording and replay (`DeveloperModeReceivers`).
+- Skeleton comparison (`SkeletonCard`, 2026-10-22): the upper body tracking observed beside the one the avatar shows. It tells whether a mismatch in an arm's direction or height comes from tracking's input or from moving it onto the avatar (avatar detailed design 7.2). Placed under the recordings Card only when Tracking's `ITrackingSource` is available.
+  - Two views are drawn (`SkeletonView`): the front (left-right and up-down) and the side (from the avatar's right, front to the right). Tracking is solid and the avatar dashed, so they differ by shape as well as color. A faint level line runs through the hips.
+  - The avatar's arms are drawn from the tracked shoulders along the avatar's bones with the tracked lengths, so they overlap tracking where the directions match. The torso is drawn the same way from the tracked hips.
+  - Tracking is drawn on the avatar's sides, following the mirroring setting as the avatar does (`PoseRetargeting.Joint`).
+  - A table below lists, for tracking and the avatar, each upper arm's rise above level and turn forward from the side, each elbow's bend, and the torso's tilt and lean (whole degrees). The values come from pure functions (`SkeletonProjection`, `SkeletonCard.Rows`).
+  - It is redrawn about every 50 ms, only while shown. Without an avatar only tracking is drawn; without a tracked body it says so. It works on replayed recordings too.
 - Component Gallery: the same parts as the "Common components" of `styleboard.html`, laid out in Unity to check how they look and work (`ComponentGalleryScreen`).
   - It is a tool for building the UI, not part of the application, so it is included only when running in the Unity Editor (`#if UNITY_EDITOR`). Built applications, development builds included, contain neither the screen nor its code. Its string table keys stay but are never shown.
   - Even in the Editor, it shows only in Developer Mode, below Diagnostics in the navigation. Its icon is `Gallery` (a 2×2 grid of squares).
@@ -1117,7 +1123,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText (setup.md chapter 8)   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss
