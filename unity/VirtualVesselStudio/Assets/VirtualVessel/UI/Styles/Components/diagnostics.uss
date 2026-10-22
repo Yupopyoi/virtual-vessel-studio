@@ -68,3 +68,8 @@
     white-space: normal;
     color: var(--vv-color-text-2);
 }
+
+/* The face in the tracking camera's image stays covered (UI foundation detailed design 7.7). */
+.vv-face-cover {
+    --face-cover: var(--vv-color-surface-3);
+}

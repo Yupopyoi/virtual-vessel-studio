@@ -113,6 +113,8 @@
         "diagnostics.skeleton.legend": "Solid: what tracking observed. Dashed: the avatar, drawn from the tracked shoulders along the avatar's bones with the tracked lengths. They overlap where the directions match. Shown on the avatar's sides, following the mirroring setting.",
         "diagnostics.skeleton.front": "Front",
         "diagnostics.skeleton.side": "Side (from the avatar's right; front to the right)",
+        "diagnostics.skeleton.camera": "Camera (face covered)",
+        "diagnostics.skeleton.camera.note": "While the face's place is not known, the whole image is covered. The image never goes to the stream or a recording.",
         "diagnostics.skeleton.no-body": "No body is tracked. Start tracking or replay a recording.",
         "diagnostics.skeleton.column.item": "Item",
         "diagnostics.skeleton.column.tracked": "Tracked",

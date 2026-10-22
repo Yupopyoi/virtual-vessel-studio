@@ -113,6 +113,8 @@
         "diagnostics.skeleton.legend": "実線：トラッキングの観測。破線：アバター（観測した肩から、アバターの骨の向きに、観測した長さで描く）。向きが合っていれば重なります。鏡写しの設定に合わせて、アバターの左右で表示します。",
         "diagnostics.skeleton.front": "正面",
         "diagnostics.skeleton.side": "横（アバターの右から。右が前）",
+        "diagnostics.skeleton.camera": "カメラ（顔は隠します）",
+        "diagnostics.skeleton.camera.note": "顔の位置が分からない間は、映像全体を隠します。映像は配信にも記録にも入りません。",
         "diagnostics.skeleton.no-body": "体の観測がありません。トラッキングを開始するか、記録を再生してください。",
         "diagnostics.skeleton.column.item": "項目",
         "diagnostics.skeleton.column.tracked": "観測",

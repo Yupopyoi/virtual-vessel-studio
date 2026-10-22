@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
+using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
@@ -17,6 +19,8 @@ namespace VirtualVessel.UI.Screens
         public const string Legend = "diagnostics.skeleton.legend";
         public const string Front = "diagnostics.skeleton.front";
         public const string Side = "diagnostics.skeleton.side";
+        public const string Camera = "diagnostics.skeleton.camera";
+        public const string CameraNote = "diagnostics.skeleton.camera.note";
         public const string NoBody = "diagnostics.skeleton.no-body";
         public const string ColumnItem = "diagnostics.skeleton.column.item";
         public const string ColumnTracked = "diagnostics.skeleton.column.tracked";
@@ -32,9 +36,10 @@ namespace VirtualVessel.UI.Screens
     }
 
     /// <summary>
-    /// The tracked upper body beside the avatar's, from the front and from the side, with their angles
-    /// (UI foundation detailed design 7.7), to tell whether tracking or the retargeting is off. Shown on
-    /// the Diagnostics screen, so only in Developer Mode; it refreshes only while that screen is shown.
+    /// The tracked upper body beside the avatar's, from the front and from the side, with their angles and
+    /// the tracking camera's image with the face covered (UI foundation detailed design 7.7), to tell
+    /// whether tracking or the retargeting is off. Shown on the Diagnostics screen, so only in Developer
+    /// Mode; it refreshes only while that screen is shown. The image never goes to the stream or a recording.
     /// </summary>
     public sealed class SkeletonCard : VisualElement
     {
@@ -69,13 +74,18 @@ namespace VirtualVessel.UI.Screens
         private readonly IAvatarService _avatars;
         private readonly SkeletonSegment[] _segments = new SkeletonSegment[SkeletonProjection.MaxSegments];
         private readonly KeyedText _note;
+        private readonly IVideoCaptureSource _camera;
+        private readonly Label _noVideo;
         private IVisualElementScheduledItem _refresh;
+        private IDisposable _video;
 
         /// <param name="avatars">The avatars, to draw the one on the stream beside tracking; null draws tracking only.</param>
-        public SkeletonCard(ITrackingSource tracking, IAvatarService avatars)
+        /// <param name="camera">The tracking camera, to show the person's arms with the face covered; null leaves the image out.</param>
+        public SkeletonCard(ITrackingSource tracking, IAvatarService avatars, IVideoCaptureSource camera = null)
         {
             _tracking = tracking;
             _avatars = avatars;
+            _camera = camera;
             AddToClassList(UssClass);
             Card card = Ui.Card(SkeletonStrings.Title);
             Add(card);
@@ -85,6 +95,24 @@ namespace VirtualVessel.UI.Screens
             views.AddToClassList(ViewsClass);
             Front = new SkeletonView(SkeletonPlane.Front);
             Side = new SkeletonView(SkeletonPlane.Side);
+            if (camera != null)
+            {
+                // The image, the points over it, and the cover over the face flip together in a mirror.
+                Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
+                Preview.AddToClassList(SkeletonView.UssClass);
+                Overlay = new TrackingOverlay();
+                Overlay.StretchToParentSize();
+                Cover = new FaceCover();
+                Cover.StretchToParentSize();
+                _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
+                Preview.Add(_noVideo);
+                Preview.Add(Overlay);
+                Preview.Add(Cover);
+                VisualElement pane = Pane(SkeletonStrings.Camera, Preview);
+                pane.Add(Ui.Text(SkeletonStrings.CameraNote, NoteClass, "vv-text-caption"));
+                views.Add(pane);
+            }
+
             views.Add(Pane(SkeletonStrings.Front, Front));
             views.Add(Pane(SkeletonStrings.Side, Side));
             card.Add(views);
@@ -100,6 +128,13 @@ namespace VirtualVessel.UI.Screens
         }
 
         public SkeletonView Front { get; }
+
+        /// <summary>The tracking camera's image; null without the camera.</summary>
+        public Image Preview { get; }
+
+        public TrackingOverlay Overlay { get; }
+
+        public FaceCover Cover { get; }
 
         public SkeletonView Side { get; }
 
@@ -142,6 +177,8 @@ namespace VirtualVessel.UI.Screens
                 return;
             }
 
+            _video = _camera?.Texture.Subscribe(ShowVideo);
+            ShowVideo(_camera?.Texture.Value);
             Refresh();
             _refresh = schedule.Execute(Refresh).Every(RefreshMilliseconds);
         }
@@ -150,6 +187,14 @@ namespace VirtualVessel.UI.Screens
         {
             _refresh?.Pause();
             _refresh = null;
+            _video?.Dispose();
+            _video = null;
+
+            // Nothing of the camera stays on screen once hidden.
+            if (Preview != null)
+            {
+                Preview.image = null;
+            }
         }
 
         internal void Refresh()
@@ -157,6 +202,7 @@ namespace VirtualVessel.UI.Screens
             BodyPose body = _tracking?.Current.Body;
             bool mirror = _tracking?.Options.Value.Mirror ?? true;
             BodyTarget avatar = _avatars?.Body;
+            ShowCamera(body, mirror);
             Front.Show(_segments, SkeletonProjection.Segments(body, avatar, mirror, SkeletonPlane.Front, _segments));
             Side.Show(_segments, SkeletonProjection.Segments(body, avatar, mirror, SkeletonPlane.Side, _segments));
             _note.Key = body != null && body.IsUsable ? null : SkeletonStrings.NoBody;
@@ -169,6 +215,32 @@ namespace VirtualVessel.UI.Screens
             }
 
             Table.SetRows(Rows(body, avatar, mirror, names));
+        }
+
+        private void ShowVideo(Texture texture)
+        {
+            if (Preview == null)
+            {
+                return;
+            }
+
+            Preview.image = texture;
+            _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void ShowCamera(BodyPose body, bool mirror)
+        {
+            if (Preview == null)
+            {
+                return;
+            }
+
+            Texture texture = Preview.image;
+            Rect image = texture == null ? default : TrackingOverlay.FitRect(Preview.contentRect.width, Preview.contentRect.height, texture.width, texture.height);
+            Overlay.Show(_tracking.Current, image);
+            Cover.Show(body, texture, image);
+            Preview.style.scale = new Scale(new Vector3(mirror ? -1f : 1f, 1f, 1f));
+            _noVideo.style.scale = new Scale(new Vector3(mirror ? -1f : 1f, 1f, 1f));
         }
 
         private static float Tilt(Vector3 right)
@@ -186,7 +258,7 @@ namespace VirtualVessel.UI.Screens
             return degrees.ToString("0", CultureInfo.InvariantCulture) + "°";
         }
 
-        private static VisualElement Pane(string titleKey, SkeletonView view)
+        private static VisualElement Pane(string titleKey, VisualElement view)
         {
             var pane = new VisualElement();
             pane.AddToClassList(PaneClass);

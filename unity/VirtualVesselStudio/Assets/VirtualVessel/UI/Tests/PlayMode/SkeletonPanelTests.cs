@@ -103,7 +103,34 @@ namespace VirtualVessel.UI.Tests
             Assert.That(SkeletonProjection.Project(new Vector3(0.1f, 0.2f, 0.3f), SkeletonPlane.Side), Is.EqualTo(new Vector2(0.3f, 0.2f)), "The side shows the front to the right.");
         }
 
-        private static void Body(BodyPose body, Vector3 leftArm, Vector3 rightArm)
+        [Test]
+        public void TheFace_IsFound_OrTheWholeImageIsCovered()
+        {
+            var body = new BodyPose();
+            Body(body, Vector3.down, Vector3.down);
+            body.ImagePositions[(int)BodyJoint.LeftShoulder] = new Vector2(0.6f, 0.6f);
+            body.ImagePositions[(int)BodyJoint.RightShoulder] = new Vector2(0.4f, 0.6f);
+            body.ImagePositions[(int)BodyJoint.LeftEar] = new Vector2(0.55f, 0.3f);
+            body.ImagePositions[(int)BodyJoint.RightEar] = new Vector2(0.45f, 0.3f);
+            body.ImagePositions[(int)BodyJoint.Nose] = new Vector2(0.5f, 0.32f);
+
+            Assert.That(FaceCover.TryLocate(body, 1000f, 500f, out Vector2 center, out Vector2 radii), Is.True);
+            Assert.That(center, Is.EqualTo(new Vector2(500f, 150f)), "Between the ears, in pixels.");
+            Assert.That(radii, Is.EqualTo(new Vector2(200f * FaceCover.HalfWidthPerShoulder, 200f * FaceCover.HalfHeightPerShoulder)), "From the shoulder width, which stays when the head turns.");
+
+            body.JointConfidence[(int)BodyJoint.LeftEar] = 0.1f;
+            FaceCover.TryLocate(body, 1000f, 500f, out center, out _);
+            Assert.That(center, Is.EqualTo(new Vector2(500f, 160f)), "On the nose when an ear is hidden.");
+
+            body.JointConfidence[(int)BodyJoint.Nose] = 0.1f;
+            Assert.That(FaceCover.TryLocate(body, 1000f, 500f, out _, out _), Is.False, "Not known: the whole image is covered.");
+            body.JointConfidence[(int)BodyJoint.Nose] = 0.9f;
+            body.Status = TrackingStatus.Lost;
+            Assert.That(FaceCover.TryLocate(body, 1000f, 500f, out _, out _), Is.False);
+            Assert.That(FaceCover.TryLocate(null, 1000f, 500f, out _, out _), Is.False);
+        }
+
+                private static void Body(BodyPose body, Vector3 leftArm, Vector3 rightArm)
         {
             body.Status = TrackingStatus.Tracked;
             body[BodyJoint.Hips] = Vector3.zero;
