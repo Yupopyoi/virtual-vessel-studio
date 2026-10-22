@@ -257,13 +257,13 @@ namespace VirtualVessel.Avatar.Tests
         [Test]
         public void Presence_HoldsALostFace_ThenGoesBack_AndComesBackQuickly()
         {
-            Assert.That(FaceMotion.NextPresence(0f, true, 0, 0.1f), Is.EqualTo(0.5f).Within(Tolerance), "Back in 0.2 s.");
-            Assert.That(FaceMotion.NextPresence(1f, false, 0.4, 0.1f), Is.EqualTo(1f), "Held for 0.5 s.");
-            Assert.That(FaceMotion.NextPresence(1f, false, 0.6, 0.1f), Is.EqualTo(0.9f).Within(Tolerance), "Then gone in 1 s.");
-            Assert.That(FaceMotion.NextPresence(0.05f, false, 2, 0.1f), Is.EqualTo(0f));
-            Assert.That(FaceMotion.Progress(10.0, 10.0, 0.033), Is.EqualTo(0f));
-            Assert.That(FaceMotion.Progress(10.0165, 10.0, 0.033), Is.EqualTo(0.5f).Within(0.001f));
-            Assert.That(FaceMotion.Progress(10.5, 10.0, 0.033), Is.EqualTo(1f), "A late observation holds the last one.");
+            Assert.That(MotionTiming.NextPresence(0f, true, 0, 0.1f), Is.EqualTo(0.5f).Within(Tolerance), "Back in 0.2 s.");
+            Assert.That(MotionTiming.NextPresence(1f, false, 0.4, 0.1f), Is.EqualTo(1f), "Held for 0.5 s.");
+            Assert.That(MotionTiming.NextPresence(1f, false, 0.6, 0.1f), Is.EqualTo(0.9f).Within(Tolerance), "Then gone in 1 s.");
+            Assert.That(MotionTiming.NextPresence(0.05f, false, 2, 0.1f), Is.EqualTo(0f));
+            Assert.That(MotionTiming.Progress(10.0, 10.0, 0.033), Is.EqualTo(0f));
+            Assert.That(MotionTiming.Progress(10.0165, 10.0, 0.033), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(MotionTiming.Progress(10.5, 10.0, 0.033), Is.EqualTo(1f), "A late observation holds the last one.");
         }
 
         [Test]
