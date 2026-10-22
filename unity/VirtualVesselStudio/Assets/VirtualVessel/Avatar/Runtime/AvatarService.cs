@@ -103,6 +103,8 @@ namespace VirtualVessel.Avatar
 
         public FaceTarget Face => _controller?.Face;
 
+        public BodyTarget Body => _controller?.Body;
+
         /// <summary>The avatar on the stream, or null; for tests.</summary>
         internal IAvatarModel Model => _model;
 

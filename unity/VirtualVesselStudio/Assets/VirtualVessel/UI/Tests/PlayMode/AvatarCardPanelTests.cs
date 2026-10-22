@@ -342,7 +342,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeAvatars : IAvatarService
+        internal sealed class FakeAvatars : IAvatarService
         {
             private readonly ObservableValue<IReadOnlyList<AvatarEntry>> _avatars = new ObservableValue<IReadOnlyList<AvatarEntry>>(Array.Empty<AvatarEntry>());
             private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
@@ -368,6 +368,8 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<FaceTuning> FaceTuning => _tuning;
 
             public FaceTarget Face { get; set; }
+
+            public BodyTarget Body { get; set; }
 
             public void SetFaceTuning(FaceTuning tuning)
             {
