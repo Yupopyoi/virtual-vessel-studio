@@ -311,23 +311,5 @@ namespace VirtualVessel.UI.Screens
             row.Add(control);
             return row;
         }
-
-        private sealed class DisposeAll : IDisposable
-        {
-            private readonly List<IDisposable> _items;
-
-            public DisposeAll(List<IDisposable> items)
-            {
-                _items = items;
-            }
-
-            public void Dispose()
-            {
-                foreach (IDisposable item in _items)
-                {
-                    item.Dispose();
-                }
-            }
-        }
     }
 }
