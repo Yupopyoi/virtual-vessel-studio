@@ -105,6 +105,10 @@ flowchart LR
 | `TrackingRegions` | Flags Enum | `Face`、`Body`、`LeftHand`、`RightHand`。Providerの能力と、有効にした部位を表す |
 | `BodyRange` | Enum | 動かす範囲：`UpperBody`、`FullBody`（6.5） |
 | `ITrackingProvider` | Interface | 観測を作る入力方式の契約（5.2） |
+| `ObservationTraits` | Flags Enum | Providerの観測の性質。合う補正を選ぶ（8.4）。`MonocularDepth`、`None` |
+| `IObservationCorrection` | Interface | 観測の補正の部品。効かせる性質（`Requires`）を持つ（8.4） |
+| `ObservationCorrections` | Class | 補正の一覧（`Catalog`）から、Providerの性質に合うものを選び、観測の写しに適用する（8.4） |
+| `CameraAxisArmStraightening` | Class | カメラの方を向いた腕を伸ばす補正（8.4のD。計算は純粋関数） |
 | `ITrackingSource` | Interface | 他のModuleが使う窓口。平滑化した最新の`TrackingFrame`、状態（5.1） |
 | `TrackingService` | Class（`IApplicationService`） | Providerの生成と起動、毎Frameの処理、設定、計測 |
 | `TrackingSettings` | Class | 保存する設定（10章） |
@@ -166,6 +170,7 @@ public readonly struct TrackingOptions
 public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
+    ObservationTraits Traits { get; }                          // 観測の性質。合う補正を選ぶため（8.4）。MediaPipeはMonocularDepth
     IReadOnlyObservable<TrackingState> State { get; }          // SourceとProviderで同じ状態を使う
     void Start(TrackingOptions options);                       // 待たずに戻る。結果はStateで知らせる
     void SetOptions(TrackingOptions options);                  // 動作中に変える。無効にした部位の推論は止まる
@@ -179,7 +184,7 @@ public interface ITrackingProvider : IDisposable
 ```
 
 - Providerが出す観測は、平滑化する前の`TrackingFrame`である（6章。平滑化の前と後で同じ型を使い、写すだけで済むようにする）。Providerごとの違い（座標系、点の番号、左右）は、Providerの中で共通の形へ変換してから出す（方式設計8.8）。
-- 新しいProvider（mocopi等）は、この契約を実装するだけで追加できる。
+- 新しいProvider（mocopi等）は、この契約を実装するだけで追加できる。観測の性質（`Traits`）を正しく申告すれば、合う補正（8.4）だけがかかる。
 
 ### 5.3 TrackingService
 
@@ -399,16 +404,37 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 - 関節ごとに、前の値からの速さが上限（例：手首で毎秒8m）を超えた値は、その回は使わない。続けて超える場合（本当に速く動いた場合）は、3回目から受け入れる。
 - 信頼度（MediaPipeのVisibility、Presence）がしきい値未満の点は`LowConfidence`とし、平滑化を強める。
 
-### 8.4 奥行き（手前・奥）
+### 8.4 奥行き（手前・奥）と観測の補正
 
-単眼のカメラでは、奥行きは画像上の位置に比べて不確かである。MediaPipe PoseのWorld Landmarksの奥行き（z）は、腕を前に伸ばす等の動きで大きく揺れ、向きが反転することもある。製品では次のように扱う。
+単眼のカメラでは、奥行きは画像上の位置に比べて不確かで、カメラの方を向いた手足ほど当てにならない。利用者のカメラでの確認（2026-10-22）でも、腕を前へ突き出すとアバターの腕がまっすぐにならなかった。
 
-1. **画像上の位置を正とする**：画像上の位置（x、y）は奥行きより安定している。
-2. **骨の長さから奥行きの大きさを求める**：上腕、前腕等の長さは変わらない。基準の姿勢（8.5）で測った長さ`L`と、画像上の見かけの長さ`d`から、奥行きの差の大きさを`√(L² − d²)`で求める（見かけが短いほど、手前か奥へ向いている）。
-3. **向き（手前か奥か）はMediaPipeのzから決める**：大きさは2で決め、手前か奥かだけをzの符号から取る。符号が揺れないよう、切り替わりにはヒステリシス（一定量を超えて初めて反転）を付ける。
-4. **関節の可動域で確かめる**：肘は一方向にしか曲がらない等の制約に反する結果は、もう一方の向きを選ぶ。
+#### 比べた方法（段階5、2026-10-22）
 
-この方法がWorld Landmarksをそのまま使うより良いかは、記録した動き（腕を前へ伸ばす、手を胸の前で組む、手を頭の後ろへ回す等）を再生して比べ、目視でも確かめてから決める（12章）。比べた結果は本書に記録する。
+利用者の記録3本（12章）で、肘の曲がりの中央値（左腕／右腕）と、観測1回で30°を超えた上腕の跳び（平滑化の前、3本の合計）を比べた。「腕を前へ伸ばす」では腕をまっすぐ伸ばしているため、曲がりは小さいほど正しい。ほかの2本は曲がっているのが正しい。
+
+| 方法 | 腕を前へ伸ばす | 胸の前で手を組む | 手を頭の後ろへ回す | 跳び |
+|---|---|---|---|---|
+| A：World Landmarksをそのまま使う | 33° / 40° | 65° / 81° | 76° / 86° | 1 |
+| B：x、yはそのまま、奥行きを骨の長さから求め直す（`√(L² − d²)`、向きはzからヒステリシス付き。当初の案） | 31° / 42° | 67° / 92° | 79° / 82° | 5 |
+| C：x、yを画像上の2Dの検出から肩幅の比でメートルにし、奥行きを骨の長さから求める | 78° / 59° | 103° / 117° | 122° / 124° | 2 |
+| **D：上腕と前腕がどちらもカメラの方を向いているときだけ、肘を肩と手首を結ぶ線へ寄せる** | **6° / 0°** | 65° / 81° | 76° / 81° | 3 |
+
+- Bが効かなかったのは、World Landmarksのx、y自体が、腕を曲がった形にしているためである。奥行きだけを直しても腕は伸びない。
+- Cでは、カメラの方を向いた腕は画像上で短く映り、検出の小さなずれが大きな曲がりになった。
+- 曲がりが出るのは、上腕も前腕もカメラの方を向いているとき（「腕を前へ」で、カメラの方向の成分が0.73〜0.93。「胸の前で手を組む」では0.3〜0.5）である。
+- **Dを使う**（利用者の決定、2026-10-22）。両方がカメラの方を向いている度合い（カメラの軸との余弦の小さい方）が0.5から寄せ始め、0.8で完全にまっすぐにする（その間はなめらかにつなぐ）。肩と手首は動かさないため、手の位置は変わらない。カメラの方を向いたまま本当に肘を曲げた腕も伸ばす方へ補正されるが、その向きはもともと単眼のカメラが最も苦手な向きであり、伸ばして見せる方を選んだ。肩、肘、手首のどれかが見えない（見え方0.5未満）ときは補正しない。
+- Dで腕がまっすぐに近づくと、曲がる面が決まらないため上腕のねじれが不安定になった（跳びが5回に増え、多くがねじれだった）。Avatarで、ねじれを曲がる面から決める境を、肘の曲がりの正弦0.10〜0.35から0.25〜0.50へ上げ、3回にした（Avatar詳細設計7.2）。
+
+#### 観測の補正の仕組み（拡張性）
+
+補正は、入力方式（Provider）ごとの処理ではなく、本システム共通のTracking Processingとして置く（方式設計8.10、8.11）。将来mocopi等の入力を加えても、補正の仕組みを変えずに済むよう、次のように分ける。
+
+- **Providerは、自分の観測の性質（`ObservationTraits`）を申告する**。補正そのものは持たない。MediaPipeは`MonocularDepth`（1台のカメラの画像から奥行きを推定し、カメラの方を向いた手足ほど当てにならない）。mocopiのように体に付けたセンサーで観測する入力は、カメラの軸がないため`None`とし、カメラ向けの補正はかからない。
+- **補正は`IObservationCorrection`の部品として作る**。それぞれ、効かせる観測の性質（`Requires`）を持つ。今は`CameraAxisArmStraightening`（D）の1つ。
+- **`ObservationCorrections`が、補正の一覧（`Catalog`）から、動いているProviderの性質に合うものだけを選ぶ**。`TrackingService`は、Providerの観測を写した上で補正し、平滑化（8.2）へ渡す。Providerが変わったとき（再生の開始と終わり）に選び直す。
+- **記録（12章）には補正する前の観測を残す**。再生のときに、記録した入力の性質から同じ補正を選び直すため、補正を変えても記録を撮り直さずに比べられる。記録のヘッダーには入力の性質も残す（12.3）。
+- 新しい補正は、`IObservationCorrection`を1つ実装し、`Catalog`に加えるだけでよい。新しい性質が要る入力では、`ObservationTraits`に値を1つ加える。
+- 関節の見え方の境（0.5）は`BodyPose.MinVisibility`の1か所に置き、補正とAvatarの両方が使う。
 
 手指は、指の関節の**角度**（隣り合う骨の間の角度）を主に使う。角度は手の大きさやカメラとの距離に依存せず、奥行きの誤りの影響も位置より小さい。指の曲げは0〜約90°、横の開きは小さい範囲に制限する（Avatar詳細設計7.5）。
 
@@ -547,10 +573,11 @@ public sealed class TrackingSettings
 ```text
 ヘッダー
 ├─ 識別子 "VVTR"（4バイト）
-├─ 形式の版（int32。今は1）
+├─ 形式の版（int32。今は2）
 ├─ 1回分の観測の大きさ（int32、バイト）
 ├─ 記録を始めた日時（int64、UTCのTicks）
 ├─ Providerが取れる部位（TrackingRegions、int32）
+├─ Providerの観測の性質（ObservationTraits、int32。版2から）
 └─ 説明（int32のバイト数 + UTF-8）
 観測 × 回数（どれも同じ大きさ）
 ├─ Sequence（int64）、Time（double）
@@ -561,6 +588,7 @@ public sealed class TrackingSettings
 
 - 観測はどれも同じ大きさのため、回数はファイルの大きさから、長さは最初と最後の観測の時刻から分かる。一覧ではヘッダーと最初・最後の観測だけを読む。
 - 途中で落ちる等で末尾が欠けたファイルは、最後まで書けた観測までを使う。
+- 版2で観測の性質を加えた（8.4）。版1のファイルも読む。版1の記録はどれもMediaPipeで作ったため、`MonocularDepth`として読む。
 - 知らない版や壊れたヘッダーのファイルも、消さずに一覧へ「読めません」と出す（CLAUDE.md 25章）。削除はできる。
 - 形式を変えるときは版を上げ、古い版を読む処理を残すか、読めないと表示する。
 
@@ -675,7 +703,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation（段階5）
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections（IObservationCorrectionを含む）, CameraAxisArmStraightening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat（段階5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）
@@ -721,7 +749,7 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 
 | 項目 | 対応予定 |
 |---|---|
-| 奥行きの推定の方法（8.4）とWorld Landmarksの比較 | 段階2〜5で、記録した動きを再生して比べて決める |
+| 奥行きの推定の方法（8.4）とWorld Landmarksの比較 | 決定：記録で4つの方法を比べ、カメラの方を向いた腕を伸ばす補正（D）にした（8.4、利用者の決定、2026-10-22） |
 | 平滑化の既定のパラメータ | 段階4で、利用者が10段階から選べるようにし、既定を5とした（8.2）。各部位のパラメータの比は、段階5の体の動きで見直す |
 | Holistic Landmarkerへの切り替え | 不要と判断した（3つの推論を同時に動かして30fpsを保てた、15章）。実際のカメラで足りなければ見直す |
 | MediaPipeの表情の値の左右（6.3） | 本人の左右と仮定した（`MediaPipeTracking.FaceSidesMirrored = false`）。デモでウインクして確かめる |

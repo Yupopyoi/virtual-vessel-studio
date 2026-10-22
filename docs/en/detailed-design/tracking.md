@@ -105,6 +105,10 @@ flowchart LR
 | `TrackingRegions` | Flags enum | `Face`, `Body`, `LeftHand`, `RightHand`. The capabilities of a provider and the enabled parts |
 | `BodyRange` | Enum | What moves: `UpperBody`, `FullBody` (6.5) |
 | `ITrackingProvider` | Interface | The contract of an input method that produces observations (5.2) |
+| `ObservationTraits` | Flags enum | What kind of observation a provider makes, to pick the corrections that suit it (8.4): `MonocularDepth`, `None` |
+| `IObservationCorrection` | Interface | One correction of observations, with the traits it applies to (`Requires`) (8.4) |
+| `ObservationCorrections` | Class | Picks from the corrections (`Catalog`) those that suit the provider's traits, and applies them to a copy of each observation (8.4) |
+| `CameraAxisArmStraightening` | Class | Straightens arms that point at the camera (D in 8.4; the computation is a pure function) |
 | `ITrackingSource` | Interface | What other modules use: the latest smoothed `TrackingFrame` and the status (5.1) |
 | `TrackingService` | Class (`IApplicationService`) | Creates and starts the provider; per-frame processing, settings, metrics |
 | `TrackingSettings` | Class | Saved settings (chapter 10) |
@@ -167,6 +171,7 @@ public readonly struct TrackingOptions
 public interface ITrackingProvider : IDisposable
 {
     TrackingRegions Supported { get; }
+    ObservationTraits Traits { get; }                          // What kind of observation, to pick the corrections that suit it (8.4); MediaPipe is MonocularDepth
     IReadOnlyObservable<TrackingState> State { get; }          // The same states for sources and providers
     void Start(TrackingOptions options);                       // Returns without waiting; the result comes through State
     void SetOptions(TrackingOptions options);                  // Changes them while running; inference for disabled parts stops
@@ -180,7 +185,7 @@ public interface ITrackingProvider : IDisposable
 ```
 
 - A provider outputs observations as a `TrackingFrame` before smoothing (chapter 6; the same type before and after smoothing, so it is only copied). Provider differences (coordinate system, point indices, left and right) are converted to the common form inside the provider before output (system design 8.8).
-- A new provider (mocopi and so on) is added by implementing this contract only.
+- A new provider (mocopi and so on) is added by implementing this contract only. Stating its observation's traits (`Traits`) correctly gets it only the corrections that suit it (8.4).
 
 ### 5.3 TrackingService
 
@@ -400,16 +405,37 @@ The same synthetic motion, compared over 10 noise seeds (`FilterTests.EachLevel_
 - For each joint, a value whose speed from the previous value exceeds a limit (for example 8 m/s for a wrist) is not used that time. If it keeps exceeding (a really fast movement), it is accepted from the third time.
 - Points whose confidence (MediaPipe visibility, presence) is below the threshold are `LowConfidence`, and smoothing gets stronger.
 
-### 8.4 Depth (Toward and Away From the Camera)
+### 8.4 Depth (Toward and Away From the Camera) and Correcting Observations
 
-With a single camera, depth is less certain than image position. The depth (z) of MediaPipe Pose world landmarks swings widely in movements such as reaching forward, and can even flip direction. The product handles it as follows.
+With a single camera, depth is less certain than image position, and least certain for limbs pointing at the camera. In the user's camera check (2026-10-22), an arm thrust forward did not straighten on the avatar.
 
-1. **Image positions are primary**: the position in the image (x, y) is more stable than depth.
-2. **The magnitude of depth comes from bone length**: the lengths of the upper arm, forearm, and so on do not change. From the length `L` measured in the reference pose (8.5) and the apparent length `d` in the image, the magnitude of the depth difference is `√(L² − d²)` (the shorter it looks, the more it points toward or away from the camera).
-3. **The direction (toward or away) comes from MediaPipe's z**: the magnitude comes from step 2; only the sign is taken from z. To keep the sign from flickering, the switch has hysteresis (it flips only after exceeding a margin).
-4. **Joint limits check the result**: if the result violates a constraint such as the elbow bending only one way, the other direction is chosen.
+#### Methods Compared (Step 5, 2026-10-22)
 
-Whether this method is better than using world landmarks as they are is decided after replaying recorded movements (reaching forward, folding hands in front of the chest, putting a hand behind the head, and so on), comparing them, and checking visually (chapter 12). The comparison is recorded in this document.
+On the user's three recordings (chapter 12), the median elbow bend (left arm / right arm) and the upper arm's jumps of more than 30° in one observation (before smoothing, all three recordings) were compared. In "arms forward" the arms are straight, so less bend is more correct; in the other two the arms really bend.
+
+| Method | Arms forward | Hands clasped in front of the chest | Hands behind the head | Jumps |
+|---|---|---|---|---|
+| A: world landmarks as they are | 33° / 40° | 65° / 81° | 76° / 86° | 1 |
+| B: x and y as they are, depth rebuilt from bone length (`√(L² − d²)`, its sign from z with hysteresis; the first plan) | 31° / 42° | 67° / 92° | 79° / 82° | 5 |
+| C: x and y from the 2D image detections, scaled to meters by the shoulder width, depth from bone length | 78° / 59° | 103° / 117° | 122° / 124° | 2 |
+| **D: only when both the upper arm and the forearm point toward the camera, move the elbow toward the line from the shoulder to the wrist** | **6° / 0°** | 65° / 81° | 76° / 81° | 3 |
+
+- B did not help because the world landmarks' x and y themselves bend the arm; correcting depth alone does not straighten it.
+- In C, an arm pointing at the camera looks short in the image, so small detection errors became large bends.
+- The bend appears when both the upper arm and the forearm point toward the camera (0.73–0.93 along its axis in "arms forward", 0.3–0.5 with the hands clasped).
+- **D is used** (user's decision, 2026-10-22). The elbow starts moving when how far both parts point toward the camera (the smaller cosine to its axis) reaches 0.5, and the arm is fully straight at 0.8, blended smoothly in between. The shoulder and the wrist stay, so the hand does not move. An arm that really bends while pointing at the camera is straightened too; that direction is a single camera's weakest anyway, and showing it straight was preferred. Nothing is corrected while the shoulder, elbow, or wrist is unseen (visibility below 0.5).
+- With D, arms near straight left the bend plane undefined and the upper arm's twist unsteady (jumps rose to 5, mostly twist). Avatar raised the bend at which the twist follows the bend plane from a sine of 0.10–0.35 to 0.25–0.50, bringing them to 3 (avatar detailed design 7.2).
+
+#### How Observations Are Corrected (Extensibility)
+
+Corrections are common Tracking Processing, not per input method (provider) (system design 8.10, 8.11). So that inputs such as mocopi can be added later without changing them, they are split as follows.
+
+- **A provider states what kind of observation it makes (`ObservationTraits`)** and holds no corrections. MediaPipe is `MonocularDepth`: depth estimated from one camera's image, least reliable for limbs pointing at the camera. An input that observes with sensors on the body, such as mocopi, has no camera axis, so it is `None` and gets no camera corrections.
+- **Each correction is an `IObservationCorrection`**, with the traits it applies to (`Requires`). For now there is one, `CameraAxisArmStraightening` (D).
+- **`ObservationCorrections` picks from the list of corrections (`Catalog`) those that suit the active provider's traits.** `TrackingService` corrects a copy of the provider's observation and passes it to smoothing (8.2). It picks again when the provider changes (when a replay starts and ends).
+- **Recordings (chapter 12) keep the observation before correction.** A replay picks the same corrections again from the recorded input's traits, so corrections can change and be compared without filming again. The recording's header keeps the input's traits (12.3).
+- A new correction only implements `IObservationCorrection` and joins the `Catalog`. An input that needs a new trait adds one value to `ObservationTraits`.
+- The visibility threshold (0.5) lives once, in `BodyPose.MinVisibility`, used by the corrections and by Avatar alike.
 
 For fingers, the joint **angles** (the angle between neighboring bones) are primary. Angles do not depend on hand size or distance from the camera, and depth errors affect them less than positions. Finger flexion is limited to 0 to about 90°, and spreading to a small range (Avatar detailed design 7.5).
 
@@ -548,10 +574,11 @@ Tools for choosing the smoothing and depth methods by comparison rather than by 
 ```text
 Header
 ├─ Identifier "VVTR" (4 bytes)
-├─ Format version (int32; 1 for now)
+├─ Format version (int32; 2 for now)
 ├─ Size of one observation (int32, bytes)
 ├─ When recording started (int64, UTC ticks)
 ├─ Parts the provider can track (TrackingRegions, int32)
+├─ What kind of observation the provider makes (ObservationTraits, int32; from version 2)
 └─ Description (int32 byte count + UTF-8)
 Observations × count (all the same size)
 ├─ Sequence (int64), Time (double)
@@ -562,6 +589,7 @@ Observations × count (all the same size)
 
 - All observations have the same size, so their count follows from the file size and the length from the first and last observations' times. The list reads only the header and the first and last observations.
 - A file whose end is missing, for example after a crash, is used up to the last complete observation.
+- Version 2 added the observation's traits (8.4). Version 1 files still read; every version 1 recording was made with MediaPipe, so they read as `MonocularDepth`.
 - Files of an unknown version or with a broken header are listed as "cannot be read", not deleted (CLAUDE.md chapter 25). They can be deleted.
 - A format change raises the version and either keeps reading the old one or shows that it cannot be read.
 
@@ -676,7 +704,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions (what the user chose)
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation (step 5)
+│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat (step 5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipe points to the common form (pure functions; no plugin types, so it lives here and is tested without the plugin)
@@ -722,7 +750,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 
 | Item | Plan |
 |---|---|
-| The depth estimation method (8.4) compared with world landmarks | Decided in steps 2–5 by replaying recorded movements |
+| The depth estimation method (8.4) compared with world landmarks | Decided: four methods were compared on recordings, and the correction straightening arms that point at the camera (D) was chosen (8.4; user's decision, 2026-10-22) |
 | Default smoothing parameters | In step 4 the user can choose one of ten levels, with 5 as the default (8.2). The ratios between the parts' parameters are revisited with the body's movement in step 5 |
 | Switching to the Holistic Landmarker | Judged unnecessary (the three inferences together kept 30 fps, chapter 15). Revisited if a real camera is not enough |
 | Left and right of MediaPipe's face values (6.3) | Assumed to be the person's sides (`MediaPipeTracking.FaceSidesMirrored = false`). Checked by winking in the demo |
