@@ -100,27 +100,29 @@ flowchart LR
 | `AvatarBone` | Enum | Standard human bones (same order as Unity Humanoid) |
 | `AvatarExpression` | Enum | Standard expressions: `Blink`, `BlinkLeft`, `BlinkRight`, `Aa`, `Ih`, `Ou`, `Ee`, `Oh`, `Happy`, `Angry`, `Sad`, `Relaxed`, `Surprised`, `Neutral` |
 | `AvatarController` | Class | The control entry point for one avatar; dispatches to pose and expressions |
-| `PoseRetargeting` | Static class | Computes bone rotations from observations (pure functions, chapter 7) |
-| `PoseController` | Class | Interpolation, handling lost tracking, application according to the range (`BodyRange`) |
+| `PoseRetargeting` | Static class | Computes the upper body's bone rotations from observations (pure functions, 7.2) |
+| `BodyMotion` | Class | Interpolation between upper body observations, and handling a lost torso or arm, each on its own (7.2, 7.3, 8.4). First designed as `PoseController`; named after the face's `FaceMotion` |
+| `BodyTarget` | Class | What the avatar's upper body shows: each bone's rotation, and which parts the observation saw. Reused every frame |
+| `MotionTiming` | Static class | The timing the face and the body share: moving toward observations, and how much is shown when lost (pure functions, 7.3, 8.4) |
 | `ExpressionMapping` | Class | Settings for converting expression values (`FaceShape`) to expressions (7.4) |
 | `FaceFeatures` | Struct (internal) | The face values put through the curves once. The whole-face expressions, the part values, and the Expression Signal are all made from it (7.4) |
 | `ExpressionController` | Class | Applies expressions and gaze: part by part or as whole-face expressions, substituting blinks the model lacks |
 | `FaceTarget` | Class | What the avatar's face shows: a weight per expression, a weight per part, the Expression Signal, the gaze, and the head's turn. Reused every frame |
 | `ExpressionSignal` | Enum | The values of the Expression Signal: smile, anger, sadness, surprise, each eye's opening, and the mouth's opening (7.4, system design 7.7) |
-| `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4) |
+| `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4; timing in `MotionTiming`) |
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
 | `FaceTuning` | Class | The user's face tuning: a sensitivity per part (7.4) |
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
 | `AvatarSettings` | Class | The avatar in use and the face tuning (chapter 10) |
 
-### Class Diagram (the face, as of step 4)
+### Class Diagram (the face and the upper body, as of step 5)
 
-The classes from a tracking observation to the avatar's head, expressions, and gaze. The body and arms (`PoseController`, `PoseRetargeting`) come in step 5.
+The classes from a tracking observation to the avatar's upper body (torso, shoulders, arms), head, expressions, and gaze. Hands and fingers come in step 6.
 
 - There are two kinds of abstraction, shown by color and by a stereotype. **Interfaces** (`<<interface>>`, a thick solid purple border) hide the concrete implementations at module boundaries. **Data contracts** (`<<contract>>`, a dashed green border) carry values in a form independent of formats and libraries. Classes without a stereotype are concrete processing on top of the abstractions.
 - Every dependency points from the concrete to the abstract. Avatar's computation knows neither MediaPipe's types nor UniVRM's, and UniVRM's types are used only inside Avatar.Vrm (chapter 3).
-- Relation notes: `reads` is the read every frame, and `neck, head` sets the neck and head rotations. The per-frame order is in 8.3.
+- Relation notes: `reads` is the read every frame, and `upper body, neck, head` sets the upper body's, neck's, and head's rotations. The per-frame order is in 8.3.
 
 ```mermaid
 classDiagram
@@ -137,6 +139,12 @@ classDiagram
             +double Time
             +FacePose Face
             +BodyPose Body
+        }
+        class BodyPose {
+            <<contract>>
+            +Vector3[20] Positions
+            +float[20] JointConfidence
+            +TrackingStatus Status
         }
         class FacePose {
             <<contract>>
@@ -166,8 +174,26 @@ classDiagram
             +FaceTarget Current
             +float Presence
             +Update(FacePose face, bool mirror, double now)
+        }
+        class MotionTiming {
             +Progress(now, arrivedAt, interval)$ float
             +NextPresence(presence, usable, lost, elapsed)$ float
+            +Interval(fresh, observedAt, previous)$ double
+        }
+        class BodyMotion {
+            +BodyTarget Current
+            +float TorsoPresence
+            +Update(BodyPose body, bool mirror, double now)
+        }
+        class PoseRetargeting {
+            +Retarget(BodyPose body, bool mirror, bool hasUpperChest, float armDown, BodyTarget into)$
+            +Arm(left, shoulder, elbow, wrist, torso)$
+            +WithoutWrist(left, upper, previousUpper, previousLower)$
+        }
+        class BodyTarget {
+            <<contract>>
+            +Quaternion[] Rotations
+            +bool TorsoSeen, LeftArmSeen, RightArmSeen
         }
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
@@ -244,7 +270,7 @@ classDiagram
     classDef interfaceLayer fill:#7c6cf033,stroke:#7c6cf0,stroke-width:3px
     classDef contractLayer fill:#2aa58f26,stroke:#2aa58f,stroke-width:2px,stroke-dasharray:6 4
     cssClass "ITrackingSource,IAvatarService,IAvatarModel,IAvatarRig,IAvatarExpressions,IAvatarFaceShapes" interfaceLayer
-    cssClass "TrackingFrame,FacePose,FaceTarget,FacePartProfile" contractLayer
+    cssClass "TrackingFrame,FacePose,BodyPose,FaceTarget,BodyTarget,FacePartProfile" contractLayer
 
     TrackingFrame *-- FacePose
     ITrackingSource --> TrackingFrame
@@ -254,8 +280,14 @@ classDiagram
     AvatarService *-- AvatarController
     AvatarService ..> ExpressionMapping : For(tuning)
     AvatarController *-- FaceMotion
+    AvatarController *-- BodyMotion
+    TrackingFrame *-- BodyPose
+    BodyMotion --> PoseRetargeting : Retarget
+    BodyMotion *-- BodyTarget
+    BodyMotion ..> MotionTiming
+    FaceMotion ..> MotionTiming
     AvatarController *-- ExpressionController
-    AvatarController --> IAvatarRig : neck, head
+    AvatarController --> IAvatarRig : upper body, neck, head
     AvatarController ..> HeadPose
     FaceMotion --> ExpressionMapping : Evaluate
     FaceMotion *-- FaceTarget
@@ -468,18 +500,26 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 ### 7.2 Upper Body (BodyRange.UpperBody)
 
-- The hips do not move. The torso is distributed over Spine, Chest, and Upper Chest from the tilt of the shoulder line and the forward/back tilt of the neck (default: 30%, 35%, 35%), so the torso moves even when seated.
+Built in step 5 (`PoseRetargeting`, `BodyMotion`). Every bone's rotation from the reference pose is worked out in the avatar root's space and set bone by bone (`IAvatarRig.SetRotation`). Only directions are used, never positions, so a person and an avatar of different builds point their bones alike (system design 7.6). The Voom prototype only tilted the chest by the shoulder line, so there is no method to carry over (chapter 1).
+
+- The hips do not move. The torso's rotation takes its right from the line between the shoulders and its up from the line from the hips to the neck (the shoulders' midpoint), and is shared over Spine, Chest, and Upper Chest (30% at Spine, 65% up to Chest, all of it at Upper Chest: 30%, 35%, 35%), so the torso moves even when seated. On a model without an Upper Chest, Chest takes all of it.
 - Torso rotation has limits (side tilt ±30°, forward/back ±25°, twist ±40°) so inference errors do not bend the torso unnaturally.
-- Shoulders rise slightly only when the arms are raised (part of the upper arm's raise angle goes to the shoulder).
-- When an arm is lost, it returns to the arms-down pose (`pose.armDownAngle`, lowered 70° by default), never to the T pose.
+- The neck turns 40% of the way from the top of the torso (Upper Chest) to the head (7.1), so it stays joined to the head when the torso tilts.
+- The upper arm points at the elbow. Its twist (the turn about the bone) is set by the plane the elbow bends in, the plane of the upper arm and the forearm. A nearly straight arm's bend plane is unknown, so the twist of the shortest swing from the torso is used, blended smoothly in between: from the torso below a sine of 0.10 between upper arm and forearm, from the bend plane at 0.35 and above. The forearm points at the wrist and keeps the upper arm's twist; the palm's twist comes in step 6.
+- A shoulder rises only for an arm raised above level, by 25% of how far it is raised (at most 20°).
+- A joint whose visibility (MediaPipe's) is below 0.5 is not used. Both shoulders seen move the torso; a shoulder and an elbow move the upper arm. The wrist only points the forearm.
+- While the wrist is hidden (behind the head, for example), the upper arm points at the elbow and the forearm keeps its last seen bend (its rotation relative to the upper arm). The upper arm also keeps its previous twist and only swings to the new direction (`PoseRetargeting.WithoutWrist`): the bend plane is unknown, so a twist worked out afresh would jump. In the user's recording (2026-10-22, hands behind the head), the shoulders and elbows were seen 100% of the time but the wrists only 28%, and a test that needed the wrist dropped the arms 70% of the time.
+- When an arm is lost (its shoulder or elbow unseen), it returns to hanging from the torso (lowered 70° by default), never to the T pose. Setting the angle through the profile's `pose.armDownAngle` is not built yet (chapter 17).
+- In a mirror, the person's sides are swapped and reflected through X = 0 before anything is worked out (`PoseRetargeting.Joint`): the person's right hand moves the avatar's left one. Visibility is read on the person's side.
 - The lower body stays in the arms-down reference pose (a straight standing pose that looks natural whether seated or standing).
+- On the user's three recordings (arms forward, hands clasped in front of the chest, hands behind the head; about 10 seconds each), no rotation was not a number and the arms moved 100% of the time. Before smoothing, the upper arm jumped more than 30° in one observation 1, 1, and 3 times in about 300 (`AvatarRecordingTests`, Explicit). Bone lengths varied by ±5–10%, the baseline for comparing depth estimation (tracking detailed design 8.4).
 
 ### 7.3 Interpolating Between Observations
 
 - For each rendered frame, the shown values move toward the newest observation over one observation interval (rotations with spherical interpolation). Each move starts from what was shown when the observation arrived, so a frame always lies between the previous display and the newest observation and never jumps. This adds one observation interval of lag (about 33 ms at 30 per second) but removes the steps caused by rendering more often than inference.
 - The move takes the time between the two observations, kept within 1/120 s to 0.2 s (so a late observation does not drag the face along slowly).
 - When the next observation is late, it stops at the newest observation (no prediction ahead, because the correction when a prediction is wrong is noticeable).
-- Step 4 uses this for the face (expressions, gaze, head turn; `FaceMotion`). The body and hands use the same idea in steps 5 and 6.
+- Used for the face (`FaceMotion`, step 4) and the upper body (`BodyMotion`, step 5). The timing is shared in `MotionTiming` (2026-10-22). Hands use the same idea in step 6.
 
 ### 7.4 Expressions (ExpressionMapping)
 
@@ -589,7 +629,7 @@ How much a face moves differs from person to person, so the user can change the 
 
 - Before the Avatar Camera renders, in this order (equivalent of `LateUpdate`, after `IFrameLoop`):
   1. Read `ITrackingSource.Current`. Tracking registers with the per-frame work (`IFrameLoop`) before Avatar, so it reads the observation updated in the same frame.
-  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The body and arms (`PoseController`: interpolation, returning lost parts, `PoseRetargeting`) are added in step 5.
+  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The upper body (`BodyMotion`: interpolation, returning lost parts, `PoseRetargeting`) is set on the bones, and the neck turns from the top of the torso toward the head (step 5).
   3. `ExpressionController`: expressions and gaze.
   4. Call UniVRM's processing (applying the control rig, expressions, LookAt, SpringBone) explicitly once. UniVRM's automatic update is turned off and the order is decided here (so SpringBone runs after the pose).
 - Nothing is allocated per frame. The bone rotation and expression value arrays are reused.
@@ -677,7 +717,8 @@ public sealed class AvatarSettings
 
 | Kind | Target |
 |---|---|
-| EditMode | `PoseRetargeting`: from synthetic observations of known poses (arm 90° to the side, 90° forward, bent elbow, turned palm, tilted torso), the bone rotations are as expected. Mirroring. Joint limits |
+| EditMode | `PoseRetargeting`: from synthetic observations of known poses (arms sideways, down, forward, the elbow bent forward or up, a tilted torso), the bone rotations are as expected. Mirroring, the torso's limits, how shoulders rise, unseen arms. `BodyMotion`: a lost arm holds, then hangs, and comes back; a hidden wrist keeps the forearm's bend. Turning the palm comes in step 6 |
+| EditMode (Explicit) | `AvatarRecordingTests`: on the developer's recordings (outside the repository), no rotation is not a number; how often the arms move, how bone lengths vary, and jumps go to the log |
 | EditMode | Interpolation (7.3), returning when lost (8.4), blending for `LowConfidence` |
 | EditMode | `ExpressionMapping`: response curves, keeping eyes together, distributing mouth shapes, overlap with emotion expressions |
 | EditMode | `AvatarImporter`: checking extension, size, and magic; cleaning up the temporary folder; detecting the same hash; reading and writing the profile (keeping unknown fields) |
@@ -685,6 +726,8 @@ public sealed class AvatarSettings
 | PlayMode | Loading a real VRM: bones and expressions are present, and destroying leaves nothing behind. Uses a small test model that can be committed, if one exists; otherwise the sample from the user (outside the repository) with `[Explicit]` |
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
+
+Tests made in step 5: `AvatarBodyTests` (EditMode: arms sideways, down, and forward, the elbow bent forward or up, mirroring, the torso's tilt and limit, how shoulders rise, unseen arms, a lost arm holding and then hanging, a hidden wrist keeping the forearm's bend, the rest pose without tracking, `AvatarController` and the neck), `AvatarRecordingTests` (EditMode, Explicit, on the developer's recordings), `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget` (on real models, the arm and forearm bones point as observed, and the application time).
 
 Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (a closed smile that keeps the eyes open, i and e, brows), the Expression Signal (feelings, eyes, mouth, sides, neutral, the same values part by part and whole-face), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
 
@@ -699,6 +742,7 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - SpringBone load depends on the model. It is measured and recorded.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) was measured in step 4.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples. Moving the face part by part (2026-10-21), it took a median of 0.034–0.035 ms, a 95th percentile of 0.038–0.040 ms, and at most 0.057–0.130 ms. Within the 0.3 ms target.
+- Measured (2026-10-22, step 5): with the upper body added, observations of the face only took a median of 0.038–0.039 ms. With the body moving too (the synthetic motion of raising and waving an arm), a median of 0.041 ms, a 95th percentile of 0.044–0.049 ms, and at most 0.062–2.808 ms (2.8 ms only on one sample's first frame). Within the target.
 
 ---
 
@@ -712,9 +756,9 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose (PoseRetargeting, PoseController in step 5)
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
@@ -742,6 +786,9 @@ Assets/VirtualVessel/Avatar/
 | Models without a thumbnail | "No image" is shown for now. Capturing one at load is considered if wanted |
 | How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
 | Position matching such as touching the face (IK) | Considered together with full body |
+| Setting the arm-down angle in the profile (`pose.armDownAngle`, 6.3) | Not built; the default 70° for now. Added to profile loading and the avatar Card if, for example, a model's arms sink into its body |
+| Depth estimation (tracking detailed design 8.4) | Next in step 5: chosen by replaying recordings and comparing with the current World Landmarks depth. The baseline is the values in 7.2 (bone lengths varying ±5–10%, the upper arm jumping 1–3 times in about 300 observations) |
+| The forearm's twist (the palm's direction) | Added with the hands in step 6; the forearm keeps the upper arm's twist for now |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | Saving the part convention to the Avatar Profile (system design 7.12) | For now it is decided from the shape names each time a model loads (7.4). When a Setup screen lets the user choose the expression mapping, it is decided at registration and saved |
 | Puffing the cheeks | MediaPipe's `CheekPuff` hardly responds, and VRM has no standard expression for it. The three samples (VRoid) have neither such an expression nor a blend shape for it. Considered together with Perfect Sync (user's request, 2026-10-21) |
