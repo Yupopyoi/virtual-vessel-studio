@@ -426,7 +426,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeTracking : ITrackingSource
+        internal sealed class FakeTracking : ITrackingSource
         {
             private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
             private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);

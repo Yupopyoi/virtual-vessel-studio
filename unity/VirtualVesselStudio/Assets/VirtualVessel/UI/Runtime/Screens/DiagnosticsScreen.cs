@@ -1,13 +1,16 @@
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Controls;
 
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The Diagnostics screen (Developer Mode only): a table of performance metrics, refreshed every
-    /// second while shown (UI foundation detailed design 7.7). Minimal for now; may be revised.
+    /// second while shown, and the tracking recordings (UI foundation detailed design 7.7). Minimal for
+    /// now; may be revised.
     /// </summary>
     public sealed class DiagnosticsScreen : VisualElement, IScreen
     {
@@ -37,7 +40,9 @@ namespace VirtualVessel.UI.Screens
         private IVisualElementScheduledItem _refresh;
 
         /// <param name="metrics">Null when the performance metrics service is not available.</param>
-        public DiagnosticsScreen(IPerformanceMetrics metrics)
+        /// <param name="recordings">Tracking recordings; null leaves their Card out.</param>
+        /// <param name="tracking">Tracking, to know whether recording can start.</param>
+        public DiagnosticsScreen(IPerformanceMetrics metrics, ITrackingRecordings recordings = null, ITrackingSource tracking = null)
         {
             _metrics = metrics;
             AddToClassList(UssClass);
@@ -53,14 +58,24 @@ namespace VirtualVessel.UI.Screens
             if (metrics == null)
             {
                 _statusText.Key = ScreenStrings.MetricsUnavailable;
-                return;
+            }
+            else
+            {
+                Table = Ui.Table(s_columns);
+                card.Add(Table);
             }
 
-            Table = Ui.Table(s_columns);
-            card.Add(Table);
+            if (recordings != null)
+            {
+                Recordings = new TrackingRecordingsCard(recordings, tracking);
+                Add(Recordings);
+            }
         }
 
         public Label Status { get; }
+
+        /// <summary>Null without tracking recordings.</summary>
+        public TrackingRecordingsCard Recordings { get; }
 
         /// <summary>Null when the performance metrics service is not available.</summary>
         public DataTable Table { get; }

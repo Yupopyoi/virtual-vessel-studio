@@ -87,7 +87,8 @@ namespace VirtualVessel.UI.Controls
 
             _box = new VisualElement();
             _box.AddToClassList(UssClass + "__box");
-            _current = QuietText.Of(new Label());
+            // Choices can be data, such as device names or users' descriptions; never parse them as rich text.
+            _current = QuietText.Of(new Label { enableRichText = false });
             _current.AddToClassList(UssClass + "__current");
             _current.AddToClassList("vv-text-body");
 
@@ -258,7 +259,7 @@ namespace VirtualVessel.UI.Controls
             for (int i = 0; i < _choices.Count; i++)
             {
                 int index = i;
-                var option = new Label(_choices[i].Resolve(_menuLocalizer));
+                var option = new Label(_choices[i].Resolve(_menuLocalizer)) { enableRichText = false };
                 option.AddToClassList(OptionClass);
                 option.AddToClassList("vv-text-body");
                 option.EnableInClassList(OptionClass + "--selected", string.Equals(_choices[i].Id, _value, StringComparison.Ordinal));
@@ -431,7 +432,7 @@ namespace VirtualVessel.UI.Controls
             _sizer.Clear();
             foreach (SelectChoice choice in _choices)
             {
-                var sizing = new Label(choice.Resolve(localizer));
+                var sizing = new Label(choice.Resolve(localizer)) { enableRichText = false };
                 sizing.AddToClassList(UssClass + "__current");
                 sizing.AddToClassList("vv-text-body");
                 _sizer.Add(sizing);

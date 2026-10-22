@@ -4,3 +4,36 @@
     white-space: normal;
     color: var(--vv-color-text-2);
 }
+
+/* The tracking recordings Card under the metrics (UI foundation detailed design 7.7). */
+.vv-diagnostics > .vv-recordings {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-recordings .vv-chip {
+    align-self: flex-start;
+    margin-bottom: var(--vv-space-s);
+}
+
+/* A field with its buttons on one line, wrapping on a narrow window; buttons line up with the field's box. */
+.vv-recordings__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin: var(--vv-space-s) 0;
+}
+
+.vv-recordings__row > * {
+    margin-right: var(--vv-space-s);
+}
+
+.vv-recordings__row > .vv-text-input {
+    flex-grow: 1;
+    min-width: 240px;
+}
+
+.vv-recordings__note {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
