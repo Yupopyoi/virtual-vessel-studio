@@ -251,7 +251,7 @@ namespace VirtualVessel.Avatar.Tests
             AssertSame(HeadPose.FromTracking(tilt, true), Quaternion.AngleAxis(-15f, Vector3.forward));
             AssertSame(HeadPose.FromTracking(Quaternion.AngleAxis(120f, Vector3.up), false), Quaternion.AngleAxis(HeadPose.MaxDegrees, Vector3.up));
             AssertSame(HeadPose.FromTracking(Quaternion.AngleAxis(-120f, Vector3.up), false), Quaternion.AngleAxis(-HeadPose.MaxDegrees, Vector3.up));
-            AssertSame(HeadPose.Neck(right), Quaternion.AngleAxis(12f, Vector3.up)); // The neck takes 40% of the turn.
+            AssertSame(HeadPose.Neck(Quaternion.identity, right), Quaternion.AngleAxis(12f, Vector3.up)); // The neck takes 40% of the turn.
         }
 
         [Test]
@@ -577,7 +577,7 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(Quaternion.Angle(actual, expected), Is.LessThan(0.01f), $"{actual.eulerAngles} vs {expected.eulerAngles}");
         }
 
-        private sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions, IAvatarFaceShapes
+        internal sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions, IAvatarFaceShapes
         {
             private readonly IReadOnlyList<string> _shapeNames;
 

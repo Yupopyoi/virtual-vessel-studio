@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Avatar.Vrm;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
 {
@@ -163,6 +164,64 @@ namespace VirtualVessel.Avatar.Tests
                 UnityEngine.Debug.Log($"[Avatar/Apply] {sample}: median {median:F3} ms, 95th {times[Frames * 95 / 100]:F3} ms, max {times[Frames - 1]:F3} ms");
                 Assert.That(median, Is.LessThan(1.0), "Far over the 0.3 ms target; see avatar detailed design 15.");
             }
+        }
+
+        [UnityTest]
+        public IEnumerator Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget([ValueSource(nameof(Samples))] string sample)
+        {
+            var load = new LoadResult();
+            yield return Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+
+                // The person reaches forward with the right arm and holds the left one out with the forearm up.
+                var frame = new TrackingFrame();
+                SyntheticMotion.WriteBody(frame.Body, 90f, 1.0);
+                BodyPose body = frame.Body;
+                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (Vector3.forward * SyntheticMotion.UpperArmLength);
+                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.forward * SyntheticMotion.ForearmLength);
+                body[BodyJoint.LeftElbow] = body[BodyJoint.LeftShoulder] + (Vector3.left * SyntheticMotion.UpperArmLength);
+                body[BodyJoint.LeftWrist] = body[BodyJoint.LeftElbow] + (Vector3.up * SyntheticMotion.ForearmLength);
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+                model.Apply();
+
+                // UniVRM carries the rig's rotations onto the model's own bones; their directions are what shows.
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm), Vector3.forward), Is.LessThan(5f), "The right arm reaches forward.");
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm), Vector3.left), Is.LessThan(5f), "The left upper arm is out sideways.");
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand), Vector3.up), Is.LessThan(5f), "The left forearm points up.");
+
+                // Per-frame cost with the body moving as well as the face (avatar detailed design 15).
+                const int Frames = 300;
+                var times = new double[Frames];
+                var watch = new Stopwatch();
+                frame.Face.Status = TrackingStatus.Tracked;
+                for (int i = 0; i < Frames; i++)
+                {
+                    // 30 observations a second at 60 frames: a new one every other frame.
+                    double time = 2.0 + ((i / 2) / 30.0);
+                    SyntheticMotion.WriteBody(frame.Body, SyntheticMotion.RaiseAndWave(time), time);
+                    frame.Face.Timestamp = time;
+                    frame.Face.HeadRotation = Quaternion.AngleAxis(20f * Mathf.Sin(i * 0.1f), Vector3.up);
+                    watch.Restart();
+                    controller.Update(frame, mirror: true, now: 2.0 + (i / 60.0));
+                    model.Apply();
+                    times[i] = watch.Elapsed.TotalMilliseconds;
+                }
+
+                Array.Sort(times);
+                double median = times[Frames / 2];
+                UnityEngine.Debug.Log($"[Avatar/Apply body] {sample}: median {median:F3} ms, 95th {times[Frames * 95 / 100]:F3} ms, max {times[Frames - 1]:F3} ms");
+                Assert.That(median, Is.LessThan(1.0), "Far over the 0.3 ms target; see avatar detailed design 15.");
+            }
+        }
+
+        /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
+        private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
+        {
+            return root.InverseTransformDirection(model.ModelBone(to).position - model.ModelBone(from).position);
         }
 
         [UnityTest]
