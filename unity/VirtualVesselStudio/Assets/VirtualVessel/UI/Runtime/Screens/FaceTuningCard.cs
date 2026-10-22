@@ -324,23 +324,5 @@ namespace VirtualVessel.UI.Screens
             Preview.image = texture;
             _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
         }
-
-        private sealed class DisposeAll : IDisposable
-        {
-            private readonly List<IDisposable> _items;
-
-            public DisposeAll(List<IDisposable> items)
-            {
-                _items = items;
-            }
-
-            public void Dispose()
-            {
-                foreach (IDisposable item in _items)
-                {
-                    item.Dispose();
-                }
-            }
-        }
     }
 }

@@ -186,7 +186,8 @@ namespace VirtualVessel.UI.Controls
 
         private static Label CreateCell(TableColumn column, string typography)
         {
-            var cell = new Label();
+            // Cells show data, such as names users typed or devices report; never parse it as rich text.
+            var cell = new Label { enableRichText = false };
             cell.AddToClassList(CellClass);
             cell.AddToClassList(typography);
             cell.EnableInClassList(EndClass, column.Align == CellAlign.End);

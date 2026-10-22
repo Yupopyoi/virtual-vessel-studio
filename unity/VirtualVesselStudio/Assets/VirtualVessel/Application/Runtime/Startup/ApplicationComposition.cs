@@ -17,6 +17,7 @@ using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Stage;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 #if VV_MEDIAPIPE
 using VirtualVessel.Tracking.MediaPipe;
 #endif
@@ -224,6 +225,23 @@ namespace VirtualVessel.Application.Startup
                     new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
             }
 
+            // Developers' recordings of tracking (tracking detailed design 12), in the Data Root's Cache.
+            // After Tracking, so it stops first and closes a recording in progress.
+            TrackingRecordings recordings = null;
+            if (context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    TrackingRecordings.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => recordings = new TrackingRecordings(
+                        tracking,
+                        Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName),
+                        () => context.SystemClock.UtcNow.UtcDateTime,
+                        () => context.MonotonicClock.GetTimestamp() / (double)context.MonotonicClock.Frequency,
+                        logging.Provider.GetLog("Tracking", "Recordings")),
+                    new[] { LoggingService.ServiceName, TrackingService.ServiceName }));
+            }
+
             // Avatar puts the chosen avatar on the stream (avatar detailed design 8.1): on Video's avatar
             // layer at Stage's spawn point, so it needs both. Optional: without it the stream has no avatar.
             AvatarService avatar = null;
@@ -257,7 +275,7 @@ namespace VirtualVessel.Application.Startup
                             metrics,
 
                             // Detailed metrics follow Developer Mode once the UI is up (performance metrics detailed design 7.1).
-                            metrics == null ? null : new Action<bool>[] { metrics.SetDetailedEnabled },
+                            DeveloperModeReceivers(metrics, recordings),
 
                             // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
                             // there leave their part of the screens saying so.
@@ -267,6 +285,7 @@ namespace VirtualVessel.Application.Startup
                                 FrameSources = stage?.Screens,
                                 Captures = capture,
                                 Tracking = tracking,
+                                TrackingRecordings = recordings,
                                 Avatars = avatar,
                                 FileDialog = new WindowsFileDialog(),
                                 Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
@@ -276,6 +295,32 @@ namespace VirtualVessel.Application.Startup
             }
 
             return descriptors;
+        }
+
+        /// <summary>
+        /// What follows Developer Mode: detailed metrics, and recording and replay, which stop when it is
+        /// turned off (tracking detailed design 12.2, 12.4). Pure.
+        /// </summary>
+        public static IReadOnlyList<Action<bool>> DeveloperModeReceivers(PerformanceMetricsService metrics, ITrackingRecordings recordings)
+        {
+            var receivers = new List<Action<bool>>();
+            if (metrics != null)
+            {
+                receivers.Add(metrics.SetDetailedEnabled);
+            }
+
+            if (recordings != null)
+            {
+                receivers.Add(on =>
+                {
+                    if (!on)
+                    {
+                        recordings.StopAll();
+                    }
+                });
+            }
+
+            return receivers;
         }
 
         public static string GetLogDirectory(IDataRoot dataRoot, RuntimeEnvironment environment)

@@ -18,8 +18,9 @@ namespace VirtualVessel.Tracking
     /// Optional application service; without it the avatar keeps its rest pose.
     /// </summary>
     /// <remarks>
-    /// The tracking camera is used only for tracking, so it starts and stops with tracking. Main
-    /// thread only.
+    /// The tracking camera is used only for tracking, so it starts and stops with tracking. For
+    /// developers' recordings (tracking detailed design 12), it hands raw observations to
+    /// <see cref="Observed"/> and can replay a recording in place of the provider. Main thread only.
     /// </remarks>
     public sealed class TrackingService : IApplicationService, ITrackingSource
     {
@@ -44,6 +45,8 @@ namespace VirtualVessel.Tracking
         private double _lastImage = double.NegativeInfinity;
         private double _now;
         private IDisposable _tick;
+        private ITrackingProvider _replay;
+        private bool _wantedBeforeReplay;
 
         /// <param name="provider">Null when no provider can run, such as without the MediaPipe plugin; tracking then reports StartFailed.</param>
         /// <param name="camera">The tracking camera, or null for a provider that needs none, such as replay.</param>
@@ -67,13 +70,30 @@ namespace VirtualVessel.Tracking
 
         public IReadOnlyObservable<TrackingProblem> Problem => _problem;
 
-        public TrackingRegions Supported => _provider?.Supported ?? TrackingRegions.None;
+        public TrackingRegions Supported => Active?.Supported ?? TrackingRegions.None;
 
         public IReadOnlyObservable<TrackingOptions> Options => _options;
 
         public TrackingFrame Current => _current;
 
         public double ObservationsPerSecond => _rate.RateAt(_now);
+
+        /// <summary>
+        /// Receives each raw observation from the provider, before smoothing, for recording (tracking
+        /// detailed design 12.2). Not called during replay. The frame is reused: copy what is kept.
+        /// </summary>
+        internal Action<TrackingFrame> Observed { get; set; }
+
+        /// <summary>Raised when tracking is turned off, before it stops, so a recording can end.</summary>
+        internal event Action Stopping;
+
+        /// <summary>Raised when a replay ends, whether asked or because tracking was turned off.</summary>
+        internal event Action ReplayEnded;
+
+        internal bool IsReplaying => _replay != null;
+
+        /// <summary>The provider observations come from now: the replay while one runs.</summary>
+        private ITrackingProvider Active => _replay ?? _provider;
 
         /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
         public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
@@ -109,6 +129,8 @@ namespace VirtualVessel.Tracking
             _tick?.Dispose();
             _tick = null;
             StopProvider();
+            _replay?.Dispose();
+            _replay = null;
             _provider?.Dispose();
         }
 
@@ -134,17 +156,81 @@ namespace VirtualVessel.Tracking
                 return;
             }
 
+            Stopping?.Invoke();
+            bool replaying = _replay != null;
+            StopReplayProvider();
             _wanted = false;
             StopProvider();
             _log?.Information("Tracking off.");
             Refresh();
+            if (replaying)
+            {
+                ReplayEnded?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Replays <paramref name="replay"/> in place of the camera and the provider, starting tracking
+        /// for it if it was off; a replay already running is replaced. Starting tracking for a replay is
+        /// not saved (tracking detailed design 12.4).
+        /// </summary>
+        internal void BeginReplay(ITrackingProvider replay)
+        {
+            if (replay == null)
+            {
+                throw new ArgumentNullException(nameof(replay));
+            }
+
+            if (_replay == null)
+            {
+                _wantedBeforeReplay = _wanted;
+                if (_wanted)
+                {
+                    StopProvider();
+                }
+            }
+            else
+            {
+                StopReplayProvider();
+            }
+
+            _replay = replay;
+            _wanted = true;
+            _processor.Reset();
+            _replay.Start(_options.Value);
+            _log?.Information("Tracking replays a recording.");
+            Refresh();
+        }
+
+        /// <summary>Ends the replay and goes back to the state before it: the camera and the provider if tracking was on.</summary>
+        internal void EndReplay()
+        {
+            if (_replay == null)
+            {
+                return;
+            }
+
+            StopReplayProvider();
+            _wanted = false;
+            _processor.Reset();
+            _log?.Information("Tracking stopped replaying.");
+            if (_wantedBeforeReplay)
+            {
+                Start();
+            }
+            else
+            {
+                Refresh();
+            }
+
+            ReplayEnded?.Invoke();
         }
 
         public void SetOptions(TrackingOptions options)
         {
             if (_options.Set(options) && _wanted)
             {
-                _provider?.SetOptions(options);
+                Active?.SetOptions(options);
             }
         }
 
@@ -209,12 +295,18 @@ namespace VirtualVessel.Tracking
         internal void Tick()
         {
             _now = _clock.GetTimestamp() / (double)_clock.Frequency;
-            if (_wanted && _provider != null)
+            ITrackingProvider active = Active;
+            if (_wanted && active != null)
             {
-                _provider.Tick();
-                bool observed = _provider.TryTakeLatest(_raw);
+                active.Tick();
+                bool observed = active.TryTakeLatest(_raw);
+                if (observed && _replay == null)
+                {
+                    Observed?.Invoke(_raw);
+                }
+
                 TrackingOptions options = _options.Value;
-                _processor.Process(observed ? _raw : null, _now, _provider.Supported, options.Regions, options.Smoothing, _current);
+                _processor.Process(observed ? _raw : null, _now, active.Supported, options.Regions, options.Smoothing, _current);
                 if (observed)
                 {
                     NoteObservation(Newest(_raw));
@@ -250,16 +342,23 @@ namespace VirtualVessel.Tracking
             _processor.Reset();
         }
 
+        private void StopReplayProvider()
+        {
+            _replay?.Stop();
+            _replay?.Dispose();
+            _replay = null;
+        }
+
         private void Refresh()
         {
             bool personSeen = _current.Body.IsUsable || _current.Face.IsUsable || _current.LeftHand.IsUsable || _current.RightHand.IsUsable;
             (TrackingState state, TrackingProblem problem) = Describe(
                 _wanted,
-                _provider != null,
-                _camera != null,
+                Active != null,
+                _camera != null && _replay == null,
                 _camera?.State.Value ?? CaptureState.Stopped,
                 _camera?.Problem.Value ?? CaptureProblem.None,
-                _provider?.State.Value ?? TrackingState.Stopped,
+                Active?.State.Value ?? TrackingState.Stopped,
                 personSeen);
             if (_state.Set(state))
             {
@@ -271,13 +370,15 @@ namespace VirtualVessel.Tracking
 
         private void NoteChanges()
         {
-            // Compared every frame, so nothing is allocated unless something changed.
-            if (_options.Value.Equals(_settings.GetOptions()) && _wanted == _settings.Running)
+            // Compared every frame, so nothing is allocated unless something changed. A replay keeps
+            // the saved running state from before it.
+            bool running = _replay != null ? _wantedBeforeReplay : _wanted;
+            if (_options.Value.Equals(_settings.GetOptions()) && running == _settings.Running)
             {
                 return;
             }
 
-            _settings = _settings.With(_options.Value, _wanted);
+            _settings = _settings.With(_options.Value, running);
             _saves?.Changed(_settings.Clone());
         }
     }

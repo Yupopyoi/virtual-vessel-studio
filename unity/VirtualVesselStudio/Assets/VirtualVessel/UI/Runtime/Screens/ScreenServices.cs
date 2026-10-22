@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
@@ -30,6 +31,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Tracking (Tracking); null says it is unavailable.</summary>
         public ITrackingSource Tracking { get; set; }
+
+        /// <summary>Developers' recordings of tracking (Tracking), for the Diagnostics screen; null leaves them out.</summary>
+        public ITrackingRecordings TrackingRecordings { get; set; }
 
         /// <summary>Avatars (Avatar); null says they are unavailable.</summary>
         public IAvatarService Avatars { get; set; }

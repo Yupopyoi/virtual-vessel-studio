@@ -526,18 +526,35 @@ The delay and the position numbers are current defaults and may change. The numb
 
 Live and Setup follow their screen specifications (`docs/en/ui/screens/live.md`, `setup.md`): Live has the stream preview and placement editing, Setup the capture Cards and the App settings. Until its specification exists, Voice Lab shows only its heading and "This screen is on its way".
 
-- The composition passes what they need together in `UiRootContext.Screens` (`ScreenServices`): `IStreamPreviewSource` (Video), the list of `IFrameSource` and `IStageLighting` (Stage), `ICaptureSources` (Capture), `ITrackingSource` (Tracking), `IAvatarService` (Avatar), `IFileDialog`, and `ICreditFiles`. Anything missing stays `null`, and that part says it is unavailable or is left out.
+- The composition passes what they need together in `UiRootContext.Screens` (`ScreenServices`): `IStreamPreviewSource` (Video), the list of `IFrameSource` and `IStageLighting` (Stage), `ICaptureSources` (Capture), `ITrackingSource` and `ITrackingRecordings` (Tracking), `IAvatarService` (Avatar), `IFileDialog`, and `ICreditFiles`. Anything missing stays `null`, and that part says it is unavailable or is left out.
 - A new service for the screens is added once to `ScreenServices` and passed only to the Cards that use it. Before, it was a new parameter of `UiRootContext` and of `SetupScreen` in turn, so each new service brought pass-through changes in four places (2026-10-21).
 - The UI may reference Capture's public contracts (`ICaptureSources`, `ICaptureDeviceSource`, `IPointerOption`), as it shows Capture's state. Capture does not reference the UI.
 
 Two more screens get minimal content that may be revised later:
 
-- Diagnostics (Developer Mode only): a table of performance metrics (`PerformanceSnapshot`), built with the shared `DataTable`.
+- Diagnostics (Developer Mode only): the performance metrics table and the tracking recordings (below).
+- The performance metrics table (`PerformanceSnapshot`) is built with the shared `DataTable`.
   - The columns are module, name, kind, current, average, max, P95, P99, count, and over budget. Numbers are monospace, right-aligned, with units.
   - The table refreshes every second with `IPerformanceMetrics.GetSnapshot`, only while shown. Nothing is taken while hidden, because building a snapshot allocates.
   - Whether detailed metrics are on is shown above the table, so it is clear why timers and gauges do not move while they are off.
   - Without the performance metrics service, the screen says "Performance metrics aren't available".
   - The number texts come from pure functions (`DiagnosticsFormat`). Module and metric names are identifiers and are shown as they are, untranslated.
+- Tracking recordings (`TrackingRecordingsCard`, tracking detailed design chapter 12): placed under the metrics table only when Tracking's `ITrackingRecordings` is available.
+
+| Row | Component | Content |
+|---|---|---|
+| State | Status Chip | Not recording (Idle), Recording (Recording, elapsed time), Replaying (Running, the recording's description), with an icon and text |
+| Description | Text Field | The recording's description (optional, up to 100 characters). Fixed while recording or replaying |
+| Record | Button (Primary) "Start recording" / "Stop recording" | Disabled while tracking is not running or during replay, with the reason as a tooltip |
+| Recordings | `DataTable` (description, date, length, size) | Newest first. A recording that cannot be read says so in the description column. Dates are shown in the user's local time |
+| Choose | Dropdown | Chooses one recording from the list, for replay and deletion |
+| Replay | Button "Replay" / "Stop replay" | Disabled for a recording that cannot be read and while recording |
+| Delete | Button (Danger) "Delete", "Delete all" | After a confirmation dialog. A recording being recorded or replayed cannot be deleted |
+| Note | Caption | "Recordings hold only numbers, no video. They never leave this PC." and the total (count and size) |
+
+  - The description is shown as data text and never parsed as rich text.
+  - The elapsed time is redrawn once a second, only while recording.
+  - Turning Developer Mode off stops recording and replay (`DeveloperModeReceivers`).
 - Component Gallery: the same parts as the "Common components" of `styleboard.html`, laid out in Unity to check how they look and work (`ComponentGalleryScreen`).
   - It is a tool for building the UI, not part of the application, so it is included only when running in the Unity Editor (`#if UNITY_EDITOR`). Built applications, development builds included, contain neither the screen nor its code. Its string table keys stay but are never shown.
   - Even in the Editor, it shows only in Developer Mode, below Diagnostics in the navigation. Its icon is `Gallery` (a 2×2 grid of squares).
@@ -1100,7 +1117,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText (setup.md chapter 8)   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

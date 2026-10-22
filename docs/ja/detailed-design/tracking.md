@@ -115,7 +115,8 @@ flowchart LR
 | `TrackingStateMachine` | Static Class | 部位ごとの状態の判断（純粋関数） |
 | `MediaPipeTrackingProvider` | Class（internal） | MediaPipe Provider |
 | `MediaPipeConversion` | Static Class（internal） | MediaPipeの点と座標から共通の形への変換（純粋関数） |
-| `TrackingRecorder` / `TrackingReplayProvider` | Class | 観測の記録と再生（開発者向け、12章） |
+| `ITrackingRecordings` | Interface | 記録と再生の窓口（開発者向け、5.5） |
+| `TrackingRecordings`、`TrackingRecorder`、`TrackingRecordingFile`、`TrackingRecordingFormat`、`TrackingReplayProvider` | Class | 観測の記録と再生（開発者向け、12章） |
 
 ---
 
@@ -200,6 +201,40 @@ Captureに3つ目のSourceとして、トラッキング用のWebカメラ`camer
 | 配信画面への表示 | しない。Stageは`Camera`の種類のSourceに板を作らない。利用者の顔や部屋が意図せず配信に出ることを防ぐ（13章） |
 | セットアップ画面 | 取り込みのCardは作らない。トラッキングのCardで機器を選ぶ（UI `setup.md` 4章） |
 | 反転 | Captureの反転（`CaptureFlip`）は使わない。左右の扱いはTrackingの座標の定義（6.1）とAvatarの鏡写しで決める |
+
+### 5.5 ITrackingRecordings（開発者向け）
+
+記録と再生の窓口（12章）。診断の画面（Developer Modeのみ）が使う。すべてMain Threadで呼ぶ。
+
+```csharp
+public interface ITrackingRecordings
+{
+    IReadOnlyObservable<RecordingActivity> Activity { get; }                       // Idle、Recording、Replaying
+    IReadOnlyObservable<IReadOnlyList<TrackingRecordingInfo>> Recordings { get; }  // 新しい順
+    string ActiveId { get; }                       // 記録中または再生中の記録。なければnull
+    double RecordedSeconds { get; }                // 記録中の長さ
+    Task RefreshAsync(CancellationToken cancellationToken);
+    void StartRecording(string description);       // トラッキングが動いていないときは例外
+    void StopRecording();
+    Task StartReplayAsync(string id, CancellationToken cancellationToken);
+    void StopReplay();
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
+    Task DeleteAllAsync(CancellationToken cancellationToken);
+    void StopAll();                                // Developer Modeをオフにしたとき等
+}
+
+public sealed class TrackingRecordingInfo
+{
+    string Id;                 // ファイル名（12.3）
+    string Description;
+    DateTime StartedAtUtc;
+    double Seconds;
+    long Bytes;
+    bool Readable;             // 知らない版、壊れたヘッダーではfalse
+}
+```
+
+- 記録と再生のために、`TrackingService`は同じAssemblyの中だけで使う口を2つ持つ：観測を受け取る口（平滑化の前）と、Providerを再生へ一時的に替える口。他のModuleからは見えない。
 
 ---
 
@@ -479,11 +514,74 @@ public sealed class TrackingSettings
 
 ## 12. 記録と再生（開発者向け）
 
-平滑化や奥行きの方法を、勘ではなく比べて決めるための仕組み。
+平滑化や奥行きの方法を、勘ではなく比べて決めるための仕組み。カメラで撮った動きを記録し、同じ動きを何度でも再生して、方法だけを変えて数値と目視で比べる。
 
-- `TrackingRecorder`：Providerの観測（平滑化する前の`TrackingFrame`）を、時刻とともにファイルへ記録する。**映像は記録しない**。カメラで記録した動きで調整する段階4〜5で作る。
-- `TrackingReplayProvider`：記録を`ITrackingProvider`として再生する。カメラなしで、同じ動きを何度でも再現できる。
-- 評価の値（EditModeで計算する純粋関数）：
+### 12.1 部品
+
+| 名前 | 概要 |
+|---|---|
+| `TrackingRecordingFormat` | 1回分の観測とファイルの先頭（ヘッダー）を、バイト列との間で変換する（純粋関数） |
+| `TrackingRecordingFile` | 一覧のためにヘッダーと長さを読み、再生のために全体を読む |
+| `TrackingRecorder` | 記録中のファイルへ観測を書く。書き込みは別のThreadで行う |
+| `TrackingRecordings`（`ITrackingRecordings`、5.5） | 記録と再生の開始・停止、一覧、削除の窓口。診断の画面が使う |
+| `TrackingReplayProvider` | 読んだ観測を`ITrackingProvider`として再生する（段階1） |
+| `TrackingMetrics`、`SyntheticMotion` | 評価の値（12.6）と合成の動き（段階1） |
+
+### 12.2 記録
+
+- 記録するのは、Providerの観測（平滑化する前の`TrackingFrame`）だけとする。**映像は記録しない**。
+- 開発者が診断の画面（Developer Modeのときだけ表示、UI基盤詳細設計7.7）から始めたときだけ記録する。詳細設計の当初の案は起動の引数で有効にする形だったが、普段はEditorで試すため（EditorはUnity Hubから起動する）、画面から操作する形にした（利用者の決定、2026-10-22）。通常の画面からは使えない。
+- トラッキングが動いている間だけ記録できる。再生中は記録できない。
+- 始める前に、任意で説明（例：「腕を前へ伸ばす」、最大100文字）を付けられる。説明はファイルの中に保存し、ファイル名には使わない。
+- 1本の長さは最大5分（約15MB）とし、超えたら自動で止める。
+- 次の場合も止める：トラッキングの停止、アプリの終了、Developer Modeをオフにしたとき。
+- 観測は、Main Threadで毎回バイト列にして（1回約1.7KB、使い回すBuffer）書き込みのThreadへ渡す。Main Threadではファイルへ書かない。
+
+### 12.3 ファイル
+
+- 場所：Data Rootの`Cache/TrackingRecordings/`。方式設計6.24では、Cacheは作り直せる一時データの場所である。記録は作り直せない（撮り直すしかない）が、**いつ消えてもよい開発用のデータ**として扱い、ここに置く（利用者の決定、2026-10-22）。
+- DBは使わない。1つのファイルに1本の記録を入れ、説明等はファイルの先頭に持つ。記録は多くても数十本で、問い合わせや他のデータとの関係がなく、DBとファイルの食い違いも避けられるため（2026-10-22）。
+- 名前：記録を始めたUTCの日時から`yyyyMMdd-HHmmss.vvtrack`とする。同じ名前があれば`-2`、`-3`と付ける。
+- 形式（Little Endian）：
+
+```text
+ヘッダー
+├─ 識別子 "VVTR"（4バイト）
+├─ 形式の版（int32。今は1）
+├─ 1回分の観測の大きさ（int32、バイト）
+├─ 記録を始めた日時（int64、UTCのTicks）
+├─ Providerが取れる部位（TrackingRegions、int32）
+└─ 説明（int32のバイト数 + UTF-8）
+観測 × 回数（どれも同じ大きさ）
+├─ Sequence（int64）、Time（double）
+├─ 体：状態、信頼度、時刻、20関節の位置・画像上の位置・信頼度
+├─ 左手、右手：状態、信頼度、時刻、21点の位置・画像上の位置、手のひらの回転
+└─ 顔：状態、信頼度、時刻、頭の回転と位置、52個の値、取れる値（ビット）、左右の目の向き
+```
+
+- 観測はどれも同じ大きさのため、回数はファイルの大きさから、長さは最初と最後の観測の時刻から分かる。一覧ではヘッダーと最初・最後の観測だけを読む。
+- 途中で落ちる等で末尾が欠けたファイルは、最後まで書けた観測までを使う。
+- 知らない版や壊れたヘッダーのファイルも、消さずに一覧へ「読めません」と出す（CLAUDE.md 25章）。削除はできる。
+- 形式を変えるときは版を上げ、古い版を読む処理を残すか、読めないと表示する。
+
+### 12.4 再生
+
+- 一覧から選んで再生する。再生中は、カメラとProviderを止め、記録を`TrackingReplayProvider`で繰り返し再生する。止めると、再生の前の状態（トラッキングが動いていればカメラとProvider）に戻る。
+- トラッキングが止まっていても再生できる（カメラなしで動きを再現するため）。再生のために動かしたことは保存しない。再生中にトラッキングを止めると、再生も止まる。
+- 再生中も、平滑化等の処理と設定は通常と同じに効く。比べたい方法だけを変えて、同じ動きで確かめられる。
+- ファイルの読み込みは別のThreadで行う（5分で約15MB）。
+- Developer Modeをオフにしたら、再生も止める。
+
+### 12.5 保持と削除
+
+- 自動では消さない。比較の基準として何日か使うためである。消すのは開発者の操作だけとする（利用者の決定、2026-10-22）。
+- 1本ずつの削除と、すべての削除を置く。どちらも確認のDialog（Danger）を出す。
+- 再生中と記録中の記録は消せない（先に止める）。
+- 消すのは、記録のFolderの中で、12.3の名前の形に合う`.vvtrack`だけとする。一覧の名前からFolderの外のPathを作らない。
+
+### 12.6 評価の値
+
+EditModeで計算する純粋関数（`TrackingMetrics`）。
 
 | 値 | 意味 |
 |---|---|
@@ -492,8 +590,10 @@ public sealed class TrackingSettings
 | 骨の長さの一定さ | 骨の長さの変動。奥行きの推定の良さの目安 |
 | 可動域の違反 | 関節の制限を越えた回数 |
 
-- Repositoryに入れる記録は、Testのために作った合成の動き（決まった動きに雑音を加えたもの）だけとする。開発者が自分を撮って作った記録は、顔の形を含む個人の情報になり得るため、Repositoryに入れず、各自の手元に置く（13章）。
-- 記録は、開発者向けの設定（起動の引数）でだけ有効になる。通常の画面からは使えない。
+### 12.7 Repositoryと開発者の記録
+
+- Repositoryに入れる記録は、Testのために作った合成の動き（決まった動きに雑音を加えたもの）だけとする。開発者が自分を撮って作った記録は、顔の動きを含む個人の情報になり得るため、Repositoryに入れず、各自の手元に置く（13章）。
+- Data Rootは通常Repositoryの外（`%LOCALAPPDATA%`）にある。起動の引数でRepositoryの中を指した場合に備え、`.gitignore`で`*.vvtrack`を除く。
 
 ---
 
@@ -501,7 +601,7 @@ public sealed class TrackingSettings
 
 - カメラの映像は、利用者の顔と部屋を映す。Processの外へ出さず、ファイル、Log、診断に残さない。推論のための読み出しは、使い回すBufferの中だけで行う。
 - トラッキング用カメラの映像は配信に出さない（5.4）。
-- 観測（顔の点、表情の値、体の点）も、個人の特徴を含み得る。記録（12章）は開発者が明示的に有効にしたときだけ行い、Data Rootの`Cache/TrackingRecordings/`に置く。Logには値を書かない。
+- 観測（顔の点、表情の値、体の点）も、個人の特徴を含み得る。記録（12章）は、開発者が診断の画面から始めたときだけ行い、Data Rootの`Cache/TrackingRecordings/`に置く。記録の中身は、Logにも、診断情報の書き出しにも含めず、PCの外へ送らない。記録している間は、診断の画面に「記録中」を、Iconと文字で示す。Logには、ファイル名、長さ、回数だけを書く。
 - MediaPipeは推論をProcessの中で行い、通信しない。モデルのファイルは配布物に含め、実行時にダウンロードしない。モデルとPluginの版とHash（SHA-256）はSBOMと導入のScriptで固定する（16.2）。
 - 推論の失敗（不正な入力、Pluginの例外）は、Providerの中で受け止めて`Error`にし、アプリを落とさない。
 
@@ -577,7 +677,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
 │  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation（段階5）
 │  ├─ Threading/FrameSlot.cs
-│  ├─ Recording/              TrackingRecorder（段階4〜5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
+│  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat（段階5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe（MediaPipeUnityPluginを参照する唯一のAssembly。Pluginがあるときだけ`VV_MEDIAPIPE`でCompileする）
 │  ├─ MediaPipeTrackingProvider.cs   開始・停止と、映像から結果までの流れ

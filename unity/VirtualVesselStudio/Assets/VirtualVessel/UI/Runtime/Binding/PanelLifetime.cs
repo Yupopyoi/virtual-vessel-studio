@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
 
@@ -89,6 +90,25 @@ namespace VirtualVessel.UI.Binding
                 IDisposable current = _current;
                 _current = null;
                 current?.Dispose();
+            }
+        }
+    }
+
+    /// <summary>Disposes several subscriptions together, such as everything a Card watches while it is on a panel.</summary>
+    internal sealed class DisposeAll : IDisposable
+    {
+        private readonly List<IDisposable> _items;
+
+        public DisposeAll(List<IDisposable> items)
+        {
+            _items = items;
+        }
+
+        public void Dispose()
+        {
+            foreach (IDisposable item in _items)
+            {
+                item.Dispose();
             }
         }
     }
