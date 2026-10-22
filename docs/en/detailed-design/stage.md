@@ -274,7 +274,7 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Stage Scenes, Camera Points, Avatar Spawn Points | With the Stage Scene design |
 | Screen Surfaces inside a 3D stage | With the Stage Scene design |
 | Keeping a capture running without showing it on the stream | When it is asked for |
-| Moving placements into Project / Profile | With the Project / Profile design |
+| Moving placements into Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
 | Stage Scene lighting and the light's brightness | With the Stage Scene design. Decide whether the brightness scales the whole lighting of a Stage Scene |
 
 ---

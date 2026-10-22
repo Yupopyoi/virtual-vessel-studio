@@ -450,7 +450,7 @@ tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 |---|---|
 | Native DLLの扱い | 決定：C++のソースをGitで管理し、DLLはGitに入れない。手元では`tools/native/build-capture.ps1`でビルドし、CIの`Native plugins`がビルドとテストを行う（開発運用方針18.1.1）。配布物への組み込みはmain Buildで扱う |
 | GameCaptureの音声（Libraryの選択：NAudio、UnityのMicrophone、Native WASAPI） | Audio Moduleの設計時。NAudioを使う場合は依存の追加として承認を得る |
-| Capture設定の保存先 | 決定：Project / Profileができるまで`capture-settings.json`（10章）。その後に移す |
+| Capture設定の保存先 | 決定：Project / Profileができるまで`capture-settings.json`（10章）。段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
 | 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |

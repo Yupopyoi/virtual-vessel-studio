@@ -450,7 +450,7 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 |---|---|
 | How the native DLL is handled | Decided: the C++ sources are kept in Git and the DLL is not. It is built locally with `tools/native/build-capture.ps1`, and the CI workflow `Native plugins` builds and tests it (development workflow 18.1.1). Putting it into the distributed application is handled by the main build |
 | GameCapture audio (library: NAudio, Unity's Microphone, native WASAPI) | With the Audio module design. Using NAudio needs approval as a new dependency |
-| Where capture settings are stored | Decided: `capture-settings.json` until Project / Profile exist (chapter 10); moved there afterwards |
+| Where capture settings are stored | Decided: `capture-settings.json` until Project / Profile exist (chapter 10). Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
 | Sharing directly on the GPU | Decided from the measured upload times |
