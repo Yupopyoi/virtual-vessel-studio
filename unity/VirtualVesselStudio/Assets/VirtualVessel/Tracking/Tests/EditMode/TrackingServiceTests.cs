@@ -218,7 +218,7 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         /// <summary>A clock driven by the test, in seconds with microsecond ticks.</summary>
-        private sealed class SecondsClock : IMonotonicClock
+        internal sealed class SecondsClock : IMonotonicClock
         {
             public double Seconds { get; set; } = 10.0;
 
@@ -236,7 +236,7 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         /// <summary>A camera that captures as soon as it is started.</summary>
-        private sealed class FakeCamera : IVideoCaptureSource
+        internal sealed class FakeCamera : IVideoCaptureSource
         {
             private readonly ObservableValue<CaptureState> _state = new ObservableValue<CaptureState>(CaptureState.Stopped);
 
