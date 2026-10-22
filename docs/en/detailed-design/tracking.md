@@ -115,7 +115,8 @@ flowchart LR
 | `TrackingStateMachine` | Static class | Decides the status of each part (pure functions) |
 | `MediaPipeTrackingProvider` | Class (internal) | The MediaPipe provider |
 | `MediaPipeConversion` | Static class (internal) | Converts MediaPipe points and coordinates to the common form (pure functions) |
-| `TrackingRecorder` / `TrackingReplayProvider` | Class | Recording and replaying observations (developer-only, chapter 12) |
+| `ITrackingRecordings` | Interface | The entry point for recording and replay (developer-only, 5.5) |
+| `TrackingRecordings`, `TrackingRecorder`, `TrackingRecordingFile`, `TrackingRecordingFormat`, `TrackingReplayProvider` | Class | Recording and replaying observations (developer-only, chapter 12) |
 
 ---
 
@@ -201,6 +202,40 @@ Capture got a third source, the tracking webcam `camera`. It opens with `WebCamC
 | Display on the stream | None. Stage creates no screen for sources of the `Camera` kind, so the user's face or room never appears on the stream unintentionally (chapter 13) |
 | Setup screen | No capture Card. The device is chosen in the tracking Card (UI `setup.md` chapter 4) |
 | Flip | Capture's flip (`CaptureFlip`) is not used. Left and right are decided by the Tracking coordinate definition (6.1) and Avatar mirroring |
+
+### 5.5 ITrackingRecordings (Developer-only)
+
+The entry point for recording and replay (chapter 12), used by the Diagnostics screen (Developer Mode only). Everything is called on the main thread.
+
+```csharp
+public interface ITrackingRecordings
+{
+    IReadOnlyObservable<RecordingActivity> Activity { get; }                       // Idle, Recording, Replaying
+    IReadOnlyObservable<IReadOnlyList<TrackingRecordingInfo>> Recordings { get; }  // newest first
+    string ActiveId { get; }                       // The recording being recorded or replayed, or null
+    double RecordedSeconds { get; }                // Length of the recording in progress
+    Task RefreshAsync(CancellationToken cancellationToken);
+    void StartRecording(string description);       // Throws while tracking is not running
+    void StopRecording();
+    Task StartReplayAsync(string id, CancellationToken cancellationToken);
+    void StopReplay();
+    Task DeleteAsync(string id, CancellationToken cancellationToken);
+    Task DeleteAllAsync(CancellationToken cancellationToken);
+    void StopAll();                                // When Developer Mode turns off, for example
+}
+
+public sealed class TrackingRecordingInfo
+{
+    string Id;                 // The file name (12.3)
+    string Description;
+    DateTime StartedAtUtc;
+    double Seconds;
+    long Bytes;
+    bool Readable;             // False for an unknown version or a broken header
+}
+```
+
+- For recording and replay, `TrackingService` has two members used only inside its assembly: one that receives observations (before smoothing), and one that temporarily replaces the provider with replay. Other modules cannot see them.
 
 ---
 
@@ -480,11 +515,74 @@ public sealed class TrackingSettings
 
 ## 12. Recording and Replay (Developer-only)
 
-Tools for choosing the smoothing and depth methods by comparison rather than by feel.
+Tools for choosing the smoothing and depth methods by comparison rather than by feel. A movement filmed with the camera is recorded and replayed any number of times, and only the method changes between comparisons, in numbers and by eye.
 
-- `TrackingRecorder`: records the provider's observations (`TrackingFrame` before smoothing) with times to a file. **Images are not recorded.** Built in steps 4–5, when tuning on movements recorded with a camera.
-- `TrackingReplayProvider`: replays a recording as an `ITrackingProvider`. The same movement can be reproduced any number of times without a camera.
-- Evaluation values (pure functions computed in EditMode):
+### 12.1 Parts
+
+| Name | Summary |
+|---|---|
+| `TrackingRecordingFormat` | Converts one observation and the file's header to and from bytes (pure functions) |
+| `TrackingRecordingFile` | Reads the header and length for the list, and the whole file for replay |
+| `TrackingRecorder` | Writes observations to the file being recorded; writing happens on another thread |
+| `TrackingRecordings` (`ITrackingRecordings`, 5.5) | Starts and stops recording and replay, lists, and deletes. Used by the Diagnostics screen |
+| `TrackingReplayProvider` | Replays read observations as an `ITrackingProvider` (step 1) |
+| `TrackingMetrics`, `SyntheticMotion` | Evaluation values (12.6) and synthetic movements (step 1) |
+
+### 12.2 Recording
+
+- Only the provider's observations (`TrackingFrame` before smoothing) are recorded. **Images are not recorded.**
+- Recording happens only when a developer starts it on the Diagnostics screen (shown only in Developer Mode, UI foundation detailed design 7.7). The design first enabled it with a launch argument, but changes are usually tried in the Editor, which Unity Hub launches, so it is operated from the screen instead (user's decision, 2026-10-22). It is never available from the normal screens.
+- Recording is possible only while tracking runs, and not during replay.
+- Before starting, an optional description can be given (for example "arms forward", up to 100 characters). It is kept inside the file, not in the file name.
+- A recording is at most 5 minutes long (about 15 MB) and stops on its own after that.
+- It also stops when tracking stops, when the application exits, and when Developer Mode is turned off.
+- Each observation is turned into bytes on the main thread (about 1.7 KB, in reused buffers) and handed to the writing thread. The main thread never writes to the file.
+
+### 12.3 File
+
+- Location: `Cache/TrackingRecordings/` in the Data Root. In system design 6.24, Cache is for temporary data that can be made again. A recording cannot be made again (only filmed again), but it is treated as **developer data that may disappear at any time** and kept there (user's decision, 2026-10-22).
+- No database is used. One file holds one recording, with the description and the like at the start of the file. There are a few dozen recordings at most, nothing is queried or related to other data, and the database and the files cannot drift apart (2026-10-22).
+- Name: `yyyyMMdd-HHmmss.vvtrack` from the UTC time recording started. If the name exists, `-2`, `-3`, and so on are added.
+- Format (little-endian):
+
+```text
+Header
+├─ Identifier "VVTR" (4 bytes)
+├─ Format version (int32; 1 for now)
+├─ Size of one observation (int32, bytes)
+├─ When recording started (int64, UTC ticks)
+├─ Parts the provider can track (TrackingRegions, int32)
+└─ Description (int32 byte count + UTF-8)
+Observations × count (all the same size)
+├─ Sequence (int64), Time (double)
+├─ Body: status, confidence, time, 20 joints' positions, image positions, and confidences
+├─ Left hand, right hand: status, confidence, time, 21 points' positions and image positions, palm rotation
+└─ Face: status, confidence, time, head rotation and position, 52 values, supported values (bits), each eye's gaze
+```
+
+- All observations have the same size, so their count follows from the file size and the length from the first and last observations' times. The list reads only the header and the first and last observations.
+- A file whose end is missing, for example after a crash, is used up to the last complete observation.
+- Files of an unknown version or with a broken header are listed as "cannot be read", not deleted (CLAUDE.md chapter 25). They can be deleted.
+- A format change raises the version and either keeps reading the old one or shows that it cannot be read.
+
+### 12.4 Replay
+
+- A recording is chosen from the list and replayed. During replay, the camera and the provider stop, and the recording plays in a loop through `TrackingReplayProvider`. Stopping returns to the state before replay: the camera and the provider if tracking was running.
+- Replay works while tracking is stopped, to reproduce a movement without a camera. Starting tracking for replay is not saved. Stopping tracking during replay stops the replay too.
+- The processing and settings, such as smoothing, apply during replay as usual, so only the method being compared changes on the same movement.
+- The file is read on another thread (about 15 MB for 5 minutes).
+- Turning Developer Mode off stops replay too.
+
+### 12.5 Keeping and Deleting
+
+- Nothing is deleted automatically. Recordings serve as baselines for comparisons over several days, so only a developer deletes them (user's decision, 2026-10-22).
+- One recording or all of them can be deleted, each after a confirmation dialog (Danger).
+- A recording being replayed or recorded cannot be deleted; it is stopped first.
+- Only `.vvtrack` files in the recordings folder whose names fit 12.3 are deleted. No path outside the folder is made from a name in the list.
+
+### 12.6 Evaluation Values
+
+Pure functions computed in EditMode (`TrackingMetrics`).
 
 | Value | Meaning |
 |---|---|
@@ -493,8 +591,10 @@ Tools for choosing the smoothing and depth methods by comparison rather than by 
 | Bone-length stability | Variation of bone lengths; an indicator of depth estimation quality |
 | Joint-limit violations | Number of times a joint limit was exceeded |
 
-- Recordings committed to the repository are only synthetic movements made for tests (fixed movements with added noise). A recording a developer makes of themself can be personal information including face shape, so it stays on that developer's machine and out of the repository (chapter 13).
-- Recording is enabled only by a developer setting (a launch argument), never from the normal screens.
+### 12.7 The Repository and Developers' Recordings
+
+- Recordings committed to the repository are only synthetic movements made for tests (fixed movements with added noise). A recording a developer makes of themself can be personal information including the face's movement, so it stays on that developer's machine and out of the repository (chapter 13).
+- The Data Root is normally outside the repository (`%LOCALAPPDATA%`). In case a launch argument points it inside, `.gitignore` excludes `*.vvtrack`.
 
 ---
 
@@ -502,7 +602,7 @@ Tools for choosing the smoothing and depth methods by comparison rather than by 
 
 - The camera image shows the user's face and room. It never leaves the process and is not written to files, logs, or diagnostics. Reading for inference happens only inside reused buffers.
 - The tracking camera image is not put on the stream (5.4).
-- Observations (face points, expression values, body points) can also contain personal characteristics. Recording (chapter 12) happens only when a developer explicitly enables it and goes to `Cache/TrackingRecordings/` in the Data Root. Values are not written to logs.
+- Observations (face points, expression values, body points) can also contain personal characteristics. Recording (chapter 12) happens only when a developer starts it on the Diagnostics screen, and goes to `Cache/TrackingRecordings/` in the Data Root. What a recording holds is not written to logs or included in diagnostics exports, and never leaves the PC. While recording, the Diagnostics screen shows "Recording" with an icon and text. Logs carry only the file name, the length, and the count.
 - MediaPipe runs inference inside the process and does not communicate over the network. Model files are included in the distribution and are not downloaded at run time. The versions and hashes (SHA-256) of models and the plugin are pinned in the SBOM and the setup script (16.2).
 - Inference failures (invalid input, plugin exceptions) are caught inside the provider and become `Error`; they do not crash the application.
 
@@ -578,7 +678,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
 │  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, DepthEstimation (step 5)
 │  ├─ Threading/FrameSlot.cs
-│  ├─ Recording/              TrackingRecorder (steps 4–5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
+│  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat (step 5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipe points to the common form (pure functions; no plugin types, so it lives here and is tested without the plugin)
 ├─ MediaPipe/                                  VirtualVessel.Tracking.MediaPipe (the only assembly that references MediaPipeUnityPlugin; compiled only with the plugin, through `VV_MEDIAPIPE`)
 │  ├─ MediaPipeTrackingProvider.cs   Starting and stopping, and the flow from image to result

@@ -75,6 +75,7 @@ For each component, the following states are defined:
 - Long option text is wrapped or the width grows; it is not truncated.
 - The field is as wide as its longest option, whatever is selected, so it keeps its width when the choice changes and the list opens as wide as the field.
 - The list opens below the field, above it when there is no room below, and right-aligned with the field when it would pass the right edge of the window; it never leaves the window.
+- Option text can be data, such as device names or users' descriptions, so it is never parsed as rich text.
 
 ### 3.7 Text Field / Numeric Field
 
@@ -219,6 +220,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - A column can take the remaining width (such as a name). Text that does not fit ends with "…".
 - When the room is narrower than the columns together, the table scrolls sideways inside itself and never spills out. A vertical wheel still scrolls the whole screen.
 - Refreshing a table changes only the texts; rows are not rebuilt.
+- Cell text can be data, such as names users typed, so it is never parsed as rich text.
 
 ---
 
