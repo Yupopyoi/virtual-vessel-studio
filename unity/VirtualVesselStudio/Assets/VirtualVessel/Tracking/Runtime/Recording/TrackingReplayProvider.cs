@@ -23,15 +23,19 @@ namespace VirtualVessel.Tracking.Recording
 
         /// <param name="now">Seconds on the clock the processor uses.</param>
         /// <param name="loop">Start over after the last frame.</param>
-        public TrackingReplayProvider(IReadOnlyList<TrackingFrame> frames, TrackingRegions supported, Func<double> now, bool loop)
+        /// <param name="traits">What the recorded provider observed, so its corrections apply again; none for synthetic motion.</param>
+        public TrackingReplayProvider(IReadOnlyList<TrackingFrame> frames, TrackingRegions supported, Func<double> now, bool loop, ObservationTraits traits = ObservationTraits.None)
         {
             _frames = frames ?? throw new ArgumentNullException(nameof(frames));
             _now = now ?? throw new ArgumentNullException(nameof(now));
             Supported = supported;
+            Traits = traits;
             _loop = loop;
         }
 
         public TrackingRegions Supported { get; }
+
+        public ObservationTraits Traits { get; }
 
         public IReadOnlyObservable<TrackingState> State => _state;
 

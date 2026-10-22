@@ -44,6 +44,9 @@ namespace VirtualVessel.Tracking
     {
         TrackingRegions Supported { get; }
 
+        /// <summary>What kind of observation this is, for the corrections that suit it (tracking detailed design 8.4).</summary>
+        ObservationTraits Traits { get; }
+
         IReadOnlyObservable<TrackingState> State { get; }
 
         /// <summary>Returns without waiting; the result comes through <see cref="State"/>.</summary>

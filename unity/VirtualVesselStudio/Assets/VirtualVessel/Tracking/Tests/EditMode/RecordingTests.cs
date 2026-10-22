@@ -49,23 +49,37 @@ namespace VirtualVessel.Tracking.Tests
         public void AHeader_SurvivesItsBytes_AndForeignOrBrokenOnesAreRefused()
         {
             var started = new DateTime(2026, 10, 22, 4, 5, 6, DateTimeKind.Utc);
-            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, started, TrackingRegions.Body | TrackingRegions.Face, "腕を前へ");
+            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, started, TrackingRegions.Body | TrackingRegions.Face, ObservationTraits.MonocularDepth, "腕を前へ");
             byte[] bytes = TrackingRecordingFormat.EncodeHeader(header);
 
-            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(bytes, out int version, out int size, out DateTime at, out TrackingRegions supported, out int descriptionBytes), Is.True);
-            Assert.That((version, size, at, supported), Is.EqualTo((1, TrackingRecordingFormat.FrameSize, started, TrackingRegions.Body | TrackingRegions.Face)));
+            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(bytes, out int version, out int size, out DateTime at, out TrackingRegions supported, out ObservationTraits traits, out int descriptionBytes, out int fixedLength), Is.True);
+            Assert.That((version, size, at, supported, traits), Is.EqualTo((2, TrackingRecordingFormat.FrameSize, started, TrackingRegions.Body | TrackingRegions.Face, ObservationTraits.MonocularDepth)));
+            Assert.That(fixedLength, Is.EqualTo(TrackingRecordingFormat.FixedHeaderSize));
             Assert.That(descriptionBytes, Is.EqualTo(bytes.Length - TrackingRecordingFormat.FixedHeaderSize));
 
             byte[] other = (byte[])bytes.Clone();
             other[0] = (byte)'X';
-            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _), Is.False, "Not a recording.");
+            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _, out _, out _), Is.False, "Not a recording.");
             other = (byte[])bytes.Clone();
-            other[4] = 2;
-            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _), Is.False, "A version this one cannot read.");
+            other[4] = 3;
+            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _, out _, out _), Is.False, "A version this one cannot read.");
             other = (byte[])bytes.Clone();
-            other[24] = 0xFF;
-            other[25] = 0xFF;
-            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _), Is.False, "A broken length is not followed.");
+            other[28] = 0xFF;
+            other[29] = 0xFF;
+            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(other, out _, out _, out _, out _, out _, out _, out _), Is.False, "A broken length is not followed.");
+        }
+
+        [Test]
+        public void AVersion1Header_StillReads_AsMediaPipesCamera()
+        {
+            // Version 1 had no traits: drop them from a version 2 header and mark it version 1.
+            var started = new DateTime(2026, 10, 22, 4, 5, 6, DateTimeKind.Utc);
+            byte[] v2 = TrackingRecordingFormat.EncodeHeader(new TrackingRecordingHeader(2, TrackingRecordingFormat.FrameSize, started, TrackingRegions.All, ObservationTraits.None, "old"));
+            byte[] v1 = v2.Take(24).Concat(v2.Skip(28)).ToArray();
+            v1[4] = 1;
+
+            Assert.That(TrackingRecordingFormat.TryDecodeFixedHeader(v1, out int version, out _, out DateTime at, out _, out ObservationTraits traits, out int descriptionBytes, out int fixedLength), Is.True);
+            Assert.That((version, at, traits, fixedLength, descriptionBytes), Is.EqualTo((1, started, ObservationTraits.MonocularDepth, TrackingRecordingFormat.FixedHeaderSizeVersion1, 3)), "Every version 1 recording came from MediaPipe.");
         }
 
         [Test]
@@ -187,7 +201,7 @@ namespace VirtualVessel.Tracking.Tests
             Create();
             Directory.CreateDirectory(_directory);
             string path = Path.Combine(_directory, "20261022-000000.vvtrack");
-            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, DateTime.UtcNow, TrackingRegions.Body, "cut");
+            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, DateTime.UtcNow, TrackingRegions.Body, ObservationTraits.None, "cut");
             TrackingRecorder recorder = TrackingRecorder.Create(path, header);
             TrackingFrame frame = RecordingFormatTests.Sample();
             for (int i = 0; i < 3; i++)

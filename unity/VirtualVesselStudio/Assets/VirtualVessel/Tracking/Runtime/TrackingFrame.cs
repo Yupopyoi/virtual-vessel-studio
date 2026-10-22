@@ -39,6 +39,12 @@ namespace VirtualVessel.Tracking
     {
         public const int JointCount = 20;
 
+        /// <summary>
+        /// A joint seen less than this (MediaPipe's visibility, as <see cref="JointConfidence"/>) is not used to
+        /// move anything; the one threshold for Tracking's corrections and the avatar alike.
+        /// </summary>
+        public const float MinVisibility = 0.5f;
+
         public Vector3[] Positions { get; } = new Vector3[JointCount];
 
         /// <summary>Positions in the image, 0 to 1 from the top left; used to estimate depth.</summary>

@@ -149,6 +149,24 @@ namespace VirtualVessel.Tracking
         All = Face | Body | Hands,
     }
 
+    /// <summary>
+    /// What kind of observation a provider makes, which decides the corrections that suit it (tracking
+    /// detailed design 5.2, 8.4). Common processing reads these, never a provider's name, so a new input
+    /// such as mocopi only says what it is.
+    /// </summary>
+    [Flags]
+    public enum ObservationTraits
+    {
+        /// <summary>Nothing to correct for, as from sensors on the body (mocopi, for example).</summary>
+        None = 0,
+
+        /// <summary>
+        /// Depth along the camera's axis is estimated from one camera's image (MediaPipe): least reliable
+        /// for a limb pointing at the camera. The camera is in front of the person, along +Z of person space.
+        /// </summary>
+        MonocularDepth = 1,
+    }
+
     /// <summary>How much of the body moves (tracking detailed design 6.5).</summary>
     public enum BodyRange
     {

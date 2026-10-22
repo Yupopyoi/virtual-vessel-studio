@@ -30,14 +30,14 @@ namespace VirtualVessel.Avatar
         public const float ShoulderShare = 0.25f;
         public const float MaxShoulderRaiseDegrees = 20f;
 
-        /// <summary>A joint less visible than this (MediaPipe's visibility) does not move the avatar.</summary>
-        public const float MinVisibility = 0.5f;
+        /// <summary>A joint less visible than this (MediaPipe's visibility) does not move the avatar; Tracking's one threshold.</summary>
+        public const float MinVisibility = BodyPose.MinVisibility;
 
         // How bent an arm must be for its own bend to set the upper arm's twist (the sine of the angle
         // between upper arm and forearm). A nearly straight arm's bend says nothing about the twist, so
         // below the first value the twist follows the torso, and between the two it blends.
-        private const float StraightBelow = 0.10f;
-        private const float BentAbove = 0.35f;
+        private const float StraightBelow = 0.25f;
+        private const float BentAbove = 0.50f;
 
         /// <summary>
         /// Writes the upper body's rotations for <paramref name="body"/> into <paramref name="into"/>. Parts
