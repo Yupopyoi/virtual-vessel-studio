@@ -752,6 +752,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 | Item | Plan |
 |---|---|
 | The depth estimation method (8.4) compared with world landmarks | Decided: four methods were compared on recordings, and the correction straightening arms that point at the camera (D) was chosen (8.4; user's decision, 2026-10-22) |
+| An arm out sideways read as forward | Not addressed. In the user's screen recording (2026-10-23), seen in the skeleton comparison (UI foundation detailed design 7.7), arms held straight out sideways were observed turned 71–72° forward. The arm's length in the image cannot tell forward from sideways (perspective cancels the shortening), so another cue is needed. The method is to be considered later (user's decision, 2026-10-24) |
 | Default smoothing parameters | In step 4 the user can choose one of ten levels, with 5 as the default (8.2). The ratios between the parts' parameters are revisited with the body's movement in step 5 |
 | Switching to the Holistic Landmarker | Judged unnecessary (the three inferences together kept 30 fps, chapter 15). Revisited if a real camera is not enough |
 | Left and right of MediaPipe's face values (6.3) | Assumed to be the person's sides (`MediaPipeTracking.FaceSidesMirrored = false`). Checked by winking in the demo |

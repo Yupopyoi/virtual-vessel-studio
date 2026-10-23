@@ -111,6 +111,8 @@ flowchart LR
 | `ExpressionSignal` | Enum | The values of the Expression Signal: smile, anger, sadness, surprise, each eye's opening, and the mouth's opening (7.4, system design 7.7) |
 | `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4; timing in `MotionTiming`) |
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
+| `AvatarBodyShape` | Class | The model's body in the reference pose: bone positions, the head's ellipsoid, the arms' thickness. Measured at load (7.6) |
+| `ArmClearance` | Static class | Keeps the arms out of the head (pure functions, 7.6) |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
 | `FaceTuning` | Class | The user's face tuning: a sensitivity per part (7.4) |
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
@@ -238,6 +240,7 @@ classDiagram
             +IAvatarRig Rig
             +IAvatarExpressions Expressions
             +IAvatarFaceShapes FaceShapes
+            +AvatarBodyShape BodyShape
             +Apply()
         }
         class IAvatarRig {
@@ -380,6 +383,7 @@ public interface IAvatarModel : IDisposable
     IAvatarRig Rig { get; }
     IAvatarExpressions Expressions { get; }
     AvatarModelInfo Info { get; }      // Name, format, original version, whether converted, terms, thumbnail
+    AvatarBodyShape BodyShape { get; } // The body measured at load (7.6); null when it could not be measured
     void SetVisible(bool visible);
     void Apply();                      // Applies the values set this frame and moves secondary motion (SpringBone)
 }
@@ -607,6 +611,21 @@ How much a face moves differs from person to person, so the user can change the 
 - When a hand is lost, it slowly returns to a lightly closed natural shape.
 - When a lost hand returns, it moves toward the observation over 0.2 s so the shape does not change suddenly.
 
+### 7.6 Keeping the Arms Out of the Head (ArmClearance)
+
+Only directions are carried over (7.1), so on an avatar whose head is bigger for its arms than the user's (most anime-style models), an arm raised beside or over the head sinks into it (the user's camera check, 2026-10-24). Only when an arm would enter the head is it turned, by the least angle that keeps it out (`ArmClearance`, pure functions). This is one way of absorbing body differences with model-specific information (system design 7.6).
+
+- The body's shape (`AvatarBodyShape`): measured once right after loading, while the model is in the reference pose (8.2). It holds the upper-body bones' positions, an ellipsoid around the head, the thickness of the upper arm, forearm, and hand, and the hand's length.
+  - The head comes from the mesh points moved most by the head bone and its children (hair, ears). Hair hanging below the neck is left out. The outermost 5% of points at each end of each axis are left out. On one sample, the top 5% of points reached about 20 cm above the crown (ears and hair sticking up).
+  - An arm's thickness is the median distance from the bone of the points along its middle (leaving out 20% at each end). An arm whose mesh is not found takes a share of the upper arm's length.
+  - When it cannot be measured (no head mesh, for example), it is `null` and the arms stay as tracked.
+- Contact: the arm is three capsules (lines with thickness around the bones) for the upper arm, forearm, and hand. Each is checked against the head's ellipsoid grown by that capsule's thickness. Until step 6, the hand keeps the forearm's direction.
+- Turning: when the upper arm enters the head, the whole arm turns about the shoulder. Then, when the forearm or hand enters, the forearm turns about the elbow (changing the elbow's bend). The turn is away from the head's center, within the plane containing the arm and that center. So an arm in front of the head goes further forward, and one behind it further back. The least angle that clears is found by halving (12 times).
+- Limits: when a 60° turn still does not clear, the arm stops at 60° (so it does not jump). When the shoulder or elbow itself is inside the head, no turn could clear it, so the arm is not turned.
+- The ellipsoid moves with the torso's rotation and the neck's and head's turn (`FaceTarget.Head`).
+- `AvatarController` applies it to `BodyMotion`'s output every frame. `AvatarController.Body` (the avatar drawn in the skeleton comparison on the Diagnostics screen) is the pose after it.
+- Known limits: when an arm crosses straight through the head's center, the choice between going forward and going back flips, and the arm can jump. Sinking into the torso (arms folded in front of the chest, for example) is not handled (chapter 17).
+
 ---
 
 ## 8. State / Lifecycle
@@ -620,7 +639,7 @@ How much a face moves differs from person to person, so the user can change the 
 ### 8.2 Loading
 
 1. `Loading`. `VrmAvatarLoader` reads the file and builds it with UniVRM.
-2. Check the rig and expressions. If a required bone (Hips, Spine, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`). These are the upper-body bones VRM 1.0 requires. Chest, Upper Chest, and Neck are optional in VRM 1.0, so when one is missing its rotation goes to the nearest bone.
+2. Check the rig and expressions. If a required bone (Hips, Spine, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`). These are the upper-body bones VRM 1.0 requires. Chest, Upper Chest, and Neck are optional in VRM 1.0, so when one is missing its rotation goes to the nearest bone. While the model is in the reference pose, its body shape (`AvatarBodyShape`, 7.6) is measured.
 3. Set the layer to `Avatar` and place it at the spawn point (6.5).
 4. `Ready`. Destroy the old avatar, if any.
 
@@ -630,7 +649,7 @@ How much a face moves differs from person to person, so the user can change the 
 
 - Before the Avatar Camera renders, in this order (equivalent of `LateUpdate`, after `IFrameLoop`):
   1. Read `ITrackingSource.Current`. Tracking registers with the per-frame work (`IFrameLoop`) before Avatar, so it reads the observation updated in the same frame.
-  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The upper body (`BodyMotion`: interpolation, returning lost parts, `PoseRetargeting`) is set on the bones, and the neck turns from the top of the torso toward the head (step 5).
+  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The upper body (`BodyMotion`: interpolation, returning lost parts, `PoseRetargeting`) is set on the bones, and the neck turns from the top of the torso toward the head (step 5). Before they are set on the bones, the arms are kept out of the head (`ArmClearance`, 7.6).
   3. `ExpressionController`: expressions and gaze.
   4. Call UniVRM's processing (applying the control rig, expressions, LookAt, SpringBone) explicitly once. UniVRM's automatic update is turned off and the order is decided here (so SpringBone runs after the pose).
 - Nothing is allocated per frame. The bone rotation and expression value arrays are reused.
@@ -728,6 +747,8 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
+Tests for keeping the arms out of the head (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns at the elbow, forward when in front and back when behind; an upper arm toward the head turns outward at the shoulder; arms clear of the head, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the shape is measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHead` (the shape measured on three real models, and a forearm across the face kept out of the head on the model's own bones).
+
 Tests made in step 5: `AvatarBodyTests` (EditMode: arms sideways, down, and forward, the elbow bent forward or up, mirroring, the torso's tilt and limit, how shoulders rise, unseen arms, a lost arm holding and then hanging, a hidden wrist keeping the forearm's bend, the rest pose without tracking, `AvatarController` and the neck), `AvatarRecordingTests` (EditMode, Explicit, on the developer's recordings), `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget` (on real models, the arm and forearm bones point as observed, and the application time).
 
 Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (a closed smile that keeps the eyes open, i and e, brows), the Expression Signal (feelings, eyes, mouth, sides, neutral, the same values part by part and whole-face), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
@@ -744,6 +765,8 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) was measured in step 4.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples. Moving the face part by part (2026-10-21), it took a median of 0.034–0.035 ms, a 95th percentile of 0.038–0.040 ms, and at most 0.057–0.130 ms. Within the 0.3 ms target.
 - Measured (2026-10-22, step 5): with the upper body added, observations of the face only took a median of 0.038–0.039 ms. With the body moving too (the synthetic motion of raising and waving an arm), a median of 0.041 ms, a 95th percentile of 0.044–0.049 ms, and at most 0.062–2.808 ms (2.8 ms only on one sample's first frame). Within the target.
+- Measured (2026-10-24, keeping the arms out of the head): the body shape is measured once at load, in 13.5–30.6 ms on the three samples. The longest frame while loading was 47–48 ms, within the 50 ms target. With the arms kept out of the head, per-frame application with the body moving took a median of 0.046 ms and a 95th percentile of 0.049–0.052 ms (a median of 0.041 ms before).
+- Measured shapes (same day): the head ellipsoid's half sizes were 7.4–10.2 cm across, 9.0–13.0 cm up and down, and 9.3–10.7 cm front to back. The upper arm's thickness (radius) was 3.7–5.3 cm.
 
 ---
 
@@ -757,13 +780,14 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, AvatarBodyShape, ArmClearance
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
 │  ├─ VrmAvatarRig.cs       IAvatarRig on the control rig
+│  ├─ VrmBodyShape.cs       Measures the body shape right after loading (7.6)
 │  ├─ VrmAvatarExpressions.cs
 │  ├─ VrmAvatarFaceShapes.cs  IAvatarFaceShapes: blend shapes by name, written after UniVRM's processing
 │  └─ VrmLicense.cs         VRM meta to AvatarLicense (pure functions)
@@ -791,6 +815,8 @@ Assets/VirtualVessel/Avatar/
 | Depth estimation (tracking detailed design 8.4) | Decided: four methods were compared on recordings, and a correction straightening arms that point at the camera was added (tracking detailed design 8.4). The avatar's elbow bend in "arms forward" went from a median of 40° to 6°. Awaiting the camera check. The earlier **known issue** (the user's camera check, 2026-10-22): an arm thrust forward does not straighten. In the recording "arms forward", the elbow bends 33–40° at the median and the wrist is only 36–39 cm ahead of the shoulder for an arm about 43–45 cm long: MediaPipe underestimates the depth. Fixed by working the depth out again from bone lengths (8.4) |
 | The forearm's twist (the palm's direction) | Added with the hands in step 6; the forearm keeps the upper arm's twist for now. **Known issue** (same check): the elbow seems to bend the wrong way. The forearm does point at the wrist, so the cause is mainly the twist of the forearm and hand (the palm's direction). On a nearly straight arm, the bend from depth errors also makes the upper arm's twist unsteady, so depth estimation should reduce it too. The order is depth estimation, then step 6 (user's decision, 2026-10-22) |
 | Checking the upper body (2026-10-22, the user's camera) | Mirroring has the sides right. The arms with the hands behind the head pass. The arms' direction and bending have the two issues above |
+| Arms sinking into the head (2026-10-24, the user's camera) | Addressed: the arms are kept out of the head (7.6). Awaiting the camera check |
+| Arms sinking into the torso (arms folded in front of the chest, for example) | The torso can be added as capsules in the same way as 7.6. Added when wanted |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | Saving the part convention to the Avatar Profile (system design 7.12) | For now it is decided from the shape names each time a model loads (7.4). When a Setup screen lets the user choose the expression mapping, it is decided at registration and saved |
 | Puffing the cheeks | MediaPipe's `CheekPuff` hardly responds, and VRM has no standard expression for it. The three samples (VRoid) have neither such an expression nor a blend shape for it. Considered together with Perfect Sync (user's request, 2026-10-21) |
