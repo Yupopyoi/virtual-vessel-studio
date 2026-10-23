@@ -82,6 +82,12 @@ namespace VirtualVessel.Avatar
         /// <summary>The model's own face shapes; null when it has none to move.</summary>
         IAvatarFaceShapes FaceShapes { get; }
 
+        /// <summary>
+        /// The body in the reference pose, measured when the model loaded, to keep the arms out of the head
+        /// (avatar detailed design 7.6); null when it could not be measured, which leaves the arms as tracked.
+        /// </summary>
+        AvatarBodyShape BodyShape { get; }
+
         AvatarModelInfo Info { get; }
 
         void SetVisible(bool visible);

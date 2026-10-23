@@ -218,6 +218,51 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator Body_KeepsTheArmsOutOfTheHead([ValueSource(nameof(Samples))] string sample)
+        {
+            var load = new LoadResult();
+            yield return Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+                AvatarBodyShape shape = model.BodyShape;
+                Assert.That(shape, Is.Not.Null, "Measured when loaded.");
+                var watch = Stopwatch.StartNew();
+                vrm.MeasureBody();
+                double measuring = watch.Elapsed.TotalMilliseconds;
+                ArmShape arm = shape.Arm(false);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: head center {shape.Head.Center * 100f} cm from its bone, half sizes {shape.Head.Radii * 100f} cm; "
+                    + $"right arm radii upper {arm.UpperRadius * 100f:F1}, forearm {arm.LowerRadius * 100f:F1}, hand {arm.HandRadius * 100f:F1} cm, hand {arm.HandLength * 100f:F1} cm long; measured in {measuring:F1} ms");
+                Assert.That(shape.Head.Radii.x, Is.InRange(0.05f, 0.25f));
+                Assert.That(shape.Head.Center.y, Is.GreaterThan(0f), "The head's middle is above its bone.");
+                Assert.That(arm.UpperRadius, Is.InRange(0.01f, 0.12f));
+
+                // The right upper arm raised beside the head and the forearm across it, as in the user's camera.
+                var frame = new TrackingFrame();
+                SyntheticMotion.WriteBody(frame.Body, 90f, 1.0);
+                BodyPose body = frame.Body;
+                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (new Vector3(0.5f, 0.866f, 0f) * SyntheticMotion.UpperArmLength);
+                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.left * SyntheticMotion.ForearmLength);
+                var tracked = new BodyTarget();
+                PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
+                Assert.That(ArmClearance.Touches(shape, tracked, Quaternion.identity, Quaternion.identity), Is.True, "As tracked, the forearm crosses this model's head.");
+
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+                model.Apply();
+
+                // The model's own bones, where UniVRM put them, clear the head a little smaller than measured.
+                Transform root = model.Root;
+                Vector3 elbow = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position);
+                Vector3 wrist = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightHand).position);
+                Vector3 headBone = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.Head).position);
+                var placed = new ArmClearance.PlacedHead(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
+                Assert.That(ArmClearance.Hits(placed, elbow, wrist, arm.LowerRadius), Is.False, "The forearm is out of the head.");
+            }
+        }
+
         /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
         private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
         {

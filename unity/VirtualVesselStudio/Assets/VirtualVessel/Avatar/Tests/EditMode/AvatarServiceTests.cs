@@ -328,6 +328,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public IAvatarFaceShapes FaceShapes => null;
 
+            public AvatarBodyShape BodyShape => null;
+
             public AvatarModelInfo Info { get; }
 
             public IReadOnlyList<string> CustomNames { get; } = Array.Empty<string>();

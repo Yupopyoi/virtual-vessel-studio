@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 using VirtualVessel.Tracking;
 
 namespace VirtualVessel.Avatar
@@ -16,6 +17,8 @@ namespace VirtualVessel.Avatar
         private readonly bool _hasNeck;
         private readonly FaceMotion _face;
         private readonly BodyMotion _body;
+        private readonly AvatarBodyShape _shape;
+        private readonly BodyTarget _shown = new BodyTarget();
 
         public AvatarController(IAvatarModel model, ExpressionMapping mapping)
         {
@@ -28,6 +31,8 @@ namespace VirtualVessel.Avatar
             _hasNeck = _rig.Has(AvatarBone.Neck);
             _face = new FaceMotion(mapping);
             _body = new BodyMotion(_rig.Has(AvatarBone.UpperChest));
+            _shape = model.BodyShape;
+            _shown.CopyFrom(_body.Current);
             Expressions = new ExpressionController(model.Expressions, model.FaceShapes);
         }
 
@@ -36,8 +41,8 @@ namespace VirtualVessel.Avatar
         /// <summary>What the face shows this frame.</summary>
         public FaceTarget Face => _face.Current;
 
-        /// <summary>What the upper body shows this frame.</summary>
-        public BodyTarget Body => _body.Current;
+        /// <summary>What the upper body shows this frame, with the arms kept out of the head (avatar detailed design 7.6).</summary>
+        public BodyTarget Body => _shown;
 
         /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
         public ExpressionMapping Mapping
@@ -57,7 +62,9 @@ namespace VirtualVessel.Avatar
             _face.Update(frame?.Face, mirror, now);
             _body.Update(frame?.Body, mirror, now);
             FaceTarget face = _face.Current;
-            BodyTarget body = _body.Current;
+            Quaternion neck = HeadPose.Neck(_body.Current.TorsoTop, face.Head);
+            ArmClearance.Apply(_shape, _body.Current, neck, face.Head, _shown);
+            BodyTarget body = _shown;
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {
                 // Bones the model lacks are ignored by the rig.
@@ -68,7 +75,7 @@ namespace VirtualVessel.Avatar
             // share of the way from the top of the torso.
             if (_hasNeck)
             {
-                _rig.SetRotation(AvatarBone.Neck, HeadPose.Neck(body.TorsoTop, face.Head));
+                _rig.SetRotation(AvatarBone.Neck, neck);
             }
 
             _rig.SetRotation(AvatarBone.Head, face.Head);
