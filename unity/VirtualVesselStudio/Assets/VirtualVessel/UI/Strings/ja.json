@@ -110,7 +110,7 @@
         "diagnostics.kind.counter": "回数",
         "diagnostics.kind.gauge": "値",
         "diagnostics.skeleton.title": "骨格の見比べ",
-        "diagnostics.skeleton.legend": "実線：トラッキングの観測。破線：アバター（観測した肩から、アバターの骨の向きに、観測した長さで描く）。向きが合っていれば重なります。鏡写しの設定に合わせて、アバターの左右で表示します。",
+        "diagnostics.skeleton.legend": "実線：トラッキングの観測。太い破線：アバター（観測した肩から、アバターの骨の向きに、観測した長さで描く）。向きが合っていれば重なります。鏡写しの設定に合わせて、アバターの左右で表示します。",
         "diagnostics.skeleton.front": "正面",
         "diagnostics.skeleton.side": "横（アバターの右から。右が前）",
         "diagnostics.skeleton.camera": "カメラ（顔は隠します）",

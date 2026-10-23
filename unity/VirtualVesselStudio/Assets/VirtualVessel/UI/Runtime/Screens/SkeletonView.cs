@@ -5,9 +5,10 @@ using UnityEngine.UIElements;
 namespace VirtualVessel.UI.Screens
 {
     /// <summary>
-    /// One plane of the skeleton comparison (UI foundation detailed design 7.7): the tracked bones solid,
-    /// the avatar's dashed, so they differ by shape as well as color, over a faint level line through the
-    /// hips. Colors come from tokens through USS.
+    /// One plane of the skeleton comparison (UI foundation detailed design 7.7): the avatar's bones wide and
+    /// dashed underneath, the tracked ones thin and solid on top, so both show where they overlap and they
+    /// differ by shape as well as color, over a faint level line through the hips. Colors come from tokens
+    /// through USS.
     /// </summary>
     public sealed class SkeletonView : VisualElement
     {
@@ -17,8 +18,9 @@ namespace VirtualVessel.UI.Screens
         private const float HalfWidth = 0.95f;
         private const float Below = 0.35f;
         private const float Above = 1.05f;
-        private const float LineWidth = 2.5f;
-        private const float Dash = 6f;
+        private const float TrackedWidth = 2f;
+        private const float AvatarWidth = 5f;
+        private const float Dash = 7f;
 
         private static readonly CustomStyleProperty<Color> s_trackedColor = new CustomStyleProperty<Color>("--skeleton-tracked");
         private static readonly CustomStyleProperty<Color> s_avatarColor = new CustomStyleProperty<Color>("--skeleton-avatar");
@@ -89,16 +91,28 @@ namespace VirtualVessel.UI.Screens
             painter.LineTo(ToBox(new Vector2(HalfWidth, 0f), width, height));
             painter.Stroke();
 
-            painter.lineWidth = LineWidth;
+            // The avatar first and wide, so the tracked line on top never hides it where they overlap.
             painter.lineCap = LineCap.Round;
+            DrawLines(painter, avatar: true, width, height);
+            DrawLines(painter, avatar: false, width, height);
+        }
+
+        private void DrawLines(Painter2D painter, bool avatar, float width, float height)
+        {
+            painter.lineWidth = avatar ? AvatarWidth : TrackedWidth;
+            painter.strokeColor = avatar ? _avatar : _tracked;
             for (int i = 0; i < _count; i++)
             {
                 SkeletonSegment segment = _segments[i];
+                if (segment.Avatar != avatar)
+                {
+                    continue;
+                }
+
                 Vector2 from = ToBox(segment.From, width, height);
                 Vector2 to = ToBox(segment.To, width, height);
-                painter.strokeColor = segment.Avatar ? _avatar : _tracked;
                 painter.BeginPath();
-                if (segment.Avatar)
+                if (avatar)
                 {
                     Dashed(painter, from, to);
                 }

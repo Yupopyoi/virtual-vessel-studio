@@ -130,7 +130,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(FaceCover.TryLocate(null, 1000f, 500f, out _, out _), Is.False);
         }
 
-                private static void Body(BodyPose body, Vector3 leftArm, Vector3 rightArm)
+        private static void Body(BodyPose body, Vector3 leftArm, Vector3 rightArm)
         {
             body.Status = TrackingStatus.Tracked;
             body[BodyJoint.Hips] = Vector3.zero;

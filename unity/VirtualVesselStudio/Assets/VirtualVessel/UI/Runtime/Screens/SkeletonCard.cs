@@ -46,6 +46,7 @@ namespace VirtualVessel.UI.Screens
         public const string UssClass = "vv-skeleton";
         public const string ViewsClass = UssClass + "__views";
         public const string PaneClass = UssClass + "__pane";
+        public const string PaneTitleClass = UssClass + "__pane-title";
         public const string NoteClass = UssClass + "__note";
 
         /// <summary>About twenty times a second: enough to follow an arm, light on the frame.</summary>
@@ -262,7 +263,7 @@ namespace VirtualVessel.UI.Screens
         {
             var pane = new VisualElement();
             pane.AddToClassList(PaneClass);
-            pane.Add(Ui.Text(titleKey, "vv-text-caption"));
+            pane.Add(Ui.Text(titleKey, PaneTitleClass, "vv-text-body"));
             pane.Add(view);
             return pane;
         }

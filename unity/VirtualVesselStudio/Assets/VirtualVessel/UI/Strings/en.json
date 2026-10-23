@@ -110,7 +110,7 @@
         "diagnostics.kind.counter": "Count",
         "diagnostics.kind.gauge": "Value",
         "diagnostics.skeleton.title": "Skeleton comparison",
-        "diagnostics.skeleton.legend": "Solid: what tracking observed. Dashed: the avatar, drawn from the tracked shoulders along the avatar's bones with the tracked lengths. They overlap where the directions match. Shown on the avatar's sides, following the mirroring setting.",
+        "diagnostics.skeleton.legend": "Solid: what tracking observed. Wide dashes: the avatar, drawn from the tracked shoulders along the avatar's bones with the tracked lengths. They overlap where the directions match. Shown on the avatar's sides, following the mirroring setting.",
         "diagnostics.skeleton.front": "Front",
         "diagnostics.skeleton.side": "Side (from the avatar's right; front to the right)",
         "diagnostics.skeleton.camera": "Camera (face covered)",
