@@ -7,13 +7,17 @@ namespace VirtualVessel.Avatar.Vrm
     /// <summary>
     /// Measures a VRM's <see cref="AvatarBodyShape"/> right after it loads, while it is still in the
     /// reference pose (avatar detailed design 7.6): the bones from the control rig, and each mesh point
-    /// in the reference pose grouped by the humanoid bone that the bone moving it most hangs from.
+    /// in the reference pose grouped by the nearest humanoid bone that the bone moving it most is or hangs
+    /// from, so a sleeve goes with its arm and the hair with the head, not with the chest above them.
     /// </summary>
     internal static class VrmBodyShape
     {
         private static readonly AvatarBone[] s_measured =
         {
             AvatarBone.Head,
+            AvatarBone.Spine,
+            AvatarBone.Chest,
+            AvatarBone.UpperChest,
             AvatarBone.LeftUpperArm,
             AvatarBone.LeftLowerArm,
             AvatarBone.LeftHand,
@@ -42,14 +46,15 @@ namespace VirtualVessel.Avatar.Vrm
                 }
             }
 
-            // The model's own bones that group the points; the head takes its hair and ears, a hand its fingers.
+            // Every humanoid bone of the model's own groups the points under it, so the neck and shoulders
+            // stop the chest from taking theirs; the head takes its eyes and jaw, a hand its fingers.
             var groups = new Dictionary<Transform, AvatarBone>();
-            foreach (AvatarBone bone in s_measured)
+            for (int i = 0; i < AvatarBones.Count; i++)
             {
-                Transform transform = instance.Humanoid.GetBoneTransform((HumanBodyBones)bone);
+                Transform transform = instance.Humanoid.GetBoneTransform((HumanBodyBones)i);
                 if (transform != null)
                 {
-                    groups[transform] = bone;
+                    groups[transform] = Region((AvatarBone)i);
                 }
             }
 
@@ -67,7 +72,7 @@ namespace VirtualVessel.Avatar.Vrm
 
             foreach (MeshFilter filter in instance.GetComponentsInChildren<MeshFilter>(true))
             {
-                if (filter.sharedMesh != null && Group(filter.transform, groups) is AvatarBone bone)
+                if (filter.sharedMesh != null && Group(filter.transform, groups) is AvatarBone bone && points.ContainsKey(bone))
                 {
                     Matrix4x4 toRootSpace = toRoot * filter.transform.localToWorldMatrix;
                     foreach (Vector3 vertex in filter.sharedMesh.vertices)
@@ -102,7 +107,7 @@ namespace VirtualVessel.Avatar.Vrm
             bool any = false;
             for (int i = 0; i < bones.Length && i < bindposes.Length; i++)
             {
-                boneGroups[i] = bones[i] != null ? Group(bones[i], groups) : null;
+                boneGroups[i] = bones[i] != null && Group(bones[i], groups) is AvatarBone group && points.ContainsKey(group) ? group : (AvatarBone?)null;
                 if (boneGroups[i] != null)
                 {
                     toRootSpace[i] = toRoot * bones[i].localToWorldMatrix * bindposes[i];
@@ -128,6 +133,22 @@ namespace VirtualVessel.Avatar.Vrm
             }
         }
 
+        /// <summary>The group a humanoid bone's points go to: a finger's go to its hand, the eyes' and jaw's to the head.</summary>
+        private static AvatarBone Region(AvatarBone bone)
+        {
+            if (bone >= AvatarBone.LeftThumbProximal && bone <= AvatarBone.LeftLittleDistal)
+            {
+                return AvatarBone.LeftHand;
+            }
+
+            if (bone >= AvatarBone.RightThumbProximal && bone <= AvatarBone.RightLittleDistal)
+            {
+                return AvatarBone.RightHand;
+            }
+
+            return bone == AvatarBone.LeftEye || bone == AvatarBone.RightEye || bone == AvatarBone.Jaw ? AvatarBone.Head : bone;
+        }
+
         private static int Strongest(BoneWeight weight)
         {
             int index = weight.boneIndex0;
@@ -147,7 +168,7 @@ namespace VirtualVessel.Avatar.Vrm
             return weight.weight3 > most ? weight.boneIndex3 : index;
         }
 
-        /// <summary>The measured bone <paramref name="transform"/> is or hangs from; null for the rest of the body.</summary>
+        /// <summary>The group of the nearest humanoid bone <paramref name="transform"/> is or hangs from; null for none.</summary>
         private static AvatarBone? Group(Transform transform, Dictionary<Transform, AvatarBone> groups)
         {
             for (Transform current = transform; current != null; current = current.parent)

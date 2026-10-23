@@ -5,13 +5,21 @@ using VirtualVessel.Tracking;
 
 namespace VirtualVessel.Avatar.Tests
 {
-    /// <summary>Keeping the arms out of the head, and measuring a model's body for it (avatar detailed design 7.6).</summary>
+    /// <summary>Keeping the arms out of the head and torso, and measuring a model's body for it (avatar detailed design 7.6).</summary>
     public sealed class ArmClearanceTests
     {
         // An avatar with a big head for its arms, as anime models have: the head reaches 0.13 m to each side
         // of its center, the upper arm starts 0.1 m from the middle.
         private static readonly Vector3 s_headCenter = new Vector3(0f, 0.12f, 0f);
         private static readonly Vector3 s_headRadii = new Vector3(0.13f, 0.15f, 0.13f);
+
+        // The torso's parts on Spine, Chest, and UpperChest: 0.11-0.13 m to each side, 0.08-0.09 m to the front.
+        private static readonly PartShape?[] s_torso =
+        {
+            new PartShape(Vector3.zero, new Vector3(0.11f, 0.06f, 0.08f)),
+            new PartShape(new Vector3(0f, 0.05f, 0f), new Vector3(0.12f, 0.08f, 0.09f)),
+            new PartShape(new Vector3(0f, 0.04f, 0f), new Vector3(0.13f, 0.06f, 0.09f)),
+        };
 
         [Test]
         public void AForearmAcrossTheFace_TurnsOutAtTheElbow_ToTheSideItWasOn()
@@ -52,6 +60,35 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void FoldedArms_ComeForwardAsAWhole_KeepingTheElbowsBend()
+        {
+            // Arms folded: the right upper arm down and a little forward, the forearm across the chest, in it.
+            AvatarBodyShape shape = Shape(s_headRadii);
+            BodyTarget pose = Pose(new Vector3(0f, -0.9f, 0.44f), Vector3.left);
+            Assert.That(ArmClearance.Touches(shape, pose, Quaternion.identity, Quaternion.identity), Is.True, "Through the chest as tracked.");
+            var cleared = new BodyTarget();
+
+            ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
+
+            Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
+            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z), "The arm comes forward.");
+            Assert.That(Bend(cleared), Is.EqualTo(Bend(pose)).Within(0.1f), "Turned at the shoulder, so the elbow bends as tracked.");
+        }
+
+        [Test]
+        public void AnElbowSunkIntoTheChest_TurnsTheWholeArmOut()
+        {
+            AvatarBodyShape shape = Shape(s_headRadii);
+            BodyTarget pose = Pose(new Vector3(-0.2f, -0.6f, 0.3f), Vector3.left);
+            var cleared = new BodyTarget();
+
+            ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
+
+            Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
+            Assert.That(Quaternion.Angle(cleared[UpperBodyBone.RightUpperArm], pose[UpperBodyBone.RightUpperArm]), Is.GreaterThan(1f), "Turned at the shoulder.");
+        }
+
+        [Test]
         public void ArmsClearOfTheHead_OrNoShape_AreLeftAsTheyAre()
         {
             BodyTarget pose = Pose(Vector3.right, Vector3.up);
@@ -59,6 +96,7 @@ namespace VirtualVessel.Avatar.Tests
             pose[UpperBodyBone.LeftLowerArm] = pose[UpperBodyBone.LeftUpperArm];
             var cleared = new BodyTarget();
 
+            // The left arm hangs at rest beside the torso without reaching it.
             ArmClearance.Apply(Shape(s_headRadii), pose, Quaternion.identity, Quaternion.identity, cleared);
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {
@@ -148,12 +186,20 @@ namespace VirtualVessel.Avatar.Tests
 
             Vector3 wrist = rest[(int)AvatarBone.RightHand];
             var hand = new List<Vector3> { wrist, wrist + new Vector3(0.18f, 0f, 0f), wrist + new Vector3(0.1f, 0.02f, 0f) };
+            var chest = new List<Vector3>();
+            for (int i = 0; i < 400; i++)
+            {
+                // A box of points 0.24 wide, 0.16 high, and 0.18 deep, centered 0.05 above the chest bone.
+                chest.Add(rest[(int)AvatarBone.Chest] + new Vector3(((i % 20) - 9.5f) * 0.012632f, 0.05f + (((i / 20) - 9.5f) * 0.008421f), (i % 2 == 0 ? 0.09f : -0.09f)));
+            }
 
             AvatarBodyShape shape = AvatarBodyShape.Measure(rest, has, new Dictionary<AvatarBone, IReadOnlyList<Vector3>>
             {
                 [AvatarBone.Head] = head,
                 [AvatarBone.RightUpperArm] = upperArm,
                 [AvatarBone.RightHand] = hand,
+                [AvatarBone.Chest] = chest,
+                [AvatarBone.Spine] = new List<Vector3> { rest[(int)AvatarBone.Spine] },
             });
 
             Assert.That(shape, Is.Not.Null);
@@ -164,6 +210,11 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(shape.Arm(false).UpperRadius, Is.EqualTo(0.05f).Within(0.001f));
             Assert.That(shape.Arm(false).HandLength, Is.EqualTo(0.18f).Within(0.001f));
             Assert.That(shape.Arm(true).UpperRadius, Is.GreaterThan(0f), "Without its mesh an arm gets a thickness from its length.");
+            Assert.That(shape.Torso(1).HasValue, Is.True);
+            Assert.That(Vector3.Distance(shape.Torso(1).Value.Center, new Vector3(0f, 0.05f, 0f)), Is.LessThan(0.005f), "From the chest bone.");
+            Assert.That(shape.Torso(1).Value.Radii.z, Is.EqualTo(0.09f).Within(0.001f));
+            Assert.That(shape.Torso(0).HasValue, Is.False, "Too few points to say the size.");
+            Assert.That(shape.Torso(2).HasValue, Is.False, "No points.");
             Assert.That(AvatarBodyShape.Measure(rest, has, new Dictionary<AvatarBone, IReadOnlyList<Vector3>>()), Is.Null, "No head, nothing to keep out of.");
         }
 
@@ -180,7 +231,7 @@ namespace VirtualVessel.Avatar.Tests
         {
             (Vector3[] rest, bool[] has) = Skeleton();
             var arm = new ArmShape(0.045f, 0.04f, 0.15f, 0.03f);
-            return new AvatarBodyShape(rest, has, new HeadShape(s_headCenter, headRadii), arm, arm);
+            return new AvatarBodyShape(rest, has, new PartShape(s_headCenter, headRadii), arm, arm, s_torso);
         }
 
         /// <summary>The reference pose of a small avatar: hips at 1 m, the head bone at 1.5 m, arms out along X.</summary>
@@ -231,6 +282,11 @@ namespace VirtualVessel.Avatar.Tests
             {
                 body.JointConfidence[i] = 0.95f;
             }
+        }
+
+        private static float Bend(BodyTarget pose)
+        {
+            return Quaternion.Angle(pose[UpperBodyBone.RightUpperArm], pose[UpperBodyBone.RightLowerArm]);
         }
 
         private static void AssertSame(Quaternion actual, Quaternion expected, string message = null)

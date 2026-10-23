@@ -219,7 +219,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Body_KeepsTheArmsOutOfTheHead([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Body_KeepsTheArmsOutOfTheHeadAndTorso([ValueSource(nameof(Samples))] string sample)
         {
             var load = new LoadResult();
             yield return Load(sample, load);
@@ -237,6 +237,18 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(shape.Head.Radii.x, Is.InRange(0.05f, 0.25f));
                 Assert.That(shape.Head.Center.y, Is.GreaterThan(0f), "The head's middle is above its bone.");
                 Assert.That(arm.UpperRadius, Is.InRange(0.01f, 0.12f));
+                for (int i = 0; i < AvatarBodyShape.TorsoBones.Count; i++)
+                {
+                    UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: {AvatarBodyShape.TorsoBones[i]} " + (shape.Torso(i) is PartShape part ? $"center {part.Center * 100f} cm, half sizes {part.Radii * 100f} cm" : "not measured"));
+                }
+
+                // At rest the arms hang beside the torso; how far keeping them out of it moves them.
+                var resting = new AvatarController(model, ExpressionMapping.Default);
+                resting.Update(null, mirror: false, now: 1.0);
+                Quaternion hanging = AvatarRestPose.UpperArm(false, AvatarRestPose.DefaultArmDownDegrees);
+                float restTurn = Quaternion.Angle(resting.Body[UpperBodyBone.RightUpperArm], hanging);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: the resting arm turned {restTurn:F1}° out of the torso");
+                Assert.That(restTurn, Is.LessThan(20f), "A resting arm only leans out against the torso.");
 
                 // The right upper arm raised beside the head and the forearm across it, as in the user's camera.
                 var frame = new TrackingFrame();
@@ -258,8 +270,20 @@ namespace VirtualVessel.Avatar.Tests
                 Vector3 elbow = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position);
                 Vector3 wrist = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightHand).position);
                 Vector3 headBone = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.Head).position);
-                var placed = new ArmClearance.PlacedHead(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
-                Assert.That(ArmClearance.Hits(placed, elbow, wrist, arm.LowerRadius), Is.False, "The forearm is out of the head.");
+                var placed = ArmClearance.PlacedPart.Ellipsoid(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
+                Assert.That(placed.Hits(elbow, wrist, arm.LowerRadius), Is.False, "The forearm is out of the head.");
+
+                // Arms folded: the right upper arm down and a little forward, the forearm across the chest.
+                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (new Vector3(0f, -0.9f, 0.44f).normalized * SyntheticMotion.UpperArmLength);
+                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.left * SyntheticMotion.ForearmLength);
+                body.Timestamp = 2.0;
+                PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
+                controller.Update(frame, mirror: false, now: 2.0);
+                controller.Update(frame, mirror: false, now: 2.5);
+                Quaternion neck = HeadPose.Neck(controller.Body.TorsoTop, controller.Face.Head);
+                bool trackedTouches = ArmClearance.Touches(shape, tracked, neck, controller.Face.Head);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; forearm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
+                Assert.That(ArmClearance.Touches(shape, controller.Body, neck, controller.Face.Head), Is.False, "Folded arms stay out of the chest.");
             }
         }
 
