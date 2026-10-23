@@ -113,6 +113,8 @@ flowchart LR
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
 | `AvatarBodyShape` | Class | The model's body in the reference pose: bone positions, the head's ellipsoid, the torso's parts, the arms' thickness. Measured at load (7.6) |
 | `ArmClearance` | Static class | Keeps the arms out of the head and torso (pure functions, 7.6) |
+| `PlacedPart` | Struct | The head (an ellipsoid) or a part of the torso (an elliptic cylinder) this frame, and whether an arm's capsule reaches into it (pure functions, 7.6) |
+| `ArmSide` | Struct | Each of the avatar's arms: its bones (`UpperBodyBone`, `AvatarBone`) and the tracked joints of the same name. Keeps choosing bones by side in one place |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
 | `FaceTuning` | Class | The user's face tuning: a sensitivity per part (7.4) |
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
@@ -786,7 +788,7 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, AvatarBodyShape, ArmClearance
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)

@@ -8,6 +8,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
 
@@ -16,8 +17,6 @@ namespace VirtualVessel.UI.Tests
     /// <summary>The skeleton comparison Card on the Diagnostics screen (UI foundation detailed design 7.7).</summary>
     public sealed class SkeletonPanelTests
     {
-        private static readonly Vector3 s_left = new Vector3(-0.18f, 0.45f, 0f);
-        private static readonly Vector3 s_right = new Vector3(0.18f, 0.45f, 0f);
         private static readonly string[] s_names = { "LE", "LF", "LB", "RE", "RF", "RB", "TT", "TL" };
 
         private string _directory;
@@ -132,19 +131,7 @@ namespace VirtualVessel.UI.Tests
 
         private static void Body(BodyPose body, Vector3 leftArm, Vector3 rightArm)
         {
-            body.Status = TrackingStatus.Tracked;
-            body[BodyJoint.Hips] = Vector3.zero;
-            body[BodyJoint.Neck] = (s_left + s_right) * 0.5f;
-            body[BodyJoint.LeftShoulder] = s_left;
-            body[BodyJoint.RightShoulder] = s_right;
-            body[BodyJoint.LeftElbow] = s_left + (leftArm * 0.28f);
-            body[BodyJoint.LeftWrist] = s_left + (leftArm * 0.53f);
-            body[BodyJoint.RightElbow] = s_right + (rightArm * 0.28f);
-            body[BodyJoint.RightWrist] = s_right + (rightArm * 0.53f);
-            for (int i = 0; i < BodyPose.JointCount; i++)
-            {
-                body.JointConfidence[i] = 0.95f;
-            }
+            SyntheticMotion.WriteArms(body, leftArm, leftArm, rightArm, rightArm, 0.0);
         }
     }
 }

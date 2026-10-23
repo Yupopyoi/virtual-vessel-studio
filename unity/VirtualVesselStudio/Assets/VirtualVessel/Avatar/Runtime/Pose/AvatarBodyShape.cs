@@ -188,9 +188,10 @@ namespace VirtualVessel.Avatar
 
         private static ArmShape MeasureArm(Vector3[] rest, IReadOnlyDictionary<AvatarBone, IReadOnlyList<Vector3>> points, bool left)
         {
-            AvatarBone upper = left ? AvatarBone.LeftUpperArm : AvatarBone.RightUpperArm;
-            AvatarBone lower = left ? AvatarBone.LeftLowerArm : AvatarBone.RightLowerArm;
-            AvatarBone hand = left ? AvatarBone.LeftHand : AvatarBone.RightHand;
+            ArmSide side = ArmSide.Of(left);
+            AvatarBone upper = side.UpperArmBone;
+            AvatarBone lower = side.LowerArmBone;
+            AvatarBone hand = side.HandBone;
             Vector3 shoulderAt = rest[(int)upper];
             Vector3 elbowAt = rest[(int)lower];
             Vector3 wristAt = rest[(int)hand];

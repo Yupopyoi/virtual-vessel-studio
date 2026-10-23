@@ -177,12 +177,7 @@ namespace VirtualVessel.Avatar.Tests
 
                 // The person reaches forward with the right arm and holds the left one out with the forearm up.
                 var frame = new TrackingFrame();
-                SyntheticMotion.WriteBody(frame.Body, 90f, 1.0);
-                BodyPose body = frame.Body;
-                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (Vector3.forward * SyntheticMotion.UpperArmLength);
-                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.forward * SyntheticMotion.ForearmLength);
-                body[BodyJoint.LeftElbow] = body[BodyJoint.LeftShoulder] + (Vector3.left * SyntheticMotion.UpperArmLength);
-                body[BodyJoint.LeftWrist] = body[BodyJoint.LeftElbow] + (Vector3.up * SyntheticMotion.ForearmLength);
+                SyntheticMotion.WriteArms(frame.Body, Vector3.left, Vector3.up, Vector3.forward, Vector3.forward, 1.0);
                 var controller = new AvatarController(model, ExpressionMapping.Default);
                 controller.Update(frame, mirror: false, now: 1.0);
                 controller.Update(frame, mirror: false, now: 1.5);
@@ -252,10 +247,8 @@ namespace VirtualVessel.Avatar.Tests
 
                 // The right upper arm raised beside the head and the forearm across it, as in the user's camera.
                 var frame = new TrackingFrame();
-                SyntheticMotion.WriteBody(frame.Body, 90f, 1.0);
+                SyntheticMotion.WriteArms(frame.Body, Vector3.down, Vector3.down, new Vector3(0.5f, 0.866f, 0f), Vector3.left, 1.0);
                 BodyPose body = frame.Body;
-                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (new Vector3(0.5f, 0.866f, 0f) * SyntheticMotion.UpperArmLength);
-                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.left * SyntheticMotion.ForearmLength);
                 var tracked = new BodyTarget();
                 PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
                 Assert.That(ArmClearance.Touches(shape, tracked, Quaternion.identity, Quaternion.identity), Is.True, "As tracked, the forearm crosses this model's head.");
@@ -270,13 +263,11 @@ namespace VirtualVessel.Avatar.Tests
                 Vector3 elbow = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position);
                 Vector3 wrist = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightHand).position);
                 Vector3 headBone = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.Head).position);
-                var placed = ArmClearance.PlacedPart.Ellipsoid(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
+                var placed = PlacedPart.Ellipsoid(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
                 Assert.That(placed.Hits(elbow, wrist, arm.LowerRadius), Is.False, "The forearm is out of the head.");
 
                 // Arms folded: the right upper arm down and a little forward, the forearm across the chest.
-                body[BodyJoint.RightElbow] = body[BodyJoint.RightShoulder] + (new Vector3(0f, -0.9f, 0.44f).normalized * SyntheticMotion.UpperArmLength);
-                body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (Vector3.left * SyntheticMotion.ForearmLength);
-                body.Timestamp = 2.0;
+                SyntheticMotion.WriteArms(body, Vector3.down, Vector3.down, new Vector3(0f, -0.9f, 0.44f), Vector3.left, 2.0);
                 PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
                 controller.Update(frame, mirror: false, now: 2.0);
                 controller.Update(frame, mirror: false, now: 2.5);

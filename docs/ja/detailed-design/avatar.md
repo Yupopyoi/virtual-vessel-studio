@@ -113,6 +113,8 @@ flowchart LR
 | `HeadPose` | Static Class | 頭の向き：鏡写し、上限、首への配分（純粋関数、7.1） |
 | `AvatarBodyShape` | Class | 基準の姿勢でのモデルの体：骨の位置、頭の楕円体、胴の部分、腕の太さ。読み込み時に測る（7.6） |
 | `ArmClearance` | Static Class | 腕を頭と胴から出す（純粋関数、7.6） |
+| `PlacedPart` | Struct | そのFrameの頭（楕円体）や胴の部分（楕円柱）と、腕のカプセルとの当たり（純粋関数、7.6） |
+| `ArmSide` | Struct | アバターの左右の腕ごとの骨（`UpperBodyBone`、`AvatarBone`）と、同じ名前の観測の関節。左右で骨を選ぶ処理を1か所にまとめる |
 | `ExpressionCurve` | Struct | 値から表情の重みへの応答の曲線（7.4） |
 | `FaceTuning` | Class | 利用者の表情の調整：部位ごとの感度（7.4） |
 | `AvatarProfile` | Class | 保存する利用の設定（6.3） |
@@ -786,7 +788,7 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, AvatarBodyShape, ArmClearance
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）

@@ -1,15 +1,13 @@
 using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
 {
     /// <summary>The upper body on the avatar: torso, shoulders, arms, mirroring, and timing (avatar detailed design 7.1, 7.2, 8.4).</summary>
     public sealed class AvatarBodyTests
     {
-        private static readonly Vector3 s_leftShoulder = new Vector3(-0.18f, 0.45f, 0f);
-        private static readonly Vector3 s_rightShoulder = new Vector3(0.18f, 0.45f, 0f);
-
         [Test]
         public void ArmsOutSideways_AreTheReferencePose_AndHangingArmsHang()
         {
@@ -199,20 +197,8 @@ namespace VirtualVessel.Avatar.Tests
         /// <summary>A body in person space with each upper arm and forearm pointing the given ways.</summary>
         private static BodyPose Body(Vector3 leftUpper, Vector3 leftFore, Vector3 rightUpper, Vector3 rightFore)
         {
-            var body = new BodyPose { Status = TrackingStatus.Tracked, Confidence = 1f };
-            body[BodyJoint.Hips] = Vector3.zero;
-            body[BodyJoint.Neck] = (s_leftShoulder + s_rightShoulder) * 0.5f;
-            body[BodyJoint.LeftShoulder] = s_leftShoulder;
-            body[BodyJoint.RightShoulder] = s_rightShoulder;
-            body[BodyJoint.LeftElbow] = s_leftShoulder + (leftUpper.normalized * 0.28f);
-            body[BodyJoint.LeftWrist] = body[BodyJoint.LeftElbow] + (leftFore.normalized * 0.25f);
-            body[BodyJoint.RightElbow] = s_rightShoulder + (rightUpper.normalized * 0.28f);
-            body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (rightFore.normalized * 0.25f);
-            for (int i = 0; i < BodyPose.JointCount; i++)
-            {
-                body.JointConfidence[i] = 0.95f;
-            }
-
+            var body = new BodyPose();
+            SyntheticMotion.WriteArms(body, leftUpper, leftFore, rightUpper, rightFore, 0.0);
             return body;
         }
 

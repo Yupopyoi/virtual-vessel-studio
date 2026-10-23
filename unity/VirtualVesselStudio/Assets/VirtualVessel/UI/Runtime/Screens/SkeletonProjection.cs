@@ -108,9 +108,7 @@ namespace VirtualVessel.UI.Screens
                 return false;
             }
 
-            Vector3 shoulder = PoseRetargeting.Joint(body, left ? BodyJoint.LeftShoulder : BodyJoint.RightShoulder, mirror);
-            Vector3 elbow = PoseRetargeting.Joint(body, left ? BodyJoint.LeftElbow : BodyJoint.RightElbow, mirror);
-            Vector3 wrist = PoseRetargeting.Joint(body, left ? BodyJoint.LeftWrist : BodyJoint.RightWrist, mirror);
+            (Vector3 shoulder, Vector3 elbow, Vector3 wrist) = PoseRetargeting.ArmJoints(body, ArmSide.Of(left), mirror);
             upper = elbow - shoulder;
             fore = wrist - elbow;
             return upper.sqrMagnitude > 1e-8f && fore.sqrMagnitude > 1e-8f;
@@ -119,15 +117,14 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The avatar's upper arm and forearm directions.</summary>
         public static (Vector3 Upper, Vector3 Fore) AvatarArm(BodyTarget avatar, bool left)
         {
+            ArmSide side = ArmSide.Of(left);
             Vector3 rest = PoseRetargeting.RestDirection(left);
-            return (avatar[left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm] * rest, avatar[left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm] * rest);
+            return (avatar[side.UpperArm] * rest, avatar[side.LowerArm] * rest);
         }
 
         private static int Arm(BodyPose body, bool mirror, bool left, SkeletonPlane plane, SkeletonSegment[] into, int count)
         {
-            Vector3 shoulder = PoseRetargeting.Joint(body, left ? BodyJoint.LeftShoulder : BodyJoint.RightShoulder, mirror);
-            Vector3 elbow = PoseRetargeting.Joint(body, left ? BodyJoint.LeftElbow : BodyJoint.RightElbow, mirror);
-            Vector3 wrist = PoseRetargeting.Joint(body, left ? BodyJoint.LeftWrist : BodyJoint.RightWrist, mirror);
+            (Vector3 shoulder, Vector3 elbow, Vector3 wrist) = PoseRetargeting.ArmJoints(body, ArmSide.Of(left), mirror);
             into[count++] = Line(shoulder, elbow, avatar: false, plane);
             into[count++] = Line(elbow, wrist, avatar: false, plane);
             return count;
@@ -135,9 +132,7 @@ namespace VirtualVessel.UI.Screens
 
         private static int AvatarArm(BodyPose body, BodyTarget avatar, bool mirror, bool left, SkeletonPlane plane, SkeletonSegment[] into, int count)
         {
-            Vector3 shoulder = PoseRetargeting.Joint(body, left ? BodyJoint.LeftShoulder : BodyJoint.RightShoulder, mirror);
-            Vector3 elbow = PoseRetargeting.Joint(body, left ? BodyJoint.LeftElbow : BodyJoint.RightElbow, mirror);
-            Vector3 wrist = PoseRetargeting.Joint(body, left ? BodyJoint.LeftWrist : BodyJoint.RightWrist, mirror);
+            (Vector3 shoulder, Vector3 elbow, Vector3 wrist) = PoseRetargeting.ArmJoints(body, ArmSide.Of(left), mirror);
             (Vector3 upper, Vector3 fore) = AvatarArm(avatar, left);
             Vector3 avatarElbow = shoulder + (upper * Vector3.Distance(shoulder, elbow));
             Vector3 avatarWrist = avatarElbow + (fore * Vector3.Distance(elbow, wrist));

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
 {
@@ -142,8 +143,7 @@ namespace VirtualVessel.Avatar.Tests
             var model = new AvatarFaceTests.RecordingModel { BodyShape = shape };
             var controller = new AvatarController(model, ExpressionMapping.Default);
             var frame = new TrackingFrame();
-            WriteBody(frame.Body, new Vector3(0.5f, 0.866f, 0f), Vector3.left);
-            frame.Body.Timestamp = 1.0;
+            SyntheticMotion.WriteArms(frame.Body, Vector3.down, Vector3.down, new Vector3(0.5f, 0.866f, 0f), Vector3.left, 1.0);
 
             controller.Update(frame, mirror: false, now: 1.0);
             controller.Update(frame, mirror: false, now: 1.5);
@@ -261,27 +261,6 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             return (rest, has);
-        }
-
-        /// <summary>A person with the right arm posed as given and the left one hanging.</summary>
-        private static void WriteBody(BodyPose body, Vector3 rightUpper, Vector3 rightFore)
-        {
-            var left = new Vector3(-0.18f, 0.45f, 0f);
-            var right = new Vector3(0.18f, 0.45f, 0f);
-            body.Status = TrackingStatus.Tracked;
-            body.Confidence = 1f;
-            body[BodyJoint.Hips] = Vector3.zero;
-            body[BodyJoint.Neck] = (left + right) * 0.5f;
-            body[BodyJoint.LeftShoulder] = left;
-            body[BodyJoint.RightShoulder] = right;
-            body[BodyJoint.LeftElbow] = left + (Vector3.down * 0.28f);
-            body[BodyJoint.LeftWrist] = left + (Vector3.down * 0.53f);
-            body[BodyJoint.RightElbow] = right + (rightUpper.normalized * 0.28f);
-            body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (rightFore.normalized * 0.25f);
-            for (int i = 0; i < BodyPose.JointCount; i++)
-            {
-                body.JointConfidence[i] = 0.95f;
-            }
         }
 
         private static float Bend(BodyTarget pose)

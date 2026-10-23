@@ -78,8 +78,19 @@ namespace VirtualVessel.Tracking.Recording
             return Mathf.Atan2(sideways, -upperArm.y) * Mathf.Rad2Deg;
         }
 
-        /// <summary>A still person with the right arm raised <paramref name="rightArmDegrees"/> sideways.</summary>
+        /// <summary>A still person with the right arm raised <paramref name="rightArmDegrees"/> sideways and the left one hanging.</summary>
         public static void WriteBody(BodyPose body, float rightArmDegrees, double time)
+        {
+            float radians = rightArmDegrees * Mathf.Deg2Rad;
+            var right = new Vector3(Mathf.Sin(radians), -Mathf.Cos(radians), 0f);
+            WriteArms(body, Vector3.down, Vector3.down, right, right, time);
+        }
+
+        /// <summary>
+        /// A still person whose upper arms and forearms point the given ways, in person space (+X right,
+        /// +Y up, +Z front); the directions need not be of unit length.
+        /// </summary>
+        public static void WriteArms(BodyPose body, Vector3 leftUpper, Vector3 leftFore, Vector3 rightUpper, Vector3 rightFore, double time)
         {
             body.Status = TrackingStatus.Tracked;
             body.Confidence = 0.95f;
@@ -95,12 +106,10 @@ namespace VirtualVessel.Tracking.Recording
             body[BodyJoint.LeftShoulder] = s_leftShoulder;
             body[BodyJoint.RightShoulder] = s_rightShoulder;
 
-            float radians = rightArmDegrees * Mathf.Deg2Rad;
-            var right = new Vector3(Mathf.Sin(radians), -Mathf.Cos(radians), 0f);
-            body[BodyJoint.RightElbow] = s_rightShoulder + (right * UpperArmLength);
-            body[BodyJoint.RightWrist] = s_rightShoulder + (right * (UpperArmLength + ForearmLength));
-            body[BodyJoint.LeftElbow] = s_leftShoulder + (Vector3.down * UpperArmLength);
-            body[BodyJoint.LeftWrist] = s_leftShoulder + (Vector3.down * (UpperArmLength + ForearmLength));
+            body[BodyJoint.LeftElbow] = s_leftShoulder + (leftUpper.normalized * UpperArmLength);
+            body[BodyJoint.LeftWrist] = body[BodyJoint.LeftElbow] + (leftFore.normalized * ForearmLength);
+            body[BodyJoint.RightElbow] = s_rightShoulder + (rightUpper.normalized * UpperArmLength);
+            body[BodyJoint.RightWrist] = body[BodyJoint.RightElbow] + (rightFore.normalized * ForearmLength);
 
             body[BodyJoint.LeftKnee] = new Vector3(-0.1f, -0.45f, 0f);
             body[BodyJoint.RightKnee] = new Vector3(0.1f, -0.45f, 0f);
