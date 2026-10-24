@@ -115,6 +115,7 @@ flowchart LR
 | `ArmClearance` | Static Class | 腕を頭と胴から奥行き方向に出す（純粋関数、7.6） |
 | `HandRetargeting` | Static Class | 手のひらから、手の回転と前腕のねじれを求める（純粋関数、7.7） |
 | `HandMotion` | Class | 手のひらの観測の間の補間と、見失ったときの扱い（7.7） |
+| `SteadyMotion` | Class | 上半身の最後の段：腕の骨の回る速さの上限（7.8） |
 | `ClearanceMotion` | Class | 腕を出す処理の時間の扱い：前後の側を覚え、回した分をなめらかに出し入れする（7.6） |
 | `PlacedPart` | Struct | そのFrameの頭（楕円体）や胴の部分（楕円柱）と、腕のカプセルとの当たり（純粋関数、7.6） |
 | `ArmSide` | Struct | アバターの左右の腕ごとの骨（`UpperBodyBone`、`AvatarBone`）と、同じ名前の観測の関節。左右で骨を選ぶ処理を1か所にまとめる |
@@ -667,6 +668,14 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
   - 手のひらのねじれ（中立から、回外を正。手の奥行きの補正の後）：「腕を前へ伸ばす」で中央値24〜27°、前腕の届く範囲を超えたのは0%。「腕を前に延ばしたり、横にしたり」のアバターの左では44%が前腕の届く範囲を超えた（まっすぐな腕で手のひらを上へ）。「胸の前で手を組む」のアバターの右では中央値−89°、51%で10°を超える分を除いた。手の信頼度はどれも0.9前後で、信頼度では誤りを見分けられない。
 - 指（7.5）は段階6の2つ目で加える。
 
+### 7.8 腕の回る速さの上限（SteadyMotion）
+
+上半身の最後の段で、腕の骨（上腕、前腕、手）は、向き（骨の指す方向）を1秒に720°（60Frame/秒で1Frame 12°）、骨を軸にしたねじれを1秒に360°（同6°）より速くは回さない。胴は上限なしでそのまま出す。安定と動きの自然さを、すべての回転に付いていくことより優先する（利用者の決定、2026-10-24）。
+
+- 利用者の記録「1024不自然解消用」（約60秒、自分のアバター音羽、3D、動きの速さ1、鏡写し）を60Frame/秒で再生して測った（`VrmLoaderTests.Body_OnTheRecordings_MovesSteadily`、Explicit）。上限を入れる前は、1Frameで上腕が最大51°、前腕52°、手129°回り、15°を超えるFrameが骨ごとに18〜58あった。多くはねじれで（例：上腕48°のうち向きは13°）、肘の曲がる面で決まる上腕のねじれが、ほぼまっすぐな腕で速く回るためだった。トラッキングの値そのもの（平滑化の後）で既に回っており、手を回す処理や頭と胴から出す処理が加えたものではなかった。
+- 上限を入れた後は、5本の記録のどれでも、どの腕の骨も1Frameで13°以下、15°を超えるFrameは0。揺れ（Frameごとの回転の変わり方）は約4割減った（例：右前腕2.10°から1.29°）。速い動きでは、その間だけ遅れる。
+- 向きとねじれを分けて上限をかける（`SteadyMotion.Limit`、純粋関数）。ねじれはほとんどが雑音で変わるため、向きより低い上限にした。
+
 ---
 
 ## 8. State / Lifecycle
@@ -788,6 +797,8 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
+腕の回る速さの上限のTest（2026-10-24）：`SteadyMotionTests`（EditMode。上限内の回転はそのまま、向きとねじれをそれぞれの上限で止める、胴は止めない）、`VrmLoaderTests.Body_OnTheRecordings_MovesSteadily`（Explicit。開発者の記録で、骨ごとの1Frameの最大の回転、15°を超えた回数、揺れ、最悪の瞬間とトラッキングだけの回転）。
+
 手と前腕のねじれのTest（2026-10-24）：`HandRetargetingTests`（EditMode。手のひらが下なら基準の姿勢、上へ返すと手は前腕の届く4分の1まで・前腕の骨はその半分で肩は回らない、曲げた腕で届く範囲を超えたねじれは除く、ほぼ真上の手のひらは回外の側に読み読みの境で跳ばない、見えている度合いで前腕に付いていく向きと混ぜる、鏡写しでは反対の手を写す、見失った手を保ってから前腕に付いていかせ戻す、`AvatarController`が手と前腕を設定する）。`ArmClearanceTests`で、前腕を肘で回すと手も回ること。`VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`で、手のひらを上へ向けるとモデルの手の甲が下を向くこと。`AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan`（Explicit）で、肘の曲がる面と手のひらのねじれを記録で測る。
 
 腕と頭・胴の当たりのTest（2026-10-24）：`ArmClearanceTests`（EditMode。顔を横切る前腕を肘で奥行き方向に回し、前にあれば前へ、後ろにあれば後ろへ出す、頭へ向いた上腕を肩で後ろへ回す、組んだ腕を前へ出す、胸に入った肘を肩で前へ出す、いずれもカメラから見た向きを保つ、前腕がはっきり反対側へ移るまで側を保つ、回した分をなめらかに出し入れする、当たらない腕と形がないときはそのまま、肩が頭に入るときは回さない、頭の向きで楕円体が動く、`AvatarController`が出した姿勢を骨へ設定する、メッシュの点から頭と胴の形を測り首より下の髪を除く）、`VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso`（実際のモデル3体で形を測り、顔を横切る前腕がモデルの骨で頭から出ること、腕を下ろした姿勢は動かさないこと、組んだ腕が胸から出ること）、`VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`（開発者の記録で、腕を回した頻度と角度、映像の上でのずれ、残るめり込み、加わった跳び）。
@@ -808,6 +819,7 @@ public sealed class AvatarSettings
 - 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：サンプルのVRM 1.0の2体（14MB、17MB）で、読み込みは0.33〜0.37秒。VRM 0.xの1体（15MB）は、1.0への変換を含めて0.58秒。読み込み中の最も長いFrameは、どれも46〜47ms。毎Frameの適用（`Avatar/Apply`）は段階4で計測した。
 - 計測（2026-10-20、開発用PC、`VrmLoaderTests`）：顔の計算とUniVRMの処理（SpringBoneを含む）を合わせた毎Frameの適用は、サンプルの3体で、中央値0.031〜0.033ms、95パーセンタイル0.035〜0.038ms、最大0.044〜0.146msだった。部位ごとに動かすようにした後（2026-10-21）は、中央値0.034〜0.035ms、95パーセンタイル0.038〜0.040ms、最大0.057〜0.130ms。目標の0.3msに収まる。
 - 計測（2026-10-22、段階5）：上半身を加えた後、顔だけの観測では中央値0.038〜0.039ms。体も動かした観測（腕を上げて振る合成の動き）では、中央値0.041ms、95パーセンタイル0.044〜0.049ms、最大0.062〜2.808ms（2.8msは1体の最初のFrameだけ）。目標に収まる。
+- 計測（2026-10-24、腕の回る速さの上限まで）：体も動かした観測で毎Frameの適用は中央値0.065ms、95パーセンタイル0.075ms。
 - 計測（2026-10-24、手と前腕のねじれ）：体も動かした観測で毎Frameの適用は中央値0.080〜0.093ms、95パーセンタイル0.114〜0.124ms。目標に収まる。
 - 計測（2026-10-24、腕と頭・胴の当たり）：体の形を測るのは読み込み時の1回で、サンプルの3体で13.4〜30.8ms。読み込み中の最も長いFrameは47〜48msで、目標の50msに収まる。腕を頭と胴から出す計算を加えた毎Frameの適用は、体も動かした観測（腕を上げて振る合成の動き。腕が頭の近くを通る）で中央値0.084〜0.092ms、95パーセンタイル0.113〜0.121ms（加える前は中央値0.041ms）。5つの向きを同じ精度で探すと中央値0.146ms、95パーセンタイル0.24msだったため、それまでの最小の角度で抜けられない向きを1回の確かめで外した。
 - 測った形（同日）：頭の楕円体の半径は、左右7.4〜10.2cm、上下9.0〜13.0cm、前後9.3〜10.7cm。胴の部分の半径は、左右6.8〜13.5cm、前後7.3〜10.6cm。上腕の太さ（半径）は3.7〜5.3cm。腕を下ろした姿勢（70°）は、3体とも胴に当たらず動かない。組んだ腕は、腕全体を23〜41°前へ回して胸から出た。
@@ -826,7 +838,7 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, MotionTiming
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する

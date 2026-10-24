@@ -115,6 +115,7 @@ flowchart LR
 | `ArmClearance` | Static class | Keeps the arms out of the head and torso by turning them in depth (pure functions, 7.6) |
 | `HandRetargeting` | Static class | The hand's turn and the forearm's twist from the palm (pure functions, 7.7) |
 | `HandMotion` | Class | Interpolating between palm observations, and handling a lost hand (7.7) |
+| `SteadyMotion` | Class | The upper body's last step: how fast the arm bones may turn (7.8) |
 | `ClearanceMotion` | Class | Keeping the arms out over time: remembers each limb's side and eases the added turn in and out (7.6) |
 | `PlacedPart` | Struct | The head (an ellipsoid) or a part of the torso (an elliptic cylinder) this frame, and whether an arm's capsule reaches into it (pure functions, 7.6) |
 | `ArmSide` | Struct | Each of the avatar's arms: its bones (`UpperBodyBone`, `AvatarBone`) and the tracked joints of the same name. Keeps choosing bones by side in one place |
@@ -667,6 +668,14 @@ Step 6, part 1 (2026-10-24), for the elbow that seemed to bend the wrong way (ch
   - The palm's twist (from neutral, supination positive, after the hand's depth correction): a median of 24–27° in "arms forward", 0% past the forearm's reach. On the avatar's left in "arms forward and sideways", 44% went past the forearm's reach (palm up on a straight arm). On the avatar's right in "hands folded in front of the chest", a median of −89°, with more than 10° left out in 51%. The hands' confidence was about 0.9 throughout, so it cannot tell errors apart.
 - Fingers (7.5) come in step 6, part 2.
 
+### 7.8 How Fast the Arms Turn (SteadyMotion)
+
+At the last step of the upper body, an arm bone (upper arm, forearm, hand) turns where it points no faster than 720° a second (12° a frame at 60 frames a second), and twists about itself no faster than 360° a second (6° a frame). The torso is shown as it is, without a limit. Steadiness and natural motion come before following every turn (the user's decision, 2026-10-24).
+
+- Measured on the user's recording "1024不自然解消用" (about 60 s, their own avatar Otoha, 3D, movement speed 1, mirrored), replayed at 60 frames a second (`VrmLoaderTests.Body_OnTheRecordings_MovesSteadily`, Explicit). Before the limit, the upper arm turned up to 51°, the forearm 52°, and the hand 129° in a frame, with 18–58 frames past 15° per bone. Most of it was twist (for example 48° on the upper arm, 13° of it in where it points): the upper arm's twist set by the elbow's bend plane turns fast on a nearly straight arm. It was already in tracking's values (after smoothing), not added by turning the hands or keeping the arms out of the head and torso.
+- With the limit, on all five recordings no arm bone turns more than 13° in a frame, with no frame past 15°. The shake (how much the turn changes from frame to frame) fell by about 40% (for example the right forearm from 2.10° to 1.29°). Fast movements lag behind only while they last.
+- Where the bone points and its twist are limited apart (`SteadyMotion.Limit`, a pure function). The twist changes mostly from noise, so its limit is lower.
+
 ---
 
 ## 8. State / Lifecycle
@@ -788,6 +797,8 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
+Tests for how fast the arms turn (2026-10-24): `SteadyMotionTests` (EditMode: a turn within the limits is taken whole; where a bone points and its twist are each held to their limits; the torso is not held), `VrmLoaderTests.Body_OnTheRecordings_MovesSteadily` (Explicit: on the developer's recordings, each bone's largest turn in a frame, how often past 15°, the shake, and the worst moments with tracking's turn alone).
+
 Tests for the hands and the forearms' twist (2026-10-24): `HandRetargetingTests` (EditMode: a palm down is the reference pose; a palm turned up turns the hand as far as the forearm's reach, a quarter, the forearm's bone half of that, and not the shoulder; on a bent arm a twist past the reach is left out; a palm nearly over is read on the supination side, without a jump at the wrap; how much is seen blends with following the forearm; in a mirror the other hand is used, reflected; a lost hand holds, then follows the forearm, and comes back; `AvatarController` sets the hand and forearm). `ArmClearanceTests`: turning the forearm at the elbow turns the hand too. `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`: a palm turned up turns the back of the model's hand down. `AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan` (Explicit) measures the elbow's bend plane and the palm's twist on the recordings.
 
 Tests for keeping the arms out of the head and torso (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns in depth at the elbow, forward when in front and back when behind; an upper arm toward the head turns back at the shoulder; folded arms come forward; an elbow in the chest comes forward at the shoulder; each keeping the direction seen from the camera; the side kept until the forearm is clearly on the other; the added turn easing in and out; arms clear of the body, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the head's and torso's shapes are measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso` (the shape measured on three real models; a forearm across the face kept out of the head on the model's own bones; resting arms not moved; folded arms kept out of the chest), `VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly` (on the developer's recordings: how often and how far the arms are turned, how much shows on the image, what stays inside, and the jumps added).
@@ -808,6 +819,7 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) was measured in step 4.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples. Moving the face part by part (2026-10-21), it took a median of 0.034–0.035 ms, a 95th percentile of 0.038–0.040 ms, and at most 0.057–0.130 ms. Within the 0.3 ms target.
 - Measured (2026-10-22, step 5): with the upper body added, observations of the face only took a median of 0.038–0.039 ms. With the body moving too (the synthetic motion of raising and waving an arm), a median of 0.041 ms, a 95th percentile of 0.044–0.049 ms, and at most 0.062–2.808 ms (2.8 ms only on one sample's first frame). Within the target.
+- Measured (2026-10-24, up to the arms' turning limit): per-frame application with the body moving took a median of 0.065 ms and a 95th percentile of 0.075 ms.
 - Measured (2026-10-24, the hands and the forearms' twist): per-frame application with the body moving took a median of 0.080–0.093 ms and a 95th percentile of 0.114–0.124 ms. Within the target.
 - Measured (2026-10-24, keeping the arms out of the head and torso): the body shape is measured once at load, in 13.4–30.8 ms on the three samples. The longest frame while loading was 47–48 ms, within the 50 ms target. With the arms kept out of the head and torso, per-frame application with the body moving (the synthetic motion of raising and waving an arm, which passes near the head) took a median of 0.084–0.092 ms and a 95th percentile of 0.113–0.121 ms (a median of 0.041 ms before). Searching all five directions to the same precision took a median of 0.146 ms and a 95th percentile of 0.24 ms, so a direction that does not clear at the least angle found so far is ruled out with one check.
 - Measured shapes (same day): the head ellipsoid's half sizes were 7.4–10.2 cm across, 9.0–13.0 cm up and down, and 9.3–10.7 cm front to back. The torso parts' half sizes were 6.8–13.5 cm across and 7.3–10.6 cm front to back. The upper arm's thickness (radius) was 3.7–5.3 cm. Resting arms (70°) touched no torso on any of the three and were not moved. Folded arms came out of the chest by turning the whole arm 23–41° forward.
@@ -826,7 +838,7 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, MotionTiming
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
