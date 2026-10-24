@@ -438,6 +438,129 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
+        /// <summary>
+        /// How steadily and naturally each bone moves on the developer's recordings, as the app runs them for
+        /// the user (3D, the steadiest level the user chose, mirrored, 60 frames a second): per bone the most
+        /// it turns in a frame, how often past 15° (900° a second), and how much its turn changes from frame
+        /// to frame (shake); and the worst moments, with how much tracking alone moved there, to tell what
+        /// the processing after it added.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Body_OnTheRecordings_MovesSteadily([ValueSource(nameof(Samples))] string sample)
+        {
+            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
+            TrackingRecordingInfo[] recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
+            if (recordings.Length == 0)
+            {
+                Assert.Ignore($"No recordings in {folder}.");
+            }
+
+            UpperBodyBone[] bones = { UpperBodyBone.UpperChest, UpperBodyBone.LeftUpperArm, UpperBodyBone.RightUpperArm, UpperBodyBone.LeftLowerArm, UpperBodyBone.RightLowerArm, UpperBodyBone.LeftHand, UpperBodyBone.RightHand };
+            var load = new LoadResult();
+            yield return Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                foreach (TrackingRecordingInfo info in recordings)
+                {
+                    (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
+                    ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
+                    var processor = new TrackingProcessor();
+                    var corrected = new TrackingFrame();
+                    var output = new TrackingFrame();
+                    var controller = new AvatarController(model, ExpressionMapping.Default);
+                    var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
+                    var shownHistory = new[] { new BodyTarget(), new BodyTarget() };
+                    var trackedBefore = new BodyTarget();
+                    var steps = bones.Select(_ => new List<float>()).ToArray();
+                    var shakes = bones.Select(_ => new List<float>()).ToArray();
+                    var events = new List<(double Time, UpperBodyBone Bone, float Step, float Tracked)>();
+                    var notes = new Dictionary<double, string>();
+                    bool[] seenBefore = new bool[4];
+                    Quaternion headBefore = Quaternion.identity;
+                    var headSteps = new List<float>();
+                    int shown = 0;
+                    int next = 0;
+                    for (double now = frames[0].Time; now <= frames[frames.Count - 1].Time; now += 1.0 / 60.0)
+                    {
+                        for (; next < frames.Count && frames[next].Time <= now; next++)
+                        {
+                            corrections.Apply(frames[next], corrected);
+                            processor.Process(corrected, frames[next].Time, header.Supported, TrackingRegions.All, SmoothingLevel.Min, output);
+                        }
+
+                        controller.Update(output, mirror: true, now);
+                        tracked.Update(output.Body, true, now);
+                        if (shown > 0)
+                        {
+                            headSteps.Add(Quaternion.Angle(controller.Face.Head, headBefore));
+                        }
+
+                        for (int b = 0; b < bones.Length && shown > 0; b++)
+                        {
+                            UpperBodyBone bone = bones[b];
+
+                            // A hand follows its forearm as tracked; it is compared with the forearm.
+                            UpperBodyBone trackedBone = bone == UpperBodyBone.LeftHand ? UpperBodyBone.LeftLowerArm : bone == UpperBodyBone.RightHand ? UpperBodyBone.RightLowerArm : bone;
+                            float step = Quaternion.Angle(controller.Body[bone], shownHistory[0][bone]);
+                            float trackedStep = Quaternion.Angle(tracked.Current[trackedBone], trackedBefore[trackedBone]);
+                            steps[b].Add(step);
+                            if (shown > 1)
+                            {
+                                // How much the turn changed: the turn this frame against the one before.
+                                Quaternion turn = controller.Body[bone] * Quaternion.Inverse(shownHistory[0][bone]);
+                                Quaternion turnBefore = shownHistory[0][bone] * Quaternion.Inverse(shownHistory[1][bone]);
+                                shakes[b].Add(Quaternion.Angle(turn, turnBefore));
+                            }
+
+                            if (step > 15f)
+                            {
+                                events.Add((now - frames[0].Time, bone, step, trackedStep));
+
+                                // What changed there: where the bone points against its twist, and what tracking saw.
+                                Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm || bone == UpperBodyBone.LeftHand ? Vector3.left : Vector3.right;
+                                float pointed = Vector3.Angle(controller.Body[bone] * rest, shownHistory[0][bone] * rest);
+                                BodyTarget t = tracked.Current;
+                                notes[now - frames[0].Time] = $"points {pointed:F0}° of it; seen L arm {t.LeftArmSeen}/{seenBefore[0]} forearm {t.LeftForearmSeen}/{seenBefore[1]}, R arm {t.RightArmSeen}/{seenBefore[2]} forearm {t.RightForearmSeen}/{seenBefore[3]}; presence L {tracked.LeftArmPresence:F2} R {tracked.RightArmPresence:F2}";
+                            }
+                        }
+
+                        seenBefore[0] = tracked.Current.LeftArmSeen;
+                        seenBefore[1] = tracked.Current.LeftForearmSeen;
+                        seenBefore[2] = tracked.Current.RightArmSeen;
+                        seenBefore[3] = tracked.Current.RightForearmSeen;
+                        shownHistory[1].CopyFrom(shownHistory[0]);
+                        shownHistory[0].CopyFrom(controller.Body);
+                        trackedBefore.CopyFrom(tracked.Current);
+                        headBefore = controller.Face.Head;
+                        shown++;
+                    }
+
+                    var summary = new System.Text.StringBuilder();
+                    for (int b = 0; b < bones.Length; b++)
+                    {
+                        List<float> sorted = steps[b].OrderBy(x => x).ToList();
+                        summary.Append($"{bones[b]} most {sorted[sorted.Count - 1]:F0}° 99% {sorted[(int)(sorted.Count * 0.99)]:F1}° over 15° {sorted.Count(x => x > 15f)}, shake {shakes[b].Average():F2}°; ");
+                    }
+
+                    summary.Append($"head most {headSteps.Max():F0}° over 15° {headSteps.Count(x => x > 15f)}");
+                    UnityEngine.Debug.Log($"[Avatar/Steady] {sample} \"{info.Description}\": {summary}");
+
+                    // The worst moments, one per quarter second.
+                    double lastAt = double.NegativeInfinity;
+                    foreach ((double time, UpperBodyBone bone, float step, float trackedStep) in events.OrderByDescending(e => e.Step).Where(_ => true).ToList())
+                    {
+                        if (events.Any(e => e.Time < time && e.Time > time - 0.25 && e.Step >= step) || Math.Abs(time - lastAt) < 0.25)
+                        {
+                            continue;
+                        }
+
+                        lastAt = time;
+                        UnityEngine.Debug.Log($"[Avatar/Steady] {sample} \"{info.Description}\" at {time:F2} s: {bone} turned {step:F0}° in a frame; tracking alone {trackedStep:F0}°; {(notes.TryGetValue(time, out string note) ? note : string.Empty)}");
+                    }
+                }
+            }
+        }
+
         /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
         private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
         {

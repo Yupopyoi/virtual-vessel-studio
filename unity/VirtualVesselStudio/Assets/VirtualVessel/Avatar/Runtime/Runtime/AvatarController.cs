@@ -20,6 +20,7 @@ namespace VirtualVessel.Avatar
         private readonly HandMotion _hands = new HandMotion();
         private readonly BodyTarget _withHands = new BodyTarget();
         private readonly ClearanceMotion _clearance;
+        private readonly SteadyMotion _steady = new SteadyMotion();
 
         public AvatarController(IAvatarModel model, ExpressionMapping mapping)
         {
@@ -34,6 +35,7 @@ namespace VirtualVessel.Avatar
             _body = new BodyMotion(_rig.Has(AvatarBone.UpperChest));
             _clearance = new ClearanceMotion(model.BodyShape);
             _clearance.Current.CopyFrom(_body.Current);
+            _steady.Current.CopyFrom(_body.Current);
             Expressions = new ExpressionController(model.Expressions, model.FaceShapes);
         }
 
@@ -43,7 +45,7 @@ namespace VirtualVessel.Avatar
         public FaceTarget Face => _face.Current;
 
         /// <summary>What the upper body shows this frame, with the arms kept out of the head (avatar detailed design 7.6).</summary>
-        public BodyTarget Body => _clearance.Current;
+        public BodyTarget Body => _steady.Current;
 
         /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
         public ExpressionMapping Mapping
@@ -76,7 +78,8 @@ namespace VirtualVessel.Avatar
             HandRetargeting.Apply(ArmSide.Right, _hands.RightPalm, _hands.RightPresence, _withHands);
             Quaternion neck = HeadPose.Neck(_withHands.TorsoTop, face.Head);
             _clearance.Update(_withHands, neck, face.Head, armsInFront, now);
-            BodyTarget body = _clearance.Current;
+            _steady.Update(_clearance.Current, now);
+            BodyTarget body = _steady.Current;
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {
                 // Bones the model lacks are ignored by the rig.
