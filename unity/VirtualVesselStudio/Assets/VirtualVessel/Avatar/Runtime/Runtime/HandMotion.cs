@@ -16,6 +16,13 @@ namespace VirtualVessel.Avatar
     /// </remarks>
     public sealed class HandMotion
     {
+        /// <summary>
+        /// The most a shown palm turns in a second. A palm read the other way round for long enough to be
+        /// accepted turns over a third of a second instead of flipping in a frame (the user's screen
+        /// recording, 2026-10-24).
+        /// </summary>
+        public const float MaxDegreesPerSecond = 540f;
+
         private readonly Side _left = new Side();
         private readonly Side _right = new Side();
 
@@ -66,7 +73,8 @@ namespace VirtualVessel.Avatar
                     _arrivedAt = now;
                 }
 
-                Shown = Quaternion.Slerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval));
+                Quaternion toward = Quaternion.Slerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval));
+                Shown = Presence <= 0f || elapsed <= 0f ? toward : Quaternion.RotateTowards(Shown, toward, MaxDegreesPerSecond * elapsed);
                 double lostFor = hand == null || double.IsNaN(_observedAt) ? double.PositiveInfinity : now - _observedAt;
                 Presence = MotionTiming.NextPresence(Presence, usable, lostFor, elapsed);
             }

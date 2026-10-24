@@ -14,6 +14,13 @@ namespace VirtualVessel.Tracking.Processing
         /// <summary>Meters per second no joint of a person reaches (tracking detailed design 8.3).</summary>
         public const float MaxJointSpeed = 8f;
 
+        /// <summary>
+        /// Degrees per second no palm turns (tracking detailed design 8.3): 60° in an observation at 30 a
+        /// second. On the user's recordings the palm turned a median of 3-6° per observation, and jumped
+        /// past 90° up to 174° when read the other way round, often coming back within 2-5 observations.
+        /// </summary>
+        public const float MaxPalmDegreesPerSecond = 1800f;
+
         private readonly TrackingThresholds _thresholds;
         private readonly JointsState _body = new JointsState(BodyPose.JointCount);
         private readonly JointsState _leftHand = new JointsState(HandPose.JointCount);
@@ -91,7 +98,15 @@ namespace VirtualVessel.Tracking.Processing
 
             Outliers += state.Filter(raw.Positions, raw.Timestamp, profile.Position, output.Positions);
             Array.Copy(raw.ImagePositions, output.ImagePositions, HandPose.JointCount);
-            state.Palm = state.Palm.Next(raw.PalmRotation, raw.Timestamp, profile.Angle);
+            if (state.AcceptPalm(raw.PalmRotation, raw.Timestamp))
+            {
+                state.Palm = state.Palm.Next(raw.PalmRotation, raw.Timestamp, profile.Angle);
+            }
+            else
+            {
+                Outliers++;
+            }
+
             output.PalmRotation = state.Palm.Value;
         }
 
@@ -208,6 +223,10 @@ namespace VirtualVessel.Tracking.Processing
 
             public RotationFilter Palm { get; set; }
 
+            private OutlierGate _palmGate;
+            private Quaternion _acceptedPalm = Quaternion.identity;
+            private double _acceptedPalmTime;
+
             public void Reset()
             {
                 Tracking = PartTracking.Initial;
@@ -219,6 +238,24 @@ namespace VirtualVessel.Tracking.Processing
                 Array.Clear(_filters, 0, _filters.Length);
                 Array.Clear(_gates, 0, _gates.Length);
                 Palm = default;
+                _palmGate = default;
+            }
+
+            /// <summary>
+            /// Whether the palm may move on to <paramref name="palm"/>: not when it turned faster than a
+            /// wrist can since the last one accepted, as when the hand is read the other way round for a
+            /// moment (tracking detailed design 8.3).
+            /// </summary>
+            public bool AcceptPalm(Quaternion palm, double time)
+            {
+                if (Palm.IsStarted && !_palmGate.Accept(_acceptedPalm, palm, time - _acceptedPalmTime, MaxPalmDegreesPerSecond, out _palmGate))
+                {
+                    return false;
+                }
+
+                _acceptedPalm = palm;
+                _acceptedPalmTime = time;
+                return true;
             }
 
             /// <summary>Smooths the plausible joints into <paramref name="output"/>; returns how many were dropped.</summary>

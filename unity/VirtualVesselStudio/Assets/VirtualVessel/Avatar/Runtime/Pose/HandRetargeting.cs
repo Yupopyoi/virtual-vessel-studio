@@ -31,6 +31,14 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public const float WrapDegrees = 150f;
 
+        /// <summary>
+        /// How much of the back of the hand must lie across the forearm (the sine of the angle between them)
+        /// for its twist to be read at all, and fully. Bent further, the reading turned at random, and the
+        /// hand jumped up to 100° in a frame on the recordings replayed in 2D.
+        /// </summary>
+        public const float TwistSeenFrom = 0.2f;
+        public const float TwistSeenFully = 0.5f;
+
         /// <summary>How far before the wrap a reading starts to fade back to neutral, in degrees.</summary>
         public const float WrapFadeDegrees = 30f;
 
@@ -88,7 +96,9 @@ namespace VirtualVessel.Avatar
 
         /// <summary>
         /// The palm's twist about the forearm from neutral, in degrees, supination positive, read from
-        /// <see cref="WrapDegrees"/> of pronation to 360° less that of supination. Pure.
+        /// <see cref="WrapDegrees"/> of pronation to 360° less that of supination. A hand bent at the wrist
+        /// until its back lies along the forearm has no twist to read, so the reading fades to neutral
+        /// toward there (<see cref="TwistSeenFrom"/>, <see cref="TwistSeenFully"/>). Pure.
         /// </summary>
         public static float Twist(bool left, Quaternion lower, Quaternion palm)
         {
@@ -101,7 +111,8 @@ namespace VirtualVessel.Avatar
             }
 
             float twist = Vector3.SignedAngle(forearmBack, handBack, axis) * (left ? 1f : -1f);
-            return twist < -WrapDegrees ? twist + 360f : twist;
+            float seen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(TwistSeenFrom, TwistSeenFully, handBack.magnitude));
+            return (twist < -WrapDegrees ? twist + 360f : twist) * seen;
         }
 
         /// <summary>

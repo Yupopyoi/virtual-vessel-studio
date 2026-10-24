@@ -333,7 +333,8 @@ namespace VirtualVessel.Avatar.Tests
                     var before = new BodyTarget();
                     var beforeTracked = new BodyTarget();
                     var again = new BodyTarget();
-                    float remainingSum = 0f, mostRemaining = 0f;
+                    float remainingSum = 0f, mostRemaining = 0f, mostHandStep = 0f, mostUpperStep = 0f, mostLowerStep = 0f;
+                    int handJumps = 0;
                     int next = 0, shown = 0, active = 0, added = 0, touching = 0;
                     float mostTurn = 0f, mostAdded = 0f, turnSum = 0f, imageSum = 0f;
                     double mostAddedAt = 0.0;
@@ -374,6 +375,19 @@ namespace VirtualVessel.Avatar.Tests
                                     step = moved;
                                     trackedStep = movedTracked;
                                 }
+                            }
+                        }
+
+                        if (shown > 0)
+                        {
+                            // How far a hand turns in a frame: a palm read the other way round flipped it (avatar detailed design 7.7).
+                            mostUpperStep = Mathf.Max(mostUpperStep, Mathf.Max(Quaternion.Angle(controller.Body[UpperBodyBone.LeftUpperArm], before[UpperBodyBone.LeftUpperArm]), Quaternion.Angle(controller.Body[UpperBodyBone.RightUpperArm], before[UpperBodyBone.RightUpperArm])));
+                            mostLowerStep = Mathf.Max(mostLowerStep, Mathf.Max(Quaternion.Angle(controller.Body[UpperBodyBone.LeftLowerArm], before[UpperBodyBone.LeftLowerArm]), Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], before[UpperBodyBone.RightLowerArm])));
+                            foreach (UpperBodyBone hand in new[] { UpperBodyBone.LeftHand, UpperBodyBone.RightHand })
+                            {
+                                float handStep = Quaternion.Angle(controller.Body[hand], before[hand]);
+                                mostHandStep = Mathf.Max(mostHandStep, handStep);
+                                handJumps += handStep > 20f ? 1 : 0;
                             }
                         }
 
@@ -419,7 +433,7 @@ namespace VirtualVessel.Avatar.Tests
                     }
 
                     UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\" {(flat ? "2D" : "3D")}: {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°, on average {(active > 0 ? turnSum / active : 0f):F1}°, of which on the image {(active > 0 ? imageSum / active : 0f):F1}°; still touching on {touching}, by {(touching > 0 ? remainingSum / touching : 0f):F1}° on average and {mostRemaining:F0}° at most; "
-                        + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s");
+                        + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s; hands turning over 20° in a frame: {handJumps}, at most {mostHandStep:F0}°; at most in a frame, upper arms {mostUpperStep:F0}°, forearms {mostLowerStep:F0}°");
                 }
             }
         }

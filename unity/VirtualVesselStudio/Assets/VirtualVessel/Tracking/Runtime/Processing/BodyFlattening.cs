@@ -16,21 +16,39 @@ namespace VirtualVessel.Tracking.Processing
         public const float ArmsForwardMeters = 0.1f;
 
         /// <summary>
-        /// Sets the depth of every joint of <paramref name="body"/> to the hips' (0 in person space), and of
-        /// the elbows and wrists to <see cref="ArmsForwardMeters"/> in front. Writes the caller's copy of the
-        /// observation, which is reused every frame (CLAUDE.md 15.1, 23).
+        /// How much further forward the wrists are than the elbows, in meters, so the forearm leans forward
+        /// a little. Level with the elbow, a forearm swung from up to down passed straight through the line
+        /// of the upper arm, its bend turned over at once, and the arm twisted up to 120° in a frame on the
+        /// recordings replayed in 2D; leaning forward, it bends forward on the way, as in 3D.
+        /// </summary>
+        public const float ForearmForwardMeters = 0.05f;
+
+        /// <summary>
+        /// Sets the depth of every joint of <paramref name="body"/> to the hips' (0 in person space), of the
+        /// elbows to <see cref="ArmsForwardMeters"/> in front, and of the wrists <see cref="ForearmForwardMeters"/>
+        /// further. Writes the caller's copy of the observation, which is reused every frame (CLAUDE.md 15.1, 23).
         /// </summary>
         public static void Flatten(BodyPose body)
         {
             for (int i = 0; i < BodyPose.JointCount; i++)
             {
-                body.Positions[i].z = IsArm((BodyJoint)i) ? ArmsForwardMeters : 0f;
+                body.Positions[i].z = Depth((BodyJoint)i);
             }
         }
 
-        private static bool IsArm(BodyJoint joint)
+        private static float Depth(BodyJoint joint)
         {
-            return joint == BodyJoint.LeftElbow || joint == BodyJoint.RightElbow || joint == BodyJoint.LeftWrist || joint == BodyJoint.RightWrist;
+            switch (joint)
+            {
+                case BodyJoint.LeftElbow:
+                case BodyJoint.RightElbow:
+                    return ArmsForwardMeters;
+                case BodyJoint.LeftWrist:
+                case BodyJoint.RightWrist:
+                    return ArmsForwardMeters + ForearmForwardMeters;
+                default:
+                    return 0f;
+            }
         }
     }
 }

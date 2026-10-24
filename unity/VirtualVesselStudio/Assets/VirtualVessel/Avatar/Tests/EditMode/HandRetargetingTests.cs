@@ -130,6 +130,22 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void AShownPalm_TurnsAtMostItsSpeed()
+        {
+            var frame = new TrackingFrame();
+            var motion = new HandMotion();
+            Hand(frame.RightHand, s_palmDown, 1.0);
+            motion.Update(frame, mirror: false, now: 1.0);
+            motion.Update(frame, mirror: false, now: 1.5);
+
+            Hand(frame.RightHand, Quaternion.LookRotation(Vector3.right, Vector3.down), 1.6);
+            motion.Update(frame, mirror: false, now: 1.6);
+            motion.Update(frame, mirror: false, now: 1.6 + (1.0 / 60.0));
+
+            Assert.That(Quaternion.Angle(motion.RightPalm, s_palmDown), Is.EqualTo(HandMotion.MaxDegreesPerSecond / 60f).Within(0.5f), "A sixtieth of a second's turn, not half a turn.");
+        }
+
+        [Test]
         public void TheController_TurnsTheHand_AndTwistsTheForearm()
         {
             var model = new AvatarFaceTests.RecordingModel();

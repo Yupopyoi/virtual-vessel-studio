@@ -121,6 +121,38 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void APalmReadTheOtherWayRound_IsDroppedTwice_ThenAccepted()
+        {
+            var processor = new TrackingProcessor();
+            var output = new TrackingFrame();
+            Quaternion down = Quaternion.LookRotation(Vector3.forward, Vector3.up);
+            Quaternion over = Quaternion.LookRotation(Vector3.forward, Vector3.down);
+            for (int i = 0; i < 8; i++)
+            {
+                processor.Process(WithRightHand(i * Interval, down), i * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+            }
+
+            for (int i = 8; i < 10; i++)
+            {
+                processor.Process(WithRightHand(i * Interval, over), i * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+                Assert.That(Quaternion.Angle(output.RightHand.PalmRotation, down), Is.LessThan(1f), $"Turned over in a 30th of a second: dropped ({i}).");
+            }
+
+            processor.Process(WithRightHand(10 * Interval, over), 10 * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+            Assert.That(Quaternion.Angle(output.RightHand.PalmRotation, down), Is.GreaterThan(1f), "Still over the third time: real, accepted.");
+        }
+
+        private static TrackingFrame WithRightHand(double time, Quaternion palm)
+        {
+            TrackingFrame frame = Observation(time);
+            frame.RightHand.Status = TrackingStatus.Tracked;
+            frame.RightHand.Confidence = 0.9f;
+            frame.RightHand.Timestamp = time;
+            frame.RightHand.PalmRotation = palm;
+            return frame;
+        }
+
+        [Test]
         public void ObservedParts_AreTrackedAndSmoothed_AndMissingOnesStayLost()
         {
             var processor = new TrackingProcessor();
