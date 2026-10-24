@@ -6,7 +6,10 @@ using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
 {
-    /// <summary>Keeping the arms out of the head and torso, and measuring a model's body for it (avatar detailed design 7.6).</summary>
+    /// <summary>
+    /// Keeping the arms out of the head and torso by turning them only in depth, and measuring a model's body
+    /// for it (avatar detailed design 7.6).
+    /// </summary>
     public sealed class ArmClearanceTests
     {
         // An avatar with a big head for its arms, as anime models have: the head reaches 0.13 m to each side
@@ -23,7 +26,7 @@ namespace VirtualVessel.Avatar.Tests
         };
 
         [Test]
-        public void AForearmAcrossTheFace_TurnsOutAtTheElbow_ToTheSideItWasOn()
+        public void AForearmAcrossTheFace_TurnsInDepthAtTheElbow_ToTheSideItWasOn()
         {
             AvatarBodyShape shape = Shape(s_headRadii);
             foreach (float side in new[] { 1f, -1f })
@@ -41,27 +44,30 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(turned, Is.GreaterThan(1f).And.LessThan(ArmClearance.MaxTurnDegrees), "The least turn that clears, not the most.");
                 Vector3 forearm = cleared[UpperBodyBone.RightLowerArm] * Vector3.right;
                 Assert.That(Mathf.Sign(forearm.z), Is.EqualTo(side), "In front stays in front, behind stays behind.");
+                AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
                 AssertSame(cleared[UpperBodyBone.LeftUpperArm], pose[UpperBodyBone.LeftUpperArm], "The other arm is untouched.");
             }
         }
 
         [Test]
-        public void AnUpperArmIntoTheHead_TurnsTheWholeArmOutAtTheShoulder()
+        public void AnUpperArmIntoTheHead_TurnsInDepthAtTheShoulder()
         {
+            // Raised toward the head and a little behind it.
             AvatarBodyShape shape = Shape(s_headRadii);
-            Vector3 inward = new Vector3(-0.2f, 1f, 0f).normalized;
+            Vector3 inward = new Vector3(-0.2f, 1f, -0.05f).normalized;
             BodyTarget pose = Pose(inward, inward);
             var cleared = new BodyTarget();
 
             ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
 
             Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
-            Vector3 upper = cleared[UpperBodyBone.RightUpperArm] * Vector3.right;
-            Assert.That(upper.x, Is.GreaterThan(inward.x), "Turned away from the head, outward.");
+            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.LessThan(inward.z), "Further back, the side it was on.");
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightUpperArm);
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
         }
 
         [Test]
-        public void FoldedArms_ComeForwardAsAWhole_KeepingTheElbowsBend()
+        public void FoldedArms_ComeForward_LookingTheSameFromTheCamera()
         {
             // Arms folded: the right upper arm down and a little forward, the forearm across the chest, in it.
             AvatarBodyShape shape = Shape(s_headRadii);
@@ -73,11 +79,12 @@ namespace VirtualVessel.Avatar.Tests
 
             Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
             Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z), "The arm comes forward.");
-            Assert.That(Bend(cleared), Is.EqualTo(Bend(pose)).Within(0.1f), "Turned at the shoulder, so the elbow bends as tracked.");
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightUpperArm);
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
         }
 
         [Test]
-        public void AnElbowSunkIntoTheChest_TurnsTheWholeArmOut()
+        public void AnElbowSunkIntoTheChest_ComesForwardAtTheShoulder()
         {
             AvatarBodyShape shape = Shape(s_headRadii);
             BodyTarget pose = Pose(new Vector3(-0.2f, -0.6f, 0.3f), Vector3.left);
@@ -86,7 +93,8 @@ namespace VirtualVessel.Avatar.Tests
             ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
 
             Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
-            Assert.That(Quaternion.Angle(cleared[UpperBodyBone.RightUpperArm], pose[UpperBodyBone.RightUpperArm]), Is.GreaterThan(1f), "Turned at the shoulder.");
+            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z + 0.01f), "Turned forward at the shoulder.");
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightUpperArm);
         }
 
         [Test]
@@ -134,6 +142,34 @@ namespace VirtualVessel.Avatar.Tests
 
             Assert.That(ArmClearance.Touches(shape, pose, Quaternion.identity, Quaternion.identity), Is.False);
             Assert.That(ArmClearance.Touches(shape, pose, Quaternion.identity, bowed), Is.True);
+        }
+
+        [Test]
+        public void TheSide_IsKeptUntilTheForearmIsClearlyOnTheOther()
+        {
+            // A forearm across the face, 3 cm in front and then 3 cm behind the head's middle: within the margin, so it stays in front.
+            AvatarBodyShape shape = Shape(s_headRadii);
+            BodyTarget front = Pose(new Vector3(0.5f, 0.866f, 0f), new Vector3(-1f, 0f, 0.14f));
+            BodyTarget behind = Pose(new Vector3(0.5f, 0.866f, 0f), new Vector3(-1f, 0f, -0.01f));
+            var cleared = new BodyTarget();
+
+            ArmClearance.ClearanceSides sides = ArmClearance.Apply(shape, front, Quaternion.identity, Quaternion.identity, default, cleared);
+            Assert.That(sides.RightFore, Is.EqualTo(1));
+            sides = ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, sides, cleared);
+
+            Assert.That(sides.RightFore, Is.EqualTo(1), "Kept in front.");
+            Assert.That((cleared[UpperBodyBone.RightLowerArm] * Vector3.right).z, Is.GreaterThan(0f));
+            Assert.That(ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, default, cleared).RightFore, Is.EqualTo(-1), "Behind, with nothing remembered.");
+        }
+
+        [Test]
+        public void TheAddedTurn_EasesInAndOut_WhileTheTrackedMotionIsFollowedAtOnce()
+        {
+            Quaternion turn = Quaternion.AngleAxis(30f, Vector3.forward);
+            Quaternion half = ClearanceMotion.Ease(Quaternion.identity, turn, ClearanceMotion.EaseSeconds * Mathf.Log(2f));
+            Assert.That(Quaternion.Angle(Quaternion.identity, half), Is.EqualTo(15f).Within(0.1f), "Half way after ln 2 of the ease time.");
+            Assert.That(ClearanceMotion.Ease(Quaternion.identity, turn, float.PositiveInfinity), Is.EqualTo(turn), "At once on the first frame.");
+            Assert.That(ClearanceMotion.Ease(turn, Quaternion.identity, 1f), Is.EqualTo(Quaternion.identity), "Settled exactly once close.");
         }
 
         [Test]
@@ -263,9 +299,13 @@ namespace VirtualVessel.Avatar.Tests
             return (rest, has);
         }
 
-        private static float Bend(BodyTarget pose)
+        /// <summary>The bone points the same way seen from the camera (the front, along Z): only its depth changed.</summary>
+        private static void AssertSeenAlike(BodyTarget actual, BodyTarget expected, UpperBodyBone bone)
         {
-            return Quaternion.Angle(pose[UpperBodyBone.RightUpperArm], pose[UpperBodyBone.RightLowerArm]);
+            Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm ? Vector3.left : Vector3.right;
+            Vector2 seen = actual[bone] * rest;
+            Vector2 seenExpected = expected[bone] * rest;
+            Assert.That(Vector2.Angle(seen, seenExpected), Is.LessThan(0.1f), $"{bone} points the same way on the camera's image.");
         }
 
         private static void AssertSame(Quaternion actual, Quaternion expected, string message = null)

@@ -22,27 +22,43 @@ namespace VirtualVessel.Avatar
         /// <summary>The most an arm is turned; past it the arm stays where that turn puts it, so it never jumps.</summary>
         public const float MaxTurnDegrees = 60f;
 
+        // How close a limb may be turned to the camera's axis: past it, it would point the other way on the image.
+        private const float AxisMarginDegrees = 5f;
+
+        // How far a limb's end must be on the other side of a part's center before the limb changes the side it
+        // is turned to. Without it, a hand behind the head at about the head's depth flipped between front and
+        // back, and the arm jumped up to 90° in a frame on the recordings (2026-10-24).
+        private const float SideMarginMeters = 0.05f;
+
         // Halvings of the turn: 60° / 2^12 is about 0.015°.
         private const int Halvings = 12;
 
         /// <summary>
         /// Writes <paramref name="pose"/> into <paramref name="into"/> with the arms turned out of the head
         /// and torso; <paramref name="into"/> may be <paramref name="pose"/>. Without a shape the pose is
-        /// copied as it is.
+        /// copied as it is. Returns the side each limb was turned to, for the next frame's
+        /// <paramref name="previous"/>: a limb keeps its side until its end is clearly on the other one.
         /// </summary>
         /// <param name="neck">The neck's rotation in the root's space; unused when the model has no neck.</param>
         /// <param name="head">The head's rotation in the root's space.</param>
-        public static void Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, BodyTarget into)
+        public static ClearanceSides Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, ClearanceSides previous, BodyTarget into)
         {
             into.CopyFrom(pose);
             if (shape == null)
             {
-                return;
+                return previous;
             }
 
             PlacedBody body = Place(shape, into, neck, head, out Chain top);
-            ClearArm(shape, body, top, ArmSide.Left, into);
-            ClearArm(shape, body, top, ArmSide.Right, into);
+            (int leftUpper, int leftFore) = ClearArm(shape, body, top, ArmSide.Left, previous.LeftUpper, previous.LeftFore, into);
+            (int rightUpper, int rightFore) = ClearArm(shape, body, top, ArmSide.Right, previous.RightUpper, previous.RightFore, into);
+            return new ClearanceSides(leftUpper, leftFore, rightUpper, rightFore);
+        }
+
+        /// <summary>As the other, with no side remembered.</summary>
+        public static void Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, BodyTarget into)
+        {
+            Apply(shape, pose, neck, head, default, into);
         }
 
         /// <summary>
@@ -91,18 +107,20 @@ namespace VirtualVessel.Avatar
                 : default;
         }
 
-        private static void ClearArm(AvatarBodyShape shape, PlacedBody body, Chain top, ArmSide side, BodyTarget into)
+        private static (int UpperSide, int ForeSide) ClearArm(AvatarBodyShape shape, PlacedBody body, Chain top, ArmSide side, int upperSide, int foreSide, BodyTarget into)
         {
             ArmShape thickness = shape.Arm(side.IsLeft);
             Limb arm = Reach(shape, top, side, into);
 
+            // The upper arm turns alone and the forearm keeps where it points, so both point where they
+            // did on the camera's image, and the forearm moves with the elbow in depth.
             var whole = new UpperArmTest(body, arm.Shoulder, arm.UpperArm, arm.Forearm, arm.Hand, thickness);
-            Quaternion turn = Turn(whole);
+            Quaternion turn = Turn(whole, upperSide, out upperSide);
             into[side.UpperArm] = turn * into[side.UpperArm];
-            into[side.LowerArm] = turn * into[side.LowerArm];
 
-            var forearm = new ForearmTest(body, arm.Shoulder + (turn * arm.UpperArm), turn * arm.Forearm, turn * arm.Hand, thickness);
-            into[side.LowerArm] = Turn(forearm) * into[side.LowerArm];
+            var forearm = new ForearmTest(body, arm.Shoulder + (turn * arm.UpperArm), arm.Forearm, arm.Hand, thickness);
+            into[side.LowerArm] = Turn(forearm, foreSide, out foreSide) * into[side.LowerArm];
+            return (upperSide, foreSide);
         }
 
         private static bool Touches(AvatarBodyShape shape, PlacedBody body, Chain top, ArmSide side, BodyTarget pose)
@@ -130,60 +148,62 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// The least turn about the test's pivot that takes the limb out of every part it reaches. It tries
-        /// turning away from the center of the part reached first, then up, down, and to either side, and
-        /// keeps the smallest turn that clears; away from the center wins a tie. When none clears within
-        /// <see cref="MaxTurnDegrees"/>, the most away from the center. None when the limb is clear.
+        /// The least turn about the test's pivot that takes the limb out of every part it reaches, within
+        /// the plane of the limb and the camera's axis (+Z), so the limb points where it did on the camera's
+        /// image and only its depth changes. It goes toward the side of the part the limb's end is on, kept
+        /// from <paramref name="previous"/> (1 front, -1 back, 0 none yet) until the end is clearly on the
+        /// other; to the other side only when that one cannot clear; and never across the camera's axis,
+        /// where the limb would point the other way on the image. When neither side clears, the most toward
+        /// the first. None when the limb is clear or points along the camera's axis.
         /// </summary>
         /// <remarks>
-        /// Away from the center alone is not enough: a limb pointing nearly through the center has no clear
-        /// away, and turning it down across the face may never clear where turning it up would at once.
+        /// The camera sees across and up well and depth poorly: tracking places a limb in front of the body
+        /// too close to it and one behind it too close as well (tracking detailed design 8.4). So a limb
+        /// tracked through the head or chest belongs further toward the side it is on. Turning by the least
+        /// angle in any direction turned forearms folded in front of the face up across it, and ones in
+        /// front of the chest down (the user's screen recording, 2026-10-24); choosing the side by the least
+        /// angle flipped between front and back, and the arm jumped up to 69° in a frame on the recordings.
         /// </remarks>
-        private static Quaternion Turn<T>(T test)
+        private static Quaternion Turn<T>(T test, int previous, out int side)
             where T : struct, ITurnTest
         {
+            side = previous;
             if (!test.Hits(Quaternion.identity, out Vector3 center))
             {
                 return Quaternion.identity;
             }
 
-            Vector3 direction = test.Direction;
-            if (direction.sqrMagnitude < 1e-12f)
+            Vector3 limb = test.Direction;
+            Vector3 front = Vector3.ProjectOnPlane(Vector3.forward, limb);
+            if (limb.sqrMagnitude < 1e-12f || front.sqrMagnitude < 1e-6f)
             {
                 return Quaternion.identity;
             }
 
-            direction.Normalize();
-            Vector3 up = Vector3.ProjectOnPlane(Vector3.up, direction);
-            if (up.sqrMagnitude < 1e-6f)
+            float ahead = (test.Pivot + limb).z - center.z;
+            side = previous != 0 && ahead * previous > -SideMarginMeters ? previous : (ahead >= 0f ? 1 : -1);
+
+            // Turning forward about this axis brings the limb toward +Z, reaching it after the angle between them.
+            Vector3 forward = Vector3.Cross(limb, front).normalized;
+            bool inFront = side > 0;
+            Vector3 first = inFront ? forward : -forward;
+            float firstLimit = Mathf.Min(MaxTurnDegrees, Vector3.Angle(limb, inFront ? Vector3.forward : Vector3.back) - AxisMarginDegrees);
+            float secondLimit = Mathf.Min(MaxTurnDegrees, Vector3.Angle(limb, inFront ? Vector3.back : Vector3.forward) - AxisMarginDegrees);
+            float angle = firstLimit > 0f ? Clearing(test, first, firstLimit) : float.PositiveInfinity;
+            if (!float.IsPositiveInfinity(angle))
             {
-                up = Vector3.ProjectOnPlane(Vector3.forward, direction);
+                return Quaternion.AngleAxis(angle, first);
             }
 
-            up.Normalize();
-            Vector3 side = Vector3.Cross(direction, up);
-            Vector3 away = -Vector3.ProjectOnPlane(center - test.Pivot, direction);
-            Vector3 awayAxis = away.sqrMagnitude > 1e-10f ? Vector3.Cross(direction, away.normalized) : Vector3.Cross(direction, up);
-
-            float best = Clearing(test, awayAxis, MaxTurnDegrees);
-            Vector3 bestAxis = awayAxis;
-            Consider(test, Vector3.Cross(direction, up), ref best, ref bestAxis);
-            Consider(test, Vector3.Cross(direction, -up), ref best, ref bestAxis);
-            Consider(test, Vector3.Cross(direction, side), ref best, ref bestAxis);
-            Consider(test, Vector3.Cross(direction, -side), ref best, ref bestAxis);
-            return Quaternion.AngleAxis(float.IsPositiveInfinity(best) ? MaxTurnDegrees : best, float.IsPositiveInfinity(best) ? awayAxis : bestAxis);
-        }
-
-        private static void Consider<T>(T test, Vector3 axis, ref float best, ref Vector3 bestAxis)
-            where T : struct, ITurnTest
-        {
-            // Only a turn smaller than the best so far can win, so one check at that size rules most out.
-            float angle = Clearing(test, axis, float.IsPositiveInfinity(best) ? MaxTurnDegrees : best);
-            if (angle < best)
+            angle = secondLimit > 0f ? Clearing(test, -first, secondLimit) : float.PositiveInfinity;
+            if (!float.IsPositiveInfinity(angle))
             {
-                best = angle;
-                bestAxis = axis;
+                // Remembered, so the limb stays on this side while the first cannot clear either.
+                side = -side;
+                return Quaternion.AngleAxis(angle, -first);
             }
+
+            return Quaternion.AngleAxis(Mathf.Max(0f, firstLimit), first);
         }
 
         /// <summary>
@@ -216,6 +236,29 @@ namespace VirtualVessel.Avatar
             return clear;
         }
 
+        /// <summary>
+        /// The side, in depth, each limb was last turned to: 1 front, -1 back, 0 none yet. Kept by the caller
+        /// from frame to frame (<see cref="Apply(AvatarBodyShape, BodyTarget, Quaternion, Quaternion, ClearanceSides, BodyTarget)"/>).
+        /// </summary>
+        public readonly struct ClearanceSides
+        {
+            public ClearanceSides(int leftUpper, int leftFore, int rightUpper, int rightFore)
+            {
+                LeftUpper = leftUpper;
+                LeftFore = leftFore;
+                RightUpper = rightUpper;
+                RightFore = rightFore;
+            }
+
+            public int LeftUpper { get; }
+
+            public int LeftFore { get; }
+
+            public int RightUpper { get; }
+
+            public int RightFore { get; }
+        }
+
         /// <summary>A limb turned about a pivot, and whether it then reaches into a part of the body.</summary>
         private interface ITurnTest
         {
@@ -229,8 +272,9 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// The whole arm about the shoulder: the upper arm against the head, and the forearm and hand against
-        /// the torso. A head the shoulder is already in is left out, as no turn about it would help.
+        /// The upper arm about the shoulder, carrying the forearm and hand without turning them: the upper arm
+        /// against the head, and the forearm and hand against the torso. A head the shoulder is already in is
+        /// left out, as no turn about it would help.
         /// </summary>
         private readonly struct UpperArmTest : ITurnTest
         {
@@ -267,14 +311,14 @@ namespace VirtualVessel.Avatar
             public bool Hits(Quaternion turn, out Vector3 center)
             {
                 Vector3 elbow = Pivot + (turn * _upperArm);
-                Vector3 wrist = elbow + (turn * _forearm);
+                Vector3 wrist = elbow + _forearm;
                 for (int i = 0; i < PlacedBody.Count; i++)
                 {
                     PlacedPart part = _body[i];
                     bool hit = (_parts & (1 << i)) != 0
                         && (part.Round
                             ? part.Hits(Pivot, elbow, _thickness.UpperRadius)
-                            : part.Hits(elbow, wrist, _thickness.LowerRadius) || part.Hits(wrist, wrist + (turn * _hand), _thickness.HandRadius));
+                            : part.Hits(elbow, wrist, _thickness.LowerRadius) || part.Hits(wrist, wrist + _hand, _thickness.HandRadius));
                     if (hit)
                     {
                         center = part.Center;

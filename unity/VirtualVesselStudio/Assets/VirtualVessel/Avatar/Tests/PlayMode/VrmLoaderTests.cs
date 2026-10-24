@@ -275,7 +275,7 @@ namespace VirtualVessel.Avatar.Tests
                 controller.Update(frame, mirror: false, now: 2.5);
                 Quaternion neck = HeadPose.Neck(controller.Body.TorsoTop, controller.Face.Head);
                 bool trackedTouches = ArmClearance.Touches(shape, tracked, neck, controller.Face.Head);
-                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; forearm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; upper arm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightUpperArm], tracked[UpperBodyBone.RightUpperArm]):F1}°, forearm {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
                 Assert.That(ArmClearance.Touches(shape, controller.Body, neck, controller.Face.Head), Is.False, "Folded arms stay out of the chest.");
             }
         }
@@ -306,8 +306,10 @@ namespace VirtualVessel.Avatar.Tests
                     var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
                     var before = new BodyTarget();
                     var beforeTracked = new BodyTarget();
-                    int next = 0, shown = 0, active = 0, added = 0;
-                    float mostTurn = 0f, mostAdded = 0f;
+                    var again = new BodyTarget();
+                    float remainingSum = 0f, mostRemaining = 0f;
+                    int next = 0, shown = 0, active = 0, added = 0, touching = 0;
+                    float mostTurn = 0f, mostAdded = 0f, turnSum = 0f, imageSum = 0f;
                     double mostAddedAt = 0.0;
                     for (double now = frames[0].Time; now <= frames[frames.Count - 1].Time; now += 1.0 / 60.0)
                     {
@@ -319,11 +321,19 @@ namespace VirtualVessel.Avatar.Tests
 
                         controller.Update(output, mirror: true, now);
                         tracked.Update(output.Body, true, now);
-                        float turn = 0f, step = 0f, trackedStep = 0f;
+                        float turn = 0f, image = 0f, step = 0f, trackedStep = 0f;
                         foreach (UpperBodyBone bone in new[] { UpperBodyBone.LeftUpperArm, UpperBodyBone.LeftLowerArm, UpperBodyBone.RightUpperArm, UpperBodyBone.RightLowerArm })
                         {
                             Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm ? Vector3.left : Vector3.right;
                             turn = Mathf.Max(turn, Vector3.Angle(controller.Body[bone] * rest, tracked.Current[bone] * rest));
+
+                            // How far it moved on the camera's image: the angle between the two seen from the front.
+                            Vector2 seen = controller.Body[bone] * rest;
+                            Vector2 seenTracked = tracked.Current[bone] * rest;
+                            if (seen.sqrMagnitude > 0.01f && seenTracked.sqrMagnitude > 0.01f)
+                            {
+                                image = Mathf.Max(image, Vector2.Angle(seen, seenTracked));
+                            }
                             if (shown > 0)
                             {
                                 float moved = Vector3.Angle(controller.Body[bone] * rest, before[bone] * rest);
@@ -337,7 +347,29 @@ namespace VirtualVessel.Avatar.Tests
                         }
 
                         shown++;
-                        active += turn > 1f ? 1 : 0;
+                        Quaternion neck = HeadPose.Neck(controller.Body.TorsoTop, controller.Face.Head);
+                        if (ArmClearance.Touches(model.BodyShape, controller.Body, neck, controller.Face.Head))
+                        {
+                            // How deep: how much more an arm would have to turn to come out.
+                            touching++;
+                            ArmClearance.Apply(model.BodyShape, controller.Body, neck, controller.Face.Head, again);
+                            float remaining = 0f;
+                            for (int i = 0; i < BodyTarget.BoneCount; i++)
+                            {
+                                remaining = Mathf.Max(remaining, Quaternion.Angle(again.Rotations[i], controller.Body.Rotations[i]));
+                            }
+
+                            remainingSum += remaining;
+                            mostRemaining = Mathf.Max(mostRemaining, remaining);
+                        }
+
+                        if (turn > 1f)
+                        {
+                            active++;
+                            turnSum += turn;
+                            imageSum += image;
+                        }
+
                         mostTurn = Mathf.Max(mostTurn, turn);
 
                         // A frame where clearance moves an arm more than 5° beyond what tracking moved it: a jump it adds.
@@ -355,7 +387,7 @@ namespace VirtualVessel.Avatar.Tests
                         beforeTracked.CopyFrom(tracked.Current);
                     }
 
-                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\": {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°; "
+                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\": {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°, on average {(active > 0 ? turnSum / active : 0f):F1}°, of which on the image {(active > 0 ? imageSum / active : 0f):F1}°; still touching on {touching}, by {(touching > 0 ? remainingSum / touching : 0f):F1}° on average and {mostRemaining:F0}° at most; "
                         + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s");
                 }
             }

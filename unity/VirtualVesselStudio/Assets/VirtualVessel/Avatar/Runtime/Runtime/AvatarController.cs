@@ -17,8 +17,7 @@ namespace VirtualVessel.Avatar
         private readonly bool _hasNeck;
         private readonly FaceMotion _face;
         private readonly BodyMotion _body;
-        private readonly AvatarBodyShape _shape;
-        private readonly BodyTarget _shown = new BodyTarget();
+        private readonly ClearanceMotion _clearance;
 
         public AvatarController(IAvatarModel model, ExpressionMapping mapping)
         {
@@ -31,8 +30,8 @@ namespace VirtualVessel.Avatar
             _hasNeck = _rig.Has(AvatarBone.Neck);
             _face = new FaceMotion(mapping);
             _body = new BodyMotion(_rig.Has(AvatarBone.UpperChest));
-            _shape = model.BodyShape;
-            _shown.CopyFrom(_body.Current);
+            _clearance = new ClearanceMotion(model.BodyShape);
+            _clearance.Current.CopyFrom(_body.Current);
             Expressions = new ExpressionController(model.Expressions, model.FaceShapes);
         }
 
@@ -42,7 +41,7 @@ namespace VirtualVessel.Avatar
         public FaceTarget Face => _face.Current;
 
         /// <summary>What the upper body shows this frame, with the arms kept out of the head (avatar detailed design 7.6).</summary>
-        public BodyTarget Body => _shown;
+        public BodyTarget Body => _clearance.Current;
 
         /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
         public ExpressionMapping Mapping
@@ -63,8 +62,8 @@ namespace VirtualVessel.Avatar
             _body.Update(frame?.Body, mirror, now);
             FaceTarget face = _face.Current;
             Quaternion neck = HeadPose.Neck(_body.Current.TorsoTop, face.Head);
-            ArmClearance.Apply(_shape, _body.Current, neck, face.Head, _shown);
-            BodyTarget body = _shown;
+            _clearance.Update(_body.Current, neck, face.Head, now);
+            BodyTarget body = _clearance.Current;
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {
                 // Bones the model lacks are ignored by the rig.
