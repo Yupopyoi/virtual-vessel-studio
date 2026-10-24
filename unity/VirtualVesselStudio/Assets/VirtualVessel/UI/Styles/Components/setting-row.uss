@@ -19,6 +19,9 @@
     flex-grow: 1;
     flex-shrink: 1;
     flex-basis: 240px;
+
+    /* UI Toolkit breaks the line by the minimum width, not the basis alone (screens.uss, the face Card). */
+    min-width: 240px;
     margin-right: var(--vv-space-m);
 }
 
