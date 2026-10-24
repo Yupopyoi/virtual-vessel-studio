@@ -473,7 +473,7 @@ Corrections are common Tracking Processing, not per input method (provider) (sys
 - **`ObservationCorrections` picks from the list of corrections (`Catalog`) those that suit the active provider's traits.** `TrackingService` corrects a copy of the provider's observation and passes it to smoothing (8.2). It picks again when the provider changes (when a replay starts and ends).
 - **Recordings (chapter 12) keep the observation before correction.** A replay picks the same corrections again from the recorded input's traits, so corrections can change and be compared without filming again. The recording's header keeps the input's traits (12.3).
 - A new correction only implements `IObservationCorrection` and joins the `Catalog`. An input that needs a new trait adds one value to `ObservationTraits`.
-- The visibility threshold (0.5) lives once, in `BodyPose.MinVisibility`, used by the corrections and by Avatar alike.
+- Whether a joint is seen is decided once, in `BodyPose.IsSeen`, used by the corrections and by Avatar alike: its visibility at least 0.5 (`BodyPose.MinVisibility`) and its position inside the camera image (0 to 1). MediaPipe also guesses joints outside the image and may call them visible: on the user's recordings, a wrist outside the image was visible past 0.5 in up to all of those frames, and moved the avatar's arm where the person's was not (the user's report, 2026-10-24). Such a joint is not seen, as a hidden one is.
 
 #### Giving the Hand the Forearm's Depth (HandDepthFromForearm, step 6, 2026-10-24)
 
