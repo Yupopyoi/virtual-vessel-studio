@@ -435,6 +435,8 @@ The levels moved four more steps (version 3's 1 is the standard 5). Lag on the r
 | 9 (the smooth set) | 0.059° | 100 ms | 165 ms | 92 ms |
 | 10 | 0.073° | 100 ms | | |
 
+- Tried and dropped (2026-10-24): an "ultra fast" mode apart from the levels. Smoothing was weakened to four times the responsive set (the right upper arm lagged 0–37 ms on the recordings and kept about 70% of the raw shake), and Avatar stopped interpolating between observations, showing each at once. The user checked it with the camera and dropped it as far too unsteady.
+
 ### 8.3 Outlier Removal
 
 - For each joint, a value whose speed from the previous value exceeds a limit (for example 8 m/s for a wrist) is not used that time. If it keeps exceeding (a really fast movement), it is accepted from the third time.
