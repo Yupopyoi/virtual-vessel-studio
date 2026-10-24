@@ -17,8 +17,8 @@ namespace VirtualVessel.Tracking.Tests
     [Category("Explicit")]
     public sealed class RecordedSmoothingTests
     {
-        // Up to half a second behind, in observations at about 30 a second.
-        private const int MaxShift = 15;
+        // Up to a second behind, in observations at about 30 a second.
+        private const int MaxShift = 30;
 
         [Test]
         public void TheArms_AtEachSpeed_LagAndShake()

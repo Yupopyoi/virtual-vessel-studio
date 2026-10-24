@@ -229,17 +229,11 @@ namespace VirtualVessel.Tracking
         public const int Max = 10;
 
         /// <summary>
-        /// The standard: the steadiest of the three measured parameter sets (tracking detailed design 8.2).
-        /// The user found the arms more stable here than at the earlier standard, now 7, and asked for it
-        /// to be the standard with steadier levels below (2026-10-24).
+        /// The standard (tracking detailed design 8.2): about 150 ms behind on the user's recorded arm
+        /// movements, plus one observation of the avatar's interpolation. Steadiness matters more than lag
+        /// for the arms, and up to about 300 ms is accepted (the user's decision, 2026-10-24).
         /// </summary>
         public const int Standard = 5;
-
-        /// <summary>The middle measured set, the standard until 2026-10-24.</summary>
-        public const int Balanced = 7;
-
-        /// <summary>The quickest measured set.</summary>
-        public const int Responsive = 9;
 
         /// <summary>The level for new settings; the tracking screen changes it.</summary>
         public const int Default = Standard;

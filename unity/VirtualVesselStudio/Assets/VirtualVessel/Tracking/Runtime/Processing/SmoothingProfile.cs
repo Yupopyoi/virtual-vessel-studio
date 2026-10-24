@@ -13,9 +13,10 @@ namespace VirtualVessel.Tracking.Processing
     /// The steady set is steadier with 99 ms, the quick one follows closer with 56 ms. Positions scale
     /// beta by 1 cm ≈ 2° at arm length; face values are kept fast so blinks survive. Positions and face
     /// values are provisional until they are tuned on recorded camera data (tracking detailed design 17).
-    /// The three sets are levels 5 (the standard), 7, and 9; the levels between and beyond take the
-    /// same ratio per level, so each step changes the cutoffs by the same factor, and levels 1 to 4 are
-    /// steadier than any set measured. Until 2026-10-24 the sets were levels 3, 5, and 7.
+    /// The levels step from the balanced set past the steady one by the same ratio per level, half the
+    /// ratio between the two, so the steady set would be level 9 and the balanced one 11; the user chose
+    /// stability over lag, and the standard 5 lags about 260 ms on recorded arms (2026-10-24). The face
+    /// stops at the steady set, so blinks and the mouth keep up at every level.
     /// </remarks>
     public readonly struct SmoothingProfile
     {
@@ -50,30 +51,31 @@ namespace VirtualVessel.Tracking.Processing
             new OneEuroParameters(0.2f, 2f),
             new OneEuroParameters(2f, 2f));
 
+        // Where the measured sets would sit on the levels, past the quickest one.
+        private const int SteadyLevel = 9;
+        private const int BalancedLevel = 11;
+
+        /// <summary>The measured sets, for tests of the filters themselves.</summary>
+        public static SmoothingProfile Steady => s_steady;
+
+        public static SmoothingProfile Balanced => s_balanced;
+
+        public static SmoothingProfile Quick => s_quick;
+
         /// <summary>
-        /// The parameters of <paramref name="level"/>, kept within the levels: the measured sets at 5, 7,
-        /// and 9, and geometric steps from the balanced set toward and past the nearer of the other two. Pure.
+        /// The parameters of <paramref name="level"/>, kept within the levels: geometric steps from the
+        /// balanced set toward and past the steady one, two levels for the ratio between them; the face no
+        /// further than the steady set. Pure.
         /// </summary>
         public static SmoothingProfile For(int level)
         {
             level = SmoothingLevel.Clamp(level);
-            switch (level)
-            {
-                case SmoothingLevel.Standard:
-                    return s_steady;
-                case SmoothingLevel.Balanced:
-                    return s_balanced;
-                case SmoothingLevel.Responsive:
-                    return s_quick;
-            }
-
-            // Two levels lead from the balanced set to the next one, so each level is half of that ratio.
-            SmoothingProfile toward = level < SmoothingLevel.Balanced ? s_steady : s_quick;
-            float steps = Math.Abs(level - SmoothingLevel.Balanced) / 2f;
+            float steps = (BalancedLevel - level) / 2f;
+            float faceSteps = Math.Min(steps, (BalancedLevel - SteadyLevel) / 2f);
             return new SmoothingProfile(
-                Step(s_balanced.Angle, toward.Angle, steps),
-                Step(s_balanced.Position, toward.Position, steps),
-                Step(s_balanced.Face, toward.Face, steps));
+                Step(s_balanced.Angle, s_steady.Angle, steps),
+                Step(s_balanced.Position, s_steady.Position, steps),
+                Step(s_balanced.Face, s_steady.Face, faceSteps));
         }
 
         private static OneEuroParameters Step(OneEuroParameters from, OneEuroParameters to, float steps)

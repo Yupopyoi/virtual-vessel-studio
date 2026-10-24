@@ -143,7 +143,7 @@ namespace VirtualVessel.Tracking.Tests
                 Frame();
             }
 
-            Assert.That(_service.Current.Body[BodyJoint.Nose].z, Is.GreaterThan(0.05f).And.LessThanOrEqualTo(0.1f), "Back in depth (3D), gliding there through the smoothing.");
+            Assert.That(_service.Current.Body[BodyJoint.Nose].z, Is.GreaterThan(0.02f).And.LessThanOrEqualTo(0.1f), "Back in depth (3D), gliding there through the smoothing.");
         }
 
         [Test]
@@ -177,7 +177,7 @@ namespace VirtualVessel.Tracking.Tests
 
         [TestCase(0, SmoothingLevel.Standard)]
         [TestCase(1, SmoothingLevel.Default)]
-        [TestCase(2, SmoothingLevel.Responsive)]
+        [TestCase(2, SmoothingLevel.Max)]
         public void AFileWithThreePresets_ReadsAsTheirLevels_KeepingTheOtherValues(int preset, int level)
         {
             Directory.CreateDirectory(_directory);
@@ -192,12 +192,12 @@ namespace VirtualVessel.Tracking.Tests
 
         [TestCase(5, SmoothingLevel.Standard)]
         [TestCase(3, SmoothingLevel.Standard)]
-        [TestCase(1, 3)]
-        [TestCase(7, SmoothingLevel.Responsive)]
-        [TestCase(10, SmoothingLevel.Max)]
-        public void AVersion2Level_MovesTwoStepsUp_AndItsStandardBecomesTheNewOne(int saved, int level)
+        [TestCase(1, 7)]
+        [TestCase(7, SmoothingLevel.Max)]
+        public void AVersion2Level_MovesUpThroughVersion3_AndItsStandardBecomesTheNewOne(int saved, int level)
         {
-            // Version 2's standard 5 was the default nearly everyone had; the steadier 3 is the new standard.
+            // Version 2's standard 5 was the default nearly everyone had; the steadier 3 became version 3's
+            // standard, which becomes the new one. Others move two steps up, then four.
             Directory.CreateDirectory(_directory);
             File.WriteAllText(Path.Combine(_directory, TrackingSettings.FileName), $"{{ \"schemaVersion\": 2, \"smoothingLevel\": {saved}, \"mirror\": false }}");
 
@@ -205,6 +205,21 @@ namespace VirtualVessel.Tracking.Tests
 
             Assert.That(loaded.Value.SmoothingLevel, Is.EqualTo(level));
             Assert.That(loaded.Value.Mirror, Is.False);
+        }
+
+        [TestCase(1, SmoothingLevel.Standard)]
+        [TestCase(5, SmoothingLevel.Standard)]
+        [TestCase(3, 7)]
+        [TestCase(6, SmoothingLevel.Max)]
+        public void AVersion3Level_MovesFourStepsUp_AndItsStandardBecomesTheNewOne(int saved, int level)
+        {
+            Directory.CreateDirectory(_directory);
+            File.WriteAllText(Path.Combine(_directory, TrackingSettings.FileName), $"{{ \"schemaVersion\": 3, \"smoothingLevel\": {saved}, \"bodyDepth\": 1 }}");
+
+            ConfigLoadResult<TrackingSettings> loaded = TrackingService.CreateStore(_directory, new UtcSystemClock()).Load();
+
+            Assert.That(loaded.Value.SmoothingLevel, Is.EqualTo(level));
+            Assert.That(loaded.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
         }
 
         [Test]
