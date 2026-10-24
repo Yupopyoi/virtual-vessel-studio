@@ -80,6 +80,18 @@ namespace VirtualVessel.Stage
         /// </summary>
         public static Quaternion LightRotation => Quaternion.Euler(35f, 15f, 0f);
 
+        /// <summary>
+        /// Where the provisional backdrop stands: 2 m behind the avatar, at the camera's height, facing it
+        /// (video detailed design 7.5: from (0, 1.25, -1.9) with a vertical view of 30°).
+        /// </summary>
+        public static Vector3 BackdropPosition => new Vector3(0f, 1.25f, 2f);
+
+        /// <summary>
+        /// The backdrop's size: the camera's view at its distance, 2.09 × 3.72 m, with about 15% to spare,
+        /// in the stream's 16:9 shape.
+        /// </summary>
+        public static Vector2 BackdropSize => new Vector2(2.4f * 16f / 9f, 2.4f);
+
         /// <summary>The string table key of a capture source's name on the stream screen.</summary>
         public static string NameKey(string screenId)
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using NUnit.Framework;
 using UnityEngine;
@@ -143,10 +144,37 @@ namespace VirtualVessel.Stage.Tests
             Assert.That(light, Is.Not.Null);
             Assert.That(light.type, Is.EqualTo(LightType.Directional));
             Assert.That(light.transform.forward.z, Is.GreaterThan(0.5f), "Lights the avatar's front.");
+            GameObject backdrop = _stage.Backdrop;
+            Assert.That(backdrop, Is.Not.Null);
+            Assert.That(backdrop.transform.position.z, Is.GreaterThan(0f), "Behind the avatar, away from the camera.");
+            Material material = backdrop.GetComponent<MeshRenderer>().sharedMaterial;
+            Texture texture = material.mainTexture;
 
             _stage.Dispose();
 
             Assert.That(light == null, Is.True);
+            Assert.That(backdrop == null && material == null && texture == null, Is.True, "The backdrop, its material, and its picture are removed.");
+        }
+
+        [Test]
+        public void TheBackdropPicture_IsPastel_Opaque_AndTheSameEveryTime()
+        {
+            Color32[] picture = PastelBackdrop.Render(160, 90);
+            Assert.That(picture, Has.Length.EqualTo(160 * 90));
+            Assert.That(picture.All(p => p.a == 255), Is.True, "Opaque.");
+            Assert.That(picture.All(p => Math.Min(p.r, Math.Min(p.g, p.b)) >= 160), Is.True, "Light colors only.");
+            Assert.That(picture.Select(p => (p.r, p.g, p.b)).Distinct().Count(), Is.GreaterThan(50), "Not a flat color.");
+            Assert.That(PastelBackdrop.Render(160, 90), Is.EqualTo(picture), "The same picture every time.");
+
+            Color top = PastelBackdrop.Gradient(1f);
+            Color bottom = PastelBackdrop.Gradient(0f);
+            Assert.That(top.r, Is.GreaterThan(top.b), "Pink at the top.");
+            Assert.That(bottom.b, Is.GreaterThan(bottom.r), "Sky blue at the bottom.");
+
+            // Drawn once at start, on the main thread.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            PastelBackdrop.Render(PastelBackdrop.Width, PastelBackdrop.Height);
+            Debug.Log($"[Stage/Backdrop] {PastelBackdrop.Width}x{PastelBackdrop.Height} drawn in {watch.Elapsed.TotalMilliseconds:F0} ms");
         }
 
         [Test]

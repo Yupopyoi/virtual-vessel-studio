@@ -41,6 +41,9 @@ namespace VirtualVessel.Stage
         private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
         private StageSettings _settings = new StageSettings();
         private GameObject _light;
+        private GameObject _backdrop;
+        private Material _backdropMaterial;
+        private Texture2D _backdropTexture;
         private IDisposable _tick;
 
         public StageService(ICaptureSources captures, IStreamOutput output, IFrameLoop frameLoop, ConfigFileStore<StageSettings> store, IMonotonicClock clock, ILog log)
@@ -66,6 +69,8 @@ namespace VirtualVessel.Stage
 
         /// <summary>The default light; for tests.</summary>
         internal Light DefaultLight => _light != null ? _light.GetComponent<Light>() : null;
+
+        internal GameObject Backdrop => _backdrop;
 
         /// <summary>Creates the store of stage-settings.json in the settings folder.</summary>
         public static ConfigFileStore<StageSettings> CreateStore(string configDirectory, ISystemClock clock)
@@ -121,6 +126,7 @@ namespace VirtualVessel.Stage
             light.intensity = _intensity.Value;
             light.shadows = LightShadows.None;
 
+            CreateBackdrop(quad, shader);
             _tick = _frameLoop.Register(_saves.Tick);
             _log?.Information($"Stage started with {_screens.Count} stream screens; placements {loaded.Status} from {_store.FilePath}.");
             return Task.CompletedTask;
@@ -175,18 +181,56 @@ namespace VirtualVessel.Stage
             }
 
             _screens.Clear();
-            if (_light != null)
-            {
-                if (UnityEngine.Application.isPlaying)
-                {
-                    UnityEngine.Object.Destroy(_light);
-                }
-                else
-                {
-                    UnityEngine.Object.DestroyImmediate(_light);
-                }
+            Destroy(_backdrop);
+            Destroy(_backdropMaterial);
+            Destroy(_backdropTexture);
+            _backdrop = null;
+            _backdropMaterial = null;
+            _backdropTexture = null;
+            Destroy(_light);
+            _light = null;
+        }
 
-                _light = null;
+        /// <summary>
+        /// The provisional pastel backdrop behind the avatar, until a Stage Scene brings its own (Stage
+        /// detailed design 7.1). The Main Camera draws it, under the flat videos and the avatar; it is
+        /// unlit, with the stream screens' shader.
+        /// </summary>
+        private void CreateBackdrop(Mesh quad, Shader shader)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            _backdropTexture = new Texture2D(PastelBackdrop.Width, PastelBackdrop.Height, TextureFormat.RGBA32, mipChain: true, linear: false)
+            {
+                name = "StageBackdrop",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Trilinear,
+            };
+            _backdropTexture.SetPixels32(PastelBackdrop.Render(PastelBackdrop.Width, PastelBackdrop.Height));
+            _backdropTexture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
+            _backdropMaterial = new Material(shader) { name = "StageBackdrop", mainTexture = _backdropTexture };
+            _backdrop = new GameObject("StageBackdrop");
+            _backdrop.transform.SetPositionAndRotation(StageDefaults.BackdropPosition, Quaternion.identity);
+            Vector2 size = StageDefaults.BackdropSize;
+            _backdrop.transform.localScale = new Vector3(size.x, size.y, 1f);
+            _backdrop.AddComponent<MeshFilter>().sharedMesh = quad;
+            _backdrop.AddComponent<MeshRenderer>().sharedMaterial = _backdropMaterial;
+            _log?.Information($"Stage backdrop drawn in {watch.Elapsed.TotalMilliseconds:F0} ms.");
+        }
+
+        private static void Destroy(UnityEngine.Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (UnityEngine.Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(target);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(target);
             }
         }
 
