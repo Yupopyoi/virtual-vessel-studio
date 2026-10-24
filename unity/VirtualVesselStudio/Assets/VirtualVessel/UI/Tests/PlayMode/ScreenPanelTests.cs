@@ -290,7 +290,7 @@ namespace VirtualVessel.UI.Tests
 
             card.Scale.value = "2";
             Assert.That(_root.Settings.Current.UiScale, Is.EqualTo(2f), "The last step is 200%.");
-            Assert.That(_root.Panel.scale, Is.EqualTo(2f));
+            Assert.That(_root.Panel.scale, Is.EqualTo(UiPanelScale.PanelScale(2f, Screen.dpi, Screen.width, Screen.height)).Within(1e-5f), "The UI size, on the display scale fitted to the window.");
         }
 
         [UnityTest]

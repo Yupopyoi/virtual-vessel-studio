@@ -9,12 +9,12 @@ namespace VirtualVessel.Tracking.Tests
 {
     public sealed class OneEuroFilterTests
     {
-        private static readonly OneEuroParameters s_standard = SmoothingProfile.For(SmoothingLevel.Standard).Angle;
+        private static readonly OneEuroParameters s_balanced = SmoothingProfile.Balanced.Angle;
 
         [Test]
         public void TheFirstSample_PassesThrough()
         {
-            OneEuroFilter filter = default(OneEuroFilter).Next(42f, 1.0, s_standard);
+            OneEuroFilter filter = default(OneEuroFilter).Next(42f, 1.0, s_balanced);
 
             Assert.That(filter.IsStarted, Is.True);
             Assert.That(filter.Value, Is.EqualTo(42f));
@@ -23,10 +23,10 @@ namespace VirtualVessel.Tracking.Tests
         [Test]
         public void ASampleNotNewer_IsIgnored()
         {
-            OneEuroFilter filter = default(OneEuroFilter).Next(0f, 1.0, s_standard);
+            OneEuroFilter filter = default(OneEuroFilter).Next(0f, 1.0, s_balanced);
 
-            Assert.That(filter.Next(100f, 1.0, s_standard).Value, Is.EqualTo(0f), "Same time.");
-            Assert.That(filter.Next(100f, 0.5, s_standard).Value, Is.EqualTo(0f), "Older.");
+            Assert.That(filter.Next(100f, 1.0, s_balanced).Value, Is.EqualTo(0f), "Same time.");
+            Assert.That(filter.Next(100f, 0.5, s_balanced).Value, Is.EqualTo(0f), "Older.");
         }
 
         [Test]
@@ -39,7 +39,7 @@ namespace VirtualVessel.Tracking.Tests
             for (int i = 0; i < 300; i++)
             {
                 float value = 10f + (float)((random.NextDouble() - 0.5) * 4.0);
-                filter = filter.Next(value, i / 30.0, s_standard);
+                filter = filter.Next(value, i / 30.0, s_balanced);
                 raw.Add(value);
                 smoothed.Add(filter.Value);
             }
@@ -52,11 +52,11 @@ namespace VirtualVessel.Tracking.Tests
         [Test]
         public void AFastStep_IsReachedWithinAFewFrames()
         {
-            OneEuroFilter filter = default(OneEuroFilter).Next(0f, 0, s_standard);
+            OneEuroFilter filter = default(OneEuroFilter).Next(0f, 0, s_balanced);
             int frames = 0;
             for (int i = 1; i <= 60 && Math.Abs(filter.Value - 90f) > 9f; i++)
             {
-                filter = filter.Next(90f, i / 30.0, s_standard);
+                filter = filter.Next(90f, i / 30.0, s_balanced);
                 frames = i;
             }
 
@@ -72,12 +72,12 @@ namespace VirtualVessel.Tracking.Tests
             OneEuroFilter at60 = default;
             for (int i = 0; i <= 30; i++)
             {
-                at30 = at30.Next(i * 2f, i / 30.0, s_standard);
+                at30 = at30.Next(i * 2f, i / 30.0, s_balanced);
             }
 
             for (int i = 0; i <= 60; i++)
             {
-                at60 = at60.Next(i * 1f, i / 60.0, s_standard);
+                at60 = at60.Next(i * 1f, i / 60.0, s_balanced);
             }
 
             Assert.That(at60.Value, Is.EqualTo(at30.Value).Within(3f));
@@ -86,18 +86,71 @@ namespace VirtualVessel.Tracking.Tests
         [Test]
         public void APosition_IsFilteredPerAxis()
         {
-            PositionFilter filter = default(PositionFilter).Next(new Vector3(1, 2, 3), 0, s_standard);
+            PositionFilter filter = default(PositionFilter).Next(new Vector3(1, 2, 3), 0, s_balanced);
 
             Assert.That(filter.Value, Is.EqualTo(new Vector3(1, 2, 3)));
-            filter = filter.Next(new Vector3(1, 2, 3), 1.0 / 30, s_standard);
+            filter = filter.Next(new Vector3(1, 2, 3), 1.0 / 30, s_balanced);
             Assert.That(filter.Value, Is.EqualTo(new Vector3(1, 2, 3)));
+        }
+
+        [Test]
+        public void AStraightArm_SwungFast_StaysStraight_WhenItsJointsAreSmoothedTogether()
+        {
+            // Shoulder, elbow, wrist of a straight arm swinging down from sideways at 180° a second.
+            OneEuroParameters parameters = SmoothingProfile.For(SmoothingLevel.Min).Joints;
+            var linked = new LinkedPositionFilter(3);
+            var apart = new PositionFilter[3];
+            var raw = new Vector3[3];
+            bool[] all = { true, true, true };
+            float mostLinked = 0f, mostApart = 0f;
+            for (int i = 0; i <= 30; i++)
+            {
+                double time = i / 30.0;
+                Vector3 along = Quaternion.AngleAxis(-180f * (float)time, Vector3.forward) * Vector3.right;
+                raw[0] = Vector3.zero;
+                raw[1] = along * 0.25f;
+                raw[2] = along * 0.5f;
+                linked.Next(raw, all, all, time, parameters);
+                for (int j = 0; j < 3; j++)
+                {
+                    apart[j] = apart[j].Next(raw[j], time, parameters);
+                }
+
+                mostLinked = Mathf.Max(mostLinked, Bend(linked.Value(0), linked.Value(1), linked.Value(2)));
+                mostApart = Mathf.Max(mostApart, Bend(apart[0].Value, apart[1].Value, apart[2].Value));
+            }
+
+            Assert.That(mostLinked, Is.LessThan(0.5f), "Smoothed together, the arm stays straight.");
+            Assert.That(mostApart, Is.GreaterThan(10f), "Smoothed apart, the slower elbow lags behind the wrist.");
+        }
+
+        [Test]
+        public void LinkedJoints_TakeTheCutoffOfTheFastestLead_AndKeepThoseNotTaken()
+        {
+            OneEuroParameters parameters = SmoothingProfile.Balanced.Position;
+            Vector3[] velocities = { new Vector3(0.1f, 0f, 0f), new Vector3(0f, 2f, 0f), new Vector3(0f, 0f, 9f) };
+            Assert.That(LinkedPositionFilter.Cutoff(velocities, new[] { true, true, false }, parameters), Is.EqualTo(parameters.MinCutoff + (parameters.Beta * 2f)).Within(1e-5f), "A joint that does not lead, such as a guess out of view, does not quicken the rest.");
+
+            var filter = new LinkedPositionFilter(2);
+            filter.Next(new[] { Vector3.one, Vector3.one }, new[] { true, false }, new[] { true, true }, 0.0, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "The first sample passes through.");
+            Assert.That(filter.IsStarted(1), Is.False, "A sample not taken is not started.");
+            filter.Next(new[] { Vector3.zero, Vector3.one }, new[] { false, true }, new[] { true, true }, 1.0 / 30, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "A dropped sample keeps the value.");
+            filter.Next(new[] { Vector3.zero, Vector3.zero }, new[] { true, true }, new[] { true, true }, 1.0 / 30, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "A sample not newer is ignored.");
+        }
+
+        private static float Bend(Vector3 shoulder, Vector3 elbow, Vector3 wrist)
+        {
+            return Vector3.Angle(elbow - shoulder, wrist - elbow);
         }
 
         [Test]
         public void ARotationAcross180Degrees_TakesTheShortWay()
         {
-            RotationFilter filter = default(RotationFilter).Next(Quaternion.Euler(0, 175, 0), 0, s_standard);
-            filter = filter.Next(Quaternion.Euler(0, -175, 0), 1.0 / 30, s_standard);
+            RotationFilter filter = default(RotationFilter).Next(Quaternion.Euler(0, 175, 0), 0, s_balanced);
+            filter = filter.Next(Quaternion.Euler(0, -175, 0), 1.0 / 30, s_balanced);
 
             float fromStart = Quaternion.Angle(filter.Value, Quaternion.Euler(0, 175, 0));
             float toTarget = Quaternion.Angle(filter.Value, Quaternion.Euler(0, -175, 0));
@@ -109,7 +162,7 @@ namespace VirtualVessel.Tracking.Tests
         {
             Quaternion rotation = Quaternion.Euler(10, 20, 30);
             var negated = new Quaternion(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
-            RotationFilter filter = default(RotationFilter).Next(rotation, 0, s_standard).Next(negated, 1.0 / 30, s_standard);
+            RotationFilter filter = default(RotationFilter).Next(rotation, 0, s_balanced).Next(negated, 1.0 / 30, s_balanced);
 
             Assert.That(Quaternion.Angle(filter.Value, rotation), Is.LessThan(0.01f));
         }
@@ -140,7 +193,7 @@ namespace VirtualVessel.Tracking.Tests
             {
                 (List<float> truth, List<float> raw) = NoisyMotion(seed);
                 List<float> average = MovingAverage(raw, 30);
-                List<float> oneEuro = RotationFiltered(raw, SmoothingLevel.Standard);
+                List<float> oneEuro = RotationFiltered(raw, SmoothingProfile.Balanced.Angle);
                 averageStill += TrackingMetrics.Jitter(average, 15, StillEnd) / Seeds;
                 oneEuroStill += TrackingMetrics.Jitter(oneEuro, 15, StillEnd) / Seeds;
                 averageHold += TrackingMetrics.Jitter(average, HoldStart, HoldEnd) / Seeds;
@@ -164,10 +217,12 @@ namespace VirtualVessel.Tracking.Tests
         [Test]
         public void TheLevels_KeepTheMeasuredPresets_AndStepEvenlyInBetween()
         {
-            Assert.That(SmoothingProfile.For(SmoothingLevel.Standard).Angle.MinCutoff, Is.EqualTo(0.1f));
-            Assert.That(SmoothingProfile.For(SmoothingLevel.Smooth).Angle.Beta, Is.EqualTo(0.003f));
-            Assert.That(SmoothingProfile.For(SmoothingLevel.Responsive).Face.MinCutoff, Is.EqualTo(2f));
-            Assert.That(SmoothingProfile.For(6).Angle.MinCutoff, Is.EqualTo(0.1f * Mathf.Sqrt(2f)).Within(1e-5f), "Half the ratio from 5 to 7.");
+            Assert.That(SmoothingProfile.Balanced.Angle.MinCutoff, Is.EqualTo(0.1f));
+            Assert.That(SmoothingProfile.Steady.Angle.Beta, Is.EqualTo(0.003f));
+            Assert.That(SmoothingProfile.Quick.Face.MinCutoff, Is.EqualTo(2f));
+            Assert.That(SmoothingProfile.For(10).Angle.MinCutoff, Is.EqualTo(0.1f / Mathf.Sqrt(2f)).Within(1e-5f), "Half the ratio from the balanced set to the steady one.");
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Standard).Angle.MinCutoff, Is.EqualTo(0.0125f).Within(1e-5f), "Three times that ratio past the balanced set.");
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Standard).Face.MinCutoff, Is.EqualTo(SmoothingProfile.Steady.Face.MinCutoff).Within(1e-5f), "The face no slower than the steady set.");
             Assert.That(SmoothingProfile.For(0).Angle.MinCutoff, Is.EqualTo(SmoothingProfile.For(SmoothingLevel.Min).Angle.MinCutoff), "Kept within the levels.");
             Assert.That(SmoothingProfile.For(99).Angle.MinCutoff, Is.EqualTo(SmoothingProfile.For(SmoothingLevel.Max).Angle.MinCutoff));
             for (int level = SmoothingLevel.Min + 1; level <= SmoothingLevel.Max; level++)
@@ -176,7 +231,7 @@ namespace VirtualVessel.Tracking.Tests
                 SmoothingProfile higher = SmoothingProfile.For(level);
                 Assert.That(higher.Angle.MinCutoff, Is.GreaterThan(lower.Angle.MinCutoff), $"Level {level} follows faster.");
                 Assert.That(higher.Position.Beta, Is.GreaterThan(lower.Position.Beta));
-                Assert.That(higher.Face.MinCutoff, Is.GreaterThan(lower.Face.MinCutoff));
+                Assert.That(higher.Face.MinCutoff, Is.GreaterThanOrEqualTo(lower.Face.MinCutoff));
             }
         }
 
@@ -191,7 +246,7 @@ namespace VirtualVessel.Tracking.Tests
                 for (int seed = 0; seed < Seeds; seed++)
                 {
                     (List<float> truth, List<float> raw) = NoisyMotion(seed);
-                    List<float> filtered = RotationFiltered(raw, level);
+                    List<float> filtered = RotationFiltered(raw, SmoothingProfile.For(level).Angle);
                     jitter[level] += TrackingMetrics.Jitter(filtered, 15, StillEnd) / Seeds;
                     lag[level] += TrackingMetrics.Lag(truth, filtered, 30) * 1000.0 / Rate / Seeds;
                 }
@@ -211,8 +266,8 @@ namespace VirtualVessel.Tracking.Tests
         {
             (List<float> truth, List<float> raw) = NoisyMotion(2);
 
-            List<float> smooth = RotationFiltered(raw, SmoothingLevel.Smooth);
-            List<float> responsive = RotationFiltered(raw, SmoothingLevel.Responsive);
+            List<float> smooth = RotationFiltered(raw, SmoothingProfile.Steady.Angle);
+            List<float> responsive = RotationFiltered(raw, SmoothingProfile.Quick.Angle);
 
             Assert.That(TrackingMetrics.Jitter(smooth, 15, StillEnd), Is.LessThan(TrackingMetrics.Jitter(responsive, 15, StillEnd)));
             Assert.That(TrackingMetrics.Error(truth, responsive, WaveStart, Samples), Is.LessThan(TrackingMetrics.Error(truth, smooth, WaveStart, Samples)));
@@ -233,9 +288,8 @@ namespace VirtualVessel.Tracking.Tests
             return (truth, raw);
         }
 
-        private static List<float> RotationFiltered(List<float> degrees, int preset)
+        private static List<float> RotationFiltered(List<float> degrees, OneEuroParameters parameters)
         {
-            OneEuroParameters parameters = SmoothingProfile.For(preset).Angle;
             var output = new List<float>();
             RotationFilter filter = default;
             for (int i = 0; i < degrees.Count; i++)

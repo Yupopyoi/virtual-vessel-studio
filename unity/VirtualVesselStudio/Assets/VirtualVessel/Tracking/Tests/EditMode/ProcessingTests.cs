@@ -116,8 +116,40 @@ namespace VirtualVessel.Tracking.Tests
         {
             for (int i = from; i < to; i++)
             {
-                processor.Process(Observation(i * Interval), i * Interval, TrackingRegions.All, enabled, SmoothingLevel.Standard, output);
+                processor.Process(Observation(i * Interval), i * Interval, TrackingRegions.All, enabled, SmoothingLevel.Max, output);
             }
+        }
+
+        [Test]
+        public void APalmReadTheOtherWayRound_IsDroppedTwice_ThenAccepted()
+        {
+            var processor = new TrackingProcessor();
+            var output = new TrackingFrame();
+            Quaternion down = Quaternion.LookRotation(Vector3.forward, Vector3.up);
+            Quaternion over = Quaternion.LookRotation(Vector3.forward, Vector3.down);
+            for (int i = 0; i < 8; i++)
+            {
+                processor.Process(WithRightHand(i * Interval, down), i * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+            }
+
+            for (int i = 8; i < 10; i++)
+            {
+                processor.Process(WithRightHand(i * Interval, over), i * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+                Assert.That(Quaternion.Angle(output.RightHand.PalmRotation, down), Is.LessThan(1f), $"Turned over in a 30th of a second: dropped ({i}).");
+            }
+
+            processor.Process(WithRightHand(10 * Interval, over), 10 * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+            Assert.That(Quaternion.Angle(output.RightHand.PalmRotation, down), Is.GreaterThan(1f), "Still over the third time: real, accepted.");
+        }
+
+        private static TrackingFrame WithRightHand(double time, Quaternion palm)
+        {
+            TrackingFrame frame = Observation(time);
+            frame.RightHand.Status = TrackingStatus.Tracked;
+            frame.RightHand.Confidence = 0.9f;
+            frame.RightHand.Timestamp = time;
+            frame.RightHand.PalmRotation = palm;
+            return frame;
         }
 
         [Test]
@@ -142,9 +174,9 @@ namespace VirtualVessel.Tracking.Tests
             Run(processor, output, 0, 5);
             Vector3 elbow = output.Body[BodyJoint.RightElbow];
 
-            processor.Process(null, (4 * Interval) + 0.1, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+            processor.Process(null, (4 * Interval) + 0.1, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
             Assert.That(output.Body.Status, Is.EqualTo(TrackingStatus.Tracked));
-            processor.Process(null, (4 * Interval) + 0.3, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+            processor.Process(null, (4 * Interval) + 0.3, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
             Assert.That(output.Body.Status, Is.EqualTo(TrackingStatus.Lost));
             Assert.That(output.Body[BodyJoint.RightElbow], Is.EqualTo(elbow), "The last values stay for Avatar to decide.");
             Assert.That(output.Body.Timestamp, Is.EqualTo(4 * Interval), "Since when it is lost.");
@@ -156,11 +188,11 @@ namespace VirtualVessel.Tracking.Tests
             var processor = new TrackingProcessor();
             var output = new TrackingFrame();
             Run(processor, output, 0, 5);
-            processor.Process(null, 1.0, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+            processor.Process(null, 1.0, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
             Assert.That(output.Body.Status, Is.EqualTo(TrackingStatus.Lost));
 
-            processor.Process(Observation(1.1, rightArm: 90f), 1.1, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
-            processor.Process(Observation(1.1 + Interval, rightArm: 90f), 1.1 + Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+            processor.Process(Observation(1.1, rightArm: 90f), 1.1, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
+            processor.Process(Observation(1.1 + Interval, rightArm: 90f), 1.1 + Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
 
             Assert.That(output.Body.Status, Is.EqualTo(TrackingStatus.Tracked));
             Assert.That(SyntheticMotion.ArmAngle(output.Body, right: true), Is.EqualTo(90f).Within(0.5f), "Not dragged from the old pose or dropped as an outlier.");
@@ -177,7 +209,7 @@ namespace VirtualVessel.Tracking.Tests
 
             TrackingFrame jump = Observation(5 * Interval);
             jump.Body[BodyJoint.RightWrist] += new Vector3(0, 1f, 0);
-            processor.Process(jump, 5 * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+            processor.Process(jump, 5 * Interval, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
 
             Assert.That(output.Body[BodyJoint.RightWrist], Is.EqualTo(wrist));
             Assert.That(processor.Outliers, Is.EqualTo(1));
@@ -206,7 +238,7 @@ namespace VirtualVessel.Tracking.Tests
             var smoothed = new List<float>();
             foreach (TrackingFrame frame in frames)
             {
-                processor.Process(frame, frame.Time, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Standard, output);
+                processor.Process(frame, frame.Time, TrackingRegions.All, TrackingRegions.All, SmoothingLevel.Max, output);
                 truth.Add(SyntheticMotion.RaiseAndWave(frame.Time));
                 raw.Add(SyntheticMotion.ArmAngle(frame.Body, right: true));
                 smoothed.Add(SyntheticMotion.ArmAngle(output.Body, right: true));

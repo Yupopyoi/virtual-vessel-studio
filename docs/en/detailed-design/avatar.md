@@ -100,27 +100,40 @@ flowchart LR
 | `AvatarBone` | Enum | Standard human bones (same order as Unity Humanoid) |
 | `AvatarExpression` | Enum | Standard expressions: `Blink`, `BlinkLeft`, `BlinkRight`, `Aa`, `Ih`, `Ou`, `Ee`, `Oh`, `Happy`, `Angry`, `Sad`, `Relaxed`, `Surprised`, `Neutral` |
 | `AvatarController` | Class | The control entry point for one avatar; dispatches to pose and expressions |
-| `PoseRetargeting` | Static class | Computes bone rotations from observations (pure functions, chapter 7) |
-| `PoseController` | Class | Interpolation, handling lost tracking, application according to the range (`BodyRange`) |
+| `PoseRetargeting` | Static class | Computes the upper body's bone rotations from observations (pure functions, 7.2) |
+| `BodyMotion` | Class | Interpolation between upper body observations, and handling a lost torso or arm, each on its own (7.2, 7.3, 8.4). First designed as `PoseController`; named after the face's `FaceMotion` |
+| `BodyTarget` | Class | What the avatar's upper body shows: each bone's rotation, and which parts the observation saw. Reused every frame |
+| `MotionTiming` | Static class | The timing the face, the body, and the hands share: moving toward observations, and how much is shown when lost (pure functions, 7.3, 8.4) |
+| `ObservationClock` | Class | One part's observations over time: when the newest was taken and arrived, and how far along the move toward it is (7.3). The face, the body, and each hand hold one. `FrameClock` is the seconds since the last frame alone, for the steps after them |
 | `ExpressionMapping` | Class | Settings for converting expression values (`FaceShape`) to expressions (7.4) |
 | `FaceFeatures` | Struct (internal) | The face values put through the curves once. The whole-face expressions, the part values, and the Expression Signal are all made from it (7.4) |
 | `ExpressionController` | Class | Applies expressions and gaze: part by part or as whole-face expressions, substituting blinks the model lacks |
 | `FaceTarget` | Class | What the avatar's face shows: a weight per expression, a weight per part, the Expression Signal, the gaze, and the head's turn. Reused every frame |
 | `ExpressionSignal` | Enum | The values of the Expression Signal: smile, anger, sadness, surprise, each eye's opening, and the mouth's opening (7.4, system design 7.7) |
-| `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4) |
+| `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4; timing in `ObservationClock`) |
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
+| `AvatarBodyShape` | Class | The model's body in the reference pose: bone positions, the head's ellipsoid, the torso's parts, the arms' thickness. Measured at load (7.6) |
+| `ArmClearance` | Static class | Keeps the arms out of the head and torso by turning them in depth (pure functions, 7.6) |
+| `HandRetargeting` | Static class | The hand's turn and the forearm's twist from the palm (pure functions, 7.7) |
+| `HandMotion` | Class | Interpolating between palm and finger observations, and handling a lost hand (7.5, 7.7) |
+| `FingerPose` | Class | One hand's finger angles: the bend at each joint and the spread. Reused every frame (7.5) |
+| `FingerRetargeting` | Static class | Finger angles from the tracked hand, and the finger bones' rotations from them (pure functions, 7.5). `FingerRest` holds the model's hand in the reference pose |
+| `SteadyMotion` | Class | The upper body's last step: how fast the arm bones may turn (7.8) |
+| `ClearanceMotion` | Class | Keeping the arms out over time: remembers each limb's side and eases the added turn in and out (7.6) |
+| `PlacedPart` | Struct | The head (an ellipsoid) or a part of the torso (an elliptic cylinder) this frame, and whether an arm's capsule reaches into it (pure functions, 7.6) |
+| `ArmSide` | Struct | Each of the avatar's arms: its bones (`UpperBodyBone`, `AvatarBone`) and the tracked joints of the same name. Keeps choosing bones by side in one place |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
 | `FaceTuning` | Class | The user's face tuning: a sensitivity per part (7.4) |
 | `AvatarProfile` | Class | Saved usage settings (6.3) |
 | `AvatarSettings` | Class | The avatar in use and the face tuning (chapter 10) |
 
-### Class Diagram (the face, as of step 4)
+### Class Diagram (the face and the upper body, as of step 5)
 
-The classes from a tracking observation to the avatar's head, expressions, and gaze. The body and arms (`PoseController`, `PoseRetargeting`) come in step 5.
+The classes from a tracking observation to the avatar's upper body (torso, shoulders, arms), head, expressions, and gaze. Hands and fingers come in step 6.
 
 - There are two kinds of abstraction, shown by color and by a stereotype. **Interfaces** (`<<interface>>`, a thick solid purple border) hide the concrete implementations at module boundaries. **Data contracts** (`<<contract>>`, a dashed green border) carry values in a form independent of formats and libraries. Classes without a stereotype are concrete processing on top of the abstractions.
 - Every dependency points from the concrete to the abstract. Avatar's computation knows neither MediaPipe's types nor UniVRM's, and UniVRM's types are used only inside Avatar.Vrm (chapter 3).
-- Relation notes: `reads` is the read every frame, and `neck, head` sets the neck and head rotations. The per-frame order is in 8.3.
+- Relation notes: `reads` is the read every frame, and `upper body, neck, head` sets the upper body's, neck's, and head's rotations. The per-frame order is in 8.3.
 
 ```mermaid
 classDiagram
@@ -137,6 +150,12 @@ classDiagram
             +double Time
             +FacePose Face
             +BodyPose Body
+        }
+        class BodyPose {
+            <<contract>>
+            +Vector3[20] Positions
+            +float[20] JointConfidence
+            +TrackingStatus Status
         }
         class FacePose {
             <<contract>>
@@ -166,8 +185,33 @@ classDiagram
             +FaceTarget Current
             +float Presence
             +Update(FacePose face, bool mirror, double now)
+        }
+        class MotionTiming {
             +Progress(now, arrivedAt, interval)$ float
             +NextPresence(presence, usable, lost, elapsed)$ float
+            +Interval(fresh, observedAt, previous)$ double
+        }
+        class ObservationClock {
+            +double ObservedAt
+            +Tick(now) float
+            +IsNew(timestamp) bool
+            +Arrive(fresh, timestamp, now)
+            +Progress(now) float
+        }
+        class BodyMotion {
+            +BodyTarget Current
+            +float TorsoPresence
+            +Update(BodyPose body, bool mirror, double now)
+        }
+        class PoseRetargeting {
+            +Retarget(BodyPose body, bool mirror, bool hasUpperChest, float armDown, BodyTarget into)$
+            +Arm(left, shoulder, elbow, wrist, torso)$
+            +WithoutWrist(left, upper, previousUpper, previousLower)$
+        }
+        class BodyTarget {
+            <<contract>>
+            +Quaternion[] Rotations
+            +bool TorsoSeen, LeftArmSeen, RightArmSeen
         }
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
@@ -212,6 +256,7 @@ classDiagram
             +IAvatarRig Rig
             +IAvatarExpressions Expressions
             +IAvatarFaceShapes FaceShapes
+            +AvatarBodyShape BodyShape
             +Apply()
         }
         class IAvatarRig {
@@ -244,7 +289,7 @@ classDiagram
     classDef interfaceLayer fill:#7c6cf033,stroke:#7c6cf0,stroke-width:3px
     classDef contractLayer fill:#2aa58f26,stroke:#2aa58f,stroke-width:2px,stroke-dasharray:6 4
     cssClass "ITrackingSource,IAvatarService,IAvatarModel,IAvatarRig,IAvatarExpressions,IAvatarFaceShapes" interfaceLayer
-    cssClass "TrackingFrame,FacePose,FaceTarget,FacePartProfile" contractLayer
+    cssClass "TrackingFrame,FacePose,BodyPose,FaceTarget,BodyTarget,FacePartProfile" contractLayer
 
     TrackingFrame *-- FacePose
     ITrackingSource --> TrackingFrame
@@ -254,8 +299,15 @@ classDiagram
     AvatarService *-- AvatarController
     AvatarService ..> ExpressionMapping : For(tuning)
     AvatarController *-- FaceMotion
+    AvatarController *-- BodyMotion
+    TrackingFrame *-- BodyPose
+    BodyMotion --> PoseRetargeting : Retarget
+    BodyMotion *-- BodyTarget
+    BodyMotion *-- ObservationClock
+    FaceMotion *-- ObservationClock
+    ObservationClock ..> MotionTiming
     AvatarController *-- ExpressionController
-    AvatarController --> IAvatarRig : neck, head
+    AvatarController --> IAvatarRig : upper body, neck, head
     AvatarController ..> HeadPose
     FaceMotion --> ExpressionMapping : Evaluate
     FaceMotion *-- FaceTarget
@@ -299,6 +351,7 @@ public interface IAvatarService
     IReadOnlyObservable<FaceTuning> FaceTuning { get; }                        // Face tuning (7.4)
     void SetFaceTuning(FaceTuning tuning);                                     // Applies at once and saves
     FaceTarget Face { get; }                                                   // The face this frame; null without an avatar
+    BodyTarget Body { get; }                                                   // The upper body this frame, for the skeleton comparison on the Diagnostics screen; null without an avatar
 }
 ```
 
@@ -347,6 +400,7 @@ public interface IAvatarModel : IDisposable
     IAvatarRig Rig { get; }
     IAvatarExpressions Expressions { get; }
     AvatarModelInfo Info { get; }      // Name, format, original version, whether converted, terms, thumbnail
+    AvatarBodyShape BodyShape { get; } // The body measured at load (7.6); null when it could not be measured
     void SetVisible(bool visible);
     void Apply();                      // Applies the values set this frame and moves secondary motion (SpringBone)
 }
@@ -458,7 +512,7 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 | Torso (Spine, Chest) | Hips to neck | The line between the shoulders |
 | Neck, head | The rotation of the facial transformation matrix (Tracking detailed design 6.3), split between neck and head (default: neck 40%, head 60%). Turns beyond 75° are stopped | Same |
 | Upper arm | Shoulder to elbow | The plane the elbow bends in (normal of the plane of upper arm and forearm) |
-| Forearm | Elbow to wrist | Palm orientation (from the Hand Landmarker; otherwise carried over from the upper arm) |
+| Forearm | Elbow to wrist | Half of the palm's orientation (from the Hand Landmarker) (7.7); carried over from the upper arm when the hand is not seen |
 | Hand | Wrist to the base of the middle finger | The palm normal |
 | Fingers | The flexion angle of each joint (7.5) | The palm |
 
@@ -468,18 +522,27 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 ### 7.2 Upper Body (BodyRange.UpperBody)
 
-- The hips do not move. The torso is distributed over Spine, Chest, and Upper Chest from the tilt of the shoulder line and the forward/back tilt of the neck (default: 30%, 35%, 35%), so the torso moves even when seated.
+Built in step 5 (`PoseRetargeting`, `BodyMotion`). Every bone's rotation from the reference pose is worked out in the avatar root's space and set bone by bone (`IAvatarRig.SetRotation`). Only directions are used, never positions, so a person and an avatar of different builds point their bones alike (system design 7.6). The Voom prototype only tilted the chest by the shoulder line, so there is no method to carry over (chapter 1).
+
+- The hips do not move. The torso's rotation takes its right from the line between the shoulders and its up from the line from the hips to the neck (the shoulders' midpoint), and is shared over Spine, Chest, and Upper Chest (30% at Spine, 65% up to Chest, all of it at Upper Chest: 30%, 35%, 35%), so the torso moves even when seated. On a model without an Upper Chest, Chest takes all of it.
 - Torso rotation has limits (side tilt ±30°, forward/back ±25°, twist ±40°) so inference errors do not bend the torso unnaturally.
-- Shoulders rise slightly only when the arms are raised (part of the upper arm's raise angle goes to the shoulder).
-- When an arm is lost, it returns to the arms-down pose (`pose.armDownAngle`, lowered 70° by default), never to the T pose.
+- The neck turns 40% of the way from the top of the torso (Upper Chest) to the head (7.1), so it stays joined to the head when the torso tilts.
+- The upper arm points at the elbow. Its twist (the turn about the bone) is set by the plane the elbow bends in, the plane of the upper arm and the forearm. A nearly straight arm's bend plane is unknown, so the twist of the shortest swing from the torso is used, blended smoothly in between: from the torso below a sine of 0.25 between upper arm and forearm, from the bend plane at 0.50 and above. The bounds were 0.10–0.35 at first and were raised because arms brought near straight by the correction for arms pointing at the camera (tracking detailed design 8.4) jumped in twist (2026-10-22). The forearm points at the wrist and keeps the upper arm's twist; the palm's twist comes in step 6.
+- A shoulder rises only for an arm raised above level, by 25% of how far it is raised (at most 20°).
+- A joint not seen is not used (`BodyPose.IsSeen`, the same as Tracking's corrections: visibility at least 0.5 and inside the camera image, tracking detailed design 8.4). An arm or hand out of the camera is therefore lost like a hidden one: it holds, then goes back to the rest (8.4), rather than following MediaPipe's guess. Both shoulders seen move the torso; a shoulder and an elbow move the upper arm. The wrist only points the forearm.
+- While the wrist is hidden (behind the head, for example), the upper arm points at the elbow and the forearm keeps its last seen bend (its rotation relative to the upper arm). The upper arm also keeps its previous twist and only swings to the new direction (`PoseRetargeting.WithoutWrist`): the bend plane is unknown, so a twist worked out afresh would jump. In the user's recording (2026-10-22, hands behind the head), the shoulders and elbows were seen 100% of the time but the wrists only 28%, and a test that needed the wrist dropped the arms 70% of the time.
+- While the wrist is out of the camera image, with the elbow in it (hands lowered below the camera, for example), the forearm keeps its bend for 0.5 s, then goes back over 1 s to straight along the upper arm, the rest, and comes back over 0.2 s when the wrist is in the image again (`BodyMotion.LeftForearmPresence`, `RightForearmPresence`, 8.4; the user's decision, 2026-10-24). Kept, the bend from before stayed while the person's arm hung down: in the user's screen recording the avatar's elbow was bent 108° against the person's 40°. On "1024不自然解消用" (Otoha, 3D) the clearance also turned the arms on 9% of the frames instead of 28%, as bent forearms held across the body no longer touched it.
+- When an arm is lost (its shoulder or elbow unseen), it returns to hanging from the torso (lowered 70° by default), never to the T pose. Setting the angle through the profile's `pose.armDownAngle` is not built yet (chapter 17).
+- In a mirror, the person's sides are swapped and reflected through X = 0 before anything is worked out (`PoseRetargeting.Joint`): the person's right hand moves the avatar's left one. Visibility is read on the person's side.
 - The lower body stays in the arms-down reference pose (a straight standing pose that looks natural whether seated or standing).
+- On the user's three recordings (arms forward, hands clasped in front of the chest, hands behind the head; about 10 seconds each), no rotation was not a number and the arms moved 100% of the time. Before smoothing, the upper arm jumped more than 30° in one observation 1, 1, and 3 times in about 300 (`AvatarRecordingTests`, Explicit). Bone lengths varied by ±5–10%, the baseline for comparing depth estimation (tracking detailed design 8.4).
 
 ### 7.3 Interpolating Between Observations
 
 - For each rendered frame, the shown values move toward the newest observation over one observation interval (rotations with spherical interpolation). Each move starts from what was shown when the observation arrived, so a frame always lies between the previous display and the newest observation and never jumps. This adds one observation interval of lag (about 33 ms at 30 per second) but removes the steps caused by rendering more often than inference.
 - The move takes the time between the two observations, kept within 1/120 s to 0.2 s (so a late observation does not drag the face along slowly).
 - When the next observation is late, it stops at the newest observation (no prediction ahead, because the correction when a prediction is wrong is noticeable).
-- Step 4 uses this for the face (expressions, gaze, head turn; `FaceMotion`). The body and hands use the same idea in steps 5 and 6.
+- Used for the face (`FaceMotion`, step 4), the upper body (`BodyMotion`, step 5), and the palms (`HandMotion`, step 6). The timing is shared in `MotionTiming` (2026-10-22), and each part's bookkeeping of its observations in `ObservationClock` (2026-10-24). The clearance (7.6) and the arms' turning limit (7.8), which follow every frame rather than observations, use `FrameClock` for the time since the last frame.
 
 ### 7.4 Expressions (ExpressionMapping)
 
@@ -565,6 +628,75 @@ How much a face moves differs from person to person, so the user can change the 
 - The flexion of each finger joint comes from the angle between neighboring bones (Tracking detailed design 8.4). Flexion is limited to 0–90° (the thumb has its own range) and spreading to ±15°.
 - When a hand is lost, it slowly returns to a lightly closed natural shape.
 - When a lost hand returns, it moves toward the observation over 0.2 s so the shape does not change suddenly.
+- Built in step 6, part 2 (2026-10-24):
+  - `FingerRetargeting.TryMeasure` (pure) reads the angles from the tracked hand's 21 points in the hand's own frame: the back of the hand as the palm's rotation takes it, and across toward the thumb from the little finger's base to the index finger's. They are angles only, so neither the hand's size nor the mirror changes them. A mirror only chooses which person's hand moves which avatar hand (7.7).
+  - Four fingers: the bend at the base (0–90°, toward the palm from the metacarpal) and at the middle joint (0–100°), and the spread toward the thumb at the base (±15°). The spread fades as the finger bends, because a finger pointing into the palm shows no side to spread to.
+  - The tracked hand reads its bends small. MediaPipe flattens depth, so fingers curled toward the camera lose most of their bend. On the user's recordings, the most curled hands read 60–84° at the base and 54–78° at the middle joint (medians per finger), where a fist bends about 90° and 100°. The most open hands still read 15–36° and 8–36°. The user saw the fingers bend too little (screen recording, 2026-10-24). So the bend shown is the bend read past 10° (`OpenBend`), scaled by 1.5 at the base (`BaseGain`) and 1.8 at the middle joint (`MiddleGain`).
+  - The end joint bends two thirds as far as the middle one (`EndShare`, at most 80°), because it bends with it. The end joint read on its own was noise: an open index finger read a median of 42° there.
+  - The thumb is tucked in by as far as its tip reaches across the palm from the index finger's base toward the little finger's: fully at 0.4 of the palm's width (`ThumbAcross`). Tucked in, its base (CMC) folds across the palm by 25° (`MaxThumbFold`) and its middle joint bends at least 30° (`ThumbTuckBend`), and partly on the way. The tip tells a tucked thumb from one standing out of a fist. On the user's recordings, with the fingers curled, it was 0.36 across with the thumb tucked and -0.37 (on the thumb's side) with it out. The angle between the thumb's and the index finger's metacarpals, used at first, barely differed (25° and 30°), and folded a raised thumb (the user's screen recording, 2026-10-24).
+  - The thumb's middle (0–60°) and end (0–80°) joints bend by their angles past 20° (`ThumbOpenBend`), scaled by 1.5 (`ThumbGain`). A straight thumb reads bent: out of a fist, medians of 26° and 21°, and in an open hand 22° and 18°. Read past 10°, a raised thumb stayed bent.
+  - `FingerRest` holds each finger bone's direction, the back of the hand, and the direction toward the thumb, from the bone positions measured at load (`AvatarBodyShape`, 7.6). Where the model lacks a bone, it uses a typical hand: palm down, fingers out to the side, the thumb forward. `FingerRetargeting.Rotations` (pure) turns each joint about the model's own axes, into the palm for the four fingers and across and into it for the thumb, and carries the parent's turn on the hand's final rotation (after 7.6 and 7.8).
+  - `HandMotion` moves the fingers with the palm on the same observation clock (7.3): it holds them while the hand is lost, then goes over 1 s to the loosely closed hand (`FingerPose.Relaxed`: bends of 15°, 20°, and 10°; the thumb 5°, 10°, and 10°). Without hand tracking the fingers stay loosely closed instead of the reference pose's straight fingers. A shown angle changes at most 600° a second (10° a frame at 60), a fist closing in about 0.15 s. Without this, a finger angle jumped up to 48° in a frame on the user's recording "1024不自然解消用". With it, no angle changed more than 10° in a frame, on any recording.
+  - Checked on the three sample models (`VrmLoaderTests.Fingers_CloseTheModelsOwnHand`): in a fist, the model's own right index finger points into its palm (0° off), and loosely closed it is 75° off.
+
+### 7.6 Keeping the Arms Out of the Head and Torso (ArmClearance)
+
+Only directions are carried over (7.1), so on an avatar built differently from the user, the arms sink into the head or torso. Most anime-style models have heads big for their arms, so an arm raised beside or over the head enters it (the user's camera check, 2026-10-24). Arms folded in front of the chest enter the chest (the user's request, same day). Only when an arm would enter the head or torso is it turned, by the least angle that keeps it out (`ArmClearance`, pure functions). This is one way of absorbing body differences with model-specific information (system design 7.6).
+
+- The body's shape (`AvatarBodyShape`): measured once right after loading, while the model is in the reference pose (8.2). It holds the upper-body bones' positions, the head's ellipsoid, the torso's parts, the thickness of the upper arm, forearm, and hand, and the hand's length.
+  - Each mesh point is grouped by following the bone that moves it most up to the first humanoid bone. Sleeves go with the arms and hair and ears with the head, and points of the neck or shoulders never go with the chest. The eyes and jaw go with the head, the fingers with the hand.
+  - The head is an ellipsoid around the head's points. Hair hanging below the neck is left out.
+  - The torso is an upright elliptic cylinder around the points of each of the Spine, Chest, and Upper Chest bones, turning with its bone. A bone with fewer than 20 points is not measured.
+  - For the head's and torso's sizes, the outermost 5% of points at each end of each axis are left out. On one sample, the top 5% of the head's points reached about 20 cm above the crown (ears and hair sticking up).
+  - An arm's thickness is the median distance from the bone of the points along its middle (leaving out 20% at each end). An arm whose mesh is not found takes a share of the upper arm's length.
+  - When it cannot be measured (no head mesh, for example), it is `null` and the arms stay as tracked.
+- Contact: the arm is three capsules (lines with thickness around the bones) for the upper arm, forearm, and hand. Each is checked against the head or a part of the torso grown by that capsule's thickness. The hand's capsule lies along the hand. The upper arm is not checked against the torso: it starts at the torso's edge, where the two always meet.
+- A part of the torso is grown by half a limb's thickness (`TorsoContactShare`), and counts as entered only across its front (+Z) or near its middle (within half its size); touching its sides or back does not count. A sleeve against the side of the body is cloth on cloth and looks right, and turning in depth could not take an arm out sideways anyway. In the user's screen recording (2026-10-24), an arm hanging at the side met the sides of a loose cardigan (measured as the torso) and the whole arm was swung forward 30–60°.
+- Turning: only the depth (front and back) changes. The camera sees across and up well and depth poorly: tracking places an arm in front of the body too close to it, and one behind it too close as well (tracking detailed design 8.4). So an arm tracked through the head or chest is most often off only in depth. An arm turns within the plane containing it and the camera's axis (+Z), keeping the direction it points on the camera's image (seen from the front) as tracked.
+  1. The upper arm turns about the shoulder when it enters the head, or when the elbow enters the torso. The forearm does not turn: it keeps its direction and moves forward or back with the elbow. Folded arms with the elbow in the chest bring the elbow forward.
+  2. The forearm turns about the elbow when the forearm or hand still enters the head or torso. With the elbow beside the body and the forearm across the front of the torso, as with a hand on the belly, only the forearm comes forward. A version that turned the whole arm at the shoulder when the forearm and hand entered the torso swung it forward for a hand on the belly (22–60° on the three samples, reproduced); now the shoulder stays and the forearm comes 31–37° forward. On the user's "hands folded in front of the chest", the turn averaged 10–18° (15–33° before), 35–40° in 2D, with no jump over 5° in a frame.
+- Front or back: when the limb's end (the elbow for the upper arm, the wrist for the forearm) is in front of the center of the part entered, the limb turns forward; when behind, back. The side chosen is kept until the end moves more than 5 cm to the other side (`ArmClearance.ClearanceSides`, carried from frame to frame by the caller). Only when that side cannot clear does the limb turn to the other side, which is then remembered. The least angle that clears is found by halving (12 times).
+- 2D (tracking detailed design 8.6): the body has no depth to tell front from back by. At the user's request (2026-10-24), the arms always go in front of the body (`frontOnly`, passed by `AvatarService` from tracking's options): they turn only forward, whatever side was remembered. On the three samples, the elbow of folded arms came 14.5–20.5 cm in front of the shoulder. Without it, on the sample with the deepest torso it went 10.8 cm behind.
+- Limits: up to 60°, and no closer than 5° to the camera's axis (past it, the limb would point the other way on the image). When neither side clears, the limb turns to the limit toward the first side. A head the shoulder is in (1), or a head or torso part the elbow is in (2), is left out, since no turn could take the arm out of it.
+- Timing (`ClearanceMotion`): the turn added (the rotation from the tracked one) moves toward its target with a time constant of 0.08 s. The tracked motion of the arm is followed without delay; only the turn added eases in and out. Within 0.01° it settles exactly.
+- History (2026-10-24): at first, the arm turned the least angle among away from the center, up, down, and to either side. In the user's screen recording, forearms folded in front of the face were turned up and ones in front of the chest down, unlike the tracking. The user's four recordings were replayed on the three samples and compared (`VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`, Explicit):
+  - The least angle in any direction: nearly all of the turn showed on the image (4.5–22.9° on average).
+  - Weighing turns that change the direction on the image 2–4 times: the deviation fell a little, but the choice flipped and the arm jumped up to 28–69° in a frame.
+  - Depth only, choosing front or back by the least angle: no deviation on the image, but with the hands behind the head the side flipped and the arm jumped up to 90°.
+  - The current method: 0.0–0.4° on the image. Jumps over 5° in a frame: none in six recordings, one or two in two (up to 8°), and six (up to 14°) for hideri-san with the hands behind the head. What stays inside is shallow, needing 0.4–4.3° more on average to come out (up to 42° at the moment the side changes).
+- The head and the torso's parts move with the torso's rotation and the neck's and head's turn (`FaceTarget.Head`).
+- `AvatarController` applies it to `BodyMotion`'s output every frame. `AvatarController.Body` (the avatar drawn in the skeleton comparison on the Diagnostics screen) is the pose after it.
+- Known limits: in poses depth alone cannot clear, such as a forearm crossing over the head, the arm stays inside. When the side changes, the arm moves to the other side over 0.1–0.2 s. The arms are not kept out of each other, the hips, or the legs.
+
+### 7.7 The Hands and the Forearms' Twist (HandRetargeting)
+
+Step 6, part 1 (2026-10-24), for the elbow that seemed to bend the wrong way (chapter 17). Until then the forearm kept the upper arm's twist and the hand the forearm's direction, so the palm never turned.
+
+- The palm (`HandPose.PalmRotation`: the fingers' direction and the back of the hand, in person space) becomes the hand's rotation in the avatar root's space. In the reference pose the palm is down (the back of the hand up) and the fingers point along the arm. In a mirror the person's other hand is used, reflected through X = 0.
+- The hand takes the palm's whole turn (its depth is set from the forearm's in Tracking, tracking detailed design 8.4).
+- The twist is measured from neutral: the back of the hand along the elbow's hinge axis (with the thumb up when the forearm points forward from an arm at the side). In the reference pose (arm out sideways, palm down, the elbow bending forward) palm down is neutral too. Supination (turning the palm up) is positive, and a reading more than 150° toward pronation is read as supination (palms are often turned up on an arm held out, rarely turned far down; folded in front of the chest, pronation read up to about 115° on the recordings).
+- The forearm and wrist turn up to ±90° from neutral; a twist past that is left out (the shoulder is not turned). A version that also turned the shoulder to show the palm's whole turn was tried, but on straight arms it twisted the upper arm's sleeve far, looking less natural than the person's arm (the user's screen recording, 2026-10-24). So with an arm held out and the palm turned straight up, the avatar's goes as far as thumb up.
+- The forearm's bone takes half of the forearm's twist (`ForearmTwistShare`), and the wrist the rest. On models without twist bones the forearm's bone turns the whole forearm mesh, so all of it at the forearm wrings the elbow, and all of it at the hand wrings the wrist.
+- At the wrap of the reading (210° of supination, 150° of pronation) it could be either way round, so within 30° of it the twist fades smoothly back to neutral, and a reading crossing it does not jump.
+- A hand bent at the wrist until its back lies along the forearm has no twist to read, and the reading scatters. When the back of the hand crosses the forearm (the sine of the angle between them) less than 0.2 the twist is not read, and from 0.5 it is read fully (smoothly in between).
+- The shown palm turns no faster than 540° a second (`HandMotion.MaxDegreesPerSecond`). Even a palm read the other way round (accepted by Tracking when it lasts three times, tracking detailed design 8.3) turns over about a third of a second instead of flipping in a frame.
+- In the user's screen recording (2026-10-24) a hand turned about 180° in a frame. Replaying the recordings in 3D and 2D, in 2D the hand turned up to 178° in a frame, the forearm 120°, and the upper arm 83° (in 3D up to 52°, 65°, and 44°). The causes were the forearm without depth in 2D, whose elbow bend turned over as it swung from up to down (fixed by leaning the wrist forward, tracking detailed design 8.6), and the two above. After the fixes: hands 31–52°, forearms 24–64°, upper arms 34–63°.
+- The first version (2026-10-24) took palm down as the end of the forearm's reach, with 180° of supination and 60° of pronation. In the user's screen recording the wrists bent (the hand's depth disagreeing in Tracking), and in "hands folded in front of the chest" 52% of readings stuck at the end of pronation. Measured from neutral, the median there is −89° (palm down, the end of pronation's reach), and what is left out is mostly about 20° or less.
+- The hands are inferred apart from the body, so their motion (`HandMotion`) has the face's timing (7.3, 8.4): interpolated between observations, held 0.5 s when lost, back to following the forearm over 1 s, and in again over 0.2 s when found.
+- `AvatarController` turns the hands after the body's motion, then keeps the arms out of the head and torso (7.6). Turning the forearm at the elbow turns the hand with it, and the hand's capsule lies along the hand.
+- Measured (2026-10-24, the user's recordings, `AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan`, Explicit):
+  - The upper arm's twist set by the elbow's bend plane went past ±90° only in "hands behind the head" (82–83%). That pose really turns the shoulder far outward; turning the forearm's depth over put the hand in front of the head, so it is not a depth error. The elbow's look was put down to the forearm's and hand's twist.
+  - Hands seen: "arms forward" 81–84%, "arms forward and sideways" 35–61%, "hands folded in front of the chest" 6–58%, "hands behind the head" 5–10%.
+  - The palm's twist (from neutral, supination positive, after the hand's depth correction): a median of 24–27° in "arms forward", 0% past the forearm's reach. On the avatar's left in "arms forward and sideways", 44% went past the forearm's reach (palm up on a straight arm). On the avatar's right in "hands folded in front of the chest", a median of −89°, with more than 10° left out in 51%. The hands' confidence was about 0.9 throughout, so it cannot tell errors apart.
+- Fingers (7.5) come in step 6, part 2.
+
+### 7.8 How Fast the Arms Turn (SteadyMotion)
+
+At the last step of the upper body, an arm bone (upper arm, forearm, hand) turns where it points no faster than 720° a second (12° a frame at 60 frames a second), and twists about itself no faster than 360° a second (6° a frame). The torso is shown as it is, without a limit. Steadiness and natural motion come before following every turn (the user's decision, 2026-10-24).
+
+- Measured on the user's recording "1024不自然解消用" (about 60 s, their own avatar Otoha, 3D, movement speed 1, mirrored), replayed at 60 frames a second (`VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`, Explicit). Before the limit, the upper arm turned up to 51°, the forearm 52°, and the hand 129° in a frame, with 18–58 frames past 15° per bone. Most of it was twist (for example 48° on the upper arm, 13° of it in where it points): the upper arm's twist set by the elbow's bend plane turns fast on a nearly straight arm. It was already in tracking's values (after smoothing), not added by turning the hands or keeping the arms out of the head and torso.
+- With the limit, on all five recordings no arm bone turns more than 13° in a frame, with no frame past 15°. The shake (how much the turn changes from frame to frame) fell by about 40% (for example the right forearm from 2.10° to 1.29°). Fast movements lag behind only while they last.
+- Where the bone points and its twist are limited apart (`SteadyMotion.Limit`, a pure function). The twist changes mostly from noise, so its limit is lower.
 
 ---
 
@@ -579,7 +711,7 @@ How much a face moves differs from person to person, so the user can change the 
 ### 8.2 Loading
 
 1. `Loading`. `VrmAvatarLoader` reads the file and builds it with UniVRM.
-2. Check the rig and expressions. If a required bone (Hips, Spine, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`). These are the upper-body bones VRM 1.0 requires. Chest, Upper Chest, and Neck are optional in VRM 1.0, so when one is missing its rotation goes to the nearest bone.
+2. Check the rig and expressions. If a required bone (Hips, Spine, Head, left and right upper arms, forearms, hands) is missing, `Error` (`MissingBones`). These are the upper-body bones VRM 1.0 requires. Chest, Upper Chest, and Neck are optional in VRM 1.0, so when one is missing its rotation goes to the nearest bone. While the model is in the reference pose, its body shape (`AvatarBodyShape`, 7.6) is measured.
 3. Set the layer to `Avatar` and place it at the spawn point (6.5).
 4. `Ready`. Destroy the old avatar, if any.
 
@@ -589,7 +721,7 @@ How much a face moves differs from person to person, so the user can change the 
 
 - Before the Avatar Camera renders, in this order (equivalent of `LateUpdate`, after `IFrameLoop`):
   1. Read `ITrackingSource.Current`. Tracking registers with the per-frame work (`IFrameLoop`) before Avatar, so it reads the observation updated in the same frame.
-  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The body and arms (`PoseController`: interpolation, returning lost parts, `PoseRetargeting`) are added in step 5.
+  2. `AvatarController`: the face (`FaceMotion`: interpolation between observations, handling a lost face, `ExpressionMapping`) and the neck and head turn. The upper body (`BodyMotion`: interpolation, returning lost parts, `PoseRetargeting`) is set on the bones, and the neck turns from the top of the torso toward the head (step 5). Before they are set on the bones, the arms are kept out of the head and torso (`ArmClearance`, 7.6).
   3. `ExpressionController`: expressions and gaze.
   4. Call UniVRM's processing (applying the control rig, expressions, LookAt, SpringBone) explicitly once. UniVRM's automatic update is turned off and the order is decided here (so SpringBone runs after the pose).
 - Nothing is allocated per frame. The bone rotation and expression value arrays are reused.
@@ -677,7 +809,8 @@ public sealed class AvatarSettings
 
 | Kind | Target |
 |---|---|
-| EditMode | `PoseRetargeting`: from synthetic observations of known poses (arm 90° to the side, 90° forward, bent elbow, turned palm, tilted torso), the bone rotations are as expected. Mirroring. Joint limits |
+| EditMode | `PoseRetargeting`: from synthetic observations of known poses (arms sideways, down, forward, the elbow bent forward or up, a tilted torso), the bone rotations are as expected. Mirroring, the torso's limits, how shoulders rise, unseen arms. `BodyMotion`: a lost arm holds, then hangs, and comes back; a hidden wrist keeps the forearm's bend. Turning the palm comes in step 6 |
+| EditMode (Explicit) | `AvatarRecordingTests`: on the developer's recordings (outside the repository), no rotation is not a number; how often the arms move, how bone lengths vary, and jumps go to the log |
 | EditMode | Interpolation (7.3), returning when lost (8.4), blending for `LowConfidence` |
 | EditMode | `ExpressionMapping`: response curves, keeping eyes together, distributing mouth shapes, overlap with emotion expressions |
 | EditMode | `AvatarImporter`: checking extension, size, and magic; cleaning up the temporary folder; detecting the same hash; reading and writing the profile (keeping unknown fields) |
@@ -686,9 +819,19 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
+Tests for how fast the arms turn (2026-10-24): `SteadyMotionTests` (EditMode: a turn within the limits is taken whole; where a bone points and its twist are each held to their limits; the torso is not held), `VrmRecordingTests.Body_OnTheRecordings_MovesSteadily` (Explicit: on the developer's recordings, each bone's largest turn in a frame, how often past 15°, the shake, and the worst moments with tracking's turn alone).
+
+Tests for the fingers (2026-10-24): `FingerTests` (EditMode: an open hand is straight; a fist bends each joint within its limit and folds the thumb; the spread is toward the thumb on either hand and within its limit; a hand not seen is not measured; the fingers bend into the palm and the thumb across it on either hand, joints carrying their parent's turn and turning with the hand; a lost hand holds its fingers, then closes them loosely), `VrmLoaderTests.Fingers_CloseTheModelsOwnHand` (PlayMode, Explicit: a fist turns the model's own index finger into its palm), and `VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`, which also measures the fingers.
+
+Tests for the hands and the forearms' twist (2026-10-24): `HandRetargetingTests` (EditMode: a palm down is the reference pose; a palm turned up turns the hand as far as the forearm's reach, a quarter, the forearm's bone half of that, and not the shoulder; on a bent arm a twist past the reach is left out; a palm nearly over is read on the supination side, without a jump at the wrap; how much is seen blends with following the forearm; in a mirror the other hand is used, reflected; a lost hand holds, then follows the forearm, and comes back; `AvatarController` sets the hand and forearm). `ArmClearanceTests`: turning the forearm at the elbow turns the hand too. `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`: a palm turned up turns the back of the model's hand down. `AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan` (Explicit) measures the elbow's bend plane and the palm's twist on the recordings.
+
+Tests for keeping the arms out of the head and torso (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns in depth at the elbow, forward when in front and back when behind; an upper arm toward the head turns back at the shoulder; folded arms come forward; an elbow in the chest comes forward at the shoulder; each keeping the direction seen from the camera; the side kept until the forearm is clearly on the other; the added turn easing in and out; arms clear of the body, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the head's and torso's shapes are measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso` (the shape measured on three real models; a forearm across the face kept out of the head on the model's own bones; resting arms not moved; folded arms kept out of the chest), `VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly` (on the developer's recordings: how often and how far the arms are turned, how much shows on the image, what stays inside, and the jumps added).
+
+Tests made in step 5: `AvatarBodyTests` (EditMode: arms sideways, down, and forward, the elbow bent forward or up, mirroring, the torso's tilt and limit, how shoulders rise, unseen arms, a lost arm holding and then hanging, a hidden wrist keeping the forearm's bend, the rest pose without tracking, `AvatarController` and the neck), `AvatarRecordingTests` (EditMode, Explicit, on the developer's recordings), `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget` (on real models, the arm and forearm bones point as observed, and the application time).
+
 Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a part convention and the part values (a closed smile that keeps the eyes open, i and e, brows), the Expression Signal (feelings, eyes, mouth, sides, neutral, the same values part by part and whole-face), both eyes and winks, the mouth's shares and a closed mouth, feelings, gaze, tuning, mirroring and limiting the head, interpolation and a lost face, substituting blinks, `AvatarController`), `AvatarServiceTests` (the head turn from tracking, the mirroring option, applying and saving tuning), `VrmLookTests` (from a share of the eye range to angles), `VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget` (head, expressions, gaze, and application time on real models). UI: `AvatarCardPanelTests` (the face tuning Card) and `LiveSetupPanelTests` (movement speed).
 
-Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository). The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
+Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository, by `VrmSamples`, which the tests on the samples share). The measurements on the developer's recordings with the samples are in `VrmRecordingTests` (PlayMode, `[Explicit]`), which replays a recording as the app runs it: corrections, 2D flattening when asked, smoothing, then 60 frames a second. The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
 
 ---
 
@@ -699,6 +842,11 @@ Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTest
 - SpringBone load depends on the model. It is measured and recorded.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): the two VRM 1.0 samples (14 MB, 17 MB) loaded in 0.33–0.37 s, and the VRM 0.x sample (15 MB) in 0.58 s including the conversion to 1.0. The longest frame while loading was 46–47 ms for each. Per-frame application (`Avatar/Apply`) was measured in step 4.
 - Measured (2026-10-20, development PC, `VrmLoaderTests`): per-frame application, the face computation and UniVRM's processing (SpringBone included) together, took a median of 0.031–0.033 ms, a 95th percentile of 0.035–0.038 ms, and at most 0.044–0.146 ms on the three samples. Moving the face part by part (2026-10-21), it took a median of 0.034–0.035 ms, a 95th percentile of 0.038–0.040 ms, and at most 0.057–0.130 ms. Within the 0.3 ms target.
+- Measured (2026-10-22, step 5): with the upper body added, observations of the face only took a median of 0.038–0.039 ms. With the body moving too (the synthetic motion of raising and waving an arm), a median of 0.041 ms, a 95th percentile of 0.044–0.049 ms, and at most 0.062–2.808 ms (2.8 ms only on one sample's first frame). Within the target.
+- Measured (2026-10-24, up to the arms' turning limit): per-frame application with the body moving took a median of 0.065 ms and a 95th percentile of 0.075 ms.
+- Measured (2026-10-24, the hands and the forearms' twist): per-frame application with the body moving took a median of 0.080–0.093 ms and a 95th percentile of 0.114–0.124 ms. Within the target.
+- Measured (2026-10-24, keeping the arms out of the head and torso): the body shape is measured once at load, in 13.4–30.8 ms on the three samples. The longest frame while loading was 47–48 ms, within the 50 ms target. With the arms kept out of the head and torso, per-frame application with the body moving (the synthetic motion of raising and waving an arm, which passes near the head) took a median of 0.084–0.092 ms and a 95th percentile of 0.113–0.121 ms (a median of 0.041 ms before). Searching all five directions to the same precision took a median of 0.146 ms and a 95th percentile of 0.24 ms, so a direction that does not clear at the least angle found so far is ruled out with one check.
+- Measured shapes (same day): the head ellipsoid's half sizes were 7.4–10.2 cm across, 9.0–13.0 cm up and down, and 9.3–10.7 cm front to back. The torso parts' half sizes were 6.8–13.5 cm across and 7.3–10.6 cm front to back. The upper arm's thickness (radius) was 3.7–5.3 cm. Resting arms (70°) touched no torso on any of the three and were not moved. Folded arms came out of the chest by turning the whole arm 23–41° forward.
 
 ---
 
@@ -712,13 +860,16 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose (PoseRetargeting, PoseController in step 5)
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting,
+│  │                        FingerPose, FingerRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming,
+│                           ObservationClock, FrameClock
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
 │  ├─ VrmAvatarRig.cs       IAvatarRig on the control rig
+│  ├─ VrmBodyShape.cs       Measures the body shape right after loading (7.6)
 │  ├─ VrmAvatarExpressions.cs
 │  ├─ VrmAvatarFaceShapes.cs  IAvatarFaceShapes: blend shapes by name, written after UniVRM's processing
 │  └─ VrmLicense.cs         VRM meta to AvatarLicense (pure functions)
@@ -742,6 +893,12 @@ Assets/VirtualVessel/Avatar/
 | Models without a thumbnail | "No image" is shown for now. Capturing one at load is considered if wanted |
 | How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
 | Position matching such as touching the face (IK) | Considered together with full body |
+| Setting the arm-down angle in the profile (`pose.armDownAngle`, 6.3) | Not built; the default 70° for now. Added to profile loading and the avatar Card if, for example, a model's arms sink into its body |
+| Depth estimation (tracking detailed design 8.4) | Decided: four methods were compared on recordings, and a correction straightening arms that point at the camera was added (tracking detailed design 8.4). The avatar's elbow bend in "arms forward" went from a median of 40° to 6°. Awaiting the camera check. The earlier **known issue** (the user's camera check, 2026-10-22): an arm thrust forward does not straighten. In the recording "arms forward", the elbow bends 33–40° at the median and the wrist is only 36–39 cm ahead of the shoulder for an arm about 43–45 cm long: MediaPipe underestimates the depth. Fixed by working the depth out again from bone lengths (8.4) |
+| The forearm's twist (the palm's direction) | Addressed: the hand and forearm turn from the palm (7.7; step 6, part 1, 2026-10-24). Awaiting the camera check. Before: added with the hands in step 6; the forearm kept the upper arm's twist. **Known issue** (same check): the elbow seems to bend the wrong way. The forearm does point at the wrist, so the cause is mainly the twist of the forearm and hand (the palm's direction). On a nearly straight arm, the bend from depth errors also makes the upper arm's twist unsteady, so depth estimation should reduce it too. The order is depth estimation, then step 6 (user's decision, 2026-10-22) |
+| Checking the upper body (2026-10-22, the user's camera) | Mirroring has the sides right. The arms with the hands behind the head pass. The arms' direction and bending have the two issues above |
+| Arms sinking into the head (2026-10-24, the user's camera) | Addressed: the arms are kept out of the head (7.6). The user checked it with the camera and accepted it (same day) |
+| Arms sinking into the torso (arms folded in front of the chest, for example) | Addressed: the arms are kept out of the torso too (7.6; the user's request, 2026-10-24). Awaiting the camera check. The arms are not kept out of each other, the hips, or the legs |
 | Perfect Sync (models with the 52 ARKit expressions) | After v0.1.0 |
 | Saving the part convention to the Avatar Profile (system design 7.12) | For now it is decided from the shape names each time a model loads (7.4). When a Setup screen lets the user choose the expression mapping, it is decided at registration and saved |
 | Puffing the cheeks | MediaPipe's `CheekPuff` hardly responds, and VRM has no standard expression for it. The three samples (VRoid) have neither such an expression nor a blend shape for it. Considered together with Perfect Sync (user's request, 2026-10-21) |
@@ -749,7 +906,7 @@ Assets/VirtualVessel/Avatar/
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
 | FBX | Starting with the choice of library. After v0.1.0 |
 | Screens for adjusting the spawn point and camera position | When designing Stage Scenes and Camera Points |
-| Moving settings to Project / Profile | When designing Project / Profile |
+| Moving settings to Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
 
 ---
 
@@ -762,5 +919,5 @@ Tracking and Avatar proceed together in this order. Each step is one branch with
 3. Loading avatars: adding UniVRM (SBOM), registration, Data Root, `IFileDialog`, Video's avatar layer and Avatar Camera, the default spawn point, the avatar card on the setup screen
 4. Face: expressions, gaze, head orientation, including the face tuning screen and ten levels of movement speed (Tracking detailed design 8.2)
 5. Upper body: torso, shoulders, arms. Comparing depth estimation (Tracking detailed design 8.4)
-6. Fingers
+6. Fingers: part 1 is the hands and the forearms' twist (7.7), part 2 the fingers (7.5)
 7. Tracking settings screen (range choice with "full body: coming soon", smoothing levels, mirroring, reference pose), finishing diagnostics

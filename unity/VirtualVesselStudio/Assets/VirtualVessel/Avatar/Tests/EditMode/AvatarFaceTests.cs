@@ -251,19 +251,19 @@ namespace VirtualVessel.Avatar.Tests
             AssertSame(HeadPose.FromTracking(tilt, true), Quaternion.AngleAxis(-15f, Vector3.forward));
             AssertSame(HeadPose.FromTracking(Quaternion.AngleAxis(120f, Vector3.up), false), Quaternion.AngleAxis(HeadPose.MaxDegrees, Vector3.up));
             AssertSame(HeadPose.FromTracking(Quaternion.AngleAxis(-120f, Vector3.up), false), Quaternion.AngleAxis(-HeadPose.MaxDegrees, Vector3.up));
-            AssertSame(HeadPose.Neck(right), Quaternion.AngleAxis(12f, Vector3.up)); // The neck takes 40% of the turn.
+            AssertSame(HeadPose.Neck(Quaternion.identity, right), Quaternion.AngleAxis(12f, Vector3.up)); // The neck takes 40% of the turn.
         }
 
         [Test]
         public void Presence_HoldsALostFace_ThenGoesBack_AndComesBackQuickly()
         {
-            Assert.That(FaceMotion.NextPresence(0f, true, 0, 0.1f), Is.EqualTo(0.5f).Within(Tolerance), "Back in 0.2 s.");
-            Assert.That(FaceMotion.NextPresence(1f, false, 0.4, 0.1f), Is.EqualTo(1f), "Held for 0.5 s.");
-            Assert.That(FaceMotion.NextPresence(1f, false, 0.6, 0.1f), Is.EqualTo(0.9f).Within(Tolerance), "Then gone in 1 s.");
-            Assert.That(FaceMotion.NextPresence(0.05f, false, 2, 0.1f), Is.EqualTo(0f));
-            Assert.That(FaceMotion.Progress(10.0, 10.0, 0.033), Is.EqualTo(0f));
-            Assert.That(FaceMotion.Progress(10.0165, 10.0, 0.033), Is.EqualTo(0.5f).Within(0.001f));
-            Assert.That(FaceMotion.Progress(10.5, 10.0, 0.033), Is.EqualTo(1f), "A late observation holds the last one.");
+            Assert.That(MotionTiming.NextPresence(0f, true, 0, 0.1f), Is.EqualTo(0.5f).Within(Tolerance), "Back in 0.2 s.");
+            Assert.That(MotionTiming.NextPresence(1f, false, 0.4, 0.1f), Is.EqualTo(1f), "Held for 0.5 s.");
+            Assert.That(MotionTiming.NextPresence(1f, false, 0.6, 0.1f), Is.EqualTo(0.9f).Within(Tolerance), "Then gone in 1 s.");
+            Assert.That(MotionTiming.NextPresence(0.05f, false, 2, 0.1f), Is.EqualTo(0f));
+            Assert.That(MotionTiming.Progress(10.0, 10.0, 0.033), Is.EqualTo(0f));
+            Assert.That(MotionTiming.Progress(10.0165, 10.0, 0.033), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(MotionTiming.Progress(10.5, 10.0, 0.033), Is.EqualTo(1f), "A late observation holds the last one.");
         }
 
         [Test]
@@ -577,7 +577,7 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(Quaternion.Angle(actual, expected), Is.LessThan(0.01f), $"{actual.eulerAngles} vs {expected.eulerAngles}");
         }
 
-        private sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions, IAvatarFaceShapes
+        internal sealed class RecordingModel : IAvatarModel, IAvatarRig, IAvatarExpressions, IAvatarFaceShapes
         {
             private readonly IReadOnlyList<string> _shapeNames;
 
@@ -592,6 +592,8 @@ namespace VirtualVessel.Avatar.Tests
             public Dictionary<string, float> Shapes { get; } = new Dictionary<string, float>();
 
             public IAvatarFaceShapes FaceShapes => _shapeNames == null ? null : this;
+
+            public AvatarBodyShape BodyShape { get; set; }
 
             IReadOnlyList<string> IAvatarFaceShapes.Names => _shapeNames;
 

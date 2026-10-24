@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -98,9 +99,6 @@ namespace VirtualVessel.UI
     {
         public const string ContentClass = "vv-content";
 
-        // Windows lays out at 96 DPI for 100% display scale; above that the UI grows with the OS setting.
-        private const float ReferenceDpi = 96f;
-
         // One fallback font asset per font for the whole run, never destroyed: TextCore keeps glyph
         // caches that point at a font asset's atlas after its panel is gone, so destroying it breaks
         // the next panel (for example the startup problem screen after a failed build). Unity caches
@@ -120,6 +118,8 @@ namespace VirtualVessel.UI
         private TooltipService _tooltips;
         private UiServicesScope _scope;
         private DeveloperModeService _developerMode;
+        private float _uiScale = 1f;
+        private bool _limited;
 
         public UiAssets Assets => _assets;
 
@@ -329,6 +329,12 @@ namespace VirtualVessel.UI
         private void Update()
         {
             Settings?.Tick();
+
+            // The window can be resized at any time; the UI keeps fitting it (UI foundation detailed design 7.9).
+            if (_panel != null)
+            {
+                UpdateScale();
+            }
         }
 
         private void OnDestroy()
@@ -357,9 +363,10 @@ namespace VirtualVessel.UI
             _panel = Instantiate(_assets.PanelSettings);
             _panel.name = _assets.PanelSettings.name + " (runtime)";
             _panel.scaleMode = PanelScaleMode.ConstantPhysicalSize;
-            _panel.referenceDpi = ReferenceDpi;
-            _panel.fallbackDpi = ReferenceDpi;
-            _panel.scale = uiScale;
+            _panel.referenceDpi = UiPanelScale.ReferenceDpi;
+            _panel.fallbackDpi = UiPanelScale.ReferenceDpi;
+            _uiScale = uiScale;
+            UpdateScale();
             AddFontFallback();
             _document.panelSettings = _panel;
 
@@ -402,10 +409,41 @@ namespace VirtualVessel.UI
             _localizer.SetLocale(settings.Language);
             _theme.Apply(settings.Theme);
             _fonts.Apply(settings.FontSet);
-            if (!Mathf.Approximately(_panel.scale, settings.UiScale))
+            if (!Mathf.Approximately(_uiScale, settings.UiScale))
             {
-                _panel.scale = settings.UiScale;
+                _uiScale = settings.UiScale;
                 _log?.Information($"UI scale changed: {settings.UiScale}.");
+                UpdateScale();
+            }
+        }
+
+        /// <summary>
+        /// Draws the UI at the user's size on the display scale, but no larger than the window holds the
+        /// screens' least layout (<see cref="UiPanelScale"/>). A panel drawn into a texture at a constant
+        /// pixel size, as the screenshots are, fits the texture at 96 DPI.
+        /// </summary>
+        private void UpdateScale()
+        {
+            RenderTexture target = _panel.targetTexture;
+            bool physical = _panel.scaleMode == PanelScaleMode.ConstantPhysicalSize;
+            float dpi = physical ? Screen.dpi : UiPanelScale.ReferenceDpi;
+            int width = target != null ? target.width : Screen.width;
+            int height = target != null ? target.height : Screen.height;
+            float scale = UiPanelScale.PanelScale(_uiScale, dpi, width, height);
+            if (Mathf.Approximately(_panel.scale, scale))
+            {
+                return;
+            }
+
+            _panel.scale = scale;
+            bool limited = scale < _uiScale - 0.001f;
+            if (limited != _limited)
+            {
+                // On a change of state only, as a window being resized changes the size every frame.
+                _limited = limited;
+                _log?.Information(limited
+                    ? $"UI drawn smaller to fit a {width}x{height} window: {UiPanelScale.Drawn(_uiScale, dpi, width, height):0.##} instead of {UiPanelScale.DisplayScale(dpi) * _uiScale:0.##}."
+                    : "UI drawn at the display scale and UI size again.");
             }
         }
 
@@ -418,7 +456,7 @@ namespace VirtualVessel.UI
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens.StreamPreview, context.Screens.FrameSources)),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
-                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
+                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId)), developerOnly: true),
             };
 #if UNITY_EDITOR
             // A tool for building the UI, not part of the application: only in the Unity Editor.

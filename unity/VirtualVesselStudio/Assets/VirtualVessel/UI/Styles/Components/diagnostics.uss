@@ -4,3 +4,78 @@
     white-space: normal;
     color: var(--vv-color-text-2);
 }
+
+/* The tracking recordings Card under the metrics (UI foundation detailed design 7.7). */
+.vv-diagnostics > .vv-recordings {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-recordings .vv-chip {
+    align-self: flex-start;
+    margin-bottom: var(--vv-space-s);
+}
+
+/* A field with its buttons on one line, wrapping on a narrow window; buttons line up with the field's box. */
+.vv-recordings__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin: var(--vv-space-s) 0;
+}
+
+.vv-recordings__row > * {
+    margin-right: var(--vv-space-s);
+}
+
+.vv-recordings__row > .vv-text-input {
+    flex-grow: 1;
+    min-width: 240px;
+}
+
+.vv-recordings__note {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* The skeleton comparison: tracked bones solid, the avatar's dashed (UI foundation detailed design 7.7). */
+.vv-diagnostics > .vv-skeleton {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-skeleton__views {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: var(--vv-space-s) 0;
+}
+
+/* Three panes side by side in the screen's width, so the camera and both views are seen together. */
+.vv-skeleton__pane {
+    width: 300px;
+    margin: 0 var(--vv-space-m) var(--vv-space-s) 0;
+}
+
+.vv-skeleton__pane-title {
+    color: var(--vv-color-text);
+}
+
+.vv-skeleton-view {
+    width: 300px;
+    height: 230px;
+    margin-top: var(--vv-space-xs);
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    --skeleton-tracked: var(--vv-color-text);
+    --skeleton-avatar: var(--vv-color-secondary);
+    --skeleton-guide: var(--vv-color-border);
+}
+
+.vv-skeleton__note {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* The face in the tracking camera's image stays covered (UI foundation detailed design 7.7). */
+.vv-face-cover {
+    --face-cover: var(--vv-color-surface-3);
+}

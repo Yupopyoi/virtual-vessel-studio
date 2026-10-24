@@ -148,3 +148,10 @@ Desktop.ini
 # ------------------------------------------------------------
 
 /screenshots/
+
+# ------------------------------------------------------------
+# Developers' tracking recordings (tracking detailed design 12.7): they can hold personal movement and
+# belong in the Data Root, never here, even when a launch argument points the Data Root inside.
+# ------------------------------------------------------------
+
+*.vvtrack

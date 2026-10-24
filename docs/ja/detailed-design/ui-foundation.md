@@ -526,18 +526,42 @@ public interface IUiCommand
 
 ライブとセットアップは、画面の仕様（`docs/ja/ui/screens/live.md`、`setup.md`）に従う。ライブは配信プレビューと配置編集、セットアップは映像の取り込みのCardとアプリの設定を置く。Voice Labは、画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する。
 
-- 必要な相手は、Compositionが`UiRootContext.Screens`（`ScreenServices`）にまとめて渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧と`IStageLighting`（Stage）、`ICaptureSources`（Capture）、`ITrackingSource`（Tracking）、`IAvatarService`（Avatar）、`IFileDialog`、`ICreditFiles`。ないものは`null`のままにし、その部分は「使えません」と表示するか、置かない。
+- 必要な相手は、Compositionが`UiRootContext.Screens`（`ScreenServices`）にまとめて渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧と`IStageLighting`（Stage）、`ICaptureSources`（Capture）、`ITrackingSource`と`ITrackingRecordings`（Tracking）、`IAvatarService`（Avatar）、`IFileDialog`、`ICreditFiles`。ないものは`null`のままにし、その部分は「使えません」と表示するか、置かない。
 - 画面に新しい相手を足すときは、`ScreenServices`に1つ足し、使うCardへ渡すだけにする。以前は`UiRootContext`と`SetupScreen`の引数を順に足しており、相手を1つ足すたびに受け渡しだけの変更が4か所に出た（2026-10-21）。
 - UIはCaptureの公開Contract（`ICaptureSources`、`ICaptureDeviceSource`、`IPointerOption`）を参照してよい（Captureの状態を表示する流れ）。CaptureはUIを参照しない。
 
 このほか、次の2つの画面を最小限の内容で作る。後で見直す可能性がある。
 
-- Diagnostics（診断、Developer Modeのみ）：性能計測（`PerformanceSnapshot`）の表。表は共通部品の`DataTable`で作る。
+- Diagnostics（診断、Developer Modeのみ）：性能計測の表と、トラッキングの記録（後述）。
+- 性能計測（`PerformanceSnapshot`）の表は、共通部品の`DataTable`で作る。
   - 列は、Module、名前、種類、現在、平均、最大、P95、P99、件数、予算超過とする。数値は等幅で右に寄せ、単位を付ける。
   - 表示している間だけ、1秒ごとに`IPerformanceMetrics.GetSnapshot`で更新する。表示していない間は取得しない。Snapshotの作成はAllocationを伴うためである。
   - 表の上に、詳細計測が有効か無効かを表示する。無効の間は、TimerとGaugeの値が増えない理由が分かるようにする。
   - 性能計測のServiceがない場合は、「性能計測を使えません」と表示する。
   - 数値の文字は純粋関数（`DiagnosticsFormat`）で作る。Moduleと名前は識別子なので、翻訳せずにそのまま表示する。
+- トラッキングの記録（`TrackingRecordingsCard`、Tracking詳細設計12章）：Trackingの`ITrackingRecordings`が使えるときだけ、性能計測の表の下に置く。
+
+| 行 | 部品 | 内容 |
+|---|---|---|
+| 状態 | Status Chip | 停止中（Idle）、記録中（Recording、経過時間）、再生中（Running、記録の説明）。Iconと文字で示す |
+| 説明 | Text Field | 記録の説明（任意、最大100文字）。記録中と再生中は変えられない |
+| 記録 | Button（Primary）「記録を開始」／「記録を止める」 | トラッキングが動いていないとき、または再生中は押せない。理由をTooltipで示す |
+| 記録の一覧 | `DataTable`（説明、日時、長さ、大きさ） | 新しい順。読めない記録は、説明の欄に「読めません」と出す。日時は利用者の地域の時刻で表示する |
+| 選ぶ | Dropdown | 一覧の記録を1つ選ぶ。再生と削除の対象 |
+| 再生 | Button「再生」／「再生を止める」 | 読めない記録と記録中は押せない |
+| 削除 | Button（Danger）「削除」、「すべて削除」 | 確認のDialogを出す。記録中・再生中の記録は消せない |
+| 注記 | Caption | 「記録は数値だけで、映像は含みません。このPCの外へは出しません。」と、記録の合計（件数と大きさ） |
+
+  - 説明はデータの文字として表示し、Rich Textとして解釈しない。
+  - 経過時間は、記録中だけ1秒ごとに描き直す。
+  - Developer Modeをオフにしたら、記録と再生を止める（`DeveloperModeReceivers`）。
+- 骨格の見比べ（`SkeletonCard`、2026-10-22）：トラッキングが観測した上半身と、アバターが出している上半身を並べて描き、腕の向きや高さのずれが、トラッキングの入力にあるのか、アバターへの移し方（Avatar詳細設計7.2）にあるのかを見分ける。Trackingの`ITrackingSource`が使えるときだけ、記録のCardの下に置く。
+  - 正面（左右と上下）と横（アバターの右から見て、前が右）の2枚を描く（`SkeletonView`）。アバターは太い破線で下に、観測は細い実線で上に描き、重なっても両方が見え、色（観測は文字色、アバターは副色）だけでなく線の太さと形で見分ける。カメラの映像と2枚の図は同じ幅（300px）で1行に並べ、各枚の見出しは本文の大きさと文字色で読めるようにする。腰を通る水平の線を薄く引く。
+  - アバターの腕は、観測した肩から、アバターの骨の向きに、観測した骨の長さで描く。向きが合っていれば観測と重なる。胴も、観測した腰から、アバターの胴の向きに描く。アバターの腕は頭と胴から出した後の姿勢（Avatar詳細設計7.6）のため、頭や胴の近くでは観測とずれることがある。
+  - 観測は、アバターと同じく鏡写しの設定に従って左右を入れ替えて描く（`PoseRetargeting.Joint`）。
+  - 下に表を置き、左右の上腕の上げ角（水平から上）と前への角（真横から）、肘の曲がり、胴の左右と前後の傾きを、観測とアバターで並べる（度、整数）。値は純粋関数（`SkeletonProjection`、`SkeletonCard.Rows`）で求める。
+  - 表示している間だけ、約50msごとに描き直す。アバターがないときは観測だけを描き、体の観測がないときは「体の観測がありません」と出す。記録の再生でも使える。
+  - 2枚の図の横に、トラッキング用カメラの映像を、観測した点を重ねて出す（利用者の要望、2026-10-23。実際の腕と見比べるため）。**顔は隠す**：両耳の中点（耳が見えなければ鼻）を中心に、肩幅から決めた大きめの不透明な楕円で塗りつぶす（`FaceCover`）。肩幅を使うのは、頭を横に向けても小さくならないため。大きめにするのは、頭の位置が映像より推論1回分（約80ms）遅れて届くため。鼻か両肩が見えないとき、体を見失ったときは、映像全体を隠す。ぼかしは使わない（強さによっては顔が分かるため）。画面を隠したら映像を外す。再生中はカメラが止まるため「映像なし」になる。
 - Component Gallery（部品見本）：`styleboard.html`の「共通コンポーネント」と同じ部品をUnity上で並べ、見た目と動きを確認する（`ComponentGalleryScreen`）。
   - UIを作るための道具であり、アプリの一部ではないため、Unityエディタで実行したときだけ含める（`#if UNITY_EDITOR`）。配布するアプリ（開発用ビルドを含む）には、画面もコードも入らない。文字列表のKeyは残るが、表示されることはない。
   - エディタでも、Developer Modeのときだけ、ナビゲーションの診断の下に表示する。アイコンは`Gallery`（2×2の四角）。
@@ -597,6 +621,8 @@ public interface IUiCommand
 **UIの大きさ**
 
 - PanelSettingsは`ConstantPhysicalSize`（基準96 DPI）とし、Windowsの表示スケール（125%、150%等）に従う。そのうえで`scale`に設定の`uiScale`を掛ける。
+- 表示スケールに対して窓が小さいときは、窓の中に1280×720の広さが入るところまで表示スケールを下げる。ただし100%より下げない（`UiPanelScale`、純粋関数。2026-10-24）。利用者の`uiScale`は、読みやすくするために選ぶものなので、常にそのまま掛ける。4Kのモニターを225%で使うと、Full HDの窓には853×480の広さしかなく、設定の画面の列が押しつぶされて、文字が1行に1文字になった（利用者のスクリーンショット）。今は、その窓は150%で描き、1280×720の広さになる。`UiRoot`は毎Frame窓の大きさを確かめ、Logは下げ始めたときと戻したときだけ記録する。画面の書き出し（7.10）のように、Textureへ一定のPixelの大きさで描くパネルは、96 DPIとしてTextureに合わせるため、書き出す画像は変わらない。
+- これで#35のうち、小さい窓の側を決めた。大きい窓に合わせてUIを大きくするかは、#35で引き続き検討する。
 
 **動きを減らす設定の「system」**
 
@@ -1100,7 +1126,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
-   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
+   │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, FaceCover, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS
    ├─ Theme/                design-tokens.json, ThemeAssets.asset, Generated/*.uss

@@ -171,10 +171,14 @@
     overflow: hidden;
 }
 
+/* The sliders' column wraps under the picture rather than be squeezed. UI Toolkit broke the line by the
+   minimum width, not by the basis alone: with only the basis, the column shrank beside the picture until
+   its text stood one character a line. */
 .vv-face-card__parts {
     flex-grow: 1;
     flex-shrink: 1;
     flex-basis: 320px;
+    min-width: 320px;
 }
 
 .vv-face-card__part {

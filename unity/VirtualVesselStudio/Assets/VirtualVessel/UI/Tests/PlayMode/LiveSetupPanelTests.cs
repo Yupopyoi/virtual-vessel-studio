@@ -129,6 +129,21 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTrackingCard_ChoosesTwoOrThreeD_AndFollowsIt()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card.Depth.value, Is.EqualTo(0), "3D by default.");
+
+            card.Depth.value = 1;
+            Assert.That(_tracking.Options.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
+
+            _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(BodyDepth.Tracked));
+            Assert.That(card.Depth.value, Is.EqualTo(0), "Follows a change made elsewhere.");
+        }
+
+        [UnityTest]
         public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
         {
             _root.Shell.Open("setup");
@@ -426,7 +441,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeTracking : ITrackingSource
+        internal sealed class FakeTracking : ITrackingSource
         {
             private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
             private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);

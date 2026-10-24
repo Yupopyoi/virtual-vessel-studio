@@ -87,6 +87,9 @@ namespace VirtualVessel.Tracking.MediaPipe
             _dropped = metrics?.Counter("Tracking", "Dropped");
         }
 
+        /// <summary>One camera's image: depth along its axis is estimated, and weakest for limbs pointing at it.</summary>
+        public ObservationTraits Traits => ObservationTraits.MonocularDepth;
+
         public TrackingRegions Supported => TrackingRegions.All;
 
         public IReadOnlyObservable<TrackingState> State => _state;

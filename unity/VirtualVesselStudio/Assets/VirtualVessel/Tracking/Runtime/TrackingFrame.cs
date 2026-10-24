@@ -39,6 +39,12 @@ namespace VirtualVessel.Tracking
     {
         public const int JointCount = 20;
 
+        /// <summary>
+        /// A joint seen less than this (MediaPipe's visibility, as <see cref="JointConfidence"/>) is not used to
+        /// move anything; the one threshold for Tracking's corrections and the avatar alike.
+        /// </summary>
+        public const float MinVisibility = 0.5f;
+
         public Vector3[] Positions { get; } = new Vector3[JointCount];
 
         /// <summary>Positions in the image, 0 to 1 from the top left; used to estimate depth.</summary>
@@ -50,6 +56,39 @@ namespace VirtualVessel.Tracking
         {
             get => Positions[(int)joint];
             set => Positions[(int)joint] = value;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="joint"/> is seen, so its position may move something: visible enough and
+        /// inside the camera image (<see cref="IsSeen(float, Vector2)"/>).
+        /// </summary>
+        public bool IsSeen(BodyJoint joint)
+        {
+            return IsSeen(JointConfidence[(int)joint], ImagePositions[(int)joint]);
+        }
+
+        /// <summary>Whether <paramref name="joint"/> is inside the camera image, seen or hidden there.</summary>
+        public bool IsInImage(BodyJoint joint)
+        {
+            return IsInImage(ImagePositions[(int)joint]);
+        }
+
+        /// <summary>
+        /// Whether a joint of <paramref name="visibility"/> at <paramref name="image"/> (0 to 1 from the top
+        /// left) is seen. A joint outside the image is a guess even when MediaPipe calls it visible: on the
+        /// user's recordings, a wrist out of the image was visible past <see cref="MinVisibility"/> in up to
+        /// 100% of those frames, and moved the avatar's arm where the person's was not (tracking detailed
+        /// design 8.4). Pure.
+        /// </summary>
+        public static bool IsSeen(float visibility, Vector2 image)
+        {
+            return visibility >= MinVisibility && IsInImage(image);
+        }
+
+        /// <summary>Whether <paramref name="image"/> (0 to 1 from the top left) is inside the image, its edges included. Pure.</summary>
+        public static bool IsInImage(Vector2 image)
+        {
+            return image.x >= 0f && image.x <= 1f && image.y >= 0f && image.y <= 1f;
         }
 
         public void CopyFrom(BodyPose other)

@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -11,31 +10,25 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Avatar.Vrm;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Processing;
+using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
 {
     /// <summary>
     /// Loading real VRM models with UniVRM (avatar detailed design 14). The models are the user's
-    /// samples outside the repository (avatar detailed design 17), so the tests run only by name. They
-    /// are looked for in the folder named by VV_SAMPLES_DIR, else in "samples" next to the repository.
+    /// samples outside the repository (avatar detailed design 17, <see cref="VrmSamples"/>), so the tests
+    /// run only by name.
     /// </summary>
     [Explicit("Needs the sample models outside the repository; run by name.")]
     [Category("Explicit")]
     public sealed class VrmLoaderTests
     {
-        private const double TimeoutSeconds = 60;
-
-        private static IEnumerable<string> Samples()
-        {
-            string folder = SampleFolder();
-            return Directory.Exists(folder) ? Directory.GetFiles(folder, "*.vrm").Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal) : new[] { "none" };
-        }
-
         [UnityTest]
-        public IEnumerator Load_HasTheRequiredBonesAndExpressions_AndReadsTheMeta([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Load_HasTheRequiredBonesAndExpressions_AndReadsTheMeta([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 TestContext.WriteLine($"{sample}: '{model.Info.Name}' VRM {model.Info.FormatVersion}, {load.Seconds:F2} s, longest frame {load.LongestFrameMilliseconds:F0} ms, authors {string.Join(", ", model.Info.License.Authors)}, permission {model.Info.License.AvatarPermission}, thumbnail {model.Info.Thumbnail?.Extension ?? "none"}.");
@@ -52,10 +45,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Rig_RotatesBonesInTheRootSpace_WhateverTheModelsBoneAxes([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Rig_RotatesBonesInTheRootSpace_WhateverTheModelsBoneAxes([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 Animator animator = model.Root.GetComponent<Animator>();
@@ -79,10 +72,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Expressions_MoveTheFace([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Expressions_MoveTheFace([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 SkinnedMeshRenderer[] renderers = model.Root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
@@ -95,10 +88,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 Transform head = model.Root.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
@@ -166,11 +159,209 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Dispose_LeavesNoObjectsMeshesOrTextures([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
+        {
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+
+                // The person reaches forward with the right arm and holds the left one out with the forearm up.
+                var frame = new TrackingFrame();
+                SyntheticMotion.WriteArms(frame.Body, Vector3.left, Vector3.up, Vector3.forward, Vector3.forward, 1.0);
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+                model.Apply();
+
+                // UniVRM carries the rig's rotations onto the model's own bones; their directions are what shows.
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm), Vector3.forward), Is.LessThan(5f), "The right arm reaches forward.");
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm), Vector3.left), Is.LessThan(5f), "The left upper arm is out sideways.");
+                Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand), Vector3.up), Is.LessThan(5f), "The left forearm points up.");
+
+                // The right palm turned a quarter, thumb up (reaching forward, the back of the hand outward): the
+                // model's own hand turns too, its back from its index and little fingers' bases.
+                frame.RightHand.Status = TrackingStatus.Tracked;
+                frame.RightHand.Confidence = 0.9f;
+                frame.RightHand.PalmRotation = Quaternion.LookRotation(Vector3.forward, Vector3.right);
+                frame.RightHand.Timestamp = 2.0;
+                controller.Update(frame, mirror: false, now: 2.0);
+                controller.Update(frame, mirror: false, now: 2.5);
+                model.Apply();
+                Vector3 hand = vrm.ModelBone(HumanBodyBones.RightHand).position;
+                Vector3 back = model.Root.InverseTransformDirection(Vector3.Cross(
+                    vrm.ModelBone(HumanBodyBones.RightIndexProximal).position - hand, vrm.ModelBone(HumanBodyBones.RightLittleProximal).position - hand));
+                Assert.That(Vector3.Angle(back, Vector3.right), Is.LessThan(20f), "The back of the model's right hand faces outward.");
+                frame.RightHand.Status = TrackingStatus.Lost;
+
+                // Per-frame cost with the body moving as well as the face (avatar detailed design 15).
+                const int Frames = 300;
+                var times = new double[Frames];
+                var watch = new Stopwatch();
+                frame.Face.Status = TrackingStatus.Tracked;
+                for (int i = 0; i < Frames; i++)
+                {
+                    // 30 observations a second at 60 frames: a new one every other frame.
+                    double time = 2.0 + ((i / 2) / 30.0);
+                    SyntheticMotion.WriteBody(frame.Body, SyntheticMotion.RaiseAndWave(time), time);
+                    frame.Face.Timestamp = time;
+                    frame.Face.HeadRotation = Quaternion.AngleAxis(20f * Mathf.Sin(i * 0.1f), Vector3.up);
+                    watch.Restart();
+                    controller.Update(frame, mirror: true, now: 2.0 + (i / 60.0));
+                    model.Apply();
+                    times[i] = watch.Elapsed.TotalMilliseconds;
+                }
+
+                Array.Sort(times);
+                double median = times[Frames / 2];
+                UnityEngine.Debug.Log($"[Avatar/Apply body] {sample}: median {median:F3} ms, 95th {times[Frames * 95 / 100]:F3} ms, max {times[Frames - 1]:F3} ms");
+                Assert.That(median, Is.LessThan(1.0), "Far over the 0.3 ms target; see avatar detailed design 15.");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Body_KeepsTheArmsOutOfTheHeadAndTorso([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
+        {
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+                AvatarBodyShape shape = model.BodyShape;
+                Assert.That(shape, Is.Not.Null, "Measured when loaded.");
+                var watch = Stopwatch.StartNew();
+                vrm.MeasureBody();
+                double measuring = watch.Elapsed.TotalMilliseconds;
+                ArmShape arm = shape.Arm(false);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: head center {shape.Head.Center * 100f} cm from its bone, half sizes {shape.Head.Radii * 100f} cm; "
+                    + $"right arm radii upper {arm.UpperRadius * 100f:F1}, forearm {arm.LowerRadius * 100f:F1}, hand {arm.HandRadius * 100f:F1} cm, hand {arm.HandLength * 100f:F1} cm long; measured in {measuring:F1} ms");
+                Assert.That(shape.Head.Radii.x, Is.InRange(0.05f, 0.25f));
+                Assert.That(shape.Head.Center.y, Is.GreaterThan(0f), "The head's middle is above its bone.");
+                Assert.That(arm.UpperRadius, Is.InRange(0.01f, 0.12f));
+                for (int i = 0; i < AvatarBodyShape.TorsoBones.Count; i++)
+                {
+                    UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: {AvatarBodyShape.TorsoBones[i]} " + (shape.Torso(i) is PartShape part ? $"center {part.Center * 100f} cm, half sizes {part.Radii * 100f} cm" : "not measured"));
+                }
+
+                // At rest the arms hang beside the torso; how far keeping them out of it moves them.
+                var resting = new AvatarController(model, ExpressionMapping.Default);
+                resting.Update(null, mirror: false, now: 1.0);
+                Quaternion hanging = AvatarRestPose.UpperArm(false, AvatarRestPose.DefaultArmDownDegrees);
+                float restTurn = Quaternion.Angle(resting.Body[UpperBodyBone.RightUpperArm], hanging);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: the resting arm turned {restTurn:F1}° out of the torso");
+                Assert.That(restTurn, Is.LessThan(20f), "A resting arm only leans out against the torso.");
+
+                // The right upper arm raised beside the head and the forearm across it, as in the user's camera.
+                var frame = new TrackingFrame();
+                SyntheticMotion.WriteArms(frame.Body, Vector3.down, Vector3.down, new Vector3(0.5f, 0.866f, 0f), Vector3.left, 1.0);
+                BodyPose body = frame.Body;
+                var tracked = new BodyTarget();
+                PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
+                Assert.That(ArmClearance.Touches(shape, tracked, Quaternion.identity, Quaternion.identity), Is.True, "As tracked, the forearm crosses this model's head.");
+
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(frame, mirror: false, now: 1.0);
+                controller.Update(frame, mirror: false, now: 1.5);
+                model.Apply();
+
+                // The model's own bones, where UniVRM put them, clear the head a little smaller than measured.
+                Transform root = model.Root;
+                Vector3 elbow = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position);
+                Vector3 wrist = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightHand).position);
+                Vector3 headBone = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.Head).position);
+                var placed = PlacedPart.Ellipsoid(headBone + (controller.Face.Head * shape.Head.Center), controller.Face.Head, shape.Head.Radii * 0.95f);
+                Assert.That(placed.Hits(elbow, wrist, arm.LowerRadius), Is.False, "The forearm is out of the head.");
+
+                // Arms folded: the right upper arm down and a little forward, the forearm across the chest.
+                SyntheticMotion.WriteArms(body, Vector3.down, Vector3.down, new Vector3(0f, -0.9f, 0.44f), Vector3.left, 2.0);
+                PoseRetargeting.Retarget(body, false, model.Rig.Has(AvatarBone.UpperChest), AvatarRestPose.DefaultArmDownDegrees, tracked);
+                controller.Update(frame, mirror: false, now: 2.0);
+                controller.Update(frame, mirror: false, now: 2.5);
+                Quaternion neck = HeadPose.Neck(controller.Body.TorsoTop, controller.Face.Head);
+                bool trackedTouches = ArmClearance.Touches(shape, tracked, neck, controller.Face.Head);
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; upper arm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightUpperArm], tracked[UpperBodyBone.RightUpperArm]):F1}°, forearm {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
+                Assert.That(ArmClearance.Touches(shape, controller.Body, neck, controller.Face.Head), Is.False, "Folded arms stay out of the chest.");
+
+                // The same in 2D: the forearm across the chest passes in front of it on the model's own bones.
+                SyntheticMotion.WriteArms(body, Vector3.down, Vector3.down, Vector3.down, Vector3.left, 3.0);
+                BodyFlattening.Flatten(body);
+                controller.Update(frame, mirror: false, now: 3.0, armsInFront: true);
+                controller.Update(frame, mirror: false, now: 3.5, armsInFront: true);
+                model.Apply();
+                float elbowAhead = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position).z - root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightUpperArm).position).z;
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: in 2D the folded elbow is {elbowAhead * 100f:F1} cm in front of the shoulder");
+                Assert.That(elbowAhead, Is.GreaterThan(0.03f), "In 2D the arm passes in front of the body.");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Fingers_CloseTheModelsOwnHand([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
+        {
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(new TrackingFrame(), mirror: false, now: 1.0);
+                model.Apply();
+                float relaxed = IndexIntoThePalm(vrm, model.Root, controller);
+
+                // The person's right hand in a fist: each finger turned a right angle at its base and middle.
+                var frame = new TrackingFrame();
+                HandPose hand = frame.RightHand;
+                hand.Status = TrackingStatus.Tracked;
+                hand.Confidence = 0.9f;
+                hand.PalmRotation = Quaternion.identity;
+                float[] lateral = { -0.025f, -0.008f, 0.008f, 0.025f };
+                for (int f = 0; f < 4; f++)
+                {
+                    int first = (int)HandJoint.IndexMcp + (f * 4);
+                    var knuckle = new Vector3(lateral[f], 0f, 0.09f);
+                    hand.Positions[first] = knuckle;
+                    hand.Positions[first + 1] = knuckle + new Vector3(0f, -0.03f, 0f);
+                    hand.Positions[first + 2] = knuckle + new Vector3(0f, -0.03f, -0.025f);
+                    hand.Positions[first + 3] = knuckle + new Vector3(0f, -0.01f, -0.03f);
+                }
+
+                hand[HandJoint.ThumbCmc] = new Vector3(-0.02f, 0f, 0.02f);
+                hand[HandJoint.ThumbMcp] = new Vector3(-0.03f, 0f, 0.05f);
+                hand[HandJoint.ThumbIp] = new Vector3(-0.025f, -0.01f, 0.08f);
+                hand[HandJoint.ThumbTip] = new Vector3(-0.01f, -0.02f, 0.09f);
+                for (int i = 0; i < 6; i++)
+                {
+                    hand.Timestamp = 2.0 + (i * 0.1);
+                    controller.Update(frame, mirror: false, now: 2.0 + (i * 0.1));
+                }
+
+                model.Apply();
+                float closed = IndexIntoThePalm(vrm, model.Root, controller);
+                UnityEngine.Debug.Log($"[Avatar/Fingers] {sample}: the model's index finger {relaxed:F0}° from pointing into the palm loosely closed, {closed:F0}° in a fist");
+                Assert.That(closed, Is.LessThan(30f), "In a fist the model's own index finger points into its palm.");
+                Assert.That(relaxed, Is.GreaterThan(closed + 30f), "Loosely closed, it does not.");
+            }
+        }
+
+        /// <summary>How far the model's own right index finger's first bone is from pointing into its palm, in degrees.</summary>
+        private static float IndexIntoThePalm(VrmAvatarModel model, Transform root, AvatarController controller)
+        {
+            Vector3 palm = controller.Body[UpperBodyBone.RightHand] * Vector3.down;
+            return Vector3.Angle(Direction(model, root, HumanBodyBones.RightIndexProximal, HumanBodyBones.RightIndexIntermediate), palm);
+        }
+
+        /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
+        private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
+        {
+            return root.InverseTransformDirection(model.ModelBone(to).position - model.ModelBone(from).position);
+        }
+
+        [UnityTest]
+        public IEnumerator Dispose_LeavesNoObjectsMeshesOrTextures([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
             // The first load in a session creates UniVRM's shared objects, which stay; count after them.
-            var warmUp = new LoadResult();
-            yield return Load(sample, warmUp);
+            var warmUp = new SampleLoad();
+            yield return VrmSamples.Load(sample, warmUp);
             warmUp.Model.Dispose();
             yield return null;
             yield return null;
@@ -179,8 +370,8 @@ namespace VirtualVessel.Avatar.Tests
             int materials = Resources.FindObjectsOfTypeAll<Material>().Length;
             int objects = Resources.FindObjectsOfTypeAll<GameObject>().Length;
 
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             load.Model.Dispose();
 
             // Destroy takes effect at the end of the frame.
@@ -211,47 +402,10 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
-        private static string SampleFolder()
-        {
-            string configured = Environment.GetEnvironmentVariable("VV_SAMPLES_DIR");
-            if (!string.IsNullOrEmpty(configured))
-            {
-                return configured;
-            }
-
-            // The Unity project is unity/VirtualVesselStudio in the repository.
-            return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "samples"));
-        }
-
-        private static IEnumerator Load(string sample, LoadResult result)
-        {
-            string path = Path.Combine(SampleFolder(), sample);
-            Assume.That(File.Exists(path), Is.True, $"No sample models in {SampleFolder()}.");
-            var watch = Stopwatch.StartNew();
-            Task<IAvatarModel> task = new VrmAvatarLoader().LoadAsync(path, CancellationToken.None);
-            double last = 0;
-            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < TimeoutSeconds)
-            {
-                yield return null;
-                double now = watch.Elapsed.TotalMilliseconds;
-                result.LongestFrameMilliseconds = Math.Max(result.LongestFrameMilliseconds, now - last);
-                last = now;
-            }
-
-            Assert.That(task.IsCompleted, Is.True, "Loading timed out.");
-            if (task.IsFaulted)
-            {
-                throw task.Exception.InnerException;
-            }
-
-            result.Seconds = watch.Elapsed.TotalSeconds;
-            result.Model = task.Result;
-        }
-
         private static IEnumerator WaitFor(Task task)
         {
             var watch = Stopwatch.StartNew();
-            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < TimeoutSeconds)
+            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < VrmSamples.TimeoutSeconds)
             {
                 yield return null;
             }
@@ -270,15 +424,6 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             return total;
-        }
-
-        private sealed class LoadResult
-        {
-            public IAvatarModel Model { get; set; }
-
-            public double Seconds { get; set; }
-
-            public double LongestFrameMilliseconds { get; set; }
         }
     }
 }

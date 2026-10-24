@@ -119,6 +119,37 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator FaceTuning_OnANarrowWindow_PutsTheSlidersUnderThePicture()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            card.Q<Card>().Expanded = true;
+            VisualElement picture = card.Q(className: FaceTuningCard.PictureClass);
+            VisualElement parts = card.Q(className: FaceTuningCard.PartsClass);
+
+            // The least layout the UI keeps (UiPanelScale): beside the picture.
+            _root.Content.style.width = UiPanelScale.MinWidth;
+            yield return null;
+            yield return null;
+            Assert.That(parts.worldBound.xMin, Is.GreaterThanOrEqualTo(picture.worldBound.xMax), "Beside the picture.");
+            Assert.That(parts.worldBound.width, Is.GreaterThanOrEqualTo(320f), "With room for its text.");
+
+            // Narrower than that, as on a 1024 window at 100%: under it, the whole width.
+            _root.Content.style.width = 1024f;
+            yield return null;
+            yield return null;
+            Assert.That(parts.worldBound.yMin, Is.GreaterThanOrEqualTo(picture.worldBound.yMax), "Under the picture.");
+            Assert.That(parts.worldBound.width, Is.GreaterThanOrEqualTo(picture.worldBound.width), "The whole width.");
+
+            // Narrower still: nothing is squeezed into a column of single characters.
+            _root.Content.style.width = 760f;
+            yield return null;
+            yield return null;
+            Assert.That(parts.worldBound.width, Is.GreaterThanOrEqualTo(240f));
+            VisualElement winksText = card.WinksToggle.GetFirstAncestorOfType<SettingRow>().Q(className: SettingRow.UssClass + "__text");
+            Assert.That(winksText.worldBound.width, Is.GreaterThanOrEqualTo(240f), "A setting's name and description keep their width; the switch goes under them if need be.");
+        }
+
+        [UnityTest]
         public IEnumerator ThePicture_MovesUpAndDown_KeepingItsShape()
         {
             FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
@@ -342,7 +373,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeAvatars : IAvatarService
+        internal sealed class FakeAvatars : IAvatarService
         {
             private readonly ObservableValue<IReadOnlyList<AvatarEntry>> _avatars = new ObservableValue<IReadOnlyList<AvatarEntry>>(Array.Empty<AvatarEntry>());
             private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
@@ -368,6 +399,8 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<FaceTuning> FaceTuning => _tuning;
 
             public FaceTarget Face { get; set; }
+
+            public BodyTarget Body { get; set; }
 
             public void SetFaceTuning(FaceTuning tuning)
             {

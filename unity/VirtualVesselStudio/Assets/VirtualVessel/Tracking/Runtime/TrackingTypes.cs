@@ -149,6 +149,24 @@ namespace VirtualVessel.Tracking
         All = Face | Body | Hands,
     }
 
+    /// <summary>
+    /// What kind of observation a provider makes, which decides the corrections that suit it (tracking
+    /// detailed design 5.2, 8.4). Common processing reads these, never a provider's name, so a new input
+    /// such as mocopi only says what it is.
+    /// </summary>
+    [Flags]
+    public enum ObservationTraits
+    {
+        /// <summary>Nothing to correct for, as from sensors on the body (mocopi, for example).</summary>
+        None = 0,
+
+        /// <summary>
+        /// Depth along the camera's axis is estimated from one camera's image (MediaPipe): least reliable
+        /// for a limb pointing at the camera. The camera is in front of the person, along +Z of person space.
+        /// </summary>
+        MonocularDepth = 1,
+    }
+
     /// <summary>How much of the body moves (tracking detailed design 6.5).</summary>
     public enum BodyRange
     {
@@ -157,6 +175,19 @@ namespace VirtualVessel.Tracking
 
         /// <summary>Adds hips, legs, and foot contact. Shown as coming soon; not available in v0.1.0.</summary>
         FullBody,
+    }
+
+    /// <summary>
+    /// Whether the body moves toward and away from the camera (tracking detailed design 8.6). Saved as its
+    /// number, so the values keep their order.
+    /// </summary>
+    public enum BodyDepth
+    {
+        /// <summary>In depth as tracked (3D).</summary>
+        Tracked,
+
+        /// <summary>Only across and up, as seen on the camera's image (2D): the body's depth is set to the hips'.</summary>
+        Flat,
     }
 
     /// <summary>The state of a tracking source or provider (tracking detailed design 7.1).</summary>
@@ -197,14 +228,14 @@ namespace VirtualVessel.Tracking
         public const int Min = 1;
         public const int Max = 10;
 
-        public const int Smooth = 3;
-        public const int Standard = 5;
-        public const int Responsive = 7;
-
         /// <summary>
-        /// The level for new settings. The user tried 7 and settled on the standard 5 after more
-        /// camera checks (2026-10-21); the tracking screen changes it.
+        /// The standard (tracking detailed design 8.2): about 150 ms behind on the user's recorded arm
+        /// movements, plus one observation of the avatar's interpolation. Steadiness matters more than lag
+        /// for the arms, and up to about 300 ms is accepted (the user's decision, 2026-10-24).
         /// </summary>
+        public const int Standard = 5;
+
+        /// <summary>The level for new settings; the tracking screen changes it.</summary>
         public const int Default = Standard;
 
         /// <summary>A level within <see cref="Min"/> to <see cref="Max"/>. Pure.</summary>
