@@ -68,7 +68,8 @@ flowchart LR
 | `CaptureScreen` | Class（UIの`IFrameSource`） | 1つのCapture Sourceの板と配置。編集を受け付ける |
 | `StageSettings` | Class | 保存する内容（映像ごとの配置、ライトの強さ） |
 | `ScreenPlacementMath` | Static Class | 配置から板の位置、大きさ、UVを求める（純粋関数） |
-| `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き |
+| `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き、背景の位置と大きさ |
+| `PastelBackdrop` | Static Class | 仮の背景の画像をコードで描く（純粋関数、7.1） |
 | `IAvatarSpawnPoints` | Interface | アバターの立つ位置（7.1） |
 | `IStageLighting`（UI） | Interface | ライトの強さ。設定画面が変え、Stageが実装する（7.1） |
 | `StageLightIntensity`（UI） | Static Class | ライトの強さの範囲と既定、範囲に収める関数（純粋関数） |
@@ -172,6 +173,7 @@ public interface IAvatarSpawnPoints
 - Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時に平行光のライト`StageDefaultLight`を作る：カメラの上の少し左から（回転35°、15°、0°）、影なし。自分のライトを持つStage Sceneができたら、それに置き換える。
 - ライトの強さは、利用者が設定画面で変えられる（`IStageLighting`。利用者の要望、2026-10-21）。強さ1のライトでは、顔が白く飛んで表情が見にくかったため。範囲は10〜150%、既定は100%（強さ1）。強さは作ったときのライトに掛ける倍率とし、Stage Sceneができたときもその照明全体の明るさの調整として使えるようにする（17章）。
 - 方式設計11.7では、照明はStageが管理する。強さの設定もStageが持ち、`stage-settings.json`に保存する（6.3）。配信の映像も変わるため、表示を見るためだけの映像の高さや拡大（UI `setup.md` 9章）とは違い、保存する。
+- Stage Sceneが自分の背景を持つまでは、Stageがアバターの後ろに仮のパステルの背景を置く（利用者の要望、2026-10-24）。それまで配信に出ていた暗い背景色の代わりである。画像は、ピンクからラベンダー、水色へのグラデーションに、アバターの後ろのやわらかな明るさ、白い水玉、アバターから離れた左右の帯の星とハートを描く。`PastelBackdrop`（純粋関数）がコードで1600×900に描くため、画像ファイルは同梱しない。描くのにEditorで起動時に1回、約0.37秒かかる。画像は、アバターの2m後ろ、カメラの高さに置いた板（`StageBackdrop`）に貼る。板は4.27×2.4mで、既定のカメラの視野（Video詳細設計7.5）に約15%の余裕を足した大きさとする。Main Cameraが、平面の映像とアバターの下に描く。光を受けず、Stream Screenと同じShaderを使う。既定のライトとともに破棄する。
 
 ---
 
@@ -256,6 +258,7 @@ Assets/VirtualVessel/Stage/
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs
 │  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
+│  ├─ PastelBackdrop.cs             仮の背景の画像
 │  ├─ IAvatarSpawnPoints.cs
 │  └─ Resources/StreamScreen.shader 光を受けない板のShader。切り抜きと反転を材質の値（_MainTex_ST）だけで表す。Buildに含めるためResourcesに置く
 └─ Tests/
