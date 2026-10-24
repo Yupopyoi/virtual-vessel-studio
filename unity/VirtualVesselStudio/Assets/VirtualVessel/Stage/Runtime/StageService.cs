@@ -192,20 +192,20 @@ namespace VirtualVessel.Stage
         }
 
         /// <summary>
-        /// The provisional pastel backdrop behind the avatar, until a Stage Scene brings its own (Stage
+        /// The provisional backdrop behind the avatar, until a Stage Scene brings its own (Stage
         /// detailed design 7.1). The Main Camera draws it, under the flat videos and the avatar; it is
         /// unlit, with the stream screens' shader.
         /// </summary>
         private void CreateBackdrop(Mesh quad, Shader shader)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            _backdropTexture = new Texture2D(PastelBackdrop.Width, PastelBackdrop.Height, TextureFormat.RGBA32, mipChain: true, linear: false)
+            _backdropTexture = new Texture2D(DefaultBackdrop.Width, DefaultBackdrop.Height, TextureFormat.RGBA32, mipChain: true, linear: false)
             {
                 name = "StageBackdrop",
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Trilinear,
             };
-            _backdropTexture.SetPixels32(PastelBackdrop.Render(PastelBackdrop.Width, PastelBackdrop.Height));
+            _backdropTexture.SetPixels32(DefaultBackdrop.Render(DefaultBackdrop.Width, DefaultBackdrop.Height));
             _backdropTexture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
             _backdropMaterial = new Material(shader) { name = "StageBackdrop", mainTexture = _backdropTexture };
             _backdrop = new GameObject("StageBackdrop");

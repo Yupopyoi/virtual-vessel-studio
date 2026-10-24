@@ -157,24 +157,24 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
-        public void TheBackdropPicture_IsPastel_Opaque_AndTheSameEveryTime()
+        public void TheBackdropPicture_IsDark_Opaque_AndTheSameEveryTime()
         {
-            Color32[] picture = PastelBackdrop.Render(160, 90);
+            Color32[] picture = DefaultBackdrop.Render(160, 90);
             Assert.That(picture, Has.Length.EqualTo(160 * 90));
             Assert.That(picture.All(p => p.a == 255), Is.True, "Opaque.");
-            Assert.That(picture.All(p => Math.Min(p.r, Math.Min(p.g, p.b)) >= 160), Is.True, "Light colors only.");
+            Assert.That(picture.Average(p => (p.r + p.g + p.b) / 3.0), Is.LessThan(80), "Dark on the whole.");
             Assert.That(picture.Select(p => (p.r, p.g, p.b)).Distinct().Count(), Is.GreaterThan(50), "Not a flat color.");
-            Assert.That(PastelBackdrop.Render(160, 90), Is.EqualTo(picture), "The same picture every time.");
+            Assert.That(DefaultBackdrop.Render(160, 90), Is.EqualTo(picture), "The same picture every time.");
 
-            Color top = PastelBackdrop.Gradient(1f);
-            Color bottom = PastelBackdrop.Gradient(0f);
-            Assert.That(top.r, Is.GreaterThan(top.b), "Pink at the top.");
-            Assert.That(bottom.b, Is.GreaterThan(bottom.r), "Sky blue at the bottom.");
+            Color top = DefaultBackdrop.Gradient(1f);
+            Color bottom = DefaultBackdrop.Gradient(0f);
+            Assert.That(top.r, Is.GreaterThan(bottom.r), "Plum at the top.");
+            Assert.That(bottom.b, Is.GreaterThan(bottom.r), "Navy at the bottom.");
 
             // Drawn once at start, on the main thread.
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            PastelBackdrop.Render(PastelBackdrop.Width, PastelBackdrop.Height);
-            Debug.Log($"[Stage/Backdrop] {PastelBackdrop.Width}x{PastelBackdrop.Height} drawn in {watch.Elapsed.TotalMilliseconds:F0} ms");
+            DefaultBackdrop.Render(DefaultBackdrop.Width, DefaultBackdrop.Height);
+            Debug.Log($"[Stage/Backdrop] {DefaultBackdrop.Width}x{DefaultBackdrop.Height} drawn in {watch.Elapsed.TotalMilliseconds:F0} ms");
         }
 
         [Test]

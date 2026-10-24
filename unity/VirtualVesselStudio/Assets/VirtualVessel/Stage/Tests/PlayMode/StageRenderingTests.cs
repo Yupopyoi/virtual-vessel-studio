@@ -62,7 +62,7 @@ namespace VirtualVessel.Stage.Tests
             Color32 left = pixels[(18 * 64) + 16];
             Color32 right = pixels[(18 * 64) + 48];
             Assert.That((right.r, right.g, right.b), Is.EqualTo(((byte)0, (byte)0, (byte)255)), "The video.");
-            Assert.That(Math.Min(left.r, Math.Min(left.g, left.b)), Is.GreaterThan(190), "The pastel backdrop.");
+            Assert.That((left.r, left.g, left.b), Is.Not.EqualTo(((byte)0, (byte)0, (byte)0)), "The backdrop, not the background color.");
         }
 
         [UnityTest]
@@ -76,7 +76,7 @@ namespace VirtualVessel.Stage.Tests
             foreach (int index in new[] { 0, 31, 64 * 35, (64 * 18) + 2 })
             {
                 Color32 pixel = pixels[index];
-                Assert.That(Math.Min(pixel.r, Math.Min(pixel.g, pixel.b)), Is.GreaterThan(190), $"Pixel {index}: the backdrop, not the dark background color.");
+                Assert.That(pixel.r + pixel.g + pixel.b, Is.GreaterThan(30), $"Pixel {index}: the backdrop, not the black background color.");
             }
         }
 

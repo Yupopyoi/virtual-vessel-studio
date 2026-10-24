@@ -4,18 +4,20 @@ namespace VirtualVessel.Stage
 {
     /// <summary>
     /// The picture of the provisional backdrop behind the avatar (Stage detailed design 7.1), until a Stage
-    /// Scene brings its own: a pastel gradient from pink through lavender to sky blue, a soft glow behind
-    /// the avatar, white polka dots, and a few stars and hearts in the side bands, away from the avatar.
+    /// Scene brings its own: a dark gradient from plum through indigo to navy, a soft glow behind the
+    /// avatar, faint polka dots, and a few pastel stars and hearts in the side bands, away from the avatar.
     /// Drawn in code, so no image file is bundled. Pure: the same size always gives the same picture.
     /// </summary>
-    public static class PastelBackdrop
+    public static class DefaultBackdrop
     {
         public const int Width = 1600;
         public const int Height = 900;
 
-        private static readonly Color s_top = new Color(1.00f, 0.85f, 0.92f);
-        private static readonly Color s_middle = new Color(0.91f, 0.87f, 1.00f);
-        private static readonly Color s_bottom = new Color(0.84f, 0.94f, 1.00f);
+        private static readonly Color s_top = new Color(0.17f, 0.12f, 0.24f);
+        private static readonly Color s_middle = new Color(0.11f, 0.10f, 0.20f);
+        private static readonly Color s_bottom = new Color(0.06f, 0.08f, 0.16f);
+        private static readonly Color s_glow = new Color(0.26f, 0.22f, 0.38f);
+        private static readonly Color s_dot = new Color(0.55f, 0.52f, 0.72f);
 
         private static readonly Color[] s_shapeColors =
         {
@@ -39,11 +41,11 @@ namespace VirtualVessel.Stage
                 {
                     float u = (float)x / (width - 1);
 
-                    // Brighter and calmer behind the avatar, so it stands out.
+                    // A little brighter and calmer behind the avatar, so it stands out.
                     float glow = Mathf.Exp(-((u - 0.5f) * (u - 0.5f) * 9f) - ((v - 0.5f) * (v - 0.5f) * 5f));
-                    Color color = Color.Lerp(row, Color.white, 0.4f * glow);
+                    Color color = Color.Lerp(row, s_glow, 0.6f * glow);
                     float dot = Coverage(DotDistance(x, y, dotSpacing) - dotRadius);
-                    pixels[(y * width) + x] = Color.Lerp(color, Color.white, dot * 0.5f * (1f - (0.7f * glow)));
+                    pixels[(y * width) + x] = Color.Lerp(color, s_dot, dot * 0.25f * (1f - (0.7f * glow)));
                 }
             }
 
@@ -113,7 +115,7 @@ namespace VirtualVessel.Stage
                     float lx = ((dx * cos) + (dy * sin)) / size;
                     float ly = ((-dx * sin) + (dy * cos)) / size;
                     float distance = (heart ? Heart(lx, ly) : Star(lx, ly)) * size;
-                    float cover = Coverage(distance) * 0.85f;
+                    float cover = Coverage(distance) * 0.45f;
                     if (cover > 0f)
                     {
                         int i = (y * width) + x;
