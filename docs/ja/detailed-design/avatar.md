@@ -103,13 +103,14 @@ flowchart LR
 | `PoseRetargeting` | Static Class | 観測から上半身の骨の回転を求める（純粋関数、7.2） |
 | `BodyMotion` | Class | 上半身の観測の間の補間と、胴と左右の腕ごとの見失ったときの扱い（7.2、7.3、8.4）。設計の当初の名前は`PoseController`だったが、顔の`FaceMotion`とそろえた |
 | `BodyTarget` | Class | アバターの上半身に出すもの：骨ごとの回転と、観測が見た部位。毎Frame使い回す |
-| `MotionTiming` | Static Class | 顔と体が共有する時間の扱い：観測への移り方と、見失ったときの表示の強さ（純粋関数、7.3、8.4） |
+| `MotionTiming` | Static Class | 顔、体、手が共有する時間の扱い：観測への移り方と、見失ったときの表示の強さ（純粋関数、7.3、8.4） |
+| `ObservationClock` | Class | 1つの部位の観測の時間：最新の観測を撮った時刻と届いた時刻、その観測へどこまで移ったか（7.3）。顔、体、左右の手がそれぞれ持つ。`FrameClock`は前のFrameからの秒数だけで、その後の段階が使う |
 | `ExpressionMapping` | Class | 表情の値（`FaceShape`）から表情への変換の設定（7.4） |
 | `FaceFeatures` | Struct（internal） | 顔の値を曲線に1度だけ通した結果。顔全体の表情、部位ごとの値、Expression Signalは、すべてこれから求める（7.4） |
 | `ExpressionController` | Class | 表情と視線の適用：部位ごと、または顔全体の表情。モデルにないまばたきの置き換え |
 | `FaceTarget` | Class | アバターの顔に出すもの：表情ごとの重み、部位ごとの重み、Expression Signal、視線、頭の向き。毎Frame使い回す |
 | `ExpressionSignal` | Enum | Expression Signalの値：笑顔、怒り、悲しみ、驚き、左右の目の開き、口の開き（7.4、方式設計7.7） |
-| `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4、時間の扱いは`MotionTiming`） |
+| `FaceMotion` | Class | 顔の観測の間の補間と、見失ったときの扱い（7.3、8.4、時間の扱いは`ObservationClock`） |
 | `HeadPose` | Static Class | 頭の向き：鏡写し、上限、首への配分（純粋関数、7.1） |
 | `AvatarBodyShape` | Class | 基準の姿勢でのモデルの体：骨の位置、頭の楕円体、胴の部分、腕の太さ。読み込み時に測る（7.6） |
 | `ArmClearance` | Static Class | 腕を頭と胴から奥行き方向に出す（純粋関数、7.6） |
@@ -187,6 +188,13 @@ classDiagram
             +Progress(now, arrivedAt, interval)$ float
             +NextPresence(presence, usable, lost, elapsed)$ float
             +Interval(fresh, observedAt, previous)$ double
+        }
+        class ObservationClock {
+            +double ObservedAt
+            +Tick(now) float
+            +IsNew(timestamp) bool
+            +Arrive(fresh, timestamp, now)
+            +Progress(now) float
         }
         class BodyMotion {
             +BodyTarget Current
@@ -293,8 +301,9 @@ classDiagram
     TrackingFrame *-- BodyPose
     BodyMotion --> PoseRetargeting : Retarget
     BodyMotion *-- BodyTarget
-    BodyMotion ..> MotionTiming
-    FaceMotion ..> MotionTiming
+    BodyMotion *-- ObservationClock
+    FaceMotion *-- ObservationClock
+    ObservationClock ..> MotionTiming
     AvatarController *-- ExpressionController
     AvatarController --> IAvatarRig : upper body, neck, head
     AvatarController ..> HeadPose
@@ -530,7 +539,7 @@ VRMには、作者がアバターの使い方の条件を書く（アバター�
 - 描画のFrameごとに、表示している値から最新の観測へ、観測の間隔をかけて移る（回転は球面補間）。新しい観測が届いた時点の表示から始めるため、描画は常に直前の表示と最新の観測の間にあり、途中で飛ばない。遅れは観測1回分（30回/秒で約33ms）増えるが、推論の回数より描画の回数が多いことによる段差が消える。
 - 移る時間は2つの観測の時刻の差とし、1/120秒〜0.2秒に収める（遅れた観測で、ゆっくり引きずられないように）。
 - 次の観測が遅れたときは、最新の観測で止める（先の予測はしない。外れたときに戻る動きが目立つため）。
-- 顔（`FaceMotion`、段階4）と上半身（`BodyMotion`、段階5）で使う。時間の扱いは共通の`MotionTiming`にまとめた（2026-10-22）。手は段階6で同じ考え方を使う。
+- 顔（`FaceMotion`、段階4）、上半身（`BodyMotion`、段階5）、手のひら（`HandMotion`、段階6）で使う。時間の扱いは共通の`MotionTiming`にまとめ（2026-10-22）、部位ごとの観測の記録は`ObservationClock`にまとめた（2026-10-24）。観測ではなく毎Frameに従う当たりの回避（7.6）と腕の回る速さの上限（7.8）は、前のFrameからの時間に`FrameClock`を使う。
 
 ### 7.4 表情（ExpressionMapping）
 
@@ -637,7 +646,7 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 - 2D（Tracking詳細設計8.6）：体の奥行きがないため、前か後ろかを決められない。利用者の要望（2026-10-24）で、腕を必ず体の前へ出す（`frontOnly`。`AvatarService`がTrackingの設定から渡す）。覚えた側に関わらず前へだけ回す。サンプルの3体で、組んだ腕の肘は肩より14.5〜20.5cm前に来た。前へだけにしないと、胴の厚い1体では10.8cm後ろに出た。
 - 上限：60°まで、かつカメラの軸の5°手前まで回す（軸を越えると、映像の上での向きが逆になる）。どちらの側でも抜けられないときは、最初の側に上限まで回す。肩が頭に入っているとき（1）、肘が頭か胴の部分に入っているとき（2）は、その部分を除く。回しても出せないためである。
 - 時間の扱い（`ClearanceMotion`）：回した分（観測からの回転）は、時定数0.08秒で寄せる。観測した腕の動きには遅れなく付いていき、回した分の出し入れだけがなめらかになる。0.01°以内に近づいたら、ぴったり合わせる。
-- 経緯（2026-10-24）：最初は、中心から離れる向き、上、下、左右のうち、入らなくなる角度が最小のものへ回していた。利用者の画面の録画で、顔の前で組んだ前腕が上へ、胸の前の前腕が下へ回され、観測と違って見えた。利用者の記録4本をサンプルの3体で再生して比べた（`VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`、Explicit）：
+- 経緯（2026-10-24）：最初は、中心から離れる向き、上、下、左右のうち、入らなくなる角度が最小のものへ回していた。利用者の画面の録画で、顔の前で組んだ前腕が上へ、胸の前の前腕が下へ回され、観測と違って見えた。利用者の記録4本をサンプルの3体で再生して比べた（`VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`、Explicit）：
   - 最小の角度の向き：回した角度のほぼすべてが映像の上でのずれだった（平均4.5〜22.9°）。
   - 映像の上で向きを変える回し方に2〜4倍の重みを付けた場合：ずれは少し減ったが、選ぶ向きが入れ替わり、1Frameで最大28〜69°跳んだ。
   - 奥行きだけで、前後を最小の角度で選んだ場合：ずれは0°になったが、手を頭の後ろへ回すと前後が入れ替わり、最大90°跳んだ。
@@ -672,7 +681,7 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 
 上半身の最後の段で、腕の骨（上腕、前腕、手）は、向き（骨の指す方向）を1秒に720°（60Frame/秒で1Frame 12°）、骨を軸にしたねじれを1秒に360°（同6°）より速くは回さない。胴は上限なしでそのまま出す。安定と動きの自然さを、すべての回転に付いていくことより優先する（利用者の決定、2026-10-24）。
 
-- 利用者の記録「1024不自然解消用」（約60秒、自分のアバター音羽、3D、動きの速さ1、鏡写し）を60Frame/秒で再生して測った（`VrmLoaderTests.Body_OnTheRecordings_MovesSteadily`、Explicit）。上限を入れる前は、1Frameで上腕が最大51°、前腕52°、手129°回り、15°を超えるFrameが骨ごとに18〜58あった。多くはねじれで（例：上腕48°のうち向きは13°）、肘の曲がる面で決まる上腕のねじれが、ほぼまっすぐな腕で速く回るためだった。トラッキングの値そのもの（平滑化の後）で既に回っており、手を回す処理や頭と胴から出す処理が加えたものではなかった。
+- 利用者の記録「1024不自然解消用」（約60秒、自分のアバター音羽、3D、動きの速さ1、鏡写し）を60Frame/秒で再生して測った（`VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`、Explicit）。上限を入れる前は、1Frameで上腕が最大51°、前腕52°、手129°回り、15°を超えるFrameが骨ごとに18〜58あった。多くはねじれで（例：上腕48°のうち向きは13°）、肘の曲がる面で決まる上腕のねじれが、ほぼまっすぐな腕で速く回るためだった。トラッキングの値そのもの（平滑化の後）で既に回っており、手を回す処理や頭と胴から出す処理が加えたものではなかった。
 - 上限を入れた後は、5本の記録のどれでも、どの腕の骨も1Frameで13°以下、15°を超えるFrameは0。揺れ（Frameごとの回転の変わり方）は約4割減った（例：右前腕2.10°から1.29°）。速い動きでは、その間だけ遅れる。
 - 向きとねじれを分けて上限をかける（`SteadyMotion.Limit`、純粋関数）。ねじれはほとんどが雑音で変わるため、向きより低い上限にした。
 
@@ -797,17 +806,17 @@ public sealed class AvatarSettings
 | 実機 | カメラ、MediaPipe、アバターをつないで目視で確かめる（デモブランチ） |
 | 性能 | 読み込みの時間と最も長いFrame、毎Frameの適用の時間 |
 
-腕の回る速さの上限のTest（2026-10-24）：`SteadyMotionTests`（EditMode。上限内の回転はそのまま、向きとねじれをそれぞれの上限で止める、胴は止めない）、`VrmLoaderTests.Body_OnTheRecordings_MovesSteadily`（Explicit。開発者の記録で、骨ごとの1Frameの最大の回転、15°を超えた回数、揺れ、最悪の瞬間とトラッキングだけの回転）。
+腕の回る速さの上限のTest（2026-10-24）：`SteadyMotionTests`（EditMode。上限内の回転はそのまま、向きとねじれをそれぞれの上限で止める、胴は止めない）、`VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`（Explicit。開発者の記録で、骨ごとの1Frameの最大の回転、15°を超えた回数、揺れ、最悪の瞬間とトラッキングだけの回転）。
 
 手と前腕のねじれのTest（2026-10-24）：`HandRetargetingTests`（EditMode。手のひらが下なら基準の姿勢、上へ返すと手は前腕の届く4分の1まで・前腕の骨はその半分で肩は回らない、曲げた腕で届く範囲を超えたねじれは除く、ほぼ真上の手のひらは回外の側に読み読みの境で跳ばない、見えている度合いで前腕に付いていく向きと混ぜる、鏡写しでは反対の手を写す、見失った手を保ってから前腕に付いていかせ戻す、`AvatarController`が手と前腕を設定する）。`ArmClearanceTests`で、前腕を肘で回すと手も回ること。`VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`で、手のひらを上へ向けるとモデルの手の甲が下を向くこと。`AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan`（Explicit）で、肘の曲がる面と手のひらのねじれを記録で測る。
 
-腕と頭・胴の当たりのTest（2026-10-24）：`ArmClearanceTests`（EditMode。顔を横切る前腕を肘で奥行き方向に回し、前にあれば前へ、後ろにあれば後ろへ出す、頭へ向いた上腕を肩で後ろへ回す、組んだ腕を前へ出す、胸に入った肘を肩で前へ出す、いずれもカメラから見た向きを保つ、前腕がはっきり反対側へ移るまで側を保つ、回した分をなめらかに出し入れする、当たらない腕と形がないときはそのまま、肩が頭に入るときは回さない、頭の向きで楕円体が動く、`AvatarController`が出した姿勢を骨へ設定する、メッシュの点から頭と胴の形を測り首より下の髪を除く）、`VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso`（実際のモデル3体で形を測り、顔を横切る前腕がモデルの骨で頭から出ること、腕を下ろした姿勢は動かさないこと、組んだ腕が胸から出ること）、`VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`（開発者の記録で、腕を回した頻度と角度、映像の上でのずれ、残るめり込み、加わった跳び）。
+腕と頭・胴の当たりのTest（2026-10-24）：`ArmClearanceTests`（EditMode。顔を横切る前腕を肘で奥行き方向に回し、前にあれば前へ、後ろにあれば後ろへ出す、頭へ向いた上腕を肩で後ろへ回す、組んだ腕を前へ出す、胸に入った肘を肩で前へ出す、いずれもカメラから見た向きを保つ、前腕がはっきり反対側へ移るまで側を保つ、回した分をなめらかに出し入れする、当たらない腕と形がないときはそのまま、肩が頭に入るときは回さない、頭の向きで楕円体が動く、`AvatarController`が出した姿勢を骨へ設定する、メッシュの点から頭と胴の形を測り首より下の髪を除く）、`VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso`（実際のモデル3体で形を測り、顔を横切る前腕がモデルの骨で頭から出ること、腕を下ろした姿勢は動かさないこと、組んだ腕が胸から出ること）、`VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`（開発者の記録で、腕を回した頻度と角度、映像の上でのずれ、残るめり込み、加わった跳び）。
 
 段階5で作ったTest：`AvatarBodyTests`（EditMode。腕を横、下、前へ、肘を前や上へ曲げる、鏡写し、胴の傾きと上限、肩の上がり方、見えない腕、見失った腕を保ってから下ろす、手首が隠れても前腕の曲がりを保つ、Trackingがないときの基準の姿勢、`AvatarController`と首）、`AvatarRecordingTests`（EditMode、Explicit。開発者の記録で）、`VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`（実際のモデルで、腕と前腕の骨が観測の向きを向くこと、適用の時間）。
 
 段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔で目は閉じない、いとえ、眉）、Expression Signal（感情、目、口、左右、中立、部位ごとと顔全体で同じ値）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
 
-段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む）。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
+段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む。サンプルを使うTestが共有する`VrmSamples`が読む）。開発者の記録をサンプルで測るTestは`VrmRecordingTests`（PlayMode、`[Explicit]`）にあり、アプリと同じく、補正、指定があれば2Dの平らにする処理、平滑化を通して、60Frame/秒で記録を再生する。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
 ---
 
@@ -838,7 +847,8 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming,
+│                           ObservationClock, FrameClock
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm（UniVRMを参照する唯一のAssembly）
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel。UniVRMの自動の更新を止め、Applyで処理する
