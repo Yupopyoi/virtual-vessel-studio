@@ -135,7 +135,6 @@ namespace VirtualVessel.Avatar.Tests
                     var twists = new List<float>();
                     var flippedTwists = new List<float>();
                     var forearmTwists = new List<float>();
-                    var shoulderParts = new List<float>();
                     int leftOut = 0;
                     int hands = 0, seen = 0;
                     foreach (TrackingFrame frame in frames)
@@ -158,12 +157,10 @@ namespace VirtualVessel.Avatar.Tests
                         if (HandRetargeting.TryPalm(hand, mirror: true, out Quaternion palm))
                         {
                             // How far the palm twists the arm from neutral, supination positive, and how it is shared (avatar detailed design 7.7).
-                            (Quaternion upperArm, Quaternion lower) = PoseRetargeting.Arm(side.IsLeft, shoulder, elbow, wrist, torso);
-                            Vector3 rest = PoseRetargeting.RestDirection(side.IsLeft);
+                            (_, Quaternion lower) = PoseRetargeting.Arm(side.IsLeft, shoulder, elbow, wrist, torso);
                             float palmTwist = HandRetargeting.Twist(side.IsLeft, lower, palm);
-                            (float shoulderPart, float forearmPart, float impossible) = HandRetargeting.Split(palmTwist, HandRetargeting.Bent(upperArm * rest, lower * rest));
+                            (_, float impossible) = HandRetargeting.Split(palmTwist);
                             forearmTwists.Add(palmTwist);
-                            shoulderParts.Add(shoulderPart);
                             leftOut += Mathf.Abs(impossible) > 10f ? 1 : 0;
                         }
 
@@ -182,7 +179,7 @@ namespace VirtualVessel.Avatar.Tests
                         + $"beyond ±90° on {beyond} ({Share(beyond, twists.Count)}), beyond ±135° on {twists.Count(t => Mathf.Abs(t) > 135f)}; with the forearm's depth turned over, {fixedByFlip} of those come within ±90°; "
                         + $"twist outward/inward: {Share(twists.Count(t => t < -45f), twists.Count)} below -45°, {Share(twists.Count(t => t > 45f), twists.Count)} above 45°; hand seen {Share(hands, seen)}; "
                         + $"palm twist from neutral (supination +) median {Median(forearmTwists):F0}°, 10%..90% {Percentile(forearmTwists, 0.1f):F0}..{Percentile(forearmTwists, 0.9f):F0}°; "
-                        + $"past the forearm's reach {Share(forearmTwists.Count(t => Mathf.Abs(t) > HandRetargeting.ForearmReachDegrees), forearmTwists.Count)}, the shoulder turned over 10° {Share(shoulderParts.Count(t => Mathf.Abs(t) > 10f), shoulderParts.Count)}, over 10° left out {Share(leftOut, forearmTwists.Count)}");
+                        + $"past the forearm's reach {Share(forearmTwists.Count(t => Mathf.Abs(t) > HandRetargeting.ForearmReachDegrees), forearmTwists.Count)}, over 10° left out {Share(leftOut, forearmTwists.Count)}");
                 }
             }
         }

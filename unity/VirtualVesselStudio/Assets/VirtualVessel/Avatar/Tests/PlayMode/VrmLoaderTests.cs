@@ -190,11 +190,11 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm), Vector3.left), Is.LessThan(5f), "The left upper arm is out sideways.");
                 Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand), Vector3.up), Is.LessThan(5f), "The left forearm points up.");
 
-                // The right palm turned up (reaching forward, the back of the hand down): the model's own hand
-                // turns over, the back from its index and little fingers' bases.
+                // The right palm turned a quarter, thumb up (reaching forward, the back of the hand outward): the
+                // model's own hand turns too, its back from its index and little fingers' bases.
                 frame.RightHand.Status = TrackingStatus.Tracked;
                 frame.RightHand.Confidence = 0.9f;
-                frame.RightHand.PalmRotation = Quaternion.LookRotation(Vector3.forward, Vector3.down);
+                frame.RightHand.PalmRotation = Quaternion.LookRotation(Vector3.forward, Vector3.right);
                 frame.RightHand.Timestamp = 2.0;
                 controller.Update(frame, mirror: false, now: 2.0);
                 controller.Update(frame, mirror: false, now: 2.5);
@@ -202,7 +202,7 @@ namespace VirtualVessel.Avatar.Tests
                 Vector3 hand = vrm.ModelBone(HumanBodyBones.RightHand).position;
                 Vector3 back = model.Root.InverseTransformDirection(Vector3.Cross(
                     vrm.ModelBone(HumanBodyBones.RightIndexProximal).position - hand, vrm.ModelBone(HumanBodyBones.RightLittleProximal).position - hand));
-                Assert.That(Vector3.Angle(back, Vector3.down), Is.LessThan(20f), "The back of the model's right hand faces down.");
+                Assert.That(Vector3.Angle(back, Vector3.right), Is.LessThan(20f), "The back of the model's right hand faces outward.");
                 frame.RightHand.Status = TrackingStatus.Lost;
 
                 // Per-frame cost with the body moving as well as the face (avatar detailed design 15).

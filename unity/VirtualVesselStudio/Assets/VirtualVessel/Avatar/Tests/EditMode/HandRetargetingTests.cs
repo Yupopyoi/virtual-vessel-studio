@@ -23,7 +23,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void APalmTurnedUp_OnAStraightArm_TurnsTheShoulderAndTheForearmAQuarterEach()
+        public void APalmTurnedUp_TurnsTheHandAQuarter_AndNotTheShoulder()
         {
             var arm = new BodyTarget();
             Quaternion palmUp = Quaternion.LookRotation(Vector3.right, Vector3.down);
@@ -31,9 +31,9 @@ namespace VirtualVessel.Avatar.Tests
             HandRetargeting.Apply(ArmSide.Right, palmUp, 1f, arm);
 
             // Turning the right palm up (supination) rolls the back of the hand from up, through back, to down.
-            AssertDirection(arm[UpperBodyBone.RightUpperArm] * Vector3.up, Vector3.back, "The shoulder a quarter turn.");
-            AssertDirection(arm[UpperBodyBone.RightLowerArm] * Vector3.up, new Vector3(0f, -1f, -1f), "The forearm's bone half of its quarter on top.");
-            AssertDirection(arm[UpperBodyBone.RightHand] * Vector3.up, Vector3.down, "The hand all the way.");
+            AssertSame(arm[UpperBodyBone.RightUpperArm], Quaternion.identity, "The shoulder is not turned.");
+            AssertDirection(arm[UpperBodyBone.RightLowerArm] * Vector3.up, new Vector3(0f, 1f, -1f), "The forearm's bone half of the forearm's quarter.");
+            AssertDirection(arm[UpperBodyBone.RightHand] * Vector3.up, Vector3.back, "The hand the forearm's reach, a quarter; the rest left out.");
             AssertDirection(arm[UpperBodyBone.RightHand] * Vector3.right, Vector3.right, "Still pointing along the arm.");
         }
 
@@ -62,17 +62,10 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(-190f, Vector3.right) * s_palmDown), Is.EqualTo(190f).Within(0.1f), "Past half a turn, still supination.");
             Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(100f, Vector3.right) * s_palmDown), Is.EqualTo(-100f).Within(0.1f), "Pronation.");
 
-            foreach (float bent in new[] { 0f, 0.5f, 1f })
-            {
-                (float shoulder, float forearm, float impossible) before = HandRetargeting.Split(360f - HandRetargeting.WrapDegrees - 0.01f, bent);
-                (float shoulder, float forearm, float impossible) after = HandRetargeting.Split(-HandRetargeting.WrapDegrees + 0.01f, bent);
-                Assert.That(before.shoulder, Is.EqualTo(after.shoulder).Within(0.1f), $"Bent {bent}: no jump at the wrap.");
-                Assert.That(before.forearm, Is.EqualTo(after.forearm).Within(0.1f));
-            }
-
-            Assert.That(HandRetargeting.Split(60f, 1f), Is.EqualTo((0f, 60f, 0f)), "Within the reach, all on the forearm.");
-            Assert.That(HandRetargeting.Split(150f, 0f), Is.EqualTo((60f, 90f, 0f)), "Straight: the shoulder takes the rest.");
-            Assert.That(HandRetargeting.Split(150f, 1f), Is.EqualTo((0f, 90f, 60f)), "Bent: the rest is left out.");
+            Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(140f, Vector3.right) * s_palmDown), Is.EqualTo(-140f).Within(0.1f), "Palms folded down in front of the chest stay pronation.");
+            Assert.That(HandRetargeting.Split(360f - HandRetargeting.WrapDegrees - 0.01f).Forearm, Is.EqualTo(HandRetargeting.Split(-HandRetargeting.WrapDegrees + 0.01f).Forearm).Within(0.1f), "No jump at the wrap.");
+            Assert.That(HandRetargeting.Split(60f), Is.EqualTo((60f, 0f)), "Within the reach, all on the forearm.");
+            Assert.That(HandRetargeting.Split(150f), Is.EqualTo((90f, 60f)), "Past it, left out.");
         }
 
         [Test]
@@ -87,7 +80,7 @@ namespace VirtualVessel.Avatar.Tests
 
             AssertSame(hidden[UpperBodyBone.RightLowerArm], Quaternion.identity, "Not seen: no twist.");
             AssertSame(hidden[UpperBodyBone.RightHand], Quaternion.identity, "The hand follows the forearm.");
-            Assert.That(Quaternion.Angle(half[UpperBodyBone.RightUpperArm], Quaternion.identity), Is.EqualTo(45f).Within(0.1f), "Half of the shoulder's quarter.");
+            Assert.That(Quaternion.Angle(half[UpperBodyBone.RightLowerArm], Quaternion.identity), Is.EqualTo(22.5f).Within(0.1f), "Half of the forearm bone's eighth.");
         }
 
         [Test]
@@ -148,8 +141,8 @@ namespace VirtualVessel.Avatar.Tests
             controller.Update(frame, mirror: false, now: 1.0);
             controller.Update(frame, mirror: false, now: 1.5);
 
-            AssertDirection(model.Rotations[AvatarBone.RightHand] * Vector3.up, Vector3.down, "The palm up.");
-            AssertDirection(model.Rotations[AvatarBone.RightUpperArm] * Vector3.up, Vector3.back, "The straight arm turned at the shoulder.");
+            AssertDirection(model.Rotations[AvatarBone.RightHand] * Vector3.up, Vector3.back, "The hand a quarter turn.");
+            AssertSame(model.Rotations[AvatarBone.RightUpperArm], Quaternion.identity, "Not the shoulder.");
             AssertSame(model.Rotations[AvatarBone.LeftHand], model.Rotations[AvatarBone.LeftLowerArm], "The unseen left hand follows its forearm.");
         }
 
