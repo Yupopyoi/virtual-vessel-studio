@@ -439,6 +439,7 @@ The levels moved four more steps (version 3's 1 is the standard 5). Lag on the r
 
 ### 8.3 Outlier Removal
 
+- The palm's direction likewise: a value turned faster than 1800° a second (60° in an observation at 30 a second) is not used, and the third in a row is accepted (`TrackingProcessor.MaxPalmDegreesPerSecond`). On the user's recordings the palm turned a median of 3–6° per observation, and when read the other way round it jumped past 90° up to 174°, often coming back within 2–5 observations (2026-10-24).
 - For each joint, a value whose speed from the previous value exceeds a limit (for example 8 m/s for a wrist) is not used that time. If it keeps exceeding (a really fast movement), it is accepted from the third time.
 - Points whose confidence (MediaPipe visibility, presence) is below the threshold are `LowConfidence`, and smoothing gets stronger.
 
@@ -494,7 +495,7 @@ For fingers, the joint **angles** (the angle between neighboring bones) are prim
 The camera sees across and up well and depth poorly (8.4). For when depth errors make the arms point unsteadily, 2D can be chosen, using only the movement seen from the front (the user's request, 2026-10-24).
 
 - `TrackingOptions.BodyDepth`: `Tracked` (3D, the default) or `Flat` (2D). Switched on the tracking Card of the setup screen (UI `setup.md` chapter 4). Saved as `bodyDepth` in `tracking-settings.json` (0: 3D, 1: 2D).
-- In 2D, after the corrections (8.4) and before smoothing, every body joint is put at the hips' depth (0 in person space) (`BodyFlattening`), except the elbows and wrists, which go 10 cm in front. The body moves only across and up: the torso's lean and twist, and arms reaching forward or back, are gone.
+- In 2D, after the corrections (8.4) and before smoothing, every body joint is put at the hips' depth (0 in person space) (`BodyFlattening`), except the elbows, which go 10 cm in front, and the wrists 5 cm further. With the forearm level with the elbow, a forearm swung from up to down passed straight through the line of the upper arm, its bend turned over at once, and the arm twisted up to 120° in a frame on the recordings replayed in 2D; leaning a little forward, it bends forward on the way, as in 3D. The body moves only across and up: the torso's lean and twist, and arms reaching forward or back, are gone.
 - The arms always pass in front of the body (the user's request, 2026-10-24). With the elbows and wrists at the body's depth too, keeping the avatar's arms out of the torso (avatar detailed design 7.6) moved them behind it. 10 cm in front leans a hanging upper arm about 20° forward; that much depth is accepted (the user's judgment). On some builds the arm is still behind the torso's center, so in 2D Avatar also turns the arms only forward.
 - Like the corrections, it works on a copy, and recordings (chapter 12) keep what was observed. A switch glides through the smoothing.
 - The face (head turn, expressions) and the hands are not changed.
