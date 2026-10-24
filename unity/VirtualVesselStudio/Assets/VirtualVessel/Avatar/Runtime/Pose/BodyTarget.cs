@@ -15,6 +15,8 @@ namespace VirtualVessel.Avatar
         RightUpperArm,
         LeftLowerArm,
         RightLowerArm,
+        LeftHand,
+        RightHand,
     }
 
     /// <summary>
@@ -37,6 +39,8 @@ namespace VirtualVessel.Avatar
             AvatarBone.RightUpperArm,
             AvatarBone.LeftLowerArm,
             AvatarBone.RightLowerArm,
+            AvatarBone.LeftHand,
+            AvatarBone.RightHand,
         };
 
         public BodyTarget()

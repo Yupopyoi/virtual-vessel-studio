@@ -6,9 +6,9 @@ namespace VirtualVessel.Avatar
 {
     /// <summary>
     /// Drives one avatar from tracking every frame (avatar detailed design 4, 8.3): the upper body (torso,
-    /// shoulders, and arms), and the face, its expressions and gaze, and the head's turn shared between
-    /// the neck and the head on top of the torso. Hands and fingers follow in step 6 (avatar detailed
-    /// design 18).
+    /// shoulders, arms, and the hands' turn with the forearms' twist), and the face, its expressions and
+    /// gaze, and the head's turn shared between the neck and the head on top of the torso. Fingers follow
+    /// in step 6 (avatar detailed design 18).
     /// </summary>
     /// <remarks>Main thread only; allocates nothing per frame.</remarks>
     public sealed class AvatarController
@@ -17,6 +17,8 @@ namespace VirtualVessel.Avatar
         private readonly bool _hasNeck;
         private readonly FaceMotion _face;
         private readonly BodyMotion _body;
+        private readonly HandMotion _hands = new HandMotion();
+        private readonly BodyTarget _withHands = new BodyTarget();
         private readonly ClearanceMotion _clearance;
 
         public AvatarController(IAvatarModel model, ExpressionMapping mapping)
@@ -64,9 +66,16 @@ namespace VirtualVessel.Avatar
         {
             _face.Update(frame?.Face, mirror, now);
             _body.Update(frame?.Body, mirror, now);
+            _hands.Update(frame, mirror, now);
             FaceTarget face = _face.Current;
-            Quaternion neck = HeadPose.Neck(_body.Current.TorsoTop, face.Head);
-            _clearance.Update(_body.Current, neck, face.Head, armsInFront, now);
+
+            // The hands, inferred apart from the body, turn on the arms the body set; the arms then keep
+            // out of the head and torso, hands and all.
+            _withHands.CopyFrom(_body.Current);
+            HandRetargeting.Apply(ArmSide.Left, _hands.LeftPalm, _hands.LeftPresence, _withHands);
+            HandRetargeting.Apply(ArmSide.Right, _hands.RightPalm, _hands.RightPresence, _withHands);
+            Quaternion neck = HeadPose.Neck(_withHands.TorsoTop, face.Head);
+            _clearance.Update(_withHands, neck, face.Head, armsInFront, now);
             BodyTarget body = _clearance.Current;
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {

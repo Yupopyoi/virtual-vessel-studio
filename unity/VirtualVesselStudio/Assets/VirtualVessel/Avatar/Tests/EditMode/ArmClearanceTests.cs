@@ -45,6 +45,7 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(turned, Is.GreaterThan(1f).And.LessThan(ArmClearance.MaxTurnDegrees), "The least turn that clears, not the most.");
                 Vector3 forearm = cleared[UpperBodyBone.RightLowerArm] * Vector3.right;
                 Assert.That(Mathf.Sign(forearm.z), Is.EqualTo(side), "In front stays in front, behind stays behind.");
+                AssertSame(cleared[UpperBodyBone.RightHand], cleared[UpperBodyBone.RightLowerArm], "The hand turns with the forearm.");
                 AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
                 AssertSame(cleared[UpperBodyBone.LeftUpperArm], pose[UpperBodyBone.LeftUpperArm], "The other arm is untouched.");
             }
@@ -281,6 +282,7 @@ namespace VirtualVessel.Avatar.Tests
             var pose = new BodyTarget();
             pose[UpperBodyBone.RightUpperArm] = Quaternion.FromToRotation(Vector3.right, upper.normalized);
             pose[UpperBodyBone.RightLowerArm] = Quaternion.FromToRotation(Vector3.right, fore.normalized);
+            pose[UpperBodyBone.RightHand] = pose[UpperBodyBone.RightLowerArm];
             return pose;
         }
 

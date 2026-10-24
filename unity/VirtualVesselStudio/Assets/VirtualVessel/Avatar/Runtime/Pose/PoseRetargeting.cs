@@ -237,6 +237,7 @@ namespace VirtualVessel.Avatar
                 into[side.Shoulder] = torso;
                 into[side.UpperArm] = lowered;
                 into[side.LowerArm] = lowered;
+                into[side.Hand] = lowered;
                 return (false, false);
             }
 
@@ -253,6 +254,9 @@ namespace VirtualVessel.Avatar
             into[side.Shoulder] = Shoulder(left, ShoulderRaise(left, upper, torso), torso);
             into[side.UpperArm] = upper;
             into[side.LowerArm] = lower;
+
+            // The hand follows the forearm; its own turn, from the palm, comes later (HandRetargeting).
+            into[side.Hand] = lower;
             return (true, forearm);
         }
 

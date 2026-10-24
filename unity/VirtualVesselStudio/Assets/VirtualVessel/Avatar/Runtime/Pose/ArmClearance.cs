@@ -123,7 +123,9 @@ namespace VirtualVessel.Avatar
             into[side.UpperArm] = turn * into[side.UpperArm];
 
             var forearm = new ForearmTest(body, arm.Shoulder + (turn * arm.UpperArm), arm.Forearm, arm.Hand, thickness);
-            into[side.LowerArm] = Turn(forearm, frontOnly ? 1 : foreSide, frontOnly, out foreSide) * into[side.LowerArm];
+            Quaternion foreTurn = Turn(forearm, frontOnly ? 1 : foreSide, frontOnly, out foreSide);
+            into[side.LowerArm] = foreTurn * into[side.LowerArm];
+            into[side.Hand] = foreTurn * into[side.Hand];
             return (upperSide, foreSide);
         }
 
@@ -143,12 +145,11 @@ namespace VirtualVessel.Avatar
             Chain shoulder = top.Then(shape, side.ShoulderBone, pose[side.Shoulder]);
             Vector3 forearmRest = shape.Rest(side.HandBone) - shape.Rest(side.LowerArmBone);
 
-            // The hand follows the forearm until it has its own rotation (step 6).
             return new Limb(
                 shoulder.Then(shape, side.UpperArmBone, upper).At,
                 upper * (shape.Rest(side.LowerArmBone) - shape.Rest(side.UpperArmBone)),
                 lower * forearmRest,
-                lower * (forearmRest.normalized * shape.Arm(side.IsLeft).HandLength));
+                pose[side.Hand] * (forearmRest.normalized * shape.Arm(side.IsLeft).HandLength));
         }
 
         /// <summary>

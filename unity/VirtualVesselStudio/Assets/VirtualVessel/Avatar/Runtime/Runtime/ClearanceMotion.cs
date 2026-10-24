@@ -27,11 +27,13 @@ namespace VirtualVessel.Avatar
             UpperBodyBone.LeftLowerArm,
             UpperBodyBone.RightUpperArm,
             UpperBodyBone.RightLowerArm,
+            UpperBodyBone.LeftHand,
+            UpperBodyBone.RightHand,
         };
 
         private readonly AvatarBodyShape _shape;
         private readonly BodyTarget _cleared = new BodyTarget();
-        private readonly Quaternion[] _added = { Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity };
+        private readonly Quaternion[] _added = { Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity };
         private ArmClearance.ClearanceSides _sides;
         private double _lastNow = double.NaN;
 

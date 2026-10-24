@@ -96,6 +96,7 @@ namespace VirtualVessel.Avatar
             into[side.Shoulder] = Quaternion.Slerp(top, shown[side.Shoulder], presence);
             into[side.UpperArm] = Quaternion.Slerp(hanging, shown[side.UpperArm], presence);
             into[side.LowerArm] = Quaternion.Slerp(hanging, shown[side.LowerArm], presence);
+            into[side.Hand] = Quaternion.Slerp(hanging, shown[side.Hand], presence);
         }
 
         private static double LostFor(double seenAt, double now, BodyPose body)
@@ -126,6 +127,7 @@ namespace VirtualVessel.Avatar
                 observed[side.Shoulder] = previous[side.Shoulder];
                 observed[upper] = previous[upper];
                 observed[lower] = previous[lower];
+                observed[side.Hand] = previous[side.Hand];
             }
             else if (!forearmSeen)
             {
@@ -133,6 +135,7 @@ namespace VirtualVessel.Avatar
                 (Quaternion followed, Quaternion bent) = PoseRetargeting.WithoutWrist(side.IsLeft, observed[upper], previous[upper], previous[lower]);
                 observed[upper] = followed;
                 observed[lower] = bent;
+                observed[side.Hand] = bent;
             }
         }
 
@@ -147,8 +150,10 @@ namespace VirtualVessel.Avatar
             Quaternion right = torso * AvatarRestPose.UpperArm(false, _armDownDegrees);
             into[UpperBodyBone.LeftUpperArm] = left;
             into[UpperBodyBone.LeftLowerArm] = left;
+            into[UpperBodyBone.LeftHand] = left;
             into[UpperBodyBone.RightUpperArm] = right;
             into[UpperBodyBone.RightLowerArm] = right;
+            into[UpperBodyBone.RightHand] = right;
         }
 
         private void Observe(BodyPose body, bool mirror, double now)

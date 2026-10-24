@@ -18,6 +18,7 @@ namespace VirtualVessel.Avatar
             Shoulder = left ? UpperBodyBone.LeftShoulder : UpperBodyBone.RightShoulder;
             UpperArm = left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm;
             LowerArm = left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm;
+            Hand = left ? UpperBodyBone.LeftHand : UpperBodyBone.RightHand;
             ShoulderBone = left ? AvatarBone.LeftShoulder : AvatarBone.RightShoulder;
             UpperArmBone = left ? AvatarBone.LeftUpperArm : AvatarBone.RightUpperArm;
             LowerArmBone = left ? AvatarBone.LeftLowerArm : AvatarBone.RightLowerArm;
@@ -34,6 +35,8 @@ namespace VirtualVessel.Avatar
         public UpperBodyBone UpperArm { get; }
 
         public UpperBodyBone LowerArm { get; }
+
+        public UpperBodyBone Hand { get; }
 
         public AvatarBone ShoulderBone { get; }
 
