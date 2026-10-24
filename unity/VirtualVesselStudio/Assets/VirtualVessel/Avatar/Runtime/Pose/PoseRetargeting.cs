@@ -30,9 +30,6 @@ namespace VirtualVessel.Avatar
         public const float ShoulderShare = 0.25f;
         public const float MaxShoulderRaiseDegrees = 20f;
 
-        /// <summary>A joint less visible than this (MediaPipe's visibility) does not move the avatar; Tracking's one threshold.</summary>
-        public const float MinVisibility = BodyPose.MinVisibility;
-
         // How bent an arm must be for its own bend to set the upper arm's twist (the sine of the angle
         // between upper arm and forearm). A nearly straight arm's bend says nothing about the twist, so
         // below the first value the twist follows the torso, and between the two it blends.
@@ -260,10 +257,10 @@ namespace VirtualVessel.Avatar
             return (true, forearm);
         }
 
-        /// <summary>Whether the avatar's <paramref name="joint"/> is seen. Visibility is the person's side; in a mirror that is the avatar's other side.</summary>
+        /// <summary>Whether the avatar's <paramref name="joint"/> is seen (<see cref="BodyPose.IsSeen(BodyJoint)"/>). The joint is the person's; in a mirror that is the avatar's other side.</summary>
         private static bool Visible(BodyPose body, BodyJoint joint, bool mirror)
         {
-            return body.JointConfidence[(int)(mirror ? Opposite(joint) : joint)] >= MinVisibility;
+            return body.IsSeen(mirror ? Opposite(joint) : joint);
         }
 
         /// <summary>An angle of 0 to 360 degrees as -180 to 180, as Unity's angles and axes are read the shorter way. Pure.</summary>

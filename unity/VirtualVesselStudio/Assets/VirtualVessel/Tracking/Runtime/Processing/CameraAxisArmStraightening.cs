@@ -68,9 +68,7 @@ namespace VirtualVessel.Tracking.Processing
         private static void StraightenArm(BodyPose body, BodyJoint shoulder, BodyJoint elbow, BodyJoint wrist)
         {
             // A hidden wrist's position is a guess, and moving the elbow toward it would turn the upper arm.
-            if (body.JointConfidence[(int)shoulder] < BodyPose.MinVisibility
-                || body.JointConfidence[(int)elbow] < BodyPose.MinVisibility
-                || body.JointConfidence[(int)wrist] < BodyPose.MinVisibility)
+            if (!body.IsSeen(shoulder) || !body.IsSeen(elbow) || !body.IsSeen(wrist))
             {
                 return;
             }

@@ -56,9 +56,7 @@ namespace VirtualVessel.Tracking.Processing
 
         private static void Align(BodyPose body, BodyJoint elbow, BodyJoint wrist, HandPose hand)
         {
-            if (!hand.IsUsable
-                || body.JointConfidence[(int)elbow] < BodyPose.MinVisibility
-                || body.JointConfidence[(int)wrist] < BodyPose.MinVisibility)
+            if (!hand.IsUsable || !body.IsSeen(elbow) || !body.IsSeen(wrist))
             {
                 return;
             }

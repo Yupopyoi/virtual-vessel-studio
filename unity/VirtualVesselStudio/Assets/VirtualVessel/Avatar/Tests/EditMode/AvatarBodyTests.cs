@@ -96,6 +96,23 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void AJointOutsideTheImage_IsNotSeen_HoweverVisible()
+        {
+            // MediaPipe guesses joints out of the image and may call them visible (tracking detailed design 8.4).
+            BodyPose body = Body(Vector3.left, Vector3.left, Vector3.right, Vector3.right);
+            body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.9f, 1.2f);
+            BodyTarget target = Retarget(body);
+            Assert.That(target.RightArmSeen, Is.True);
+            Assert.That(target.RightForearmSeen, Is.False, "A wrist below the image does not move the forearm.");
+
+            body.ImagePositions[(int)BodyJoint.RightElbow] = new Vector2(1.1f, 0.6f);
+            target = Retarget(body);
+            Assert.That(target.RightArmSeen, Is.False, "An elbow beside the image does not move the arm.");
+            AssertSame(target[UpperBodyBone.RightUpperArm], AvatarRestPose.UpperArm(false, AvatarRestPose.DefaultArmDownDegrees));
+            Assert.That(target.LeftArmSeen, Is.True);
+        }
+
+        [Test]
         public void ALostArm_Holds_ThenHangs_AndComesBack()
         {
             var motion = new BodyMotion(hasUpperChest: true);

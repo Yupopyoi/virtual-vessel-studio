@@ -54,9 +54,9 @@ namespace VirtualVessel.Avatar.Tests
                     }
 
                     usable++;
-                    visible[0] += body.JointConfidence[(int)BodyJoint.LeftShoulder] >= PoseRetargeting.MinVisibility ? 1 : 0;
-                    visible[1] += body.JointConfidence[(int)BodyJoint.LeftElbow] >= PoseRetargeting.MinVisibility ? 1 : 0;
-                    visible[2] += body.JointConfidence[(int)BodyJoint.LeftWrist] >= PoseRetargeting.MinVisibility ? 1 : 0;
+                    visible[0] += body.IsSeen(BodyJoint.LeftShoulder) ? 1 : 0;
+                    visible[1] += body.IsSeen(BodyJoint.LeftElbow) ? 1 : 0;
+                    visible[2] += body.IsSeen(BodyJoint.LeftWrist) ? 1 : 0;
                     PoseRetargeting.Retarget(body, mirror: true, hasUpperChest: true, AvatarRestPose.DefaultArmDownDegrees, target);
                     foreach (Quaternion rotation in target.Rotations)
                     {

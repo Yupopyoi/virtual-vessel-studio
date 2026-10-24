@@ -87,6 +87,23 @@ namespace VirtualVessel.Tracking.Tests
             frame.Body.JointConfidence[(int)BodyJoint.RightWrist] = 0.1f;
             new HandDepthFromForearm().Apply(frame);
             Assert.That(frame.RightHand.PalmRotation, Is.EqualTo(atCamera), "Without the wrist, the hand is left as observed.");
+
+            frame.Body.JointConfidence[(int)BodyJoint.RightWrist] = 0.9f;
+            frame.Body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.5f, 1.3f);
+            new HandDepthFromForearm().Apply(frame);
+            Assert.That(frame.RightHand.PalmRotation, Is.EqualTo(atCamera), "A wrist below the image is a guess, however visible.");
+        }
+
+        [Test]
+        public void AJoint_IsSeen_OnlyVisibleAndInsideTheImage()
+        {
+            Assert.That(BodyPose.IsSeen(0.9f, new Vector2(0.5f, 0.5f)), Is.True);
+            Assert.That(BodyPose.IsSeen(0.9f, new Vector2(0f, 1f)), Is.True, "The edge is in the image.");
+            Assert.That(BodyPose.IsSeen(0.3f, new Vector2(0.5f, 0.5f)), Is.False, "Not visible enough.");
+            foreach (Vector2 outside in new[] { new Vector2(-0.01f, 0.5f), new Vector2(1.01f, 0.5f), new Vector2(0.5f, -0.01f), new Vector2(0.5f, 1.2f) })
+            {
+                Assert.That(BodyPose.IsSeen(0.9f, outside), Is.False, $"{outside} is outside the image.");
+            }
         }
 
         [Test]
