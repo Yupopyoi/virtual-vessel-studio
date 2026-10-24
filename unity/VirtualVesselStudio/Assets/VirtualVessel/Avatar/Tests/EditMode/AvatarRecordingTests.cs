@@ -25,12 +25,7 @@ namespace VirtualVessel.Avatar.Tests
         [Test]
         public void TheUpperBody_FromEachRecording_IsSoundAndSummarized()
         {
-            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
-            IReadOnlyList<TrackingRecordingInfo> recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
-            if (recordings.Count == 0)
-            {
-                Assert.Ignore($"No recordings in {folder}.");
-            }
+            (string folder, TrackingRecordingInfo[] recordings) = DeveloperRecordings();
 
             foreach (TrackingRecordingInfo info in recordings)
             {
@@ -118,12 +113,7 @@ namespace VirtualVessel.Avatar.Tests
             // folds forward), on bent arms whose bend plane sets the twist; with the forearm's depth as
             // tracked and turned the other way about the elbow (the image unchanged); and how often the
             // person's hand, whose palm can set the forearm's twist, is seen (avatar detailed design 7.1).
-            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
-            IReadOnlyList<TrackingRecordingInfo> recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
-            if (recordings.Count == 0)
-            {
-                Assert.Ignore($"No recordings in {folder}.");
-            }
+            (string folder, TrackingRecordingInfo[] recordings) = DeveloperRecordings();
 
             foreach (TrackingRecordingInfo info in recordings)
             {
@@ -202,6 +192,19 @@ namespace VirtualVessel.Avatar.Tests
         private static float Percentile(List<float> values, float share)
         {
             return values.Count == 0 ? float.NaN : values.OrderBy(value => value).ElementAt(Mathf.Min(values.Count - 1, (int)(share * values.Count)));
+        }
+
+        /// <summary>The readable recordings in the developer's recordings folder; the test is ignored without any.</summary>
+        private static (string Folder, TrackingRecordingInfo[] Recordings) DeveloperRecordings()
+        {
+            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
+            TrackingRecordingInfo[] recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
+            if (recordings.Length == 0)
+            {
+                Assert.Ignore($"No recordings in {folder}.");
+            }
+
+            return (folder, recordings);
         }
 
         private static float Median(List<float> values)
