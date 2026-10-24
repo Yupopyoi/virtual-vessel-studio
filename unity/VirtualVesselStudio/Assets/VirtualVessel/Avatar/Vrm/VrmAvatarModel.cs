@@ -29,6 +29,9 @@ namespace VirtualVessel.Avatar.Vrm
             Expressions = new VrmAvatarExpressions(runtime, _instance.Vrm != null ? _instance.Vrm.LookAt : null);
             var faceShapes = new VrmAvatarFaceShapes(_instance.GetComponentsInChildren<SkinnedMeshRenderer>(true));
             _faceShapes = faceShapes.Names.Count > 0 ? faceShapes : null;
+
+            // Before anything poses it, while the meshes and the rig are in the reference pose.
+            BodyShape = MeasureBody();
         }
 
         public Transform Root => _instance != null ? _instance.transform : null;
@@ -39,6 +42,8 @@ namespace VirtualVessel.Avatar.Vrm
 
         public IAvatarFaceShapes FaceShapes => _faceShapes;
 
+        public AvatarBodyShape BodyShape { get; }
+
         public AvatarModelInfo Info { get; }
 
         /// <summary>
@@ -48,6 +53,12 @@ namespace VirtualVessel.Avatar.Vrm
         internal Transform ModelBone(HumanBodyBones bone)
         {
             return _instance != null ? _instance.Humanoid.GetBoneTransform(bone) : null;
+        }
+
+        /// <summary>Measures the body as it is now; right after loading, the reference pose. Also timed by tests.</summary>
+        internal AvatarBodyShape MeasureBody()
+        {
+            return VrmBodyShape.Measure(_instance, _instance.Runtime.ControlRig);
         }
 
         public void SetVisible(bool visible)

@@ -80,8 +80,8 @@ namespace VirtualVessel.Avatar
             into[UpperBodyBone.Spine] = Quaternion.Slerp(Quaternion.identity, shown[UpperBodyBone.Spine], torso);
             into[UpperBodyBone.Chest] = Quaternion.Slerp(Quaternion.identity, shown[UpperBodyBone.Chest], torso);
             into[UpperBodyBone.UpperChest] = Quaternion.Slerp(Quaternion.identity, shown[UpperBodyBone.UpperChest], torso);
-            ComposeArm(shown, left: true, leftArm, armDownDegrees, into);
-            ComposeArm(shown, left: false, rightArm, armDownDegrees, into);
+            ComposeArm(shown, ArmSide.Left, leftArm, armDownDegrees, into);
+            ComposeArm(shown, ArmSide.Right, rightArm, armDownDegrees, into);
             into.TorsoSeen = shown.TorsoSeen;
             into.LeftArmSeen = shown.LeftArmSeen;
             into.RightArmSeen = shown.RightArmSeen;
@@ -89,16 +89,13 @@ namespace VirtualVessel.Avatar
             into.RightForearmSeen = shown.RightForearmSeen;
         }
 
-        private static void ComposeArm(BodyTarget shown, bool left, float presence, float armDownDegrees, BodyTarget into)
+        private static void ComposeArm(BodyTarget shown, ArmSide side, float presence, float armDownDegrees, BodyTarget into)
         {
-            UpperBodyBone shoulder = left ? UpperBodyBone.LeftShoulder : UpperBodyBone.RightShoulder;
-            UpperBodyBone upper = left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm;
-            UpperBodyBone lower = left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm;
             Quaternion top = into.TorsoTop;
-            Quaternion hanging = top * AvatarRestPose.UpperArm(left, armDownDegrees);
-            into[shoulder] = Quaternion.Slerp(top, shown[shoulder], presence);
-            into[upper] = Quaternion.Slerp(hanging, shown[upper], presence);
-            into[lower] = Quaternion.Slerp(hanging, shown[lower], presence);
+            Quaternion hanging = top * AvatarRestPose.UpperArm(side.IsLeft, armDownDegrees);
+            into[side.Shoulder] = Quaternion.Slerp(top, shown[side.Shoulder], presence);
+            into[side.UpperArm] = Quaternion.Slerp(hanging, shown[side.UpperArm], presence);
+            into[side.LowerArm] = Quaternion.Slerp(hanging, shown[side.LowerArm], presence);
         }
 
         private static double LostFor(double seenAt, double now, BodyPose body)
@@ -116,25 +113,24 @@ namespace VirtualVessel.Avatar
                 observed[UpperBodyBone.UpperChest] = previous[UpperBodyBone.UpperChest];
             }
 
-            KeepUnseenArm(previous, observed, left: true, observed.LeftArmSeen, observed.LeftForearmSeen);
-            KeepUnseenArm(previous, observed, left: false, observed.RightArmSeen, observed.RightForearmSeen);
+            KeepUnseenArm(previous, observed, ArmSide.Left, observed.LeftArmSeen, observed.LeftForearmSeen);
+            KeepUnseenArm(previous, observed, ArmSide.Right, observed.RightArmSeen, observed.RightForearmSeen);
         }
 
-        private static void KeepUnseenArm(BodyTarget previous, BodyTarget observed, bool left, bool armSeen, bool forearmSeen)
+        private static void KeepUnseenArm(BodyTarget previous, BodyTarget observed, ArmSide side, bool armSeen, bool forearmSeen)
         {
-            UpperBodyBone shoulder = left ? UpperBodyBone.LeftShoulder : UpperBodyBone.RightShoulder;
-            UpperBodyBone upper = left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm;
-            UpperBodyBone lower = left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm;
+            UpperBodyBone upper = side.UpperArm;
+            UpperBodyBone lower = side.LowerArm;
             if (!armSeen)
             {
-                observed[shoulder] = previous[shoulder];
+                observed[side.Shoulder] = previous[side.Shoulder];
                 observed[upper] = previous[upper];
                 observed[lower] = previous[lower];
             }
             else if (!forearmSeen)
             {
                 // The wrist hidden: the upper arm follows the elbow, the forearm keeps its last bend.
-                (Quaternion followed, Quaternion bent) = PoseRetargeting.WithoutWrist(left, observed[upper], previous[upper], previous[lower]);
+                (Quaternion followed, Quaternion bent) = PoseRetargeting.WithoutWrist(side.IsLeft, observed[upper], previous[upper], previous[lower]);
                 observed[upper] = followed;
                 observed[lower] = bent;
             }

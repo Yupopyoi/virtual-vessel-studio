@@ -8,13 +8,15 @@ namespace VirtualVessel.Tracking.Processing
     /// </summary>
     /// <remarks>
     /// The angle values come from synthetic motion with 2° noise at 30 samples per second, averaged
-    /// over 20 noise seeds (OneEuroComparisonTests): Standard is as steady as the prototype's 30-frame
-    /// average when still (0.088° against 0.097° per frame) with 66 ms lag instead of 483 ms. Smooth
-    /// is steadier with 99 ms, Responsive follows closer with 56 ms. Positions scale beta by 1 cm ≈ 2°
-    /// at arm length; face values are kept fast so blinks survive. Positions and face values are
-    /// provisional until they are tuned on recorded camera data (tracking detailed design 17).
-    /// Those three presets are levels 3, 5, and 7; the levels between and beyond take the same ratio
-    /// per level, so each step changes the cutoffs by the same factor.
+    /// over 20 noise seeds (OneEuroComparisonTests): the balanced set is as steady as the prototype's
+    /// 30-frame average when still (0.088° against 0.097° per frame) with 66 ms lag instead of 483 ms.
+    /// The steady set is steadier with 99 ms, the quick one follows closer with 56 ms. Positions scale
+    /// beta by 1 cm ≈ 2° at arm length; face values are kept fast so blinks survive. Positions and face
+    /// values are provisional until they are tuned on recorded camera data (tracking detailed design 17).
+    /// The levels step from the balanced set past the steady one by the same ratio per level, half the
+    /// ratio between the two, so the steady set would be level 9 and the balanced one 11; the user chose
+    /// stability over lag, and the standard 5 lags about 260 ms on recorded arms (2026-10-24). The face
+    /// stops at the steady set, so blinks and the mouth keep up at every level.
     /// </remarks>
     public readonly struct SmoothingProfile
     {
@@ -34,45 +36,46 @@ namespace VirtualVessel.Tracking.Processing
         /// <summary>For face values and gaze, 0 to 1.</summary>
         public OneEuroParameters Face { get; }
 
-        private static readonly SmoothingProfile s_smooth = new SmoothingProfile(
+        private static readonly SmoothingProfile s_steady = new SmoothingProfile(
             new OneEuroParameters(0.05f, 0.003f),
             new OneEuroParameters(0.05f, 0.6f),
             new OneEuroParameters(0.5f, 0.5f));
 
-        private static readonly SmoothingProfile s_standard = new SmoothingProfile(
+        private static readonly SmoothingProfile s_balanced = new SmoothingProfile(
             new OneEuroParameters(0.1f, 0.005f),
             new OneEuroParameters(0.1f, 1f),
             new OneEuroParameters(1f, 1f));
 
-        private static readonly SmoothingProfile s_responsive = new SmoothingProfile(
+        private static readonly SmoothingProfile s_quick = new SmoothingProfile(
             new OneEuroParameters(0.2f, 0.01f),
             new OneEuroParameters(0.2f, 2f),
             new OneEuroParameters(2f, 2f));
 
+        // Where the measured sets would sit on the levels, past the quickest one.
+        private const int SteadyLevel = 9;
+        private const int BalancedLevel = 11;
+
+        /// <summary>The measured sets, for tests of the filters themselves.</summary>
+        public static SmoothingProfile Steady => s_steady;
+
+        public static SmoothingProfile Balanced => s_balanced;
+
+        public static SmoothingProfile Quick => s_quick;
+
         /// <summary>
-        /// The parameters of <paramref name="level"/>, kept within the levels: the measured presets at 3,
-        /// 5, and 7, and geometric steps from the standard toward and past the nearer of the other two. Pure.
+        /// The parameters of <paramref name="level"/>, kept within the levels: geometric steps from the
+        /// balanced set toward and past the steady one, two levels for the ratio between them; the face no
+        /// further than the steady set. Pure.
         /// </summary>
         public static SmoothingProfile For(int level)
         {
             level = SmoothingLevel.Clamp(level);
-            switch (level)
-            {
-                case SmoothingLevel.Smooth:
-                    return s_smooth;
-                case SmoothingLevel.Standard:
-                    return s_standard;
-                case SmoothingLevel.Responsive:
-                    return s_responsive;
-            }
-
-            // Two levels lead from the standard to the next preset, so each level is half of that ratio.
-            SmoothingProfile toward = level < SmoothingLevel.Standard ? s_smooth : s_responsive;
-            float steps = Math.Abs(level - SmoothingLevel.Standard) / 2f;
+            float steps = (BalancedLevel - level) / 2f;
+            float faceSteps = Math.Min(steps, (BalancedLevel - SteadyLevel) / 2f);
             return new SmoothingProfile(
-                Step(s_standard.Angle, toward.Angle, steps),
-                Step(s_standard.Position, toward.Position, steps),
-                Step(s_standard.Face, toward.Face, steps));
+                Step(s_balanced.Angle, s_steady.Angle, steps),
+                Step(s_balanced.Position, s_steady.Position, steps),
+                Step(s_balanced.Face, s_steady.Face, faceSteps));
         }
 
         private static OneEuroParameters Step(OneEuroParameters from, OneEuroParameters to, float steps)

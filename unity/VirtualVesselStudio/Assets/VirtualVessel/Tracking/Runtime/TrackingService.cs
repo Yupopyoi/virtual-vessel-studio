@@ -34,6 +34,7 @@ namespace VirtualVessel.Tracking
         private readonly ConfigSaveScheduler<TrackingSettings> _saves;
         private readonly TrackingProcessor _processor = new TrackingProcessor();
         private readonly TrackingFrame _raw = new TrackingFrame();
+        private readonly TrackingFrame _corrected = new TrackingFrame();
         private readonly TrackingFrame _current = new TrackingFrame();
         private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
         private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
@@ -47,6 +48,7 @@ namespace VirtualVessel.Tracking
         private IDisposable _tick;
         private ITrackingProvider _replay;
         private bool _wantedBeforeReplay;
+        private ObservationCorrections _corrections = ObservationCorrections.None;
 
         /// <param name="provider">Null when no provider can run, such as without the MediaPipe plugin; tracking then reports StartFailed.</param>
         /// <param name="camera">The tracking camera, or null for a provider that needs none, such as replay.</param>
@@ -62,6 +64,7 @@ namespace VirtualVessel.Tracking
             _log = log;
             _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
             _latency = metrics?.Timer("Tracking", "Latency");
+            ChooseCorrections();
         }
 
         public string Name => ServiceName;
@@ -91,6 +94,9 @@ namespace VirtualVessel.Tracking
         internal event Action ReplayEnded;
 
         internal bool IsReplaying => _replay != null;
+
+        /// <summary>What kind of observation the active provider makes; recordings keep it so a replay is corrected alike.</summary>
+        internal ObservationTraits Traits => Active?.Traits ?? ObservationTraits.None;
 
         /// <summary>The provider observations come from now: the replay while one runs.</summary>
         private ITrackingProvider Active => _replay ?? _provider;
@@ -195,6 +201,7 @@ namespace VirtualVessel.Tracking
             }
 
             _replay = replay;
+            ChooseCorrections();
             _wanted = true;
             _processor.Reset();
             _replay.Start(_options.Value);
@@ -305,8 +312,27 @@ namespace VirtualVessel.Tracking
                     Observed?.Invoke(_raw);
                 }
 
+                // Corrections and the 2D body work on a copy, so recordings keep what the provider observed
+                // (tracking detailed design 8.4, 8.6, 12.2).
                 TrackingOptions options = _options.Value;
-                _processor.Process(observed ? _raw : null, _now, active.Supported, options.Regions, options.Smoothing, _current);
+                TrackingFrame observation = null;
+                if (observed)
+                {
+                    observation = _raw;
+                    bool flat = options.BodyDepth == BodyDepth.Flat;
+                    if (_corrections.Any || flat)
+                    {
+                        _corrections.Apply(_raw, _corrected);
+                        if (flat)
+                        {
+                            BodyFlattening.Flatten(_corrected.Body);
+                        }
+
+                        observation = _corrected;
+                    }
+                }
+
+                _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
                 if (observed)
                 {
                     NoteObservation(Newest(_raw));
@@ -347,6 +373,13 @@ namespace VirtualVessel.Tracking
             _replay?.Stop();
             _replay?.Dispose();
             _replay = null;
+            ChooseCorrections();
+        }
+
+        /// <summary>The corrections that suit the active provider's observations.</summary>
+        private void ChooseCorrections()
+        {
+            _corrections = ObservationCorrections.For(Traits, ObservationCorrections.Catalog);
         }
 
         private void Refresh()

@@ -30,14 +30,14 @@ namespace VirtualVessel.Avatar
         public const float ShoulderShare = 0.25f;
         public const float MaxShoulderRaiseDegrees = 20f;
 
-        /// <summary>A joint less visible than this (MediaPipe's visibility) does not move the avatar.</summary>
-        public const float MinVisibility = 0.5f;
+        /// <summary>A joint less visible than this (MediaPipe's visibility) does not move the avatar; Tracking's one threshold.</summary>
+        public const float MinVisibility = BodyPose.MinVisibility;
 
         // How bent an arm must be for its own bend to set the upper arm's twist (the sine of the angle
         // between upper arm and forearm). A nearly straight arm's bend says nothing about the twist, so
         // below the first value the twist follows the torso, and between the two it blends.
-        private const float StraightBelow = 0.10f;
-        private const float BentAbove = 0.35f;
+        private const float StraightBelow = 0.25f;
+        private const float BentAbove = 0.50f;
 
         /// <summary>
         /// Writes the upper body's rotations for <paramref name="body"/> into <paramref name="into"/>. Parts
@@ -47,7 +47,7 @@ namespace VirtualVessel.Avatar
         public static void Retarget(BodyPose body, bool mirror, bool hasUpperChest, float armDownDegrees, BodyTarget into)
         {
             bool usable = body != null && body.IsUsable;
-            into.TorsoSeen = usable && Visible(body, BodyJoint.LeftShoulder) && Visible(body, BodyJoint.RightShoulder);
+            into.TorsoSeen = usable && Visible(body, BodyJoint.LeftShoulder, mirror) && Visible(body, BodyJoint.RightShoulder, mirror);
             Quaternion torso = into.TorsoSeen
                 ? LimitTorso(Torso(Joint(body, BodyJoint.LeftShoulder, mirror), Joint(body, BodyJoint.RightShoulder, mirror), Joint(body, BodyJoint.Neck, mirror), Joint(body, BodyJoint.Hips, mirror)))
                 : Quaternion.identity;
@@ -55,8 +55,8 @@ namespace VirtualVessel.Avatar
             into[UpperBodyBone.Chest] = hasUpperChest ? Quaternion.Slerp(Quaternion.identity, torso, ChestShare) : torso;
             into[UpperBodyBone.UpperChest] = torso;
 
-            (bool leftArm, bool leftForearm) = WriteArm(body, mirror, left: true, torso, into.TorsoSeen, armDownDegrees, into);
-            (bool rightArm, bool rightForearm) = WriteArm(body, mirror, left: false, torso, into.TorsoSeen, armDownDegrees, into);
+            (bool leftArm, bool leftForearm) = WriteArm(body, mirror, ArmSide.Left, torso, into.TorsoSeen, armDownDegrees, into);
+            (bool rightArm, bool rightForearm) = WriteArm(body, mirror, ArmSide.Right, torso, into.TorsoSeen, armDownDegrees, into);
             into.LeftArmSeen = leftArm;
             into.LeftForearmSeen = leftForearm;
             into.RightArmSeen = rightArm;
@@ -191,6 +191,12 @@ namespace VirtualVessel.Avatar
             return new Vector3(-position.x, position.y, position.z);
         }
 
+        /// <summary>The shoulder, elbow, and wrist of the avatar's <paramref name="side"/> in its root's space, from the person's side the mirror says.</summary>
+        public static (Vector3 Shoulder, Vector3 Elbow, Vector3 Wrist) ArmJoints(BodyPose body, ArmSide side, bool mirror)
+        {
+            return (Joint(body, side.ShoulderJoint, mirror), Joint(body, side.ElbowJoint, mirror), Joint(body, side.WristJoint, mirror));
+        }
+
         /// <summary>The same joint on the other side; a joint in the middle is itself.</summary>
         public static BodyJoint Opposite(BodyJoint joint)
         {
@@ -221,44 +227,39 @@ namespace VirtualVessel.Avatar
         /// forearm (the wrist too) were seen. Without the wrist the forearm is left straight here; the
         /// motion keeps its last bend (<see cref="WithoutWrist"/>).
         /// </summary>
-        private static (bool Arm, bool Forearm) WriteArm(BodyPose body, bool mirror, bool left, Quaternion torso, bool torsoSeen, float armDownDegrees, BodyTarget into)
+        private static (bool Arm, bool Forearm) WriteArm(BodyPose body, bool mirror, ArmSide side, Quaternion torso, bool torsoSeen, float armDownDegrees, BodyTarget into)
         {
-            BodyJoint shoulder = left ? BodyJoint.LeftShoulder : BodyJoint.RightShoulder;
-            BodyJoint elbow = left ? BodyJoint.LeftElbow : BodyJoint.RightElbow;
-            BodyJoint wrist = left ? BodyJoint.LeftWrist : BodyJoint.RightWrist;
-            UpperBodyBone shoulderBone = left ? UpperBodyBone.LeftShoulder : UpperBodyBone.RightShoulder;
-            UpperBodyBone upperBone = left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm;
-            UpperBodyBone lowerBone = left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm;
-
-            // Visibility is the person's side; in a mirror that is the avatar's other side.
-            bool seen = torsoSeen
-                && Visible(body, mirror ? Opposite(shoulder) : shoulder)
-                && Visible(body, mirror ? Opposite(elbow) : elbow);
+            bool left = side.IsLeft;
+            bool seen = torsoSeen && Visible(body, side.ShoulderJoint, mirror) && Visible(body, side.ElbowJoint, mirror);
             if (!seen)
             {
                 Quaternion lowered = torso * AvatarRestPose.UpperArm(left, armDownDegrees);
-                into[shoulderBone] = torso;
-                into[upperBone] = lowered;
-                into[lowerBone] = lowered;
+                into[side.Shoulder] = torso;
+                into[side.UpperArm] = lowered;
+                into[side.LowerArm] = lowered;
                 return (false, false);
             }
 
             // A hand behind the head hides the wrist while the shoulder and the elbow stay in view (the
             // user's recording, 2026-10-22: the wrist seen 28% of the time, the elbow always).
-            bool forearm = Visible(body, mirror ? Opposite(wrist) : wrist);
-            Vector3 shoulderAt = Joint(body, shoulder, mirror);
-            Vector3 elbowAt = Joint(body, elbow, mirror);
-            Vector3 wristAt = forearm ? Joint(body, wrist, mirror) : elbowAt + (elbowAt - shoulderAt);
+            bool forearm = Visible(body, side.WristJoint, mirror);
+            (Vector3 shoulderAt, Vector3 elbowAt, Vector3 wristAt) = ArmJoints(body, side, mirror);
+            if (!forearm)
+            {
+                wristAt = elbowAt + (elbowAt - shoulderAt);
+            }
+
             (Quaternion upper, Quaternion lower) = Arm(left, shoulderAt, elbowAt, wristAt, torso);
-            into[shoulderBone] = Shoulder(left, ShoulderRaise(left, upper, torso), torso);
-            into[upperBone] = upper;
-            into[lowerBone] = lower;
+            into[side.Shoulder] = Shoulder(left, ShoulderRaise(left, upper, torso), torso);
+            into[side.UpperArm] = upper;
+            into[side.LowerArm] = lower;
             return (true, forearm);
         }
 
-        private static bool Visible(BodyPose body, BodyJoint joint)
+        /// <summary>Whether the avatar's <paramref name="joint"/> is seen. Visibility is the person's side; in a mirror that is the avatar's other side.</summary>
+        private static bool Visible(BodyPose body, BodyJoint joint, bool mirror)
         {
-            return body.JointConfidence[(int)joint] >= MinVisibility;
+            return body.JointConfidence[(int)(mirror ? Opposite(joint) : joint)] >= MinVisibility;
         }
 
         private static float Signed(float degrees)

@@ -19,6 +19,10 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.tracking.unavailable";
         public const string Track = "setup.tracking.track";
         public const string Mirror = "setup.tracking.mirror";
+        public const string Depth = "setup.tracking.depth";
+        public const string DepthDescription = "setup.tracking.depth.description";
+        public const string Depth3D = "setup.tracking.depth.3d";
+        public const string Depth2D = "setup.tracking.depth.2d";
         public const string Speed = "setup.tracking.speed";
         public const string SpeedDescription = "setup.tracking.speed.description";
         public const string Load = "setup.tracking.load";
@@ -125,6 +129,13 @@ namespace VirtualVessel.UI.Screens
             MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
             card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
+            // The camera sees depth poorly; 2D keeps only what it sees well (tracking detailed design 8.6).
+            Depth = Ui.Segmented(TrackingStrings.Depth3D, TrackingStrings.Depth2D);
+            Depth.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(evt.newValue == 1 ? BodyDepth.Flat : BodyDepth.Tracked)));
+            SettingRow depth = Ui.SettingRow(TrackingStrings.Depth, TrackingStrings.DepthDescription);
+            depth.Add(Depth);
+            card.Add(depth);
+
             // Fast and steady trade against each other; the user picks a level (tracking detailed design 8.2).
             Speed = Ui.Slider(null, SmoothingLevel.Min, SmoothingLevel.Max);
             Speed.Step = 1f;
@@ -153,6 +164,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Shows the camera image as in a mirror; the avatar follows the same setting.</summary>
         public SwitchToggle MirrorToggle { get; }
+
+        /// <summary>The body in depth (3D, 0) or only across and up (2D, 1).</summary>
+        public Segmented Depth { get; }
 
         /// <summary>The smoothing level, 1 (steadiest) to 10 (fastest).</summary>
         public ValueSlider Speed { get; }
@@ -272,6 +286,7 @@ namespace VirtualVessel.UI.Screens
             bool mirror = options.Mirror;
             MirrorToggle.SetValueWithoutNotify(mirror);
             Speed.SetValueWithoutNotify(options.Smoothing);
+            Depth.SetValueWithoutNotify(options.BodyDepth == BodyDepth.Flat ? 1 : 0);
 
             // The image and the points over it flip together; the caption inside is flipped back so it reads.
             Preview.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));

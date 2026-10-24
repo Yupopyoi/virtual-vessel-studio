@@ -67,6 +67,12 @@ namespace VirtualVessel.Avatar
         /// avatar. Rewritten every frame, so read it within the frame and do not keep it.
         /// </summary>
         FaceTarget Face { get; }
+
+        /// <summary>
+        /// What the avatar's upper body shows this frame, for comparing it with tracking on the Diagnostics
+        /// screen; null without an avatar. Rewritten every frame, so read it within the frame and do not keep it.
+        /// </summary>
+        BodyTarget Body { get; }
     }
 
     /// <summary>Where the avatar goes on the stream: its Unity layer (Video) and spawn point (Stage).</summary>

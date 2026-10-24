@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
@@ -33,19 +34,25 @@ namespace VirtualVessel.Avatar.Tests
 
             foreach (TrackingRecordingInfo info in recordings)
             {
-                List<TrackingFrame> frames = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id)).Frames;
+                (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
+
+                // The same corrections tracking applies to this kind of input (tracking detailed design 8.4).
+                ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
+                var corrected = new TrackingFrame();
+                var bends = new List<float>();
                 var target = new BodyTarget();
                 var previous = new BodyTarget();
                 var motion = new BodyMotion(hasUpperChest: true);
                 int index = 0;
                 var upper = new List<float>();
                 var fore = new List<float>();
-                int usable = 0, torso = 0, left = 0, right = 0, forearm = 0, jumps = 0;
+                int usable = 0, torso = 0, left = 0, right = 0, forearm = 0, jumps = 0, turns = 0;
                 var visible = new int[3];
                 bool first = true;
                 foreach (TrackingFrame frame in frames)
                 {
-                    BodyPose body = frame.Body;
+                    corrections.Apply(frame, corrected);
+                    BodyPose body = corrected.Body;
                     if (!body.IsUsable)
                     {
                         continue;
@@ -81,6 +88,17 @@ namespace VirtualVessel.Avatar.Tests
                     if (!first && Quaternion.Angle(motion.Current[UpperBodyBone.RightUpperArm], previous[UpperBodyBone.RightUpperArm]) > JumpDegrees)
                     {
                         jumps++;
+
+                        // A jump in where the arm points, rather than in its twist about itself.
+                        if (Vector3.Angle(motion.Current[UpperBodyBone.RightUpperArm] * Vector3.right, previous[UpperBodyBone.RightUpperArm] * Vector3.right) > JumpDegrees)
+                        {
+                            turns++;
+                        }
+                    }
+
+                    if (motion.Current.RightArmSeen && motion.Current.RightForearmSeen)
+                    {
+                        bends.Add(Vector3.Angle(motion.Current[UpperBodyBone.RightUpperArm] * Vector3.right, motion.Current[UpperBodyBone.RightLowerArm] * Vector3.right));
                     }
 
                     previous.CopyFrom(motion.Current);
@@ -88,9 +106,14 @@ namespace VirtualVessel.Avatar.Tests
                 }
 
                 Debug.Log($"[Body] {info.Id} \"{info.Description}\": {frames.Count} observations, body {usable}, torso {Share(torso, usable)}, "
-                    + $"arms L {Share(left, usable)} R {Share(right, usable)} (R forearm {Share(forearm, usable)}); right arm lengths: upper {Spread(upper)}, forearm {Spread(fore)}; "
-                    + $"right upper-arm jumps over {JumpDegrees:F0}° per observation: {jumps}; its joints visible: shoulder {Share(visible[0], usable)}, elbow {Share(visible[1], usable)}, wrist {Share(visible[2], usable)}");
+                    + $"arms L {Share(left, usable)} R {Share(right, usable)} (R forearm {Share(forearm, usable)}); right elbow bend median {Median(bends):F0}°; corrections {corrections.Corrections.Count}; right arm lengths: upper {Spread(upper)}, forearm {Spread(fore)}; "
+                    + $"right upper-arm jumps over {JumpDegrees:F0}° per observation: {jumps} ({turns} in direction, the rest in twist); its joints visible: shoulder {Share(visible[0], usable)}, elbow {Share(visible[1], usable)}, wrist {Share(visible[2], usable)}");
             }
+        }
+
+        private static float Median(List<float> values)
+        {
+            return values.Count == 0 ? float.NaN : values.OrderBy(value => value).ElementAt(values.Count / 2);
         }
 
         private static string Share(int count, int total)

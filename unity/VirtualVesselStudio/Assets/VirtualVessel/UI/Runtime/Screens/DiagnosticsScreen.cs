@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine.UIElements;
+using VirtualVessel.Avatar;
+using VirtualVessel.Capture;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Recording;
@@ -41,8 +43,10 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="metrics">Null when the performance metrics service is not available.</param>
         /// <param name="recordings">Tracking recordings; null leaves their Card out.</param>
-        /// <param name="tracking">Tracking, to know whether recording can start.</param>
-        public DiagnosticsScreen(IPerformanceMetrics metrics, ITrackingRecordings recordings = null, ITrackingSource tracking = null)
+        /// <param name="tracking">Tracking, to know whether recording can start, and to compare with the avatar; null leaves the skeleton out.</param>
+        /// <param name="avatars">The avatars, whose upper body the skeleton Card compares with tracking.</param>
+        /// <param name="camera">The tracking camera, shown beside the skeleton with the face covered.</param>
+        public DiagnosticsScreen(IPerformanceMetrics metrics, ITrackingRecordings recordings = null, ITrackingSource tracking = null, IAvatarService avatars = null, IVideoCaptureSource camera = null)
         {
             _metrics = metrics;
             AddToClassList(UssClass);
@@ -70,12 +74,21 @@ namespace VirtualVessel.UI.Screens
                 Recordings = new TrackingRecordingsCard(recordings, tracking);
                 Add(Recordings);
             }
+
+            if (tracking != null)
+            {
+                Skeleton = new SkeletonCard(tracking, avatars, camera);
+                Add(Skeleton);
+            }
         }
 
         public Label Status { get; }
 
         /// <summary>Null without tracking recordings.</summary>
         public TrackingRecordingsCard Recordings { get; }
+
+        /// <summary>Null without tracking.</summary>
+        public SkeletonCard Skeleton { get; }
 
         /// <summary>Null when the performance metrics service is not available.</summary>
         public DataTable Table { get; }
@@ -89,6 +102,7 @@ namespace VirtualVessel.UI.Screens
 
         public void OnShown()
         {
+            Skeleton?.Start();
             if (_metrics == null || _refresh != null)
             {
                 return;
@@ -100,6 +114,7 @@ namespace VirtualVessel.UI.Screens
 
         public void OnHidden()
         {
+            Skeleton?.Stop();
             _refresh?.Pause();
             _refresh = null;
         }

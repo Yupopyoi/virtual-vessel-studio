@@ -593,6 +593,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public IAvatarFaceShapes FaceShapes => _shapeNames == null ? null : this;
 
+            public AvatarBodyShape BodyShape { get; set; }
+
             IReadOnlyList<string> IAvatarFaceShapes.Names => _shapeNames;
 
             void IAvatarFaceShapes.SetWeight(int index, float weight)

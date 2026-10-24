@@ -121,7 +121,7 @@ namespace VirtualVessel.Tracking.Recording
             Directory.CreateDirectory(_directory);
             DateTime startedAt = _utcNow();
             string name = TrackingRecordingFile.NameFor(startedAt, candidate => File.Exists(Path.Combine(_directory, candidate)));
-            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, startedAt, _tracking.Supported, TrackingRecordingFormat.NormalizeDescription(description));
+            var header = new TrackingRecordingHeader(TrackingRecordingFormat.Version, TrackingRecordingFormat.FrameSize, startedAt, _tracking.Supported, _tracking.Traits, TrackingRecordingFormat.NormalizeDescription(description));
             _recorder = TrackingRecorder.Create(Path.Combine(_directory, name), header);
             ActiveId = name;
             _tracking.Observed = OnObserved;
@@ -159,7 +159,7 @@ namespace VirtualVessel.Tracking.Recording
                 throw new InvalidDataException($"{id} has no observations.");
             }
 
-            _tracking.BeginReplay(new TrackingReplayProvider(frames, header.Supported, _now, loop: true));
+            _tracking.BeginReplay(new TrackingReplayProvider(frames, header.Supported, _now, loop: true, header.Traits));
             ActiveId = id;
             _activity.Value = RecordingActivity.Replaying;
             _log?.Information($"Replaying {id}: {frames.Count} observations.");

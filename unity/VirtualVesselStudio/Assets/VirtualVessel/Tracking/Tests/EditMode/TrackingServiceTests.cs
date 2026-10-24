@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using NUnit.Framework;
@@ -8,6 +9,7 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Tracking.Tests
@@ -118,6 +120,33 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void InTwoD_TheBodyLosesItsDepth_AndTheFaceAndRecordingsKeepTheirs()
+        {
+            _service = Create();
+            _service.SetOptions(_service.Options.Value.WithBodyDepth(BodyDepth.Flat));
+            var recorded = new List<float>();
+            _service.Observed += frame => recorded.Add(frame.Body[BodyJoint.Nose].z);
+            _service.Start();
+
+            for (int i = 0; i < 20; i++)
+            {
+                Frame();
+            }
+
+            Assert.That(_service.Current.Body[BodyJoint.Nose], Is.EqualTo(new Vector3(0f, 0.62f, 0f)), "Across and up as observed, at the hips' depth.");
+            Assert.That(_service.Current.Body[BodyJoint.RightWrist].z, Is.EqualTo(BodyFlattening.ArmsForwardMeters), "The arms a little in front.");
+            Assert.That(recorded, Has.All.EqualTo(0.1f), "What the provider observed, for recordings.");
+
+            _service.SetOptions(_service.Options.Value.WithBodyDepth(BodyDepth.Tracked));
+            for (int i = 0; i < 20; i++)
+            {
+                Frame();
+            }
+
+            Assert.That(_service.Current.Body[BodyJoint.Nose].z, Is.GreaterThan(0.02f).And.LessThanOrEqualTo(0.1f), "Back in depth (3D), gliding there through the smoothing.");
+        }
+
+        [Test]
         public void TrackedImages_AreCountedPerSecond_AndMirrorIsOnByDefault()
         {
             _service = Create();
@@ -146,9 +175,9 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(_service.Current.Face.Status, Is.EqualTo(TrackingStatus.Disabled));
         }
 
-        [TestCase(0, SmoothingLevel.Smooth)]
+        [TestCase(0, SmoothingLevel.Standard)]
         [TestCase(1, SmoothingLevel.Default)]
-        [TestCase(2, SmoothingLevel.Responsive)]
+        [TestCase(2, SmoothingLevel.Max)]
         public void AFileWithThreePresets_ReadsAsTheirLevels_KeepingTheOtherValues(int preset, int level)
         {
             Directory.CreateDirectory(_directory);
@@ -161,13 +190,46 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(loaded.Value.Running, Is.True);
         }
 
+        [TestCase(5, SmoothingLevel.Standard)]
+        [TestCase(3, SmoothingLevel.Standard)]
+        [TestCase(1, 7)]
+        [TestCase(7, SmoothingLevel.Max)]
+        public void AVersion2Level_MovesUpThroughVersion3_AndItsStandardBecomesTheNewOne(int saved, int level)
+        {
+            // Version 2's standard 5 was the default nearly everyone had; the steadier 3 became version 3's
+            // standard, which becomes the new one. Others move two steps up, then four.
+            Directory.CreateDirectory(_directory);
+            File.WriteAllText(Path.Combine(_directory, TrackingSettings.FileName), $"{{ \"schemaVersion\": 2, \"smoothingLevel\": {saved}, \"mirror\": false }}");
+
+            ConfigLoadResult<TrackingSettings> loaded = TrackingService.CreateStore(_directory, new UtcSystemClock()).Load();
+
+            Assert.That(loaded.Value.SmoothingLevel, Is.EqualTo(level));
+            Assert.That(loaded.Value.Mirror, Is.False);
+        }
+
+        [TestCase(1, SmoothingLevel.Standard)]
+        [TestCase(5, SmoothingLevel.Standard)]
+        [TestCase(3, 7)]
+        [TestCase(6, SmoothingLevel.Max)]
+        public void AVersion3Level_MovesFourStepsUp_AndItsStandardBecomesTheNewOne(int saved, int level)
+        {
+            Directory.CreateDirectory(_directory);
+            File.WriteAllText(Path.Combine(_directory, TrackingSettings.FileName), $"{{ \"schemaVersion\": 3, \"smoothingLevel\": {saved}, \"bodyDepth\": 1 }}");
+
+            ConfigLoadResult<TrackingSettings> loaded = TrackingService.CreateStore(_directory, new UtcSystemClock()).Load();
+
+            Assert.That(loaded.Value.SmoothingLevel, Is.EqualTo(level));
+            Assert.That(loaded.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
+        }
+
         [Test]
         public void Choices_AreSaved_AndRunningTrackingStartsAgain()
         {
             _service = Create();
             _service.SetOptions(_service.Options.Value
-                .WithSmoothing(SmoothingLevel.Smooth)
+                .WithSmoothing(3)
                 .WithMirror(false)
+                .WithBodyDepth(BodyDepth.Flat)
                 .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
             _service.Start();
             _service.ShutdownAsync(CancellationToken.None).Wait();
@@ -175,16 +237,18 @@ namespace VirtualVessel.Tracking.Tests
 
             ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(_directory, new UtcSystemClock());
             TrackingSettings saved = store.Load().Value;
-            Assert.That(saved.SmoothingLevel, Is.EqualTo(SmoothingLevel.Smooth));
+            Assert.That(saved.SmoothingLevel, Is.EqualTo(3));
             Assert.That(saved.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
             Assert.That(saved.Running, Is.True);
             Assert.That(saved.Mirror, Is.False);
+            Assert.That(saved.BodyDepth, Is.EqualTo(BodyDepth.Flat));
 
             _camera = new FakeCamera();
             _service = Create(saved);
             Assert.That(_service.State.Value, Is.EqualTo(TrackingState.Running), "Started again at startup.");
-            Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(SmoothingLevel.Smooth));
+            Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(3));
             Assert.That(_service.Options.Value.Mirror, Is.False);
+            Assert.That(_service.Options.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
         }
 
         [Test]

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UIElements;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -418,7 +419,7 @@ namespace VirtualVessel.UI
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens.StreamPreview, context.Screens.FrameSources)),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
-                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking), developerOnly: true),
+                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId)), developerOnly: true),
             };
 #if UNITY_EDITOR
             // A tool for building the UI, not part of the application: only in the Unity Editor.

@@ -8,12 +8,13 @@ namespace VirtualVessel.Tracking.Recording
     /// <summary>The start of a recording file (tracking detailed design 12.3).</summary>
     public readonly struct TrackingRecordingHeader
     {
-        public TrackingRecordingHeader(int version, int frameSize, DateTime startedAtUtc, TrackingRegions supported, string description)
+        public TrackingRecordingHeader(int version, int frameSize, DateTime startedAtUtc, TrackingRegions supported, ObservationTraits traits, string description)
         {
             Version = version;
             FrameSize = frameSize;
             StartedAtUtc = startedAtUtc;
             Supported = supported;
+            Traits = traits;
             Description = description ?? string.Empty;
         }
 
@@ -26,6 +27,9 @@ namespace VirtualVessel.Tracking.Recording
 
         public TrackingRegions Supported { get; }
 
+        /// <summary>What kind of observation the recorded provider made, so a replay gets the same corrections.</summary>
+        public ObservationTraits Traits { get; }
+
         public string Description { get; }
     }
 
@@ -37,7 +41,9 @@ namespace VirtualVessel.Tracking.Recording
     public static class TrackingRecordingFormat
     {
         public const string Extension = ".vvtrack";
-        public const int Version = 1;
+
+        /// <summary>The version written. Version 2 added the provider's traits; version 1 still reads.</summary>
+        public const int Version = 2;
 
         /// <summary>The longest description, in characters.</summary>
         public const int MaxDescriptionLength = 100;
@@ -45,8 +51,11 @@ namespace VirtualVessel.Tracking.Recording
         /// <summary>The longest description in bytes a reader accepts: a broken length must not make it read megabytes.</summary>
         public const int MaxDescriptionBytes = MaxDescriptionLength * 4;
 
-        /// <summary>Identifier, version, frame size, start time, supported parts, description length.</summary>
-        public const int FixedHeaderSize = 4 + 4 + 4 + 8 + 4 + 4;
+        /// <summary>Identifier, version, frame size, start time, supported parts, traits, description length.</summary>
+        public const int FixedHeaderSize = 4 + 4 + 4 + 8 + 4 + 4 + 4;
+
+        /// <summary>Version 1's fixed header, without the traits.</summary>
+        public const int FixedHeaderSizeVersion1 = FixedHeaderSize - 4;
 
         private const int PartHeaderSize = 1 + 4 + 8;
         private const int BodySize = PartHeaderSize + (BodyPose.JointCount * (12 + 8 + 4));
@@ -103,33 +112,45 @@ namespace VirtualVessel.Tracking.Recording
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(8), header.FrameSize);
             BinaryPrimitives.WriteInt64LittleEndian(span.Slice(12), header.StartedAtUtc.Ticks);
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(20), (int)header.Supported);
-            BinaryPrimitives.WriteInt32LittleEndian(span.Slice(24), description.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(span.Slice(24), (int)header.Traits);
+            BinaryPrimitives.WriteInt32LittleEndian(span.Slice(28), description.Length);
             description.CopyTo(span.Slice(FixedHeaderSize));
             return bytes;
         }
 
         /// <summary>
-        /// The fixed part of a header: false when it is not one, of another version, or with a frame
-        /// size or description length this version cannot read. Pure.
+        /// The fixed part of a header of version 1 or 2, from the file's first bytes: false when it is not
+        /// one, of another version, or with a frame size or description length this version cannot read.
+        /// <paramref name="fixedLength"/> is where the description starts. Version 1 had no traits; every
+        /// version 1 recording was made with MediaPipe, so it reads as <see cref="ObservationTraits.MonocularDepth"/>. Pure.
         /// </summary>
-        public static bool TryDecodeFixedHeader(ReadOnlySpan<byte> bytes, out int version, out int frameSize, out DateTime startedAtUtc, out TrackingRegions supported, out int descriptionBytes)
+        public static bool TryDecodeFixedHeader(ReadOnlySpan<byte> bytes, out int version, out int frameSize, out DateTime startedAtUtc, out TrackingRegions supported, out ObservationTraits traits, out int descriptionBytes, out int fixedLength)
         {
             version = 0;
             frameSize = 0;
             startedAtUtc = default;
             supported = TrackingRegions.None;
+            traits = ObservationTraits.None;
             descriptionBytes = 0;
-            if (bytes.Length < FixedHeaderSize || !bytes.Slice(0, 4).SequenceEqual(s_magic))
+            fixedLength = 0;
+            if (bytes.Length < 8 || !bytes.Slice(0, 4).SequenceEqual(s_magic))
             {
                 return false;
             }
 
             version = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(4));
+            fixedLength = version == 1 ? FixedHeaderSizeVersion1 : FixedHeaderSize;
+            if ((version != 1 && version != Version) || bytes.Length < fixedLength)
+            {
+                return false;
+            }
+
             frameSize = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(8));
             long ticks = BinaryPrimitives.ReadInt64LittleEndian(bytes.Slice(12));
             supported = (TrackingRegions)BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(20));
-            descriptionBytes = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(24));
-            if (version != Version || frameSize != FrameSize || descriptionBytes < 0 || descriptionBytes > MaxDescriptionBytes
+            traits = version == 1 ? ObservationTraits.MonocularDepth : (ObservationTraits)BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(24));
+            descriptionBytes = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(fixedLength - 4));
+            if (frameSize != FrameSize || descriptionBytes < 0 || descriptionBytes > MaxDescriptionBytes
                 || ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
             {
                 return false;

@@ -107,23 +107,20 @@ namespace VirtualVessel.Tracking.Recording
         {
             header = default;
             headerLength = 0;
-            var fixedPart = new byte[TrackingRecordingFormat.FixedHeaderSize];
-            if (stream.Length < fixedPart.Length)
-            {
-                return false;
-            }
-
+            // Up to the longest fixed header; an older version's is shorter, and the description follows it.
+            var fixedPart = new byte[(int)Math.Min(stream.Length, TrackingRecordingFormat.FixedHeaderSize)];
             ReadExactly(stream, fixedPart);
-            if (!TrackingRecordingFormat.TryDecodeFixedHeader(fixedPart, out int version, out int frameSize, out DateTime startedAt, out TrackingRegions supported, out int descriptionBytes)
-                || stream.Length < fixedPart.Length + descriptionBytes)
+            if (!TrackingRecordingFormat.TryDecodeFixedHeader(fixedPart, out int version, out int frameSize, out DateTime startedAt, out TrackingRegions supported, out ObservationTraits traits, out int descriptionBytes, out int fixedLength)
+                || stream.Length < fixedLength + descriptionBytes)
             {
                 return false;
             }
 
             var description = new byte[descriptionBytes];
+            stream.Position = fixedLength;
             ReadExactly(stream, description);
-            header = new TrackingRecordingHeader(version, frameSize, startedAt, supported, Encoding.UTF8.GetString(description));
-            headerLength = fixedPart.Length + descriptionBytes;
+            header = new TrackingRecordingHeader(version, frameSize, startedAt, supported, traits, Encoding.UTF8.GetString(description));
+            headerLength = fixedLength + descriptionBytes;
             return true;
         }
 
