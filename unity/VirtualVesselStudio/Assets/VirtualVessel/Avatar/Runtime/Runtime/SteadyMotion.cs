@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace VirtualVessel.Avatar
@@ -21,18 +20,8 @@ namespace VirtualVessel.Avatar
         /// <summary>How fast an arm bone may twist about itself, in degrees a second (6° a frame at 60).</summary>
         public const float MaxTwistDegreesPerSecond = 360f;
 
-        private static readonly UpperBodyBone[] s_arms =
-        {
-            UpperBodyBone.LeftUpperArm,
-            UpperBodyBone.LeftLowerArm,
-            UpperBodyBone.LeftHand,
-            UpperBodyBone.RightUpperArm,
-            UpperBodyBone.RightLowerArm,
-            UpperBodyBone.RightHand,
-        };
-
-        private readonly Quaternion[] _previous = new Quaternion[6];
-        private double _lastNow = double.NaN;
+        private readonly Quaternion[] _previous = new Quaternion[ArmSide.LimbBones.Length];
+        private readonly FrameClock _clock = new FrameClock();
 
         /// <summary>What the upper body shows this frame.</summary>
         public BodyTarget Current { get; } = new BodyTarget();
@@ -41,16 +30,14 @@ namespace VirtualVessel.Avatar
         /// <param name="now">Seconds on the clock of the tracking timestamps.</param>
         public void Update(BodyTarget target, double now)
         {
-            bool first = double.IsNaN(_lastNow);
-            float elapsed = first ? 0f : (float)Math.Max(0.0, now - _lastNow);
-            _lastNow = now;
+            float elapsed = _clock.Tick(now, out bool first);
             Current.CopyFrom(target);
-            for (int i = 0; i < s_arms.Length; i++)
+            for (int i = 0; i < ArmSide.LimbBones.Length; i++)
             {
-                UpperBodyBone bone = s_arms[i];
+                UpperBodyBone bone = ArmSide.LimbBones[i];
                 if (!first)
                 {
-                    Current[bone] = Limit(_previous[i], target[bone], PoseRetargeting.RestDirection(i < 3), MaxSwingDegreesPerSecond * elapsed, MaxTwistDegreesPerSecond * elapsed);
+                    Current[bone] = Limit(_previous[i], target[bone], PoseRetargeting.RestDirection(ArmSide.IsLeftLimb(i)), MaxSwingDegreesPerSecond * elapsed, MaxTwistDegreesPerSecond * elapsed);
                 }
 
                 _previous[i] = Current[bone];
@@ -72,12 +59,7 @@ namespace VirtualVessel.Avatar
             // The twist left: from the target's own direction, how far the previous turned there is rolled.
             Quaternion fullySwung = Quaternion.FromToRotation(from, to) * previous;
             (target * Quaternion.Inverse(fullySwung)).ToAngleAxis(out float twist, out Vector3 axis);
-            if (twist > 180f)
-            {
-                twist -= 360f;
-            }
-
-            twist *= Mathf.Sign(Vector3.Dot(axis, to));
+            twist = PoseRetargeting.Signed(twist) * Mathf.Sign(Vector3.Dot(axis, to));
             return Quaternion.AngleAxis(Mathf.Clamp(twist, -maxTwist, maxTwist), swung * rest) * swung;
         }
     }

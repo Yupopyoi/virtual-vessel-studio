@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using VirtualVessel.Tracking;
 
@@ -11,8 +10,8 @@ namespace VirtualVessel.Avatar
     /// the forearm again, and fades back in when seen.
     /// </summary>
     /// <remarks>
-    /// The state lives here; the palm is the pure <see cref="HandRetargeting"/>, the timing the pure
-    /// <see cref="MotionTiming"/>. Nothing is allocated per frame (CLAUDE.md 23).
+    /// The state lives here; the palm is the pure <see cref="HandRetargeting"/>, the timing
+    /// <see cref="ObservationClock"/>. Nothing is allocated per frame (CLAUDE.md 23).
     /// </remarks>
     public sealed class HandMotion
     {
@@ -48,10 +47,7 @@ namespace VirtualVessel.Avatar
         {
             private Quaternion _from = Quaternion.identity;
             private Quaternion _to = Quaternion.identity;
-            private double _observedAt = double.NaN;
-            private double _arrivedAt;
-            private double _interval = MotionTiming.MinInterval;
-            private double _lastNow = double.NaN;
+            private readonly ObservationClock _clock = new ObservationClock();
 
             public Quaternion Shown { get; private set; } = Quaternion.identity;
 
@@ -59,23 +55,20 @@ namespace VirtualVessel.Avatar
 
             public void Update(HandPose hand, bool mirror, double now)
             {
-                float elapsed = double.IsNaN(_lastNow) ? 0f : (float)Math.Max(0.0, now - _lastNow);
-                _lastNow = now;
+                float elapsed = _clock.Tick(now);
                 bool usable = HandRetargeting.TryPalm(hand, mirror, out Quaternion palm);
-                if (usable && hand.Timestamp != _observedAt)
+                if (usable && _clock.IsNew(hand.Timestamp))
                 {
                     // Starting from nothing shown, there is no earlier palm to move from.
-                    bool fresh = double.IsNaN(_observedAt) || Presence <= 0f;
+                    bool fresh = !_clock.HasObserved || Presence <= 0f;
                     _from = fresh ? palm : Shown;
                     _to = palm;
-                    _interval = MotionTiming.Interval(fresh, hand.Timestamp, _observedAt);
-                    _observedAt = hand.Timestamp;
-                    _arrivedAt = now;
+                    _clock.Arrive(fresh, hand.Timestamp, now);
                 }
 
-                Quaternion toward = Quaternion.Slerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval));
+                Quaternion toward = Quaternion.Slerp(_from, _to, _clock.Progress(now));
                 Shown = Presence <= 0f || elapsed <= 0f ? toward : Quaternion.RotateTowards(Shown, toward, MaxDegreesPerSecond * elapsed);
-                double lostFor = hand == null || double.IsNaN(_observedAt) ? double.PositiveInfinity : now - _observedAt;
+                double lostFor = hand == null || !_clock.HasObserved ? double.PositiveInfinity : now - _clock.ObservedAt;
                 Presence = MotionTiming.NextPresence(Presence, usable, lostFor, elapsed);
             }
         }

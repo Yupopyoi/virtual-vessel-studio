@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace VirtualVessel.Avatar
@@ -21,26 +20,20 @@ namespace VirtualVessel.Avatar
         /// <summary>Closer than this, the added turn is where it is going.</summary>
         public const float SettledDegrees = 0.01f;
 
-        private static readonly UpperBodyBone[] s_arms =
-        {
-            UpperBodyBone.LeftUpperArm,
-            UpperBodyBone.LeftLowerArm,
-            UpperBodyBone.RightUpperArm,
-            UpperBodyBone.RightLowerArm,
-            UpperBodyBone.LeftHand,
-            UpperBodyBone.RightHand,
-        };
-
         private readonly AvatarBodyShape _shape;
         private readonly BodyTarget _cleared = new BodyTarget();
-        private readonly Quaternion[] _added = { Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity, Quaternion.identity };
+        private readonly Quaternion[] _added = new Quaternion[ArmSide.LimbBones.Length];
+        private readonly FrameClock _clock = new FrameClock();
         private ArmClearance.ClearanceSides _sides;
-        private double _lastNow = double.NaN;
 
         /// <param name="shape">The model's body; null leaves the arms as tracked.</param>
         public ClearanceMotion(AvatarBodyShape shape)
         {
             _shape = shape;
+            for (int i = 0; i < _added.Length; i++)
+            {
+                _added[i] = Quaternion.identity;
+            }
         }
 
         /// <summary>What the upper body shows this frame.</summary>
@@ -50,13 +43,17 @@ namespace VirtualVessel.Avatar
         /// <param name="now">Seconds on the clock of the tracking timestamps.</param>
         public void Update(BodyTarget tracked, Quaternion neck, Quaternion head, bool frontOnly, double now)
         {
-            float elapsed = double.IsNaN(_lastNow) ? float.PositiveInfinity : (float)Math.Max(0.0, now - _lastNow);
-            _lastNow = now;
+            float elapsed = _clock.Tick(now, out bool first);
+            if (first)
+            {
+                elapsed = float.PositiveInfinity;
+            }
+
             _sides = ArmClearance.Apply(_shape, tracked, neck, head, _sides, frontOnly, _cleared);
             Current.CopyFrom(tracked);
-            for (int i = 0; i < s_arms.Length; i++)
+            for (int i = 0; i < ArmSide.LimbBones.Length; i++)
             {
-                UpperBodyBone bone = s_arms[i];
+                UpperBodyBone bone = ArmSide.LimbBones[i];
                 _added[i] = Ease(_added[i], _cleared[bone] * Quaternion.Inverse(tracked[bone]), elapsed);
                 Current[bone] = _added[i] * tracked[bone];
             }

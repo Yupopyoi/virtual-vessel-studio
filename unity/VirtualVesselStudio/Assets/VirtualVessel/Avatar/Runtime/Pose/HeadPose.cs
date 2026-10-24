@@ -31,11 +31,7 @@ namespace VirtualVessel.Avatar
         public static Quaternion Limit(Quaternion rotation, float maxDegrees)
         {
             rotation.ToAngleAxis(out float angle, out Vector3 axis);
-            if (angle > 180f)
-            {
-                angle -= 360f;
-            }
-
+            angle = PoseRetargeting.Signed(angle);
             if (Mathf.Abs(angle) <= maxDegrees || axis.sqrMagnitude < 1e-12f)
             {
                 return rotation;

@@ -266,7 +266,8 @@ namespace VirtualVessel.Avatar
             return body.JointConfidence[(int)(mirror ? Opposite(joint) : joint)] >= MinVisibility;
         }
 
-        private static float Signed(float degrees)
+        /// <summary>An angle of 0 to 360 degrees as -180 to 180, as Unity's angles and axes are read the shorter way. Pure.</summary>
+        internal static float Signed(float degrees)
         {
             return degrees > 180f ? degrees - 360f : degrees;
         }

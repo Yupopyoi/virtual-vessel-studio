@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using VirtualVessel.Tracking;
 
@@ -11,8 +10,8 @@ namespace VirtualVessel.Avatar
     /// to hanging from the torso, and fades back in when seen again.
     /// </summary>
     /// <remarks>
-    /// The state lives here; the rotations are the pure <see cref="PoseRetargeting"/>, the timing the pure
-    /// <see cref="MotionTiming"/>. Buffers are reused, so a frame allocates nothing (CLAUDE.md 23).
+    /// The state lives here; the rotations are the pure <see cref="PoseRetargeting"/>, the timing
+    /// <see cref="ObservationClock"/>. Buffers are reused, so a frame allocates nothing (CLAUDE.md 23).
     /// </remarks>
     public sealed class BodyMotion
     {
@@ -22,10 +21,7 @@ namespace VirtualVessel.Avatar
         private readonly BodyTarget _from = new BodyTarget();
         private readonly BodyTarget _to = new BodyTarget();
         private readonly BodyTarget _shown = new BodyTarget();
-        private double _observedAt = double.NaN;
-        private double _arrivedAt;
-        private double _interval = MotionTiming.MinInterval;
-        private double _lastNow = double.NaN;
+        private readonly ObservationClock _clock = new ObservationClock();
         private double _torsoSeenAt = double.NaN;
         private double _leftSeenAt = double.NaN;
         private double _rightSeenAt = double.NaN;
@@ -54,16 +50,15 @@ namespace VirtualVessel.Avatar
         /// <param name="now">Seconds on the clock of the body's timestamps.</param>
         public void Update(BodyPose body, bool mirror, double now)
         {
-            float elapsed = double.IsNaN(_lastNow) ? 0f : (float)Math.Max(0.0, now - _lastNow);
-            _lastNow = now;
+            float elapsed = _clock.Tick(now);
 
             bool usable = body != null && body.IsUsable;
-            if (usable && body.Timestamp != _observedAt)
+            if (usable && _clock.IsNew(body.Timestamp))
             {
                 Observe(body, mirror, now);
             }
 
-            BodyTarget.Lerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval), _shown);
+            BodyTarget.Lerp(_from, _to, _clock.Progress(now), _shown);
             TorsoPresence = MotionTiming.NextPresence(TorsoPresence, usable && _to.TorsoSeen, LostFor(_torsoSeenAt, now, body), elapsed);
             LeftArmPresence = MotionTiming.NextPresence(LeftArmPresence, usable && _to.LeftArmSeen, LostFor(_leftSeenAt, now, body), elapsed);
             RightArmPresence = MotionTiming.NextPresence(RightArmPresence, usable && _to.RightArmSeen, LostFor(_rightSeenAt, now, body), elapsed);
@@ -176,7 +171,7 @@ namespace VirtualVessel.Avatar
 
             // Starting from nothing shown, there is no earlier pose to move from: begin at the observation
             // and let the presences fade it in.
-            bool fresh = double.IsNaN(_observedAt) || (TorsoPresence <= 0f && LeftArmPresence <= 0f && RightArmPresence <= 0f);
+            bool fresh = !_clock.HasObserved || (TorsoPresence <= 0f && LeftArmPresence <= 0f && RightArmPresence <= 0f);
 
             // A part this observation did not see keeps where it was last seen, so it holds while lost
             // instead of moving to the rest at once; the presence takes it back after the hold.
@@ -193,9 +188,7 @@ namespace VirtualVessel.Avatar
 
             _from.CopyFrom(fresh ? _observed : _shown);
             _to.CopyFrom(_observed);
-            _interval = MotionTiming.Interval(fresh, body.Timestamp, _observedAt);
-            _observedAt = body.Timestamp;
-            _arrivedAt = now;
+            _clock.Arrive(fresh, body.Timestamp, now);
         }
     }
 }

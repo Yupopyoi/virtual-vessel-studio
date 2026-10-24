@@ -11,7 +11,7 @@ namespace VirtualVessel.Avatar
     /// neutral face, and when it is found again it fades back in.
     /// </summary>
     /// <remarks>
-    /// The state lives here; the timing is the pure <see cref="MotionTiming"/>, shared with the body.
+    /// The state lives here; the timing is <see cref="ObservationClock"/>, shared with the body and the hands.
     /// Buffers are reused, so a frame allocates nothing (CLAUDE.md 23).
     /// </remarks>
     public sealed class FaceMotion
@@ -22,10 +22,7 @@ namespace VirtualVessel.Avatar
         private readonly FaceTarget _to = new FaceTarget();
         private readonly FaceTarget _shown = new FaceTarget();
         private readonly FaceTarget _neutral = new FaceTarget();
-        private double _observedAt = double.NaN;
-        private double _arrivedAt;
-        private double _interval = MotionTiming.MinInterval;
-        private double _lastNow = double.NaN;
+        private readonly ObservationClock _clock = new ObservationClock();
 
         public FaceMotion(ExpressionMapping mapping)
         {
@@ -49,17 +46,16 @@ namespace VirtualVessel.Avatar
         /// <param name="now">Seconds on the clock of the face's timestamps.</param>
         public void Update(FacePose face, bool mirror, double now)
         {
-            float elapsed = double.IsNaN(_lastNow) ? 0f : (float)Math.Max(0.0, now - _lastNow);
-            _lastNow = now;
+            float elapsed = _clock.Tick(now);
 
             bool usable = face != null && face.IsUsable;
-            if (usable && face.Timestamp != _observedAt)
+            if (usable && _clock.IsNew(face.Timestamp))
             {
                 Observe(face, mirror, now);
             }
 
-            FaceTarget.Lerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval), _shown);
-            double lostFor = face == null || double.IsNaN(_observedAt) ? double.PositiveInfinity : now - face.Timestamp;
+            FaceTarget.Lerp(_from, _to, _clock.Progress(now), _shown);
+            double lostFor = face == null || !_clock.HasObserved ? double.PositiveInfinity : now - face.Timestamp;
             Presence = MotionTiming.NextPresence(Presence, usable, lostFor, elapsed);
             FaceTarget.Lerp(_neutral, _shown, Presence, Current);
         }
@@ -71,7 +67,7 @@ namespace VirtualVessel.Avatar
 
             // Starting from nothing shown, there is no earlier face to move from: begin at the observation
             // and let the presence fade it in.
-            bool fresh = double.IsNaN(_observedAt) || Presence <= 0f;
+            bool fresh = !_clock.HasObserved || Presence <= 0f;
             if (!fresh && face.Status == TrackingStatus.LowConfidence)
             {
                 // An unsure observation moves the face only part of the way (avatar detailed design 8.4).
@@ -80,9 +76,7 @@ namespace VirtualVessel.Avatar
 
             _from.CopyFrom(fresh ? _observed : _shown);
             _to.CopyFrom(_observed);
-            _interval = MotionTiming.Interval(fresh, face.Timestamp, _observedAt);
-            _observedAt = face.Timestamp;
-            _arrivedAt = now;
+            _clock.Arrive(fresh, face.Timestamp, now);
         }
     }
 }
