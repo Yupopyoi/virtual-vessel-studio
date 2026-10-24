@@ -112,7 +112,8 @@ flowchart LR
 | `FaceMotion` | Class | Interpolation between face observations and handling a lost face (7.3, 8.4; timing in `MotionTiming`) |
 | `HeadPose` | Static class | The head's turn: mirroring, the limit, and the neck's share (pure functions, 7.1) |
 | `AvatarBodyShape` | Class | The model's body in the reference pose: bone positions, the head's ellipsoid, the torso's parts, the arms' thickness. Measured at load (7.6) |
-| `ArmClearance` | Static class | Keeps the arms out of the head and torso (pure functions, 7.6) |
+| `ArmClearance` | Static class | Keeps the arms out of the head and torso by turning them in depth (pure functions, 7.6) |
+| `ClearanceMotion` | Class | Keeping the arms out over time: remembers each limb's side and eases the added turn in and out (7.6) |
 | `PlacedPart` | Struct | The head (an ellipsoid) or a part of the torso (an elliptic cylinder) this frame, and whether an arm's capsule reaches into it (pure functions, 7.6) |
 | `ArmSide` | Struct | Each of the avatar's arms: its bones (`UpperBodyBone`, `AvatarBone`) and the tracked joints of the same name. Keeps choosing bones by side in one place |
 | `ExpressionCurve` | Struct | The response curve from a value to an expression weight (7.4) |
@@ -625,14 +626,20 @@ Only directions are carried over (7.1), so on an avatar built differently from t
   - An arm's thickness is the median distance from the bone of the points along its middle (leaving out 20% at each end). An arm whose mesh is not found takes a share of the upper arm's length.
   - When it cannot be measured (no head mesh, for example), it is `null` and the arms stay as tracked.
 - Contact: the arm is three capsules (lines with thickness around the bones) for the upper arm, forearm, and hand. Each is checked against the head or a part of the torso grown by that capsule's thickness. Until step 6, the hand keeps the forearm's direction. The upper arm is not checked against the torso: it starts at the torso's edge, where the two always meet.
-- Turning:
-  1. The whole arm turns about the shoulder when the upper arm enters the head, or when the arm below the elbow (forearm and hand) enters the torso. Folded arms then come forward as a whole, and the elbow keeps its tracked bend. Bending the elbow alone to take them out of the chest swung the forearm 50–60° on the three samples, because the tracked elbow is already in the chest.
-  2. The forearm turns about the elbow when the forearm or hand still enters the head or torso (changing the elbow's bend). A forearm crossing over the head bends up.
-- Direction: five are tried: away from the center of the part entered first, up, down, and to either side. The one with the least angle that clears wins (away from the center on a tie). The angle is found by halving (12 times). A direction that does not clear at the least angle found so far is ruled out with one check. Away from the center alone is not enough: when the arm passes nearly through the center, that direction is unsettled, and a forearm across the face was turned down and never cleared.
-- Limits: when a 60° turn still does not clear, the arm stops at 60° away from the center (so it does not jump). A head the shoulder is in (1), or a head or torso part the elbow is in (2), is left out, since no turn could take the arm out of it.
+- Turning: only the depth (front and back) changes. The camera sees across and up well and depth poorly: tracking places an arm in front of the body too close to it, and one behind it too close as well (tracking detailed design 8.4). So an arm tracked through the head or chest is most often off only in depth. An arm turns within the plane containing it and the camera's axis (+Z), keeping the direction it points on the camera's image (seen from the front) as tracked.
+  1. The upper arm turns about the shoulder when it enters the head, or when the arm below the elbow (forearm and hand) enters the torso. The forearm does not turn: it keeps its direction and moves forward or back with the elbow. Folded arms then bring the elbows forward, and the forearms pass in front of the chest.
+  2. The forearm turns about the elbow when the forearm or hand still enters the head or torso.
+- Front or back: when the limb's end (the elbow for the upper arm, the wrist for the forearm) is in front of the center of the part entered, the limb turns forward; when behind, back. The side chosen is kept until the end moves more than 5 cm to the other side (`ArmClearance.ClearanceSides`, carried from frame to frame by the caller). Only when that side cannot clear does the limb turn to the other side, which is then remembered. The least angle that clears is found by halving (12 times).
+- Limits: up to 60°, and no closer than 5° to the camera's axis (past it, the limb would point the other way on the image). When neither side clears, the limb turns to the limit toward the first side. A head the shoulder is in (1), or a head or torso part the elbow is in (2), is left out, since no turn could take the arm out of it.
+- Timing (`ClearanceMotion`): the turn added (the rotation from the tracked one) moves toward its target with a time constant of 0.08 s. The tracked motion of the arm is followed without delay; only the turn added eases in and out. Within 0.01° it settles exactly.
+- History (2026-10-24): at first, the arm turned the least angle among away from the center, up, down, and to either side. In the user's screen recording, forearms folded in front of the face were turned up and ones in front of the chest down, unlike the tracking. The user's four recordings were replayed on the three samples and compared (`VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`, Explicit):
+  - The least angle in any direction: nearly all of the turn showed on the image (4.5–22.9° on average).
+  - Weighing turns that change the direction on the image 2–4 times: the deviation fell a little, but the choice flipped and the arm jumped up to 28–69° in a frame.
+  - Depth only, choosing front or back by the least angle: no deviation on the image, but with the hands behind the head the side flipped and the arm jumped up to 90°.
+  - The current method: 0.0–0.4° on the image. Jumps over 5° in a frame: none in six recordings, one or two in two (up to 8°), and six (up to 14°) for hideri-san with the hands behind the head. What stays inside is shallow, needing 0.4–4.3° more on average to come out (up to 42° at the moment the side changes).
 - The head and the torso's parts move with the torso's rotation and the neck's and head's turn (`FaceTarget.Head`).
 - `AvatarController` applies it to `BodyMotion`'s output every frame. `AvatarController.Body` (the avatar drawn in the skeleton comparison on the Diagnostics screen) is the pose after it.
-- Known limits: when two directions need nearly the same angle, the choice can flip and the arm can jump. The arms are not kept out of each other, the hips, or the legs.
+- Known limits: in poses depth alone cannot clear, such as a forearm crossing over the head, the arm stays inside. When the side changes, the arm moves to the other side over 0.1–0.2 s. The arms are not kept out of each other, the hips, or the legs.
 
 ---
 
@@ -755,7 +762,7 @@ public sealed class AvatarSettings
 | Hardware | Camera, MediaPipe, and avatar connected and checked visually (demo branch) |
 | Performance | Loading time and the longest frame; per-frame application time |
 
-Tests for keeping the arms out of the head and torso (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns at the elbow, forward when in front and back when behind; an upper arm toward the head turns outward at the shoulder; folded arms come forward keeping the elbow's bend; an elbow in the chest turns outward at the shoulder; arms clear of the body, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the head's and torso's shapes are measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso` (the shape measured on three real models; a forearm across the face kept out of the head on the model's own bones; resting arms not moved; folded arms kept out of the chest).
+Tests for keeping the arms out of the head and torso (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns in depth at the elbow, forward when in front and back when behind; an upper arm toward the head turns back at the shoulder; folded arms come forward; an elbow in the chest comes forward at the shoulder; each keeping the direction seen from the camera; the side kept until the forearm is clearly on the other; the added turn easing in and out; arms clear of the body, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the head's and torso's shapes are measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso` (the shape measured on three real models; a forearm across the face kept out of the head on the model's own bones; resting arms not moved; folded arms kept out of the chest), `VrmLoaderTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly` (on the developer's recordings: how often and how far the arms are turned, how much shows on the image, what stays inside, and the jumps added).
 
 Tests made in step 5: `AvatarBodyTests` (EditMode: arms sideways, down, and forward, the elbow bent forward or up, mirroring, the torso's tilt and limit, how shoulders rise, unseen arms, a lost arm holding and then hanging, a hidden wrist keeping the forearm's bend, the rest pose without tracking, `AvatarController` and the neck), `AvatarRecordingTests` (EditMode, Explicit, on the developer's recordings), `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget` (on real models, the arm and forearm bones point as observed, and the application time).
 
@@ -790,7 +797,7 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
 │  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
-│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, MotionTiming
+│  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, ClearanceMotion, MotionTiming
 ├─ Vrm/                                       VirtualVessel.Avatar.Vrm (the only assembly that references UniVRM)
 │  ├─ VrmAvatarLoader.cs
 │  ├─ VrmAvatarModel.cs     IAvatarModel; turns UniVRM's own update off and runs it in Apply
