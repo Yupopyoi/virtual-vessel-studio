@@ -53,7 +53,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_root.Panel, Is.Not.SameAs(_assets.PanelSettings), "The asset is never changed at run time.");
             Assert.That(_host.GetComponent<UIDocument>().panelSettings, Is.SameAs(_root.Panel));
             Assert.That(_root.Panel.scaleMode, Is.EqualTo(PanelScaleMode.ConstantPhysicalSize), "Follows the Windows display scale.");
-            Assert.That(_root.Panel.scale, Is.EqualTo(1f));
+            Assert.That(_root.Panel.scale, Is.EqualTo(UiPanelScale.PanelScale(1f, Screen.dpi, Screen.width, Screen.height)).Within(1e-5f), "The UI size, on the display scale fitted to the window.");
             Assert.That(_root.ThemeService.Current, Is.EqualTo(ThemeSettings.Default));
             Assert.That(_root.FontService.Current, Is.EqualTo(FontService.DefaultFontSet));
             Assert.That(_root.Content, Is.Not.Null);
@@ -76,7 +76,7 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(_root.Localizer.Locale.Code, Is.EqualTo("en"));
             Assert.That(_root.ThemeService.Current, Is.EqualTo(new ThemeSettings("mint", ThemeBackground.Light, reducedMotion: true)));
-            Assert.That(_root.Panel.scale, Is.EqualTo(1.25f));
+            Assert.That(_root.Panel.scale, Is.EqualTo(UiPanelScale.PanelScale(1.25f, Screen.dpi, Screen.width, Screen.height)).Within(1e-5f), "The UI size, on the display scale fitted to the window.");
             Assert.That(_assets.PanelSettings.scale, Is.EqualTo(1f), "The asset keeps its value.");
         }
 
@@ -89,7 +89,7 @@ namespace VirtualVessel.UI.Tests
             _root.Settings.SetUiScale(1.5f);
             _root.Settings.SetLanguage("en");
             _root.Settings.SetPalette("sky");
-            Assert.That(_root.Panel.scale, Is.EqualTo(1.5f));
+            Assert.That(_root.Panel.scale, Is.EqualTo(UiPanelScale.PanelScale(1.5f, Screen.dpi, Screen.width, Screen.height)).Within(1e-5f), "The UI size, on the display scale fitted to the window.");
             Assert.That(_root.Localizer.Locale.Code, Is.EqualTo("en"));
             Assert.That(_root.ThemeService.Current.Palette, Is.EqualTo("sky"));
 

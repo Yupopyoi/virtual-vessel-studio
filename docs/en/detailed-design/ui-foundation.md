@@ -621,6 +621,8 @@ New notices go on the side nearest the corner: at the bottom for the bottom corn
 **UI scale**
 
 - PanelSettings use `ConstantPhysicalSize` (reference 96 DPI), so they follow the Windows display scale (125%, 150%, and so on). The `uiScale` setting is then applied through `scale`.
+- In a window too small for the display scale, the display scale is taken down until the window holds 1280 × 720 of layout, but not below 100% (`UiPanelScale`, a pure function; 2026-10-24). The user's `uiScale` still applies in full, because it is chosen to read more easily. On a 4K monitor at 225%, a Full HD window held only 853 × 480 of layout, and the setup screen's columns were squeezed until their text stood one character a line (the user's screenshot). Now that window is drawn at 150%, with 1280 × 720 of layout. `UiRoot` checks the window size every frame and logs only when the limit starts or stops applying. A panel drawn into a texture at a constant pixel size, as for the screenshots (7.10), fits the texture at 96 DPI, so the screenshots are unchanged.
+- This decides the smaller side of #35. Scaling the UI up with a large window is still open there.
 
 **"system" for reduced motion**
 
