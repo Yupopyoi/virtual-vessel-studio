@@ -115,7 +115,9 @@ flowchart LR
 | `AvatarBodyShape` | Class | 基準の姿勢でのモデルの体：骨の位置、頭の楕円体、胴の部分、腕の太さ。読み込み時に測る（7.6） |
 | `ArmClearance` | Static Class | 腕を頭と胴から奥行き方向に出す（純粋関数、7.6） |
 | `HandRetargeting` | Static Class | 手のひらから、手の回転と前腕のねじれを求める（純粋関数、7.7） |
-| `HandMotion` | Class | 手のひらの観測の間の補間と、見失ったときの扱い（7.7） |
+| `HandMotion` | Class | 手のひらと指の観測の間の補間と、見失ったときの扱い（7.5、7.7） |
+| `FingerPose` | Class | 片手の指の角度：関節ごとの曲げと開き。毎Frame使い回す（7.5） |
+| `FingerRetargeting` | Static Class | トラッキングの手から指の角度を求め、そこから指の骨の回転を求める（純粋関数、7.5）。`FingerRest`は基準の姿勢でのモデルの手を持つ |
 | `SteadyMotion` | Class | 上半身の最後の段：腕の骨の回る速さの上限（7.8） |
 | `ClearanceMotion` | Class | 腕を出す処理の時間の扱い：前後の側を覚え、回した分をなめらかに出し入れする（7.6） |
 | `PlacedPart` | Struct | そのFrameの頭（楕円体）や胴の部分（楕円柱）と、腕のカプセルとの当たり（純粋関数、7.6） |
@@ -626,6 +628,16 @@ VRMの標準の表情は顔全体の表情であり、モデルによっては�
 - 各指の関節の曲げを、隣り合う骨の間の角度から求める（Tracking詳細設計8.4）。曲げは0〜90°（親指は別の範囲）、横の開きは±15°に制限する。
 - 手を見失ったときは、軽く握った自然な形へゆっくり戻す。
 - 手を見失った状態から戻ったときは、急に形が変わらないよう、0.2秒かけて観測へ寄せる。
+- 段階6の2つ目で作った（2026-10-24）：
+  - `FingerRetargeting.TryMeasure`（純粋関数）が、トラッキングの手の21点から、手自身の向きで角度を求める。手の甲の向きは手のひらの回転と同じ求め方とし、親指の側は小指の付け根から人差し指の付け根への向きとする。角度だけを使うため、手の大きさにも鏡写しにもよらない。鏡写しは、本人のどちらの手がアバターのどちらの手を動かすかだけを決める（7.7）。
+  - 4本の指：付け根の曲げ（中手骨から手のひらの側へ。0〜90°）、中の関節の曲げ（0〜100°）、付け根での親指の側への開き（±15°）。開きは指が曲がるほど小さくする。手のひらへ向いた指には、開く横の向きがないため。
+  - トラッキングの手は、曲げを小さく読む。MediaPipeは奥行きを平らにするため、カメラの方へ曲げた指は曲げの多くを失う。利用者の記録では、最も握った手でも付け根60〜84°、中の関節54〜78°（指ごとの中央値）で、握りこぶしの約90°、100°に届かなかった。最も開いた手でも15〜36°、8〜36°と読んだ。利用者も、指の曲がりが小さいと感じた（画面の録画、2026-10-24）。そのため、読んだ曲げのうち10°（`OpenBend`）を超えた分を、付け根は1.5倍（`BaseGain`）、中の関節は1.8倍（`MiddleGain`）にして見せる。
+  - 先の関節は、中の関節の3分の2だけ曲げる（`EndShare`。最大80°）。先の関節は中の関節とともに曲がるため。先の関節を単独で読んだ値は乱れていた：開いた人差し指でも中央値42°だった。
+  - 親指は、先が人差し指の付け根から小指の付け根の方へ、手のひらをどれだけ横切ったかで握り込む。手のひらの幅の0.4（`ThumbAcross`）で完全に握り込んだとする。握り込むと、付け根（CMC）を手のひらを横切る向きへ25°（`MaxThumbFold`）倒し、中の関節を少なくとも30°（`ThumbTuckBend`）曲げる。途中はその割合だけ倒し、曲げる。親指の先の位置で、握り込んだ親指と、握った手から立てた親指を見分ける。利用者の記録では、指を握った手で、親指を握り込むと0.36横切り、立てると-0.37（親指の側）だった。最初に使った、親指と人差し指の中手骨の間の角度は、ほとんど変わらず（25°と30°）、立てた親指を倒した（利用者の画面の録画、2026-10-24）。
+  - 親指の中（0〜60°）と先（0〜80°）の関節は、それぞれの角度の20°（`ThumbOpenBend`）を超えた分を1.5倍（`ThumbGain`）にして曲げる。まっすぐな親指も曲がって読まれる：握った手から立てた親指で中央値26°と21°、開いた手で22°と18°。10°を超えた分としていたときは、立てた親指が曲がったままだった。
+  - `FingerRest`は、読み込み時に測った骨の位置（`AvatarBodyShape`、7.6）から、指の骨ごとの向き、手の甲の向き、親指の側の向きを持つ。モデルにない骨では、典型的な手（手のひらは下、指は横、親指は前）を使う。`FingerRetargeting.Rotations`（純粋関数）は、各関節をモデル自身の軸で回し（4本の指は手のひらの側へ、親指は手のひらを横切りつつ手のひらの側へ）、親の回転を引き継いで、手の最終の回転（7.6と7.8の後）に載せる。
+  - `HandMotion`が、指を手のひらと同じ観測の時間（7.3）で動かす。手を見失えば保ち、その後1秒かけて軽く握った手（`FingerPose.Relaxed`：曲げ15°、20°、10°。親指は5°、10°、10°）へ戻す。手のトラッキングがないときも、基準の姿勢のまっすぐな指ではなく、軽く握った手にする。表示する角度の変化は1秒に600°まで（60Frame/秒で1Frame 10°。握るのに約0.15秒）とする。上限がないと、利用者の記録「1024不自然解消用」で、指の角度が1Frameに最大48°跳んだ。上限を付けた後は、どの記録でも1Frameの変化は10°以下になった。
+  - サンプルの3体で確かめた（`VrmLoaderTests.Fingers_CloseTheModelsOwnHand`）：握りこぶしでは、モデル自身の右の人差し指が手のひらへ向き（ずれ0°）、軽く握った手では75°ずれる。
 
 ### 7.6 腕と頭・胴の当たり（ArmClearance）
 
@@ -809,6 +821,8 @@ public sealed class AvatarSettings
 
 腕の回る速さの上限のTest（2026-10-24）：`SteadyMotionTests`（EditMode。上限内の回転はそのまま、向きとねじれをそれぞれの上限で止める、胴は止めない）、`VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`（Explicit。開発者の記録で、骨ごとの1Frameの最大の回転、15°を超えた回数、揺れ、最悪の瞬間とトラッキングだけの回転）。
 
+指のTest（2026-10-24）：`FingerTests`（EditMode。開いた手はまっすぐ、握りこぶしは関節ごとに上限内で曲がり親指を倒す、開きは左右の手とも親指の側で上限内、見えない手は測らない、指は左右の手とも手のひらの側へ・親指は手のひらを横切って曲がり、関節は親の回転を引き継ぎ手とともに回る、見失った手は指を保ってから軽く握る）、`VrmLoaderTests.Fingers_CloseTheModelsOwnHand`（PlayMode、Explicit。握りこぶしでモデル自身の人差し指が手のひらへ向く）、`VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`（指も測る）。
+
 手と前腕のねじれのTest（2026-10-24）：`HandRetargetingTests`（EditMode。手のひらが下なら基準の姿勢、上へ返すと手は前腕の届く4分の1まで・前腕の骨はその半分で肩は回らない、曲げた腕で届く範囲を超えたねじれは除く、ほぼ真上の手のひらは回外の側に読み読みの境で跳ばない、見えている度合いで前腕に付いていく向きと混ぜる、鏡写しでは反対の手を写す、見失った手を保ってから前腕に付いていかせ戻す、`AvatarController`が手と前腕を設定する）。`ArmClearanceTests`で、前腕を肘で回すと手も回ること。`VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`で、手のひらを上へ向けるとモデルの手の甲が下を向くこと。`AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan`（Explicit）で、肘の曲がる面と手のひらのねじれを記録で測る。
 
 腕と頭・胴の当たりのTest（2026-10-24）：`ArmClearanceTests`（EditMode。顔を横切る前腕を肘で奥行き方向に回し、前にあれば前へ、後ろにあれば後ろへ出す、頭へ向いた上腕を肩で後ろへ回す、組んだ腕を前へ出す、胸に入った肘を肩で前へ出す、いずれもカメラから見た向きを保つ、前腕がはっきり反対側へ移るまで側を保つ、回した分をなめらかに出し入れする、当たらない腕と形がないときはそのまま、肩が頭に入るときは回さない、頭の向きで楕円体が動く、`AvatarController`が出した姿勢を骨へ設定する、メッシュの点から頭と胴の形を測り首より下の髪を除く）、`VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso`（実際のモデル3体で形を測り、顔を横切る前腕がモデルの骨で頭から出ること、腕を下ろした姿勢は動かさないこと、組んだ腕が胸から出ること）、`VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly`（開発者の記録で、腕を回した頻度と角度、映像の上でのずれ、残るめり込み、加わった跳び）。
@@ -846,7 +860,8 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting,
+│  │                        FingerPose, FingerRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming,
 │                           ObservationClock, FrameClock

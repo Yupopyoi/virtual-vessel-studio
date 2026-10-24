@@ -7,8 +7,8 @@ namespace VirtualVessel.Avatar
     /// <summary>
     /// Drives one avatar from tracking every frame (avatar detailed design 4, 8.3): the upper body (torso,
     /// shoulders, arms, and the hands' turn with the forearms' twist), and the face, its expressions and
-    /// gaze, and the head's turn shared between the neck and the head on top of the torso. Fingers follow
-    /// in step 6 (avatar detailed design 18).
+    /// gaze, and the head's turn shared between the neck and the head on top of the torso, and the fingers
+    /// on the hands (avatar detailed design 7.5).
     /// </summary>
     /// <remarks>Main thread only; allocates nothing per frame.</remarks>
     public sealed class AvatarController
@@ -21,6 +21,9 @@ namespace VirtualVessel.Avatar
         private readonly BodyTarget _withHands = new BodyTarget();
         private readonly ClearanceMotion _clearance;
         private readonly SteadyMotion _steady = new SteadyMotion();
+        private readonly FingerRest _leftFingers;
+        private readonly FingerRest _rightFingers;
+        private readonly Quaternion[] _fingerRotations = new Quaternion[FingerPose.FingerCount * FingerPose.JointCount];
 
         public AvatarController(IAvatarModel model, ExpressionMapping mapping)
         {
@@ -36,6 +39,8 @@ namespace VirtualVessel.Avatar
             _clearance = new ClearanceMotion(model.BodyShape);
             _clearance.Current.CopyFrom(_body.Current);
             _steady.Current.CopyFrom(_body.Current);
+            _leftFingers = FingerRest.Of(model.BodyShape, ArmSide.Left);
+            _rightFingers = FingerRest.Of(model.BodyShape, ArmSide.Right);
             Expressions = new ExpressionController(model.Expressions, model.FaceShapes);
         }
 
@@ -46,6 +51,11 @@ namespace VirtualVessel.Avatar
 
         /// <summary>What the upper body shows this frame, with the arms kept out of the head (avatar detailed design 7.6).</summary>
         public BodyTarget Body => _steady.Current;
+
+        /// <summary>What the left hand's fingers show this frame (avatar detailed design 7.5).</summary>
+        public FingerPose LeftFingers => _hands.LeftFingers;
+
+        public FingerPose RightFingers => _hands.RightFingers;
 
         /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
         public ExpressionMapping Mapping
@@ -94,7 +104,21 @@ namespace VirtualVessel.Avatar
             }
 
             _rig.SetRotation(AvatarBone.Head, face.Head);
+            SetFingers(ArmSide.Left, _leftFingers, body[ArmSide.Left.Hand], _hands.LeftFingers);
+            SetFingers(ArmSide.Right, _rightFingers, body[ArmSide.Right.Hand], _hands.RightFingers);
             Expressions.Apply(face);
+        }
+
+        private void SetFingers(ArmSide side, in FingerRest rest, Quaternion hand, FingerPose pose)
+        {
+            FingerRetargeting.Rotations(rest, hand, pose, _fingerRotations);
+            for (Finger finger = Finger.Thumb; finger <= Finger.Little; finger++)
+            {
+                for (int joint = 0; joint < FingerPose.JointCount; joint++)
+                {
+                    _rig.SetRotation(FingerRetargeting.Bone(side, finger, joint), _fingerRotations[((int)finger * FingerPose.JointCount) + joint]);
+                }
+            }
         }
     }
 }
