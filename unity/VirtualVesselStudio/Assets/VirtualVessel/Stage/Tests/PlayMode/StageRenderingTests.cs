@@ -62,7 +62,22 @@ namespace VirtualVessel.Stage.Tests
             Color32 left = pixels[(18 * 64) + 16];
             Color32 right = pixels[(18 * 64) + 48];
             Assert.That((right.r, right.g, right.b), Is.EqualTo(((byte)0, (byte)0, (byte)255)), "The video.");
-            Assert.That((left.r, left.g, left.b), Is.EqualTo(((byte)0, (byte)0, (byte)0)), "The background.");
+            Assert.That((left.r, left.g, left.b), Is.Not.EqualTo(((byte)0, (byte)0, (byte)0)), "The backdrop, not the background color.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheBackdrop_FillsTheWholeStream_BehindTheVideos()
+        {
+            _stage.Screens[0].CommitLayoutAsync(FrameLayout.Create(new NormalizedRect(0.5, 0, 0.5, 1)), CancellationToken.None).Wait();
+            yield return null;
+            yield return null;
+
+            Color32[] pixels = ReadBack((RenderTexture)_video.Video.Value);
+            foreach (int index in new[] { 0, 31, 64 * 35, (64 * 18) + 2 })
+            {
+                Color32 pixel = pixels[index];
+                Assert.That(pixel.r + pixel.g + pixel.b, Is.GreaterThan(30), $"Pixel {index}: the backdrop, not the black background color.");
+            }
         }
 
         private static Color32[] ReadBack(RenderTexture texture)
