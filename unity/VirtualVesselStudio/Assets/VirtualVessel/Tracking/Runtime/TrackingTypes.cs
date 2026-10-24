@@ -177,6 +177,19 @@ namespace VirtualVessel.Tracking
         FullBody,
     }
 
+    /// <summary>
+    /// Whether the body moves toward and away from the camera (tracking detailed design 8.6). Saved as its
+    /// number, so the values keep their order.
+    /// </summary>
+    public enum BodyDepth
+    {
+        /// <summary>In depth as tracked (3D).</summary>
+        Tracked,
+
+        /// <summary>Only across and up, as seen on the camera's image (2D): the body's depth is set to the hips'.</summary>
+        Flat,
+    }
+
     /// <summary>The state of a tracking source or provider (tracking detailed design 7.1).</summary>
     public enum TrackingState
     {

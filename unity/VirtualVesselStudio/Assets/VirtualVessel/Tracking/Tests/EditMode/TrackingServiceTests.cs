@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using NUnit.Framework;
@@ -118,6 +119,32 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void InTwoD_TheBodyLosesItsDepth_AndTheFaceAndRecordingsKeepTheirs()
+        {
+            _service = Create();
+            _service.SetOptions(_service.Options.Value.WithBodyDepth(BodyDepth.Flat));
+            var recorded = new List<float>();
+            _service.Observed += frame => recorded.Add(frame.Body[BodyJoint.Nose].z);
+            _service.Start();
+
+            for (int i = 0; i < 20; i++)
+            {
+                Frame();
+            }
+
+            Assert.That(_service.Current.Body[BodyJoint.Nose], Is.EqualTo(new Vector3(0f, 0.62f, 0f)), "Across and up as observed, at the hips' depth.");
+            Assert.That(recorded, Has.All.EqualTo(0.1f), "What the provider observed, for recordings.");
+
+            _service.SetOptions(_service.Options.Value.WithBodyDepth(BodyDepth.Tracked));
+            for (int i = 0; i < 20; i++)
+            {
+                Frame();
+            }
+
+            Assert.That(_service.Current.Body[BodyJoint.Nose].z, Is.GreaterThan(0.05f).And.LessThanOrEqualTo(0.1f), "Back in depth (3D), gliding there through the smoothing.");
+        }
+
+        [Test]
         public void TrackedImages_AreCountedPerSecond_AndMirrorIsOnByDefault()
         {
             _service = Create();
@@ -185,6 +212,7 @@ namespace VirtualVessel.Tracking.Tests
             _service.SetOptions(_service.Options.Value
                 .WithSmoothing(3)
                 .WithMirror(false)
+                .WithBodyDepth(BodyDepth.Flat)
                 .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
             _service.Start();
             _service.ShutdownAsync(CancellationToken.None).Wait();
@@ -196,12 +224,14 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(saved.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
             Assert.That(saved.Running, Is.True);
             Assert.That(saved.Mirror, Is.False);
+            Assert.That(saved.BodyDepth, Is.EqualTo(BodyDepth.Flat));
 
             _camera = new FakeCamera();
             _service = Create(saved);
             Assert.That(_service.State.Value, Is.EqualTo(TrackingState.Running), "Started again at startup.");
             Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(3));
             Assert.That(_service.Options.Value.Mirror, Is.False);
+            Assert.That(_service.Options.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
         }
 
         [Test]

@@ -312,20 +312,26 @@ namespace VirtualVessel.Tracking
                     Observed?.Invoke(_raw);
                 }
 
-                // Corrections work on a copy, so recordings keep what the provider observed (tracking
-                // detailed design 8.4, 12.2).
+                // Corrections and the 2D body work on a copy, so recordings keep what the provider observed
+                // (tracking detailed design 8.4, 8.6, 12.2).
+                TrackingOptions options = _options.Value;
                 TrackingFrame observation = null;
                 if (observed)
                 {
                     observation = _raw;
-                    if (_corrections.Any)
+                    bool flat = options.BodyDepth == BodyDepth.Flat;
+                    if (_corrections.Any || flat)
                     {
                         _corrections.Apply(_raw, _corrected);
+                        if (flat)
+                        {
+                            BodyFlattening.Flatten(_corrected.Body);
+                        }
+
                         observation = _corrected;
                     }
                 }
 
-                TrackingOptions options = _options.Value;
                 _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
                 if (observed)
                 {
