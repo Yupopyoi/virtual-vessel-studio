@@ -461,6 +461,17 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 - 基準の姿勢を取っていない間は、標準的な体格の長さを使う。初回の開始時に、正面を向いて腕を下ろした姿勢で自動で1回測る（数秒の観測の中央値）。
 - アバターの体格に合わせる補正（腕の長さの違い等）はAvatarが行う（方式設計7.6）。
 
+### 8.6 体の動きの2D（BodyDepth）
+
+カメラは左右と上下をよく捉え、奥行きを捉えにくい（8.4）。奥行きの誤りで腕の向きが不安定になるときのため、正面から見た動きだけを使う2Dを選べる（利用者の要望、2026-10-24）。
+
+- `TrackingOptions.BodyDepth`：`Tracked`（3D、既定）と`Flat`（2D）。セットアップ画面のトラッキングのCardで切り替える（UI `setup.md` 4章）。`tracking-settings.json`の`bodyDepth`（0：3D、1：2D）に保存する。
+- 2Dでは、補正（8.4）の後、平滑化の前に、体のすべての関節の奥行きを腰の奥行き（本人の空間の0）にする（`BodyFlattening`）。体は左右と上下にだけ動き、胴の前後の傾きとひねり、腕を前や後ろへ出す動きはなくなる。
+- 補正と同じく写しに対して行い、記録（12章）には観測したままを残す。切り替えたときは、平滑化を通してなめらかに移る。
+- 顔（頭の向き、表情）と手は変えない。
+- カメラの方を向いた腕は、正面から見ると短く、向きが観測の揺れで決まりやすい。2Dでは避けられない性質である。
+- アバターの腕を頭や胴から出す処理（Avatar詳細設計7.6）は奥行きの方向に動かすため、2Dでも働く。
+
 ---
 
 ## 9. Thread / async
@@ -522,6 +533,7 @@ public sealed class TrackingSettings
     public int SmoothingLevel { get; set; } = 5;                          // 平滑化の段階、1〜10（8.2）。版3から5は旧3
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
     public bool Mirror { get; set; } = true;                              // 鏡写し
+    public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // 体の奥行き：3D（0）か2D（1）（8.6）。版3で手順なしに加えた
     // 基準の姿勢（8.5）は段階5で加える。
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
@@ -722,7 +734,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections（IObservationCorrectionを含む）, CameraAxisArmStraightening
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections（IObservationCorrectionを含む）, CameraAxisArmStraightening, BodyFlattening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat（段階5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）

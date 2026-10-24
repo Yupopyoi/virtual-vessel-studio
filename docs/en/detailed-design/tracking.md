@@ -462,6 +462,17 @@ For fingers, the joint **angles** (the angle between neighboring bones) are prim
 - Until a reference pose is taken, standard body lengths are used. On the first start, it is measured once automatically while the person faces forward with arms down (the median of a few seconds of observations).
 - Correction to fit the avatar's body (different arm lengths and so on) is done by Avatar (system design 7.6).
 
+### 8.6 The Body in 2D (BodyDepth)
+
+The camera sees across and up well and depth poorly (8.4). For when depth errors make the arms point unsteadily, 2D can be chosen, using only the movement seen from the front (the user's request, 2026-10-24).
+
+- `TrackingOptions.BodyDepth`: `Tracked` (3D, the default) or `Flat` (2D). Switched on the tracking Card of the setup screen (UI `setup.md` chapter 4). Saved as `bodyDepth` in `tracking-settings.json` (0: 3D, 1: 2D).
+- In 2D, after the corrections (8.4) and before smoothing, every body joint is put at the hips' depth (0 in person space) (`BodyFlattening`). The body moves only across and up: the torso's lean and twist, and arms reaching forward or back, are gone.
+- Like the corrections, it works on a copy, and recordings (chapter 12) keep what was observed. A switch glides through the smoothing.
+- The face (head turn, expressions) and the hands are not changed.
+- An arm pointing at the camera looks short from the front, and its direction is easily set by the observation's jitter. In 2D this cannot be helped.
+- Keeping the avatar's arms out of the head and torso (avatar detailed design 7.6) moves them in depth, so it works in 2D too.
+
 ---
 
 ## 9. Threading / async
@@ -523,6 +534,7 @@ public sealed class TrackingSettings
     public int SmoothingLevel { get; set; } = 5;                          // Smoothing level, 1 to 10 (8.2); from version 3, 5 is the former 3
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy)
     public bool Mirror { get; set; } = true;                              // Mirroring
+    public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // The body in depth: 3D (0) or 2D (1) (8.6); added in version 3 without a step
     // The reference pose (8.5) is added in step 5.
     public bool Running { get; set; }                                     // Whether it was started; restored at the next launch
 }
@@ -723,7 +735,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions (what the user chose)
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening
+│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening, BodyFlattening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat (step 5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipe points to the common form (pure functions; no plugin types, so it lives here and is tested without the plugin)
