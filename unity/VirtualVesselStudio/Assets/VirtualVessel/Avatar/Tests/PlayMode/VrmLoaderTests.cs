@@ -10,7 +10,9 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Avatar.Vrm;
+using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
@@ -275,6 +277,87 @@ namespace VirtualVessel.Avatar.Tests
                 bool trackedTouches = ArmClearance.Touches(shape, tracked, neck, controller.Face.Head);
                 UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; forearm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
                 Assert.That(ArmClearance.Touches(shape, controller.Body, neck, controller.Face.Head), Is.False, "Folded arms stay out of the chest.");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly([ValueSource(nameof(Samples))] string sample)
+        {
+            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
+            TrackingRecordingInfo[] recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
+            if (recordings.Length == 0)
+            {
+                Assert.Ignore($"No recordings in {folder}.");
+            }
+
+            var load = new LoadResult();
+            yield return Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                foreach (TrackingRecordingInfo info in recordings)
+                {
+                    // As the app runs: corrections, the standard smoothing, then 60 frames a second, mirrored.
+                    (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
+                    ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
+                    var processor = new TrackingProcessor();
+                    var corrected = new TrackingFrame();
+                    var output = new TrackingFrame();
+                    var controller = new AvatarController(model, ExpressionMapping.Default);
+                    var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
+                    var before = new BodyTarget();
+                    var beforeTracked = new BodyTarget();
+                    int next = 0, shown = 0, active = 0, added = 0;
+                    float mostTurn = 0f, mostAdded = 0f;
+                    double mostAddedAt = 0.0;
+                    for (double now = frames[0].Time; now <= frames[frames.Count - 1].Time; now += 1.0 / 60.0)
+                    {
+                        for (; next < frames.Count && frames[next].Time <= now; next++)
+                        {
+                            corrections.Apply(frames[next], corrected);
+                            processor.Process(corrected, frames[next].Time, header.Supported, TrackingRegions.All, SmoothingLevel.Standard, output);
+                        }
+
+                        controller.Update(output, mirror: true, now);
+                        tracked.Update(output.Body, true, now);
+                        float turn = 0f, step = 0f, trackedStep = 0f;
+                        foreach (UpperBodyBone bone in new[] { UpperBodyBone.LeftUpperArm, UpperBodyBone.LeftLowerArm, UpperBodyBone.RightUpperArm, UpperBodyBone.RightLowerArm })
+                        {
+                            Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm ? Vector3.left : Vector3.right;
+                            turn = Mathf.Max(turn, Vector3.Angle(controller.Body[bone] * rest, tracked.Current[bone] * rest));
+                            if (shown > 0)
+                            {
+                                float moved = Vector3.Angle(controller.Body[bone] * rest, before[bone] * rest);
+                                float movedTracked = Vector3.Angle(tracked.Current[bone] * rest, beforeTracked[bone] * rest);
+                                if (moved - movedTracked > step - trackedStep)
+                                {
+                                    step = moved;
+                                    trackedStep = movedTracked;
+                                }
+                            }
+                        }
+
+                        shown++;
+                        active += turn > 1f ? 1 : 0;
+                        mostTurn = Mathf.Max(mostTurn, turn);
+
+                        // A frame where clearance moves an arm more than 5° beyond what tracking moved it: a jump it adds.
+                        if (step - trackedStep > 5f)
+                        {
+                            added++;
+                            if (step - trackedStep > mostAdded)
+                            {
+                                mostAdded = step - trackedStep;
+                                mostAddedAt = now - frames[0].Time;
+                            }
+                        }
+
+                        before.CopyFrom(controller.Body);
+                        beforeTracked.CopyFrom(tracked.Current);
+                    }
+
+                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\": {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°; "
+                        + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s");
+                }
             }
         }
 
