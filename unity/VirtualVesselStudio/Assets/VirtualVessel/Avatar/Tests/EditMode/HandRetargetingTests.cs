@@ -23,7 +23,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void APalmTurnedUp_TwistsTheForearmHalfway_AndTheHandAllTheWay()
+        public void APalmTurnedUp_OnAStraightArm_TurnsTheShoulderAndTheForearmAQuarterEach()
         {
             var arm = new BodyTarget();
             Quaternion palmUp = Quaternion.LookRotation(Vector3.right, Vector3.down);
@@ -31,23 +31,48 @@ namespace VirtualVessel.Avatar.Tests
             HandRetargeting.Apply(ArmSide.Right, palmUp, 1f, arm);
 
             // Turning the right palm up (supination) rolls the back of the hand from up, through back, to down.
-            AssertDirection(arm[UpperBodyBone.RightLowerArm] * Vector3.up, Vector3.back, "The forearm half way: the back of the forearm faces back.");
+            AssertDirection(arm[UpperBodyBone.RightUpperArm] * Vector3.up, Vector3.back, "The shoulder a quarter turn.");
+            AssertDirection(arm[UpperBodyBone.RightLowerArm] * Vector3.up, new Vector3(0f, -1f, -1f), "The forearm's bone half of its quarter on top.");
             AssertDirection(arm[UpperBodyBone.RightHand] * Vector3.up, Vector3.down, "The hand all the way.");
             AssertDirection(arm[UpperBodyBone.RightHand] * Vector3.right, Vector3.right, "Still pointing along the arm.");
         }
 
         [Test]
-        public void APalmNearlyOver_IsReadAsTurnedUp_EitherSideOfIt()
+        public void OnABentArm_ATwistPastTheForearmsReach_IsLeftOut()
         {
-            // 170° and 190° of supination: the second is read as 180°, not as 170° of pronation the other way.
-            Quaternion lower = Quaternion.identity;
-            float before = HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(-170f, Vector3.right) * s_palmDown);
-            float past = HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(-190f, Vector3.right) * s_palmDown);
-            float pronated = HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(90f, Vector3.right) * s_palmDown);
+            // The right forearm bent forward from the arm out sideways; the palm reads as turned up, half a turn.
+            var arm = new BodyTarget();
+            arm[UpperBodyBone.RightLowerArm] = Quaternion.FromToRotation(Vector3.right, Vector3.forward);
+            arm[UpperBodyBone.RightHand] = arm[UpperBodyBone.RightLowerArm];
+            Quaternion lower = arm[UpperBodyBone.RightLowerArm];
+            Quaternion palmUp = lower * Quaternion.LookRotation(Vector3.right, Vector3.down);
 
-            Assert.That(before, Is.EqualTo(-170f).Within(0.1f));
-            Assert.That(past, Is.EqualTo(-HandRetargeting.MaxSupinationDegrees).Within(0.1f), "Kept on the supination side.");
-            Assert.That(pronated, Is.EqualTo(HandRetargeting.MaxPronationDegrees).Within(0.1f), "Pronation stops at its reach.");
+            HandRetargeting.Apply(ArmSide.Right, palmUp, 1f, arm);
+
+            AssertSame(arm[UpperBodyBone.RightUpperArm], Quaternion.identity, "The bend sets the shoulder's twist.");
+            float twisted = HandRetargeting.Twist(false, lower, arm[UpperBodyBone.RightHand] * Quaternion.LookRotation(Vector3.right, Vector3.up));
+            Assert.That(twisted, Is.EqualTo(HandRetargeting.ForearmReachDegrees).Within(0.5f), "The hand a quarter turn, the forearm's reach.");
+        }
+
+        [Test]
+        public void ATwistIsRead_WithinItsWrap_AndFadesToNeutralAcrossIt()
+        {
+            Quaternion lower = Quaternion.identity;
+            Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(-170f, Vector3.right) * s_palmDown), Is.EqualTo(170f).Within(0.1f), "Supination.");
+            Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(-190f, Vector3.right) * s_palmDown), Is.EqualTo(190f).Within(0.1f), "Past half a turn, still supination.");
+            Assert.That(HandRetargeting.Twist(false, lower, Quaternion.AngleAxis(100f, Vector3.right) * s_palmDown), Is.EqualTo(-100f).Within(0.1f), "Pronation.");
+
+            foreach (float bent in new[] { 0f, 0.5f, 1f })
+            {
+                (float shoulder, float forearm, float impossible) before = HandRetargeting.Split(360f - HandRetargeting.WrapDegrees - 0.01f, bent);
+                (float shoulder, float forearm, float impossible) after = HandRetargeting.Split(-HandRetargeting.WrapDegrees + 0.01f, bent);
+                Assert.That(before.shoulder, Is.EqualTo(after.shoulder).Within(0.1f), $"Bent {bent}: no jump at the wrap.");
+                Assert.That(before.forearm, Is.EqualTo(after.forearm).Within(0.1f));
+            }
+
+            Assert.That(HandRetargeting.Split(60f, 1f), Is.EqualTo((0f, 60f, 0f)), "Within the reach, all on the forearm.");
+            Assert.That(HandRetargeting.Split(150f, 0f), Is.EqualTo((60f, 90f, 0f)), "Straight: the shoulder takes the rest.");
+            Assert.That(HandRetargeting.Split(150f, 1f), Is.EqualTo((0f, 90f, 60f)), "Bent: the rest is left out.");
         }
 
         [Test]
@@ -62,7 +87,7 @@ namespace VirtualVessel.Avatar.Tests
 
             AssertSame(hidden[UpperBodyBone.RightLowerArm], Quaternion.identity, "Not seen: no twist.");
             AssertSame(hidden[UpperBodyBone.RightHand], Quaternion.identity, "The hand follows the forearm.");
-            Assert.That(Quaternion.Angle(half[UpperBodyBone.RightLowerArm], Quaternion.identity), Is.EqualTo(45f).Within(0.1f), "Half of the forearm's half.");
+            Assert.That(Quaternion.Angle(half[UpperBodyBone.RightUpperArm], Quaternion.identity), Is.EqualTo(45f).Within(0.1f), "Half of the shoulder's quarter.");
         }
 
         [Test]
@@ -124,7 +149,7 @@ namespace VirtualVessel.Avatar.Tests
             controller.Update(frame, mirror: false, now: 1.5);
 
             AssertDirection(model.Rotations[AvatarBone.RightHand] * Vector3.up, Vector3.down, "The palm up.");
-            AssertDirection(model.Rotations[AvatarBone.RightLowerArm] * Vector3.up, Vector3.back, "The forearm twisted half way.");
+            AssertDirection(model.Rotations[AvatarBone.RightUpperArm] * Vector3.up, Vector3.back, "The straight arm turned at the shoulder.");
             AssertSame(model.Rotations[AvatarBone.LeftHand], model.Rotations[AvatarBone.LeftLowerArm], "The unseen left hand follows its forearm.");
         }
 
