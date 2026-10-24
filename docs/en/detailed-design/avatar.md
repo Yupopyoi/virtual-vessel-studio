@@ -115,7 +115,9 @@ flowchart LR
 | `AvatarBodyShape` | Class | The model's body in the reference pose: bone positions, the head's ellipsoid, the torso's parts, the arms' thickness. Measured at load (7.6) |
 | `ArmClearance` | Static class | Keeps the arms out of the head and torso by turning them in depth (pure functions, 7.6) |
 | `HandRetargeting` | Static class | The hand's turn and the forearm's twist from the palm (pure functions, 7.7) |
-| `HandMotion` | Class | Interpolating between palm observations, and handling a lost hand (7.7) |
+| `HandMotion` | Class | Interpolating between palm and finger observations, and handling a lost hand (7.5, 7.7) |
+| `FingerPose` | Class | One hand's finger angles: the bend at each joint and the spread. Reused every frame (7.5) |
+| `FingerRetargeting` | Static class | Finger angles from the tracked hand, and the finger bones' rotations from them (pure functions, 7.5). `FingerRest` holds the model's hand in the reference pose |
 | `SteadyMotion` | Class | The upper body's last step: how fast the arm bones may turn (7.8) |
 | `ClearanceMotion` | Class | Keeping the arms out over time: remembers each limb's side and eases the added turn in and out (7.6) |
 | `PlacedPart` | Struct | The head (an ellipsoid) or a part of the torso (an elliptic cylinder) this frame, and whether an arm's capsule reaches into it (pure functions, 7.6) |
@@ -626,6 +628,13 @@ How much a face moves differs from person to person, so the user can change the 
 - The flexion of each finger joint comes from the angle between neighboring bones (Tracking detailed design 8.4). Flexion is limited to 0–90° (the thumb has its own range) and spreading to ±15°.
 - When a hand is lost, it slowly returns to a lightly closed natural shape.
 - When a lost hand returns, it moves toward the observation over 0.2 s so the shape does not change suddenly.
+- Built in step 6, part 2 (2026-10-24):
+  - `FingerRetargeting.TryMeasure` (pure) reads the angles from the tracked hand's 21 points in the hand's own frame: the back of the hand as the palm's rotation takes it, and across toward the thumb from the little finger's base to the index finger's. They are angles only, so neither the hand's size nor the mirror changes them. A mirror only chooses which person's hand moves which avatar hand (7.7).
+  - Four fingers: the bend at the base (-10–90°, toward the palm from the metacarpal), the middle joint (0–100°), and the end joint (0–80°), and the spread toward the thumb at the base (±15°). The spread fades as the finger bends, because a finger pointing into the palm shows no side to spread to.
+  - The thumb: the base (CMC) folds across the palm by as much as its metacarpal is closer to the index finger's than in an open hand (30°), up to 25°. On the user's recordings the angle was 11–52° (5–95%). Its middle (0–60°) and end (0–80°) joints bend by their angles.
+  - `FingerRest` holds each finger bone's direction, the back of the hand, and the direction toward the thumb, from the bone positions measured at load (`AvatarBodyShape`, 7.6). Where the model lacks a bone, it uses a typical hand: palm down, fingers out to the side, the thumb forward. `FingerRetargeting.Rotations` (pure) turns each joint about the model's own axes, into the palm for the four fingers and across and into it for the thumb, and carries the parent's turn on the hand's final rotation (after 7.6 and 7.8).
+  - `HandMotion` moves the fingers with the palm on the same observation clock (7.3): it holds them while the hand is lost, then goes over 1 s to the loosely closed hand (`FingerPose.Relaxed`: bends of 15°, 20°, and 10°; the thumb 5°, 10°, and 10°). Without hand tracking the fingers stay loosely closed instead of the reference pose's straight fingers. A shown angle changes at most 600° a second (10° a frame at 60), a fist closing in about 0.15 s. Without this, a finger angle jumped up to 48° in a frame on the user's recording "1024不自然解消用". With it, no angle changed more than 10° in a frame, on any recording.
+  - Checked on the three sample models (`VrmLoaderTests.Fingers_CloseTheModelsOwnHand`): in a fist, the model's own right index finger points into its palm (0° off), and loosely closed it is 75° off.
 
 ### 7.6 Keeping the Arms Out of the Head and Torso (ArmClearance)
 
@@ -809,6 +818,8 @@ public sealed class AvatarSettings
 
 Tests for how fast the arms turn (2026-10-24): `SteadyMotionTests` (EditMode: a turn within the limits is taken whole; where a bone points and its twist are each held to their limits; the torso is not held), `VrmRecordingTests.Body_OnTheRecordings_MovesSteadily` (Explicit: on the developer's recordings, each bone's largest turn in a frame, how often past 15°, the shake, and the worst moments with tracking's turn alone).
 
+Tests for the fingers (2026-10-24): `FingerTests` (EditMode: an open hand is straight; a fist bends each joint within its limit and folds the thumb; the spread is toward the thumb on either hand and within its limit; a hand not seen is not measured; the fingers bend into the palm and the thumb across it on either hand, joints carrying their parent's turn and turning with the hand; a lost hand holds its fingers, then closes them loosely), `VrmLoaderTests.Fingers_CloseTheModelsOwnHand` (PlayMode, Explicit: a fist turns the model's own index finger into its palm), and `VrmRecordingTests.Body_OnTheRecordings_MovesSteadily`, which also measures the fingers.
+
 Tests for the hands and the forearms' twist (2026-10-24): `HandRetargetingTests` (EditMode: a palm down is the reference pose; a palm turned up turns the hand as far as the forearm's reach, a quarter, the forearm's bone half of that, and not the shoulder; on a bent arm a twist past the reach is left out; a palm nearly over is read on the supination side, without a jump at the wrap; how much is seen blends with following the forearm; in a mirror the other hand is used, reflected; a lost hand holds, then follows the forearm, and comes back; `AvatarController` sets the hand and forearm). `ArmClearanceTests`: turning the forearm at the elbow turns the hand too. `VrmLoaderTests.Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget`: a palm turned up turns the back of the model's hand down. `AvatarRecordingTests.TheElbow_OnEachRecording_BendsWhereAnArmCan` (Explicit) measures the elbow's bend plane and the palm's twist on the recordings.
 
 Tests for keeping the arms out of the head and torso (2026-10-24): `ArmClearanceTests` (EditMode: a forearm across the face turns in depth at the elbow, forward when in front and back when behind; an upper arm toward the head turns back at the shoulder; folded arms come forward; an elbow in the chest comes forward at the shoulder; each keeping the direction seen from the camera; the side kept until the forearm is clearly on the other; the added turn easing in and out; arms clear of the body, or no shape, stay as they are; a shoulder inside the head is not turned; the ellipsoid moves with the head; `AvatarController` sets the pose it shows on the bones; the head's and torso's shapes are measured from mesh points, leaving out hair below the neck), `VrmLoaderTests.Body_KeepsTheArmsOutOfTheHeadAndTorso` (the shape measured on three real models; a forearm across the face kept out of the head on the model's own bones; resting arms not moved; folded arms kept out of the chest), `VrmRecordingTests.Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly` (on the developer's recordings: how often and how far the arms are turned, how much shows on the image, what stays inside, and the jumps added).
@@ -846,7 +857,8 @@ Assets/VirtualVessel/Avatar/
 │  ├─ Core/                 IAvatarModel, IAvatarRig, IAvatarExpressions, AvatarBone, AvatarExpression,
 │  │                        AvatarProfile, AvatarSettings, AvatarEntry, AvatarLicense, AvatarModelInfo
 │  ├─ Loading/              IAvatarLoader, AvatarProblem, AvatarFileCheck, AvatarImporter, AvatarStore
-│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting
+│  ├─ Pose/                 AvatarRestPose, HeadPose, PoseRetargeting, BodyTarget, ArmSide, AvatarBodyShape, ArmClearance, PlacedPart, HandRetargeting,
+│  │                        FingerPose, FingerRetargeting
 │  ├─ Expression/           ExpressionCurve, ExpressionMapping, FaceFeatures, ExpressionController, ExpressionSignal, FaceTarget, FaceTuning, FacePart, FacePartProfile
 │  └─ Runtime/              AvatarController, FaceMotion, BodyMotion, HandMotion, ClearanceMotion, SteadyMotion, MotionTiming,
 │                           ObservationClock, FrameClock
