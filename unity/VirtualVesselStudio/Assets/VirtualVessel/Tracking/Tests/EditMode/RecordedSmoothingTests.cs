@@ -34,7 +34,7 @@ namespace VirtualVessel.Tracking.Tests
             {
                 (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
                 ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
-                foreach (int level in new[] { 3, 5, 7, 9 })
+                foreach (int level in new[] { 1, 3, 5, 7, 9 })
                 {
                     var processor = new TrackingProcessor();
                     var corrected = new TrackingFrame();

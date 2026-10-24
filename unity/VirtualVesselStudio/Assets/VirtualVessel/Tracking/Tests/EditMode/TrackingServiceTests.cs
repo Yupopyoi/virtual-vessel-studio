@@ -146,7 +146,7 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(_service.Current.Face.Status, Is.EqualTo(TrackingStatus.Disabled));
         }
 
-        [TestCase(0, SmoothingLevel.Smooth)]
+        [TestCase(0, SmoothingLevel.Standard)]
         [TestCase(1, SmoothingLevel.Default)]
         [TestCase(2, SmoothingLevel.Responsive)]
         public void AFileWithThreePresets_ReadsAsTheirLevels_KeepingTheOtherValues(int preset, int level)
@@ -161,12 +161,29 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(loaded.Value.Running, Is.True);
         }
 
+        [TestCase(5, SmoothingLevel.Standard)]
+        [TestCase(3, SmoothingLevel.Standard)]
+        [TestCase(1, 3)]
+        [TestCase(7, SmoothingLevel.Responsive)]
+        [TestCase(10, SmoothingLevel.Max)]
+        public void AVersion2Level_MovesTwoStepsUp_AndItsStandardBecomesTheNewOne(int saved, int level)
+        {
+            // Version 2's standard 5 was the default nearly everyone had; the steadier 3 is the new standard.
+            Directory.CreateDirectory(_directory);
+            File.WriteAllText(Path.Combine(_directory, TrackingSettings.FileName), $"{{ \"schemaVersion\": 2, \"smoothingLevel\": {saved}, \"mirror\": false }}");
+
+            ConfigLoadResult<TrackingSettings> loaded = TrackingService.CreateStore(_directory, new UtcSystemClock()).Load();
+
+            Assert.That(loaded.Value.SmoothingLevel, Is.EqualTo(level));
+            Assert.That(loaded.Value.Mirror, Is.False);
+        }
+
         [Test]
         public void Choices_AreSaved_AndRunningTrackingStartsAgain()
         {
             _service = Create();
             _service.SetOptions(_service.Options.Value
-                .WithSmoothing(SmoothingLevel.Smooth)
+                .WithSmoothing(3)
                 .WithMirror(false)
                 .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
             _service.Start();
@@ -175,7 +192,7 @@ namespace VirtualVessel.Tracking.Tests
 
             ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(_directory, new UtcSystemClock());
             TrackingSettings saved = store.Load().Value;
-            Assert.That(saved.SmoothingLevel, Is.EqualTo(SmoothingLevel.Smooth));
+            Assert.That(saved.SmoothingLevel, Is.EqualTo(3));
             Assert.That(saved.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
             Assert.That(saved.Running, Is.True);
             Assert.That(saved.Mirror, Is.False);
@@ -183,7 +200,7 @@ namespace VirtualVessel.Tracking.Tests
             _camera = new FakeCamera();
             _service = Create(saved);
             Assert.That(_service.State.Value, Is.EqualTo(TrackingState.Running), "Started again at startup.");
-            Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(SmoothingLevel.Smooth));
+            Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(3));
             Assert.That(_service.Options.Value.Mirror, Is.False);
         }
 

@@ -18,8 +18,16 @@ namespace VirtualVessel.Tracking
     /// </summary>
     public sealed class TrackingSettings
     {
-        /// <summary>2: the three smoothing presets became ten levels (smoothing, 0 to 2, became smoothingLevel, 1 to 10).</summary>
-        public const int SchemaVersion = 2;
+        /// <summary>
+        /// 2: the three smoothing presets became ten levels (smoothing, 0 to 2, became smoothingLevel, 1 to 10).
+        /// 3: the levels moved two steps, so the former 3 is the standard 5 (2026-10-24).
+        /// </summary>
+        public const int SchemaVersion = 3;
+
+        // The levels of version 2, which the steps from older files work in.
+        private const int Version2Smooth = 3;
+        private const int Version2Standard = 5;
+        private const int Version2Responsive = 7;
         public const string FileName = "tracking-settings.json";
 
         public string Provider { get; set; } = "mediapipe";
@@ -49,21 +57,38 @@ namespace VirtualVessel.Tracking
                     document.Remove("smoothing");
                 }
             }),
+            new ConfigMigration(2, document =>
+            {
+                if (document.Contains("smoothingLevel"))
+                {
+                    document.Set("smoothingLevel", LevelOfVersion2(document.Get("smoothingLevel", Version2Standard)));
+                }
+            }),
         };
 
         /// <summary>
-        /// The level of a version 1 preset. Version 1 had no screen to choose one, so Standard (1) was
-        /// never the user's choice and becomes the default; Smooth (0) and Responsive (2), set only by
+        /// The version 2 level of a version 1 preset. Version 1 had no screen to choose one, so Standard (1)
+        /// was never the user's choice and becomes the default; Smooth (0) and Responsive (2), set only by
         /// editing the file, keep their measured values as levels 3 and 7. Pure.
         /// </summary>
         public static int LevelOfPreset(int preset)
         {
             return preset switch
             {
-                0 => Tracking.SmoothingLevel.Smooth,
-                2 => Tracking.SmoothingLevel.Responsive,
-                _ => Tracking.SmoothingLevel.Default,
+                0 => Version2Smooth,
+                2 => Version2Responsive,
+                _ => Version2Standard,
             };
+        }
+
+        /// <summary>
+        /// The level of a version 2 level: two steps up, so each keeps its motion. The standard 5 was the
+        /// default nearly everyone had, and the user asked for the steadier former 3 as the standard, so it
+        /// becomes the new standard 5. The two quickest, 9 and 10, both become 10. Pure.
+        /// </summary>
+        public static int LevelOfVersion2(int level)
+        {
+            return level == Version2Standard ? Tracking.SmoothingLevel.Standard : Tracking.SmoothingLevel.Clamp(level + 2);
         }
 
         public TrackingSettings Clone()

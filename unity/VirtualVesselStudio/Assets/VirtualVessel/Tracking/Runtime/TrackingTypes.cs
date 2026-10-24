@@ -215,14 +215,20 @@ namespace VirtualVessel.Tracking
         public const int Min = 1;
         public const int Max = 10;
 
-        public const int Smooth = 3;
-        public const int Standard = 5;
-        public const int Responsive = 7;
-
         /// <summary>
-        /// The level for new settings. The user tried 7 and settled on the standard 5 after more
-        /// camera checks (2026-10-21); the tracking screen changes it.
+        /// The standard: the steadiest of the three measured parameter sets (tracking detailed design 8.2).
+        /// The user found the arms more stable here than at the earlier standard, now 7, and asked for it
+        /// to be the standard with steadier levels below (2026-10-24).
         /// </summary>
+        public const int Standard = 5;
+
+        /// <summary>The middle measured set, the standard until 2026-10-24.</summary>
+        public const int Balanced = 7;
+
+        /// <summary>The quickest measured set.</summary>
+        public const int Responsive = 9;
+
+        /// <summary>The level for new settings; the tracking screen changes it.</summary>
         public const int Default = Standard;
 
         /// <summary>A level within <see cref="Min"/> to <see cref="Max"/>. Pure.</summary>
