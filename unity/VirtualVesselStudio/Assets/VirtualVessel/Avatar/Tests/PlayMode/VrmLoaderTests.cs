@@ -295,6 +295,61 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator Fingers_CloseTheModelsOwnHand([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
+        {
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
+            using (IAvatarModel model = load.Model)
+            {
+                var vrm = (VrmAvatarModel)model;
+                var controller = new AvatarController(model, ExpressionMapping.Default);
+                controller.Update(new TrackingFrame(), mirror: false, now: 1.0);
+                model.Apply();
+                float relaxed = IndexIntoThePalm(vrm, model.Root, controller);
+
+                // The person's right hand in a fist: each finger turned a right angle at its base and middle.
+                var frame = new TrackingFrame();
+                HandPose hand = frame.RightHand;
+                hand.Status = TrackingStatus.Tracked;
+                hand.Confidence = 0.9f;
+                hand.PalmRotation = Quaternion.identity;
+                float[] lateral = { -0.025f, -0.008f, 0.008f, 0.025f };
+                for (int f = 0; f < 4; f++)
+                {
+                    int first = (int)HandJoint.IndexMcp + (f * 4);
+                    var knuckle = new Vector3(lateral[f], 0f, 0.09f);
+                    hand.Positions[first] = knuckle;
+                    hand.Positions[first + 1] = knuckle + new Vector3(0f, -0.03f, 0f);
+                    hand.Positions[first + 2] = knuckle + new Vector3(0f, -0.03f, -0.025f);
+                    hand.Positions[first + 3] = knuckle + new Vector3(0f, -0.01f, -0.03f);
+                }
+
+                hand[HandJoint.ThumbCmc] = new Vector3(-0.02f, 0f, 0.02f);
+                hand[HandJoint.ThumbMcp] = new Vector3(-0.03f, 0f, 0.05f);
+                hand[HandJoint.ThumbIp] = new Vector3(-0.025f, -0.01f, 0.08f);
+                hand[HandJoint.ThumbTip] = new Vector3(-0.01f, -0.02f, 0.09f);
+                for (int i = 0; i < 6; i++)
+                {
+                    hand.Timestamp = 2.0 + (i * 0.1);
+                    controller.Update(frame, mirror: false, now: 2.0 + (i * 0.1));
+                }
+
+                model.Apply();
+                float closed = IndexIntoThePalm(vrm, model.Root, controller);
+                UnityEngine.Debug.Log($"[Avatar/Fingers] {sample}: the model's index finger {relaxed:F0}° from pointing into the palm loosely closed, {closed:F0}° in a fist");
+                Assert.That(closed, Is.LessThan(30f), "In a fist the model's own index finger points into its palm.");
+                Assert.That(relaxed, Is.GreaterThan(closed + 30f), "Loosely closed, it does not.");
+            }
+        }
+
+        /// <summary>How far the model's own right index finger's first bone is from pointing into its palm, in degrees.</summary>
+        private static float IndexIntoThePalm(VrmAvatarModel model, Transform root, AvatarController controller)
+        {
+            Vector3 palm = controller.Body[UpperBodyBone.RightHand] * Vector3.down;
+            return Vector3.Angle(Direction(model, root, HumanBodyBones.RightIndexProximal, HumanBodyBones.RightIndexIntermediate), palm);
+        }
+
         /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
         private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
         {

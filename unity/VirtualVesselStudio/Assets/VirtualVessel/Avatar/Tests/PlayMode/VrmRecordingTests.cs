@@ -168,6 +168,12 @@ namespace VirtualVessel.Avatar.Tests
                     bool[] seenBefore = new bool[4];
                     Quaternion headBefore = Quaternion.identity;
                     var headSteps = new List<float>();
+
+                    // The most any finger angle changes in a frame, and how much its change changes (shake).
+                    var fingerBefore = new[] { new FingerPose(), new FingerPose() };
+                    var fingerSteps = new List<float>();
+                    var fingerShakes = new List<float>();
+                    var fingerStepBefore = new float[2 * FingerPose.FingerCount * (FingerPose.JointCount + 1)];
                     int shown = 0;
                     foreach (double now in replay.Frames())
                     {
@@ -176,6 +182,21 @@ namespace VirtualVessel.Avatar.Tests
                         if (shown > 0)
                         {
                             headSteps.Add(Quaternion.Angle(controller.Face.Head, headBefore));
+                            FingerPose[] fingers = { controller.LeftFingers, controller.RightFingers };
+                            float most = 0f, shake = 0f;
+                            for (int h = 0; h < 2; h++)
+                            {
+                                for (int v = 0; v < fingers[h].Values.Length; v++)
+                                {
+                                    float change = fingers[h].Values[v] - fingerBefore[h].Values[v];
+                                    most = Mathf.Max(most, Mathf.Abs(change));
+                                    shake = Mathf.Max(shake, Mathf.Abs(change - fingerStepBefore[(h * fingers[h].Values.Length) + v]));
+                                    fingerStepBefore[(h * fingers[h].Values.Length) + v] = change;
+                                }
+                            }
+
+                            fingerSteps.Add(most);
+                            fingerShakes.Add(shake);
                         }
 
                         for (int b = 0; b < bones.Length && shown > 0; b++)
@@ -215,6 +236,8 @@ namespace VirtualVessel.Avatar.Tests
                         shownHistory[0].CopyFrom(controller.Body);
                         trackedBefore.CopyFrom(tracked.Current);
                         headBefore = controller.Face.Head;
+                        fingerBefore[0].CopyFrom(controller.LeftFingers);
+                        fingerBefore[1].CopyFrom(controller.RightFingers);
                         shown++;
                     }
 
@@ -225,7 +248,9 @@ namespace VirtualVessel.Avatar.Tests
                         summary.Append($"{bones[b]} most {sorted[sorted.Count - 1]:F0}° 99% {sorted[(int)(sorted.Count * 0.99)]:F1}° over 15° {sorted.Count(x => x > 15f)}, shake {shakes[b].Average():F2}°; ");
                     }
 
-                    summary.Append($"head most {headSteps.Max():F0}° over 15° {headSteps.Count(x => x > 15f)}");
+                    summary.Append($"head most {headSteps.Max():F0}° over 15° {headSteps.Count(x => x > 15f)}; ");
+                    List<float> sortedFingers = fingerSteps.OrderBy(x => x).ToList();
+                    summary.Append($"fingers: the largest change in a frame median {sortedFingers[sortedFingers.Count / 2]:F1}° 99% {sortedFingers[(int)(sortedFingers.Count * 0.99)]:F1}° most {sortedFingers[sortedFingers.Count - 1]:F0}° over 15° {sortedFingers.Count(x => x > 15f)}, shake median {fingerShakes.OrderBy(x => x).ElementAt(fingerShakes.Count / 2):F2}°");
                     UnityEngine.Debug.Log($"[Avatar/Steady] {sample} \"{info.Description}\": {summary}");
 
                     // The worst moments, one per quarter second.
