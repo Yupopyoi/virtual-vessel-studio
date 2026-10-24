@@ -54,6 +54,59 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void AHandBentInDepth_LiesAlongTheForearm_KeepingItsTurnAcrossAndUp()
+        {
+            // The forearm out sideways and level; the hand straight on as seen from the front, but 50° toward the camera.
+            Vector3 forearm = Vector3.right;
+            Quaternion palm = Quaternion.LookRotation(Quaternion.AngleAxis(-50f, Vector3.up) * Vector3.right, Vector3.up);
+
+            Quaternion aligned = HandDepthFromForearm.Aligned(forearm, palm);
+
+            Assert.That(Vector3.Angle(aligned * Vector3.forward, forearm), Is.LessThan(0.1f), "Along the forearm.");
+            Assert.That(Vector3.Angle(aligned * Vector3.up, Vector3.up), Is.LessThan(0.1f), "The back of the hand kept.");
+
+            // Turned 30° up from the forearm as seen from the front: kept, the depth still the forearm's.
+            Vector3 tilted = new Vector3(1f, 0f, 1f).normalized;
+            Quaternion raised = Quaternion.LookRotation(Quaternion.AngleAxis(30f, Vector3.forward) * Vector3.right + (Vector3.forward * 0.3f), Vector3.up);
+            Vector3 fingers = HandDepthFromForearm.Aligned(tilted, raised) * Vector3.forward;
+            Assert.That(Vector2.SignedAngle(new Vector2(tilted.x, tilted.y), new Vector2(fingers.x, fingers.y)), Is.EqualTo(30f).Within(0.5f), "The turn across and up.");
+            Assert.That(fingers.z, Is.EqualTo(tilted.z).Within(0.01f), "The forearm's lean toward the camera.");
+        }
+
+        [Test]
+        public void AHandPointingAtTheCamera_TurnsLittle_AndAnUnseenForearmLeavesItAlone()
+        {
+            Quaternion atCamera = Quaternion.LookRotation(new Vector3(0f, 0.05f, 1f), Vector3.up);
+            Vector3 fingers = HandDepthFromForearm.Aligned(Vector3.right, atCamera) * Vector3.forward;
+            Assert.That(Vector3.Angle(fingers, Vector3.right), Is.LessThan(1f), "Shows almost nothing across and up: along the forearm.");
+
+            var frame = new TrackingFrame();
+            SyntheticMotion.WriteBody(frame.Body, 90f, 1.0);
+            frame.RightHand.Status = TrackingStatus.Tracked;
+            frame.RightHand.PalmRotation = atCamera;
+            frame.Body.JointConfidence[(int)BodyJoint.RightWrist] = 0.1f;
+            new HandDepthFromForearm().Apply(frame);
+            Assert.That(frame.RightHand.PalmRotation, Is.EqualTo(atCamera), "Without the wrist, the hand is left as observed.");
+
+            frame.Body.JointConfidence[(int)BodyJoint.RightWrist] = 0.9f;
+            frame.Body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.5f, 1.3f);
+            new HandDepthFromForearm().Apply(frame);
+            Assert.That(frame.RightHand.PalmRotation, Is.EqualTo(atCamera), "A wrist below the image is a guess, however visible.");
+        }
+
+        [Test]
+        public void AJoint_IsSeen_OnlyVisibleAndInsideTheImage()
+        {
+            Assert.That(BodyPose.IsSeen(0.9f, new Vector2(0.5f, 0.5f)), Is.True);
+            Assert.That(BodyPose.IsSeen(0.9f, new Vector2(0f, 1f)), Is.True, "The edge is in the image.");
+            Assert.That(BodyPose.IsSeen(0.3f, new Vector2(0.5f, 0.5f)), Is.False, "Not visible enough.");
+            foreach (Vector2 outside in new[] { new Vector2(-0.01f, 0.5f), new Vector2(1.01f, 0.5f), new Vector2(0.5f, -0.01f), new Vector2(0.5f, 1.2f) })
+            {
+                Assert.That(BodyPose.IsSeen(0.9f, outside), Is.False, $"{outside} is outside the image.");
+            }
+        }
+
+        [Test]
         public void Corrections_AreChosenByWhatTheInputObserves()
         {
             ObservationCorrections camera = ObservationCorrections.For(ObservationTraits.MonocularDepth, ObservationCorrections.Catalog);

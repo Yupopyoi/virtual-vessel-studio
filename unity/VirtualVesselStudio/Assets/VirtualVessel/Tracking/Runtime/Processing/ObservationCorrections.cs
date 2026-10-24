@@ -33,6 +33,9 @@ namespace VirtualVessel.Tracking.Processing
         public static readonly IReadOnlyList<IObservationCorrection> Catalog = new IObservationCorrection[]
         {
             new CameraAxisArmStraightening(),
+
+            // After the arm, so the hand follows the forearm as corrected.
+            new HandDepthFromForearm(),
         };
 
         /// <summary>No correction, as for a provider without traits that need any.</summary>

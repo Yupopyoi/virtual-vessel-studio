@@ -15,6 +15,8 @@ namespace VirtualVessel.Avatar
         RightUpperArm,
         LeftLowerArm,
         RightLowerArm,
+        LeftHand,
+        RightHand,
     }
 
     /// <summary>
@@ -37,6 +39,8 @@ namespace VirtualVessel.Avatar
             AvatarBone.RightUpperArm,
             AvatarBone.LeftLowerArm,
             AvatarBone.RightLowerArm,
+            AvatarBone.LeftHand,
+            AvatarBone.RightHand,
         };
 
         public BodyTarget()
@@ -63,6 +67,14 @@ namespace VirtualVessel.Avatar
 
         public bool RightForearmSeen { get; set; }
 
+        /// <summary>
+        /// Whether the left wrist is inside the camera image, seen or hidden there (behind the head, for
+        /// example). A forearm whose wrist is out of the image goes back to straight (avatar detailed design 7.2).
+        /// </summary>
+        public bool LeftWristInView { get; set; }
+
+        public bool RightWristInView { get; set; }
+
         /// <summary>The top of the torso, which the shoulders, arms, and neck turn from.</summary>
         public Quaternion TorsoTop => Rotations[(int)UpperBodyBone.UpperChest];
 
@@ -86,6 +98,8 @@ namespace VirtualVessel.Avatar
             RightArmSeen = other.RightArmSeen;
             LeftForearmSeen = other.LeftForearmSeen;
             RightForearmSeen = other.RightForearmSeen;
+            LeftWristInView = other.LeftWristInView;
+            RightWristInView = other.RightWristInView;
         }
 
         /// <summary>
@@ -107,6 +121,8 @@ namespace VirtualVessel.Avatar
             into.RightArmSeen = to.RightArmSeen;
             into.LeftForearmSeen = to.LeftForearmSeen;
             into.RightForearmSeen = to.RightForearmSeen;
+            into.LeftWristInView = to.LeftWristInView;
+            into.RightWristInView = to.RightWristInView;
         }
     }
 }

@@ -96,6 +96,23 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void AJointOutsideTheImage_IsNotSeen_HoweverVisible()
+        {
+            // MediaPipe guesses joints out of the image and may call them visible (tracking detailed design 8.4).
+            BodyPose body = Body(Vector3.left, Vector3.left, Vector3.right, Vector3.right);
+            body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.9f, 1.2f);
+            BodyTarget target = Retarget(body);
+            Assert.That(target.RightArmSeen, Is.True);
+            Assert.That(target.RightForearmSeen, Is.False, "A wrist below the image does not move the forearm.");
+
+            body.ImagePositions[(int)BodyJoint.RightElbow] = new Vector2(1.1f, 0.6f);
+            target = Retarget(body);
+            Assert.That(target.RightArmSeen, Is.False, "An elbow beside the image does not move the arm.");
+            AssertSame(target[UpperBodyBone.RightUpperArm], AvatarRestPose.UpperArm(false, AvatarRestPose.DefaultArmDownDegrees));
+            Assert.That(target.LeftArmSeen, Is.True);
+        }
+
+        [Test]
         public void ALostArm_Holds_ThenHangs_AndComesBack()
         {
             var motion = new BodyMotion(hasUpperChest: true);
@@ -150,6 +167,38 @@ namespace VirtualVessel.Avatar.Tests
             AssertDirection(raisedUpper * Vector3.right, new Vector3(1f, 1f, 0f).normalized, "The upper arm follows the elbow.");
             AssertSame(Quaternion.Inverse(raisedUpper) * motion.Current[UpperBodyBone.RightLowerArm], bend, "The forearm keeps its bend.");
             Assert.That(motion.RightArmPresence, Is.EqualTo(1f), "Nothing fades: the arm is seen.");
+        }
+
+        [Test]
+        public void AWristOutOfTheImage_HoldsTheBend_ThenStraightens_AndComesBack()
+        {
+            // Out sideways, the forearm bent up; then the hand goes down out of the camera, the elbow in it.
+            var motion = new BodyMotion(hasUpperChest: true);
+            BodyPose body = Body(Vector3.down, Vector3.down, Vector3.right, Vector3.up);
+            Observe(motion, body, 1.0, 1.0);
+            Observe(motion, body, 1.3, 1.3);
+            Quaternion upper = motion.Current[UpperBodyBone.RightUpperArm];
+            Quaternion bend = Quaternion.Inverse(upper) * motion.Current[UpperBodyBone.RightLowerArm];
+            Assert.That(motion.RightForearmPresence, Is.EqualTo(1f));
+
+            body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.8f, 1.2f);
+            Observe(motion, body, 1.4, 1.4);
+            Observe(motion, body, 1.7, 1.7);
+            AssertSame(Quaternion.Inverse(motion.Current[UpperBodyBone.RightUpperArm]) * motion.Current[UpperBodyBone.RightLowerArm], bend, "Held for 0.5 s.");
+
+            for (int tenths = 18; tenths <= 30; tenths++)
+            {
+                Observe(motion, body, tenths / 10.0, tenths / 10.0);
+            }
+
+            Assert.That(motion.RightForearmPresence, Is.EqualTo(0f));
+            AssertSame(motion.Current[UpperBodyBone.RightLowerArm], motion.Current[UpperBodyBone.RightUpperArm], "Straight along the upper arm.");
+            AssertSame(motion.Current[UpperBodyBone.RightHand], motion.Current[UpperBodyBone.RightUpperArm], "The hand with it.");
+            Assert.That(motion.RightArmPresence, Is.EqualTo(1f), "The upper arm is still seen.");
+
+            body.ImagePositions[(int)BodyJoint.RightWrist] = new Vector2(0.8f, 0.5f);
+            Observe(motion, body, 3.1, 3.1);
+            Assert.That(motion.RightForearmPresence, Is.EqualTo(0.5f).Within(0.05f), "Back over 0.2 s.");
         }
 
         [Test]

@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using VirtualVessel.Tracking;
 
@@ -11,8 +10,8 @@ namespace VirtualVessel.Avatar
     /// to hanging from the torso, and fades back in when seen again.
     /// </summary>
     /// <remarks>
-    /// The state lives here; the rotations are the pure <see cref="PoseRetargeting"/>, the timing the pure
-    /// <see cref="MotionTiming"/>. Buffers are reused, so a frame allocates nothing (CLAUDE.md 23).
+    /// The state lives here; the rotations are the pure <see cref="PoseRetargeting"/>, the timing
+    /// <see cref="ObservationClock"/>. Buffers are reused, so a frame allocates nothing (CLAUDE.md 23).
     /// </remarks>
     public sealed class BodyMotion
     {
@@ -22,13 +21,12 @@ namespace VirtualVessel.Avatar
         private readonly BodyTarget _from = new BodyTarget();
         private readonly BodyTarget _to = new BodyTarget();
         private readonly BodyTarget _shown = new BodyTarget();
-        private double _observedAt = double.NaN;
-        private double _arrivedAt;
-        private double _interval = MotionTiming.MinInterval;
-        private double _lastNow = double.NaN;
+        private readonly ObservationClock _clock = new ObservationClock();
         private double _torsoSeenAt = double.NaN;
         private double _leftSeenAt = double.NaN;
         private double _rightSeenAt = double.NaN;
+        private double _leftWristInViewAt = double.NaN;
+        private double _rightWristInViewAt = double.NaN;
 
         /// <param name="hasUpperChest">Whether the model has an UpperChest (avatar detailed design 7.2).</param>
         /// <param name="armDownDegrees">How far a resting arm hangs below level.</param>
@@ -50,32 +48,42 @@ namespace VirtualVessel.Avatar
 
         public float RightArmPresence { get; private set; }
 
+        /// <summary>
+        /// How much of the tracked forearm's bend is shown, per the avatar's own side: 1 as tracked or kept, 0
+        /// straight along the upper arm, where it goes while the wrist is out of the camera image.
+        /// </summary>
+        public float LeftForearmPresence { get; private set; }
+
+        public float RightForearmPresence { get; private set; }
+
         /// <param name="body">The tracked body this frame; null when there is no tracking.</param>
         /// <param name="now">Seconds on the clock of the body's timestamps.</param>
         public void Update(BodyPose body, bool mirror, double now)
         {
-            float elapsed = double.IsNaN(_lastNow) ? 0f : (float)Math.Max(0.0, now - _lastNow);
-            _lastNow = now;
+            float elapsed = _clock.Tick(now);
 
             bool usable = body != null && body.IsUsable;
-            if (usable && body.Timestamp != _observedAt)
+            if (usable && _clock.IsNew(body.Timestamp))
             {
                 Observe(body, mirror, now);
             }
 
-            BodyTarget.Lerp(_from, _to, MotionTiming.Progress(now, _arrivedAt, _interval), _shown);
+            BodyTarget.Lerp(_from, _to, _clock.Progress(now), _shown);
             TorsoPresence = MotionTiming.NextPresence(TorsoPresence, usable && _to.TorsoSeen, LostFor(_torsoSeenAt, now, body), elapsed);
             LeftArmPresence = MotionTiming.NextPresence(LeftArmPresence, usable && _to.LeftArmSeen, LostFor(_leftSeenAt, now, body), elapsed);
             RightArmPresence = MotionTiming.NextPresence(RightArmPresence, usable && _to.RightArmSeen, LostFor(_rightSeenAt, now, body), elapsed);
-            Compose(_shown, TorsoPresence, LeftArmPresence, RightArmPresence, _armDownDegrees, Current);
+            LeftForearmPresence = MotionTiming.NextPresence(LeftForearmPresence, usable && _to.LeftWristInView, LostFor(_leftWristInViewAt, now, body), elapsed);
+            RightForearmPresence = MotionTiming.NextPresence(RightForearmPresence, usable && _to.RightWristInView, LostFor(_rightWristInViewAt, now, body), elapsed);
+            Compose(_shown, TorsoPresence, new ArmPresence(LeftArmPresence, LeftForearmPresence), new ArmPresence(RightArmPresence, RightForearmPresence), _armDownDegrees, Current);
         }
 
         /// <summary>
         /// What is shown from <paramref name="shown"/> and each region's presence: the torso turned that
-        /// share of the way from straight, and each arm that share of the way from hanging from the torso
-        /// as it is now. Pure apart from writing the caller's buffer.
+        /// share of the way from straight, each arm that share of the way from hanging from the torso as it
+        /// is now, and each forearm its share of the way from straight along that upper arm. Pure apart from
+        /// writing the caller's buffer.
         /// </summary>
-        public static void Compose(BodyTarget shown, float torso, float leftArm, float rightArm, float armDownDegrees, BodyTarget into)
+        public static void Compose(BodyTarget shown, float torso, ArmPresence leftArm, ArmPresence rightArm, float armDownDegrees, BodyTarget into)
         {
             into[UpperBodyBone.Spine] = Quaternion.Slerp(Quaternion.identity, shown[UpperBodyBone.Spine], torso);
             into[UpperBodyBone.Chest] = Quaternion.Slerp(Quaternion.identity, shown[UpperBodyBone.Chest], torso);
@@ -87,15 +95,19 @@ namespace VirtualVessel.Avatar
             into.RightArmSeen = shown.RightArmSeen;
             into.LeftForearmSeen = shown.LeftForearmSeen;
             into.RightForearmSeen = shown.RightForearmSeen;
+            into.LeftWristInView = shown.LeftWristInView;
+            into.RightWristInView = shown.RightWristInView;
         }
 
-        private static void ComposeArm(BodyTarget shown, ArmSide side, float presence, float armDownDegrees, BodyTarget into)
+        private static void ComposeArm(BodyTarget shown, ArmSide side, ArmPresence presence, float armDownDegrees, BodyTarget into)
         {
             Quaternion top = into.TorsoTop;
             Quaternion hanging = top * AvatarRestPose.UpperArm(side.IsLeft, armDownDegrees);
-            into[side.Shoulder] = Quaternion.Slerp(top, shown[side.Shoulder], presence);
-            into[side.UpperArm] = Quaternion.Slerp(hanging, shown[side.UpperArm], presence);
-            into[side.LowerArm] = Quaternion.Slerp(hanging, shown[side.LowerArm], presence);
+            Quaternion upper = Quaternion.Slerp(hanging, shown[side.UpperArm], presence.Arm);
+            into[side.Shoulder] = Quaternion.Slerp(top, shown[side.Shoulder], presence.Arm);
+            into[side.UpperArm] = upper;
+            into[side.LowerArm] = Quaternion.Slerp(upper, Quaternion.Slerp(hanging, shown[side.LowerArm], presence.Arm), presence.Forearm);
+            into[side.Hand] = Quaternion.Slerp(upper, Quaternion.Slerp(hanging, shown[side.Hand], presence.Arm), presence.Forearm);
         }
 
         private static double LostFor(double seenAt, double now, BodyPose body)
@@ -126,6 +138,7 @@ namespace VirtualVessel.Avatar
                 observed[side.Shoulder] = previous[side.Shoulder];
                 observed[upper] = previous[upper];
                 observed[lower] = previous[lower];
+                observed[side.Hand] = previous[side.Hand];
             }
             else if (!forearmSeen)
             {
@@ -133,6 +146,7 @@ namespace VirtualVessel.Avatar
                 (Quaternion followed, Quaternion bent) = PoseRetargeting.WithoutWrist(side.IsLeft, observed[upper], previous[upper], previous[lower]);
                 observed[upper] = followed;
                 observed[lower] = bent;
+                observed[side.Hand] = bent;
             }
         }
 
@@ -147,8 +161,10 @@ namespace VirtualVessel.Avatar
             Quaternion right = torso * AvatarRestPose.UpperArm(false, _armDownDegrees);
             into[UpperBodyBone.LeftUpperArm] = left;
             into[UpperBodyBone.LeftLowerArm] = left;
+            into[UpperBodyBone.LeftHand] = left;
             into[UpperBodyBone.RightUpperArm] = right;
             into[UpperBodyBone.RightLowerArm] = right;
+            into[UpperBodyBone.RightHand] = right;
         }
 
         private void Observe(BodyPose body, bool mirror, double now)
@@ -169,9 +185,19 @@ namespace VirtualVessel.Avatar
                 _rightSeenAt = body.Timestamp;
             }
 
+            if (_observed.LeftWristInView)
+            {
+                _leftWristInViewAt = body.Timestamp;
+            }
+
+            if (_observed.RightWristInView)
+            {
+                _rightWristInViewAt = body.Timestamp;
+            }
+
             // Starting from nothing shown, there is no earlier pose to move from: begin at the observation
             // and let the presences fade it in.
-            bool fresh = double.IsNaN(_observedAt) || (TorsoPresence <= 0f && LeftArmPresence <= 0f && RightArmPresence <= 0f);
+            bool fresh = !_clock.HasObserved || (TorsoPresence <= 0f && LeftArmPresence <= 0f && RightArmPresence <= 0f);
 
             // A part this observation did not see keeps where it was last seen, so it holds while lost
             // instead of moving to the rest at once; the presence takes it back after the hold.
@@ -188,9 +214,21 @@ namespace VirtualVessel.Avatar
 
             _from.CopyFrom(fresh ? _observed : _shown);
             _to.CopyFrom(_observed);
-            _interval = MotionTiming.Interval(fresh, body.Timestamp, _observedAt);
-            _observedAt = body.Timestamp;
-            _arrivedAt = now;
+            _clock.Arrive(fresh, body.Timestamp, now);
+        }
+
+        /// <summary>How much of one tracked arm is shown: the arm from hanging, the forearm's bend from straight.</summary>
+        public readonly struct ArmPresence
+        {
+            public ArmPresence(float arm, float forearm)
+            {
+                Arm = arm;
+                Forearm = forearm;
+            }
+
+            public float Arm { get; }
+
+            public float Forearm { get; }
         }
     }
 }

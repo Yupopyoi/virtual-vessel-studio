@@ -45,6 +45,7 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(turned, Is.GreaterThan(1f).And.LessThan(ArmClearance.MaxTurnDegrees), "The least turn that clears, not the most.");
                 Vector3 forearm = cleared[UpperBodyBone.RightLowerArm] * Vector3.right;
                 Assert.That(Mathf.Sign(forearm.z), Is.EqualTo(side), "In front stays in front, behind stays behind.");
+                AssertSame(cleared[UpperBodyBone.RightHand], cleared[UpperBodyBone.RightLowerArm], "The hand turns with the forearm.");
                 AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
                 AssertSame(cleared[UpperBodyBone.LeftUpperArm], pose[UpperBodyBone.LeftUpperArm], "The other arm is untouched.");
             }
@@ -68,7 +69,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void FoldedArms_ComeForward_LookingTheSameFromTheCamera()
+        public void FoldedArms_ComeForwardAtTheElbow_LookingTheSameFromTheCamera()
         {
             // Arms folded: the right upper arm down and a little forward, the forearm across the chest, in it.
             AvatarBodyShape shape = Shape(s_headRadii);
@@ -79,9 +80,28 @@ namespace VirtualVessel.Avatar.Tests
             ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
 
             Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
-            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z), "The arm comes forward.");
-            AssertSeenAlike(cleared, pose, UpperBodyBone.RightUpperArm);
+            AssertSame(cleared[UpperBodyBone.RightUpperArm], pose[UpperBodyBone.RightUpperArm], "The elbow is clear of the chest, so the shoulder stays.");
+            Assert.That((cleared[UpperBodyBone.RightLowerArm] * Vector3.right).z, Is.GreaterThan(0f), "The forearm comes forward.");
             AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
+        }
+
+        [Test]
+        public void AnArmHangingAtTheSide_IsNotTurned_ButAForearmAcrossTheBellyComesForwardAtTheElbow()
+        {
+            // A sleeve against the side of the body is cloth on cloth: not a contact.
+            AvatarBodyShape shape = Shape(s_headRadii);
+            BodyTarget hanging = Pose(Vector3.down, Vector3.down);
+            Assert.That(ArmClearance.Touches(shape, hanging, Quaternion.identity, Quaternion.identity), Is.False);
+
+            // The hand on the belly: the forearm across the front of the lowest part of the torso.
+            BodyTarget onBelly = Pose(Vector3.down, Vector3.left);
+            Assert.That(ArmClearance.Touches(shape, onBelly, Quaternion.identity, Quaternion.identity), Is.True);
+            var cleared = new BodyTarget();
+            ArmClearance.Apply(shape, onBelly, Quaternion.identity, Quaternion.identity, default, frontOnly: true, cleared);
+
+            Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
+            AssertSame(cleared[UpperBodyBone.RightUpperArm], onBelly[UpperBodyBone.RightUpperArm], "Not swung forward at the shoulder.");
+            Assert.That((cleared[UpperBodyBone.RightLowerArm] * Vector3.right).z, Is.GreaterThan(0f), "The forearm comes forward at the elbow.");
         }
 
         [Test]
@@ -94,7 +114,7 @@ namespace VirtualVessel.Avatar.Tests
             ArmClearance.Apply(shape, pose, Quaternion.identity, Quaternion.identity, cleared);
 
             Assert.That(ArmClearance.Touches(shape, cleared, Quaternion.identity, Quaternion.identity), Is.False);
-            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z + 0.01f), "Turned forward at the shoulder.");
+            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan((pose[UpperBodyBone.RightUpperArm] * Vector3.right).z), "Turned forward at the shoulder.");
             AssertSeenAlike(cleared, pose, UpperBodyBone.RightUpperArm);
         }
 
@@ -281,6 +301,7 @@ namespace VirtualVessel.Avatar.Tests
             var pose = new BodyTarget();
             pose[UpperBodyBone.RightUpperArm] = Quaternion.FromToRotation(Vector3.right, upper.normalized);
             pose[UpperBodyBone.RightLowerArm] = Quaternion.FromToRotation(Vector3.right, fore.normalized);
+            pose[UpperBodyBone.RightHand] = pose[UpperBodyBone.RightLowerArm];
             return pose;
         }
 

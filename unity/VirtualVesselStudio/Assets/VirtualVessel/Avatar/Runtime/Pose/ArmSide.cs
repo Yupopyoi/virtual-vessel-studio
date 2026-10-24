@@ -12,12 +12,33 @@ namespace VirtualVessel.Avatar
         public static readonly ArmSide Left = new ArmSide(true);
         public static readonly ArmSide Right = new ArmSide(false);
 
+        /// <summary>
+        /// The bones that turn with the arms, from the shoulder out: the left upper arm, forearm, and hand,
+        /// then the right's. The arms' later steps keep one value per bone in this order. Not to be written.
+        /// </summary>
+        internal static readonly UpperBodyBone[] LimbBones =
+        {
+            UpperBodyBone.LeftUpperArm,
+            UpperBodyBone.LeftLowerArm,
+            UpperBodyBone.LeftHand,
+            UpperBodyBone.RightUpperArm,
+            UpperBodyBone.RightLowerArm,
+            UpperBodyBone.RightHand,
+        };
+
+        /// <summary>Whether <see cref="LimbBones"/>[<paramref name="index"/>] is the left arm's.</summary>
+        internal static bool IsLeftLimb(int index)
+        {
+            return index < LimbBones.Length / 2;
+        }
+
         private ArmSide(bool left)
         {
             IsLeft = left;
             Shoulder = left ? UpperBodyBone.LeftShoulder : UpperBodyBone.RightShoulder;
             UpperArm = left ? UpperBodyBone.LeftUpperArm : UpperBodyBone.RightUpperArm;
             LowerArm = left ? UpperBodyBone.LeftLowerArm : UpperBodyBone.RightLowerArm;
+            Hand = left ? UpperBodyBone.LeftHand : UpperBodyBone.RightHand;
             ShoulderBone = left ? AvatarBone.LeftShoulder : AvatarBone.RightShoulder;
             UpperArmBone = left ? AvatarBone.LeftUpperArm : AvatarBone.RightUpperArm;
             LowerArmBone = left ? AvatarBone.LeftLowerArm : AvatarBone.RightLowerArm;
@@ -34,6 +55,8 @@ namespace VirtualVessel.Avatar
         public UpperBodyBone UpperArm { get; }
 
         public UpperBodyBone LowerArm { get; }
+
+        public UpperBodyBone Hand { get; }
 
         public AvatarBone ShoulderBone { get; }
 

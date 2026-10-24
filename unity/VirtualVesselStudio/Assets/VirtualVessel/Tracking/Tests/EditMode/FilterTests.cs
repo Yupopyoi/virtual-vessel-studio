@@ -94,6 +94,59 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void AStraightArm_SwungFast_StaysStraight_WhenItsJointsAreSmoothedTogether()
+        {
+            // Shoulder, elbow, wrist of a straight arm swinging down from sideways at 180° a second.
+            OneEuroParameters parameters = SmoothingProfile.For(SmoothingLevel.Min).Joints;
+            var linked = new LinkedPositionFilter(3);
+            var apart = new PositionFilter[3];
+            var raw = new Vector3[3];
+            bool[] all = { true, true, true };
+            float mostLinked = 0f, mostApart = 0f;
+            for (int i = 0; i <= 30; i++)
+            {
+                double time = i / 30.0;
+                Vector3 along = Quaternion.AngleAxis(-180f * (float)time, Vector3.forward) * Vector3.right;
+                raw[0] = Vector3.zero;
+                raw[1] = along * 0.25f;
+                raw[2] = along * 0.5f;
+                linked.Next(raw, all, all, time, parameters);
+                for (int j = 0; j < 3; j++)
+                {
+                    apart[j] = apart[j].Next(raw[j], time, parameters);
+                }
+
+                mostLinked = Mathf.Max(mostLinked, Bend(linked.Value(0), linked.Value(1), linked.Value(2)));
+                mostApart = Mathf.Max(mostApart, Bend(apart[0].Value, apart[1].Value, apart[2].Value));
+            }
+
+            Assert.That(mostLinked, Is.LessThan(0.5f), "Smoothed together, the arm stays straight.");
+            Assert.That(mostApart, Is.GreaterThan(10f), "Smoothed apart, the slower elbow lags behind the wrist.");
+        }
+
+        [Test]
+        public void LinkedJoints_TakeTheCutoffOfTheFastestLead_AndKeepThoseNotTaken()
+        {
+            OneEuroParameters parameters = SmoothingProfile.Balanced.Position;
+            Vector3[] velocities = { new Vector3(0.1f, 0f, 0f), new Vector3(0f, 2f, 0f), new Vector3(0f, 0f, 9f) };
+            Assert.That(LinkedPositionFilter.Cutoff(velocities, new[] { true, true, false }, parameters), Is.EqualTo(parameters.MinCutoff + (parameters.Beta * 2f)).Within(1e-5f), "A joint that does not lead, such as a guess out of view, does not quicken the rest.");
+
+            var filter = new LinkedPositionFilter(2);
+            filter.Next(new[] { Vector3.one, Vector3.one }, new[] { true, false }, new[] { true, true }, 0.0, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "The first sample passes through.");
+            Assert.That(filter.IsStarted(1), Is.False, "A sample not taken is not started.");
+            filter.Next(new[] { Vector3.zero, Vector3.one }, new[] { false, true }, new[] { true, true }, 1.0 / 30, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "A dropped sample keeps the value.");
+            filter.Next(new[] { Vector3.zero, Vector3.zero }, new[] { true, true }, new[] { true, true }, 1.0 / 30, parameters);
+            Assert.That(filter.Value(0), Is.EqualTo(Vector3.one), "A sample not newer is ignored.");
+        }
+
+        private static float Bend(Vector3 shoulder, Vector3 elbow, Vector3 wrist)
+        {
+            return Vector3.Angle(elbow - shoulder, wrist - elbow);
+        }
+
+        [Test]
         public void ARotationAcross180Degrees_TakesTheShortWay()
         {
             RotationFilter filter = default(RotationFilter).Next(Quaternion.Euler(0, 175, 0), 0, s_balanced);

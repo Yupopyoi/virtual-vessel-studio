@@ -33,6 +33,20 @@ namespace VirtualVessel.Tracking.Processing
         /// <summary>For positions, in meters.</summary>
         public OneEuroParameters Position { get; }
 
+        /// <summary>
+        /// For the joints of the body and of each hand, smoothed together (<see cref="LinkedPositionFilter"/>):
+        /// <see cref="Position"/> with <see cref="JointsBetaShare"/> of its beta.
+        /// </summary>
+        public OneEuroParameters Joints => new OneEuroParameters(Position.MinCutoff, Position.Beta * JointsBetaShare, Position.DerivativeCutoff);
+
+        /// <summary>
+        /// Joints smoothed together take the speed of the fastest one, in all three axes, which is faster
+        /// than one joint's along one axis; half the beta keeps each level's lag on the user's recordings
+        /// (383 ms at level 1 on "1024不自然解消用", as with a filter per joint and axis) and steadies the
+        /// arms a little more (2026-10-24, tracking detailed design 8.2).
+        /// </summary>
+        public const float JointsBetaShare = 0.5f;
+
         /// <summary>For face values and gaze, 0 to 1.</summary>
         public OneEuroParameters Face { get; }
 

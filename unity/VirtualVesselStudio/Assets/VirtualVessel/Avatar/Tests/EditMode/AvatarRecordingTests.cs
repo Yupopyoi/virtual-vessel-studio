@@ -25,12 +25,7 @@ namespace VirtualVessel.Avatar.Tests
         [Test]
         public void TheUpperBody_FromEachRecording_IsSoundAndSummarized()
         {
-            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
-            IReadOnlyList<TrackingRecordingInfo> recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
-            if (recordings.Count == 0)
-            {
-                Assert.Ignore($"No recordings in {folder}.");
-            }
+            (string folder, TrackingRecordingInfo[] recordings) = DeveloperRecordings();
 
             foreach (TrackingRecordingInfo info in recordings)
             {
@@ -59,9 +54,9 @@ namespace VirtualVessel.Avatar.Tests
                     }
 
                     usable++;
-                    visible[0] += body.JointConfidence[(int)BodyJoint.LeftShoulder] >= PoseRetargeting.MinVisibility ? 1 : 0;
-                    visible[1] += body.JointConfidence[(int)BodyJoint.LeftElbow] >= PoseRetargeting.MinVisibility ? 1 : 0;
-                    visible[2] += body.JointConfidence[(int)BodyJoint.LeftWrist] >= PoseRetargeting.MinVisibility ? 1 : 0;
+                    visible[0] += body.IsSeen(BodyJoint.LeftShoulder) ? 1 : 0;
+                    visible[1] += body.IsSeen(BodyJoint.LeftElbow) ? 1 : 0;
+                    visible[2] += body.IsSeen(BodyJoint.LeftWrist) ? 1 : 0;
                     PoseRetargeting.Retarget(body, mirror: true, hasUpperChest: true, AvatarRestPose.DefaultArmDownDegrees, target);
                     foreach (Quaternion rotation in target.Rotations)
                     {
@@ -109,6 +104,107 @@ namespace VirtualVessel.Avatar.Tests
                     + $"arms L {Share(left, usable)} R {Share(right, usable)} (R forearm {Share(forearm, usable)}); right elbow bend median {Median(bends):F0}°; corrections {corrections.Corrections.Count}; right arm lengths: upper {Spread(upper)}, forearm {Spread(fore)}; "
                     + $"right upper-arm jumps over {JumpDegrees:F0}° per observation: {jumps} ({turns} in direction, the rest in twist); its joints visible: shoulder {Share(visible[0], usable)}, elbow {Share(visible[1], usable)}, wrist {Share(visible[2], usable)}");
             }
+        }
+
+        [Test]
+        public void TheElbow_OnEachRecording_BendsWhereAnArmCan()
+        {
+            // How far the bend plane twists the upper arm from where the torso holds it (0: the forearm
+            // folds forward), on bent arms whose bend plane sets the twist; with the forearm's depth as
+            // tracked and turned the other way about the elbow (the image unchanged); and how often the
+            // person's hand, whose palm can set the forearm's twist, is seen (avatar detailed design 7.1).
+            (string folder, TrackingRecordingInfo[] recordings) = DeveloperRecordings();
+
+            foreach (TrackingRecordingInfo info in recordings)
+            {
+                (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
+                ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
+                var corrected = new TrackingFrame();
+                foreach (ArmSide side in new[] { ArmSide.Left, ArmSide.Right })
+                {
+                    var twists = new List<float>();
+                    var flippedTwists = new List<float>();
+                    var forearmTwists = new List<float>();
+                    int leftOut = 0;
+                    int hands = 0, seen = 0;
+                    foreach (TrackingFrame frame in frames)
+                    {
+                        corrections.Apply(frame, corrected);
+                        BodyPose body = corrected.Body;
+                        if (!body.IsUsable)
+                        {
+                            continue;
+                        }
+
+                        // In a mirror the avatar's left arm is the person's right one.
+                        HandPose hand = side.IsLeft ? corrected.RightHand : corrected.LeftHand;
+                        seen++;
+                        hands += hand.IsUsable ? 1 : 0;
+                        (Vector3 shoulder, Vector3 elbow, Vector3 wrist) = PoseRetargeting.ArmJoints(body, side, mirror: true);
+                        Quaternion torso = PoseRetargeting.LimitTorso(PoseRetargeting.Torso(
+                            PoseRetargeting.Joint(body, BodyJoint.LeftShoulder, true), PoseRetargeting.Joint(body, BodyJoint.RightShoulder, true),
+                            PoseRetargeting.Joint(body, BodyJoint.Neck, true), PoseRetargeting.Joint(body, BodyJoint.Hips, true)));
+                        if (HandRetargeting.TryPalm(hand, mirror: true, out Quaternion palm))
+                        {
+                            // How far the palm twists the arm from neutral, supination positive, and how it is shared (avatar detailed design 7.7).
+                            (_, Quaternion lower) = PoseRetargeting.Arm(side.IsLeft, shoulder, elbow, wrist, torso);
+                            float palmTwist = HandRetargeting.Twist(side.IsLeft, lower, palm);
+                            (_, float impossible) = HandRetargeting.Split(palmTwist);
+                            forearmTwists.Add(palmTwist);
+                            leftOut += Mathf.Abs(impossible) > 10f ? 1 : 0;
+                        }
+
+                        float? twist = Twist(side.IsLeft, shoulder, elbow, wrist, torso);
+                        if (twist is float value)
+                        {
+                            twists.Add(value);
+                            Vector3 flipped = new Vector3(wrist.x, wrist.y, elbow.z - (wrist.z - elbow.z));
+                            flippedTwists.Add(Twist(side.IsLeft, shoulder, elbow, flipped, torso) ?? value);
+                        }
+                    }
+
+                    int beyond = twists.Count(t => Mathf.Abs(t) > 90f);
+                    int fixedByFlip = twists.Where((t, i) => Mathf.Abs(t) > 90f && Mathf.Abs(flippedTwists[i]) <= 90f).Count();
+                    Debug.Log($"[Elbow] {info.Id} \"{info.Description}\" avatar {(side.IsLeft ? "left" : "right")}: bent on {twists.Count} of {seen}; twist median {Median(twists.Select(Mathf.Abs).ToList()):F0}°, "
+                        + $"beyond ±90° on {beyond} ({Share(beyond, twists.Count)}), beyond ±135° on {twists.Count(t => Mathf.Abs(t) > 135f)}; with the forearm's depth turned over, {fixedByFlip} of those come within ±90°; "
+                        + $"twist outward/inward: {Share(twists.Count(t => t < -45f), twists.Count)} below -45°, {Share(twists.Count(t => t > 45f), twists.Count)} above 45°; hand seen {Share(hands, seen)}; "
+                        + $"palm twist from neutral (supination +) median {Median(forearmTwists):F0}°, 10%..90% {Percentile(forearmTwists, 0.1f):F0}..{Percentile(forearmTwists, 0.9f):F0}°; "
+                        + $"past the forearm's reach {Share(forearmTwists.Count(t => Mathf.Abs(t) > HandRetargeting.ForearmReachDegrees), forearmTwists.Count)}, over 10° left out {Share(leftOut, forearmTwists.Count)}");
+                }
+            }
+        }
+
+        /// <summary>The upper arm's twist the bend sets, from the torso's swing, in degrees about the upper arm; null when nearly straight.</summary>
+        private static float? Twist(bool left, Vector3 shoulder, Vector3 elbow, Vector3 wrist, Quaternion torso)
+        {
+            Vector3 upper = (elbow - shoulder).normalized;
+            Vector3 fore = (wrist - elbow).normalized;
+            Vector3 bend = Vector3.Cross(upper, fore);
+            if (bend.magnitude < 0.5f)
+            {
+                return null;
+            }
+
+            Vector3 swung = Quaternion.FromToRotation(torso * PoseRetargeting.RestDirection(left), upper) * (torso * PoseRetargeting.RestBendNormal(left));
+            return Vector3.SignedAngle(Vector3.ProjectOnPlane(swung, upper), bend.normalized, upper);
+        }
+
+        private static float Percentile(List<float> values, float share)
+        {
+            return values.Count == 0 ? float.NaN : values.OrderBy(value => value).ElementAt(Mathf.Min(values.Count - 1, (int)(share * values.Count)));
+        }
+
+        /// <summary>The readable recordings in the developer's recordings folder; the test is ignored without any.</summary>
+        private static (string Folder, TrackingRecordingInfo[] Recordings) DeveloperRecordings()
+        {
+            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
+            TrackingRecordingInfo[] recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
+            if (recordings.Length == 0)
+            {
+                Assert.Ignore($"No recordings in {folder}.");
+            }
+
+            return (folder, recordings);
         }
 
         private static float Median(List<float> values)

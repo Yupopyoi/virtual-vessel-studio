@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,7 +9,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Avatar.Vrm;
-using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
@@ -19,26 +17,18 @@ namespace VirtualVessel.Avatar.Tests
 {
     /// <summary>
     /// Loading real VRM models with UniVRM (avatar detailed design 14). The models are the user's
-    /// samples outside the repository (avatar detailed design 17), so the tests run only by name. They
-    /// are looked for in the folder named by VV_SAMPLES_DIR, else in "samples" next to the repository.
+    /// samples outside the repository (avatar detailed design 17, <see cref="VrmSamples"/>), so the tests
+    /// run only by name.
     /// </summary>
     [Explicit("Needs the sample models outside the repository; run by name.")]
     [Category("Explicit")]
     public sealed class VrmLoaderTests
     {
-        private const double TimeoutSeconds = 60;
-
-        private static IEnumerable<string> Samples()
-        {
-            string folder = SampleFolder();
-            return Directory.Exists(folder) ? Directory.GetFiles(folder, "*.vrm").Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal) : new[] { "none" };
-        }
-
         [UnityTest]
-        public IEnumerator Load_HasTheRequiredBonesAndExpressions_AndReadsTheMeta([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Load_HasTheRequiredBonesAndExpressions_AndReadsTheMeta([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 TestContext.WriteLine($"{sample}: '{model.Info.Name}' VRM {model.Info.FormatVersion}, {load.Seconds:F2} s, longest frame {load.LongestFrameMilliseconds:F0} ms, authors {string.Join(", ", model.Info.License.Authors)}, permission {model.Info.License.AvatarPermission}, thumbnail {model.Info.Thumbnail?.Extension ?? "none"}.");
@@ -55,10 +45,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Rig_RotatesBonesInTheRootSpace_WhateverTheModelsBoneAxes([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Rig_RotatesBonesInTheRootSpace_WhateverTheModelsBoneAxes([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 Animator animator = model.Root.GetComponent<Animator>();
@@ -82,10 +72,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Expressions_MoveTheFace([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Expressions_MoveTheFace([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 SkinnedMeshRenderer[] renderers = model.Root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
@@ -98,10 +88,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 Transform head = model.Root.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
@@ -169,10 +159,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Body_PointsTheModelsOwnArms_AndAppliesWithinItsBudget([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 var vrm = (VrmAvatarModel)model;
@@ -189,6 +179,21 @@ namespace VirtualVessel.Avatar.Tests
                 Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm), Vector3.forward), Is.LessThan(5f), "The right arm reaches forward.");
                 Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm), Vector3.left), Is.LessThan(5f), "The left upper arm is out sideways.");
                 Assert.That(Vector3.Angle(Direction(vrm, model.Root, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand), Vector3.up), Is.LessThan(5f), "The left forearm points up.");
+
+                // The right palm turned a quarter, thumb up (reaching forward, the back of the hand outward): the
+                // model's own hand turns too, its back from its index and little fingers' bases.
+                frame.RightHand.Status = TrackingStatus.Tracked;
+                frame.RightHand.Confidence = 0.9f;
+                frame.RightHand.PalmRotation = Quaternion.LookRotation(Vector3.forward, Vector3.right);
+                frame.RightHand.Timestamp = 2.0;
+                controller.Update(frame, mirror: false, now: 2.0);
+                controller.Update(frame, mirror: false, now: 2.5);
+                model.Apply();
+                Vector3 hand = vrm.ModelBone(HumanBodyBones.RightHand).position;
+                Vector3 back = model.Root.InverseTransformDirection(Vector3.Cross(
+                    vrm.ModelBone(HumanBodyBones.RightIndexProximal).position - hand, vrm.ModelBone(HumanBodyBones.RightLittleProximal).position - hand));
+                Assert.That(Vector3.Angle(back, Vector3.right), Is.LessThan(20f), "The back of the model's right hand faces outward.");
+                frame.RightHand.Status = TrackingStatus.Lost;
 
                 // Per-frame cost with the body moving as well as the face (avatar detailed design 15).
                 const int Frames = 300;
@@ -216,10 +221,10 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Body_KeepsTheArmsOutOfTheHeadAndTorso([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Body_KeepsTheArmsOutOfTheHeadAndTorso([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
                 var vrm = (VrmAvatarModel)model;
@@ -290,119 +295,6 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
-        [UnityTest]
-        public IEnumerator Body_OnTheRecordings_ClearanceMovesTheArmsSmoothly([ValueSource(nameof(Samples))] string sample)
-        {
-            string folder = Path.Combine(DataRootResolver.ForCurrentUser().Resolve(null).DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName);
-            TrackingRecordingInfo[] recordings = TrackingRecordings.List(folder).Where(info => info.Readable).ToArray();
-            if (recordings.Length == 0)
-            {
-                Assert.Ignore($"No recordings in {folder}.");
-            }
-
-            var load = new LoadResult();
-            yield return Load(sample, load);
-            using (IAvatarModel model = load.Model)
-            {
-                foreach (TrackingRecordingInfo info in recordings)
-                {
-                    // As the app runs: corrections, the standard smoothing, then 60 frames a second, mirrored.
-                    (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
-                    ObservationCorrections corrections = ObservationCorrections.For(header.Traits, ObservationCorrections.Catalog);
-                    var processor = new TrackingProcessor();
-                    var corrected = new TrackingFrame();
-                    var output = new TrackingFrame();
-                    var controller = new AvatarController(model, ExpressionMapping.Default);
-                    var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
-                    var before = new BodyTarget();
-                    var beforeTracked = new BodyTarget();
-                    var again = new BodyTarget();
-                    float remainingSum = 0f, mostRemaining = 0f;
-                    int next = 0, shown = 0, active = 0, added = 0, touching = 0;
-                    float mostTurn = 0f, mostAdded = 0f, turnSum = 0f, imageSum = 0f;
-                    double mostAddedAt = 0.0;
-                    for (double now = frames[0].Time; now <= frames[frames.Count - 1].Time; now += 1.0 / 60.0)
-                    {
-                        for (; next < frames.Count && frames[next].Time <= now; next++)
-                        {
-                            corrections.Apply(frames[next], corrected);
-                            processor.Process(corrected, frames[next].Time, header.Supported, TrackingRegions.All, SmoothingLevel.Standard, output);
-                        }
-
-                        controller.Update(output, mirror: true, now);
-                        tracked.Update(output.Body, true, now);
-                        float turn = 0f, image = 0f, step = 0f, trackedStep = 0f;
-                        foreach (UpperBodyBone bone in new[] { UpperBodyBone.LeftUpperArm, UpperBodyBone.LeftLowerArm, UpperBodyBone.RightUpperArm, UpperBodyBone.RightLowerArm })
-                        {
-                            Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm ? Vector3.left : Vector3.right;
-                            turn = Mathf.Max(turn, Vector3.Angle(controller.Body[bone] * rest, tracked.Current[bone] * rest));
-
-                            // How far it moved on the camera's image: the angle between the two seen from the front.
-                            Vector2 seen = controller.Body[bone] * rest;
-                            Vector2 seenTracked = tracked.Current[bone] * rest;
-                            if (seen.sqrMagnitude > 0.01f && seenTracked.sqrMagnitude > 0.01f)
-                            {
-                                image = Mathf.Max(image, Vector2.Angle(seen, seenTracked));
-                            }
-                            if (shown > 0)
-                            {
-                                float moved = Vector3.Angle(controller.Body[bone] * rest, before[bone] * rest);
-                                float movedTracked = Vector3.Angle(tracked.Current[bone] * rest, beforeTracked[bone] * rest);
-                                if (moved - movedTracked > step - trackedStep)
-                                {
-                                    step = moved;
-                                    trackedStep = movedTracked;
-                                }
-                            }
-                        }
-
-                        shown++;
-                        Quaternion neck = HeadPose.Neck(controller.Body.TorsoTop, controller.Face.Head);
-                        if (ArmClearance.Touches(model.BodyShape, controller.Body, neck, controller.Face.Head))
-                        {
-                            // How deep: how much more an arm would have to turn to come out.
-                            touching++;
-                            ArmClearance.Apply(model.BodyShape, controller.Body, neck, controller.Face.Head, again);
-                            float remaining = 0f;
-                            for (int i = 0; i < BodyTarget.BoneCount; i++)
-                            {
-                                remaining = Mathf.Max(remaining, Quaternion.Angle(again.Rotations[i], controller.Body.Rotations[i]));
-                            }
-
-                            remainingSum += remaining;
-                            mostRemaining = Mathf.Max(mostRemaining, remaining);
-                        }
-
-                        if (turn > 1f)
-                        {
-                            active++;
-                            turnSum += turn;
-                            imageSum += image;
-                        }
-
-                        mostTurn = Mathf.Max(mostTurn, turn);
-
-                        // A frame where clearance moves an arm more than 5° beyond what tracking moved it: a jump it adds.
-                        if (step - trackedStep > 5f)
-                        {
-                            added++;
-                            if (step - trackedStep > mostAdded)
-                            {
-                                mostAdded = step - trackedStep;
-                                mostAddedAt = now - frames[0].Time;
-                            }
-                        }
-
-                        before.CopyFrom(controller.Body);
-                        beforeTracked.CopyFrom(tracked.Current);
-                    }
-
-                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\": {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°, on average {(active > 0 ? turnSum / active : 0f):F1}°, of which on the image {(active > 0 ? imageSum / active : 0f):F1}°; still touching on {touching}, by {(touching > 0 ? remainingSum / touching : 0f):F1}° on average and {mostRemaining:F0}° at most; "
-                        + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s");
-                }
-            }
-        }
-
         /// <summary>Where a model's own bone points, toward the next one, in the avatar root's space.</summary>
         private static Vector3 Direction(VrmAvatarModel model, Transform root, HumanBodyBones from, HumanBodyBones to)
         {
@@ -410,11 +302,11 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [UnityTest]
-        public IEnumerator Dispose_LeavesNoObjectsMeshesOrTextures([ValueSource(nameof(Samples))] string sample)
+        public IEnumerator Dispose_LeavesNoObjectsMeshesOrTextures([ValueSource(typeof(VrmSamples), nameof(VrmSamples.Names))] string sample)
         {
             // The first load in a session creates UniVRM's shared objects, which stay; count after them.
-            var warmUp = new LoadResult();
-            yield return Load(sample, warmUp);
+            var warmUp = new SampleLoad();
+            yield return VrmSamples.Load(sample, warmUp);
             warmUp.Model.Dispose();
             yield return null;
             yield return null;
@@ -423,8 +315,8 @@ namespace VirtualVessel.Avatar.Tests
             int materials = Resources.FindObjectsOfTypeAll<Material>().Length;
             int objects = Resources.FindObjectsOfTypeAll<GameObject>().Length;
 
-            var load = new LoadResult();
-            yield return Load(sample, load);
+            var load = new SampleLoad();
+            yield return VrmSamples.Load(sample, load);
             load.Model.Dispose();
 
             // Destroy takes effect at the end of the frame.
@@ -455,47 +347,10 @@ namespace VirtualVessel.Avatar.Tests
             }
         }
 
-        private static string SampleFolder()
-        {
-            string configured = Environment.GetEnvironmentVariable("VV_SAMPLES_DIR");
-            if (!string.IsNullOrEmpty(configured))
-            {
-                return configured;
-            }
-
-            // The Unity project is unity/VirtualVesselStudio in the repository.
-            return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "samples"));
-        }
-
-        private static IEnumerator Load(string sample, LoadResult result)
-        {
-            string path = Path.Combine(SampleFolder(), sample);
-            Assume.That(File.Exists(path), Is.True, $"No sample models in {SampleFolder()}.");
-            var watch = Stopwatch.StartNew();
-            Task<IAvatarModel> task = new VrmAvatarLoader().LoadAsync(path, CancellationToken.None);
-            double last = 0;
-            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < TimeoutSeconds)
-            {
-                yield return null;
-                double now = watch.Elapsed.TotalMilliseconds;
-                result.LongestFrameMilliseconds = Math.Max(result.LongestFrameMilliseconds, now - last);
-                last = now;
-            }
-
-            Assert.That(task.IsCompleted, Is.True, "Loading timed out.");
-            if (task.IsFaulted)
-            {
-                throw task.Exception.InnerException;
-            }
-
-            result.Seconds = watch.Elapsed.TotalSeconds;
-            result.Model = task.Result;
-        }
-
         private static IEnumerator WaitFor(Task task)
         {
             var watch = Stopwatch.StartNew();
-            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < TimeoutSeconds)
+            while (!task.IsCompleted && watch.Elapsed.TotalSeconds < VrmSamples.TimeoutSeconds)
             {
                 yield return null;
             }
@@ -514,15 +369,6 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             return total;
-        }
-
-        private sealed class LoadResult
-        {
-            public IAvatarModel Model { get; set; }
-
-            public double Seconds { get; set; }
-
-            public double LongestFrameMilliseconds { get; set; }
         }
     }
 }
