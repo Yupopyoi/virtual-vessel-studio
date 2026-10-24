@@ -40,18 +40,28 @@ namespace VirtualVessel.Avatar
         public const float MaxSpread = 15f;
 
         /// <summary>
-        /// The angle between the thumb's and the index finger's metacarpals of an open hand; the thumb's
-        /// base folds across the palm by as much as it is closer than this, up to <see cref="MaxThumbFold"/>.
-        /// On the user's recordings the angle was 11–52° (5–95%), with a median of 27°.
+        /// How far across the palm, as a share of its width from the index finger's base toward the little
+        /// finger's, the thumb's tip reaches when tucked in: the thumb then folds across the palm at its base
+        /// by <see cref="MaxThumbFold"/> and at least <see cref="ThumbTuckBend"/> at its middle joint, and by
+        /// that share of them on the way. The tip tells a tucked thumb from one standing out of a fist: on the
+        /// user's recordings it was 0.36 across with the fingers curled and the thumb tucked, and -0.37 (on the
+        /// thumb's side) with it out, where the angle between the thumb's and the index finger's metacarpals
+        /// barely differed (25° and 30°) and folded a raised thumb (2026-10-24).
         /// </summary>
-        public const float OpenThumbDegrees = 30f;
+        public const float ThumbAcross = 0.4f;
         public const float MaxThumbFold = 25f;
+        public const float ThumbTuckBend = 30f;
 
         /// <summary>How far the thumb bends at its middle and end joints.</summary>
         public const float MaxThumbBend = 60f;
         public const float MaxThumbEndBend = 80f;
 
-        /// <summary>The thumb's middle and end bends shown, as for the other fingers.</summary>
+        /// <summary>
+        /// What a straight thumb reads at its middle and end joints, and the gain past it, as for the other
+        /// fingers. On the user's recordings a thumb out of a fist read medians of 26° and 21°, and in an open
+        /// hand 22° and 18°; shown past 10°, a raised thumb stayed bent (the user's screen recording).
+        /// </summary>
+        public const float ThumbOpenBend = 20f;
         public const float ThumbGain = 1.5f;
 
         /// <summary>The model's bone of <paramref name="finger"/>'s <paramref name="joint"/>th joint (0 nearest the hand) on <paramref name="side"/>.</summary>
@@ -97,8 +107,8 @@ namespace VirtualVessel.Avatar
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                float middleBend = Shown(Vector3.Angle(proximal, middle), MiddleGain, MaxMiddleBend);
-                into.SetBend(finger, 0, Shown(bend, BaseGain, MaxBaseBend));
+                float middleBend = Shown(Vector3.Angle(proximal, middle), OpenBend, MiddleGain, MaxMiddleBend);
+                into.SetBend(finger, 0, Shown(bend, OpenBend, BaseGain, MaxBaseBend));
                 into.SetBend(finger, 1, middleBend);
                 into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
@@ -107,17 +117,29 @@ namespace VirtualVessel.Avatar
             Vector3 thumbBase = hand[HandJoint.ThumbMcp] - hand[HandJoint.ThumbCmc];
             Vector3 thumbMiddle = hand[HandJoint.ThumbIp] - hand[HandJoint.ThumbMcp];
             Vector3 thumbEnd = hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbIp];
-            into.SetBend(Finger.Thumb, 0, Mathf.Clamp(OpenThumbDegrees - Vector3.Angle(thumbBase, indexBase - wrist), 0f, MaxThumbFold));
-            into.SetBend(Finger.Thumb, 1, Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbGain, MaxThumbBend));
-            into.SetBend(Finger.Thumb, 2, Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbGain, MaxThumbEndBend));
+            float tuck = Tuck(hand[HandJoint.ThumbTip] - indexBase, thumbward);
+            into.SetBend(Finger.Thumb, 0, MaxThumbFold * tuck);
+            into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, ThumbGain, MaxThumbBend), ThumbTuckBend * tuck));
+            into.SetBend(Finger.Thumb, 2, Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend));
             into.SetSpread(Finger.Thumb, 0f);
             return true;
         }
 
-        /// <summary>The bend shown for a bend read: past <see cref="OpenBend"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
-        public static float Shown(float read, float gain, float max)
+        /// <summary>The bend shown for a bend read: past <paramref name="open"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
+        public static float Shown(float read, float open, float gain, float max)
         {
-            return Mathf.Clamp((read - OpenBend) * gain, 0f, max);
+            return Mathf.Clamp((read - open) * gain, 0f, max);
+        }
+
+        /// <summary>
+        /// How tucked in the thumb is, 0 to 1: how far its tip (<paramref name="tipFromIndexBase"/>) reaches
+        /// across the palm from the index finger's base, against <see cref="ThumbAcross"/> of the palm's
+        /// width (<paramref name="thumbward"/>, from the little finger's base to the index finger's). Pure.
+        /// </summary>
+        public static float Tuck(Vector3 tipFromIndexBase, Vector3 thumbward)
+        {
+            float width = thumbward.magnitude;
+            return width < 1e-6f ? 0f : Mathf.Clamp01(-Vector3.Dot(tipFromIndexBase, thumbward) / (width * width) / ThumbAcross);
         }
 
         /// <summary>

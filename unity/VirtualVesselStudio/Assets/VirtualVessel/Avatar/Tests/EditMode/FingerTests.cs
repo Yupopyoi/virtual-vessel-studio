@@ -44,13 +44,34 @@ namespace VirtualVessel.Avatar.Tests
             float middle = (50f - FingerRetargeting.OpenBend) * FingerRetargeting.MiddleGain;
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
-            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.OpenThumbDegrees - 10f).Within(Tolerance), "The thumb folds across.");
-            Assert.That(pose.Bend(Finger.Thumb, 2), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.ThumbGain).Within(Tolerance * 2f));
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "A thumb standing out of the fist does not fold.");
+            Assert.That(pose.Bend(Finger.Thumb, 2), Is.EqualTo((50f - FingerRetargeting.ThumbOpenBend) * FingerRetargeting.ThumbGain).Within(Tolerance * 2f));
 
             FingerRetargeting.TryMeasure(Hand(bends: 80f, middleBends: 120f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 50f), left: false, pose);
             Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(FingerRetargeting.MaxBaseBend), "Held to the limit.");
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(FingerRetargeting.MaxMiddleBend * FingerRetargeting.EndShare).Within(0.01f));
+        }
+
+        [Test]
+        public void ARaisedThumb_StaysStraight_AndATuckedOne_FoldsAcrossThePalm()
+        {
+            // A fist with the thumb up, its end joint reading a little bent, as the user's raised thumbs did.
+            HandPose hand = Hand(bends: 80f, middleBends: 90f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 18f);
+            var pose = new FingerPose();
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "Raised: no fold.");
+            Assert.That(pose.Bend(Finger.Thumb, 1), Is.EqualTo(0f).Within(Tolerance), "Straight at the middle.");
+            Assert.That(pose.Bend(Finger.Thumb, 2), Is.EqualTo(0f).Within(Tolerance), "Straight at the end.");
+
+            // The tip over the middle finger, across the palm.
+            hand[HandJoint.ThumbTip] = new Vector3(0.01f, -0.02f, 0.06f);
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.MaxThumbFold), "Tucked: folded across.");
+            Assert.That(pose.Bend(Finger.Thumb, 1), Is.GreaterThanOrEqualTo(FingerRetargeting.ThumbTuckBend));
+
+            FingerRetargeting.TryMeasure(Mirrored(hand), left: true, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.MaxThumbFold), "The same on the left hand.");
         }
 
         [Test]
