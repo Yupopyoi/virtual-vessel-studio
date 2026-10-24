@@ -25,6 +25,10 @@ namespace VirtualVessel.Tracking.Processing
         private readonly JointsState _body = new JointsState(BodyPose.JointCount);
         private readonly JointsState _leftHand = new JointsState(HandPose.JointCount);
         private readonly JointsState _rightHand = new JointsState(HandPose.JointCount);
+        private readonly bool[] _bodyLeads = new bool[BodyPose.JointCount];
+
+        // A hand is seen as a whole, so all its joints set its cutoff.
+        private static readonly bool[] s_handLeads = AllTrue(HandPose.JointCount);
         private readonly OneEuroFilter[] _shapes = new OneEuroFilter[FacePose.ShapeCount];
         private PartTracking _face = PartTracking.Initial;
         private RotationFilter _head;
@@ -83,7 +87,14 @@ namespace VirtualVessel.Tracking.Processing
                 return;
             }
 
-            Outliers += _body.Filter(raw.Positions, raw.Timestamp, profile.Position, output.Positions);
+            // Only seen joints set the body's cutoff: guesses out of view, such as legs below the
+            // camera, jump about and would quicken the whole body.
+            for (int i = 0; i < BodyPose.JointCount; i++)
+            {
+                _bodyLeads[i] = raw.IsSeen((BodyJoint)i);
+            }
+
+            Outliers += _body.Filter(raw.Positions, _bodyLeads, raw.Timestamp, profile.Joints, output.Positions);
             Array.Copy(raw.ImagePositions, output.ImagePositions, BodyPose.JointCount);
             Array.Copy(raw.JointConfidence, output.JointConfidence, BodyPose.JointCount);
         }
@@ -96,7 +107,7 @@ namespace VirtualVessel.Tracking.Processing
                 return;
             }
 
-            Outliers += state.Filter(raw.Positions, raw.Timestamp, profile.Position, output.Positions);
+            Outliers += state.Filter(raw.Positions, s_handLeads, raw.Timestamp, profile.Joints, output.Positions);
             Array.Copy(raw.ImagePositions, output.ImagePositions, HandPose.JointCount);
             if (state.AcceptPalm(raw.PalmRotation, raw.Timestamp))
             {
@@ -191,6 +202,17 @@ namespace VirtualVessel.Tracking.Processing
             return raw != null && raw.IsUsable && raw.Timestamp > tracking.LastObserved;
         }
 
+        private static bool[] AllTrue(int count)
+        {
+            var values = new bool[count];
+            for (int i = 0; i < count; i++)
+            {
+                values[i] = true;
+            }
+
+            return values;
+        }
+
         private static bool IsUsable(TrackingStatus status)
         {
             return status == TrackingStatus.Tracked || status == TrackingStatus.LowConfidence;
@@ -206,17 +228,19 @@ namespace VirtualVessel.Tracking.Processing
         /// <summary>Filter state of a set of joints: the body or one hand.</summary>
         private sealed class JointsState
         {
-            private readonly PositionFilter[] _filters;
+            private readonly LinkedPositionFilter _filter;
             private readonly OutlierGate[] _gates;
             private readonly Vector3[] _accepted;
             private readonly double[] _acceptedTimes;
+            private readonly bool[] _takes;
 
             public JointsState(int joints)
             {
-                _filters = new PositionFilter[joints];
+                _filter = new LinkedPositionFilter(joints);
                 _gates = new OutlierGate[joints];
                 _accepted = new Vector3[joints];
                 _acceptedTimes = new double[joints];
+                _takes = new bool[joints];
             }
 
             public PartTracking Tracking { get; set; } = PartTracking.Initial;
@@ -235,7 +259,7 @@ namespace VirtualVessel.Tracking.Processing
 
             public void ResetFilters()
             {
-                Array.Clear(_filters, 0, _filters.Length);
+                _filter.Reset();
                 Array.Clear(_gates, 0, _gates.Length);
                 Palm = default;
                 _palmGate = default;
@@ -258,15 +282,19 @@ namespace VirtualVessel.Tracking.Processing
                 return true;
             }
 
-            /// <summary>Smooths the plausible joints into <paramref name="output"/>; returns how many were dropped.</summary>
-            public int Filter(Vector3[] raw, double time, in OneEuroParameters parameters, Vector3[] output)
+            /// <summary>
+            /// Smooths the plausible joints into <paramref name="output"/> together, the speed of those
+            /// <paramref name="leads"/> setting the cutoff; returns how many were dropped.
+            /// </summary>
+            public int Filter(Vector3[] raw, bool[] leads, double time, in OneEuroParameters parameters, Vector3[] output)
             {
                 int dropped = 0;
                 for (int i = 0; i < raw.Length; i++)
                 {
                     // A joint dropped last time is compared with its own last accepted value and time,
                     // so the allowed distance grows with the time since then.
-                    if (_filters[i].IsStarted && !_gates[i].Accept(_accepted[i], raw[i], time - _acceptedTimes[i], MaxJointSpeed, out _gates[i]))
+                    _takes[i] = !_filter.IsStarted(i) || _gates[i].Accept(_accepted[i], raw[i], time - _acceptedTimes[i], MaxJointSpeed, out _gates[i]);
+                    if (!_takes[i])
                     {
                         dropped++;
                         continue;
@@ -274,8 +302,15 @@ namespace VirtualVessel.Tracking.Processing
 
                     _accepted[i] = raw[i];
                     _acceptedTimes[i] = time;
-                    _filters[i] = _filters[i].Next(raw[i], time, parameters);
-                    output[i] = _filters[i].Value;
+                }
+
+                _filter.Next(raw, _takes, leads, time, parameters);
+                for (int i = 0; i < raw.Length; i++)
+                {
+                    if (_takes[i])
+                    {
+                        output[i] = _filter.Value(i);
+                    }
                 }
 
                 return dropped;

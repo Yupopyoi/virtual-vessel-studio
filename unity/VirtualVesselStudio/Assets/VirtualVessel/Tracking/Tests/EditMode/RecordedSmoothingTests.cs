@@ -41,6 +41,8 @@ namespace VirtualVessel.Tracking.Tests
                     var output = new TrackingFrame();
                     var raw = new List<float>();
                     var smoothed = new List<float>();
+                    var addedBend = new List<float>();
+                    var recentBends = new[] { new Queue<float>(), new Queue<float>() };
                     foreach (TrackingFrame frame in frames)
                     {
                         corrections.Apply(frame, corrected);
@@ -52,6 +54,29 @@ namespace VirtualVessel.Tracking.Tests
 
                         raw.Add(Elevation(corrected.Body));
                         smoothed.Add(Elevation(output.Body));
+                        for (int a = 0; a < s_arms.Length; a++)
+                        {
+                            (BodyJoint shoulder, BodyJoint elbow, BodyJoint wrist) = s_arms[a];
+                            Queue<float> recent = recentBends[a];
+                            if (!corrected.Body.IsSeen(shoulder) || !corrected.Body.IsSeen(elbow) || !corrected.Body.IsSeen(wrist))
+                            {
+                                recent.Clear();
+                                continue;
+                            }
+
+                            // The bend the smoothing invents: more than the arm showed at any time it may still
+                            // be catching up on, so lag alone does not count.
+                            recent.Enqueue(Bend(corrected.Body, shoulder, elbow, wrist));
+                            if (recent.Count > MaxShift)
+                            {
+                                recent.Dequeue();
+                            }
+
+                            if (recent.Count == MaxShift)
+                            {
+                                addedBend.Add(Bend(output.Body, shoulder, elbow, wrist) - recent.Max());
+                            }
+                        }
                     }
 
                     if (raw.Count < MaxShift * 2)
@@ -62,9 +87,33 @@ namespace VirtualVessel.Tracking.Tests
                     int lag = TrackingMetrics.Lag(raw, smoothed, MaxShift);
                     double interval = (frames[frames.Count - 1].Time - frames[0].Time) / (frames.Count - 1);
                     Debug.Log($"[Smoothing] {info.Id} \"{info.Description}\" level {level}: right upper arm lag {lag} observations ({lag * interval * 1000:F0} ms), "
-                        + $"shake raw {TrackingMetrics.Jitter(raw, 0, raw.Count):F2}° smoothed {TrackingMetrics.Jitter(smoothed, 0, smoothed.Count):F2}° per observation");
+                        + $"shake raw {TrackingMetrics.Jitter(raw, 0, raw.Count):F2}° smoothed {TrackingMetrics.Jitter(smoothed, 0, smoothed.Count):F2}° per observation; "
+                        + $"bend beyond the last second of the arm: {BendSummary(addedBend)}");
                 }
             }
+        }
+
+        private static readonly (BodyJoint Shoulder, BodyJoint Elbow, BodyJoint Wrist)[] s_arms =
+        {
+            (BodyJoint.LeftShoulder, BodyJoint.LeftElbow, BodyJoint.LeftWrist),
+            (BodyJoint.RightShoulder, BodyJoint.RightElbow, BodyJoint.RightWrist),
+        };
+
+        /// <summary>How far the elbow is bent, in degrees: 0 straight.</summary>
+        private static float Bend(BodyPose body, BodyJoint shoulder, BodyJoint elbow, BodyJoint wrist)
+        {
+            return Vector3.Angle(body[elbow] - body[shoulder], body[wrist] - body[elbow]);
+        }
+
+        private static string BendSummary(List<float> added)
+        {
+            if (added.Count == 0)
+            {
+                return "no arm seen";
+            }
+
+            List<float> sorted = added.OrderBy(x => x).ToList();
+            return $"{sorted.Count} arm observations, median {sorted[sorted.Count / 2]:F1}°, 95% {sorted[(int)(sorted.Count * 0.95)]:F1}°, most {sorted[sorted.Count - 1]:F0}°, over 15° {sorted.Count(x => x > 15f)}";
         }
 
         /// <summary>How far the person's right upper arm is raised above level, in degrees.</summary>
