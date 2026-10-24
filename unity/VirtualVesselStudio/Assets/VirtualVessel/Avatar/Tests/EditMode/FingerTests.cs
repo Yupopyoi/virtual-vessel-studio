@@ -32,18 +32,25 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void AFist_BendsEachJoint_WithinItsLimit()
+        public void ABentHand_IsShownBentFurtherThanRead_WithinTheLimits()
         {
-            HandPose hand = Hand(bends: 80f, middleBends: 120f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 50f);
+            // The tracked hand reads its bends small; past what an open hand reads, they are scaled up.
+            HandPose hand = Hand(bends: 50f, middleBends: 50f, endBends: 5f, spread: 0f, thumbOpen: 10f, thumbBends: 50f);
 
             var pose = new FingerPose();
             FingerRetargeting.TryMeasure(hand, left: false, pose);
 
-            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(80f).Within(Tolerance), "Into the palm at the base.");
-            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(FingerRetargeting.MaxMiddleBend), "Held to the limit.");
-            Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(60f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain).Within(Tolerance * 2f), "Into the palm at the base.");
+            float middle = (50f - FingerRetargeting.OpenBend) * FingerRetargeting.MiddleGain;
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
+            Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.OpenThumbDegrees - 10f).Within(Tolerance), "The thumb folds across.");
-            Assert.That(pose.Bend(Finger.Thumb, 2), Is.EqualTo(50f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Thumb, 2), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.ThumbGain).Within(Tolerance * 2f));
+
+            FingerRetargeting.TryMeasure(Hand(bends: 80f, middleBends: 120f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 50f), left: false, pose);
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(FingerRetargeting.MaxBaseBend), "Held to the limit.");
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
+            Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(FingerRetargeting.MaxMiddleBend * FingerRetargeting.EndShare).Within(0.01f));
         }
 
         [Test]
@@ -116,11 +123,11 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             Assert.That(motion.RightPresence, Is.EqualTo(1f));
-            Assert.That(motion.RightFingers.Bend(Finger.Middle, 0), Is.EqualTo(80f).Within(Tolerance), "As tracked.");
+            Assert.That(motion.RightFingers.Bend(Finger.Middle, 0), Is.EqualTo(FingerRetargeting.MaxBaseBend).Within(Tolerance), "As tracked.");
 
             frame.RightHand.Status = TrackingStatus.Lost;
             motion.Update(frame, false, 1.8);
-            Assert.That(motion.RightFingers.Bend(Finger.Middle, 0), Is.EqualTo(80f).Within(Tolerance), "Held for 0.5 s.");
+            Assert.That(motion.RightFingers.Bend(Finger.Middle, 0), Is.EqualTo(FingerRetargeting.MaxBaseBend).Within(Tolerance), "Held for 0.5 s.");
             for (int tenths = 19; tenths <= 32; tenths++)
             {
                 motion.Update(frame, false, tenths / 10.0);

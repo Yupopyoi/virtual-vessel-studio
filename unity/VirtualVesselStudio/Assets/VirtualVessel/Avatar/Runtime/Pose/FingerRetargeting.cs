@@ -12,13 +12,29 @@ namespace VirtualVessel.Avatar
     /// </summary>
     public static class FingerRetargeting
     {
-        /// <summary>How far a finger bends at its base: a little back, up to a right angle.</summary>
-        public const float MinBaseBend = -10f;
+        /// <summary>How far a finger bends at its base: from straight up to a right angle.</summary>
         public const float MaxBaseBend = 90f;
 
         /// <summary>How far a finger bends at its middle and end joints.</summary>
         public const float MaxMiddleBend = 100f;
         public const float MaxEndBend = 80f;
+
+        /// <summary>
+        /// The tracked hand reads its bends small: MediaPipe flattens depth, and fingers curled toward the
+        /// camera lose most of their bend. On the user's recordings the most curled hands read 60–84° at the
+        /// base and 54–78° at the middle joint (medians per finger), where a fist bends about 90° and 100°,
+        /// and the most open hands still read 15–36° and 8–36° (2026-10-24). So the bend shown is the bend
+        /// read past <see cref="OpenBend"/>, scaled by <see cref="BaseGain"/> or <see cref="MiddleGain"/>.
+        /// </summary>
+        public const float OpenBend = 10f;
+        public const float BaseGain = 1.5f;
+        public const float MiddleGain = 1.8f;
+
+        /// <summary>
+        /// The end joint's share of the middle one's bend. A finger's end joint bends with its middle one,
+        /// and the end joint read on its own was noise: an open index finger read a median of 42° there.
+        /// </summary>
+        public const float EndShare = 2f / 3f;
 
         /// <summary>How far a finger spreads either way at its base.</summary>
         public const float MaxSpread = 15f;
@@ -34,6 +50,9 @@ namespace VirtualVessel.Avatar
         /// <summary>How far the thumb bends at its middle and end joints.</summary>
         public const float MaxThumbBend = 60f;
         public const float MaxThumbEndBend = 80f;
+
+        /// <summary>The thumb's middle and end bends shown, as for the other fingers.</summary>
+        public const float ThumbGain = 1.5f;
 
         /// <summary>The model's bone of <paramref name="finger"/>'s <paramref name="joint"/>th joint (0 nearest the hand) on <paramref name="side"/>.</summary>
         public static AvatarBone Bone(ArmSide side, Finger finger, int joint)
@@ -77,11 +96,11 @@ namespace VirtualVessel.Avatar
                 Vector3 knuckle = hand.Positions[first];
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
-                Vector3 end = hand.Positions[first + 3] - hand.Positions[first + 2];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                into.SetBend(finger, 0, Mathf.Clamp(bend, MinBaseBend, MaxBaseBend));
-                into.SetBend(finger, 1, Mathf.Clamp(Vector3.Angle(proximal, middle), 0f, MaxMiddleBend));
-                into.SetBend(finger, 2, Mathf.Clamp(Vector3.Angle(middle, end), 0f, MaxEndBend));
+                float middleBend = Shown(Vector3.Angle(proximal, middle), MiddleGain, MaxMiddleBend);
+                into.SetBend(finger, 0, Shown(bend, BaseGain, MaxBaseBend));
+                into.SetBend(finger, 1, middleBend);
+                into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
             }
 
@@ -89,10 +108,16 @@ namespace VirtualVessel.Avatar
             Vector3 thumbMiddle = hand[HandJoint.ThumbIp] - hand[HandJoint.ThumbMcp];
             Vector3 thumbEnd = hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbIp];
             into.SetBend(Finger.Thumb, 0, Mathf.Clamp(OpenThumbDegrees - Vector3.Angle(thumbBase, indexBase - wrist), 0f, MaxThumbFold));
-            into.SetBend(Finger.Thumb, 1, Mathf.Clamp(Vector3.Angle(thumbBase, thumbMiddle), 0f, MaxThumbBend));
-            into.SetBend(Finger.Thumb, 2, Mathf.Clamp(Vector3.Angle(thumbMiddle, thumbEnd), 0f, MaxThumbEndBend));
+            into.SetBend(Finger.Thumb, 1, Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbGain, MaxThumbBend));
+            into.SetBend(Finger.Thumb, 2, Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbGain, MaxThumbEndBend));
             into.SetSpread(Finger.Thumb, 0f);
             return true;
+        }
+
+        /// <summary>The bend shown for a bend read: past <see cref="OpenBend"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
+        public static float Shown(float read, float gain, float max)
+        {
+            return Mathf.Clamp((read - OpenBend) * gain, 0f, max);
         }
 
         /// <summary>
