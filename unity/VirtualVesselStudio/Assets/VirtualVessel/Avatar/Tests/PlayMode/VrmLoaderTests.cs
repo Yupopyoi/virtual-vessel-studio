@@ -277,6 +277,16 @@ namespace VirtualVessel.Avatar.Tests
                 bool trackedTouches = ArmClearance.Touches(shape, tracked, neck, controller.Face.Head);
                 UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: folded arms touch as tracked: {trackedTouches}; upper arm turned {Quaternion.Angle(controller.Body[UpperBodyBone.RightUpperArm], tracked[UpperBodyBone.RightUpperArm]):F1}°, forearm {Quaternion.Angle(controller.Body[UpperBodyBone.RightLowerArm], tracked[UpperBodyBone.RightLowerArm]):F1}°");
                 Assert.That(ArmClearance.Touches(shape, controller.Body, neck, controller.Face.Head), Is.False, "Folded arms stay out of the chest.");
+
+                // The same in 2D: the forearm across the chest passes in front of it on the model's own bones.
+                SyntheticMotion.WriteArms(body, Vector3.down, Vector3.down, Vector3.down, Vector3.left, 3.0);
+                BodyFlattening.Flatten(body);
+                controller.Update(frame, mirror: false, now: 3.0, armsInFront: true);
+                controller.Update(frame, mirror: false, now: 3.5, armsInFront: true);
+                model.Apply();
+                float elbowAhead = root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightLowerArm).position).z - root.InverseTransformPoint(vrm.ModelBone(HumanBodyBones.RightUpperArm).position).z;
+                UnityEngine.Debug.Log($"[Avatar/BodyShape] {sample}: in 2D the folded elbow is {elbowAhead * 100f:F1} cm in front of the shoulder");
+                Assert.That(elbowAhead, Is.GreaterThan(0.03f), "In 2D the arm passes in front of the body.");
             }
         }
 

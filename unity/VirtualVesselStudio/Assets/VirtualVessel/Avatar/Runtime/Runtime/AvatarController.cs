@@ -56,13 +56,17 @@ namespace VirtualVessel.Avatar
         /// </summary>
         /// <param name="frame">The tracking source's current frame; null without tracking, which shows a neutral face.</param>
         /// <param name="now">Seconds on the clock of the tracking timestamps.</param>
-        public void Update(TrackingFrame frame, bool mirror, double now)
+        /// <param name="armsInFront">
+        /// Keeps the arms in front of the body: tracking's 2D body (tracking detailed design 8.6) has no depth
+        /// to tell front from back by (avatar detailed design 7.6).
+        /// </param>
+        public void Update(TrackingFrame frame, bool mirror, double now, bool armsInFront = false)
         {
             _face.Update(frame?.Face, mirror, now);
             _body.Update(frame?.Body, mirror, now);
             FaceTarget face = _face.Current;
             Quaternion neck = HeadPose.Neck(_body.Current.TorsoTop, face.Head);
-            _clearance.Update(_body.Current, neck, face.Head, now);
+            _clearance.Update(_body.Current, neck, face.Head, armsInFront, now);
             BodyTarget body = _clearance.Current;
             for (int i = 0; i < BodyTarget.BoneCount; i++)
             {

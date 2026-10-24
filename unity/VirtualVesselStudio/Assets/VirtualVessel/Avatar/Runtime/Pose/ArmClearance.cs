@@ -41,7 +41,11 @@ namespace VirtualVessel.Avatar
         /// </summary>
         /// <param name="neck">The neck's rotation in the root's space; unused when the model has no neck.</param>
         /// <param name="head">The head's rotation in the root's space.</param>
-        public static ClearanceSides Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, ClearanceSides previous, BodyTarget into)
+        /// <param name="frontOnly">
+        /// Only forward, never behind: for a body tracked without depth (2D, tracking detailed design 8.6),
+        /// whose arms the user wants always in front of it.
+        /// </param>
+        public static ClearanceSides Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, ClearanceSides previous, bool frontOnly, BodyTarget into)
         {
             into.CopyFrom(pose);
             if (shape == null)
@@ -50,15 +54,15 @@ namespace VirtualVessel.Avatar
             }
 
             PlacedBody body = Place(shape, into, neck, head, out Chain top);
-            (int leftUpper, int leftFore) = ClearArm(shape, body, top, ArmSide.Left, previous.LeftUpper, previous.LeftFore, into);
-            (int rightUpper, int rightFore) = ClearArm(shape, body, top, ArmSide.Right, previous.RightUpper, previous.RightFore, into);
+            (int leftUpper, int leftFore) = ClearArm(shape, body, top, ArmSide.Left, previous.LeftUpper, previous.LeftFore, frontOnly, into);
+            (int rightUpper, int rightFore) = ClearArm(shape, body, top, ArmSide.Right, previous.RightUpper, previous.RightFore, frontOnly, into);
             return new ClearanceSides(leftUpper, leftFore, rightUpper, rightFore);
         }
 
         /// <summary>As the other, with no side remembered.</summary>
         public static void Apply(AvatarBodyShape shape, BodyTarget pose, Quaternion neck, Quaternion head, BodyTarget into)
         {
-            Apply(shape, pose, neck, head, default, into);
+            Apply(shape, pose, neck, head, default, frontOnly: false, into);
         }
 
         /// <summary>
@@ -107,7 +111,7 @@ namespace VirtualVessel.Avatar
                 : default;
         }
 
-        private static (int UpperSide, int ForeSide) ClearArm(AvatarBodyShape shape, PlacedBody body, Chain top, ArmSide side, int upperSide, int foreSide, BodyTarget into)
+        private static (int UpperSide, int ForeSide) ClearArm(AvatarBodyShape shape, PlacedBody body, Chain top, ArmSide side, int upperSide, int foreSide, bool frontOnly, BodyTarget into)
         {
             ArmShape thickness = shape.Arm(side.IsLeft);
             Limb arm = Reach(shape, top, side, into);
@@ -115,11 +119,11 @@ namespace VirtualVessel.Avatar
             // The upper arm turns alone and the forearm keeps where it points, so both point where they
             // did on the camera's image, and the forearm moves with the elbow in depth.
             var whole = new UpperArmTest(body, arm.Shoulder, arm.UpperArm, arm.Forearm, arm.Hand, thickness);
-            Quaternion turn = Turn(whole, upperSide, out upperSide);
+            Quaternion turn = Turn(whole, frontOnly ? 1 : upperSide, frontOnly, out upperSide);
             into[side.UpperArm] = turn * into[side.UpperArm];
 
             var forearm = new ForearmTest(body, arm.Shoulder + (turn * arm.UpperArm), arm.Forearm, arm.Hand, thickness);
-            into[side.LowerArm] = Turn(forearm, foreSide, out foreSide) * into[side.LowerArm];
+            into[side.LowerArm] = Turn(forearm, frontOnly ? 1 : foreSide, frontOnly, out foreSide) * into[side.LowerArm];
             return (upperSide, foreSide);
         }
 
@@ -154,7 +158,8 @@ namespace VirtualVessel.Avatar
         /// from <paramref name="previous"/> (1 front, -1 back, 0 none yet) until the end is clearly on the
         /// other; to the other side only when that one cannot clear; and never across the camera's axis,
         /// where the limb would point the other way on the image. When neither side clears, the most toward
-        /// the first. None when the limb is clear or points along the camera's axis.
+        /// the first. With <paramref name="frontOnly"/>, forward alone. None when the limb is clear or points
+        /// along the camera's axis.
         /// </summary>
         /// <remarks>
         /// The camera sees across and up well and depth poorly: tracking places a limb in front of the body
@@ -164,7 +169,7 @@ namespace VirtualVessel.Avatar
         /// front of the chest down (the user's screen recording, 2026-10-24); choosing the side by the least
         /// angle flipped between front and back, and the arm jumped up to 69° in a frame on the recordings.
         /// </remarks>
-        private static Quaternion Turn<T>(T test, int previous, out int side)
+        private static Quaternion Turn<T>(T test, int previous, bool frontOnly, out int side)
             where T : struct, ITurnTest
         {
             side = previous;
@@ -181,7 +186,7 @@ namespace VirtualVessel.Avatar
             }
 
             float ahead = (test.Pivot + limb).z - center.z;
-            side = previous != 0 && ahead * previous > -SideMarginMeters ? previous : (ahead >= 0f ? 1 : -1);
+            side = frontOnly ? 1 : previous != 0 && ahead * previous > -SideMarginMeters ? previous : (ahead >= 0f ? 1 : -1);
 
             // Turning forward about this axis brings the limb toward +Z, reaching it after the angle between them.
             Vector3 forward = Vector3.Cross(limb, front).normalized;
@@ -195,7 +200,7 @@ namespace VirtualVessel.Avatar
                 return Quaternion.AngleAxis(angle, first);
             }
 
-            angle = secondLimit > 0f ? Clearing(test, -first, secondLimit) : float.PositiveInfinity;
+            angle = secondLimit > 0f && !frontOnly ? Clearing(test, -first, secondLimit) : float.PositiveInfinity;
             if (!float.IsPositiveInfinity(angle))
             {
                 // Remembered, so the limb stays on this side while the first cannot clear either.

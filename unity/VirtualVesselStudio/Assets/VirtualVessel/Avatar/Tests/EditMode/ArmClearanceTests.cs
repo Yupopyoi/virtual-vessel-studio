@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Avatar.Tests
@@ -145,6 +146,26 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void InTwoD_FoldedArms_PassInFrontOfTheChest()
+        {
+            // Folded as seen from the front: the upper arm down, the forearm across the chest, no depth.
+            var body = new BodyPose();
+            SyntheticMotion.WriteArms(body, Vector3.down, Vector3.down, Vector3.down, Vector3.left, 0.0);
+            BodyFlattening.Flatten(body);
+            var pose = new BodyTarget();
+            PoseRetargeting.Retarget(body, mirror: false, hasUpperChest: true, AvatarRestPose.DefaultArmDownDegrees, pose);
+            var cleared = new BodyTarget();
+
+            // Remembered from before as behind: in 2D it goes in front all the same.
+            var behind = new ArmClearance.ClearanceSides(-1, -1, -1, -1);
+            ArmClearance.Apply(Shape(s_headRadii), pose, Quaternion.identity, Quaternion.identity, behind, frontOnly: true, cleared);
+
+            Assert.That(ArmClearance.Touches(Shape(s_headRadii), cleared, Quaternion.identity, Quaternion.identity), Is.False);
+            Assert.That((cleared[UpperBodyBone.RightUpperArm] * Vector3.right).z, Is.GreaterThan(0.2f), "The elbow in front, not behind.");
+            AssertSeenAlike(cleared, pose, UpperBodyBone.RightLowerArm);
+        }
+
+        [Test]
         public void TheSide_IsKeptUntilTheForearmIsClearlyOnTheOther()
         {
             // A forearm across the face, 3 cm in front and then 3 cm behind the head's middle: within the margin, so it stays in front.
@@ -153,13 +174,13 @@ namespace VirtualVessel.Avatar.Tests
             BodyTarget behind = Pose(new Vector3(0.5f, 0.866f, 0f), new Vector3(-1f, 0f, -0.01f));
             var cleared = new BodyTarget();
 
-            ArmClearance.ClearanceSides sides = ArmClearance.Apply(shape, front, Quaternion.identity, Quaternion.identity, default, cleared);
+            ArmClearance.ClearanceSides sides = ArmClearance.Apply(shape, front, Quaternion.identity, Quaternion.identity, default, false, cleared);
             Assert.That(sides.RightFore, Is.EqualTo(1));
-            sides = ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, sides, cleared);
+            sides = ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, sides, false, cleared);
 
             Assert.That(sides.RightFore, Is.EqualTo(1), "Kept in front.");
             Assert.That((cleared[UpperBodyBone.RightLowerArm] * Vector3.right).z, Is.GreaterThan(0f));
-            Assert.That(ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, default, cleared).RightFore, Is.EqualTo(-1), "Behind, with nothing remembered.");
+            Assert.That(ArmClearance.Apply(shape, behind, Quaternion.identity, Quaternion.identity, default, false, cleared).RightFore, Is.EqualTo(-1), "Behind, with nothing remembered.");
         }
 
         [Test]

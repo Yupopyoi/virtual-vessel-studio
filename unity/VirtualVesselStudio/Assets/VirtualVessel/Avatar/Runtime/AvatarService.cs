@@ -452,8 +452,8 @@ namespace VirtualVessel.Avatar
             {
                 // Tracking registers with the frame loop before Avatar, so its frame is this frame's.
                 long begin = _applyTimer?.Begin() ?? 0;
-                bool mirror = _tracking?.Options.Value.Mirror ?? true;
-                _controller.Update(_tracking?.Current, mirror, now / (double)_clock.Frequency);
+                TrackingOptions options = _tracking?.Options.Value ?? TrackingOptions.Default;
+                _controller.Update(_tracking?.Current, options.Mirror, now / (double)_clock.Frequency, options.BodyDepth == BodyDepth.Flat);
                 _model.Apply();
                 _applyTimer?.End(begin);
             }

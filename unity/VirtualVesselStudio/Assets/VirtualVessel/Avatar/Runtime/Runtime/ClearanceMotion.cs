@@ -44,12 +44,13 @@ namespace VirtualVessel.Avatar
         /// <summary>What the upper body shows this frame.</summary>
         public BodyTarget Current { get; } = new BodyTarget();
 
+        /// <param name="frontOnly">Keeps the arms in front of the body, for a body tracked without depth (2D).</param>
         /// <param name="now">Seconds on the clock of the tracking timestamps.</param>
-        public void Update(BodyTarget tracked, Quaternion neck, Quaternion head, double now)
+        public void Update(BodyTarget tracked, Quaternion neck, Quaternion head, bool frontOnly, double now)
         {
             float elapsed = double.IsNaN(_lastNow) ? float.PositiveInfinity : (float)Math.Max(0.0, now - _lastNow);
             _lastNow = now;
-            _sides = ArmClearance.Apply(_shape, tracked, neck, head, _sides, _cleared);
+            _sides = ArmClearance.Apply(_shape, tracked, neck, head, _sides, frontOnly, _cleared);
             Current.CopyFrom(tracked);
             for (int i = 0; i < s_arms.Length; i++)
             {

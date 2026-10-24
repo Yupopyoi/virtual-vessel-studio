@@ -9,6 +9,7 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
 
 namespace VirtualVessel.Tracking.Tests
@@ -133,6 +134,7 @@ namespace VirtualVessel.Tracking.Tests
             }
 
             Assert.That(_service.Current.Body[BodyJoint.Nose], Is.EqualTo(new Vector3(0f, 0.62f, 0f)), "Across and up as observed, at the hips' depth.");
+            Assert.That(_service.Current.Body[BodyJoint.RightWrist].z, Is.EqualTo(BodyFlattening.ArmsForwardMeters), "The arms a little in front.");
             Assert.That(recorded, Has.All.EqualTo(0.1f), "What the provider observed, for recordings.");
 
             _service.SetOptions(_service.Options.Value.WithBodyDepth(BodyDepth.Tracked));
