@@ -467,7 +467,8 @@ For fingers, the joint **angles** (the angle between neighboring bones) are prim
 The camera sees across and up well and depth poorly (8.4). For when depth errors make the arms point unsteadily, 2D can be chosen, using only the movement seen from the front (the user's request, 2026-10-24).
 
 - `TrackingOptions.BodyDepth`: `Tracked` (3D, the default) or `Flat` (2D). Switched on the tracking Card of the setup screen (UI `setup.md` chapter 4). Saved as `bodyDepth` in `tracking-settings.json` (0: 3D, 1: 2D).
-- In 2D, after the corrections (8.4) and before smoothing, every body joint is put at the hips' depth (0 in person space) (`BodyFlattening`). The body moves only across and up: the torso's lean and twist, and arms reaching forward or back, are gone.
+- In 2D, after the corrections (8.4) and before smoothing, every body joint is put at the hips' depth (0 in person space) (`BodyFlattening`), except the elbows and wrists, which go 10 cm in front. The body moves only across and up: the torso's lean and twist, and arms reaching forward or back, are gone.
+- The arms always pass in front of the body (the user's request, 2026-10-24). With the elbows and wrists at the body's depth too, keeping the avatar's arms out of the torso (avatar detailed design 7.6) moved them behind it. 10 cm in front leans a hanging upper arm about 20° forward; that much depth is accepted (the user's judgment). On some builds the arm is still behind the torso's center, so in 2D Avatar also turns the arms only forward.
 - Like the corrections, it works on a copy, and recordings (chapter 12) keep what was observed. A switch glides through the smoothing.
 - The face (head turn, expressions) and the hands are not changed.
 - An arm pointing at the camera looks short from the front, and its direction is easily set by the observation's jitter. In 2D this cannot be helped.
