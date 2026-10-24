@@ -6,8 +6,20 @@ namespace VirtualVessel.Avatar
     /// A part of the body where it is this frame: an ellipsoid (the head) or an elliptic cylinder upright
     /// along its own up (a part of the torso), with its center, rotation, and half sizes in the root's space.
     /// </summary>
+    /// <remarks>
+    /// A part of the torso is reached only across its front or through its middle, and by half a limb's
+    /// thickness. An arm hanging at the side met the sides of a loose cardigan, measured with the torso, and
+    /// was swung forward 30-60° (the user's screen recording, 2026-10-24); a sleeve against the body is cloth
+    /// on cloth and looks right, and turning in depth could not take an arm out sideways anyway.
+    /// </remarks>
     public readonly struct PlacedPart
     {
+        /// <summary>The share of a limb's thickness a part of the torso is reached by.</summary>
+        public const float TorsoContactShare = 0.5f;
+
+        /// <summary>How near its axis, as a share of its size, a part of the torso is reached from any side.</summary>
+        public const float TorsoCoreShare = 0.5f;
+
         private readonly Quaternion _inverse;
 
         private PlacedPart(bool round, Vector3 center, Quaternion rotation, Vector3 radii)
@@ -50,8 +62,9 @@ namespace VirtualVessel.Avatar
                 return false;
             }
 
-            Vector3 a = ToUnit(from, radius);
-            Vector3 along = ToUnit(to, radius) - a;
+            float grow = Round ? radius : radius * TorsoContactShare;
+            Vector3 a = ToUnit(from, grow);
+            Vector3 along = ToUnit(to, grow) - a;
             return Round ? HitsSphere(a, along) : HitsCylinder(a, along);
         }
 
@@ -90,7 +103,11 @@ namespace VirtualVessel.Avatar
             var flatAlong = new Vector2(along.x, along.z);
             float lengthSquared = flatAlong.sqrMagnitude;
             float t = lengthSquared > 1e-12f ? Mathf.Clamp(-Vector2.Dot(flatA, flatAlong) / lengthSquared, start, end) : start;
-            return (flatA + (flatAlong * t)).sqrMagnitude < 1f;
+            Vector2 nearest = flatA + (flatAlong * t);
+
+            // Inside, and through the middle or across the front (+Z), not at the sides or the back.
+            return nearest.sqrMagnitude < 1f
+                && (nearest.sqrMagnitude < TorsoCoreShare * TorsoCoreShare || nearest.y > Mathf.Abs(nearest.x));
         }
 
         private Vector3 ToUnit(Vector3 point, float grow)

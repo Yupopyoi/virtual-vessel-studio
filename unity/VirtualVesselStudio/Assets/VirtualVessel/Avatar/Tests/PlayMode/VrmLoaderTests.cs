@@ -319,7 +319,8 @@ namespace VirtualVessel.Avatar.Tests
             yield return Load(sample, load);
             using (IAvatarModel model = load.Model)
             {
-                foreach (TrackingRecordingInfo info in recordings)
+                // Each recording in 3D, and in 2D with the arms kept in front (tracking detailed design 8.6).
+                foreach ((TrackingRecordingInfo info, bool flat) in recordings.SelectMany(recording => new[] { (recording, false), (recording, true) }))
                 {
                     // As the app runs: corrections, the standard smoothing, then 60 frames a second, mirrored.
                     (TrackingRecordingHeader header, List<TrackingFrame> frames) = TrackingRecordingFile.ReadAll(Path.Combine(folder, info.Id));
@@ -341,10 +342,15 @@ namespace VirtualVessel.Avatar.Tests
                         for (; next < frames.Count && frames[next].Time <= now; next++)
                         {
                             corrections.Apply(frames[next], corrected);
+                            if (flat)
+                            {
+                                BodyFlattening.Flatten(corrected.Body);
+                            }
+
                             processor.Process(corrected, frames[next].Time, header.Supported, TrackingRegions.All, SmoothingLevel.Standard, output);
                         }
 
-                        controller.Update(output, mirror: true, now);
+                        controller.Update(output, mirror: true, now, armsInFront: flat);
                         tracked.Update(output.Body, true, now);
                         float turn = 0f, image = 0f, step = 0f, trackedStep = 0f;
                         foreach (UpperBodyBone bone in new[] { UpperBodyBone.LeftUpperArm, UpperBodyBone.LeftLowerArm, UpperBodyBone.RightUpperArm, UpperBodyBone.RightLowerArm })
@@ -412,7 +418,7 @@ namespace VirtualVessel.Avatar.Tests
                         beforeTracked.CopyFrom(tracked.Current);
                     }
 
-                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\": {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°, on average {(active > 0 ? turnSum / active : 0f):F1}°, of which on the image {(active > 0 ? imageSum / active : 0f):F1}°; still touching on {touching}, by {(touching > 0 ? remainingSum / touching : 0f):F1}° on average and {mostRemaining:F0}° at most; "
+                    UnityEngine.Debug.Log($"[Avatar/Clearance] {sample} \"{info.Description}\" {(flat ? "2D" : "3D")}: {shown} frames; arms turned on {active} ({100.0 * active / shown:F0}%), at most {mostTurn:F0}°, on average {(active > 0 ? turnSum / active : 0f):F1}°, of which on the image {(active > 0 ? imageSum / active : 0f):F1}°; still touching on {touching}, by {(touching > 0 ? remainingSum / touching : 0f):F1}° on average and {mostRemaining:F0}° at most; "
                         + $"frames with a jump clearance added over 5°: {added}, the largest {mostAdded:F0}° at {mostAddedAt:F1} s");
                 }
             }

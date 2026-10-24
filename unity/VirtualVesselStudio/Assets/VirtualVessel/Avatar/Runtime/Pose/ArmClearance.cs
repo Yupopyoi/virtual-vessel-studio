@@ -324,7 +324,7 @@ namespace VirtualVessel.Avatar
                     bool hit = (_parts & (1 << i)) != 0
                         && (part.Round
                             ? part.Hits(Pivot, elbow, _thickness.UpperRadius)
-                            : part.Hits(elbow, wrist, _thickness.LowerRadius) || part.Hits(wrist, wrist + _hand, _thickness.HandRadius));
+                            : part.Hits(elbow, elbow, _thickness.LowerRadius));
                     if (hit)
                     {
                         center = part.Center;
