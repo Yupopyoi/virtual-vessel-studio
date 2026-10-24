@@ -67,6 +67,12 @@ namespace VirtualVessel.Tracking
             return IsSeen(JointConfidence[(int)joint], ImagePositions[(int)joint]);
         }
 
+        /// <summary>Whether <paramref name="joint"/> is inside the camera image, seen or hidden there.</summary>
+        public bool IsInImage(BodyJoint joint)
+        {
+            return IsInImage(ImagePositions[(int)joint]);
+        }
+
         /// <summary>
         /// Whether a joint of <paramref name="visibility"/> at <paramref name="image"/> (0 to 1 from the top
         /// left) is seen. A joint outside the image is a guess even when MediaPipe calls it visible: on the
@@ -76,7 +82,13 @@ namespace VirtualVessel.Tracking
         /// </summary>
         public static bool IsSeen(float visibility, Vector2 image)
         {
-            return visibility >= MinVisibility && image.x >= 0f && image.x <= 1f && image.y >= 0f && image.y <= 1f;
+            return visibility >= MinVisibility && IsInImage(image);
+        }
+
+        /// <summary>Whether <paramref name="image"/> (0 to 1 from the top left) is inside the image, its edges included. Pure.</summary>
+        public static bool IsInImage(Vector2 image)
+        {
+            return image.x >= 0f && image.x <= 1f && image.y >= 0f && image.y <= 1f;
         }
 
         public void CopyFrom(BodyPose other)

@@ -58,6 +58,8 @@ namespace VirtualVessel.Avatar
             into.LeftForearmSeen = leftForearm;
             into.RightArmSeen = rightArm;
             into.RightForearmSeen = rightForearm;
+            into.LeftWristInView = leftArm && InImage(body, ArmSide.Left.WristJoint, mirror);
+            into.RightWristInView = rightArm && InImage(body, ArmSide.Right.WristJoint, mirror);
         }
 
         /// <summary>
@@ -261,6 +263,11 @@ namespace VirtualVessel.Avatar
         private static bool Visible(BodyPose body, BodyJoint joint, bool mirror)
         {
             return body.IsSeen(mirror ? Opposite(joint) : joint);
+        }
+
+        private static bool InImage(BodyPose body, BodyJoint joint, bool mirror)
+        {
+            return body.IsInImage(mirror ? Opposite(joint) : joint);
         }
 
         /// <summary>An angle of 0 to 360 degrees as -180 to 180, as Unity's angles and axes are read the shorter way. Pure.</summary>
