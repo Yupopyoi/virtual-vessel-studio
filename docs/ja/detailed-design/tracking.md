@@ -467,11 +467,18 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 補正は、入力方式（Provider）ごとの処理ではなく、本システム共通のTracking Processingとして置く（方式設計8.10、8.11）。将来mocopi等の入力を加えても、補正の仕組みを変えずに済むよう、次のように分ける。
 
 - **Providerは、自分の観測の性質（`ObservationTraits`）を申告する**。補正そのものは持たない。MediaPipeは`MonocularDepth`（1台のカメラの画像から奥行きを推定し、カメラの方を向いた手足ほど当てにならない）。mocopiのように体に付けたセンサーで観測する入力は、カメラの軸がないため`None`とし、カメラ向けの補正はかからない。
-- **補正は`IObservationCorrection`の部品として作る**。それぞれ、効かせる観測の性質（`Requires`）を持つ。今は`CameraAxisArmStraightening`（D）の1つ。
+- **補正は`IObservationCorrection`の部品として作る**。それぞれ、効かせる観測の性質（`Requires`）を持つ。今は`CameraAxisArmStraightening`（D）と`HandDepthFromForearm`（下）の2つで、この順に効かせる。
 - **`ObservationCorrections`が、補正の一覧（`Catalog`）から、動いているProviderの性質に合うものだけを選ぶ**。`TrackingService`は、Providerの観測を写した上で補正し、平滑化（8.2）へ渡す。Providerが変わったとき（再生の開始と終わり）に選び直す。
 - **記録（12章）には補正する前の観測を残す**。再生のときに、記録した入力の性質から同じ補正を選び直すため、補正を変えても記録を撮り直さずに比べられる。記録のヘッダーには入力の性質も残す（12.3）。
 - 新しい補正は、`IObservationCorrection`を1つ実装し、`Catalog`に加えるだけでよい。新しい性質が要る入力では、`ObservationTraits`に値を1つ加える。
 - 関節の見え方の境（0.5）は`BodyPose.MinVisibility`の1か所に置き、補正とAvatarの両方が使う。
+
+#### 手の奥行きを前腕に合わせる（HandDepthFromForearm、段階6、2026-10-24）
+
+- 手と体は別々の推論で、それぞれが奥行きを推定するため、食い違う。利用者の記録で、手の向き（手首から中指の付け根）と前腕の向きの差は、3次元では中央値24〜63°だったが、左右と上下（正面から見た向き）では4〜26°だった。アバターの手首が、本人が曲げていないのに曲がった（利用者の画面の録画）。
+- 手は、正面から見た前腕からの曲がり（左右と上下）を保ち、カメラへの前後の傾きは前腕に合わせる。手の甲は、その向きに直角にして保つ。左右と上下の角度は3次元の点のX、Yから求めるため、画像の縦横比は要らない。
+- 正面から見た手の長さが、手の長さの0.1未満では曲がりを使わず、0.3でそのまま使う（その間はなめらかにつなぐ）。カメラの方を向いた手は、正面から見ると短く、向きが当てにならないため。
+- 肘か手首が見えない、または手が見えないときは補正しない。
 
 手指は、指の関節の**角度**（隣り合う骨の間の角度）を主に使う。角度は手の大きさやカメラとの距離に依存せず、奥行きの誤りの影響も位置より小さい。指の曲げは0〜約90°、横の開きは小さい範囲に制限する（Avatar詳細設計7.5）。
 
@@ -756,7 +763,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions（利用者が選んだこと）
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections（IObservationCorrectionを含む）, CameraAxisArmStraightening, BodyFlattening
+│  ├─ Processing/             OneEuroFilter（PositionFilter、RotationFilterを含む）, SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections（IObservationCorrectionを含む）, CameraAxisArmStraightening, HandDepthFromForearm, BodyFlattening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat（段階5）, TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipeの点から共通の形への変換（純粋関数。Pluginの型を使わないため本体に置き、Pluginなしでもテストできる）

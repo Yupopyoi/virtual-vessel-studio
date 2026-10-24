@@ -468,11 +468,18 @@ On the user's three recordings (chapter 12), the median elbow bend (left arm / r
 Corrections are common Tracking Processing, not per input method (provider) (system design 8.10, 8.11). So that inputs such as mocopi can be added later without changing them, they are split as follows.
 
 - **A provider states what kind of observation it makes (`ObservationTraits`)** and holds no corrections. MediaPipe is `MonocularDepth`: depth estimated from one camera's image, least reliable for limbs pointing at the camera. An input that observes with sensors on the body, such as mocopi, has no camera axis, so it is `None` and gets no camera corrections.
-- **Each correction is an `IObservationCorrection`**, with the traits it applies to (`Requires`). For now there is one, `CameraAxisArmStraightening` (D).
+- **Each correction is an `IObservationCorrection`**, with the traits it applies to (`Requires`). For now there are two, `CameraAxisArmStraightening` (D) and `HandDepthFromForearm` (below), applied in that order.
 - **`ObservationCorrections` picks from the list of corrections (`Catalog`) those that suit the active provider's traits.** `TrackingService` corrects a copy of the provider's observation and passes it to smoothing (8.2). It picks again when the provider changes (when a replay starts and ends).
 - **Recordings (chapter 12) keep the observation before correction.** A replay picks the same corrections again from the recorded input's traits, so corrections can change and be compared without filming again. The recording's header keeps the input's traits (12.3).
 - A new correction only implements `IObservationCorrection` and joins the `Catalog`. An input that needs a new trait adds one value to `ObservationTraits`.
 - The visibility threshold (0.5) lives once, in `BodyPose.MinVisibility`, used by the corrections and by Avatar alike.
+
+#### Giving the Hand the Forearm's Depth (HandDepthFromForearm, step 6, 2026-10-24)
+
+- The hands and the body are inferred apart, each guessing its own depth, and they disagree. On the user's recordings the hand's direction (wrist to the base of the middle finger) was a median of 24–63° off the forearm's in 3D, but only 4–26° across and up (as seen from the front). The avatar's wrists bent where the person's did not (the user's screen recording).
+- The hand keeps its bend from the forearm as seen from the front (across and up), and leans toward or away from the camera as the forearm does. The back of the hand is kept at right angles to that. The angle across and up is taken from the 3D points' X and Y, so the image's aspect ratio is not needed.
+- When the hand shows less than 0.1 of its length from the front, its bend there is not used; at 0.3 it is used fully (smoothly in between). A hand pointing at the camera looks short from the front, and its direction there is unreliable.
+- Nothing is corrected when the elbow, the wrist, or the hand is not seen.
 
 For fingers, the joint **angles** (the angle between neighboring bones) are primary. Angles do not depend on hand size or distance from the camera, and depth errors affect them less than positions. Finger flexion is limited to 0 to about 90°, and spreading to a small range (Avatar detailed design 7.5).
 
@@ -757,7 +764,7 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingService.cs      TrackingService
 │  ├─ TrackingOptions.cs      TrackingOptions (what the user chose)
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
-│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening, BodyFlattening
+│  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening, HandDepthFromForearm, BodyFlattening
 │  ├─ Threading/FrameSlot.cs
 │  ├─ Recording/              ITrackingRecordings, TrackingRecordings, TrackingRecorder, TrackingRecordingFile, TrackingRecordingFormat (step 5), TrackingReplayProvider, TrackingMetrics, SyntheticMotion
 │  └─ MediaPipe/MediaPipeConversion.cs   MediaPipe points to the common form (pure functions; no plugin types, so it lives here and is tested without the plugin)
