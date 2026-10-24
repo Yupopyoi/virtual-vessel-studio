@@ -94,7 +94,7 @@ For each component, the following states are defined:
 
 - On the left, the setting name (Body, weight 500; Regular when the font has no medium weight) and its description (Caption, Text 3); on the right, the control (up to 260px).
 - Rows are separated by a 1px divider.
-- On narrow screens the control moves below the description.
+- On narrow screens the control moves below the description. The name and description keep at least 240px: UI Toolkit breaks the line by the minimum width, not by the basis alone, so without it the text was squeezed beside the control, one character a line.
 
 ### 3.10 Card
 
