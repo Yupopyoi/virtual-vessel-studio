@@ -80,7 +80,7 @@ For each component, the following states are defined:
 ### 3.7 Text Field / Numeric Field
 
 - Background Background, 1px border, Radius S, label above (Caption-like, Text 2).
-- Example text (placeholder) is shown in Text 3, so it reads as an example and not as an entered value.
+- Example text (placeholder) is shown in Text 3, so it reads as an example and not as an entered value. It goes away when the field is focused. Left in view, the first characters typed were shown as the example, with the caret where the example ended (the user's report, 2026-10-25).
 - On focus: border Accent Line and a 3px Glow outside. Unity cannot draw an outer glow, so the Accent Line border alone shows focus (UI foundation detailed design 6.7).
 - A numeric field uses right-aligned tabular digits with a unit box on the right (for example `Hz`).
 - On error: a 2px Error border, and below it a △ icon and the error text. The error text says what is wrong and what to do.
