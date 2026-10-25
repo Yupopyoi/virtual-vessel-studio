@@ -81,6 +81,19 @@ namespace VirtualVessel.UI.Controls
             // shown as the example, and the caret stood where its text ended (the user's report, 2026-10-25).
             _field.textEdition.hidePlaceholderOnFocus = true;
 
+            // Enter does nothing in these one-line fields, and Unity's field moved the caret to the start on
+            // it. Japanese input commits a word with Enter, so what was typed next went in near the start
+            // ("じゃんけん" became "じんけんゃ", the user's report, 2026-10-25). Enter and the submit it
+            // becomes never reach the field.
+            _field.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                if (IsEnter(evt.keyCode, evt.character))
+                {
+                    evt.StopImmediatePropagation();
+                }
+            }, TrickleDown.TrickleDown);
+            _field.RegisterCallback<NavigationSubmitEvent>(evt => evt.StopImmediatePropagation(), TrickleDown.TrickleDown);
+
             // Re-send the inner field's changes from this element, so bindings see one field.
             _field.RegisterValueChangedCallback(evt =>
             {
@@ -133,6 +146,12 @@ namespace VirtualVessel.UI.Controls
         {
             get => _field.value;
             set => _field.value = value;
+        }
+
+        /// <summary>Whether a key press is Enter, from the main keys or the keypad, or the line break it types. Pure.</summary>
+        public static bool IsEnter(UnityEngine.KeyCode key, char character)
+        {
+            return key == UnityEngine.KeyCode.Return || key == UnityEngine.KeyCode.KeypadEnter || character == '\n' || character == '\r';
         }
 
         public void SetValueWithoutNotify(string newValue)

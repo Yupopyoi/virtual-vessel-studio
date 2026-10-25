@@ -52,6 +52,38 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator ATextField_KeepsItsCaret_WhenEnterIsPressed()
+        {
+            // Unity's field moved the caret to the start on Enter, which Japanese input uses to commit a
+            // word, so what was typed next went in near the start (the user's report).
+            var input = new TextInput();
+            _scope.Add(input);
+            yield return null;
+            TextField field = input.Q<TextField>();
+            field.Focus();
+            field.value = "じゃんけん";
+            field.textSelection.cursorIndex = 5;
+            field.textSelection.selectIndex = 5;
+            yield return null;
+
+            foreach (KeyCode key in new[] { KeyCode.Return, KeyCode.KeypadEnter })
+            {
+                using (KeyDownEvent down = KeyDownEvent.GetPooled('\n', key, EventModifiers.None))
+                {
+                    down.target = field.Q(className: "unity-text-element") ?? field;
+                    field.SendEvent(down);
+                }
+
+                yield return null;
+                Assert.That(field.textSelection.cursorIndex, Is.EqualTo(5), $"{key} leaves the caret at the end.");
+                Assert.That(field.value, Is.EqualTo("じゃんけん"));
+            }
+
+            Assert.That(TextInput.IsEnter(KeyCode.None, '\n'), Is.True, "The line break it types.");
+            Assert.That(TextInput.IsEnter(KeyCode.A, 'a'), Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator Screens_AreCreatedOnFirstOpen_KeptAndToldWhenShownOrHidden()
         {
             AppShell shell = Shell();
