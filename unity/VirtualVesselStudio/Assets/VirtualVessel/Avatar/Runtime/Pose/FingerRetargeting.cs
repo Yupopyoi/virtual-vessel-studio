@@ -64,17 +64,19 @@ namespace VirtualVessel.Avatar
         public const float TuckFull = 0f;
 
         /// <summary>
-        /// The thumb tucked in: brought in front of the palm at its base, and bent at least this far at its
-        /// middle and end joints, which curl it across the palm toward the little finger, so it goes behind
-        /// the curled fingers. The user wants it hidden in a fist (2026-10-25). A thumb bends like that: its
-        /// base brings it in front of the palm, and the joints past it, whose nail faces sideways, curl it
-        /// across. Bending every joint into the palm, the thumb folded back toward the wrist, which a thumb
-        /// cannot do (the user's video). Chosen by replaying the user's recording made for the hands and
-        /// drawing the model's fists from the stream camera.
+        /// The thumb tucked in: folded across the palm at its base, and bent at least this far at its middle
+        /// and end joints, so it lies on the palm under the curled fingers, which wrap it. In a fist in
+        /// rock-paper-scissors the user wants the thumb hidden like that (2026-10-25). Every joint turns it
+        /// across, along the palm: bending every joint into the palm, the thumb folded back toward the wrist,
+        /// which a thumb cannot do, and bringing the base in front of the palm (40°, with 60° and 50° past it)
+        /// laid the thumb over the curled fingers, 5.6 cm in front of the palm's knuckles where the fingers'
+        /// middle joints were 3 cm (the user's videos). With these, on the sample model replaying the user's
+        /// recording made for the hands, the thumb's tip lay 1.7 cm in front of the knuckles, under the middle
+        /// and ring fingers, behind their middle joints.
         /// </summary>
-        public const float MaxThumbFold = 40f;
-        public const float ThumbTuckBend = 60f;
-        public const float ThumbTuckEndBend = 50f;
+        public const float MaxThumbFold = 30f;
+        public const float ThumbTuckBend = 85f;
+        public const float ThumbTuckEndBend = 60f;
 
         /// <summary>How far the thumb bends at its middle and end joints.</summary>
         public const float MaxThumbBend = 60f;
@@ -207,9 +209,8 @@ namespace VirtualVessel.Avatar
                 for (int joint = 0; joint < FingerPose.JointCount; joint++)
                 {
                     Vector3 direction = rest.Direction(finger, joint);
-                    // The fingers bend into the palm; the thumb's base brings it in front of the palm, and its
-                    // joints past that curl it across, toward the little finger.
-                    Vector3 toward = finger == Finger.Thumb && joint > 0 ? -rest.Thumbward : -rest.Back;
+                    // The fingers bend into the palm; the thumb bends across it, toward the little finger.
+                    Vector3 toward = finger == Finger.Thumb ? -rest.Thumbward : -rest.Back;
                     Quaternion turn = Quaternion.AngleAxis(pose.Bend(finger, joint), Axis(direction, toward));
                     if (joint == 0 && finger != Finger.Thumb)
                     {
