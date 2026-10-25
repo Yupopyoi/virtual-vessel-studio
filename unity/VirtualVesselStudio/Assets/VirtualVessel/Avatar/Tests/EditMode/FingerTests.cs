@@ -41,7 +41,7 @@ namespace VirtualVessel.Avatar.Tests
             FingerRetargeting.TryMeasure(hand, left: false, pose);
 
             Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain).Within(Tolerance * 2f), "Into the palm at the base.");
-            float middle = (50f - FingerRetargeting.OpenBend) * FingerRetargeting.MiddleGain;
+            float middle = FingerRetargeting.ShownMiddle(Finger.Middle, 50f);
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "A thumb standing out of the fist does not fold.");
@@ -83,6 +83,18 @@ namespace VirtualVessel.Avatar.Tests
             hand[HandJoint.ThumbTip] = new Vector3(-0.044f, -0.01f, 0.07f);
             FingerRetargeting.TryMeasure(hand, left: false, pose);
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "Beside the index finger: no fold.");
+        }
+
+        [Test]
+        public void TheMiddleJoint_IsStraightAtAnOpenHandsReading_AndFullyBentAtAFists()
+        {
+            // A straight middle finger reads about 36° at its middle joint (the user's recordings).
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 36f), Is.EqualTo(0f));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 30f), Is.EqualTo(0f), "Never bent back.");
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 90f), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Index, 18f), Is.EqualTo(0f));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Little, 72f), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Ring, 55f), Is.InRange(40f, 60f), "In proportion between.");
         }
 
         [Test]

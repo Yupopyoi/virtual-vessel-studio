@@ -24,11 +24,19 @@ namespace VirtualVessel.Avatar
         /// camera lose most of their bend. On the user's recordings the most curled hands read 60–84° at the
         /// base and 54–78° at the middle joint (medians per finger), where a fist bends about 90° and 100°,
         /// and the most open hands still read 15–36° and 8–36° (2026-10-24). So the bend shown is the bend
-        /// read past <see cref="OpenBend"/>, scaled by <see cref="BaseGain"/> or <see cref="MiddleGain"/>.
+        /// read past <see cref="OpenBend"/>, scaled by <see cref="BaseGain"/> at the base, and mapped from an
+        /// open hand's reading to a fist's at the middle joint (<see cref="ShownMiddle"/>).
         /// </summary>
         public const float OpenBend = 10f;
         public const float BaseGain = 1.5f;
-        public const float MiddleGain = 1.8f;
+
+        // The middle joint's reading of an open hand and of a fist, per finger from the index: a straight
+        // middle finger reads about 36°, and read past 10° and scaled, it stayed bent in an open hand (the
+        // user's report). Medians on the user's recording made for the hands (2026-10-25): open 17-18, 34-37,
+        // 23-26, and 22-25; a fist 81-88, 80-94, 73-92, and 68-76. The older recordings agree on the middle
+        // finger (36° in the most open hands).
+        private static readonly float[] s_middleOpen = { 18f, 36f, 25f, 23f };
+        private static readonly float[] s_middleFist = { 85f, 90f, 84f, 72f };
 
         /// <summary>
         /// The end joint's share of the middle one's bend. A finger's end joint bends with its middle one,
@@ -49,10 +57,11 @@ namespace VirtualVessel.Avatar
         /// user's recordings (2026-10-24, 25), the tip was -0.87 with the thumb raised out of a fist, -0.75 in
         /// an open hand, -0.38 laid along the index finger, 0.03–0.23 wrapped over the curled fingers (a fist in
         /// rock-paper-scissors), and 0.36 tucked inside them. Reaching full only at 0.4, a wrapped thumb had
-        /// folded halfway (the user's report).
+        /// folded halfway (the user's report); from -0.2 to 0.15, it went between half and fully folded as the
+        /// tip moved in a fist (-0.42 to 0.31 over one), which looked unsteady (the user's report).
         /// </summary>
-        public const float TuckFrom = -0.2f;
-        public const float TuckFull = 0.15f;
+        public const float TuckFrom = -0.3f;
+        public const float TuckFull = 0f;
 
         /// <summary>
         /// The thumb tucked in: folded across the palm at its base, and bent at least this far at its middle
@@ -119,7 +128,7 @@ namespace VirtualVessel.Avatar
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                float middleBend = Shown(Vector3.Angle(proximal, middle), OpenBend, MiddleGain, MaxMiddleBend);
+                float middleBend = ShownMiddle(finger, Vector3.Angle(proximal, middle));
                 into.SetBend(finger, 0, Shown(bend, OpenBend, BaseGain, MaxBaseBend));
                 into.SetBend(finger, 1, middleBend);
                 into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
@@ -135,6 +144,17 @@ namespace VirtualVessel.Avatar
             into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
             into.SetSpread(Finger.Thumb, 0f);
             return true;
+        }
+
+        /// <summary>
+        /// The middle joint's bend shown for <paramref name="read"/> on <paramref name="finger"/> (not the
+        /// thumb): straight at an open hand's reading, <see cref="MaxMiddleBend"/> at a fist's, and in
+        /// proportion between. Pure.
+        /// </summary>
+        public static float ShownMiddle(Finger finger, float read)
+        {
+            int i = (int)finger - 1;
+            return Mathf.InverseLerp(s_middleOpen[i], s_middleFist[i], read) * MaxMiddleBend;
         }
 
         /// <summary>The bend shown for a bend read: past <paramref name="open"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
