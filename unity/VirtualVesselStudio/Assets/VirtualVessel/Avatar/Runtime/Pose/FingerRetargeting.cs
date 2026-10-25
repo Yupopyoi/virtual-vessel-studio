@@ -53,8 +53,16 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public const float TuckFrom = -0.2f;
         public const float TuckFull = 0.15f;
-        public const float MaxThumbFold = 25f;
-        public const float ThumbTuckBend = 30f;
+
+        /// <summary>
+        /// The thumb tucked in: folded across the palm at its base, and bent at least this far at its middle
+        /// and end joints, so it lies over the curled fingers. Chosen by drawing the model's fist from the
+        /// side (2026-10-25): with 25° and 30° and the end joint as read, the thumb stood out straight beside
+        /// the fist, as in the user's video.
+        /// </summary>
+        public const float MaxThumbFold = 45f;
+        public const float ThumbTuckBend = 60f;
+        public const float ThumbTuckEndBend = 60f;
 
         /// <summary>How far the thumb bends at its middle and end joints.</summary>
         public const float MaxThumbBend = 60f;
@@ -124,7 +132,7 @@ namespace VirtualVessel.Avatar
             float tuck = Tuck(hand[HandJoint.ThumbTip] - indexBase, thumbward);
             into.SetBend(Finger.Thumb, 0, MaxThumbFold * tuck);
             into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, ThumbGain, MaxThumbBend), ThumbTuckBend * tuck));
-            into.SetBend(Finger.Thumb, 2, Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend));
+            into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
             into.SetSpread(Finger.Thumb, 0f);
             return true;
         }
