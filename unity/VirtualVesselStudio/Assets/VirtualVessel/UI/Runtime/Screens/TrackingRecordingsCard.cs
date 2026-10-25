@@ -89,12 +89,7 @@ namespace VirtualVessel.UI.Screens
 
             DescriptionField = Ui.TextField(RecordingStrings.Description);
             DescriptionField.PlaceholderKey = RecordingStrings.DescriptionPlaceholder;
-
-            // No length limit on the field itself. With one, committing a Japanese word left the caret one
-            // character early, so what followed went in before the word's last character ("じゃんけん" became
-            // "じんけんゃ", the user's video, 2026-10-25); the limit is the only thing this field does unlike
-            // the others. The description is cut to its length when the recording starts
-            // (TrackingRecordingFormat.NormalizeDescription).
+            DescriptionField.MaxLength = TrackingRecordingFormat.MaxDescriptionLength;
             RecordButton = Ui.Button(RecordingStrings.Start, ButtonVariant.Primary);
             RecordButton.clicked += () => _ = Guarded(ToggleRecordingAsync);
             card.Add(Row(DescriptionField, RecordButton));
