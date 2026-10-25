@@ -140,8 +140,21 @@ namespace VirtualVessel.Avatar.Tests
                 Vector3 index = rotations[(int)Finger.Index * 3] * rest.Direction(Finger.Index, 0);
                 Assert.That(Vector3.Angle(index, Vector3.down), Is.LessThan(1f), $"{(side.IsLeft ? "Left" : "Right")}: the index finger points into the palm.");
                 Vector3 thumb = rotations[((int)Finger.Thumb * 3) + 1] * rest.Direction(Finger.Thumb, 1);
-                Assert.That(Vector3.Dot(thumb, rest.Thumbward), Is.LessThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), rest.Thumbward)), "The thumb turns across the palm.");
-                Assert.That(Vector3.Dot(thumb, Vector3.down), Is.GreaterThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), Vector3.down)), "And into it.");
+                Assert.That(Vector3.Dot(thumb, rest.Thumbward), Is.LessThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), rest.Thumbward) - 0.5f), "The thumb's middle joint curls it across the palm.");
+
+                // Tucked in: the base in front of the palm, the joints past it across; never back toward the wrist,
+                // which a thumb cannot do.
+                var tucked = new FingerPose();
+                tucked.SetBend(Finger.Thumb, 0, FingerRetargeting.MaxThumbFold);
+                tucked.SetBend(Finger.Thumb, 1, FingerRetargeting.ThumbTuckBend);
+                tucked.SetBend(Finger.Thumb, 2, FingerRetargeting.ThumbTuckEndBend);
+                FingerRetargeting.Rotations(rest, Quaternion.identity, tucked, rotations);
+                Vector3 baseBone = rotations[(int)Finger.Thumb * 3] * rest.Direction(Finger.Thumb, 0);
+                Vector3 tip = rotations[((int)Finger.Thumb * 3) + 2] * rest.Direction(Finger.Thumb, 2);
+                Vector3 along = rest.Direction(Finger.Middle, 0);
+                Assert.That(Vector3.Dot(baseBone, -rest.Back), Is.GreaterThan(Vector3.Dot(rest.Direction(Finger.Thumb, 0), -rest.Back)), "The base comes in front of the palm.");
+                Assert.That(Vector3.Dot(tip, -rest.Thumbward), Is.GreaterThan(0.5f), "The end points across, toward the little finger.");
+                Assert.That(Vector3.Dot(tip, along), Is.GreaterThan(-0.3f), "Not back toward the wrist.");
                 Assert.That(rotations[((int)Finger.Index * 3) + 1], Is.EqualTo(rotations[(int)Finger.Index * 3]), "A joint carries its parent's turn.");
 
                 Quaternion hand = Quaternion.AngleAxis(90f, Vector3.right);

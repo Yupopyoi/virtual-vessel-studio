@@ -64,18 +64,17 @@ namespace VirtualVessel.Avatar
         public const float TuckFull = 0f;
 
         /// <summary>
-        /// The thumb tucked in: folded into the palm at its base, and bent at least this far at its middle
-        /// and end joints, so it goes behind the curled fingers. The user wants it hidden in a fist (2026-10-25).
-        /// Chosen by replaying the user's recording made for the hands and drawing the model's fists from the
-        /// stream camera: with 45° and 60° and 60°, folded as much across the palm as into it, the thumb lay in
-        /// front of the fingers, pointing down (as in the user's video); this one hid it.
+        /// The thumb tucked in: brought in front of the palm at its base, and bent at least this far at its
+        /// middle and end joints, which curl it across the palm toward the little finger, so it goes behind
+        /// the curled fingers. The user wants it hidden in a fist (2026-10-25). A thumb bends like that: its
+        /// base brings it in front of the palm, and the joints past it, whose nail faces sideways, curl it
+        /// across. Bending every joint into the palm, the thumb folded back toward the wrist, which a thumb
+        /// cannot do (the user's video). Chosen by replaying the user's recording made for the hands and
+        /// drawing the model's fists from the stream camera.
         /// </summary>
-        public const float MaxThumbFold = 50f;
+        public const float MaxThumbFold = 40f;
         public const float ThumbTuckBend = 60f;
-        public const float ThumbTuckEndBend = 40f;
-
-        /// <summary>How much a bending thumb turns across the palm, toward the little finger, against into it.</summary>
-        public const float ThumbFoldAcross = 0.3f;
+        public const float ThumbTuckEndBend = 50f;
 
         /// <summary>How far the thumb bends at its middle and end joints.</summary>
         public const float MaxThumbBend = 60f;
@@ -204,12 +203,13 @@ namespace VirtualVessel.Avatar
         {
             for (Finger finger = Finger.Thumb; finger <= Finger.Little; finger++)
             {
-                // A thumb folds into the palm and a little across it, toward the little finger; the others into the palm.
-                Vector3 toward = finger == Finger.Thumb ? (-rest.Back - (rest.Thumbward * ThumbFoldAcross)).normalized : -rest.Back;
                 Quaternion chain = hand;
                 for (int joint = 0; joint < FingerPose.JointCount; joint++)
                 {
                     Vector3 direction = rest.Direction(finger, joint);
+                    // The fingers bend into the palm; the thumb's base brings it in front of the palm, and its
+                    // joints past that curl it across, toward the little finger.
+                    Vector3 toward = finger == Finger.Thumb && joint > 0 ? -rest.Thumbward : -rest.Back;
                     Quaternion turn = Quaternion.AngleAxis(pose.Bend(finger, joint), Axis(direction, toward));
                     if (joint == 0 && finger != Finger.Thumb)
                     {
