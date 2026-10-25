@@ -1046,7 +1046,7 @@ flowchart LR
     PR["Release PR<br/>develop → main"]
     Tag["Tag vX.Y.Z on main"]
     WF["Release workflow<br/>checks the tag and version, drafts the Release"]
-    Local["build-release.ps1 -Upload<br/>tests, build, package, checksum"]
+    Local["Self-hosted runner (the maintainer's PC)<br/>build-release.ps1 -Upload<br/>tests, build, package, checksum"]
     Publish["Check it and publish by hand"]
 
     Bump --> PR --> Tag --> WF --> Local --> Publish
@@ -1058,7 +1058,7 @@ Steps:
 2. Create the release PR from `develop` into `main` and merge it.
 3. Tag the merge commit on `main` as `vX.Y.Z` and push the tag (the user does this, or Claude Code with approval).
 4. The GitHub Actions workflow `Release` (`.github/workflows/release.yml`) checks the tag's form, that it matches the project version, that it is on `main`, and the repository checks, then creates a draft GitHub Release (with notes generated from the pull requests).
-5. On a developer's PC, check out the tag and run `pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`. It builds and tests the native plugins, runs the Unity EditMode and PlayMode tests, builds for Windows (`ReleaseBuild.BuildWindows`), adds the licenses and the SBOM, writes the ZIP and its checksum, and puts them on the draft Release.
+5. The same workflow's `build` job runs on the maintainer's PC, a self-hosted runner (21.1). It checks out the tag and runs `pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`. The script builds and tests the native plugins, runs the Unity EditMode and PlayMode tests, builds for Windows (`ReleaseBuild.BuildWindows`), and adds the licenses and the SBOM. It then writes the ZIP and its checksum and puts them on the draft Release. The script can still be run by hand from a checkout of the tag, for example when the runner is not set up.
 6. Check the draft and publish it by hand on GitHub.
 
 - A release build writes the build identifier `vX.Y.Z+<commit>` to `StreamingAssets/build-id.txt`. The application reads it at startup and shows it in logs and diagnostics (system design 5.29). Development builds and the Editor show `development`.
@@ -1070,6 +1070,24 @@ Example artifacts:
 VirtualVesselStudio-v0.1.0-win-x64.zip
 SHA256SUMS.txt
 ```
+
+## 21.1 The Release Runner (Self-hosted)
+
+Unity cannot run on GitHub's hosted runners yet (its license), so the release build runs on the maintainer's Windows PC as a GitHub Actions self-hosted runner (the user's decision, 2026-10-25).
+
+Setup (once):
+
+1. On GitHub, open the repository's Settings → Actions → Runners → New self-hosted runner (Windows, x64), and follow its steps to download and configure the runner. Give it the extra label `vvs-release`.
+2. Run the runner as the same Windows user who uses Unity Hub, so that Unity's license and the installed Editor are found. Run `run.cmd` to start it by hand, or install it as a service that logs on as that user.
+3. On the PC, install the tools `build-release.ps1` needs: the Unity Editor version of `ProjectVersion.txt`, the Visual Studio C++ build tools (for the native plugins), PowerShell 7, Git with Git LFS, and the GitHub CLI.
+4. In Settings → Actions → General, set "Fork pull request workflows from outside collaborators" to "Require approval for all outside collaborators".
+
+Security (system design 6.13, chapter 29.10):
+
+- The repository is public. A pull request from a fork runs the workflow files of that pull request, so it could ask for the `vvs-release` label and run its code on the PC. Setting 4 makes a maintainer approve any such run first; never approve a fork's run that touches workflows.
+- The release workflow starts the build only for a tag push in this repository (`github.repository`), after the `draft` job has checked that the tag is on `main`. Only the maintainer can push tags.
+- The job gets only the workflow's `GITHUB_TOKEN` (write access to contents, for the Release). No other secret is stored.
+- Stopping the runner between releases (closing `run.cmd`) is the safest option; the build then starts when the runner is started again, as long as the job has not timed out (24 hours).
 
 ---
 
@@ -1264,7 +1282,7 @@ Use the results to revise `CLAUDE.md` and CI.
 - capture benchmark
 - long-run tests
 
-## Phase 5: Release Automation (partly: CI checks the tag and drafts the Release; a script on a developer's PC builds and packages)
+## Phase 5: Release Automation (CI checks the tag and drafts the Release; the maintainer's PC, a self-hosted runner, builds, packages, and uploads; publishing is by hand)
 
 - tag
 - build

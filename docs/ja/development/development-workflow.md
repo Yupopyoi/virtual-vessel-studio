@@ -1054,7 +1054,7 @@ flowchart LR
     PR["Release PR<br/>develop → main"]
     Tag["mainにTag vX.Y.Z"]
     WF["Release Workflow<br/>Tagと版の確認、下書きのRelease"]
-    Local["build-release.ps1 -Upload<br/>Test、Build、Package、Checksum"]
+    Local["Self-hosted Runner（管理者のPC）<br/>build-release.ps1 -Upload<br/>Test、Build、Package、Checksum"]
     Publish["内容を確かめて手で公開"]
 
     Bump --> PR --> Tag --> WF --> Local --> Publish
@@ -1066,7 +1066,7 @@ flowchart LR
 2. `develop`から`main`へのRelease PRを作り、Mergeする。
 3. `main`のMerge Commitに`vX.Y.Z`のTagを付け、Pushする（Push、Tagは利用者が行うか、Claude Codeが承認を得て行う）。
 4. GitHub Actionsの`Release`（`.github/workflows/release.yml`）が、Tagの形、Projectの版との一致、Tagが`main`にあること、Repository checksを確かめ、下書き（Draft）のGitHub Releaseを作る（変更点はPull Requestから自動で書く）。
-5. 開発者のPCで、Tagの状態を取り出して`pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`を実行する。Native PluginのBuildとTest、UnityのEditMode / PlayMode Test、Windows Build（`ReleaseBuild.BuildWindows`）、License類とSBOMの同梱、ZIPとChecksumの作成を行い、下書きのReleaseへ載せる。
+5. 同じWorkflowの`build` Jobが、管理者のPC（Self-hosted Runner、21.1）で動く。Tagの状態を取り出し、`pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`を実行する。ScriptはNative PluginのBuildとTest、UnityのEditMode / PlayMode Test、Windows Build（`ReleaseBuild.BuildWindows`）、License類とSBOMの同梱を行う。その後、ZIPとChecksumを作り、下書きのReleaseへ載せる。Runnerを用意していないとき等は、Tagの状態を取り出してScriptを手で実行してもよい。
 6. 下書きの内容を確かめ、GitHub上で手で公開する。
 
 - ReleaseのBuildは、Build識別子`vX.Y.Z+<commit>`を`StreamingAssets/build-id.txt`に書く。Applicationは起動時にそれを読み、Logと診断に出す（方式設計5.29）。開発中のBuildやEditorでは`development`となる。
@@ -1078,6 +1078,24 @@ flowchart LR
 VirtualVesselStudio-v0.1.0-win-x64.zip
 SHA256SUMS.txt
 ```
+
+## 21.1 ReleaseのRunner（Self-hosted）
+
+UnityはまだGitHubのRunnerで動かせない（ライセンスのため）。そのため、ReleaseのBuildは、管理者のWindows PCをGitHub ActionsのSelf-hosted Runnerとして動かす（利用者の決定、2026-10-25）。
+
+準備（1回だけ）：
+
+1. GitHubで、RepositoryのSettings → Actions → Runners → New self-hosted runner（Windows、x64）を開き、その手順でRunnerを取得して設定する。追加のLabelに`vvs-release`を付ける。
+2. Runnerは、Unity Hubを使うのと同じWindowsのユーザーで動かす。Unityのライセンスと、入れたEditorが見つかるようにするためである。手で起動するなら`run.cmd`を実行する。そのユーザーで動くServiceとして入れてもよい。
+3. PCに、`build-release.ps1`が使うものを入れる：`ProjectVersion.txt`の版のUnity Editor、Visual StudioのC++ Build Tools（Native Plugin用）、PowerShell 7、GitとGit LFS、GitHub CLI。
+4. Settings → Actions → Generalで、「Fork pull request workflows from outside collaborators」を「Require approval for all outside collaborators」にする。
+
+安全（方式設計6.13、29.10章）：
+
+- Repositoryは公開している。ForkからのPull Requestは、そのPull RequestのWorkflowを動かすため、`vvs-release`のLabelを指定して、PCでCodeを動かせてしまう。4の設定で、そうした実行は管理者の承認を待つ。Workflowに触れるForkの実行は承認しない。
+- ReleaseのWorkflowは、このRepository（`github.repository`）へのTagのPushのときだけ、`draft` JobがTagが`main`にあることを確かめた後でBuildを始める。TagをPushできるのは管理者だけである。
+- Jobが受け取るのは、Workflowの`GITHUB_TOKEN`（Releaseのための、contentsへの書き込み）だけである。ほかの秘密情報は置かない。
+- Release以外のときはRunnerを止めておく（`run.cmd`を閉じる）のが、最も安全である。その場合、BuildはRunnerを起動したときに始まる（Jobが待ち時間の上限の24時間を過ぎていなければ）。
 
 ---
 
@@ -1272,7 +1290,7 @@ Nightly Hardware Benchmark
 - Capture Benchmark
 - Long Run Test
 
-## Phase 5: Release Automation（一部：Tagの確認と下書きはCI、BuildとPackageは開発者のPCのScript）
+## Phase 5: Release Automation（Tagの確認と下書きはCI、Build、Package、Uploadは管理者のPC（Self-hosted Runner）、公開は手で行う）
 
 - Tag
 - Build
