@@ -831,7 +831,7 @@ public sealed class AvatarSettings
 
 段階4で作ったTest：`AvatarFaceTests`（EditMode。応答の曲線、部位ごとの決まりの適用と部位ごとの値（閉じた笑顔で目は閉じない、いとえ、眉）、Expression Signal（感情、目、口、左右、中立、部位ごとと顔全体で同じ値）、両目とウインク、口の配分と閉じた口、感情、視線、調整、頭の鏡写しと上限、補間と見失ったとき、まばたきの置き換え、`AvatarController`）、`AvatarServiceTests`（Trackingからの頭の向き、鏡写しの設定、調整の反映と保存）、`VrmLookTests`（視線の割合から角度）、`VrmLoaderTests.Face_TurnsTheHead_MovesTheFace_AndAppliesWithinItsBudget`（実際のモデルで頭、表情、視線、適用の時間）。UIは`AvatarCardPanelTests`（表情の調整のCard）、`LiveSetupPanelTests`（動きの速さ）。
 
-段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`から読む。サンプルを使うTestが共有する`VrmSamples`が読む）。開発者の記録をサンプルで測るTestは`VrmRecordingTests`（PlayMode、`[Explicit]`）にあり、アプリと同じく、補正、指定があれば2Dの平らにする処理、平滑化を通して、60Frame/秒で記録を再生する。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
+段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`、それもなければRepositoryの`tests/samples`から読む。サンプルを使うTestが共有する`VrmSamples`が読む）。開発者の記録をサンプルで測るTestは`VrmRecordingTests`（PlayMode、`[Explicit]`）にあり、アプリと同じく、補正、指定があれば2Dの平らにする処理、平滑化を通して、60Frame/秒で記録を再生する。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
 ---
 
@@ -889,7 +889,7 @@ Assets/VirtualVessel/Avatar/
 | 項目 | 対応予定 |
 |---|---|
 | VRM 0.xのモデルを受け付けるか | 決定：読み込み時に1.0へ変換して受け付ける（6.8、方式設計7.3。利用者の決定、2026-10-18） |
-| Test用のVRMモデル | 利用者から受け取ったサンプル（Repository外の`E:\VirtualVessel\samples\`、VRM 1.0の2体と0.xの1体）で確かめた。0.xも、変換の後に骨、Root空間での回転、表情、破棄がTestを通った。Repositoryに入れられるライセンスの小さなモデルがあれば、自動のTestに使う |
+| Test用のVRMモデル | 利用者から受け取ったサンプル（Repository外の`E:\VirtualVessel\samples\`、VRM 1.0の2体と0.xの1体）で確かめた。0.xも、変換の後に骨、Root空間での回転、表情、破棄がTestを通った。決定（2026-10-25）：利用者自身のモデル`otoha-chan.vrm`を、再配布と改変を許すライセンスで書き出し直し、Git LFSでRepositoryの`tests/samples/`に入れた（`tests/samples/README.md`）。開発者自身のサンプルがないときは、VRMのTestがこれを使う。CIでUnityを動かせるまで、TestはExplicitのままとする |
 | サムネイルのないモデル | 今は「画像なし」を表示する。読み込み時に撮るかは、要望に応じて検討する |
 | 身長の違うモデルの写り方 | カメラの既定の位置は固定（Video詳細設計7.5）。身長の差が大きいモデルで上半身が収まらない場合は、Camera Pointの設計時に頭の高さへ合わせる方式を検討する |
 | 手を顔に当てる等の位置合わせ（IK） | 全身の対応と合わせて検討する |

@@ -12,8 +12,9 @@ using VirtualVessel.Avatar.Vrm;
 namespace VirtualVessel.Avatar.Tests
 {
     /// <summary>
-    /// The user's VRM sample models outside the repository (avatar detailed design 17): looked for in the
-    /// folder named by VV_SAMPLES_DIR, else in "samples" next to the repository.
+    /// The VRM sample models (avatar detailed design 14, 17): looked for in the folder named by
+    /// VV_SAMPLES_DIR, else in "samples" next to the repository (the developer's own set), else in the
+    /// repository's tests/samples (in Git LFS).
     /// </summary>
     internal static class VrmSamples
     {
@@ -35,7 +36,8 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             // The Unity project is unity/VirtualVesselStudio in the repository.
-            return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "samples"));
+            string beside = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "samples"));
+            return Directory.Exists(beside) ? beside : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "tests", "samples"));
         }
 
         /// <summary>Loads <paramref name="sample"/> with UniVRM over frames, timing it into <paramref name="result"/>.</summary>
