@@ -453,7 +453,7 @@ namespace VirtualVessel.UI
             IPerformanceMetrics metrics = context.Metrics;
             var screens = new List<ScreenDefinition>
             {
-                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens.StreamPreview, context.Screens.FrameSources)),
+                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens.StreamPreview, context.Screens.FrameSources, context.Screens.Tracking)),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId)), developerOnly: true),
