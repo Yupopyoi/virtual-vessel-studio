@@ -98,6 +98,7 @@ namespace VirtualVessel.UI.Controls
             _field.RegisterValueChangedCallback(evt =>
             {
                 evt.StopPropagation();
+                KeepCaretAfterEdit(evt.previousValue, evt.newValue);
                 using (ChangeEvent<string> outer = ChangeEvent<string>.GetPooled(evt.previousValue, evt.newValue))
                 {
                     outer.target = this;
@@ -148,10 +149,79 @@ namespace VirtualVessel.UI.Controls
             set => _field.value = value;
         }
 
+        /// <summary>
+        /// Where the caret may stand after an edit from <paramref name="before"/> to <paramref name="after"/>:
+        /// right after the text put in, from <paramref name="lo"/> to <paramref name="hi"/> when the same
+        /// characters around it leave the place open (typing "a" into "aa"). False for an edit that only took
+        /// text away, or no edit. Pure.
+        /// </summary>
+        public static bool TryCaretAfterEdit(string before, string after, out int lo, out int hi)
+        {
+            before ??= string.Empty;
+            after ??= string.Empty;
+            int shorter = System.Math.Min(before.Length, after.Length);
+            int prefix = 0;
+            while (prefix < shorter && before[prefix] == after[prefix])
+            {
+                prefix++;
+            }
+
+            int suffix = 0;
+            while (suffix < shorter && before[before.Length - 1 - suffix] == after[after.Length - 1 - suffix])
+            {
+                suffix++;
+            }
+
+            int grown = after.Length - before.Length;
+            if (grown > 0 && prefix + suffix >= before.Length)
+            {
+                // Text put in without taking any out: anywhere the characters on both sides still match.
+                lo = before.Length - System.Math.Min(suffix, before.Length) + grown;
+                hi = System.Math.Min(prefix, before.Length) + grown;
+                return lo <= hi;
+            }
+
+            // Text replaced, as Japanese input turns its reading into the chosen word: after the new text.
+            suffix = System.Math.Min(suffix, shorter - prefix);
+            lo = hi = after.Length - suffix;
+            return lo > prefix;
+        }
+
         /// <summary>Whether a key press is Enter, from the main keys or the keypad, or the line break it types. Pure.</summary>
         public static bool IsEnter(UnityEngine.KeyCode key, char character)
         {
             return key == UnityEngine.KeyCode.Return || key == UnityEngine.KeyCode.KeypadEnter || character == '\n' || character == '\r';
+        }
+
+        /// <summary>
+        /// With Japanese input, Unity's field (with the Input System) left the caret one character short of
+        /// each word it committed, so what was typed next went in before the word's last character
+        /// ("入力欄が" became "入欄が…力", the user's video, 2026-10-25). After an edit, once Unity has placed the
+        /// caret, it is moved to just after the text put in if it stands anywhere else.
+        /// </summary>
+        private void KeepCaretAfterEdit(string before, string after)
+        {
+            if (!TryCaretAfterEdit(before, after, out int lo, out int hi))
+            {
+                return;
+            }
+
+            _field.schedule.Execute(() =>
+            {
+                ITextSelection selection = _field.textSelection;
+                if (_field.value != after || selection.cursorIndex != selection.selectIndex)
+                {
+                    return;
+                }
+
+                int caret = selection.cursorIndex;
+                if (caret < lo || caret > hi)
+                {
+                    int place = caret < lo ? lo : hi;
+                    selection.cursorIndex = place;
+                    selection.selectIndex = place;
+                }
+            });
         }
 
         public void SetValueWithoutNotify(string newValue)

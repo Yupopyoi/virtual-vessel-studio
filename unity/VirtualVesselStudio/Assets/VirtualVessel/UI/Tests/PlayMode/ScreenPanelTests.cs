@@ -81,6 +81,14 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(TextInput.IsEnter(KeyCode.None, '\n'), Is.True, "The line break it types.");
             Assert.That(TextInput.IsEnter(KeyCode.A, 'a'), Is.False);
+
+            // A word committed with the caret left one short, as Unity left it with Japanese input.
+            field.value = "じゃんけん最初";
+            field.textSelection.cursorIndex = 6;
+            field.textSelection.selectIndex = 6;
+            yield return null;
+            yield return null;
+            Assert.That(field.textSelection.cursorIndex, Is.EqualTo(7), "Back after the word.");
         }
 
         [UnityTest]
