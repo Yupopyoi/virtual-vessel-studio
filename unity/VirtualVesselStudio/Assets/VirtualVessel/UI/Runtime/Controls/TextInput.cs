@@ -77,6 +77,10 @@ namespace VirtualVessel.UI.Controls
             });
             _placeholder = new KeyedText(this, value => _field.textEdition.placeholder = value);
 
+            // The example goes away as the field is focused. Left in view, the first characters typed were
+            // shown as the example, and the caret stood where its text ended (the user's report, 2026-10-25).
+            _field.textEdition.hidePlaceholderOnFocus = true;
+
             // Re-send the inner field's changes from this element, so bindings see one field.
             _field.RegisterValueChangedCallback(evt =>
             {

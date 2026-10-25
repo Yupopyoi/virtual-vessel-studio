@@ -10,6 +10,14 @@ namespace VirtualVessel.UI.Tests
     public sealed class InputControlTests
     {
         [Test]
+        public void TextInput_HidesItsExample_WhenFocused()
+        {
+            // The first characters typed were shown as the example, with the caret where it ended (the user's report).
+            var input = new TextInput { PlaceholderKey = "diagnostics.recordings.description.placeholder" };
+            Assert.That(input.Q<TextField>().textEdition.hidePlaceholderOnFocus, Is.True);
+        }
+
+        [Test]
         public void ValueSlider_SnapsAndMapsPositions()
         {
             Assert.That(ValueSlider.Snap(-12.3f, -60f, 0f, 1f), Is.EqualTo(-12f));
