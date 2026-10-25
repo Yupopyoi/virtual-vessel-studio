@@ -54,7 +54,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void ARaisedThumb_StaysStraight_AndATuckedOne_FoldsAcrossThePalm()
+        public void ARaisedThumb_StaysStraight_AndAWrappedOrTuckedOne_FoldsAcrossThePalm()
         {
             // A fist with the thumb up, its end joint reading a little bent, as the user's raised thumbs did.
             HandPose hand = Hand(bends: 80f, middleBends: 90f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 18f);
@@ -72,6 +72,17 @@ namespace VirtualVessel.Avatar.Tests
 
             FingerRetargeting.TryMeasure(Mirrored(hand), left: true, pose);
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.MaxThumbFold), "The same on the left hand.");
+
+            // Wrapped over the curled fingers, as in rock-paper-scissors: the tip only a tenth of the palm across.
+            hand = Hand(bends: 80f, middleBends: 90f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 18f);
+            hand[HandJoint.ThumbTip] = new Vector3(-0.02f, -0.02f, 0.07f);
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.GreaterThan(FingerRetargeting.MaxThumbFold * 0.8f), "Wrapped: folded across too.");
+
+            // Laid along the side of the index finger: not across the palm.
+            hand[HandJoint.ThumbTip] = new Vector3(-0.044f, -0.01f, 0.07f);
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "Beside the index finger: no fold.");
         }
 
         [Test]

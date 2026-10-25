@@ -41,14 +41,18 @@ namespace VirtualVessel.Avatar
 
         /// <summary>
         /// How far across the palm, as a share of its width from the index finger's base toward the little
-        /// finger's, the thumb's tip reaches when tucked in: the thumb then folds across the palm at its base
-        /// by <see cref="MaxThumbFold"/> and at least <see cref="ThumbTuckBend"/> at its middle joint, and by
-        /// that share of them on the way. The tip tells a tucked thumb from one standing out of a fist: on the
-        /// user's recordings it was 0.36 across with the fingers curled and the thumb tucked, and -0.37 (on the
-        /// thumb's side) with it out, where the angle between the thumb's and the index finger's metacarpals
-        /// barely differed (25° and 30°) and folded a raised thumb (2026-10-24).
+        /// finger's, the thumb's tip reaches as it tucks in: from <see cref="TuckFrom"/> (beside the index
+        /// finger) to <see cref="TuckFull"/>, where the thumb folds across the palm at its base by
+        /// <see cref="MaxThumbFold"/> and bends at least <see cref="ThumbTuckBend"/> at its middle joint. The
+        /// tip tells a tucked thumb from one standing out of a fist, where the angle between the thumb's and
+        /// the index finger's metacarpals barely differed (25° and 30°) and folded a raised thumb. On the
+        /// user's recordings (2026-10-24, 25), the tip was -0.87 with the thumb raised out of a fist, -0.75 in
+        /// an open hand, -0.38 laid along the index finger, 0.03–0.23 wrapped over the curled fingers (a fist in
+        /// rock-paper-scissors), and 0.36 tucked inside them. Reaching full only at 0.4, a wrapped thumb had
+        /// folded halfway (the user's report).
         /// </summary>
-        public const float ThumbAcross = 0.4f;
+        public const float TuckFrom = -0.2f;
+        public const float TuckFull = 0.15f;
         public const float MaxThumbFold = 25f;
         public const float ThumbTuckBend = 30f;
 
@@ -133,13 +137,14 @@ namespace VirtualVessel.Avatar
 
         /// <summary>
         /// How tucked in the thumb is, 0 to 1: how far its tip (<paramref name="tipFromIndexBase"/>) reaches
-        /// across the palm from the index finger's base, against <see cref="ThumbAcross"/> of the palm's
-        /// width (<paramref name="thumbward"/>, from the little finger's base to the index finger's). Pure.
+        /// across the palm from the index finger's base, from <see cref="TuckFrom"/> to <see cref="TuckFull"/>
+        /// of the palm's width (<paramref name="thumbward"/>, from the little finger's base to the index
+        /// finger's). Pure.
         /// </summary>
         public static float Tuck(Vector3 tipFromIndexBase, Vector3 thumbward)
         {
             float width = thumbward.magnitude;
-            return width < 1e-6f ? 0f : Mathf.Clamp01(-Vector3.Dot(tipFromIndexBase, thumbward) / (width * width) / ThumbAcross);
+            return width < 1e-6f ? 0f : Mathf.InverseLerp(TuckFrom, TuckFull, -Vector3.Dot(tipFromIndexBase, thumbward) / (width * width));
         }
 
         /// <summary>
