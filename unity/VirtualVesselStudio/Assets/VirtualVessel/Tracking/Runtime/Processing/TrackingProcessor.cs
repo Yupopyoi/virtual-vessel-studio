@@ -107,7 +107,7 @@ namespace VirtualVessel.Tracking.Processing
                 return;
             }
 
-            Outliers += state.Filter(raw.Positions, s_handLeads, raw.Timestamp, profile.Joints, output.Positions);
+            Outliers += state.Filter(raw.Positions, s_handLeads, raw.Timestamp, profile.Hands, output.Positions);
             Array.Copy(raw.ImagePositions, output.ImagePositions, HandPose.JointCount);
             if (state.AcceptPalm(raw.PalmRotation, raw.Timestamp))
             {

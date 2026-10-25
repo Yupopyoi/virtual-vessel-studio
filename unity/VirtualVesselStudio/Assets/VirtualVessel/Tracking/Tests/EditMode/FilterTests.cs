@@ -147,6 +147,20 @@ namespace VirtualVessel.Tracking.Tests
         }
 
         [Test]
+        public void AHandsShape_IsNeverSmoothedSlowerThanItsFloor_AtAnyLevel()
+        {
+            // Fingers move too little to quicken the filter, so at the steady levels a hand's shape barely followed.
+            for (int level = SmoothingLevel.Min; level <= SmoothingLevel.Max; level++)
+            {
+                SmoothingProfile profile = SmoothingProfile.For(level);
+                Assert.That(profile.Hands.MinCutoff, Is.GreaterThanOrEqualTo(SmoothingProfile.MinHandCutoff), $"Level {level}.");
+                Assert.That(profile.Hands.Beta, Is.EqualTo(profile.Joints.Beta));
+            }
+
+            Assert.That(SmoothingProfile.For(SmoothingLevel.Min).Joints.MinCutoff, Is.LessThan(SmoothingProfile.MinHandCutoff), "The body stays as steady as before.");
+        }
+
+        [Test]
         public void ARotationAcross180Degrees_TakesTheShortWay()
         {
             RotationFilter filter = default(RotationFilter).Next(Quaternion.Euler(0, 175, 0), 0, s_balanced);
