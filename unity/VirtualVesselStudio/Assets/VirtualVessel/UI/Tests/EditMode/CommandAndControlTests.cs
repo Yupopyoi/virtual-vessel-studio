@@ -93,6 +93,24 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void Segmented_SkipsItemsThatCannotBeChosen()
+        {
+            // Full body is shown as coming soon and cannot be chosen (tracking detailed design 6.5).
+            var segmented = new Segmented("a.x", "a.y", "a.z");
+            segmented.SetItemEnabled(1, false);
+
+            Assert.That(segmented.IsItemEnabled(1), Is.False);
+            Assert.That(segmented.Query<Label>(className: Segmented.ItemDisabledClass).ToList(), Has.Count.EqualTo(1));
+            Assert.That(Segmented.NextEnabled(0, 1, new[] { true, false, true }), Is.EqualTo(2), "The arrow keys pass over it.");
+            Assert.That(Segmented.NextEnabled(0, 1, new[] { true, false }), Is.EqualTo(0), "And stay when nothing follows.");
+            Assert.That(Segmented.NextEnabled(2, -1, new[] { true, false, true }), Is.EqualTo(0));
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => segmented.SetItemEnabled(3, false));
+
+            segmented.SetItems("b.x", "b.y");
+            Assert.That(segmented.IsItemEnabled(1), Is.True, "New items can be chosen.");
+        }
+
+        [Test]
         public void StatusChip_ShapeAndBlink()
         {
             Assert.That(StatusChip.IconFor(StatusKind.Idle), Is.EqualTo(IconName.Ring));
