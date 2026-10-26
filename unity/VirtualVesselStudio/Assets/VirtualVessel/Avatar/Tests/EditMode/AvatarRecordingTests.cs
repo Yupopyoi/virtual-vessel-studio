@@ -64,10 +64,10 @@ namespace VirtualVessel.Avatar.Tests
                     }
 
                     torso += target.TorsoSeen ? 1 : 0;
-                    left += target.LeftArmSeen ? 1 : 0;
-                    right += target.RightArmSeen ? 1 : 0;
-                    forearm += target.RightForearmSeen ? 1 : 0;
-                    if (target.RightArmSeen)
+                    left += target.LeftArm.Seen ? 1 : 0;
+                    right += target.RightArm.Seen ? 1 : 0;
+                    forearm += target.RightArm.ForearmSeen ? 1 : 0;
+                    if (target.RightArm.Seen)
                     {
                         // The avatar's right arm is the person's left one in a mirror.
                         upper.Add(Vector3.Distance(body[BodyJoint.LeftShoulder], body[BodyJoint.LeftElbow]));
@@ -91,7 +91,7 @@ namespace VirtualVessel.Avatar.Tests
                         }
                     }
 
-                    if (motion.Current.RightArmSeen && motion.Current.RightForearmSeen)
+                    if (motion.Current.RightArm.Seen && motion.Current.RightArm.ForearmSeen)
                     {
                         bends.Add(Vector3.Angle(motion.Current[UpperBodyBone.RightUpperArm] * Vector3.right, motion.Current[UpperBodyBone.RightLowerArm] * Vector3.right));
                     }
