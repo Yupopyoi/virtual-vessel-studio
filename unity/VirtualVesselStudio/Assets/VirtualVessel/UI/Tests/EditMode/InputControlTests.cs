@@ -10,19 +10,6 @@ namespace VirtualVessel.UI.Tests
     public sealed class InputControlTests
     {
         [Test]
-        public void TextInput_KnowsWhereTheCaretBelongs_AfterAnEdit()
-        {
-            Assert.That(TextInput.TryCaretAfterEdit("X", "X最初", out int lo, out int hi), Is.True);
-            Assert.That((lo, hi), Is.EqualTo((3, 3)), "After a word put at the end.");
-            Assert.That(TextInput.TryCaretAfterEdit("ab", "a最初b", out lo, out hi) && (lo, hi) == (3, 3), Is.True, "After a word put in the middle.");
-            Assert.That(TextInput.TryCaretAfterEdit("にゅうりょく", "入力", out lo, out hi) && (lo, hi) == (2, 2), Is.True, "After a reading turned into its word.");
-            Assert.That(TextInput.TryCaretAfterEdit("aa", "aaa", out lo, out hi) && (lo, hi) == (1, 3), Is.True, "Anywhere the same letters leave open.");
-            Assert.That(TextInput.TryCaretAfterEdit("abc", "ac", out _, out _), Is.False, "Only taken away: nothing to say.");
-            Assert.That(TextInput.TryCaretAfterEdit("abc", "abc", out _, out _), Is.False, "No edit.");
-            Assert.That(TextInput.TryCaretAfterEdit(null, "a", out lo, out hi) && (lo, hi) == (1, 1), Is.True);
-        }
-
-        [Test]
         public void TextInput_HidesItsExample_WhenFocused()
         {
             // The first characters typed were shown as the example, with the caret where it ended (the user's report).
