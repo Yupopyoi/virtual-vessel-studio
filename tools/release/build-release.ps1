@@ -132,7 +132,8 @@ $zip = Join-Path $releaseRoot $zipName
 Compress-Archive -Path $stage -DestinationPath $zip
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
 $sums = Join-Path $releaseRoot 'SHA256SUMS.txt'
-"$hash  $zipName" | Set-Content -Encoding ascii $sums
+# LF line ends, so `sha256sum -c` reads the file on any system; with CRLF it looked for the name with a carriage return.
+[System.IO.File]::WriteAllText($sums, "$hash  $zipName`n", [System.Text.Encoding]::ASCII)
 "Built $zipName ($buildId), SHA-256 $hash."
 
 # 8. The draft Release.
