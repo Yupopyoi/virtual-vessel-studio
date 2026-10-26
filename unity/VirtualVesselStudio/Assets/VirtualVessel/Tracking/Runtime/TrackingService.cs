@@ -42,6 +42,8 @@ namespace VirtualVessel.Tracking
         private readonly ObservableValue<TrackingOptions> _options;
         private readonly ObservableValue<float> _front;
         private readonly PerfTimer _latency;
+        private readonly PerfCounter _outliers;
+        private long _outliersCounted;
         private TrackingSettings _settings;
         private bool _wanted;
         private EventRate _rate;
@@ -69,6 +71,7 @@ namespace VirtualVessel.Tracking
             _front = new ObservableValue<float>(FacingCorrection.Next(_settings.FrontDegrees, 0f));
             _turnBack = FacingCorrection.TurnBack(_front.Value);
             _latency = metrics?.Timer("Tracking", "Latency");
+            _outliers = metrics?.Counter("Tracking", "Outliers");
             ChooseCorrections();
         }
 
@@ -380,6 +383,7 @@ namespace VirtualVessel.Tracking
                 }
 
                 _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
+                CountOutliers();
                 if (observed)
                 {
                     NoteObservation(Newest(_raw));
@@ -405,6 +409,17 @@ namespace VirtualVessel.Tracking
             {
                 _lastImage = imageTime;
                 _rate = _rate.Next(_now);
+            }
+        }
+
+        /// <summary>Adds the values the processor dropped as outliers since the last frame to the Diagnostics table (tracking detailed design 11).</summary>
+        private void CountOutliers()
+        {
+            long dropped = _processor.Outliers;
+            if (dropped > _outliersCounted)
+            {
+                _outliers?.Add(dropped - _outliersCounted);
+                _outliersCounted = dropped;
             }
         }
 

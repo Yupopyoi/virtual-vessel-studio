@@ -8,6 +8,7 @@ using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.Tracking.Processing;
 using VirtualVessel.Tracking.Recording;
@@ -252,6 +253,27 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(3));
             Assert.That(_service.Options.Value.Mirror, Is.False);
             Assert.That(_service.Options.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
+        }
+
+        [Test]
+        public void DroppedOutliers_AreCountedForDiagnostics()
+        {
+            // One frame's wrist jumps a meter: faster than a person can move, so it is dropped (8.3).
+            TrackingFrame[] frames = SyntheticMotion.RaiseAndWaveFrames(2, 30, 0f, seed: 0);
+            frames[20].Body[BodyJoint.RightWrist] += new Vector3(1f, 0f, 0f);
+            var provider = new TrackingReplayProvider(frames, TrackingRegions.Body | TrackingRegions.Face, () => _clock.Seconds, loop: false);
+            using (var metrics = new PerformanceMetricsService(new PerformanceSettings { DetailedEnabled = true, BuiltinMetricsEnabled = false }, _clock, new UtcSystemClock(), null))
+            {
+                _service = new TrackingService(provider, _camera, _loop, _clock, new TrackingSettings(), null, metrics, null);
+                _service.InitializeAsync(CancellationToken.None).Wait();
+                _service.Start();
+                for (int i = 0; i < 60; i++)
+                {
+                    Frame();
+                }
+
+                Assert.That(metrics.Counter("Tracking", "Outliers").Value, Is.EqualTo(1));
+            }
         }
 
         [Test]
