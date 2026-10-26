@@ -111,10 +111,10 @@ namespace VirtualVessel.Avatar
         /// <summary>What drives the avatar on the stream, or null; for tests.</summary>
         internal AvatarController Controller => _controller;
 
-        /// <summary>Creates the store of avatar-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<AvatarSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>Creates the store of avatar-settings.json in <paramref name="directory"/>, the project's folder (project data detailed design 6).</summary>
+        public static ConfigFileStore<AvatarSettings> CreateStore(string directory, ISystemClock clock)
         {
-            return new ConfigFileStore<AvatarSettings>(configDirectory, AvatarSettings.FileName, AvatarSettings.SchemaVersion, () => new AvatarSettings(), clock);
+            return new ConfigFileStore<AvatarSettings>(directory, AvatarSettings.FileName, AvatarSettings.SchemaVersion, () => new AvatarSettings(), clock);
         }
 
         /// <summary>
