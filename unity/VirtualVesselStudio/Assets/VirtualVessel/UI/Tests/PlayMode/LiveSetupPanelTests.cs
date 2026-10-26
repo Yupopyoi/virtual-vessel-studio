@@ -145,6 +145,57 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTrackingCard_ChoosesTheRangePartsAndModel_AndFollowsThem()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card.Range.value, Is.EqualTo(0), "The upper body.");
+            Assert.That(card.Range.IsItemEnabled(1), Is.False, "Full body is coming soon and cannot be chosen.");
+            Assert.That(new[] { card.FaceToggle.value, card.BodyToggle.value, card.HandsToggle.value }, Has.All.True);
+            Assert.That(card.Model.value, Is.EqualTo((int)PoseModel.Full));
+
+            card.HandsToggle.value = false;
+            Assert.That(_tracking.Options.Value.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
+            card.Model.value = (int)PoseModel.Heavy;
+            Assert.That(_tracking.Options.Value.PoseModel, Is.EqualTo(PoseModel.Heavy));
+
+            _tracking.SetOptions(_tracking.Options.Value.WithRegions(TrackingRegions.Body).WithPoseModel(PoseModel.Lite));
+            Assert.That(card.FaceToggle.value, Is.False, "Follows a change made elsewhere.");
+            Assert.That(card.HandsToggle.value, Is.False);
+            Assert.That(card.Model.value, Is.EqualTo((int)PoseModel.Lite));
+
+            Assert.That(TrackingCard.RegionsOf(true, false, true), Is.EqualTo(TrackingRegions.Face | TrackingRegions.Hands));
+            Assert.That(TrackingCard.RegionsOf(false, false, false), Is.EqualTo(TrackingRegions.None));
+        }
+
+        [UnityTest]
+        public IEnumerator TheTrackingCard_TakesTheFront_OrSaysWhyItCannot()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            TrackingCard card = _root.Content.Q<TrackingCard>();
+            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontCamera));
+
+            _tracking.NextFront = (false, 0f);
+            Submit(card.TakeFront);
+            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontUnseen), "No one seen: what to do.");
+
+            _tracking.NextFront = (true, 22.4f);
+            Submit(card.TakeFront);
+            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontRight));
+            Assert.That(_tracking.Front.Value, Is.EqualTo(22.4f));
+
+            Submit(card.ResetFront);
+            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontCamera));
+
+            Assert.That(TrackingCard.FrontLine(22.4f, false), Is.EqualTo((TrackingStrings.FrontRight, "22")));
+            Assert.That(TrackingCard.FrontLine(-7.5f, false), Is.EqualTo((TrackingStrings.FrontLeft, "8")));
+            Assert.That(TrackingCard.FrontLine(0.3f, false), Is.EqualTo((TrackingStrings.FrontCamera, (string)null)));
+            Assert.That(TrackingCard.FrontLine(10f, true).Key, Is.EqualTo(TrackingStrings.FrontUnseen));
+        }
+
+        [UnityTest]
         public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
         {
             _root.Shell.Open("setup");
