@@ -1,0 +1,187 @@
+# Virtual Vessel Studio
+
+[![最新リリース](https://img.shields.io/github/v/release/Yupopyoi/virtual-vessel-studio?label=release)](https://github.com/Yupopyoi/virtual-vessel-studio/releases/latest)
+[![対応環境: Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078D6)](#動作環境)
+[![Unity 6.6](https://img.shields.io/badge/Unity-6.6-000000?logo=unity)](unity/VirtualVesselStudio/ProjectSettings/ProjectVersion.txt)
+[![ライセンス: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Repository checks](https://github.com/Yupopyoi/virtual-vessel-studio/actions/workflows/repository-checks.yml/badge.svg?branch=main)](https://github.com/Yupopyoi/virtual-vessel-studio/actions/workflows/repository-checks.yml)
+
+[English](README.md) | **日本語**
+
+Virtual Vessel Studio は、VTuber の配信、準備、コンテンツ制作のための Windows アプリです。3D アバター、トラッキング、映像の取り込み、ステージを1つのアプリにまとめ、別々のツールを組み合わせて設定する手間をなくします。
+
+> [!NOTE]
+> **v0.1.0 は初期のプレビュー版です。** Web カメラで VRM アバターを動かし、取り込んだ映像を配信画面に配置できます。配信、録画、音声、ボイスチェンジはまだ入っていません（[既知の制限](#既知の制限)）。
+
+## 目次
+
+- [v0.1.0 でできること](#v010-でできること)
+- [動作環境](#動作環境)
+- [インストール](#インストール)
+- [サンプルアバター：音葉ちゃん](#サンプルアバター音葉ちゃん)
+- [はじめかた](#はじめかた)
+- [トラッキングのコツ](#トラッキングのコツ)
+- [既知の制限](#既知の制限)
+- [困ったときは](#困ったときは)
+- [アンインストール](#アンインストール)
+- [開発者向け](#開発者向け)
+- [ライセンス](#ライセンス)
+
+## v0.1.0 でできること
+
+- **サンプルアバター**：音葉ちゃん（otoha-chan）が付属しています。自分のモデルがなくても、すぐに試せます。
+- **アバター**：VRM モデルを登録します（VRM 1.0。VRM 0.x は読み込むときに変換）。作者が決めた利用条件も確認できます。
+- **Web カメラでのトラッキング**：顔（表情、目、口）、上半身、腕、手、指でアバターを動かします。表情の出やすさや、動きの速さ・安定さを調整できます。
+- **映像の取り込み**：
+  - キャプチャーボードを通したゲーム画面
+  - サブモニター
+- **ライブ画面**：
+  - 配信映像を見る
+  - 映像の位置と大きさを変える
+  - 腕と手がカメラに映っているかを確かめる
+- **日本語と英語の画面**、ダークとライトのテーマ、UI の大きさの設定
+
+## 動作環境
+
+- Windows（64 ビット）、DirectX 11 に対応した GPU
+- Web カメラ（トラッキングに使います）
+- アバターとしての利用が作者に認められた VRM モデル（`.vrm`）、または付属のサンプルアバター
+- 必要に応じて：キャプチャーボード（ゲーム画面用）、サブモニター
+
+## インストール
+
+1. [最新のリリース](https://github.com/Yupopyoi/virtual-vessel-studio/releases/latest)から `VirtualVesselStudio-vX.Y.Z-win-x64.zip` をダウンロードします。
+2. （任意）同じページの `SHA256SUMS.txt` と照らし合わせて、ダウンロードしたファイルを確かめます。
+
+   ```powershell
+   Get-FileHash .\VirtualVesselStudio-v0.1.0-win-x64.zip -Algorithm SHA256
+   ```
+
+3. ZIP を、書き込みのできるフォルダー（例：`ドキュメント\VirtualVesselStudio`）に展開します。中のファイルは、まとめて置いたままにしてください。
+4. `VirtualVesselStudio.exe` を起動します。
+
+> [!IMPORTANT]
+> このアプリには、まだコード署名がありません（[#81](https://github.com/Yupopyoi/virtual-vessel-studio/issues/81)）。初めて起動したときに「Windows によって PC が保護されました」と表示されることがあります。その場合は **詳細情報** を押してから **実行** を押してください。この操作は、このリポジトリの Releases からダウンロードした ZIP に対してだけ行ってください。
+
+## サンプルアバター：音葉ちゃん
+
+音葉ちゃん（`otoha-chan.vrm`）は、Virtual Vessel Studio のために作ったサンプルの VRM アバターです。自分のモデルを用意する前に、トラッキングやライブ画面を試すのに使えます。
+
+- **場所**：v0.1.1 から、アプリのフォルダーの `Samples` にあります（`Samples\otoha-chan.vrm`）。
+
+  v0.1.0 の ZIP には入っていません。v0.1.0 では、このリポジトリから [`otoha-chan.vrm`](https://github.com/Yupopyoi/virtual-vessel-studio/raw/main/tests/samples/otoha-chan.vrm) をダウンロードしてください。
+- **使い方**：[1. アバターを登録する](#1-アバターを登録する)の手順で `Samples\otoha-chan.vrm` を登録し、**使うアバター** で **otoha-chan** を選びます。
+- **利用条件**：VRM Public License 1.0 で、モデルには次の条件を設定しています。
+  - 誰でもアバターとして使えます。法人を含む商用利用もできます。
+  - 再配布と改変ができ、クレジットの表記は不要です。
+  - 過度な暴力表現、過度な性的表現、政治・宗教目的、反社会的・憎悪的な目的では使えません。
+
+  全文は `licenses\otoha-chan-LICENSE.md` と、アプリの **設定** → **クレジットとライセンス** で確認できます。
+
+## はじめかた
+
+アプリには主な画面が2つあります。
+
+- **設定**：配信の前に機器を準備する画面
+- **ライブ**：配信映像を見ながら配置する画面
+
+設定の画面では、項目ごとにカードに分かれています。カードは見出しを押すと開きます。
+
+### 1. アバターを登録する
+
+1. **設定** → **アバター** を開きます。
+2. **アバターを登録…** を押し、`.vrm` ファイルを選びます。サンプルを使うときは、アプリのフォルダーの `Samples\otoha-chan.vrm` を選びます。
+3. モデルの利用条件を確かめて、**登録** を押します。
+
+   アプリはモデルの複製を持つので、元のファイルは変わりません。
+4. **使うアバター** で選びます。
+
+### 2. トラッキングを始める
+
+1. **設定** → **トラッキング** を開きます。
+2. **カメラ** で Web カメラを選びます。
+3. **トラッキングする** をオンにします。
+
+   カメラの映像に、とらえた点が表示されます。どの部分が見えているかは、その下の行（「顔 ✓　体 ✓　左手 –　…」）で分かります。
+4. 好みに合わせて調整します。
+   - **鏡写しにする**：既定でオンです。アバターが鏡に映ったように動きます。
+   - **体の動き**：3D か 2D を選びます。2D は正面から見た動きだけを使うので、腕の向きが安定します。
+   - **動きの速さ**：大きくするほど速く追いかけ、小さくするほど揺れが少なくなります。
+5. **表情の調整** を開くと、アバターを見ながら、目の閉じやすさ、ウインク、眉、口の動きを合わせられます。
+
+設定は自動で保存されます。次にアプリを開いたときも、トラッキングは自動で始まります。
+
+### 3. 映像を取り込む（任意）
+
+1. **設定** → **映像の取り込み（ゲーム画面）** または **映像の取り込み（サブモニター）** を開きます。
+2. 機器を選び、**取り込む** をオンにします。映像が左右や上下に反転しているときは、反転のスイッチで直します。
+
+### 4. 配信画面を整える
+
+1. **ライブ** を開きます。
+2. 映像はドラッグで移動し、角のドラッグで大きさを変えられます。右クリックでメニューを開きます。
+3. **重なり順** で、映像の前後を変えられます。
+4. **映っている部分** に、腕と手がカメラに映っているかが表示されます。映っていない部分は、既定の姿勢で休みます。
+
+## トラッキングのコツ
+
+- 顔と上半身（両ひじと両手を含む）がカメラに映るように座ってください。
+- 明るく均一な照明にして、背後からの強い光は避けてください。
+- 同じ Web カメラを使っているほかのアプリは閉じてください。
+- アバターが揺れるときは、**動きの速さ** を小さくするか、**体の動き** を 2D にしてみてください。
+
+## 既知の制限
+
+| 制限 | Issue |
+| --- | --- |
+| 配信、録画、音声、リアルタイムのボイスチェンジはまだ入っていません | — |
+| 日本語入力（IME）の不具合のため、入力欄には半角の英数字と記号だけが入力できます | [#74](https://github.com/Yupopyoi/virtual-vessel-studio/issues/74) |
+| 指の動きを、人やモデルごとに調整できません | [#67](https://github.com/Yupopyoi/virtual-vessel-studio/issues/67) |
+| コード署名がなく、更新の確認もしません | [#81](https://github.com/Yupopyoi/virtual-vessel-studio/issues/81) |
+
+ほかの課題は [Issue の一覧](https://github.com/Yupopyoi/virtual-vessel-studio/issues)を見てください。
+
+## 困ったときは
+
+- **トラッキングでカメラを開けない**：ほかのアプリがカメラを使っているかもしれません。そのアプリを閉じるか、別のカメラを選んでください。
+- **「人が映っていません」と出る**：カメラの前に座り、顔と上半身が映るようにしてください。
+- **アバターを読み込めない**：モデルの人型の骨が足りないか、ファイルが壊れているかもしれません。正しい VRM ファイルか確かめてください。
+- **問題を報告する**：[不具合の報告](https://github.com/Yupopyoi/virtual-vessel-studio/issues/new/choose)を作成してください。次のことを書いてください。
+  - バージョン
+  - 何をして、何が起きたか
+  - できれば、`%LOCALAPPDATA%\VirtualVesselStudio\Data\Logs` にある最新のログファイル
+
+  ストリームキーなどの個人的な情報は載せないでください。
+
+## アンインストール
+
+1. アプリを展開したフォルダーを削除します。
+2. 設定、登録したアバター、ログも消す場合は、`%LOCALAPPDATA%\VirtualVesselStudio` を削除します。元の `.vrm` ファイルはこの中にはありません。
+
+## 開発者向け
+
+```text
+virtual-vessel-studio/
+├─ docs/       ドキュメント（日本語：docs/ja、英語：docs/en）
+├─ unity/      Unity のアプリ（unity/VirtualVesselStudio）
+├─ native/     Windows のネイティブコードとプラグイン
+├─ services/   Python のサービス、アダプター、ランチャー
+├─ tools/      開発、ビルド、リリース、保守のツール
+└─ tests/      特定の部品に属さないテストとサンプル
+```
+
+- **Unity 6.6**：Unity Hub から `unity/VirtualVesselStudio` を開きます。正確な版は [`ProjectVersion.txt`](unity/VirtualVesselStudio/ProjectSettings/ProjectVersion.txt) にあります。
+- **Git LFS**：Git LFS を入れてから clone してください。`tests/samples/` のサンプルモデルを取得するためです。
+- **ドキュメント**：
+  - [方式設計](docs/ja/architecture/system-design.md)
+  - [開発の進め方](docs/ja/development/development-workflow.md)（ブランチの運用とリリースの手順を含む）
+  - 詳細設計は [`docs/ja/detailed-design/`](docs/ja/detailed-design/) にあります。
+- **変更を始める前に**：[`CLAUDE.md`](CLAUDE.md) を読んでください。貢献者と開発エージェントのためのプロジェクトの決まりです。
+
+## ライセンス
+
+Virtual Vessel Studio は [Apache License 2.0](LICENSE) で提供します。帰属の表示は [NOTICE](NOTICE) を見てください。
+
+「Virtual Vessel Studio」という名前とロゴは、このライセンスの対象ではありません。[TRADEMARKS.md](TRADEMARKS.md) を見てください。
+
+アプリと一緒に配布するサードパーティーの部品、モデル、ランタイムには、それぞれのライセンスが適用されます。アプリの **設定** → **クレジットとライセンス** で確認できます。
