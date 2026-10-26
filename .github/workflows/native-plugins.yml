@@ -24,14 +24,14 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The same script developers run: CMake configure, Release build, native tests, copy into Unity.
       - name: Build and test
         shell: pwsh
         run: ./tools/native/build-capture.ps1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: VirtualVessel.Capture.Native
           path: native/capture/build/Release/VirtualVessel.Capture.Native.dll

@@ -858,12 +858,12 @@
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/checkout@v4",
+      "bom-ref": "github-action:actions/checkout@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/checkout",
-      "version": "v4",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -872,17 +872,17 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/checkout@v4",
+      "purl": "pkg:github/actions/checkout@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/setup-python@v5",
+      "bom-ref": "github-action:actions/setup-python@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/setup-python",
-      "version": "v5",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -891,17 +891,17 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/setup-python@v5",
+      "purl": "pkg:github/actions/setup-python@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/upload-artifact@v4",
+      "bom-ref": "github-action:actions/upload-artifact@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/upload-artifact",
-      "version": "v4",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -910,7 +910,7 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/upload-artifact@v4",
+      "purl": "pkg:github/actions/upload-artifact@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     }
   ]
