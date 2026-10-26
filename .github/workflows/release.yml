@@ -1,6 +1,8 @@
-# On a version tag (development workflow 21): checks the tag and prepares a draft GitHub Release.
-# The Windows player is built on a developer's PC with tools/release/build-release.ps1 -Upload,
-# because Unity cannot run here yet; publishing the Release is done by hand.
+# On a version tag (development workflow 21): checks the tag and prepares a draft GitHub Release,
+# then builds the Windows player on the maintainer's PC, a self-hosted runner labeled vvs-release,
+# with tools/release/build-release.ps1 -Upload, because Unity cannot run on GitHub's hosted runners
+# yet. Publishing the Release stays a manual step. Only a tag push starts the build, never a pull
+# request, so code from forks does not run on the PC (development workflow 21.1).
 name: Release
 
 on:
@@ -51,3 +53,24 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes --title "Virtual Vessel Studio $GITHUB_REF_NAME"
           fi
+
+  build:
+    name: Build and upload
+    needs: draft
+    # Only in this repository: a fork's tag never waits for, or reaches, the maintainer's PC.
+    if: github.repository == 'Yupopyoi/virtual-vessel-studio'
+    runs-on: [self-hosted, Windows, X64, vvs-release]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Build, test, package, and upload
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          pwsh -NoProfile -File tools/release/build-release.ps1 -Version $version -Upload

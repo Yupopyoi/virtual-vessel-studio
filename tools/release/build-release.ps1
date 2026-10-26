@@ -3,8 +3,9 @@
 Builds a release of Virtual Vessel Studio for Windows and, with -Upload, puts it on a draft GitHub Release.
 
 .DESCRIPTION
-The release procedure of development workflow 21, run on a developer's PC because Unity cannot run
-in GitHub's hosted CI yet. In order:
+The release procedure of development workflow 21, run on the maintainer's PC because Unity cannot run
+in GitHub's hosted CI yet: by the Release workflow's build job on the self-hosted runner (21.1), or by
+hand from a checkout of the tag. In order:
 
 1. Checks the working copy: no uncommitted changes, and the project version is -Version.
 2. Builds the native plugins and runs their tests (tools/native), and puts the pinned MediaPipe
@@ -17,7 +18,8 @@ in GitHub's hosted CI yet. In order:
 7. With -Upload, uploads both to the draft GitHub Release of tag v<version>, creating the draft if
    the Release workflow has not. The tag must already be on GitHub; publishing stays a manual step.
 
-Close the Unity Editor first.
+Close the Unity Editor on this checkout first; the runner builds its own checkout, so an Editor open on
+another one may stay.
 
 .PARAMETER Version
 The version to release, such as 0.2.0. Must match the project version (PlayerSettings bundleVersion).
