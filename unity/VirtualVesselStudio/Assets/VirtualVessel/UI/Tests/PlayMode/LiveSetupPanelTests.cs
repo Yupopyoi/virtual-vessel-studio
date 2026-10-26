@@ -12,6 +12,7 @@ using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Screens;
@@ -285,6 +286,45 @@ namespace VirtualVessel.UI.Tests
             Assert.That(live, Is.Not.Null);
             Assert.That(live.Preview.worldBound.height, Is.EqualTo(live.Preview.worldBound.width * 9f / 16f).Within(1f), "The preview takes the stream's shape.");
             Assert.That(live.Layers, Is.Not.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator Live_ShowsTheArmsAndHandsInView_WhileTrackingRuns()
+        {
+            _root.Shell.Open("live");
+            yield return null;
+            LimbStatusRow limbs = _root.Content.Q<LiveScreen>().Limbs;
+            Assert.That(limbs, Is.Not.Null);
+            Assert.That(limbs.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Hidden while tracking is stopped.");
+
+            // Both arms out sideways, the left wrist below the image; the right hand seen.
+            SyntheticMotion.WriteArms(_tracking.Current.Body, Vector3.left, Vector3.left, Vector3.right, Vector3.right, 1.0);
+            _tracking.Current.Body.ImagePositions[(int)BodyJoint.LeftWrist] = new Vector2(0.2f, 1.1f);
+            _tracking.Current.RightHand.Status = TrackingStatus.Tracked;
+            _tracking.Start();
+            yield return new WaitForSeconds(0.3f);
+
+            Assert.That(limbs.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That((limbs.RightArm.Status, limbs.RightArm.TextKey), Is.EqualTo((StatusKind.Success, LimbStrings.RightArmSeen)));
+            Assert.That((limbs.LeftArm.Status, limbs.LeftArm.TextKey), Is.EqualTo((StatusKind.Warning, LimbStrings.LeftArmPartly)), "The wrist is out of the image.");
+            Assert.That((limbs.RightHand.Status, limbs.RightHand.TextKey), Is.EqualTo((StatusKind.Success, LimbStrings.RightHandSeen)));
+            Assert.That((limbs.LeftHand.Status, limbs.LeftHand.TextKey), Is.EqualTo((StatusKind.Idle, LimbStrings.LeftHandUnseen)));
+        }
+
+        [Test]
+        public void ALimb_IsSeen_AsTheAvatarUsesIt()
+        {
+            var body = new BodyPose();
+            Assert.That(LimbStatusRow.Arm(body, left: true), Is.EqualTo(LimbSeen.Unseen), "No body.");
+            SyntheticMotion.WriteArms(body, Vector3.left, Vector3.left, Vector3.right, Vector3.right, 1.0);
+            Assert.That(LimbStatusRow.Arm(body, left: true), Is.EqualTo(LimbSeen.Seen));
+            body.JointConfidence[(int)BodyJoint.LeftWrist] = 0.1f;
+            Assert.That(LimbStatusRow.Arm(body, left: true), Is.EqualTo(LimbSeen.Partly), "A hidden wrist.");
+            body.ImagePositions[(int)BodyJoint.LeftElbow] = new Vector2(-0.1f, 0.5f);
+            Assert.That(LimbStatusRow.Arm(body, left: true), Is.EqualTo(LimbSeen.Unseen), "An elbow out of the image.");
+            Assert.That(LimbStatusRow.Arm(body, left: false), Is.EqualTo(LimbSeen.Seen), "Each side on its own.");
+            Assert.That(LimbStatusRow.Hand(null), Is.EqualTo(LimbSeen.Unseen));
+            Assert.That(new[] { LimbSeen.Seen, LimbSeen.Partly, LimbSeen.Unseen }.Select(LimbStatusRow.KindOf), Is.EqualTo(new[] { StatusKind.Success, StatusKind.Warning, StatusKind.Idle }), "A shape for each, never color alone.");
         }
 
         [Test]

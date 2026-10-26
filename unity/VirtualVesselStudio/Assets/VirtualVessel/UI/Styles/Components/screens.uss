@@ -1,5 +1,21 @@
 /* The live and setup screens (docs/<lang>/ui/screens/). Layout only; the components bring their own styles. */
 
+.vv-limbs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--vv-space-s);
+}
+
+.vv-limbs__title {
+    margin-right: var(--vv-space-s);
+    color: var(--vv-color-text-2);
+}
+
+.vv-limbs__chip {
+    margin: 0 var(--vv-space-s) var(--vv-space-xs) 0;
+}
+
 .vv-live__layers {
     margin-top: var(--vv-space-m);
 }
