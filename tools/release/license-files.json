@@ -9,6 +9,7 @@
         "licenses/NotoSansMono-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/NotoSansMono/OFL.txt",
         "licenses/MediaPipeUnityPlugin-LICENSE.md": "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/LICENSE.md",
         "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md": "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/Third Party Notices.md",
+        "licenses/otoha-chan-LICENSE.md": "tests/samples/otoha-chan-LICENSE.md",
         "licenses/UniVRM-LICENSE.txt": "tools/release/licenses/UniVRM-LICENSE.txt",
         "licenses/UniGLTF-LICENSE.md": "unity/VirtualVesselStudio/Library/PackageCache/com.vrmc.gltf@*/LICENSE.md",
         "licenses/Newtonsoft.Json-Third-Party-Notices.md": "unity/VirtualVesselStudio/Library/PackageCache/com.unity.nuget.newtonsoft-json@*/Third Party Notices.md"
