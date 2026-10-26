@@ -224,14 +224,14 @@ namespace VirtualVessel.Avatar.Tests
                                 Vector3 rest = bone == UpperBodyBone.LeftUpperArm || bone == UpperBodyBone.LeftLowerArm || bone == UpperBodyBone.LeftHand ? Vector3.left : Vector3.right;
                                 float pointed = Vector3.Angle(controller.Body[bone] * rest, shownHistory[0][bone] * rest);
                                 BodyTarget t = tracked.Current;
-                                notes[now - replay.Start] = $"points {pointed:F0}° of it; seen L arm {t.LeftArmSeen}/{seenBefore[0]} forearm {t.LeftForearmSeen}/{seenBefore[1]}, R arm {t.RightArmSeen}/{seenBefore[2]} forearm {t.RightForearmSeen}/{seenBefore[3]}; presence L {tracked.LeftArmPresence:F2} R {tracked.RightArmPresence:F2}";
+                                notes[now - replay.Start] = $"points {pointed:F0}° of it; seen L arm {t.LeftArm.Seen}/{seenBefore[0]} forearm {t.LeftArm.ForearmSeen}/{seenBefore[1]}, R arm {t.RightArm.Seen}/{seenBefore[2]} forearm {t.RightArm.ForearmSeen}/{seenBefore[3]}; presence L {tracked.LeftArmPresence.Arm:F2} R {tracked.RightArmPresence.Arm:F2}";
                             }
                         }
 
-                        seenBefore[0] = tracked.Current.LeftArmSeen;
-                        seenBefore[1] = tracked.Current.LeftForearmSeen;
-                        seenBefore[2] = tracked.Current.RightArmSeen;
-                        seenBefore[3] = tracked.Current.RightForearmSeen;
+                        seenBefore[0] = tracked.Current.LeftArm.Seen;
+                        seenBefore[1] = tracked.Current.LeftArm.ForearmSeen;
+                        seenBefore[2] = tracked.Current.RightArm.Seen;
+                        seenBefore[3] = tracked.Current.RightArm.ForearmSeen;
                         shownHistory[1].CopyFrom(shownHistory[0]);
                         shownHistory[0].CopyFrom(controller.Body);
                         trackedBefore.CopyFrom(tracked.Current);

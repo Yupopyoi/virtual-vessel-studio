@@ -211,7 +211,8 @@ classDiagram
         class BodyTarget {
             <<contract>>
             +Quaternion[] Rotations
-            +bool TorsoSeen, LeftArmSeen, RightArmSeen
+            +bool TorsoSeen
+            +ArmView LeftArm, RightArm
         }
         class ExpressionMapping {
             +Evaluate(FacePose face, bool mirror, FaceTarget into)
@@ -531,7 +532,7 @@ Built in step 5 (`PoseRetargeting`, `BodyMotion`). Every bone's rotation from th
 - A shoulder rises only for an arm raised above level, by 25% of how far it is raised (at most 20°).
 - A joint not seen is not used (`BodyPose.IsSeen`, the same as Tracking's corrections: visibility at least 0.5 and inside the camera image, tracking detailed design 8.4). An arm or hand out of the camera is therefore lost like a hidden one: it holds, then goes back to the rest (8.4), rather than following MediaPipe's guess. Both shoulders seen move the torso; a shoulder and an elbow move the upper arm. The wrist only points the forearm.
 - While the wrist is hidden (behind the head, for example), the upper arm points at the elbow and the forearm keeps its last seen bend (its rotation relative to the upper arm). The upper arm also keeps its previous twist and only swings to the new direction (`PoseRetargeting.WithoutWrist`): the bend plane is unknown, so a twist worked out afresh would jump. In the user's recording (2026-10-22, hands behind the head), the shoulders and elbows were seen 100% of the time but the wrists only 28%, and a test that needed the wrist dropped the arms 70% of the time.
-- While the wrist is out of the camera image, with the elbow in it (hands lowered below the camera, for example), the forearm keeps its bend for 0.5 s, then goes back over 1 s to straight along the upper arm, the rest, and comes back over 0.2 s when the wrist is in the image again (`BodyMotion.LeftForearmPresence`, `RightForearmPresence`, 8.4; the user's decision, 2026-10-24). Kept, the bend from before stayed while the person's arm hung down: in the user's screen recording the avatar's elbow was bent 108° against the person's 40°. On "1024不自然解消用" (Otoha, 3D) the clearance also turned the arms on 9% of the frames instead of 28%, as bent forearms held across the body no longer touched it.
+- While the wrist is out of the camera image, with the elbow in it (hands lowered below the camera, for example), the forearm keeps its bend for 0.5 s, then goes back over 1 s to straight along the upper arm, the rest, and comes back over 0.2 s when the wrist is in the image again (`BodyMotion.LeftArmPresence.Forearm`, `RightArmPresence.Forearm`, 8.4; the user's decision, 2026-10-24). Kept, the bend from before stayed while the person's arm hung down: in the user's screen recording the avatar's elbow was bent 108° against the person's 40°. On "1024不自然解消用" (Otoha, 3D) the clearance also turned the arms on 9% of the frames instead of 28%, as bent forearms held across the body no longer touched it.
 - When an arm is lost (its shoulder or elbow unseen), it returns to hanging from the torso (lowered 70° by default), never to the T pose. Setting the angle through the profile's `pose.armDownAngle` is not built yet (chapter 17).
 - In a mirror, the person's sides are swapped and reflected through X = 0 before anything is worked out (`PoseRetargeting.Joint`): the person's right hand moves the avatar's left one. Visibility is read on the person's side.
 - The lower body stays in the arms-down reference pose (a straight standing pose that looks natural whether seated or standing).

@@ -52,14 +52,14 @@ namespace VirtualVessel.Avatar
             into[UpperBodyBone.Chest] = hasUpperChest ? Quaternion.Slerp(Quaternion.identity, torso, ChestShare) : torso;
             into[UpperBodyBone.UpperChest] = torso;
 
-            (bool leftArm, bool leftForearm) = WriteArm(body, mirror, ArmSide.Left, torso, into.TorsoSeen, armDownDegrees, into);
-            (bool rightArm, bool rightForearm) = WriteArm(body, mirror, ArmSide.Right, torso, into.TorsoSeen, armDownDegrees, into);
-            into.LeftArmSeen = leftArm;
-            into.LeftForearmSeen = leftForearm;
-            into.RightArmSeen = rightArm;
-            into.RightForearmSeen = rightForearm;
-            into.LeftWristInView = leftArm && InImage(body, ArmSide.Left.WristJoint, mirror);
-            into.RightWristInView = rightArm && InImage(body, ArmSide.Right.WristJoint, mirror);
+            into.LeftArm = View(WriteArm(body, mirror, ArmSide.Left, torso, into.TorsoSeen, armDownDegrees, into), body, mirror, ArmSide.Left);
+            into.RightArm = View(WriteArm(body, mirror, ArmSide.Right, torso, into.TorsoSeen, armDownDegrees, into), body, mirror, ArmSide.Right);
+        }
+
+        /// <summary>What was seen of one arm: as written, and its wrist in the image when the arm was seen.</summary>
+        private static ArmView View((bool Arm, bool Forearm) written, BodyPose body, bool mirror, ArmSide side)
+        {
+            return new ArmView(written.Arm, written.Forearm, written.Arm && InImage(body, side.WristJoint, mirror));
         }
 
         /// <summary>

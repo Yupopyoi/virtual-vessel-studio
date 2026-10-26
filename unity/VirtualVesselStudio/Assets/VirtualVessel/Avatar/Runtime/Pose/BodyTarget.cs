@@ -20,6 +20,48 @@ namespace VirtualVessel.Avatar
     }
 
     /// <summary>
+    /// What an observation saw of one arm, per the avatar's own side (avatar detailed design 7.2): the
+    /// upper arm (shoulder and elbow), the forearm (the wrist too, so it points where it is seen), and
+    /// whether the wrist is inside the camera image, seen or hidden there (behind the head, for example).
+    /// A forearm whose wrist is out of the image goes back to straight.
+    /// </summary>
+    public readonly struct ArmView : IEquatable<ArmView>
+    {
+        public ArmView(bool seen, bool forearmSeen, bool wristInView)
+        {
+            Seen = seen;
+            ForearmSeen = forearmSeen;
+            WristInView = wristInView;
+        }
+
+        public bool Seen { get; }
+
+        public bool ForearmSeen { get; }
+
+        public bool WristInView { get; }
+
+        public bool Equals(ArmView other)
+        {
+            return Seen == other.Seen && ForearmSeen == other.ForearmSeen && WristInView == other.WristInView;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is ArmView other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return (Seen ? 1 : 0) | (ForearmSeen ? 2 : 0) | (WristInView ? 4 : 0);
+        }
+
+        public override string ToString()
+        {
+            return $"arm {Seen}, forearm {ForearmSeen}, wrist in view {WristInView}";
+        }
+    }
+
+    /// <summary>
     /// What the avatar's upper body should show: each bone's rotation from the reference pose in the avatar
     /// root's space, and which regions the observation behind it saw (avatar detailed design 7.1, 7.2).
     /// Objects are reused every frame, never allocated per observation (CLAUDE.md 23).
@@ -57,23 +99,10 @@ namespace VirtualVessel.Avatar
         /// <summary>Whether the observation saw the torso (both shoulders).</summary>
         public bool TorsoSeen { get; set; }
 
-        /// <summary>Whether the observation saw the avatar's own left upper arm (shoulder and elbow).</summary>
-        public bool LeftArmSeen { get; set; }
+        /// <summary>What the observation saw of the avatar's own left arm.</summary>
+        public ArmView LeftArm { get; set; }
 
-        public bool RightArmSeen { get; set; }
-
-        /// <summary>Whether it saw the left wrist too, so the forearm points where it is seen.</summary>
-        public bool LeftForearmSeen { get; set; }
-
-        public bool RightForearmSeen { get; set; }
-
-        /// <summary>
-        /// Whether the left wrist is inside the camera image, seen or hidden there (behind the head, for
-        /// example). A forearm whose wrist is out of the image goes back to straight (avatar detailed design 7.2).
-        /// </summary>
-        public bool LeftWristInView { get; set; }
-
-        public bool RightWristInView { get; set; }
+        public ArmView RightArm { get; set; }
 
         /// <summary>The top of the torso, which the shoulders, arms, and neck turn from.</summary>
         public Quaternion TorsoTop => Rotations[(int)UpperBodyBone.UpperChest];
@@ -82,6 +111,11 @@ namespace VirtualVessel.Avatar
         {
             get => Rotations[(int)bone];
             set => Rotations[(int)bone] = value;
+        }
+
+        public ArmView Arm(ArmSide side)
+        {
+            return side.IsLeft ? LeftArm : RightArm;
         }
 
         /// <summary>The rig's bone for <paramref name="bone"/>.</summary>
@@ -93,13 +127,7 @@ namespace VirtualVessel.Avatar
         public void CopyFrom(BodyTarget other)
         {
             Array.Copy(other.Rotations, Rotations, Rotations.Length);
-            TorsoSeen = other.TorsoSeen;
-            LeftArmSeen = other.LeftArmSeen;
-            RightArmSeen = other.RightArmSeen;
-            LeftForearmSeen = other.LeftForearmSeen;
-            RightForearmSeen = other.RightForearmSeen;
-            LeftWristInView = other.LeftWristInView;
-            RightWristInView = other.RightWristInView;
+            CopySeen(other, this);
         }
 
         /// <summary>
@@ -116,13 +144,15 @@ namespace VirtualVessel.Avatar
                 into.Rotations[i] = Quaternion.Slerp(from.Rotations[i], to.Rotations[i], t);
             }
 
-            into.TorsoSeen = to.TorsoSeen;
-            into.LeftArmSeen = to.LeftArmSeen;
-            into.RightArmSeen = to.RightArmSeen;
-            into.LeftForearmSeen = to.LeftForearmSeen;
-            into.RightForearmSeen = to.RightForearmSeen;
-            into.LeftWristInView = to.LeftWristInView;
-            into.RightWristInView = to.RightWristInView;
+            CopySeen(to, into);
+        }
+
+        /// <summary>Copies what <paramref name="from"/> saw into <paramref name="into"/>.</summary>
+        public static void CopySeen(BodyTarget from, BodyTarget into)
+        {
+            into.TorsoSeen = from.TorsoSeen;
+            into.LeftArm = from.LeftArm;
+            into.RightArm = from.RightArm;
         }
     }
 }
