@@ -6284,12 +6284,12 @@ The Tracking module handles calibration related to the tracking input itself.
 
 For example,
 
-- setting the forward direction
-- reference pose relative to the camera position
 - origin setting
 - sensor-specific correction
 
 and so on are covered.
+
+Setting the forward direction from the person (a reference pose relative to the camera position) was tried with one camera and not adopted: a camera to one side sees too little of the body, and turning its observations back moved its depth errors into the body's lean (tracking detailed design 8.5, 2026-10-26). The camera is placed in front of the person instead.
 
 On the other hand, absorbing differences such as
 

@@ -40,6 +40,8 @@ namespace VirtualVessel.Tracking
         private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
         private readonly ObservableValue<TrackingOptions> _options;
         private readonly PerfTimer _latency;
+        private readonly PerfCounter _outliers;
+        private long _outliersCounted;
         private TrackingSettings _settings;
         private bool _wanted;
         private EventRate _rate;
@@ -64,6 +66,7 @@ namespace VirtualVessel.Tracking
             _log = log;
             _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
             _latency = metrics?.Timer("Tracking", "Latency");
+            _outliers = metrics?.Counter("Tracking", "Outliers");
             ChooseCorrections();
         }
 
@@ -235,10 +238,23 @@ namespace VirtualVessel.Tracking
 
         public void SetOptions(TrackingOptions options)
         {
-            if (_options.Set(options) && _wanted)
+            PoseModel before = _options.Value.PoseModel;
+            if (!_options.Set(options) || !_wanted)
             {
-                Active?.SetOptions(options);
+                return;
             }
+
+            if (options.PoseModel != before && _replay == null && _provider != null)
+            {
+                // The model is loaded when the provider starts; the camera keeps running.
+                _provider.Stop();
+                _processor.Reset();
+                _provider.Start(options);
+                _log?.Information($"Tracking restarts with the {options.PoseModel} Pose model.");
+                return;
+            }
+
+            Active?.SetOptions(options);
         }
 
         /// <summary>
@@ -333,6 +349,7 @@ namespace VirtualVessel.Tracking
                 }
 
                 _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
+                CountOutliers();
                 if (observed)
                 {
                     NoteObservation(Newest(_raw));
@@ -358,6 +375,17 @@ namespace VirtualVessel.Tracking
             {
                 _lastImage = imageTime;
                 _rate = _rate.Next(_now);
+            }
+        }
+
+        /// <summary>Adds the values the processor dropped as outliers since the last frame to the Diagnostics table (tracking detailed design 11).</summary>
+        private void CountOutliers()
+        {
+            long dropped = _processor.Outliers;
+            if (dropped > _outliersCounted)
+            {
+                _outliers?.Add(dropped - _outliersCounted);
+                _outliersCounted = dropped;
             }
         }
 

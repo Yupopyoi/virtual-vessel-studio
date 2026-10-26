@@ -394,14 +394,14 @@ namespace VirtualVessel.Application.Startup
             log?.Information($"Tracking settings {loaded.Status} from {store.FilePath}.");
             var saves = new ConfigSaveScheduler<TrackingSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the tracking settings to {store.FilePath}.", failure));
             IVideoCaptureSource camera = capture?.Find(CaptureService.TrackingCameraId);
-            return new TrackingService(CreateTrackingProvider(context, camera, settings, metrics, log), camera, context.FrameLoop, context.MonotonicClock, settings, saves, metrics, log);
+            return new TrackingService(CreateTrackingProvider(context, camera, metrics, log), camera, context.FrameLoop, context.MonotonicClock, settings, saves, metrics, log);
         }
 
         /// <summary>
         /// The MediaPipe provider when the plugin is installed. Without it the project still compiles
         /// and runs, and tracking reports that it cannot start (tracking detailed design 16.2).
         /// </summary>
-        private static ITrackingProvider CreateTrackingProvider(ApplicationCompositionContext context, IVideoCaptureSource camera, TrackingSettings settings, IPerformanceMetrics metrics, ILog log)
+        private static ITrackingProvider CreateTrackingProvider(ApplicationCompositionContext context, IVideoCaptureSource camera, IPerformanceMetrics metrics, ILog log)
         {
             if (camera == null)
             {
@@ -410,7 +410,7 @@ namespace VirtualVessel.Application.Startup
 
 #if VV_MEDIAPIPE
             string models = Path.Combine(UnityEngine.Application.streamingAssetsPath, MediaPipeTracking.ModelFolder);
-            return MediaPipeTracking.Create(camera, models, settings.PoseModel, context.MonotonicClock, metrics, log);
+            return MediaPipeTracking.Create(camera, models, context.MonotonicClock, metrics, log);
 #else
             log?.Warning("MediaPipeUnityPlugin is not installed, so tracking is unavailable. Run tools/deps/fetch-mediapipe.ps1.");
             return null;

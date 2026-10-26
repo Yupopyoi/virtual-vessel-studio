@@ -27,6 +27,8 @@
     color: var(--vv-color-on-accent);
 }
 
+.vv-segmented__item--disabled,
+.vv-segmented__item--disabled:hover,
 .vv-segmented:disabled .vv-segmented__item {
     color: var(--vv-color-disabled);
 }

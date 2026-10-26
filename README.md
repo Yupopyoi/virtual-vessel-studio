@@ -124,6 +124,8 @@ Settings are saved automatically. Tracking starts again the next time you open t
 - Use even, bright lighting, and avoid a strong light behind you.
 - Close other apps that use the same webcam.
 - If the avatar shakes, lower **Movement speed**, or try **Body movement: 2D**.
+- Put the camera in front of you, such as on top of the monitor. A camera to one side sees too little of your body, and the avatar turns or leans.
+- To lower the load, turn off the **Parts tracked** you do not use, or choose **Body detection: Light** (from v0.1.2).
 
 ## Known limitations
 

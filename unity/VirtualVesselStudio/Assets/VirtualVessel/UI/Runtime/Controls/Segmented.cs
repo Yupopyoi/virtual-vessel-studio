@@ -7,7 +7,7 @@ namespace VirtualVessel.UI.Controls
 {
     /// <summary>
     /// Picks one of two to four options (components.md 3.18). The value is the selected index.
-    /// Left and right arrows move the selection when focused.
+    /// Left and right arrows move the selection when focused, past items that cannot be chosen.
     /// </summary>
     [UxmlElement]
     public partial class Segmented : VisualElement, INotifyValueChanged<int>, ITooltipSource
@@ -18,7 +18,10 @@ namespace VirtualVessel.UI.Controls
 
         public const string SelectedClass = ItemClass + "--selected";
 
+        public const string ItemDisabledClass = ItemClass + "--disabled";
+
         private readonly List<Label> _items = new List<Label>();
+        private readonly List<bool> _enabled = new List<bool>();
         private string[] _itemKeys = Array.Empty<string>();
         private int _value;
 
@@ -107,6 +110,7 @@ namespace VirtualVessel.UI.Controls
             }
 
             _items.Clear();
+            _enabled.Clear();
             for (int i = 0; i < _itemKeys.Length; i++)
             {
                 int index = i;
@@ -116,16 +120,54 @@ namespace VirtualVessel.UI.Controls
                 new KeyedText(item, value => item.text = value) { Key = _itemKeys[i] };
                 item.RegisterCallback<ClickEvent>(_ =>
                 {
-                    if (enabledInHierarchy)
+                    if (enabledInHierarchy && _enabled[index])
                     {
                         value = index;
                     }
                 });
                 _items.Add(item);
+                _enabled.Add(true);
                 Add(item);
             }
 
             SetValueWithoutNotify(_value);
+        }
+
+        /// <summary>
+        /// Whether the item at <paramref name="index"/> can be chosen. One that cannot is shown in the
+        /// disabled color and skipped by the arrow keys; its text should say why, such as "(coming soon)".
+        /// </summary>
+        public void SetItemEnabled(int index, bool enabled)
+        {
+            if (index < 0 || index >= _items.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            _enabled[index] = enabled;
+            _items[index].EnableInClassList(ItemDisabledClass, !enabled);
+        }
+
+        public bool IsItemEnabled(int index)
+        {
+            return index >= 0 && index < _enabled.Count && _enabled[index];
+        }
+
+        /// <summary>
+        /// The item an arrow key moves to from <paramref name="from"/> by <paramref name="step"/> (-1 or 1):
+        /// the nearest that can be chosen that way, or <paramref name="from"/> when there is none. Pure.
+        /// </summary>
+        public static int NextEnabled(int from, int step, IReadOnlyList<bool> enabled)
+        {
+            for (int i = from + step; i >= 0 && i < enabled.Count; i += step)
+            {
+                if (enabled[i])
+                {
+                    return i;
+                }
+            }
+
+            return from;
         }
 
         public void SetValueWithoutNotify(int newValue)
@@ -148,7 +190,7 @@ namespace VirtualVessel.UI.Controls
                 return;
             }
 
-            value = Clamp(_value + step, _items.Count);
+            value = NextEnabled(_value, step, _enabled);
             evt.StopPropagation();
 
             // StopPropagation alone leaves Unity's arrow-key focus navigation running, which would move
