@@ -8,7 +8,7 @@
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
       "name": "Virtual Vessel Studio",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "licenses": [
         {
           "license": {
@@ -773,6 +773,31 @@
         {
           "name": "virtual-vessel-studio:license-file",
           "value": "licenses/NotoSansMono-OFL.txt"
+        }
+      ]
+    },
+    {
+      "type": "file",
+      "bom-ref": "sample:otoha-chan",
+      "supplier": {
+        "name": "Yupopyoi"
+      },
+      "name": "otoha-chan (sample avatar)",
+      "version": "1.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "VRM Public License 1.0",
+            "url": "https://vrm.dev/licenses/1.0/"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Sample VRM 1.0 model made with VRoid Studio, unmodified. tests/samples/otoha-chan.vrm (Git LFS); shipped as Samples/otoha-chan.vrm. Terms set in the model: avatar use by everyone, commercial use including corporations, redistribution and modification allowed, credit not required.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/otoha-chan-LICENSE.md"
         }
       ]
     },

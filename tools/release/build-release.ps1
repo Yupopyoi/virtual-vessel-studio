@@ -14,8 +14,9 @@ hand from a checkout of the tag. In order:
 4. Builds the Windows player with the build identifier v<version>+<commit>.
 5. Adds TRADEMARKS.md and the files of tools/release/license-files.json: LICENSE, NOTICE, the
    third-party licenses, and the SBOM.
-6. Writes VirtualVesselStudio-v<version>-win-x64.zip and SHA256SUMS.txt to build/release.
-7. With -Upload, uploads both to the draft GitHub Release of tag v<version>, creating the draft if
+6. Adds the sample avatar tests/samples/otoha-chan.vrm as Samples/otoha-chan.vrm.
+7. Writes VirtualVesselStudio-v<version>-win-x64.zip and SHA256SUMS.txt to build/release.
+8. With -Upload, uploads both to the draft GitHub Release of tag v<version>, creating the draft if
    the Release workflow has not. The tag must already be on GitHub; publishing stays a manual step.
 
 Close the Unity Editor on this checkout first; the runner builds its own checkout, so an Editor open on
@@ -117,7 +118,16 @@ foreach ($entry in $licenseFiles.PSObject.Properties)
 # Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
 Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force
 
-# 6. The package and its checksum.
+# 6. The sample avatar, so a new user can try the app without a model of their own. Its license is
+# shipped with the other licenses (licenses/otoha-chan-LICENSE.md). A clone without Git LFS has only a
+# small pointer file in its place, which must not be shipped.
+$sample = Join-Path $repository 'tests\samples\otoha-chan.vrm'
+$magic = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($sample), 0, 4)
+if ($magic -ne 'glTF') { throw "$sample is not a VRM file; run 'git lfs pull' to fetch the sample models." }
+New-Item -ItemType Directory -Force (Join-Path $stage 'Samples') | Out-Null
+Copy-Item -LiteralPath $sample (Join-Path $stage 'Samples\otoha-chan.vrm')
+
+# 7. The package and its checksum.
 $zip = Join-Path $releaseRoot $zipName
 Compress-Archive -Path $stage -DestinationPath $zip
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
@@ -125,7 +135,7 @@ $sums = Join-Path $releaseRoot 'SHA256SUMS.txt'
 "$hash  $zipName" | Set-Content -Encoding ascii $sums
 "Built $zipName ($buildId), SHA-256 $hash."
 
-# 7. The draft Release.
+# 8. The draft Release.
 if ($Upload)
 {
     gh release view $tag --json isDraft *> $null

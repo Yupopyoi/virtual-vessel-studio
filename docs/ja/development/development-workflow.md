@@ -1071,6 +1071,7 @@ flowchart LR
 
 - ReleaseのBuildは、Build識別子`vX.Y.Z+<commit>`を`StreamingAssets/build-id.txt`に書く。Applicationは起動時にそれを読み、Logと診断に出す（方式設計5.29）。開発中のBuildやEditorでは`development`となる。
 - Packageには、`TRADEMARKS.md`と、`tools/release/license-files.json`に挙げたファイル（`LICENSE`、`NOTICE`、`licenses/`以下の各License、SBOM）を入れる（18.1.2）。
+- v0.1.1から、Packageにはサンプルのアバター`Samples/otoha-chan.vrm`（`tests/samples/`、Git LFS）も入れる。自分のモデルを持たない利用者も、すぐに試せるようにするためである（利用者の決定、2026-10-26）。そのLicenseは`licenses/otoha-chan-LICENSE.md`として同梱し、SBOMにも記録する。取り出した状態にLFSのPointerのファイルしかないときは、Scriptが止まる。
 
 生成物例:
 
