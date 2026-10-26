@@ -18,7 +18,7 @@
 - 最終映像の生成とプレビュー（Video Module、方式設計10.5、10.6）
 - GameCaptureの音声（Audio Moduleと合わせて設計する。方式設計12.16）
 - Capture Setup画面とLive画面の操作（各画面の仕様と合わせて設計する。方式設計14.41）
-- 設定の保存先（Project / Profileの設計と合わせて決める）
+- 設定の保存先（ProjectのCapture Profile、Project Data詳細設計）
 
 関連する方式設計：
 
@@ -332,7 +332,7 @@ public sealed class CaptureSettings
 }
 ```
 
-- 値は`capture-settings.json`に保存し、起動時に読んで`CaptureService`の生成時に渡す。設定のFolder（UIの`ui-settings.json`と同じ）に置き、`ConfigFileStore`（ProjectData）で読み書きする。壊れていたら退避して既定に戻す。Project / Profileができたら、そちらへ移す（17章）。
+- 値は、ProjectのCapture Profileとして、Data Rootの`Profiles/Capture/<ProfileId>.json`に保存する。形式は`capture-settings.json`のままである（Project Data詳細設計6章）。起動時に`ConfigFileStore`（ProjectData）で読み、`CaptureService`の生成時に渡す。壊れていたら退避して既定に戻す。段階7の後のリファクタリングまでは設定のFolderの`capture-settings.json`にあり、最初のProjectがその写しを取った（Project Data詳細設計8章）。
 - `CaptureService`は、各Sourceの選んだ機器、反転、カーソル、開始していたか（`Stopped`以外）を毎Frame比べ（`CaptureSettingsSnapshot`、純粋関数）、変わったら最後の変化から0.5秒後に保存する。終了時は、止める前の値で未保存の分を保存する。
 - 開始していたSourceは、次の起動で自動で開始する。GameCaptureは機器が選ばれているときだけ開く（6.3）。
 - サブモニターのカーソルは`IPointerOption`（SubScreenCaptureSourceが実装）で切り替える。取り込み中に変えると、Native側のSessionを開き直す。
@@ -450,7 +450,7 @@ tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 |---|---|
 | Native DLLの扱い | 決定：C++のソースをGitで管理し、DLLはGitに入れない。手元では`tools/native/build-capture.ps1`でビルドし、CIの`Native plugins`がビルドとテストを行う（開発運用方針18.1.1）。配布物への組み込みはmain Buildで扱う |
 | GameCaptureの音声（Libraryの選択：NAudio、UnityのMicrophone、Native WASAPI） | Audio Moduleの設計時。NAudioを使う場合は依存の追加として承認を得る |
-| Capture設定の保存先 | 決定：Project / Profileができるまで`capture-settings.json`（10章）。段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
+| Capture設定の保存先 | 完了（2026-10-27）：ProjectのCapture Profile、`Profiles/Capture/<ProfileId>.json`。形式は`capture-settings.json`のまま（Project Data詳細設計6章） |
 | 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |

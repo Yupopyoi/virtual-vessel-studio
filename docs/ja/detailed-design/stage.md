@@ -17,7 +17,7 @@
 - Camera Pointとカメラの切り替え（方式設計10.4、11.5）
 - Avatar Spawn Point（方式設計11.6）
 - 3Dの舞台の中に置くScreen Surface（方式設計11.14）。本書のStream Screenは、配信画面に平面で置くScreen Surfaceとして扱う
-- 配置をProject / Profileへ移すこと（Project / Profileの設計時）
+- 配置をProject / Profileへ移すこと（完了：Projectのフォルダー、Project Data詳細設計）
 
 関連する方式設計：
 
@@ -140,12 +140,11 @@ public interface IAvatarSpawnPoints
 }
 ```
 
-- 設定のFolder（UIの`ui-settings.json`と同じ、方式設計6.8）に置き、`ConfigFileStore`（ProjectData）で読み書きする。壊れていたら退避して既定に戻す。
+- Projectのフォルダー（`Projects/<ProjectId>/`、Project Data詳細設計6章）に置き、`ConfigFileStore`（ProjectData）で読み書きする。壊れていたら退避して既定に戻す。段階7の後のリファクタリングまでは設定のFolderにあり、最初のProjectがその写しを取った。
 - 知らないIdの配置は消さずに残す（CLAUDE.md 25章）。
 - 確定（`LayoutCommitted`）のたびに、最後の確定から0.5秒後に保存する。終了時に未保存の分を保存する。
 - `lightIntensity`はライトの強さ（7.1）。変えるまでは`null`で、既定（1）を使う。既定を良くしたとき、変えていない利用者にも届くようにするため。範囲の外の値（手で書き換えたファイル等）は近い端として、数でない値は既定として読む。Sliderで続けて変えている間は保存せず、最後の変更から0.5秒後に保存する。
 - `lightIntensity`がない古いファイルは既定で読むため、版（`schemaVersion`）は1のままとする。
-- Project / Profileができたら、そちらへ移す（17章）。
 
 ### 6.4 名前の翻訳
 
@@ -277,7 +276,7 @@ Assets/VirtualVessel/Stage/
 | Stage Scene、Camera Point、Avatar Spawn Point | Stage Sceneの設計時 |
 | 3Dの舞台の中のScreen Surface | Stage Sceneの設計時 |
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
-| 配置をProject / Profileへ移す | 段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
+| 配置をProject / Profileへ移す | 完了（2026-10-27）：配置はProjectのものなので、`stage-settings.json`はProjectのフォルダーにある（Project Data詳細設計6章） |
 | Stage Sceneの照明とライトの強さ | Stage Sceneの設計時。強さを、Stage Sceneの照明全体に掛ける倍率として使うかを決める |
 
 ---

@@ -760,7 +760,7 @@ public sealed class AvatarSettings
 }
 ```
 
-- `avatar-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Project / Profileができたら移す。
+- Projectのフォルダー（`Projects/<ProjectId>/`）の`avatar-settings.json`に保存する（`ConfigFileStore`、Project Data詳細設計6章）。段階7の後のリファクタリングまでは設定のFolderにあり、最初のProjectがその写しを取った（Project Data詳細設計8章）。
 - アバターごとの設定は`avatar-profile.json`（6.3）。
 - `Face`がない古いファイルは、既定の調整として読む（項目を足しただけのため、版は変えない）。
 - 鏡写しはTrackingの設定（6.6）。
@@ -907,7 +907,7 @@ Assets/VirtualVessel/Avatar/
 | 表情の既定値 | 決定：利用者がカメラで調整した値を既定とした（7.4、2026-10-21）。ほかの人の顔で合わない場合は、調整の画面で変える |
 | FBX | Libraryの選択から。v0.1.0の後 |
 | Spawn Point、カメラの位置の調整の画面 | Stage Scene、Camera Pointの設計時 |
-| 設定をProject / Profileへ移す | 段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
+| 設定をProject / Profileへ移す | 完了（2026-10-27）：`avatar-settings.json`はProjectのフォルダーにある（Project Data詳細設計） |
 
 ---
 

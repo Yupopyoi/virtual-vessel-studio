@@ -574,7 +574,7 @@ public sealed class TrackingSettings
 ```
 
 - 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだことか開始していたかが変わったときだけ行う。
-- `tracking-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Capture、Stageと同じく、Project / Profileができたらそちらへ移す（方式設計6.10の`Profiles/Tracking/`）。
+- ProjectのTracking Profileとして、Data Rootの`Profiles/Tracking/<ProfileId>.json`に保存する（`ConfigFileStore`、Project Data詳細設計6章）。形式は`tracking-settings.json`のままである。段階7の後のリファクタリングまでは設定のFolderの`tracking-settings.json`にあり、最初のProjectがその写しを取った（Project Data詳細設計8章）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
 - 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
 - Poseのモデルは選択肢の1つとした（段階7）。LiteかFullとする。Heavyは出さない（`TrackingOptions.Available`）。利用者のカメラでは、遅いうえ、平滑化、外れ値の上限、奥行きの補正をすべてFullで調整しているため、Fullより悪くなった（2026-10-26）。保存されたHeavyはFullとして読む。モデルのファイルは今も同梱しており、外すのは後の変更とする。Providerは開始するときにモデルを読み込むため、トラッキング中に変えるとProviderを開始し直す。カメラは動かしたままにする。段階7より前はProviderを作るときに決まり、変えてもアプリを起動し直すまで反映されなかった。
@@ -825,7 +825,7 @@ MediaPipeUnityPluginは更新が続いている（v0.16.0からv0.16.3まで約9
 | 体から離れた顔とみなす距離（画像の幅の12%） | 仮の値。実際のカメラで誤りが残るときに見直す |
 | 全身（`FullBody`）の追加 | v0.1.0の後 |
 | 声による口の動き（リップシンク）と顔のトラッキングの組み合わせ | Voice / Audioの設計時 |
-| トラッキング設定をProject / Profileへ移す | 段階7（アバターの動き）の後のリファクタリングで移す（利用者の決定、2026-10-22） |
+| トラッキング設定をProject / Profileへ移す | 完了（2026-10-27）：ProjectのTracking Profile（Project Data詳細設計） |
 
 ---
 

@@ -17,7 +17,7 @@ The following are left to later designs:
 - Camera Points and camera switching (system design 10.4, 11.5)
 - Avatar Spawn Points (system design 11.6)
 - Screen Surfaces inside a 3D stage (system design 11.14). This document's Stream Screens are Screen Surfaces placed flat on the stream screen
-- Moving placements into Project / Profile (with the Project / Profile design)
+- Moving placements into Project / Profile (done: the project's folder, project data detailed design)
 
 Related system design sections:
 
@@ -140,12 +140,11 @@ public interface IAvatarSpawnPoints
 }
 ```
 
-- Kept in the settings folder (the same as the UI's `ui-settings.json`, system design 6.8) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used.
+- Kept in the project's folder (`Projects/<ProjectId>/`, project data detailed design 6) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used. Until the refactoring after step 7 it was in the settings folder; the first project took a copy of it.
 - Placements of unknown ids are kept, not deleted (CLAUDE.md chapter 25).
 - After each confirmation (`LayoutCommitted`), the file is saved 0.5 seconds after the last one. Anything unsaved is saved at shutdown.
 - `lightIntensity` is the light's brightness (7.1). It is `null` until changed, and the default (1) is used, so a better default reaches users who never changed it. A value outside the range (a hand-edited file, for example) is read as the nearest end, and a value that is not a number as the default. While a slider keeps changing it, nothing is saved; it is saved 0.5 seconds after the last change.
 - Older files without `lightIntensity` read the default, so the version (`schemaVersion`) stays 1.
-- Moved into Project / Profile once they exist (chapter 17).
 
 ### 6.4 Translating Names
 
@@ -277,7 +276,7 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Stage Scenes, Camera Points, Avatar Spawn Points | With the Stage Scene design |
 | Screen Surfaces inside a 3D stage | With the Stage Scene design |
 | Keeping a capture running without showing it on the stream | When it is asked for |
-| Moving placements into Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
+| Moving placements into Project / Profile | Done (2026-10-27): `stage-settings.json` is in the project's folder, as the layout belongs to the project (project data detailed design 6) |
 | Stage Scene lighting and the light's brightness | With the Stage Scene design. Decide whether the brightness scales the whole lighting of a Stage Scene |
 
 ---
