@@ -145,6 +145,10 @@ public interface ITrackingSource
     void Start();
     void Stop();
     void SetOptions(TrackingOptions options);                  // A change of parts takes effect at once
+
+    IReadOnlyObservable<float> Front { get; }                  // The person's front, degrees to the right of the camera's (8.5)
+    bool TakeFront();                                          // The way the person faces now becomes the front; false when no one is seen
+    void ResetFront();                                         // Back to the camera's front
 }
 ```
 
@@ -157,13 +161,15 @@ public readonly struct TrackingOptions
     BodyRange BodyRange;                // What moves (full body is coming soon and falls back to the upper body, 6.5)
     int Smoothing;                      // Smoothing level, 1 to 10 (8.2)
     bool Mirror;                        // Mirroring (chapter 10)
+    BodyDepth BodyDepth;                // The body in 3D or 2D (8.6)
+    PoseModel PoseModel;                // Lite, Full, Heavy; a change restarts a running provider (chapter 10)
 }
 ```
 
 - All operations and notifications happen on the main thread.
 - `TrackingService` updates `Current` every frame (`IFrameLoop`). Avatar reads it at the equivalent of `LateUpdate` (Avatar detailed design 8.3).
 - One `ITrackingSource` is created per person. For several people, there will be one source per person (system design 8.12). It is not a singleton.
-- `Recenter()`, which takes the current pose as the reference (8.5), is added in step 5, which uses the reference pose.
+- The person's front (8.5) is not one of the options: it is measured from the person, not chosen.
 
 ### 5.2 ITrackingProvider
 
@@ -488,9 +494,12 @@ For fingers, the joint **angles** (the angle between neighboring bones) are prim
 
 ### 8.5 Reference Pose (Input Correction, System Design 8.11)
 
-- `Recenter()` takes the current pose as the reference: the person's facing direction, bone lengths (8.4), and the reference head position.
-- Until a reference pose is taken, standard body lengths are used. On the first start, it is measured once automatically while the person faces forward with arms down (the median of a few seconds of observations).
-- Correction to fit the avatar's body (different arm lengths and so on) is done by Avatar (system design 7.6).
+Step 7 implements the person's front (the user's decision, 2026-10-26). With the camera to one side, a person facing their own front is seen turned, and so was the avatar.
+
+- `TakeFront()` takes how far the person is turned now as their front: from the line between the shoulders, or from the head's turn in 2D, where the body faces the camera by construction. It is added to the front already in use, because it is read from observations already turned back by it, and limited to ±60° (`FacingCorrection.MaxDegrees`): a camera further to the side sees too little of the far side of the body, so a larger turn more likely comes from looking away. It returns false, changing nothing, when no one is seen.
+- Each observation is turned back by the front about the vertical through the hips, after the corrections (8.4) and the 2D body (8.6) and before smoothing (`FacingCorrection.Turn`). The head's turn and the hands turn too. The body turns in 3D only, as the 2D body already faces the camera. The head's position, relative to the camera, stays. Recordings keep what was observed (12.2).
+- `ResetFront()` goes back to the camera's front. The front is saved (`frontDegrees`, chapter 10).
+- Not done: measuring automatically at the first start (a person may not face their front then), and bone lengths and a reference head position (the depth correction of 8.4 does not need them). Correction to fit the avatar's body (different arm lengths and so on) is done by Avatar (system design 7.6).
 
 ### 8.6 The Body in 2D (BodyDepth)
 
@@ -563,19 +572,19 @@ public sealed class TrackingSettings
     public TrackingRegions Regions { get; set; } = TrackingRegions.All;   // Enabled parts: face, body, both hands
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
     public int SmoothingLevel { get; set; } = 5;                          // Smoothing level, 1 to 10 (8.2); from version 4, 5 is version 3's 1
-    public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy)
+    public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy); one of the options
     public bool Mirror { get; set; } = true;                              // Mirroring
     public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // The body in depth: 3D (0) or 2D (1) (8.6); added in version 3 without a step
-    // The reference pose (8.5) is added in step 5.
+    public float FrontDegrees { get; set; }                               // The person's front (8.5); added in version 4 without a step
     public bool Running { get; set; }                                     // Whether it was started; restored at the next launch
 }
 ```
 
-- What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices or whether tracking was started change.
+- What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices, whether tracking was started, or the front change.
 - Saved to `tracking-settings.json` (settings folder, `ConfigFileStore`). Like Capture and Stage, it moves to Project / Profile once those exist (`Profiles/Tracking/` in system design 6.10).
 - The camera device choice is saved in `capture-settings.json` (`camera` source).
 - Mirroring (user's decision, 2026-10-19): when on, the camera image and points on the setup screen are flipped left to right, like a mirror. The avatar follows the same setting, moving its left hand for the user's right (Avatar detailed design 6.6). Tracking holds it as one setting so the preview and the avatar never disagree. `Current` keeps the person's own sides whatever the setting.
-- A changed `PoseModel` takes effect when tracking is started again. Its settings screen comes in step 7.
+- The Pose model is one of the options (step 7). The provider loads it when it starts, so a change while tracking restarts the provider; the camera keeps running. Before step 7 it was fixed when the provider was created, and a change took effect only after restarting the app.
 - Version 2 (step 4): the three-level `smoothing` (0 to 2) became the ten-level `smoothingLevel` (1 to 10). Version 1 files are moved over when read. Version 1 had no screen to choose a level, so standard (1) was never the user's choice and becomes the default, 5. Smooth (0) and responsive (2) came only from editing the file by hand, so they keep their measured values as 3 and 7. Other values and unknown fields are kept.
 - Version 4 (2026-10-24): the levels moved four more steps (8.2). A version 3 level becomes the level four steps up, keeping the body's motion. Version 3's standard 5, the untouched default, becomes the new standard 5. Version 3's 6 to 10 all become 10.
 - Version 3 (2026-10-24): the levels moved two steps (8.2). A version 2 level becomes the level two steps up, keeping its motion. Version 2's standard 5, though, was the untouched default nearly every time, and the user asked for the former 3 as the standard, so it becomes the new standard 5. Version 2's 9 and 10 both become 10. Version 1 files go through version 2.
@@ -593,8 +602,9 @@ public sealed class TrackingSettings
 | `Tracking/Latency` | Timer | From the image frame time to the update of `Current` |
 | `Tracking/Readback` | Timer | Image readback time |
 | `Tracking/Dropped` | Counter | Images not inferred because MediaPipe was still busy with earlier ones |
+| `Tracking/Outliers` | Counter | Joint positions and palm turns dropped as moving faster than a person can (8.3) |
 
-- Values discarded as outliers are counted by `TrackingProcessor.Outliers`; showing them on the Diagnostics screen comes in step 7.
+- Values discarded as outliers (8.3), counted by `TrackingProcessor.Outliers`, go to the counter `Tracking/Outliers` (step 7).
 
 - Problems shown to the user (`TrackingProblem`): `CameraNotChosen` (choose a camera), `CameraNotFound`, `CameraInUse` (the same camera as the game screen), `StartFailed` (tracking could not start), `NoPerson` (no one is in view; status display only). Plugin or model paths are not shown to the user.
 - The setup screen overlays points and bones on the camera image so the user can check that tracking works (never on the stream).

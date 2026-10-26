@@ -169,6 +169,7 @@ For each component, the following states are defined:
 - Picks one of two to four options. Used for background, the placement editing mode, and similar. Language (which grows with each string table) and UI size (six steps) use a Dropdown.
 - The outer box uses Radius Control and each item about Radius S (7px). The selected item has background Primary and text On Accent.
 - With five or more options, or long text, use a Dropdown instead.
+- An option that is coming but cannot be chosen yet, such as full body tracking, may be shown with its text saying so ("Full body (soon)"). It is drawn in the Disabled color, a click does nothing, and the arrow keys pass over it (`SetItemEnabled`).
 
 ### 3.19 Media Frame
 

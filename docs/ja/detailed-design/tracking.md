@@ -144,6 +144,10 @@ public interface ITrackingSource
     void Start();
     void Stop();
     void SetOptions(TrackingOptions options);                  // 部位の変更はすぐに反映する
+
+    IReadOnlyObservable<float> Front { get; }                  // 本人の正面。カメラの正面から右への角度（8.5）
+    bool TakeFront();                                          // 今の向きを正面にする。人が映っていなければfalse
+    void ResetFront();                                         // カメラの正面に戻す
 }
 ```
 
@@ -156,13 +160,15 @@ public readonly struct TrackingOptions
     BodyRange BodyRange;                // 動かす範囲（全身は近日対応のため上半身に戻す、6.5）
     int Smoothing;                      // 平滑化の段階、1〜10（8.2）
     bool Mirror;                        // 鏡写し（10章）
+    BodyDepth BodyDepth;                // 体の動きの3Dか2D（8.6）
+    PoseModel PoseModel;                // Lite、Full、Heavy。変えると動作中のProviderを開始し直す（10章）
 }
 ```
 
 - すべての操作と通知はMain Threadで行う。
 - `Current`は`TrackingService`が毎Frame（`IFrameLoop`）更新する。Avatarは`LateUpdate`相当の時点で読む（Avatar詳細設計8.3）。
 - 1人分の`ITrackingSource`を1つ作る。複数人に広げるときは、Sourceを人数分にする（方式設計8.12）。Singletonにはしない。
-- 今の姿勢を基準にする`Recenter()`（8.5）は、基準の姿勢を使う段階5で加える。
+- 本人の正面（8.5）は選択肢に入れない。選ぶものではなく、本人から測るものだからである。
 
 ### 5.2 ITrackingProvider
 
@@ -487,9 +493,12 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 
 ### 8.5 基準の姿勢（入力の補正、方式設計8.11）
 
-- `Recenter()`で、今の姿勢を基準にする：本人の正面の向き、骨の長さ（8.4）、頭の基準の位置。
-- 基準の姿勢を取っていない間は、標準的な体格の長さを使う。初回の開始時に、正面を向いて腕を下ろした姿勢で自動で1回測る（数秒の観測の中央値）。
-- アバターの体格に合わせる補正（腕の長さの違い等）はAvatarが行う（方式設計7.6）。
+段階7で、本人の正面を実装した（利用者の決定、2026-10-26）。カメラが横にあると、本人が自分の正面を向いていても、カメラからは向きを変えたように見え、アバターも横を向いていた。
+
+- `TakeFront()`で、本人の今の向きを正面にする。両肩を結ぶ線から測り、2Dでは頭の向きから測る（2Dの体は、作りとしてカメラを向いているため）。測る観測は、すでに今の正面の分だけ戻したものなので、今の正面に足す。±60°（`FacingCorrection.MaxDegrees`）までとする。それより横のカメラは体の奥の側をほとんど見られないため、大きな向きは、よそ見をしていた可能性が高い。人が映っていないときはfalseを返し、何も変えない。
+- 観測は、正面の分だけ、腰を通る鉛直の軸の周りに戻す。補正（8.4）と体の2D（8.6）の後、平滑化の前に行う（`FacingCorrection.Turn`）。頭の向きと手も回す。体を回すのは3Dのときだけで、2Dの体はもともとカメラを向いている。カメラからの位置である頭の位置は、そのままにする。記録は観測のままとする（12.2）。
+- `ResetFront()`で、カメラの正面に戻す。正面は保存する（`frontDegrees`、10章）。
+- 行わないこと：初回の開始時の自動の測定（そのとき本人が正面を向いているとは限らない）、骨の長さと頭の基準の位置（8.4の奥行きの補正には要らない）。アバターの体格に合わせる補正（腕の長さの違い等）はAvatarが行う（方式設計7.6）。
 
 ### 8.6 体の動きの2D（BodyDepth）
 
@@ -562,19 +571,19 @@ public sealed class TrackingSettings
     public TrackingRegions Regions { get; set; } = TrackingRegions.All;   // 有効にした部位：顔、体、両手
     public BodyRange BodyRange { get; set; } = BodyRange.UpperBody;
     public int SmoothingLevel { get; set; } = 5;                          // 平滑化の段階、1〜10（8.2）。版4から5は版3の1
-    public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）
+    public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）。選択肢の1つ
     public bool Mirror { get; set; } = true;                              // 鏡写し
     public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // 体の奥行き：3D（0）か2D（1）（8.6）。版3で手順なしに加えた
-    // 基準の姿勢（8.5）は段階5で加える。
+    public float FrontDegrees { get; set; }                               // 本人の正面（8.5）。版4で手順なしに加えた
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
 ```
 
-- 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだことか開始していたかが変わったときだけ行う。
+- 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだこと、開始していたか、正面のどれかが変わったときだけ行う。
 - `tracking-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Capture、Stageと同じく、Project / Profileができたらそちらへ移す（方式設計6.10の`Profiles/Tracking/`）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
 - 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
-- `PoseModel`を変えたときは、トラッキングを開始し直すと反映される。設定の画面は段階7で作る。
+- Poseのモデルは選択肢の1つとした（段階7）。Providerは開始するときにモデルを読み込むため、トラッキング中に変えるとProviderを開始し直す。カメラは動かしたままにする。段階7より前はProviderを作るときに決まり、変えてもアプリを起動し直すまで反映されなかった。
 - 版2（段階4）：3段階の`smoothing`（0〜2）を、10段階の`smoothingLevel`（1〜10）に変えた。版1のファイルは読み込むときに移す。版1には段階を選ぶ画面がなく、標準（1）は利用者が選んだ値ではないため、既定（5）にする。なめらか（0）ときびきび（2）はファイルを手で変えたときだけのため、計測した値のまま3と7にする。ほかの値と知らない項目は残す。
 - 版4（2026-10-24）：段階をさらに4つずらした（8.2）。版3の段階は、4つ上の段階にして体の動きを保つ。版3の標準5は、既定のままの値として新しい標準5にする。版3の6〜10は、どれも10になる。
 - 版3（2026-10-24）：段階を2つずらした（8.2）。版2の段階は、2つ上の段階にして同じ動きを保つ。ただし版2の標準5は、ほとんどの場合に既定のままの値で、利用者が旧3を標準とするよう求めたため、新しい標準5にする。版2の9と10は、どちらも10になる。版1のファイルは、版2を経て移す。
@@ -592,8 +601,9 @@ public sealed class TrackingSettings
 | `Tracking/Latency` | Timer | 映像のFrameの時刻から、`Current`の更新までの時間 |
 | `Tracking/Readback` | Timer | 映像の読み出しの時間 |
 | `Tracking/Dropped` | Counter | MediaPipeが前の画像を処理中のため推論しなかった映像の数 |
+| `Tracking/Outliers` | Counter | 人が動ける速さを超えたとして捨てた関節の位置と手のひらの向きの数（8.3） |
 
-- 外れ値として捨てた値の数は`TrackingProcessor.Outliers`で数えている。Diagnostics画面への表示は段階7で加える。
+- 外れ値として捨てた値（8.3）の数は`TrackingProcessor.Outliers`で数え、Counter `Tracking/Outliers`に記録する（段階7）。
 
 - 利用者へ伝える問題（`TrackingProblem`）：`CameraNotChosen`（カメラを選んでください）、`CameraNotFound`、`CameraInUse`（ゲーム画面と同じカメラ）、`StartFailed`（トラッキングを始められませんでした）、`NoPerson`（人が映っていません。状態の表示だけ）。PluginやモデルのPath等は利用者へ出さない。
 - セットアップ画面では、カメラの映像に点と骨を重ねて表示し、正しく取れているかを確かめられるようにする（配信には出さない）。

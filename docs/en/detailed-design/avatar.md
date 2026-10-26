@@ -912,7 +912,7 @@ Assets/VirtualVessel/Avatar/
 
 ## 18. Implementation Order
 
-Tracking and Avatar proceed together in this order. Each step is one branch with its tests and a demo branch to try it (CLAUDE.md 29.2). v0.1.0 is released after step 7.
+Tracking and Avatar proceed together in this order. Each step is one branch with its tests and a demo branch to try it (CLAUDE.md 29.2). The plan was to release v0.1.0 after step 7; it was released after step 6 instead, with steps 1 to 6 (the user's decision, 2026-10-25), and step 7 followed.
 
 1. Tracking foundation (Tracking detailed design chapter 18, item 1)
 2. MediaPipe and the camera (Tracking detailed design chapter 18, item 2)
@@ -920,4 +920,4 @@ Tracking and Avatar proceed together in this order. Each step is one branch with
 4. Face: expressions, gaze, head orientation, including the face tuning screen and ten levels of movement speed (Tracking detailed design 8.2)
 5. Upper body: torso, shoulders, arms. Comparing depth estimation (Tracking detailed design 8.4)
 6. Fingers: part 1 is the hands and the forearms' twist (7.7), part 2 the fingers (7.5)
-7. Tracking settings screen (range choice with "full body: coming soon", smoothing levels, mirroring, reference pose), finishing diagnostics
+7. Tracking settings screen (range choice with "full body: coming soon", smoothing levels, mirroring, reference pose), finishing diagnostics. Done (2026-10-26): what moves, the parts tracked, the Pose model, and the person's front (Tracking detailed design 8.5) on the tracking Card, and the outliers on the Diagnostics screen; the smoothing levels and mirroring were already there
