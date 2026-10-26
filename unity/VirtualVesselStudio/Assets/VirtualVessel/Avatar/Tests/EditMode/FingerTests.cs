@@ -41,7 +41,7 @@ namespace VirtualVessel.Avatar.Tests
             FingerRetargeting.TryMeasure(hand, left: false, pose);
 
             Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain).Within(Tolerance * 2f), "Into the palm at the base.");
-            float middle = (50f - FingerRetargeting.OpenBend) * FingerRetargeting.MiddleGain;
+            float middle = FingerRetargeting.ShownMiddle(Finger.Middle, 50f);
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "A thumb standing out of the fist does not fold.");
@@ -54,7 +54,7 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void ARaisedThumb_StaysStraight_AndATuckedOne_FoldsAcrossThePalm()
+        public void ARaisedThumb_StaysStraight_AndAWrappedOrTuckedOne_FoldsAcrossThePalm()
         {
             // A fist with the thumb up, its end joint reading a little bent, as the user's raised thumbs did.
             HandPose hand = Hand(bends: 80f, middleBends: 90f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 18f);
@@ -72,6 +72,29 @@ namespace VirtualVessel.Avatar.Tests
 
             FingerRetargeting.TryMeasure(Mirrored(hand), left: true, pose);
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(FingerRetargeting.MaxThumbFold), "The same on the left hand.");
+
+            // Wrapped over the curled fingers, as in rock-paper-scissors: the tip only a tenth of the palm across.
+            hand = Hand(bends: 80f, middleBends: 90f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 18f);
+            hand[HandJoint.ThumbTip] = new Vector3(-0.02f, -0.02f, 0.07f);
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.GreaterThan(FingerRetargeting.MaxThumbFold * 0.8f), "Wrapped: folded across too.");
+
+            // Laid along the side of the index finger: not across the palm.
+            hand[HandJoint.ThumbTip] = new Vector3(-0.044f, -0.01f, 0.07f);
+            FingerRetargeting.TryMeasure(hand, left: false, pose);
+            Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "Beside the index finger: no fold.");
+        }
+
+        [Test]
+        public void TheMiddleJoint_IsStraightAtAnOpenHandsReading_AndFullyBentAtAFists()
+        {
+            // A straight middle finger reads about 36° at its middle joint (the user's recordings).
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 36f), Is.EqualTo(0f));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 30f), Is.EqualTo(0f), "Never bent back.");
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Middle, 90f), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Index, 18f), Is.EqualTo(0f));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Little, 72f), Is.EqualTo(FingerRetargeting.MaxMiddleBend));
+            Assert.That(FingerRetargeting.ShownMiddle(Finger.Ring, 55f), Is.InRange(40f, 60f), "In proportion between.");
         }
 
         [Test]
@@ -117,8 +140,25 @@ namespace VirtualVessel.Avatar.Tests
                 Vector3 index = rotations[(int)Finger.Index * 3] * rest.Direction(Finger.Index, 0);
                 Assert.That(Vector3.Angle(index, Vector3.down), Is.LessThan(1f), $"{(side.IsLeft ? "Left" : "Right")}: the index finger points into the palm.");
                 Vector3 thumb = rotations[((int)Finger.Thumb * 3) + 1] * rest.Direction(Finger.Thumb, 1);
-                Assert.That(Vector3.Dot(thumb, rest.Thumbward), Is.LessThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), rest.Thumbward)), "The thumb turns across the palm.");
-                Assert.That(Vector3.Dot(thumb, Vector3.down), Is.GreaterThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), Vector3.down)), "And into it.");
+                Assert.That(Vector3.Dot(thumb, rest.Thumbward), Is.LessThan(Vector3.Dot(rest.Direction(Finger.Thumb, 1), rest.Thumbward) - 0.5f), "The thumb's middle joint curls it across the palm.");
+
+                // Tucked in: every joint across, along the palm, so the curled fingers wrap the thumb; not out in
+                // front of the palm over them, nor back into it toward the wrist, which a thumb cannot do.
+                var tucked = new FingerPose();
+                tucked.SetBend(Finger.Thumb, 0, FingerRetargeting.MaxThumbFold);
+                tucked.SetBend(Finger.Thumb, 1, FingerRetargeting.ThumbTuckBend);
+                tucked.SetBend(Finger.Thumb, 2, FingerRetargeting.ThumbTuckEndBend);
+                FingerRetargeting.Rotations(rest, Quaternion.identity, tucked, rotations);
+                // Where each joint ends, with bones of unit length, from the thumb's base.
+                Vector3 joint = Vector3.zero;
+                for (int k = 0; k < FingerPose.JointCount; k++)
+                {
+                    joint += rotations[((int)Finger.Thumb * 3) + k] * rest.Direction(Finger.Thumb, k);
+                    Assert.That(Vector3.Dot(joint, -rest.Back), Is.InRange(0f, 0.5f), $"Joint {k}: on the palm, not out in front of it over the curled fingers, nor through it.");
+                }
+
+                Assert.That(Vector3.Dot(joint, rest.Thumbward), Is.LessThan(-1f), "The tip reaches across, toward the little finger.");
+                Assert.That(Vector3.Dot(joint, rest.Direction(Finger.Middle, 0)), Is.GreaterThan(0f), "Not back past its base toward the wrist.");
                 Assert.That(rotations[((int)Finger.Index * 3) + 1], Is.EqualTo(rotations[(int)Finger.Index * 3]), "A joint carries its parent's turn.");
 
                 Quaternion hand = Quaternion.AngleAxis(90f, Vector3.right);

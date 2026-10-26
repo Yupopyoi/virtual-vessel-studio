@@ -47,6 +47,22 @@ namespace VirtualVessel.Tracking.Processing
         /// </summary>
         public const float JointsBetaShare = 0.5f;
 
+        /// <summary>
+        /// For each hand's joints: <see cref="Joints"/>, but never steadier than <see cref="MinHandCutoff"/>
+        /// while still. Fingers change shape by a few centimeters, too slowly to raise the cutoff, so at the
+        /// steady levels the hand's shape barely followed: on the user's recording made for the hands, the
+        /// thumb tucked into a rock-paper-scissors fist for over a second was never seen tucked at level 1
+        /// (0.003 Hz while still), and fingers stayed bent in an open hand (2026-10-25). Only the fingers' angles
+        /// come from these positions; the palm and the arm have their own filters.
+        /// </summary>
+        public OneEuroParameters Hands => new OneEuroParameters(Math.Max(Joints.MinCutoff, MinHandCutoff), Joints.Beta, Joints.DerivativeCutoff);
+
+        /// <summary>
+        /// Hz. On the same recording the tucked thumb was seen in 121 of 128 observations at 2 Hz (87 at 0.5,
+        /// 108 at 1), 0.07 s late, while a finger's angle changed a median of 0.30° per observation (0.17°).
+        /// </summary>
+        public const float MinHandCutoff = 2f;
+
         /// <summary>For face values and gaze, 0 to 1.</summary>
         public OneEuroParameters Face { get; }
 
