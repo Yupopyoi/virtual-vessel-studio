@@ -514,6 +514,28 @@ namespace VirtualVessel.UI.Tests
                 _options.Value = options;
             }
 
+            public ObservableValue<float> FrontValue { get; } = new ObservableValue<float>(0f);
+
+            public IReadOnlyObservable<float> Front => FrontValue;
+
+            /// <summary>What <see cref="TakeFront"/> answers and, when true, the front it takes.</summary>
+            public (bool Seen, float Degrees) NextFront { get; set; }
+
+            public bool TakeFront()
+            {
+                if (NextFront.Seen)
+                {
+                    FrontValue.Value = NextFront.Degrees;
+                }
+
+                return NextFront.Seen;
+            }
+
+            public void ResetFront()
+            {
+                FrontValue.Value = 0f;
+            }
+
             public void Set(TrackingState state, TrackingProblem problem)
             {
                 _problem.Value = problem;

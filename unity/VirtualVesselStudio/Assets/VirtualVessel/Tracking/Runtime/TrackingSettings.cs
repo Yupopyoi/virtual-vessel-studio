@@ -48,6 +48,12 @@ namespace VirtualVessel.Tracking
         /// <summary>Added in version 3 without a step: a file without it reads as tracked in depth (3D).</summary>
         public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;
 
+        /// <summary>
+        /// The person's front, degrees to the right of the camera's (tracking detailed design 8.5). Added in
+        /// version 4 without a step: a file without it reads as the camera's front.
+        /// </summary>
+        public float FrontDegrees { get; set; }
+
         /// <summary>Whether tracking was started; it starts again at the next start.</summary>
         public bool Running { get; set; }
 
@@ -124,8 +130,8 @@ namespace VirtualVessel.Tracking
             return new TrackingOptions(Regions, BodyRange, SmoothingLevel, Mirror, BodyDepth, PoseModel);
         }
 
-        /// <summary>A copy with <paramref name="options"/> and <paramref name="running"/>; other values are kept. Pure.</summary>
-        public TrackingSettings With(TrackingOptions options, bool running)
+        /// <summary>A copy with <paramref name="options"/>, <paramref name="running"/>, and <paramref name="frontDegrees"/>; other values are kept. Pure.</summary>
+        public TrackingSettings With(TrackingOptions options, bool running, float frontDegrees)
         {
             TrackingSettings next = Clone();
             next.Regions = options.Regions;
@@ -135,6 +141,7 @@ namespace VirtualVessel.Tracking
             next.BodyDepth = options.BodyDepth;
             next.PoseModel = options.PoseModel;
             next.Running = running;
+            next.FrontDegrees = frontDegrees;
             return next;
         }
     }

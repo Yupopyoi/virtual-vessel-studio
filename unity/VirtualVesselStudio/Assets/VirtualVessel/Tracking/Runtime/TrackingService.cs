@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
@@ -39,6 +40,7 @@ namespace VirtualVessel.Tracking
         private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
         private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
         private readonly ObservableValue<TrackingOptions> _options;
+        private readonly ObservableValue<float> _front;
         private readonly PerfTimer _latency;
         private TrackingSettings _settings;
         private bool _wanted;
@@ -49,6 +51,7 @@ namespace VirtualVessel.Tracking
         private ITrackingProvider _replay;
         private bool _wantedBeforeReplay;
         private ObservationCorrections _corrections = ObservationCorrections.None;
+        private Quaternion _turnBack = Quaternion.identity;
 
         /// <param name="provider">Null when no provider can run, such as without the MediaPipe plugin; tracking then reports StartFailed.</param>
         /// <param name="camera">The tracking camera, or null for a provider that needs none, such as replay.</param>
@@ -63,6 +66,8 @@ namespace VirtualVessel.Tracking
             _saves = saves;
             _log = log;
             _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
+            _front = new ObservableValue<float>(FacingCorrection.Next(_settings.FrontDegrees, 0f));
+            _turnBack = FacingCorrection.TurnBack(_front.Value);
             _latency = metrics?.Timer("Tracking", "Latency");
             ChooseCorrections();
         }
@@ -78,6 +83,8 @@ namespace VirtualVessel.Tracking
         public IReadOnlyObservable<TrackingOptions> Options => _options;
 
         public TrackingFrame Current => _current;
+
+        public IReadOnlyObservable<float> Front => _front;
 
         public double ObservationsPerSecond => _rate.RateAt(_now);
 
@@ -254,6 +261,22 @@ namespace VirtualVessel.Tracking
             Active?.SetOptions(options);
         }
 
+        public bool TakeFront()
+        {
+            if (!_wanted || !FacingCorrection.TryTurn(_current, _options.Value.BodyDepth == BodyDepth.Flat, out float seen))
+            {
+                return false;
+            }
+
+            SetFront(FacingCorrection.Next(_front.Value, seen));
+            return true;
+        }
+
+        public void ResetFront()
+        {
+            SetFront(0f);
+        }
+
         /// <summary>
         /// The state and problem to show, from the camera, the provider, and whether anyone is seen
         /// (tracking detailed design 7.1, 11). Pure.
@@ -343,6 +366,17 @@ namespace VirtualVessel.Tracking
 
                         observation = _corrected;
                     }
+
+                    if (_front.Value != 0f)
+                    {
+                        if (observation == _raw)
+                        {
+                            _corrected.CopyFrom(_raw);
+                            observation = _corrected;
+                        }
+
+                        FacingCorrection.Turn(observation, _turnBack, body: !flat);
+                    }
                 }
 
                 _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
@@ -371,6 +405,15 @@ namespace VirtualVessel.Tracking
             {
                 _lastImage = imageTime;
                 _rate = _rate.Next(_now);
+            }
+        }
+
+        private void SetFront(float degrees)
+        {
+            if (_front.Set(degrees))
+            {
+                _turnBack = FacingCorrection.TurnBack(degrees);
+                _log?.Information($"Tracking front: {degrees:0.#} degrees from the camera's.");
             }
         }
 
@@ -419,12 +462,12 @@ namespace VirtualVessel.Tracking
             // Compared every frame, so nothing is allocated unless something changed. A replay keeps
             // the saved running state from before it.
             bool running = _replay != null ? _wantedBeforeReplay : _wanted;
-            if (_options.Value.Equals(_settings.GetOptions()) && running == _settings.Running)
+            if (_options.Value.Equals(_settings.GetOptions()) && running == _settings.Running && _front.Value == _settings.FrontDegrees)
             {
                 return;
             }
 
-            _settings = _settings.With(_options.Value, running);
+            _settings = _settings.With(_options.Value, running, _front.Value);
             _saves?.Changed(_settings.Clone());
         }
     }
