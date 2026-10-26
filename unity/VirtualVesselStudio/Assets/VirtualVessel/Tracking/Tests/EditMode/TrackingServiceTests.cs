@@ -231,7 +231,8 @@ namespace VirtualVessel.Tracking.Tests
                 .WithSmoothing(3)
                 .WithMirror(false)
                 .WithBodyDepth(BodyDepth.Flat)
-                .WithRegions(TrackingRegions.Face | TrackingRegions.Body));
+                .WithRegions(TrackingRegions.Face | TrackingRegions.Body)
+                .WithPoseModel(PoseModel.Lite));
             _service.Start();
             _service.ShutdownAsync(CancellationToken.None).Wait();
             _service.Dispose();
@@ -243,6 +244,7 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(saved.Running, Is.True);
             Assert.That(saved.Mirror, Is.False);
             Assert.That(saved.BodyDepth, Is.EqualTo(BodyDepth.Flat));
+            Assert.That(saved.PoseModel, Is.EqualTo(PoseModel.Lite));
 
             _camera = new FakeCamera();
             _service = Create(saved);
@@ -250,6 +252,30 @@ namespace VirtualVessel.Tracking.Tests
             Assert.That(_service.Options.Value.Smoothing, Is.EqualTo(3));
             Assert.That(_service.Options.Value.Mirror, Is.False);
             Assert.That(_service.Options.Value.BodyDepth, Is.EqualTo(BodyDepth.Flat));
+        }
+
+        [Test]
+        public void ChoosingAnotherPoseModel_RestartsTheProvider_ButNotTheCamera()
+        {
+            var provider = new StartCountingProvider();
+            _service = new TrackingService(provider, _camera, _loop, _clock, new TrackingSettings(), null, null, null);
+            _service.InitializeAsync(CancellationToken.None).Wait();
+            _service.Start();
+            Assert.That(provider.Models, Is.EqualTo(new[] { PoseModel.Full }), "The default model.");
+
+            _service.SetOptions(_service.Options.Value.WithMirror(false));
+            Assert.That(provider.Models, Has.Count.EqualTo(1), "Other choices do not restart it.");
+
+            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Heavy));
+            Assert.That(provider.Models, Is.EqualTo(new[] { PoseModel.Full, PoseModel.Heavy }), "Loaded again with the new model.");
+            Assert.That(provider.Stops, Is.EqualTo(1));
+            Assert.That(_camera.Started, Is.True, "The camera keeps running.");
+
+            _service.Stop();
+            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Lite));
+            Assert.That(provider.Models, Has.Count.EqualTo(2), "Stopped, it is only kept for the next start.");
+            _service.Start();
+            Assert.That(provider.Models[2], Is.EqualTo(PoseModel.Lite));
         }
 
         [Test]
@@ -280,6 +306,51 @@ namespace VirtualVessel.Tracking.Tests
         {
             _clock.Seconds += 1.0 / 60;
             _loop.Tick(null);
+        }
+
+        /// <summary>A provider that notes the Pose model of each start and observes nothing.</summary>
+        private sealed class StartCountingProvider : ITrackingProvider
+        {
+            private readonly ObservableValue<TrackingState> _state = new ObservableValue<TrackingState>(TrackingState.Stopped);
+
+            public List<PoseModel> Models { get; } = new List<PoseModel>();
+
+            public int Stops { get; private set; }
+
+            public TrackingRegions Supported => TrackingRegions.All;
+
+            public ObservationTraits Traits => ObservationTraits.None;
+
+            public IReadOnlyObservable<TrackingState> State => _state;
+
+            public void Start(TrackingOptions options)
+            {
+                Models.Add(options.PoseModel);
+                _state.Set(TrackingState.Running);
+            }
+
+            public void SetOptions(TrackingOptions options)
+            {
+            }
+
+            public void Stop()
+            {
+                Stops++;
+                _state.Set(TrackingState.Stopped);
+            }
+
+            public void Tick()
+            {
+            }
+
+            public bool TryTakeLatest(TrackingFrame into)
+            {
+                return false;
+            }
+
+            public void Dispose()
+            {
+            }
         }
 
         /// <summary>A clock driven by the test, in seconds with microsecond ticks.</summary>

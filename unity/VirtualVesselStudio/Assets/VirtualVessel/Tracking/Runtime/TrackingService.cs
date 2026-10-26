@@ -235,10 +235,23 @@ namespace VirtualVessel.Tracking
 
         public void SetOptions(TrackingOptions options)
         {
-            if (_options.Set(options) && _wanted)
+            PoseModel before = _options.Value.PoseModel;
+            if (!_options.Set(options) || !_wanted)
             {
-                Active?.SetOptions(options);
+                return;
             }
+
+            if (options.PoseModel != before && _replay == null && _provider != null)
+            {
+                // The model is loaded when the provider starts; the camera keeps running.
+                _provider.Stop();
+                _processor.Reset();
+                _provider.Start(options);
+                _log?.Information($"Tracking restarts with the {options.PoseModel} Pose model.");
+                return;
+            }
+
+            Active?.SetOptions(options);
         }
 
         /// <summary>

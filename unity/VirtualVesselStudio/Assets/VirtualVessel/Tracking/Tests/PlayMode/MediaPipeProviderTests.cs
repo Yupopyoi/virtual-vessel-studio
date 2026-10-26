@@ -64,7 +64,7 @@ namespace VirtualVessel.Tracking.Tests
             var clock = new StopwatchMonotonicClock();
             var camera = new StillCamera(image, clock);
             string models = Path.Combine(UnityEngine.Application.streamingAssetsPath, MediaPipeTracking.ModelFolder);
-            ITrackingProvider provider = MediaPipeTracking.Create(camera, models, PoseModel.Full, clock, null, null);
+            ITrackingProvider provider = MediaPipeTracking.Create(camera, models, clock, null, null);
             var frame = new TrackingFrame();
             var watch = Stopwatch.StartNew();
             double firstAt = -1;
@@ -119,7 +119,7 @@ namespace VirtualVessel.Tracking.Tests
             var camera = new StillCamera(image, clock);
             string models = Path.Combine(UnityEngine.Application.streamingAssetsPath, MediaPipeTracking.ModelFolder);
             Assume.That(Directory.Exists(models), "Run tools/deps/fetch-mediapipe.ps1.");
-            ITrackingProvider provider = MediaPipeTracking.Create(camera, models, PoseModel.Full, clock, null, null);
+            ITrackingProvider provider = MediaPipeTracking.Create(camera, models, clock, null, null);
             var frame = new TrackingFrame();
             var watch = Stopwatch.StartNew();
             provider.Start(TrackingOptions.Default.WithRegions(regions));

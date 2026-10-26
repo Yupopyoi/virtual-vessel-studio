@@ -40,7 +40,7 @@ namespace VirtualVessel.Tracking
 
         public int SmoothingLevel { get; set; } = Tracking.SmoothingLevel.Default;
 
-        /// <summary>Takes effect when tracking starts.</summary>
+        /// <summary>Loaded when tracking starts; a change while running restarts it.</summary>
         public PoseModel PoseModel { get; set; } = PoseModel.Full;
 
         public bool Mirror { get; set; } = true;
@@ -121,7 +121,7 @@ namespace VirtualVessel.Tracking
         /// <summary>The user's choices in these settings. A method, not a property, so it is not written to the file. Pure.</summary>
         public TrackingOptions GetOptions()
         {
-            return new TrackingOptions(Regions, BodyRange, SmoothingLevel, Mirror, BodyDepth);
+            return new TrackingOptions(Regions, BodyRange, SmoothingLevel, Mirror, BodyDepth, PoseModel);
         }
 
         /// <summary>A copy with <paramref name="options"/> and <paramref name="running"/>; other values are kept. Pure.</summary>
@@ -133,6 +133,7 @@ namespace VirtualVessel.Tracking
             next.SmoothingLevel = options.Smoothing;
             next.Mirror = options.Mirror;
             next.BodyDepth = options.BodyDepth;
+            next.PoseModel = options.PoseModel;
             next.Running = running;
             return next;
         }
