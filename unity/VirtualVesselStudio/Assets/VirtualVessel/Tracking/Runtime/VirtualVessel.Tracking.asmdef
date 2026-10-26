@@ -1,0 +1,19 @@
+{
+    "name": "VirtualVessel.Tracking",
+    "rootNamespace": "VirtualVessel.Tracking",
+    "references": [
+        "VirtualVessel.Capture",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -5,8 +5,9 @@ using VirtualVessel.Core.Geometry;
 namespace VirtualVessel.Stage
 {
     /// <summary>
-    /// The placements as written in stage-settings.json (Stage detailed design 6.3). Property names
-    /// become the camelCase JSON field names; placements of ids this version does not know are kept.
+    /// The placements and the light as written in stage-settings.json (Stage detailed design 6.3).
+    /// Property names become the camelCase JSON field names; placements of ids this version does not
+    /// know are kept.
     /// </summary>
     public sealed class StageSettings
     {
@@ -15,9 +16,15 @@ namespace VirtualVessel.Stage
 
         public Dictionary<string, ScreenSettings> Screens { get; set; } = new Dictionary<string, ScreenSettings>();
 
+        /// <summary>
+        /// The scale of the stage's light the user chose (Stage detailed design 7.1); null until changed,
+        /// so the default reaches users who never changed it.
+        /// </summary>
+        public float? LightIntensity { get; set; }
+
         public StageSettings Clone()
         {
-            var copy = new StageSettings();
+            var copy = new StageSettings { LightIntensity = LightIntensity };
             foreach (KeyValuePair<string, ScreenSettings> pair in Screens ?? new Dictionary<string, ScreenSettings>())
             {
                 copy.Screens[pair.Key] = pair.Value?.Clone();

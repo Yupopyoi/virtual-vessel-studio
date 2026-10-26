@@ -213,22 +213,24 @@ Rootの`CLAUDE.md`には主に以下を置く。
 
 ## 6.1 基本方針
 
-`main`を唯一の統合Branchとする。
+2本の長期Branchを持つ（利用者の決定、2026-10-18。それまでは`main`だけだった）。
 
-長期間維持する`develop` Branchは設けない。
+| Branch | 役割 |
+|---|---|
+| `main` | Releaseできる状態。Releaseの版のTag（`vX.Y.Z`）はここに付ける |
+| `develop` | 開発中の統合Branch。作業Branchはここから作り、ここへMergeする |
 
-作業ごとに短期間のBranchを作成し、Pull Requestを経由して`main`へMergeする。
+作業ごとに`develop`から短期間のBranchを作成し、Pull Requestを経由して`develop`へMergeする。Releaseするときに、`develop`から`main`へのPull Request（Release PR）をMergeする。
 
 ```text
-main
- ↑
-Pull Request
- ↑
-feature/capture-module
-fix/audio-underrun
-refactor/avatar-runtime
-docs/update-architecture
+main      ──────────────●(v0.2.0)───────────●(v0.2.1)──
+                        ↑ Release PR          ↑     ↘
+develop   ──●──●──●─────┴──●──●───────────────┴──────●──
+            ↑  ↑  ↑        ↑                    hotfix/… も
+feature/… fix/… docs/…    feature/…             developへ戻す
 ```
+
+- 緊急の修正は`main`から`hotfix/<name>`を作り、`main`へのPull RequestでReleaseしたうえで、`develop`へも戻す（`main`から`develop`へのPull Request）。
 
 ## 6.2 Branch命名
 
@@ -239,19 +241,20 @@ docs/update-architecture
 | Refactoring | `refactor/` | `refactor/avatar-runtime` |
 | 文書 | `docs/` | `docs/update-workflow` |
 | CI / Build | `chore/` | `chore/github-actions` |
+| Releaseされた版の緊急修正（`main`から作る） | `hotfix/` | `hotfix/capture-crash` |
 
-## 6.3 mainの扱い
+## 6.3 mainとdevelopの扱い
 
-`main`は原則として以下を満たす状態を維持する。
+`main`は原則として以下を満たす状態を維持する。`develop`も同じ状態を目指すが、Release前の確認（21章）は`main`へ入れるときに行う。
 
 - Build可能
 - 必須Testが成功
 - 重大な既知Regressionがない
 - Version管理対象の設定や文書が整合している
 
-`main`への直接Pushを通常運用では行わない。
+`main`と`develop`への直接Pushを通常運用では行わない。
 
-Pull Request経由でMergeする。
+Pull Request経由でMergeする。`main`へのPull Requestは、Release PR（`develop`から）とhotfix（`hotfix/`から）だけとする。
 
 ## 6.4 Pull Request
 
@@ -548,10 +551,12 @@ Capture Moduleを実装する。
 ## 9.2 Branchを作る
 
 ```bash
-git switch main
+git switch develop
 git pull
 git switch -c feature/capture-module
 ```
+
+Pull Requestの宛先（base）は`develop`とする。
 
 Claude CodeはこのBranch内で作業させる。
 
@@ -601,6 +606,8 @@ Capture Moduleの実装を開始します。
 
 方式設計と矛盾する場合は実装せず指摘してください。
 ```
+
+Claude Codeは、実装に入る前に、読んだ方式設計の節と、そこから出る制約を報告する。Moduleの詳細設計だけで済ませず、方式設計そのものを読む。読んだかどうかを利用者から見えるようにするため（CLAUDE.md 13章 Step 2）。
 
 ---
 
@@ -747,6 +754,28 @@ Pull Requestを作る前に、可能な範囲でLocal Testを実行する。
 - Native Plugin Build
 - Python Test
 
+## 実行方法
+
+| 対象 | コマンド |
+|---|---|
+| UnityのEditMode / PlayMode Test | `pwsh tools/unity/run-tests.ps1 -Platform EditMode`（または`PlayMode`）。`-Filter`で絞る。`Assets/VirtualVessel`のTest Assemblyだけが動く（PackageのTestは動かさない）。`[Explicit]`のTestは`Explicit`のCategoryを付け、名前を指定したときだけ動く |
+| MediaPipeUnityPluginとモデル | `pwsh tools/deps/fetch-mediapipe.ps1`。初めてProjectを開く前と、版を変えたときに実行する（Tracking詳細設計16.2） |
+| Native Plugin | `pwsh tools/native/build-capture.ps1`（BuildとTest） |
+| Repository checks | `python tools/ci/repo_checks.py` |
+| UIの画像 | `pwsh tools/ui/capture-ui.ps1` |
+
+- UnityのTestとBuildは、そのProjectをEditorで開いている間は実行できない（Unityが同じProjectを2つ同時に開けないため）。Editorを開いたまま動かすときは`-Copy`を付ける：作業中の内容（Commitしていない変更を含む）を隣のFolder（`VirtualVesselStudio-test`）へ写し、そこで動かす。写した側は自分のLibraryを持つため、最初の1回はProject全体の読み込みで時間がかかり、2回目からは変わったFileだけを写す。ほかに、Editorを閉じるか、`git worktree`で作った別の作業Copyを`-Project`で指定してもよい。
+- 結果とLogは`build/`（Gitの管理外）に出る。
+
+## 14.1 取得して使う依存の更新
+
+GitHubのRelease等から取得して使う依存（現在はMediaPipeUnityPlugin）は、`tools/deps/<name>.json`に版、ダウンロード先、SHA-256を書き、Scriptで取得する。更新は次の手順で、1つの`chore:`のBranchとする。
+
+1. `tools/deps/<name>.json`の版、URL、SHA-256（モデル等の中身のHashも）を新しい版に変える。
+2. 取得のScriptを`-Force`で実行し、UnityでCompileとTestを行う。
+3. SBOMの版、ダウンロード先、Hashを変える（Repository checksが食い違いを見つける）。
+4. 更新の前後で、Test、性能の計測（Tracking詳細設計15章の`AllTasks_Timing`）、実機での確認を比べ、結果をPull Requestに書く。
+
 ## Manual / System Test
 
 必要に応じて実際のDeviceを利用する。
@@ -774,8 +803,13 @@ Pull Requestを作る前に、可能な範囲でLocal Testを実行する。
 - Privacy
 - Test不足
 - Documentationとの不整合
+- 複雑さ：大きくなったファイル、引数の多いConstructorやMethod、2か所以上にある同じ計算、値を渡すだけの変更
 
 問題が見つかった場合は、Task範囲内で修正してからPull Requestへ進む。
+
+複雑さは、機能を足すたびに少しずつ増える。構造を変えるより、引数を1つ足すことや、似た計算をもう1つ書くことの方が手軽なためである。Claude Codeは段階ごとに上の点を確かめて報告に書き、次の変更が楽になる整理があれば、次の段階の前に提案する（CLAUDE.md 13章 Step 9、37章）。
+
+リファクタリングでは、動作が変わらないことを示す。できる場合は、古い実装と新しい実装に同じ入力を与えて結果を比べる（古い実装はTestの中に一時的に置き、Commitの前に消してよい）。何をどう比べたかを、Commit MessageとPull Requestに書く（CLAUDE.md 34章）。
 
 ---
 
@@ -859,7 +893,9 @@ PR CIが失敗している変更は原則Mergeしない。
 | GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
 | 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
+| 取得して使う依存 | `tools/deps/*.json`に、Package名、版、`https`のダウンロード先、SHA-256（モデル等の中身のHashも）があること |
+| ライセンスのファイル | `tools/release/license-files.json`が、配布物に入れるライセンスのファイルと、その元のファイルを対応づけていること。SBOMの項目が挙げるファイル（18.1.2）がすべてそこにあること。`Assets/ThirdParty`のライセンスのファイルがすべて配布されること。Gitで管理する元のファイルが存在すること |
 
 - 確認はgitで追跡しているファイルに対して行う。手元にだけあるファイルは対象にしないため、コミットし忘れや`.meta`の抜けを見つけられる。
 - 確認処理は`tools/ci/repo_checks.py`にあり、確認処理自体の単体テスト（`tools/ci/test_repo_checks.py`）もCIで実行する。
@@ -882,19 +918,16 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 - 追加、更新、削除と同じ変更でSBOMを直す。
 - 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
 - Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
+- 配布物に含まれる項目には、その項目に当てはまるライセンスの全文のファイルを、Property `virtual-vessel-studio:license-file`で挙げる（値は配布物の中のパス。例：`licenses/UniGLTF-LICENSE.md`）。1つの項目に複数のファイルを挙げてよく、複数の項目が同じファイルを挙げてもよい。アプリ自身（`metadata.component`）は`LICENSE`と`NOTICE`を挙げる。
+- 挙げたファイルは`tools/release/license-files.json`に、配布物の中のパスと、リポジトリの中の元のファイルの組で書く。Gitに入らない元のファイル（Unityが展開するPackage、取得して使うPackage）は、Packageのハッシュの部分を`*`で書ける。リリースの手順（21章）は、この表のとおりにファイルを配布物へ写す。設定画面のクレジット（`docs/ja/ui/screens/setup.md` 8章）は、SBOMとこれらのファイルを読んで表示する。
+- Unity Package（Unity Companion License等）、Unity本体、Microsoft C/C++ Runtimeのように、配布に全文の同梱を求めないものは、ファイルを挙げずにライセンスの名前だけを載せる。
 
-## 18.2 main Build
+## 18.2 Release Build
 
-`main`へMerge後、統合された状態でBuildする。
+Releaseのときに、`main`の版のTagの状態でBuildする（21章）。
 
-対象例:
-
-- Windows Application Build
-- Integration Test
-- Native Plugin Packaging
-- Build Artifact生成
-
-Build Artifactを一定期間保存する。
+- Native Plugin：`develop`と`main`へのPushごとに、GitHub Actionsの`Native plugins`がBuildとTestを行い、DLLをArtifactとして14日間保存する（18.1.1）。
+- Windows Application：UnityはGitHub-hosted Runnerでまだ動かせない（Unityのライセンスの扱いを決めていない）。そのため、開発者のPCで`tools/release/build-release.ps1`がBuildする。同じScriptは、将来のSelf-hosted Runnerでもそのまま動かせる。
 
 ## 18.3 Nightly / Hardware CI
 
@@ -933,9 +966,9 @@ Self-hosted Runnerは信頼済みCodeを対象とする。
 
 ---
 
-# 19. main Branchの保護
+# 19. main / develop Branchの保護
 
-GitHub側で`main`を保護する。
+GitHub側で`main`と`develop`を同じ設定で保護する。Pull Requestの既定の宛先（Default Branch）は`develop`とする。
 
 最低限、以下を設定する方針とする。
 
@@ -955,6 +988,7 @@ GitHub側で`main`を保護する。
 - Branch削除禁止
 - Conversation Resolution必須
 - Required Status Checksに`Repository checks`を設定する（18.1.1）
+- `main`と`develop`の両方に同じ設定を適用する
 
 ## 19.1 Merge権限
 
@@ -1004,7 +1038,7 @@ Write以上の権限を付与する必要が生じた場合は、CODEOWNERSお�
 
 # 21. Release
 
-ReleaseはGit Tagを基準とする。
+ReleaseはGit Tagを基準とする。Tagは`main`のCommitにだけ付ける。
 
 例:
 
@@ -1014,23 +1048,29 @@ v0.2.0
 v1.0.0
 ```
 
-Tag作成をTriggerとしてRelease Workflowを実行する。
-
 ```mermaid
 flowchart LR
-    Tag["Git Tag"]
-    Test["Final CI"]
-    Build["Windows Build"]
-    Package["Package"]
-    Hash["Checksum"]
-    GH["GitHub Release"]
+    Bump["developで版を上げる<br/>（Pull Request）"]
+    PR["Release PR<br/>develop → main"]
+    Tag["mainにTag vX.Y.Z"]
+    WF["Release Workflow<br/>Tagと版の確認、下書きのRelease"]
+    Local["Self-hosted Runner（管理者のPC）<br/>build-release.ps1 -Upload<br/>Test、Build、Package、Checksum"]
+    Publish["内容を確かめて手で公開"]
 
-    Tag --> Test
-    Test --> Build
-    Build --> Package
-    Package --> Hash
-    Hash --> GH
+    Bump --> PR --> Tag --> WF --> Local --> Publish
 ```
+
+手順：
+
+1. `develop`で、Projectの版（`PlayerSettings.bundleVersion`、22章）を上げるPull Requestを作り、Mergeする。
+2. `develop`から`main`へのRelease PRを作り、Mergeする。
+3. `main`のMerge Commitに`vX.Y.Z`のTagを付け、Pushする（Push、Tagは利用者が行うか、Claude Codeが承認を得て行う）。
+4. GitHub Actionsの`Release`（`.github/workflows/release.yml`）が、Tagの形、Projectの版との一致、Tagが`main`にあること、Repository checksを確かめ、下書き（Draft）のGitHub Releaseを作る（変更点はPull Requestから自動で書く）。
+5. 同じWorkflowの`build` Jobが、管理者のPC（Self-hosted Runner、21.1）で動く。Tagの状態を取り出し、`pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`を実行する。ScriptはNative PluginのBuildとTest、UnityのEditMode / PlayMode Test、Windows Build（`ReleaseBuild.BuildWindows`）、License類とSBOMの同梱を行う。その後、ZIPとChecksumを作り、下書きのReleaseへ載せる。Runnerを用意していないとき等は、Tagの状態を取り出してScriptを手で実行してもよい。
+6. 下書きの内容を確かめ、GitHub上で手で公開する。
+
+- ReleaseのBuildは、Build識別子`vX.Y.Z+<commit>`を`StreamingAssets/build-id.txt`に書く。Applicationは起動時にそれを読み、Logと診断に出す（方式設計5.29）。開発中のBuildやEditorでは`development`となる。
+- Packageには、`TRADEMARKS.md`と、`tools/release/license-files.json`に挙げたファイル（`LICENSE`、`NOTICE`、`licenses/`以下の各License、SBOM）を入れる（18.1.2）。
 
 生成物例:
 
@@ -1038,6 +1078,24 @@ flowchart LR
 VirtualVesselStudio-v0.1.0-win-x64.zip
 SHA256SUMS.txt
 ```
+
+## 21.1 ReleaseのRunner（Self-hosted）
+
+UnityはまだGitHubのRunnerで動かせない（ライセンスのため）。そのため、ReleaseのBuildは、管理者のWindows PCをGitHub ActionsのSelf-hosted Runnerとして動かす（利用者の決定、2026-10-25）。
+
+準備（1回だけ）：
+
+1. GitHubで、RepositoryのSettings → Actions → Runners → New self-hosted runner（Windows、x64）を開き、その手順でRunnerを取得して設定する。追加のLabelに`vvs-release`を付ける。
+2. Runnerは、Unity Hubを使うのと同じWindowsのユーザーで動かす。Unityのライセンスと、入れたEditorが見つかるようにするためである。手で起動するなら`run.cmd`を実行する。そのユーザーで動くServiceとして入れてもよい。
+3. PCに、`build-release.ps1`が使うものを入れる：`ProjectVersion.txt`の版のUnity Editor、Visual StudioのC++ Build Tools（Native Plugin用）、PowerShell 7、GitとGit LFS、GitHub CLI。
+4. Settings → Actions → Generalで、「Fork pull request workflows from outside collaborators」を「Require approval for all outside collaborators」にする。
+
+安全（方式設計6.13、29.10章）：
+
+- Repositoryは公開している。ForkからのPull Requestは、そのPull RequestのWorkflowを動かすため、`vvs-release`のLabelを指定して、PCでCodeを動かせてしまう。4の設定で、そうした実行は管理者の承認を待つ。Workflowに触れるForkの実行は承認しない。
+- ReleaseのWorkflowは、このRepository（`github.repository`）へのTagのPushのときだけ、`draft` JobがTagが`main`にあることを確かめた後でBuildを始める。TagをPushできるのは管理者だけである。
+- Jobが受け取るのは、Workflowの`GITHUB_TOKEN`（Releaseのための、contentsへの書き込み）だけである。ほかの秘密情報は置かない。
+- Release以外のときはRunnerを止めておく（`run.cmd`を閉じる）のが、最も安全である。その場合、BuildはRunnerを起動したときに始まる（Jobが待ち時間の上限の24時間を過ぎていなければ）。
 
 ---
 
@@ -1066,6 +1124,8 @@ Semantic Versioningを基本とする。
 - MAJOR: 大きな非互換変更
 
 Project Schema等はApplication Versionと完全に同一である必要はなく、独自の`schemaVersion`を持たせる。
+
+Applicationの版の正は、Unityの`PlayerSettings.bundleVersion`（`ProjectSettings/ProjectSettings.asset`）とする。Release WorkflowとRelease Scriptは、Tagとこの値が一致しないと止まる。
 
 ---
 
@@ -1204,7 +1264,7 @@ Nightly Hardware Benchmark
 - Python Test
 - PR Required Check
 
-## Phase 3: 1 Moduleを完成まで回す
+## Phase 3: 1 Moduleを完成まで回す（完了：Capture、2026-10）
 
 例えばCapture Moduleで、
 
@@ -1230,12 +1290,18 @@ Nightly Hardware Benchmark
 - Capture Benchmark
 - Long Run Test
 
-## Phase 5: Release Automation
+## Phase 5: Release Automation（Tagの確認と下書きはCI、Build、Package、Uploadは管理者のPC（Self-hosted Runner）、公開は手で行う）
 
 - Tag
 - Build
 - Package
 - GitHub Release
+
+Phase 3の振り返り（2026-10-18）：
+
+- UnityのTest実行、Native Build、UIの画像は`tools/`のScriptにまとめた（14章）。
+- UnityのTestとBuildをCIで動かすのは、Unityのライセンスの扱いを決めるまで保留する（Phase 2の残り）。
+- 開発が進んだため、`develop`を設けた（6.1）。
 
 ---
 

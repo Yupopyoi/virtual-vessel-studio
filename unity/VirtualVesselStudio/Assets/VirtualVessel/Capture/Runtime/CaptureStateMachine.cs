@@ -26,6 +26,9 @@ namespace VirtualVessel.Capture
         NoFrame,
         Failed,
         PluginMissing,
+
+        /// <summary>Another source of this application has the device open.</summary>
+        DeviceInUse,
     }
 
     /// <summary>A state and the problem to tell the user.</summary>
@@ -111,6 +114,8 @@ namespace VirtualVessel.Capture
                     return new CaptureStatus(CaptureState.Error, CaptureProblem.StartFailed);
                 case CaptureEvent.PluginMissing:
                     return new CaptureStatus(CaptureState.Error, CaptureProblem.PluginMissing);
+                case CaptureEvent.DeviceInUse:
+                    return new CaptureStatus(CaptureState.Error, CaptureProblem.DeviceInUse);
                 default:
                     return current;
             }

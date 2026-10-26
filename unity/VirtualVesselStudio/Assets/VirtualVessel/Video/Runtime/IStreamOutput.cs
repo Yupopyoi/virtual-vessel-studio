@@ -12,6 +12,12 @@ namespace VirtualVessel.Video
         VideoSize Size { get; }
 
         IStreamScreenLayer Screens { get; }
+
+        /// <summary>
+        /// The Unity layer avatars must use: drawn by the Avatar Camera, in front of the flat videos
+        /// (video detailed design 7.2). -1 before the video starts.
+        /// </summary>
+        int AvatarLayer { get; }
     }
 
     /// <summary>The layer of videos placed flat on the stream screen, above the stage and below the avatar.</summary>

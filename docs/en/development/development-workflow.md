@@ -211,22 +211,24 @@ This ensures that the rules Claude Code must always follow are reliably loaded, 
 
 ## 6.1 Basic Policy
 
-`main` is the only integration branch.
+There are two long-lived branches (the user's decision, 2026-10-18; until then there was only `main`).
 
-No long-lived `develop` branch is maintained.
+| Branch | Role |
+|---|---|
+| `main` | Releasable. Release version tags (`vX.Y.Z`) go here |
+| `develop` | The integration branch during development. Work branches start here and merge back here |
 
-A short-lived branch is created for each piece of work and merged into `main` through a pull request.
+A short-lived branch is created from `develop` for each piece of work and merged into `develop` through a pull request. A release merges a pull request from `develop` into `main` (the release PR).
 
 ```text
-main
- ↑
-Pull Request
- ↑
-feature/capture-module
-fix/audio-underrun
-refactor/avatar-runtime
-docs/update-architecture
+main      ──────────────●(v0.2.0)───────────●(v0.2.1)──
+                        ↑ release PR          ↑     ↘
+develop   ──●──●──●─────┴──●──●───────────────┴──────●──
+            ↑  ↑  ↑        ↑                    hotfix/… also goes
+feature/… fix/… docs/…    feature/…             back to develop
 ```
+
+- An urgent fix starts from `main` as `hotfix/<name>`, is released through a pull request into `main`, and is then brought back into `develop` (a pull request from `main` into `develop`).
 
 ## 6.2 Branch Naming
 
@@ -237,19 +239,20 @@ docs/update-architecture
 | Refactoring | `refactor/` | `refactor/avatar-runtime` |
 | Documentation | `docs/` | `docs/update-workflow` |
 | CI / Build | `chore/` | `chore/github-actions` |
+| Urgent fix of a released version (from `main`) | `hotfix/` | `hotfix/capture-crash` |
 
-## 6.3 Handling of main
+## 6.3 Handling of main and develop
 
-`main` is normally kept in a state that satisfies the following.
+`main` is normally kept in a state that satisfies the following. `develop` aims for the same state; the checks before a release (chapter 21) happen when it goes into `main`.
 
 - It can be built.
 - Required tests pass.
 - There are no major known regressions.
 - Version-controlled configuration and documents are consistent.
 
-Direct pushes to `main` are not part of normal operation.
+Direct pushes to `main` and `develop` are not part of normal operation.
 
-Changes are merged through pull requests.
+Changes are merged through pull requests. Pull requests into `main` are only release PRs (from `develop`) and hotfixes (from `hotfix/`).
 
 ## 6.4 Pull Requests
 
@@ -542,10 +545,12 @@ Completion criteria:
 ## 9.2 Create a Branch
 
 ```bash
-git switch main
+git switch develop
 git pull
 git switch -c feature/capture-module
 ```
+
+Pull requests target (base) `develop`.
 
 Claude Code works within this branch.
 
@@ -593,6 +598,8 @@ Then organize:
 
 If anything contradicts the system design, point it out instead of implementing.
 ```
+
+Before implementing, Claude Code reports the system design sections it read and the constraints they set. It reads the system design itself, not only the module's detailed design, so the user can see that the architecture was checked (CLAUDE.md section 13, step 2).
 
 ---
 
@@ -739,6 +746,28 @@ Examples:
 - native plugin build
 - Python tests
 
+## How to Run Them
+
+| Target | Command |
+|---|---|
+| Unity EditMode / PlayMode tests | `pwsh tools/unity/run-tests.ps1 -Platform EditMode` (or `PlayMode`); `-Filter` narrows them. Only the test assemblies under `Assets/VirtualVessel` run (not packages' own tests). `[Explicit]` tests carry the `Explicit` category and run only when named |
+| MediaPipeUnityPlugin and models | `pwsh tools/deps/fetch-mediapipe.ps1`. Run it before opening the project for the first time and after changing the version (Tracking detailed design 16.2) |
+| Native plugins | `pwsh tools/native/build-capture.ps1` (build and tests) |
+| Repository checks | `python tools/ci/repo_checks.py` |
+| UI images | `pwsh tools/ui/capture-ui.ps1` |
+
+- Unity tests and builds cannot run while the Editor has the project open (Unity cannot open one project twice). To keep the Editor open, add `-Copy`: it mirrors the working tree, uncommitted changes included, into a folder next to it (`VirtualVesselStudio-test`) and runs there. The copy keeps its own Library, so the first run imports the whole project and takes a while; later runs copy only the files that changed. Otherwise, close the Editor, or pass another working copy made with `git worktree` as `-Project`.
+- Results and logs go to `build/` (not in Git).
+
+## 14.1 Updating Fetched Dependencies
+
+Dependencies fetched from GitHub releases and the like (currently MediaPipeUnityPlugin) have their version, download URL, and SHA-256 in `tools/deps/<name>.json` and are fetched by a script. An update is one `chore:` branch:
+
+1. Change the version, URL, and SHA-256 (and the hashes of contents such as models) in `tools/deps/<name>.json`.
+2. Run the fetch script with `-Force`, then compile and test in Unity.
+3. Change the version, download URL, and hash in the SBOM (the repository checks find a mismatch).
+4. Compare tests, performance measurements (`AllTasks_Timing` in Tracking detailed design chapter 15), and a check with real devices before and after the update, and write the results in the pull request.
+
 ## Manual / System Test
 
 Use real devices as needed.
@@ -766,8 +795,13 @@ Review targets:
 - privacy
 - missing tests
 - inconsistencies with documentation
+- complexity: files that grew large, constructors and methods with many parameters, the same computation in more than one place, and changes that only pass a value through
 
 If problems are found, fix them within the task scope before proceeding to the pull request.
+
+Complexity grows a little with each feature, because adding a parameter or a second similar computation is easier than restructuring. Claude Code checks the points above at each step and reports them. When a cleanup would make the next change cheaper, it proposes the cleanup before the next step (CLAUDE.md section 13, step 9, and section 37).
+
+A refactoring shows that behavior did not change. When practical, the old and the new implementation get the same inputs and their results are compared; the old one may be kept temporarily in a test and removed before committing. The commit message and the pull request say what was compared and how (CLAUDE.md section 34).
 
 ---
 
@@ -851,7 +885,9 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 | Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
 | String tables | Each locale's JSON parses, and every locale has the same keys |
 | Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`) |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`). Fetched dependencies (`tools/deps/*.json`, embedded packages) are listed at the version pinned there, with the same download URL and SHA-256 |
+| Fetched dependencies | Each `tools/deps/*.json` has a package name, a version, an `https` download URL, and SHA-256 values (also for contents such as models) |
+| License files | `tools/release/license-files.json` maps each license file shipped in the package to its source file. Every file an SBOM entry names (18.1.2) is in it, every license file of `Assets/ThirdParty` is shipped, and the sources kept in Git exist |
 
 - The checks look at the files tracked by git, not files that exist only locally, so they catch files that were not committed and missing `.meta` files.
 - The checks are in `tools/ci/repo_checks.py`, and their own unit tests (`tools/ci/test_repo_checks.py`) also run in CI.
@@ -874,19 +910,16 @@ Everything used beyond the language standard libraries and the operating system 
 - The SBOM is updated in the same change that adds, updates, or removes a component.
 - Each entry has a version, a license, and a scope: `required` for what is distributed, `excluded` for what is used only in development and CI.
 - The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, and GitHub Actions. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
+- A distributed entry names the files holding the full license texts that apply to it, with the property `virtual-vessel-studio:license-file` (the value is the path in the package, such as `licenses/UniGLTF-LICENSE.md`). An entry may name several files, and several entries may name the same file. The application itself (`metadata.component`) names `LICENSE` and `NOTICE`.
+- Those files are listed in `tools/release/license-files.json` as pairs of the path in the package and the source file in the repository. A source outside Git (a package Unity resolves, or a fetched package) may write the package hash as `*`. The release procedure (chapter 21) copies the files as listed. The credits on the settings screen (`docs/en/ui/screens/setup.md` chapter 8) read the SBOM and these files.
+- Entries whose terms do not ask for the full text to be shipped, such as Unity packages (Unity Companion License and others), the Unity engine, and the Microsoft C/C++ runtime, name no files and show only the license name.
 
-## 18.2 main Build
+## 18.2 Release Build
 
-After merging into `main`, the integrated state is built.
+A release is built from the version tag on `main` (chapter 21).
 
-Examples:
-
-- Windows application build
-- integration tests
-- native plugin packaging
-- build artifact generation
-
-Build artifacts are kept for a certain period.
+- Native plugins: on every push to `develop` and `main`, the GitHub Actions workflow `Native plugins` builds and tests them and keeps the DLL as an artifact for 14 days (18.1.1).
+- Windows application: Unity cannot run on GitHub-hosted runners yet (the handling of the Unity license is undecided), so `tools/release/build-release.ps1` builds it on a developer's PC. The same script can run on a future self-hosted runner as it is.
 
 ## 18.3 Nightly / Hardware CI
 
@@ -925,9 +958,9 @@ Self-hosted runners only run trusted code.
 
 ---
 
-# 19. Protecting the main Branch
+# 19. Protecting the main and develop Branches
 
-`main` is protected on GitHub.
+`main` and `develop` are protected on GitHub with the same settings. Pull requests target `develop` by default (the default branch).
 
 At minimum, the policy is to configure:
 
@@ -947,6 +980,7 @@ The current settings are:
 - prohibit branch deletion
 - require conversation resolution
 - `Repository checks` is a required status check (18.1.1)
+- the same settings apply to both `main` and `develop`
 
 ## 19.1 Merge Permission
 
@@ -996,7 +1030,7 @@ The quality of real-time features is confirmed only when both pass.
 
 # 21. Release
 
-Releases are based on Git tags.
+Releases are based on Git tags. Tags go only on commits of `main`.
 
 Examples:
 
@@ -1006,23 +1040,29 @@ v0.2.0
 v1.0.0
 ```
 
-Creating a tag triggers the release workflow.
-
 ```mermaid
 flowchart LR
-    Tag["Git Tag"]
-    Test["Final CI"]
-    Build["Windows Build"]
-    Package["Package"]
-    Hash["Checksum"]
-    GH["GitHub Release"]
+    Bump["Raise the version on develop<br/>(pull request)"]
+    PR["Release PR<br/>develop → main"]
+    Tag["Tag vX.Y.Z on main"]
+    WF["Release workflow<br/>checks the tag and version, drafts the Release"]
+    Local["Self-hosted runner (the maintainer's PC)<br/>build-release.ps1 -Upload<br/>tests, build, package, checksum"]
+    Publish["Check it and publish by hand"]
 
-    Tag --> Test
-    Test --> Build
-    Build --> Package
-    Package --> Hash
-    Hash --> GH
+    Bump --> PR --> Tag --> WF --> Local --> Publish
 ```
+
+Steps:
+
+1. On `develop`, raise the project version (`PlayerSettings.bundleVersion`, chapter 22) in a pull request and merge it.
+2. Create the release PR from `develop` into `main` and merge it.
+3. Tag the merge commit on `main` as `vX.Y.Z` and push the tag (the user does this, or Claude Code with approval).
+4. The GitHub Actions workflow `Release` (`.github/workflows/release.yml`) checks the tag's form, that it matches the project version, that it is on `main`, and the repository checks, then creates a draft GitHub Release (with notes generated from the pull requests).
+5. The same workflow's `build` job runs on the maintainer's PC, a self-hosted runner (21.1). It checks out the tag and runs `pwsh tools/release/build-release.ps1 -Version X.Y.Z -Upload`. The script builds and tests the native plugins, runs the Unity EditMode and PlayMode tests, builds for Windows (`ReleaseBuild.BuildWindows`), and adds the licenses and the SBOM. It then writes the ZIP and its checksum and puts them on the draft Release. The script can still be run by hand from a checkout of the tag, for example when the runner is not set up.
+6. Check the draft and publish it by hand on GitHub.
+
+- A release build writes the build identifier `vX.Y.Z+<commit>` to `StreamingAssets/build-id.txt`. The application reads it at startup and shows it in logs and diagnostics (system design 5.29). Development builds and the Editor show `development`.
+- The package contains `TRADEMARKS.md` and the files listed in `tools/release/license-files.json` (`LICENSE`, `NOTICE`, the licenses under `licenses/`, and the SBOM) (18.1.2).
 
 Example artifacts:
 
@@ -1030,6 +1070,24 @@ Example artifacts:
 VirtualVesselStudio-v0.1.0-win-x64.zip
 SHA256SUMS.txt
 ```
+
+## 21.1 The Release Runner (Self-hosted)
+
+Unity cannot run on GitHub's hosted runners yet (its license), so the release build runs on the maintainer's Windows PC as a GitHub Actions self-hosted runner (the user's decision, 2026-10-25).
+
+Setup (once):
+
+1. On GitHub, open the repository's Settings → Actions → Runners → New self-hosted runner (Windows, x64), and follow its steps to download and configure the runner. Give it the extra label `vvs-release`.
+2. Run the runner as the same Windows user who uses Unity Hub, so that Unity's license and the installed Editor are found. Run `run.cmd` to start it by hand, or install it as a service that logs on as that user.
+3. On the PC, install the tools `build-release.ps1` needs: the Unity Editor version of `ProjectVersion.txt`, the Visual Studio C++ build tools (for the native plugins), PowerShell 7, Git with Git LFS, and the GitHub CLI.
+4. In Settings → Actions → General, set "Fork pull request workflows from outside collaborators" to "Require approval for all outside collaborators".
+
+Security (system design 6.13, chapter 29.10):
+
+- The repository is public. A pull request from a fork runs the workflow files of that pull request, so it could ask for the `vvs-release` label and run its code on the PC. Setting 4 makes a maintainer approve any such run first; never approve a fork's run that touches workflows.
+- The release workflow starts the build only for a tag push in this repository (`github.repository`), after the `draft` job has checked that the tag is on `main`. Only the maintainer can push tags.
+- The job gets only the workflow's `GITHUB_TOKEN` (write access to contents, for the Release). No other secret is stored.
+- Stopping the runner between releases (closing `run.cmd`) is the safest option; the build then starts when the runner is started again, as long as the job has not timed out (24 hours).
 
 ---
 
@@ -1058,6 +1116,8 @@ Guidelines:
 - MAJOR: major incompatible changes
 
 Project schemas and similar formats do not need to match the application version exactly and have their own `schemaVersion`.
+
+The application version is Unity's `PlayerSettings.bundleVersion` (`ProjectSettings/ProjectSettings.asset`). The release workflow and the release script stop when the tag does not match it.
 
 ---
 
@@ -1196,7 +1256,7 @@ It is not necessary to complete all CI/CD and automation from the start.
 - Python tests
 - PR required checks
 
-## Phase 3: Take One Module Through to Completion
+## Phase 3: Take One Module Through to Completion (done: Capture, 2026-10)
 
 For example, with the Capture module, go through
 
@@ -1222,12 +1282,18 @@ Use the results to revise `CLAUDE.md` and CI.
 - capture benchmark
 - long-run tests
 
-## Phase 5: Release Automation
+## Phase 5: Release Automation (CI checks the tag and drafts the Release; the maintainer's PC, a self-hosted runner, builds, packages, and uploads; publishing is by hand)
 
 - tag
 - build
 - package
 - GitHub release
+
+Looking back on Phase 3 (2026-10-18):
+
+- Running Unity tests, native builds, and UI images are scripts in `tools/` (chapter 14).
+- Running Unity tests and builds in CI waits until the handling of the Unity license is decided (the rest of Phase 2).
+- With development growing, `develop` was added (6.1).
 
 ---
 

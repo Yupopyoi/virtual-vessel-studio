@@ -8,6 +8,8 @@ using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.UI.Credits;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Theme;
 using Object = UnityEngine.Object;
 
@@ -32,6 +34,7 @@ namespace VirtualVessel.UI.Tests
 
         [UnityTest]
         [Explicit("Writes screenshots; run it by name (UI foundation detailed design 7.10).")]
+        [Category("Explicit")]
         public IEnumerator Capture()
         {
             string projectPath = Path.GetDirectoryName(UnityEngine.Application.dataPath);
@@ -51,7 +54,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, captures: new ScreenshotCaptureSources()));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null) }));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;

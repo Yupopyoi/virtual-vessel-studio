@@ -97,6 +97,55 @@ class SbomTests(unittest.TestCase):
         self.assertIn("SBOM: missing github-action:actions/checkout@v4", errors)
         self.assertIn("SBOM: asset:Old is listed but no longer used", errors)
 
+    def test_an_embedded_package_needs_the_pinned_version(self):
+        lock = '{"dependencies": {"com.example.plugin": {"version": "file:com.example.plugin", "source": "embedded"}}}'
+        pinned = repo_checks.pinned_packages(['{"package": "com.example.plugin", "version": "1.2.3", "url": "u"}', '{"other": 1}'])
+        self.assertEqual(pinned, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(repo_checks.sbom_requirements(lock, [], {}, pinned), {"unity-package:com.example.plugin": "1.2.3"})
+
+    def test_a_pinned_package_is_required_before_it_is_fetched(self):
+        required = repo_checks.sbom_requirements('{"dependencies": {}}', [], {}, {"com.example.plugin": "1.2.3"})
+        self.assertEqual(required, {"unity-package:com.example.plugin": "1.2.3"})
+
+    GIT_LOCK = '{"dependencies": {"com.example.git": {"version": "https://example.com/r.git?path=/P#v0.131.4", "source": "git"}}}'
+
+    def test_a_git_package_needs_the_version_of_its_tag(self):
+        self.assertEqual(repo_checks.sbom_requirements(self.GIT_LOCK, [], {}), {"unity-package:com.example.git": "0.131.4"})
+        self.assertEqual(repo_checks.check_git_packages(self.GIT_LOCK), [])
+
+    def test_a_git_package_without_a_tag_is_an_error(self):
+        lock = '{"dependencies": {"com.example.git": {"version": "https://example.com/r.git?path=/P", "source": "git"}}}'
+        self.assertEqual(len(repo_checks.check_git_packages(lock)), 1)
+
+    def test_git_tag_versions(self):
+        self.assertEqual(repo_checks.git_tag_version("u#v1.2.3"), "1.2.3")
+        self.assertEqual(repo_checks.git_tag_version("u#release-1"), "release-1")
+        self.assertIsNone(repo_checks.git_tag_version("u"))
+
+    MANIFEST = '{"package": "com.example.plugin", "version": "1.2.3", "url": "https://example.com/p.tgz", "sha256": "' + "a" * 64 + '"}'
+
+    def test_a_well_formed_manifest_passes(self):
+        self.assertEqual(repo_checks.check_deps_manifest("m.json", self.MANIFEST), [])
+
+    def test_a_manifest_needs_https_and_hashes(self):
+        bad = '{"package": "p", "version": "1", "url": "http://example.com/p.tgz", "sha256": "ABC", "models": [{"file": "m.bytes"}]}'
+        errors = repo_checks.check_deps_manifest("m.json", bad)
+        self.assertIn("m.json: url must be https", errors)
+        self.assertIn("m.json: sha256 must be 64 lowercase hex digits", errors)
+        self.assertIn("m.json: every model needs a file and a sha256", errors)
+
+    def test_the_sbom_records_the_pinned_download(self):
+        component = self.component("unity-package:com.example.plugin", "1.2.3")
+        component["hashes"] = [{"alg": "SHA-256", "content": "a" * 64}]
+        component["externalReferences"] = [{"type": "distribution", "url": "https://example.com/p.tgz"}]
+        self.assertEqual(repo_checks.check_pinned_sbom(self.sbom(component), [self.MANIFEST]), [])
+
+        component["hashes"] = [{"alg": "SHA-256", "content": "b" * 64}]
+        component["externalReferences"] = []
+        errors = repo_checks.check_pinned_sbom(self.sbom(component), [self.MANIFEST])
+        self.assertIn("SBOM: unity-package:com.example.plugin SHA-256 differs from tools/deps", errors)
+        self.assertIn("SBOM: unity-package:com.example.plugin distribution URL differs from tools/deps", errors)
+
     def test_nested_components_need_a_license_and_scope(self):
         parent = self.component("unity-package:com.unity.ugui", "2.6.0")
         parent["components"] = [{"bom-ref": "inner", "name": "inner", "version": "1"}]
@@ -117,3 +166,40 @@ class DocPairTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LicenseFileTests(unittest.TestCase):
+    MAP = """{ "files": {
+        "LICENSE": "LICENSE",
+        "licenses/Font-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt",
+        "licenses/Pkg-LICENSE.md": "unity/VirtualVesselStudio/Library/PackageCache/com.example@*/LICENSE.md"
+    } }"""
+    TRACKED = ["LICENSE", "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt", "unity/VirtualVesselStudio/Assets/ThirdParty/Font/OFL.txt.meta"]
+
+    def test_a_complete_map_passes(self):
+        sbom_files = {"app": ["LICENSE"], "asset:Font": ["licenses/Font-OFL.txt"], "pkg": ["licenses/Pkg-LICENSE.md"]}
+        self.assertEqual(repo_checks.check_license_files(self.MAP, sbom_files, self.TRACKED), [])
+
+    def test_the_sbom_names_a_file_that_is_not_shipped(self):
+        errors = repo_checks.check_license_files(self.MAP, {"pkg": ["licenses/Other.md"]}, self.TRACKED)
+        self.assertEqual(errors, ["SBOM: pkg names licenses/Other.md, which tools/release/license-files.json does not ship"])
+
+    def test_a_third_party_license_must_be_shipped(self):
+        tracked = self.TRACKED + ["unity/VirtualVesselStudio/Assets/ThirdParty/Icons/LICENSE.txt"]
+        errors = repo_checks.check_license_files(self.MAP, {}, tracked)
+        self.assertEqual(errors, ["tools/release/license-files.json: unity/VirtualVesselStudio/Assets/ThirdParty/Icons/LICENSE.txt is not shipped"])
+
+    def test_sources_in_git_must_exist_and_paths_stay_inside(self):
+        text = """{ "files": { "NOTICE": "NOTICE", "../x": "LICENSE", "licenses/a": "docs/*.md" } }"""
+        errors = repo_checks.check_license_files(text, {}, ["LICENSE"])
+        self.assertEqual(errors, [
+            "tools/release/license-files.json: ../x must be a relative path inside the package",
+            "tools/release/license-files.json: the source of NOTICE is not in Git: NOTICE",
+            "tools/release/license-files.json: only sources outside Git may use '*' (licenses/a)",
+        ])
+
+    def test_sbom_license_files_include_the_application_and_nested_components(self):
+        sbom = """{ "metadata": { "component": { "bom-ref": "app", "properties": [ { "name": "virtual-vessel-studio:license-file", "value": "LICENSE" } ] } },
+            "components": [ { "bom-ref": "a", "components": [ { "bom-ref": "b", "properties": [
+                { "name": "virtual-vessel-studio:license-file", "value": "licenses/b.txt" }, { "name": "other", "value": "x" } ] } ] } ] }"""
+        self.assertEqual(repo_checks.sbom_license_files(sbom), {"app": ["LICENSE"], "b": ["licenses/b.txt"]})

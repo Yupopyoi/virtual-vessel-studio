@@ -8,7 +8,14 @@ Checks the files tracked by git:
 * Documentation: docs/ja and docs/en contain the same documents.
 * SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
-  license and a scope.
+  license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
+  against the version pinned there, since the lock file only says "file:". A package from a Git
+  URL must pin a tag (#v1.2.3), and the SBOM records that version.
+* Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
+  and the SBOM entry of its package records the same download URL and SHA-256.
+* License files: tools/release/license-files.json maps each shipped license file to its source.
+  Every file an SBOM component names (property virtual-vessel-studio:license-file) is in it, every
+  license file of Assets/ThirdParty is shipped, and sources kept in Git exist.
 
 Run from the repository root:  python tools/ci/repo_checks.py
 Standard library only; Python 3.10 or later.
@@ -32,6 +39,17 @@ SBOM_PATH = "sbom/virtual-vessel-studio.cdx.json"
 PACKAGES_LOCK = "unity/VirtualVesselStudio/Packages/packages-lock.json"
 THIRD_PARTY_ROOT = "unity/VirtualVesselStudio/Assets/ThirdParty"
 WORKFLOWS_DIR = ".github/workflows"
+DEPS_DIR = "tools/deps"
+LICENSE_FILES_PATH = "tools/release/license-files.json"
+LICENSE_FILE_PROPERTY = "virtual-vessel-studio:license-file"
+
+# Sources that are not in Git: fetched by tools/deps or resolved by Unity, so only the build sees them.
+UNTRACKED_SOURCE_ROOTS = (
+    "unity/VirtualVesselStudio/Library/",
+    "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/",
+)
+
+_THIRD_PARTY_LICENSE = re.compile(r"^(OFL|LICENSE|COPYING|NOTICE)", re.IGNORECASE)
 
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 
@@ -125,13 +143,89 @@ def check_doc_pairs(tracked: Iterable[str], languages: tuple[str, ...] = DOC_LAN
     ]
 
 
-def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str]) -> dict[str, str | None]:
+def pinned_packages(manifests: Iterable[str]) -> dict[str, str]:
+    """Package name to version from the tools/deps manifests that fetch embedded packages."""
+    pinned = {}
+    for text in manifests:
+        data = json.loads(text)
+        if "package" in data and "version" in data:
+            pinned[data["package"]] = data["version"]
+    return pinned
+
+
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def check_deps_manifest(path: str, text: str) -> list[str]:
+    """Problems in a tools/deps manifest: the fields the fetch script relies on."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as error:
+        return [f"Invalid JSON in {path}: {error}"]
+
+    errors = []
+    for field in ("package", "version", "url", "sha256"):
+        if not isinstance(data.get(field), str) or not data[field]:
+            errors.append(f"{path}: needs {field}")
+
+    if isinstance(data.get("url"), str) and not data["url"].startswith("https://"):
+        errors.append(f"{path}: url must be https")
+    if isinstance(data.get("sha256"), str) and not _SHA256.match(data["sha256"]):
+        errors.append(f"{path}: sha256 must be 64 lowercase hex digits")
+
+    for model in data.get("models", []):
+        if not isinstance(model.get("file"), str) or not _SHA256.match(str(model.get("sha256", ""))):
+            errors.append(f"{path}: every model needs a file and a sha256")
+
+    return errors
+
+
+def check_pinned_sbom(sbom: str, manifests: Iterable[str]) -> list[str]:
+    """The SBOM entry of each fetched package records the manifest's download URL and SHA-256."""
+    try:
+        components = {c.get("bom-ref"): c for c in json.loads(sbom).get("components", [])}
+    except json.JSONDecodeError:
+        return []  # Reported by check_sbom.
+
+    errors = []
+    for text in manifests:
+        data = json.loads(text)
+        reference = f"unity-package:{data.get('package')}"
+        component = components.get(reference)
+        if component is None:
+            continue  # Reported by check_sbom as missing.
+
+        hashes = {h.get("alg"): h.get("content") for h in component.get("hashes", [])}
+        if hashes.get("SHA-256") != data.get("sha256"):
+            errors.append(f"SBOM: {reference} SHA-256 differs from tools/deps")
+        urls = {r.get("url") for r in component.get("externalReferences", []) if r.get("type") == "distribution"}
+        if data.get("url") not in urls:
+            errors.append(f"SBOM: {reference} distribution URL differs from tools/deps")
+
+    return errors
+
+
+def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Mapping[str, str], pinned: Mapping[str, str] | None = None) -> dict[str, str | None]:
     """The SBOM entries the repository needs: bom-ref to required version (None when any version will do)."""
+    pinned = pinned or {}
     required: dict[str, str | None] = {}
     for name, package in json.loads(packages_lock).get("dependencies", {}).items():
         # Built-in modules are part of the engine, listed once as the Unity Engine.
-        if not name.startswith("com.unity.modules."):
+        if name.startswith("com.unity.modules."):
+            continue
+        if package.get("source") == "embedded":
+            # The lock file only says "file:<folder>"; the version is the one the fetch script pins.
+            required[f"unity-package:{name}"] = pinned.get(name)
+        elif package.get("source") == "git":
+            # The lock file has the Git URL; the version is the tag it pins.
+            required[f"unity-package:{name}"] = git_tag_version(package.get("version", ""))
+        else:
             required[f"unity-package:{name}"] = package.get("version")
+
+    # A pinned package counts even in a working copy that has not fetched it, so the SBOM
+    # check does not depend on whether the developer ran the script.
+    for name, version in pinned.items():
+        required[f"unity-package:{name}"] = version
 
     prefix = THIRD_PARTY_ROOT + "/"
     for path in tracked:
@@ -146,6 +240,23 @@ def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Map
                 required[f"github-action:{action}"] = None
 
     return required
+
+
+def git_tag_version(url: str) -> str | None:
+    """The version a Git package URL pins with its tag (#v0.131.4 is 0.131.4), or None without one."""
+    _, _, tag = url.partition("#")
+    if not tag:
+        return None
+    return tag[1:] if re.fullmatch(r"v\d.*", tag) else tag
+
+
+def check_git_packages(packages_lock: str) -> list[str]:
+    """Unity packages from Git URLs that pin no tag, so a later resolve could fetch other code."""
+    errors = []
+    for name, package in json.loads(packages_lock).get("dependencies", {}).items():
+        if package.get("source") == "git" and not git_tag_version(package.get("version", "")):
+            errors.append(f"{PACKAGES_LOCK}: {name} comes from Git without a pinned tag (#vX.Y.Z)")
+    return errors
 
 
 def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
@@ -193,6 +304,66 @@ def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
     return errors
 
 
+def sbom_license_files(sbom: str) -> dict[str, list[str]]:
+    """The license files each SBOM component names, by bom-ref, including the application itself."""
+    try:
+        document = json.loads(sbom)
+    except json.JSONDecodeError:
+        return {}  # Reported by check_sbom.
+
+    files: dict[str, list[str]] = {}
+    pending = [document.get("metadata", {}).get("component", {})] + list(document.get("components", []))
+    while pending:
+        component = pending.pop()
+        pending.extend(component.get("components", []))
+        names = [p.get("value") for p in component.get("properties", []) if p.get("name") == LICENSE_FILE_PROPERTY]
+        if names:
+            files[component.get("bom-ref", component.get("name", "?"))] = names
+    return files
+
+
+def is_safe_relative_path(path: str) -> bool:
+    """A path inside its root: relative, with forward slashes and no '..', '.', or empty parts."""
+    if not path or path.startswith("/") or "\\" in path or ":" in path:
+        return False
+    return all(part not in ("", ".", "..") for part in path.split("/"))
+
+
+def check_license_files(text: str, sbom_files: Mapping[str, list[str]], tracked: Iterable[str]) -> list[str]:
+    """Problems in tools/release/license-files.json and in the SBOM's references to it."""
+    try:
+        files = json.loads(text).get("files")
+    except (json.JSONDecodeError, AttributeError) as error:
+        return [f"{LICENSE_FILES_PATH} is not a valid JSON object: {error}"]
+    if not isinstance(files, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+        return [f"{LICENSE_FILES_PATH}: 'files' must map package paths to source paths"]
+
+    tracked_set = set(tracked)
+    errors = []
+    for target, source in sorted(files.items()):
+        if not is_safe_relative_path(target):
+            errors.append(f"{LICENSE_FILES_PATH}: {target} must be a relative path inside the package")
+        if not is_safe_relative_path(source):
+            errors.append(f"{LICENSE_FILES_PATH}: the source of {target} must be a relative path inside the repository")
+        elif not source.startswith(UNTRACKED_SOURCE_ROOTS):
+            if "*" in source:
+                errors.append(f"{LICENSE_FILES_PATH}: only sources outside Git may use '*' ({target})")
+            elif source not in tracked_set:
+                errors.append(f"{LICENSE_FILES_PATH}: the source of {target} is not in Git: {source}")
+
+    for reference, names in sorted(sbom_files.items()):
+        for name in names:
+            if name not in files:
+                errors.append(f"SBOM: {reference} names {name}, which {LICENSE_FILES_PATH} does not ship")
+
+    sources = set(files.values())
+    for path in sorted(tracked_set):
+        if posixpath.dirname(posixpath.dirname(path)) == THIRD_PARTY_ROOT and not path.endswith(".meta"):
+            if _THIRD_PARTY_LICENSE.match(posixpath.basename(path)) and path not in sources:
+                errors.append(f"{LICENSE_FILES_PATH}: {path} is not shipped")
+    return errors
+
+
 def tracked_files(repository: Path) -> list[str]:
     output = subprocess.run(
         ["git", "ls-files", "-z"], cwd=repository, check=True, capture_output=True
@@ -224,9 +395,26 @@ def run(repository: Path) -> list[str]:
         for p in tracked
         if posixpath.dirname(p) == WORKFLOWS_DIR and p.endswith((".yml", ".yaml"))
     }
-    required = sbom_requirements((repository / PACKAGES_LOCK).read_text(encoding="utf-8"), tracked, workflows)
+    manifest_files = {
+        p: (repository / p).read_text(encoding="utf-8")
+        for p in tracked
+        if posixpath.dirname(p) == DEPS_DIR and p.endswith(".json")
+    }
+    manifest_errors = [e for p, text in sorted(manifest_files.items()) for e in check_deps_manifest(p, text)]
+    errors += manifest_errors
+    manifests = [] if manifest_errors else list(manifest_files.values())
+    packages_lock = (repository / PACKAGES_LOCK).read_text(encoding="utf-8")
+    errors += check_git_packages(packages_lock)
+    required = sbom_requirements(packages_lock, tracked, workflows, pinned_packages(manifests))
     if SBOM_PATH in tracked:
-        errors += check_sbom((repository / SBOM_PATH).read_text(encoding="utf-8"), required)
+        sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
+        errors += check_sbom(sbom, required)
+        errors += check_pinned_sbom(sbom, manifests)
+        if LICENSE_FILES_PATH in tracked:
+            license_files = (repository / LICENSE_FILES_PATH).read_text(encoding="utf-8")
+            errors += check_license_files(license_files, sbom_license_files(sbom), tracked)
+        else:
+            errors.append(f"Missing {LICENSE_FILES_PATH}")
     else:
         errors.append(f"Missing {SBOM_PATH}")
 

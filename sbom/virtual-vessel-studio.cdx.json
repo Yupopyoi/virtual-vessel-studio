@@ -3,7 +3,7 @@
   "specVersion": "1.6",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-17T00:00:00Z",
+    "timestamp": "2026-10-20T00:00:00Z",
     "component": {
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
@@ -14,6 +14,16 @@
           "license": {
             "id": "Apache-2.0"
           }
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "LICENSE"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "NOTICE"
         }
       ]
     }
@@ -37,6 +47,144 @@
       ],
       "scope": "required",
       "description": "The application runtime. Its version is fixed by ProjectSettings/ProjectVersion.txt."
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.github.homuler.mediapipe",
+      "supplier": {
+        "name": "homuler"
+      },
+      "name": "com.github.homuler.mediapipe (MediaPipeUnityPlugin)",
+      "version": "0.16.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://github.com/homuler/MediaPipeUnityPlugin/releases/download/v0.16.3/com.github.homuler.mediapipe-0.16.3.tgz"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cc3e77a219e0b99618ae3be64c31a566197deedc69c1e136acf52d65d7cf2e79"
+        }
+      ],
+      "description": "Camera tracking (tracking detailed design 16.2). Not in Git: tools/deps/fetch-mediapipe.ps1 fetches the pinned release (tools/deps/mediapipe.json) as an embedded package. Its native library bundles the components in its 'Third Party Notices.md' (Abseil, OpenCV, Protocol Buffers, TensorFlow Lite, XNNPACK, and others, all permissive), which the release package includes.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/MediaPipeUnityPlugin-LICENSE.md"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+        }
+      ],
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "mediapipe",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "MediaPipe",
+          "version": "0.10.22",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "Built into the plugin's mediapipe_c.dll.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "mediapipe-models",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "MediaPipe Face, Pose, and Hand Landmarker models",
+          "version": "0.10.22",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "nuget:Google.Protobuf",
+          "supplier": {
+            "name": "Google"
+          },
+          "name": "Google.Protobuf",
+          "version": "3.20.0",
+          "licenses": [
+            {
+              "license": {
+                "id": "BSD-3-Clause"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "Managed protocol buffers, shipped in the plugin's Runtime/Plugins/Protobuf and used by its task API.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "nuget:System.Runtime.CompilerServices.Unsafe",
+          "supplier": {
+            "name": "Microsoft"
+          },
+          "name": "System.Runtime.CompilerServices.Unsafe",
+          "version": "4.6.26919.02",
+          "licenses": [
+            {
+              "license": {
+                "id": "MIT"
+              }
+            }
+          ],
+          "scope": "required",
+          "description": "A dependency of Google.Protobuf, shipped in the plugin's Runtime/Plugins/Protobuf. The version is the file version.",
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md"
+            }
+          ]
+        }
+      ]
     },
     {
       "type": "library",
@@ -209,6 +357,25 @@
     },
     {
       "type": "library",
+      "bom-ref": "unity-package:com.unity.mathematics",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.mathematics",
+      "version": "1.4.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Mathematics (a dependency of UniVRM's UniGLTF)"
+    },
+    {
+      "type": "library",
       "bom-ref": "unity-package:com.unity.nuget.mono-cecil",
       "supplier": {
         "name": "Unity Technologies"
@@ -267,6 +434,12 @@
             {
               "type": "website",
               "url": "https://www.newtonsoft.com/json"
+            }
+          ],
+          "properties": [
+            {
+              "name": "virtual-vessel-studio:license-file",
+              "value": "licenses/Newtonsoft.Json-Third-Party-Notices.md"
             }
           ]
         }
@@ -482,6 +655,68 @@
       "description": "Visual Scripting (from the project template; not used by Virtual Vessel code)"
     },
     {
+      "type": "library",
+      "bom-ref": "unity-package:com.vrmc.gltf",
+      "supplier": {
+        "name": "VRM Consortium"
+      },
+      "name": "com.vrmc.gltf (UniVRM UniGLTF)",
+      "version": "0.131.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/vrm-c/UniVRM/tree/v0.131.4/Packages/UniGLTF",
+          "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
+        }
+      ],
+      "description": "glTF loading for VRM (avatar detailed design 16). Includes UniJSON, UniHumanoid, and UniUnlit. Its LICENSE.md and UniVRM's LICENSE.txt (tools/release/licenses) go into the release package.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/UniGLTF-LICENSE.md"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.vrmc.vrm",
+      "supplier": {
+        "name": "VRM Consortium"
+      },
+      "name": "com.vrmc.vrm (UniVRM VRM-1.0)",
+      "version": "0.131.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/vrm-c/UniVRM/tree/v0.131.4/Packages/VRM10",
+          "comment": "Tag v0.131.4, commit efd20f62f1bf0ac3fcc34de1e497324c5197d146 (Packages/packages-lock.json)"
+        }
+      ],
+      "description": "VRM 1.0 loading, VRM 0.x conversion, control rig, expressions, SpringBone, and the MToon 1.0 shaders (avatar detailed design 16). Used only by the VirtualVessel.Avatar.Vrm assembly. Copyright VRM Consortium and Masataka SUMI (MToon).",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/UniVRM-LICENSE.txt"
+        }
+      ]
+    },
+    {
       "type": "file",
       "bom-ref": "asset:NotoSansJP",
       "supplier": {
@@ -502,6 +737,12 @@
         {
           "type": "vcs",
           "url": "https://github.com/notofonts/noto-cjk"
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/NotoSansJP-OFL.txt"
         }
       ]
     },
@@ -526,6 +767,12 @@
         {
           "type": "vcs",
           "url": "https://github.com/notofonts/latin-greek-cyrillic"
+        }
+      ],
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/NotoSansMono-OFL.txt"
         }
       ]
     },

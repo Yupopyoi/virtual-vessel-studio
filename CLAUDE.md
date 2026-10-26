@@ -586,7 +586,10 @@ The local reference directories are:
 
 ```text
 E:\VirtualVessel\benchmarks\VCBM
-    Voice: VoxCPM voice generation driven from Unity, RVC training and conversion.
+    Voice: VoxCPM voice generation driven from Unity (branch main), and RVC: ONNX export of
+    ContentVec, RMVPE, and RVC v2 and their inference with Unity Inference Engine on the GPU,
+    converting WAV files in chunks (branch feature/rvc). The user confirmed real-time conversion
+    within 200 ms in a prototype; that real-time code is not in this snapshot.
 
 E:\VirtualVessel\benchmarks\GameCaptureUnityPlugin
     Capture: capture-board video and audio input into Unity.
@@ -664,6 +667,15 @@ Read:
 3. relevant detailed design,
 4. relevant architecture decisions.
 
+Read the relevant system design sections themselves, not only the module's detailed design.
+
+Before implementing, report to the user:
+
+- which system design sections were read,
+- the constraints they set for the task.
+
+This makes visible whether the architecture was checked.
+
 ## Step 3: Inspect the implementation
 
 Inspect:
@@ -719,6 +731,15 @@ Run relevant:
 ## Step 9: Self-review
 
 Review the complete diff.
+
+Also check whether the code is getting harder to change. Small additions accumulate: adding a parameter, or writing a second copy of a computation for a new variant, is easier than restructuring. So check:
+
+- files that grew large,
+- constructors and methods with many parameters,
+- the same computation in more than one place,
+- changes that only pass a value through to where it is used.
+
+Report what was found with the step (section 37). Propose a cleanup before the next step when it would make the next change cheaper. Do not wait for the user to notice.
 
 Check:
 
@@ -1298,9 +1319,21 @@ Do not accumulate a large amount of unrelated implementation before committing.
 
 ## 29.1 Branch Policy
 
-Do not perform normal feature development directly on `main`.
+The repository has two long-lived branches (development workflow 6.1):
 
-Before starting implementation work, create or switch to a dedicated short-lived task branch.
+- `main`: releasable; release tags `vX.Y.Z` are placed only here.
+- `develop`: the integration branch during development.
+
+Do not perform normal feature development directly on `main` or `develop`.
+
+Before starting implementation work, create or switch to a dedicated short-lived task branch created from `develop`. Its Pull Request targets `develop`.
+
+Pull Requests into `main` are only:
+
+- the release PR from `develop` (development workflow 21),
+- `hotfix/<task-name>` branches created from `main` for urgent fixes to a released version; after release, the fix is also brought back into `develop`.
+
+Release PRs, hotfix PRs, and tags are user-controlled like any push (29.8).
 
 Typical branch prefixes are:
 
@@ -1310,6 +1343,7 @@ fix/<task-name>
 refactor/<task-name>
 docs/<task-name>
 chore/<task-name>
+hotfix/<task-name>   (from main only)
 ```
 
 Examples:
@@ -1330,12 +1364,12 @@ Do not mix unrelated features, fixes, refactoring, or documentation work into th
 
 Before modifying files, confirm the current branch.
 
-If the current branch is `main`, create an appropriate task branch before modifying any tracked file.
+If the current branch is `main` or `develop`, create an appropriate task branch before modifying any tracked file.
 
 The only exceptions are:
 
 - operations that do not change repository contents, such as GitHub repository settings, branch protection rules, labels, or issue management,
-- work that the user has explicitly instructed to perform directly on `main` for the current task.
+- work that the user has explicitly instructed to perform directly on `main` or `develop` for the current task.
 
 Documentation, `CLAUDE.md`, configuration, and repository-structure changes are not exceptions and use a task branch.
 
@@ -1631,7 +1665,9 @@ Do not rewrite already published history without explicit approval.
 
 A Pull Request represents a completed reviewable branch.
 
-Do not merge directly into `main` as part of normal feature development.
+Do not merge directly into `main` or `develop` as part of normal feature development.
+
+Task branches open Pull Requests against `develop`; only release PRs and hotfixes target `main` (29.1).
 
 A Pull Request should clearly explain:
 
@@ -1760,6 +1796,11 @@ When refactoring performance-sensitive code, verify that performance has not reg
 
 Maintain public behavior unless the task explicitly changes it.
 
+Show that a refactoring did not change behavior:
+
+- When practical, run the old and the new implementation on the same inputs and compare the results. The old one may be kept temporarily in a test and removed before committing.
+- State in the commit message and the Pull Request what was compared and how.
+
 ---
 
 # 35. Dependency Policy
@@ -1851,6 +1892,10 @@ State when benchmarks were not applicable.
 Documents created or updated.
 
 Confirm Japanese/English synchronization where applicable.
+
+## Complexity
+
+What the complexity check (section 13, step 9) found, and any cleanup proposed.
 
 ## Remaining issues
 

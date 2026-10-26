@@ -13,11 +13,9 @@ using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
-using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Notifications;
-using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.UI.Theme;
@@ -34,9 +32,7 @@ namespace VirtualVessel.UI
         /// <param name="applicationVersion">Shown under the navigation; optional.</param>
         /// <param name="metrics">Shown on the Diagnostics screen; null when the service is not available.</param>
         /// <param name="developerModeReceivers">Told when Developer Mode changes, such as detailed metrics.</param>
-        /// <param name="streamPreview">The stream video for the live screen (Video); null shows "no video".</param>
-        /// <param name="frameSources">The videos to place on the live screen (Stage); null for none.</param>
-        /// <param name="captures">The capture sources for the setup screen (Capture); null says it is unavailable.</param>
+        /// <param name="screens">The services the live and settings screens show; null shows none of them.</param>
         public UiRootContext(
             string configDirectory,
             IMonotonicClock monotonicClock,
@@ -47,9 +43,7 @@ namespace VirtualVessel.UI
             string applicationVersion = null,
             IPerformanceMetrics metrics = null,
             IReadOnlyList<Action<bool>> developerModeReceivers = null,
-            IStreamPreviewSource streamPreview = null,
-            IReadOnlyList<IFrameSource> frameSources = null,
-            ICaptureSources captures = null)
+            ScreenServices screens = null)
         {
             if (string.IsNullOrWhiteSpace(configDirectory))
             {
@@ -65,9 +59,7 @@ namespace VirtualVessel.UI
             ApplicationVersion = applicationVersion;
             Metrics = metrics;
             DeveloperModeReceivers = developerModeReceivers ?? Array.Empty<Action<bool>>();
-            StreamPreview = streamPreview;
-            FrameSources = frameSources ?? Array.Empty<IFrameSource>();
-            Captures = captures;
+            Screens = screens ?? new ScreenServices();
         }
 
         public string ConfigDirectory { get; }
@@ -88,11 +80,8 @@ namespace VirtualVessel.UI
 
         public IReadOnlyList<Action<bool>> DeveloperModeReceivers { get; }
 
-        public IStreamPreviewSource StreamPreview { get; }
-
-        public IReadOnlyList<IFrameSource> FrameSources { get; }
-
-        public ICaptureSources Captures { get; }
+        /// <summary>The services the live and settings screens show; never null.</summary>
+        public ScreenServices Screens { get; }
     }
 
     /// <summary>
@@ -109,9 +98,6 @@ namespace VirtualVessel.UI
     public sealed class UiRoot : MonoBehaviour
     {
         public const string ContentClass = "vv-content";
-
-        // Windows lays out at 96 DPI for 100% display scale; above that the UI grows with the OS setting.
-        private const float ReferenceDpi = 96f;
 
         // One fallback font asset per font for the whole run, never destroyed: TextCore keeps glyph
         // caches that point at a font asset's atlas after its panel is gone, so destroying it breaks
@@ -132,6 +118,8 @@ namespace VirtualVessel.UI
         private TooltipService _tooltips;
         private UiServicesScope _scope;
         private DeveloperModeService _developerMode;
+        private float _uiScale = 1f;
+        private bool _limited;
 
         public UiAssets Assets => _assets;
 
@@ -341,6 +329,12 @@ namespace VirtualVessel.UI
         private void Update()
         {
             Settings?.Tick();
+
+            // The window can be resized at any time; the UI keeps fitting it (UI foundation detailed design 7.9).
+            if (_panel != null)
+            {
+                UpdateScale();
+            }
         }
 
         private void OnDestroy()
@@ -369,9 +363,10 @@ namespace VirtualVessel.UI
             _panel = Instantiate(_assets.PanelSettings);
             _panel.name = _assets.PanelSettings.name + " (runtime)";
             _panel.scaleMode = PanelScaleMode.ConstantPhysicalSize;
-            _panel.referenceDpi = ReferenceDpi;
-            _panel.fallbackDpi = ReferenceDpi;
-            _panel.scale = uiScale;
+            _panel.referenceDpi = UiPanelScale.ReferenceDpi;
+            _panel.fallbackDpi = UiPanelScale.ReferenceDpi;
+            _uiScale = uiScale;
+            UpdateScale();
             AddFontFallback();
             _document.panelSettings = _panel;
 
@@ -414,10 +409,41 @@ namespace VirtualVessel.UI
             _localizer.SetLocale(settings.Language);
             _theme.Apply(settings.Theme);
             _fonts.Apply(settings.FontSet);
-            if (!Mathf.Approximately(_panel.scale, settings.UiScale))
+            if (!Mathf.Approximately(_uiScale, settings.UiScale))
             {
-                _panel.scale = settings.UiScale;
+                _uiScale = settings.UiScale;
                 _log?.Information($"UI scale changed: {settings.UiScale}.");
+                UpdateScale();
+            }
+        }
+
+        /// <summary>
+        /// Draws the UI at the user's size on the display scale, but no larger than the window holds the
+        /// screens' least layout (<see cref="UiPanelScale"/>). A panel drawn into a texture at a constant
+        /// pixel size, as the screenshots are, fits the texture at 96 DPI.
+        /// </summary>
+        private void UpdateScale()
+        {
+            RenderTexture target = _panel.targetTexture;
+            bool physical = _panel.scaleMode == PanelScaleMode.ConstantPhysicalSize;
+            float dpi = physical ? Screen.dpi : UiPanelScale.ReferenceDpi;
+            int width = target != null ? target.width : Screen.width;
+            int height = target != null ? target.height : Screen.height;
+            float scale = UiPanelScale.PanelScale(_uiScale, dpi, width, height);
+            if (Mathf.Approximately(_panel.scale, scale))
+            {
+                return;
+            }
+
+            _panel.scale = scale;
+            bool limited = scale < _uiScale - 0.001f;
+            if (limited != _limited)
+            {
+                // On a change of state only, as a window being resized changes the size every frame.
+                _limited = limited;
+                _log?.Information(limited
+                    ? $"UI drawn smaller to fit a {width}x{height} window: {UiPanelScale.Drawn(_uiScale, dpi, width, height):0.##} instead of {UiPanelScale.DisplayScale(dpi) * _uiScale:0.##}."
+                    : "UI drawn at the display scale and UI size again.");
             }
         }
 
@@ -427,10 +453,10 @@ namespace VirtualVessel.UI
             IPerformanceMetrics metrics = context.Metrics;
             var screens = new List<ScreenDefinition>
             {
-                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.StreamPreview, context.FrameSources)),
-                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Captures, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
+                new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens.StreamPreview, context.Screens.FrameSources, context.Screens.Tracking)),
+                new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme))),
                 new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
-                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics), developerOnly: true),
+                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId)), developerOnly: true),
             };
 #if UNITY_EDITOR
             // A tool for building the UI, not part of the application: only in the Unity Editor.

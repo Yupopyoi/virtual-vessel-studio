@@ -6,14 +6,14 @@ using VirtualVessel.Capture.Game;
 
 namespace VirtualVessel.Capture.Tests
 {
-    public sealed class GameCaptureSourceTests
+    public sealed class WebCamCaptureSourceTests
     {
         private const double FrameTime = 1.0 / 60;
 
         private ManualClock _clock;
         private FakeCameraDevices _devices;
         private CaptureSettings _settings;
-        private GameCaptureSource _source;
+        private WebCamCaptureSource _source;
 
         [SetUp]
         public void SetUp()
@@ -247,19 +247,76 @@ namespace VirtualVessel.Capture.Tests
         }
 
         [Test]
+        public void TheTrackingCamera_OpensItsOwnDevice_UnflippedAtItsOwnFormat()
+        {
+            _settings.GameFlip = CaptureFlip.Horizontal;
+            _settings.CameraDeviceId = "Board B";
+            _source = WebCamCaptureSource.ForTrackingCamera(_devices, _settings, _clock, null, null);
+
+            _source.Start();
+
+            Assert.That(_source.Id, Is.EqualTo(WebCamCaptureSource.CameraSourceId));
+            Assert.That(_source.Kind, Is.EqualTo(CaptureSourceKind.Camera));
+            Assert.That(_devices.Last.Name, Is.EqualTo("Board B"));
+            Assert.That(_devices.Last.Requested, Is.EqualTo((1280, 720, 30)));
+            Assert.That(_source.Flip.Value, Is.EqualTo(CaptureFlip.None), "Left and right are decided by Tracking and Avatar.");
+        }
+
+        [Test]
+        public void TheTrackingCamera_WaitsForAChoice_LikeTheBoard()
+        {
+            _source = WebCamCaptureSource.ForTrackingCamera(_devices, _settings, _clock, null, null);
+
+            _source.Start();
+
+            Assert.That(_devices.Opened, Is.Empty);
+            Assert.That(_source.Problem.Value, Is.EqualTo(CaptureProblem.DeviceNotChosen));
+        }
+
+        [Test]
+        public void ADeviceOpenInTheOtherSource_IsReportedAsInUse()
+        {
+            _settings.CameraDeviceId = "Board A";
+            _source = WebCamCaptureSource.ForTrackingCamera(_devices, _settings, _clock, null, null, id => id == "Board A");
+
+            _source.Start();
+
+            Assert.That(_devices.Opened, Is.Empty, "Not opened a second time.");
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Error));
+            Assert.That(_source.Problem.Value, Is.EqualTo(CaptureProblem.DeviceInUse));
+
+            _source.SelectDevice("Board B");
+            Assert.That(_source.State.Value, Is.EqualTo(CaptureState.Ready), "Another device works.");
+        }
+
+        [Test]
+        public void EachNewFrame_CountsAndIsTimed()
+        {
+            Create();
+            _source.Start();
+            Assert.That(_source.FrameCount, Is.EqualTo(0));
+
+            SendFrames(3);
+            Tick();
+
+            Assert.That(_source.FrameCount, Is.EqualTo(3), "A tick without a new image does not count.");
+            Assert.That(_source.LastFrameTimestamp, Is.GreaterThan(0));
+        }
+
+        [Test]
         public void ShouldCheckDevice_OnlyAfterAQuietSecond_AndNotTooOften()
         {
             const long second = 1_000;
 
-            Assert.That(GameCaptureSource.ShouldCheckDevice(quietSince: 0, lastCheck: -10 * second, now: 999, quietTicks: second, checkTicks: 2 * second), Is.False, "Still within the quiet second.");
-            Assert.That(GameCaptureSource.ShouldCheckDevice(0, -10 * second, second, second, 2 * second), Is.True);
-            Assert.That(GameCaptureSource.ShouldCheckDevice(0, 0, second, second, 2 * second), Is.False, "Checked too recently.");
-            Assert.That(GameCaptureSource.ShouldCheckDevice(0, 0, 2 * second, second, 2 * second), Is.True);
+            Assert.That(WebCamCaptureSource.ShouldCheckDevice(quietSince: 0, lastCheck: -10 * second, now: 999, quietTicks: second, checkTicks: 2 * second), Is.False, "Still within the quiet second.");
+            Assert.That(WebCamCaptureSource.ShouldCheckDevice(0, -10 * second, second, second, 2 * second), Is.True);
+            Assert.That(WebCamCaptureSource.ShouldCheckDevice(0, 0, second, second, 2 * second), Is.False, "Checked too recently.");
+            Assert.That(WebCamCaptureSource.ShouldCheckDevice(0, 0, 2 * second, second, 2 * second), Is.True);
         }
 
         private void Create()
         {
-            _source = new GameCaptureSource(_devices, _settings, _clock, null, null);
+            _source = WebCamCaptureSource.ForGame(_devices, _settings, _clock, null, null);
         }
 
         private void Tick()

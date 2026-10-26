@@ -11,7 +11,8 @@
         "VirtualVessel.Stage",
         "VirtualVessel.UI",
         "VirtualVessel.Video",
-        "VirtualVessel.Application"
+        "VirtualVessel.Application",
+        "VirtualVessel.Application.Editor"
     ],
     "includePlatforms": [
         "Editor"

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using NUnit.Framework;
 using UnityEngine;
@@ -10,12 +11,21 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Lighting;
 using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage.Tests
 {
     public sealed class ScreenPlacementMathTests
     {
+        [TestCase(CaptureSourceKind.GameCapture, true)]
+        [TestCase(CaptureSourceKind.SubScreenCapture, true)]
+        [TestCase(CaptureSourceKind.Camera, false)]
+        public void TheTrackingCamera_NeverGoesOnTheStream(CaptureSourceKind kind, bool shown)
+        {
+            Assert.That(StageService.ShowsOnStream(kind), Is.EqualTo(shown));
+        }
+
         [Test]
         public void TheQuad_CoversThePlacement_UprightOnTheLayer()
         {
@@ -76,6 +86,18 @@ namespace VirtualVessel.Stage.Tests
             Assert.That(StageService.LayoutFor(settings, "subscreen").Placement, Is.EqualTo(new NormalizedRect(0.5, 0.5, 0.2, 0.2)));
             Assert.That(StageService.LayoutFor(null, "subscreen"), Is.EqualTo(StageDefaults.For("subscreen")));
         }
+
+        [Test]
+        public void TheLight_IsTheDefaultUntilChanged_AndASavedValueIsKeptInRange()
+        {
+            Assert.That(StageService.IntensityFor(new StageSettings()), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(StageService.IntensityFor(null), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0.6f }), Is.EqualTo(0.6f));
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 9f }), Is.EqualTo(StageLightIntensity.Max), "A hand-edited value is read as the nearest end.");
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0f }), Is.EqualTo(StageLightIntensity.Min), "Never dark.");
+            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = float.NaN }), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(new StageSettings { LightIntensity = 0.6f }.Clone().LightIntensity, Is.EqualTo(0.6f));
+        }
     }
 
     public sealed class StageServiceTests
@@ -111,6 +133,75 @@ namespace VirtualVessel.Stage.Tests
             {
                 Directory.Delete(_directory, recursive: true);
             }
+        }
+
+        [Test]
+        public void TheDefaultSpawnPoint_IsTheOrigin_FacingTheCamera_AndALightIsMadeAndRemoved()
+        {
+            Assert.That(_stage.SpawnPoints.Default.position, Is.EqualTo(Vector3.zero));
+            Assert.That(_stage.SpawnPoints.Default.forward.z, Is.LessThan(-0.99f), "The Main Camera is on -Z.");
+            Light light = _stage.DefaultLight;
+            Assert.That(light, Is.Not.Null);
+            Assert.That(light.type, Is.EqualTo(LightType.Directional));
+            Assert.That(light.transform.forward.z, Is.GreaterThan(0.5f), "Lights the avatar's front.");
+            GameObject backdrop = _stage.Backdrop;
+            Assert.That(backdrop, Is.Not.Null);
+            Assert.That(backdrop.transform.position.z, Is.GreaterThan(0f), "Behind the avatar, away from the camera.");
+            Material material = backdrop.GetComponent<MeshRenderer>().sharedMaterial;
+            Texture texture = material.mainTexture;
+
+            _stage.Dispose();
+
+            Assert.That(light == null, Is.True);
+            Assert.That(backdrop == null && material == null && texture == null, Is.True, "The backdrop, its material, and its picture are removed.");
+        }
+
+        [Test]
+        public void TheBackdropPicture_IsDark_Opaque_AndTheSameEveryTime()
+        {
+            Color32[] picture = DefaultBackdrop.Render(160, 90);
+            Assert.That(picture, Has.Length.EqualTo(160 * 90));
+            Assert.That(picture.All(p => p.a == 255), Is.True, "Opaque.");
+            Assert.That(picture.Average(p => (p.r + p.g + p.b) / 3.0), Is.LessThan(80), "Dark on the whole.");
+            Assert.That(picture.Select(p => (p.r, p.g, p.b)).Distinct().Count(), Is.GreaterThan(50), "Not a flat color.");
+            Assert.That(DefaultBackdrop.Render(160, 90), Is.EqualTo(picture), "The same picture every time.");
+
+            Color top = DefaultBackdrop.Gradient(1f);
+            Color bottom = DefaultBackdrop.Gradient(0f);
+            Assert.That(top.r, Is.GreaterThan(bottom.r), "Plum at the top.");
+            Assert.That(bottom.b, Is.GreaterThan(bottom.r), "Navy at the bottom.");
+
+            // Drawn once at start, on the main thread.
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            DefaultBackdrop.Render(DefaultBackdrop.Width, DefaultBackdrop.Height);
+            Debug.Log($"[Stage/Backdrop] {DefaultBackdrop.Width}x{DefaultBackdrop.Height} drawn in {watch.Elapsed.TotalMilliseconds:F0} ms");
+        }
+
+        [Test]
+        public void ChangingTheLight_AppliesAtOnce_AndIsSaved_AfterTheDelay()
+        {
+            var seen = new List<float>();
+            using IDisposable subscription = _stage.Intensity.Subscribe(seen.Add);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Default));
+
+            _stage.SetIntensity(0.6f);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(0.6f));
+            Assert.That(_stage.Intensity.Value, Is.EqualTo(0.6f));
+            _stage.SetIntensity(5f);
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "Kept within the range.");
+            Assert.That(seen, Is.EqualTo(new[] { 0.6f, StageLightIntensity.Max }));
+
+            string file = Path.Combine(_directory, StageSettings.FileName);
+            _loop.Tick(null);
+            Assert.That(File.Exists(file), Is.False, "Not while a slider may still be moving.");
+            _clock.Advance(0.5);
+            _loop.Tick(null);
+            _stage.ShutdownAsync(CancellationToken.None).Wait();
+
+            _stage.Dispose();
+            _stage = Create();
+            Assert.That(_stage.Intensity.Value, Is.EqualTo(StageLightIntensity.Max));
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "The new light starts as saved.");
         }
 
         [Test]
@@ -229,6 +320,10 @@ namespace VirtualVessel.Stage.Tests
 
         public IReadOnlyObservable<Texture> Texture => _texture;
 
+        public long FrameCount => 0;
+
+        public long LastFrameTimestamp => 0;
+
         public IReadOnlyObservable<CaptureFlip> Flip { get; } = new ObservableValue<CaptureFlip>(CaptureFlip.None);
 
         public void SetFlip(CaptureFlip flip)
@@ -311,6 +406,8 @@ namespace VirtualVessel.Stage.Tests
         public Transform Root { get; }
 
         public int Layer => 0;
+
+        public int AvatarLayer => 0;
     }
 
     internal sealed class ManualClock : IMonotonicClock

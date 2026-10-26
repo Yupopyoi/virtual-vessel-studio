@@ -9,6 +9,12 @@ namespace VirtualVessel.Capture
 
         /// <summary>A sub monitor of this PC, through DXGI Desktop Duplication.</summary>
         SubScreenCapture,
+
+        /// <summary>
+        /// The webcam for tracking, through WebCamTexture (tracking detailed design 5.4). Never put on
+        /// the stream: it shows the user's face and room.
+        /// </summary>
+        Camera,
     }
 
     /// <summary>The states of a capture source (system design 10.24, capture detailed design 6.1).</summary>
@@ -42,6 +48,9 @@ namespace VirtualVessel.Capture
         DeviceNotChosen,
         DeviceNotFound,
         MonitorNotFound,
+
+        /// <summary>The device is already open in another source, such as the same camera for the game and for tracking.</summary>
+        DeviceInUse,
 
         /// <summary>The capture board is open but nothing arrives: the game device may be off.</summary>
         NoSignal,

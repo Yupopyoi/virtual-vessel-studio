@@ -54,7 +54,7 @@ flowchart LR
 
 ## 3. Module Boundaries
 
-- Stage uses the public contracts of Capture (`ICaptureSources`, `IVideoCaptureSource`), Video (`IStreamScreenLayer`), and the UI (`IFrameSource`).
+- Stage uses the public contracts of Capture (`ICaptureSources`, `IVideoCaptureSource`), Video (`IStreamScreenLayer`), and the UI (`IFrameSource`, `IStageLighting`).
 - The video is `IVideoCaptureSource.Texture`, put on the quad as it is. Capture's flip corrects the video's own orientation; the placement's left-right flip (`FrameLayout.FlipHorizontal`) is separate and applies on top.
 - Stage does not copy video. It only sets the texture on the quad's material.
 
@@ -66,22 +66,43 @@ flowchart LR
 |---|---|---|
 | `StageService` | Class (`IApplicationService`) | Creates the Stream Screens, loads placements, and saves them |
 | `CaptureScreen` | Class (the UI's `IFrameSource`) | One capture source's quad and placement; accepts edits |
-| `StageSettings` | Class | What is saved (a placement per video) |
+| `StageSettings` | Class | What is saved (a placement per video, the light's brightness) |
 | `ScreenPlacementMath` | Static class | The quad's position, size, and UVs from a placement (pure functions) |
-| `StageDefaults` | Static class | Placements for the first use |
+| `StageDefaults` | Static class | Placements for the first use, the default avatar spawn point, the default light's direction, and the backdrop's place and size |
+| `DefaultBackdrop` | Static class | The provisional backdrop's picture, drawn in code (pure function, 7.1) |
+| `IAvatarSpawnPoints` | Interface | Where avatars stand (7.1) |
+| `IStageLighting` (UI) | Interface | The light's brightness. The settings screen changes it; Stage implements it (7.1) |
+| `StageLightIntensity` (UI) | Static Class | The brightness's range and default, and a function that keeps a value in range (pure) |
 
 ---
 
 ## 5. Public API
 
 ```csharp
-public sealed class StageService : IApplicationService
+public sealed class StageService : IApplicationService, IAvatarSpawnPoints, IStageLighting
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // Passed to the placement editor; in source order, not stacking order
+    public IAvatarSpawnPoints SpawnPoints { get; }        // Where avatars stand (7.1)
+    public IReadOnlyObservable<float> Intensity { get; }  // The light's brightness (7.1); 1 is the light as made
+    public void SetIntensity(float intensity);            // Applies to the light at once and saves; from the main thread
+}
+
+// UI (VirtualVessel.UI.Lighting). Stage references UI, so the contract is in UI (as IFrameSource is)
+public interface IStageLighting
+{
+    IReadOnlyObservable<float> Intensity { get; }
+    void SetIntensity(float intensity);
+}
+
+public interface IAvatarSpawnPoints
+{
+    Pose Default { get; }   // World position and rotation for an avatar whose reference pose faces +Z
 }
 ```
 
 - The composition passes `Screens` to the UI. The UI sees only `IFrameSource`.
+- The composition passes `SpawnPoints.Default` to Avatar as part of `AvatarPlacement` (Avatar detailed design 3).
+- The composition passes `StageService` to the UI as `IStageLighting`. The face tuning Card on the settings screen changes the brightness beside its picture (UI `setup.md` 9).
 
 ---
 
@@ -114,13 +135,16 @@ public sealed class StageService : IApplicationService
   "screens": {
     "game": { "placement": [0, 0, 1, 1], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 0 },
     "subscreen": { "placement": [0.66, 0.04, 0.3, 0.3], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 1 }
-  }
+  },
+  "lightIntensity": 0.7
 }
 ```
 
 - Kept in the settings folder (the same as the UI's `ui-settings.json`, system design 6.8) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used.
 - Placements of unknown ids are kept, not deleted (CLAUDE.md chapter 25).
 - After each confirmation (`LayoutCommitted`), the file is saved 0.5 seconds after the last one. Anything unsaved is saved at shutdown.
+- `lightIntensity` is the light's brightness (7.1). It is `null` until changed, and the default (1) is used, so a better default reaches users who never changed it. A value outside the range (a hand-edited file, for example) is read as the nearest end, and a value that is not a number as the default. While a slider keeps changing it, nothing is saved; it is saved 0.5 seconds after the last change.
+- Older files without `lightIntensity` read the default, so the version (`schemaVersion`) stays 1.
 - Moved into Project / Profile once they exist (chapter 17).
 
 ### 6.4 Translating Names
@@ -139,9 +163,17 @@ public sealed class StageService : IApplicationService
 ## 7. State / Lifecycle
 
 - `StageService` is an Optional application service that starts after Capture and Video. It is not registered without either (there would be no place for flat videos, or no videos).
-- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`.
+- At start it reads `stage-settings.json`, creates a `CaptureScreen` for each capture source, and places the quads under `IStreamScreenLayer.Root`. Sources of the `Camera` kind (the tracking camera) get none, so the user's face and room never go on the stream (Tracking detailed design 5.4, `StageService.ShowsOnStream`).
 - It subscribes to changes of the video (`Texture`) and sets it on the quad's material. Without a video the quad is hidden.
-- At shutdown it saves unsaved placements and destroys the quads and materials.
+- At shutdown it saves unsaved placements and destroys the quads, the materials, and the default light.
+
+### 7.1 Avatar Spawn Point and Light (until Stage Scenes)
+
+- Until Stage Scenes provide their own (system design 11.6), there is one spawn point: the origin, turned 180° to face the Main Camera on -Z (Video detailed design 7.5).
+- The persistent scene has no light, and lit avatar materials (MToon) would be dark without one. At start Stage creates a directional light, `StageDefaultLight`: from above the camera and a little to its left (rotation 35°, 15°, 0°), no shadows. A Stage Scene with its own lights will replace it.
+- The user can change the light's brightness on the settings screen (`IStageLighting`; user's request, 2026-10-21). Under a light of intensity 1, the face was washed out and its expression hard to see. The range is 10 to 150%, and the default is 100% (intensity 1). The brightness scales the light as made, so that with Stage Scenes it can still adjust how bright the whole lighting is (chapter 17).
+- In system design 11.7, Stage manages the lighting. Stage also owns the brightness setting and saves it in `stage-settings.json` (6.3). It changes the stream too, so unlike the picture's height and zoom, which are only for looking (UI `setup.md` 9), it is saved.
+- Until a Stage Scene brings its own backdrop, Stage puts up a provisional one behind the avatar (the user's request, 2026-10-24). The picture is a dark gradient from plum through indigo to navy, with a soft glow behind the avatar, faint polka dots, and pastel stars and hearts in the side bands, away from the avatar. A pastel version was tried first; the user preferred a dark one. `DefaultBackdrop` (pure) draws it in code at 1600 × 900, so no image file is bundled; this takes about 0.37 s once at start in the Editor. It sits on a quad (`StageBackdrop`) 2 m behind the avatar at the camera's height. The quad is 4.27 × 2.4 m, the default camera's view (video detailed design 7.5) with about 15% to spare. The Main Camera draws it, under the flat videos and the avatar. It is unlit, with the stream screens' shader. It is removed with the default light.
 
 ---
 
@@ -205,6 +237,7 @@ public sealed class StageService : IApplicationService
 |---|---|
 | EditMode | `ScreenPlacementMath` (position, size, UVs, the top-bottom swap, left-right flip, stacking) and reading, writing, and defaults of `StageSettings` (pure functions and a fake store) |
 | EditMode | `CaptureScreen`: the display follows the video, a confirmation schedules a save, invalid placements are rejected |
+| EditMode | The light's brightness: the default, keeping it in range, reading a saved value (pure functions); a change applies to the light at once, is saved after the delay, and is read back on the next start |
 | PlayMode | A placed video is drawn at the decided place in the Stream Render Target (pixels read back) |
 
 ---
@@ -224,8 +257,9 @@ Assets/VirtualVessel/Stage/
 │  ├─ StageService.cs
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs
-│  ├─ ScreenPlacementMath.cs
-│  ├─ StageDefaults.cs
+│  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
+│  ├─ DefaultBackdrop.cs             The provisional backdrop's picture
+│  ├─ IAvatarSpawnPoints.cs
 │  └─ Resources/StreamScreen.shader An unlit quad shader: the crop and flip are only material values (_MainTex_ST); in Resources so that builds include it
 └─ Tests/
    ├─ EditMode/
@@ -243,7 +277,8 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Stage Scenes, Camera Points, Avatar Spawn Points | With the Stage Scene design |
 | Screen Surfaces inside a 3D stage | With the Stage Scene design |
 | Keeping a capture running without showing it on the stream | When it is asked for |
-| Moving placements into Project / Profile | With the Project / Profile design |
+| Moving placements into Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
+| Stage Scene lighting and the light's brightness | With the Stage Scene design. Decide whether the brightness scales the whole lighting of a Stage Scene |
 
 ---
 

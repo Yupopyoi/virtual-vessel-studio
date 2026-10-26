@@ -2,10 +2,13 @@
     "name": "VirtualVessel.UI",
     "rootNamespace": "VirtualVessel.UI",
     "references": [
+        "VirtualVessel.Avatar",
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
-        "VirtualVessel.ProjectData"
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.Tracking",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

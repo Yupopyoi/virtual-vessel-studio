@@ -1,0 +1,26 @@
+{
+    "name": "VirtualVessel.Avatar.Tests.PlayMode",
+    "rootNamespace": "VirtualVessel.Avatar.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "VirtualVessel.Avatar",
+        "VirtualVessel.Avatar.Vrm",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.Tracking"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

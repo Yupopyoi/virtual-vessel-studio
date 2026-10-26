@@ -133,3 +133,9 @@
 *.7z       binary
 *.tar      binary
 *.gz       binary
+
+# ------------------------------------------------------------
+# Sample models in Git LFS (tests/samples/README.md)
+# ------------------------------------------------------------
+
+tests/samples/*.vrm filter=lfs diff=lfs merge=lfs -text

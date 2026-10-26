@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
+using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Localization;
@@ -29,7 +30,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="preview">The Video module's stream; null shows the preview's "no video".</param>
         /// <param name="frames">Stage's videos to place; null or empty leaves out placement editing.</param>
-        public LiveScreen(IStreamPreviewSource preview, IReadOnlyList<IFrameSource> frames)
+        /// <param name="tracking">Tracking, for the arms and hands in view; null leaves them out.</param>
+        public LiveScreen(IStreamPreviewSource preview, IReadOnlyList<IFrameSource> frames, ITrackingSource tracking = null)
         {
             AddToClassList(UssClass);
             Preview = new StreamPreview();
@@ -43,6 +45,13 @@ namespace VirtualVessel.UI.Screens
             // shape from its width. A size, so code rather than USS (UI foundation detailed design 9.9).
             Preview.RegisterCallback<GeometryChangedEvent>(evt => Preview.style.height = evt.newRect.width * 9f / 16f);
             Add(Preview);
+
+            // Right under the stream, so an arm that rests can be told from one the camera does not see.
+            if (tracking != null)
+            {
+                Limbs = new LimbStatusRow(tracking);
+                Add(Limbs);
+            }
 
             Canvas = new FrameCanvas();
             Canvas.SetSources(frames ?? Array.Empty<IFrameSource>());
@@ -60,6 +69,9 @@ namespace VirtualVessel.UI.Screens
         }
 
         public StreamPreview Preview { get; }
+
+        /// <summary>The arms and hands in view; null without tracking.</summary>
+        public LimbStatusRow Limbs { get; }
 
         public FrameCanvas Canvas { get; }
 

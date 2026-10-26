@@ -1,5 +1,21 @@
 /* The live and setup screens (docs/<lang>/ui/screens/). Layout only; the components bring their own styles. */
 
+.vv-limbs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--vv-space-s);
+}
+
+.vv-limbs__title {
+    margin-right: var(--vv-space-s);
+    color: var(--vv-color-text-2);
+}
+
+.vv-limbs__chip {
+    margin: 0 var(--vv-space-s) var(--vv-space-xs) 0;
+}
+
 .vv-live__layers {
     margin-top: var(--vv-space-m);
 }
@@ -29,6 +45,11 @@
     margin: 0 0 var(--vv-space-m) 0;
 }
 
+/* Every Card on the settings screen keeps M below it, whichever module builds it, so closed Cards never touch. */
+.vv-setup > * {
+    margin-bottom: var(--vv-space-m);
+}
+
 /* The small video on a capture Card, only to check the device; 16:9, the video fitted inside. */
 .vv-capture-card__preview {
     width: 256px;
@@ -43,4 +64,148 @@
 
 .vv-capture-card__preview-empty {
     color: var(--vv-color-text-3);
+}
+
+/* The tracked points over the tracking camera's image (setup.md 4). Primary points on accent-line
+   bones, each with an on-accent outline so they show on bright and dark images alike. */
+.vv-tracking-overlay {
+    --tracking-point: var(--vv-color-primary);
+    --tracking-bone: var(--vv-color-accent-line);
+    --tracking-outline: var(--vv-color-on-accent);
+}
+
+.vv-tracking-card__parts {
+    margin-top: var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}
+
+.vv-tracking-card__load {
+    margin-top: var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}
+
+/* The avatar Card (setup.md 5): the model's own image, square, and its terms of use. */
+.vv-avatar-card__thumbnail {
+    width: 96px;
+    height: 96px;
+    margin-top: var(--vv-space-s);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+.vv-avatar-card__license-title {
+    margin-top: var(--vv-space-m);
+    color: var(--vv-color-text);
+}
+
+.vv-avatar-card__license-line {
+    flex-shrink: 1;
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* The terms in the registration dialog scroll when the window is short. */
+.vv-dialog__details.unity-scroll-view {
+    max-height: 280px;
+}
+
+/*
+ * The credits Card (setup.md 8): a row per component, the ones built into another indented, and a
+ * license text in a box that scrolls on its own so a long notices file does not stretch the screen.
+ */
+.vv-credits-card__intro {
+    margin-bottom: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-credits-card__entry--nested {
+    padding-left: var(--vv-space-l);
+}
+
+.vv-credits-card__text {
+    max-height: 320px;
+    margin-bottom: var(--vv-space-s);
+    padding: var(--vv-space-s) var(--vv-space-m);
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-credits-card__file {
+    margin-top: var(--vv-space-s);
+    color: var(--vv-color-text);
+}
+
+.vv-credits-card__part {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/*
+ * The face tuning Card (setup.md 9): the stream, larger than the device previews so the avatar's face
+ * can be seen, beside a slider per part with the avatar's movement of that part as a bar under it.
+ */
+.vv-face-card__intro {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-face-card__layout {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.vv-face-card__picture {
+    flex-shrink: 0;
+    width: 384px;
+    margin: var(--vv-space-m) var(--vv-space-l) 0 0;
+}
+
+.vv-face-card__picture > .vv-slider {
+    margin-top: var(--vv-space-s);
+}
+
+/* The stage light changes the stream too; the note under its slider says so. */
+.vv-face-card__light-note {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+/* The frame the enlarged stream is seen through; the image inside is placed by the Card. */
+.vv-face-card__preview {
+    width: 384px;
+    height: 216px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+/* The sliders' column wraps under the picture rather than be squeezed. UI Toolkit broke the line by the
+   minimum width, not by the basis alone: with only the basis, the column shrank beside the picture until
+   its text stood one character a line. */
+.vv-face-card__parts {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 320px;
+    min-width: 320px;
+}
+
+.vv-face-card__part {
+    margin-top: var(--vv-space-m);
+}
+
+/* The bar needs no title of its own; the introduction says what it shows. */
+.vv-face-card__part > .vv-progress {
+    margin-top: var(--vv-space-xs);
+}
+
+.vv-face-card__part > .vv-progress > .vv-progress__header {
+    display: none;
 }

@@ -1,0 +1,16 @@
+{
+    "schemaVersion": 1,
+    "description": "License and notice files shipped with the application. Each key is the path in the release package, relative to the application folder; each value is where the file comes from, relative to the repository root ('*' matches one folder name, such as a package hash). build-release.ps1 copies them; the credits on the settings screen read them from the package, or from the repository in the Editor. SBOM components name the files that apply to them with the property virtual-vessel-studio:license-file.",
+    "files": {
+        "LICENSE": "LICENSE",
+        "NOTICE": "NOTICE",
+        "licenses/virtual-vessel-studio.cdx.json": "sbom/virtual-vessel-studio.cdx.json",
+        "licenses/NotoSansJP-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/NotoSansJP/OFL.txt",
+        "licenses/NotoSansMono-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/NotoSansMono/OFL.txt",
+        "licenses/MediaPipeUnityPlugin-LICENSE.md": "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/LICENSE.md",
+        "licenses/MediaPipeUnityPlugin-Third-Party-Notices.md": "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/Third Party Notices.md",
+        "licenses/UniVRM-LICENSE.txt": "tools/release/licenses/UniVRM-LICENSE.txt",
+        "licenses/UniGLTF-LICENSE.md": "unity/VirtualVesselStudio/Library/PackageCache/com.vrmc.gltf@*/LICENSE.md",
+        "licenses/Newtonsoft.Json-Third-Party-Notices.md": "unity/VirtualVesselStudio/Library/PackageCache/com.unity.nuget.newtonsoft-json@*/Third Party Notices.md"
+    }
+}

@@ -51,7 +51,7 @@ namespace VirtualVessel.Capture.Game
 
         public ICameraStream Open(string deviceName, int width, int height, int frameRate)
         {
-            var texture = new WebCamTexture(deviceName, width, height, frameRate) { name = "GameCapture " + deviceName };
+            var texture = new WebCamTexture(deviceName, width, height, frameRate) { name = "Camera " + deviceName };
             texture.Play();
             return new Stream(texture);
         }

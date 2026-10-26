@@ -41,9 +41,9 @@ namespace VirtualVessel.UI.Controls
             return new TabBar(tabKeys);
         }
 
-        public static Card Card(string titleKey, bool alternate = false)
+        public static Card Card(string titleKey, bool alternate = false, bool collapsible = false)
         {
-            return new Card(titleKey, alternate);
+            return new Card(titleKey, alternate, collapsible);
         }
 
         public static SettingRow SettingRow(string nameKey, string descriptionKey = null)

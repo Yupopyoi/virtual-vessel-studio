@@ -2,11 +2,15 @@
     "name": "VirtualVessel.Application",
     "rootNamespace": "VirtualVessel.Application",
     "references": [
+        "VirtualVessel.Avatar",
+        "VirtualVessel.Avatar.Vrm",
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",
         "VirtualVessel.Stage",
+        "VirtualVessel.Tracking",
+        "VirtualVessel.Tracking.MediaPipe",
         "VirtualVessel.UI",
         "VirtualVessel.Video"
     ],
@@ -17,6 +21,12 @@
     "precompiledReferences": [],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.github.homuler.mediapipe",
+            "expression": "",
+            "define": "VV_MEDIAPIPE"
+        }
+    ],
     "noEngineReferences": false
 }

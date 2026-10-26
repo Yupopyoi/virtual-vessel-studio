@@ -5,15 +5,26 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Avatar;
+using VirtualVessel.Avatar.Vrm;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.Stage;
+using VirtualVessel.Tracking;
+using VirtualVessel.Tracking.Recording;
+#if VV_MEDIAPIPE
+using VirtualVessel.Tracking.MediaPipe;
+#endif
 using VirtualVessel.UI;
+using VirtualVessel.UI.Credits;
+using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 
@@ -202,6 +213,48 @@ namespace VirtualVessel.Application.Startup
                 }
             }
 
+            // Tracking runs on the tracking camera, one of the capture sources (tracking detailed design
+            // 5.3). Optional: without it the avatar keeps its rest pose and everything else runs.
+            TrackingService tracking = null;
+            if (context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    TrackingService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => tracking = CreateTracking(context, capture, metrics, logging.Provider.GetLog("Tracking", "Source")),
+                    new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
+            }
+
+            // Developers' recordings of tracking (tracking detailed design 12), in the Data Root's Cache.
+            // After Tracking, so it stops first and closes a recording in progress.
+            TrackingRecordings recordings = null;
+            if (context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    TrackingRecordings.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => recordings = new TrackingRecordings(
+                        tracking,
+                        Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName),
+                        () => context.SystemClock.UtcNow.UtcDateTime,
+                        () => context.MonotonicClock.GetTimestamp() / (double)context.MonotonicClock.Frequency,
+                        logging.Provider.GetLog("Tracking", "Recordings")),
+                    new[] { LoggingService.ServiceName, TrackingService.ServiceName }));
+            }
+
+            // Avatar puts the chosen avatar on the stream (avatar detailed design 8.1): on Video's avatar
+            // layer at Stage's spawn point, so it needs both. Optional: without it the stream has no avatar.
+            AvatarService avatar = null;
+            if (context.MainCamera != null && context.FrameLoop != null && context.ConfigDirectory != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    AvatarService.ServiceName,
+                    ServiceCriticality.Optional,
+                    // Tracking, when it started, was created just before: its frame work runs first each frame.
+                    () => avatar = CreateAvatar(context, video, stage, tracking, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
+                    new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName }));
+            }
+
             // The UI comes last so that it is built after every service it shows has started, and it
             // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
             if (context.UiRoot != null && context.ConfigDirectory != null)
@@ -222,17 +275,52 @@ namespace VirtualVessel.Application.Startup
                             metrics,
 
                             // Detailed metrics follow Developer Mode once the UI is up (performance metrics detailed design 7.1).
-                            metrics == null ? null : new Action<bool>[] { metrics.SetDetailedEnabled },
+                            DeveloperModeReceivers(metrics, recordings),
 
                             // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
                             // there leave their part of the screens saying so.
-                            video?.Preview,
-                            stage?.Screens,
-                            capture)),
+                            new ScreenServices
+                            {
+                                StreamPreview = video?.Preview,
+                                FrameSources = stage?.Screens,
+                                Captures = capture,
+                                Tracking = tracking,
+                                TrackingRecordings = recordings,
+                                Avatars = avatar,
+                                FileDialog = new WindowsFileDialog(),
+                                Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
+                                Lighting = stage,
+                            })),
                     new[] { LoggingService.ServiceName }));
             }
 
             return descriptors;
+        }
+
+        /// <summary>
+        /// What follows Developer Mode: detailed metrics, and recording and replay, which stop when it is
+        /// turned off (tracking detailed design 12.2, 12.4). Pure.
+        /// </summary>
+        public static IReadOnlyList<Action<bool>> DeveloperModeReceivers(PerformanceMetricsService metrics, ITrackingRecordings recordings)
+        {
+            var receivers = new List<Action<bool>>();
+            if (metrics != null)
+            {
+                receivers.Add(metrics.SetDetailedEnabled);
+            }
+
+            if (recordings != null)
+            {
+                receivers.Add(on =>
+                {
+                    if (!on)
+                    {
+                        recordings.StopAll();
+                    }
+                });
+            }
+
+            return receivers;
         }
 
         public static string GetLogDirectory(IDataRoot dataRoot, RuntimeEnvironment environment)
@@ -241,6 +329,27 @@ namespace VirtualVessel.Application.Startup
             // from pushing logs of real use out of retention (logging detailed design 7.3).
             string folder = environment == RuntimeEnvironment.Editor ? EditorLogFolder : ApplicationLogFolder;
             return Path.Combine(dataRoot.GetDirectory(DataRootDirectory.Logs), folder);
+        }
+
+        /// <summary>
+        /// The license files for the credits: next to the executable in a built application, at their
+        /// sources in the repository in the Editor (development workflow 18.1.2).
+        /// </summary>
+        /// <param name="dataPath">Unity's <c>Application.dataPath</c>: the project's Assets folder in the Editor, &lt;name&gt;_Data in a build.</param>
+        public static CreditFiles CreateCreditFiles(RuntimeEnvironment environment, string dataPath, ILog log)
+        {
+            return environment == RuntimeEnvironment.Editor
+                ? CreditFiles.ForRepository(GetCreditFolder(environment, dataPath), log)
+                : CreditFiles.ForPackage(GetCreditFolder(environment, dataPath), log);
+        }
+
+        /// <summary>The repository root (Assets → unity/VirtualVesselStudio → unity → root) or the application folder. Pure.</summary>
+        public static string GetCreditFolder(RuntimeEnvironment environment, string dataPath)
+        {
+            string full = Path.GetFullPath(dataPath);
+            return environment == RuntimeEnvironment.Editor
+                ? Path.GetFullPath(Path.Combine(full, "..", "..", ".."))
+                : Path.GetDirectoryName(full);
         }
 
         /// <summary>
@@ -253,6 +362,59 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        private static AvatarService CreateAvatar(ApplicationCompositionContext context, VideoService video, StageService stage, TrackingService tracking, IPerformanceMetrics metrics, ILog log)
+        {
+            ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            ConfigLoadResult<AvatarSettings> loaded = store.Load();
+            log?.Information($"Avatar settings {loaded.Status} from {store.FilePath}.");
+            var saves = new ConfigSaveScheduler<AvatarSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the avatar settings to {store.FilePath}.", failure));
+
+            // UniVRM stays behind VrmAvatarLoader; the rest of Avatar sees only IAvatarLoader (avatar detailed design 3).
+            return new AvatarService(
+                new VrmAvatarLoader(),
+                new AvatarStore(context.DataRoot.GetDirectory(DataRootDirectory.Avatars), context.SystemClock),
+                loaded.Value,
+                saves,
+                () => new AvatarPlacement(video.AvatarLayer, stage.SpawnPoints.Default),
+                context.FrameLoop,
+                context.MonotonicClock,
+                context.SystemClock,
+                metrics,
+                log,
+                tracking);
+        }
+
+        private static TrackingService CreateTracking(ApplicationCompositionContext context, CaptureService capture, IPerformanceMetrics metrics, ILog log)
+        {
+            ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            ConfigLoadResult<TrackingSettings> loaded = store.Load();
+            TrackingSettings settings = loaded.Value ?? new TrackingSettings();
+            log?.Information($"Tracking settings {loaded.Status} from {store.FilePath}.");
+            var saves = new ConfigSaveScheduler<TrackingSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the tracking settings to {store.FilePath}.", failure));
+            IVideoCaptureSource camera = capture?.Find(CaptureService.TrackingCameraId);
+            return new TrackingService(CreateTrackingProvider(context, camera, settings, metrics, log), camera, context.FrameLoop, context.MonotonicClock, settings, saves, metrics, log);
+        }
+
+        /// <summary>
+        /// The MediaPipe provider when the plugin is installed. Without it the project still compiles
+        /// and runs, and tracking reports that it cannot start (tracking detailed design 16.2).
+        /// </summary>
+        private static ITrackingProvider CreateTrackingProvider(ApplicationCompositionContext context, IVideoCaptureSource camera, TrackingSettings settings, IPerformanceMetrics metrics, ILog log)
+        {
+            if (camera == null)
+            {
+                return null;
+            }
+
+#if VV_MEDIAPIPE
+            string models = Path.Combine(UnityEngine.Application.streamingAssetsPath, MediaPipeTracking.ModelFolder);
+            return MediaPipeTracking.Create(camera, models, settings.PoseModel, context.MonotonicClock, metrics, log);
+#else
+            log?.Warning("MediaPipeUnityPlugin is not installed, so tracking is unavailable. Run tools/deps/fetch-mediapipe.ps1.");
+            return null;
+#endif
         }
 
         private static ApplicationLoggingService CreateLogging(ApplicationCompositionContext context)

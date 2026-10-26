@@ -101,6 +101,7 @@ public interface IStreamOutput
     IReadOnlyObservable<Texture> Video { get; }   // Stream Render Target。解像度が変わると別のTextureになる
     VideoSize Size { get; }                       // 配信映像の大きさ（既定1920×1080）
     IStreamScreenLayer Screens { get; }
+    int AvatarLayer { get; }                      // アバターに使うUnityの層（Avatar）。起動前は-1
 }
 
 public interface IStreamScreenLayer
@@ -119,6 +120,7 @@ public readonly struct VideoSize
 
 - `IStreamScreenLayer.Root`の子に置いた物は、Screen Cameraだけが描く。置く物の`layer`は`Layer`にする。
 - 平面の映像の層は、舞台の上、アバターの下に描く（7.2）。
+- Avatarは、アバターの全部の部分に`AvatarLayer`を設定する。Avatar Cameraだけが描くようにするため。CompositionがAvatarへ渡す（Avatar詳細設計3章）。
 
 ---
 
@@ -133,6 +135,8 @@ public sealed class VideoSettings
     public int Height { get; set; } = 1080;
     public int TargetFrameRate { get; set; } = 60;
     public Color BackgroundColor { get; set; }   // 舞台がないときの背景（既定は暗い紺）
+    public Vector3? CameraPosition { get; set; } = (0, 1.25, -1.9);   // Main Cameraの初めの位置（7.5）。nullなら動かさない
+    public float? CameraFieldOfView { get; set; } = 30;               // 縦の画角（度）。nullなら変えない
 }
 ```
 
@@ -155,9 +159,9 @@ public sealed class VideoSettings
 ### 7.1 VideoService
 
 - Optional のApplication Serviceとし、Logging、性能計測の後に起動する。Persistent SceneのMain Cameraが必要なため、Compositionは`ApplicationBootstrap`が渡すMain Cameraがあるときだけ登録する。
-- 起動時に、Stream Render Targetを作り、Main Cameraを設定し、Screen Cameraを作る。目標フレームレート（`Application.targetFrameRate`、VSyncはオフ）を設定する。
+- 起動時に、Stream Render Targetを作り、Main Cameraを設定し（既定の位置、7.5を含む）、Screen CameraとAvatar Cameraを作る。目標フレームレート（`Application.targetFrameRate`、VSyncはオフ）を設定する。
 - 毎Frame、`IFrameLoop`で実際のフレームレートを数え、約1秒ごとにプレビューの数値を更新する。
-- 終了時は、Main Cameraの描画先を外し、Screen CameraとStream Render Targetを破棄する。Main Camera自体はSceneの物なので破棄しない。
+- 終了時は、Main Cameraの描画先を外し、描く層、位置、画角を元に戻し、Screen Camera、Avatar Camera、Stream Render Targetを破棄する。Main Camera自体はSceneの物なので破棄しない。
 
 ### 7.2 カメラの重ね順
 
@@ -167,11 +171,12 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 |---|---|---|---|---|
 | 1 | Main Camera | Base、透視投影 | 舞台（下の2つの層以外） | 背景色 |
 | 2 | Screen Camera | Overlay、正射影 | 平面の映像の層（`StreamScreens`） | なし |
-| 3 | Avatar Camera（後続） | Overlay、Main Cameraと同じ位置と画角 | アバターの層 | 深度だけ |
+| 3 | Avatar Camera | Overlay、Main Cameraと同じ位置と画角 | アバターの層（`Avatar`） | 深度だけ |
 
 - 平面の映像はアバターの後ろに出す（利用者の決定、2026-10-17）。映像ごとに前後を選ぶ機能は後で足せるよう、層の順は表で管理する。
 - Screen CameraはMain Cameraの子にしない。正射影で原点に置き、配信画面の範囲だけを描く。Main Cameraが動いても平面の映像は動かない。
-- Unityの層`StreamScreens`をProject設定に追加する。
+- Unityの層`StreamScreens`と`Avatar`をProject設定に追加する。Main Cameraはどちらも描かない。
+- Avatar CameraはMain Cameraの子とし、舞台のカメラと同じ所からアバターを見る。画角と描く距離の範囲は毎FrameMain Cameraに合わせる。URPのOverlayのカメラは既定で深度を消去する（この設定はCodeからは読み取り専用）。そのため、舞台の深度がアバターを隠すことはない。
 - Main CameraがStream Render Targetへ描くため、アプリのウィンドウへ描くカメラがなくなる。ウィンドウに描くカメラがないと、その上に描くUIが表示されない。そのため、何も描かずに消去だけするWindow Camera（描く層なし、黒で消去）を置く。
 
 ### 7.3 平面の映像の層の座標
@@ -184,6 +189,11 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 
 - `VideoSettings`の解像度が変わったら、新しいStream Render Targetを作ってMain Cameraへ設定し、`Video`を新しいTextureにしてから古いものを解放する。プレビューは`Video`の変化で差し替える。
 - 現在は起動時の値だけを使う（変更する画面は後続）。
+
+### 7.5 カメラの既定の位置
+
+- Camera Pointができるまでは、Main Cameraを(0, 1.25, -1.9)に置き、+Zを向け、縦の画角を30°とする。既定のSpawn Point（原点、Stage詳細設計7.1）に立つアバターの前で、上半身が収まる。画角を狭くするのは、顔に寄ったときの広角のゆがみを避けるため。
+- 値は`VideoSettings`に持つ。nullならSceneのとおりにする。元の値は終了時に戻す。
 
 ---
 

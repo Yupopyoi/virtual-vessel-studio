@@ -23,5 +23,8 @@ namespace VirtualVessel.UI.Localization
 
         /// <summary>Shown under a number field when the typed text is not a number.</summary>
         public const string NumberInvalid = "field.number-invalid";
+
+        /// <summary>Shown under a text field while it takes English input only (components.md 3.7).</summary>
+        public const string EnglishOnly = "field.english-only";
     }
 }

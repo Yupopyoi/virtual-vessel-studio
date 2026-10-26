@@ -52,6 +52,58 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator ATextField_KeepsItsCaret_WhenEnterIsPressed()
+        {
+            // Unity's field moved the caret to the start on Enter, which Japanese input uses to commit a
+            // word, so what was typed next went in near the start (the user's report).
+            var input = new TextInput();
+            _scope.Add(input);
+            yield return null;
+            TextField field = input.Q<TextField>();
+            field.Focus();
+            input.SetValueWithoutNotify("じゃんけん");
+            field.textSelection.cursorIndex = 5;
+            field.textSelection.selectIndex = 5;
+            yield return null;
+
+            foreach (KeyCode key in new[] { KeyCode.Return, KeyCode.KeypadEnter })
+            {
+                using (KeyDownEvent down = KeyDownEvent.GetPooled('\n', key, EventModifiers.None))
+                {
+                    down.target = field.Q(className: "unity-text-element") ?? field;
+                    field.SendEvent(down);
+                }
+
+                yield return null;
+                Assert.That(field.textSelection.cursorIndex, Is.EqualTo(5), $"{key} leaves the caret at the end.");
+                Assert.That(field.value, Is.EqualTo("じゃんけん"));
+            }
+
+            Assert.That(TextInput.IsEnter(KeyCode.None, '\n'), Is.True, "The line break it types.");
+            Assert.That(TextInput.IsEnter(KeyCode.A, 'a'), Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator ATextField_TakesEnglishOnly_AndSaysSo()
+        {
+            // Japanese input left the caret short of each committed word (the user's video, 2026-10-25).
+            var input = new TextInput();
+            _scope.Add(input);
+            var changes = new List<string>();
+            input.RegisterValueChangedCallback(evt => changes.Add(evt.newValue));
+            yield return null;
+            TextField field = input.Q<TextField>();
+            input.SetValueWithoutNotify("記録");
+            field.value = "記録 v2";
+            field.value = "記録 v2です";
+            Assert.That(input.value, Is.EqualTo("記録 v2"), "What was there stays; Japanese typed in is dropped.");
+            Assert.That(changes, Is.EqualTo(new[] { "記録 v2" }), "A dropped edit is no change.");
+            Assert.That(field.textSelection.cursorIndex, Is.EqualTo(5));
+            Label hint = input.Q<Label>(className: "vv-field__hint");
+            Assert.That(hint.text, Does.Contain(CommonStrings.EnglishOnly), "The field says it takes English only (the key, with this test's empty table).");
+        }
+
+        [UnityTest]
         public IEnumerator Screens_AreCreatedOnFirstOpen_KeptAndToldWhenShownOrHidden()
         {
             AppShell shell = Shell();
@@ -290,7 +342,7 @@ namespace VirtualVessel.UI.Tests
 
             card.Scale.value = "2";
             Assert.That(_root.Settings.Current.UiScale, Is.EqualTo(2f), "The last step is 200%.");
-            Assert.That(_root.Panel.scale, Is.EqualTo(2f));
+            Assert.That(_root.Panel.scale, Is.EqualTo(UiPanelScale.PanelScale(2f, Screen.dpi, Screen.width, Screen.height)).Within(1e-5f), "The UI size, on the display scale fitted to the window.");
         }
 
         [UnityTest]
@@ -382,6 +434,8 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             yield return null;
             var card = _root.Shell.Host.GetScreen("setup").Q<AppSettingsCard>();
+            card.Q<Card>().Expanded = true;
+            yield return null;
             VisualElement box = card.Motion.Q(className: SelectField.UssClass + "__box");
             float widthOn = box.worldBound.width;
 
