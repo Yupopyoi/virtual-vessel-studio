@@ -1063,6 +1063,7 @@ Steps:
 
 - A release build writes the build identifier `vX.Y.Z+<commit>` to `StreamingAssets/build-id.txt`. The application reads it at startup and shows it in logs and diagnostics (system design 5.29). Development builds and the Editor show `development`.
 - The package contains `TRADEMARKS.md` and the files listed in `tools/release/license-files.json` (`LICENSE`, `NOTICE`, the licenses under `licenses/`, and the SBOM) (18.1.2).
+- From v0.1.1, the package also contains the sample avatar `Samples/otoha-chan.vrm` (from `tests/samples/`, Git LFS), so a new user can try the app without a model of their own (the user's decision, 2026-10-26). Its license is shipped as `licenses/otoha-chan-LICENSE.md` and it is in the SBOM. The script stops if the checkout has only the LFS pointer file.
 
 Example artifacts:
 
