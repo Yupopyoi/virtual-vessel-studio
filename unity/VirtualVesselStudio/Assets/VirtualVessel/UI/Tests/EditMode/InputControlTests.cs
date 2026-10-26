@@ -10,6 +10,32 @@ namespace VirtualVessel.UI.Tests
     public sealed class InputControlTests
     {
         [Test]
+        public void TextInput_HidesItsExample_WhenFocused()
+        {
+            // The first characters typed were shown as the example, with the caret where it ended (the user's report).
+            var input = new TextInput { PlaceholderKey = "diagnostics.recordings.description.placeholder" };
+            Assert.That(input.Q<TextField>().textEdition.hidePlaceholderOnFocus, Is.True);
+        }
+
+        [Test]
+        public void TextInput_KeepsOnlyTheEnglishItWasGiven()
+        {
+            // Japanese input left the caret short of each committed word (the user's video, 2026-10-25), so the
+            // fields take English only for now.
+            Assert.That(TextInput.KeepTypedEnglish("ab", "abc", out int caret), Is.EqualTo("abc"));
+            Assert.That(caret, Is.EqualTo(3));
+            Assert.That(TextInput.KeepTypedEnglish("ab", "a入力b", out caret), Is.EqualTo("ab"), "Japanese typed in is dropped.");
+            Assert.That(caret, Is.EqualTo(1), "The caret stays where the text went in.");
+            Assert.That(TextInput.KeepTypedEnglish("ac", "aB1-あ c", out caret), Is.EqualTo("aB1- c"), "Letters, digits, symbols and spaces stay.");
+            Assert.That(caret, Is.EqualTo(5));
+            Assert.That(TextInput.KeepTypedEnglish("親指の記録", "親指の記録 v2", out caret), Is.EqualTo("親指の記録 v2"), "Text already there is kept.");
+            Assert.That(TextInput.KeepTypedEnglish("abc", "ac", out caret), Is.EqualTo("ac"), "Deleting is left alone.");
+            Assert.That(TextInput.KeepTypedEnglish("aa", "aaa", out caret), Is.EqualTo("aaa"));
+            Assert.That(TextInput.KeepTypedEnglish(null, "x\ty", out caret), Is.EqualTo("xy"), "Control characters are dropped.");
+            Assert.That(caret, Is.EqualTo(2));
+        }
+
+        [Test]
         public void ValueSlider_SnapsAndMapsPositions()
         {
             Assert.That(ValueSlider.Snap(-12.3f, -60f, 0f, 1f), Is.EqualTo(-12f));

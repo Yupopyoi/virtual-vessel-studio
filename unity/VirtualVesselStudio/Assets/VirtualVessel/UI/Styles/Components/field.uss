@@ -14,7 +14,7 @@
 .vv-root .vv-field__input > .unity-base-text-field__input {
     min-height: 32px;
     margin: 0;
-    padding: 4px 10px;
+    padding: 4px 0;
     border-width: 1px;
     border-radius: var(--vv-radius-s);
     border-color: var(--vv-color-border);
@@ -24,6 +24,14 @@
 
 .vv-root .vv-field__input:hover > .unity-base-text-field__input {
     border-color: var(--vv-color-accent-line);
+}
+
+/* The space before and after the text is the text element's own, not the box's: Unity drew the caret of
+   an empty field at the box's inner edge, ignoring the box's padding, so the first click put it to the left
+   of where the text then started (the user's video, 2026-10-25). */
+.vv-root .vv-field__input > .unity-base-text-field__input > .unity-text-element {
+    margin-left: 10px;
+    margin-right: 10px;
 }
 
 /* Placeholder: example text is Text 3, so it reads as an example and not as a value. */
@@ -44,6 +52,12 @@
 .vv-root .vv-field--error .vv-field__input > .unity-base-text-field__input {
     border-width: 2px;
     border-color: var(--vv-color-error);
+}
+
+.vv-field__hint {
+    margin-top: 4px;
+    color: var(--vv-color-text-2);
+    white-space: normal;
 }
 
 .vv-field__error {
