@@ -34,18 +34,6 @@ namespace VirtualVessel.Tracking
 
         /// <summary>Applies new choices; a change of parts takes effect at once.</summary>
         void SetOptions(TrackingOptions options);
-
-        /// <summary>
-        /// The person's front, in degrees to the right of the camera's (tracking detailed design 8.5); 0
-        /// until it is taken. Observations are turned back by it. Saved and restored at the next start.
-        /// </summary>
-        IReadOnlyObservable<float> Front { get; }
-
-        /// <summary>Takes the way the person faces now as their front; false, changing nothing, when no one is seen.</summary>
-        bool TakeFront();
-
-        /// <summary>Goes back to the camera's front.</summary>
-        void ResetFront();
     }
 
     /// <summary>

@@ -77,7 +77,7 @@ flowchart LR
 | 推論（顔・体・手の点と表情の値） | Tracking（MediaPipe Provider。MediaPipeUnityPluginを内部で使う） |
 | 座標系の統一、左右の定義、信頼度と状態 | Tracking（Provider内の変換と共通処理） |
 | 平滑化、外れ値の除去、欠損の保持 | Tracking（共通処理） |
-| 入力機器の補正（正面の向き、基準の姿勢） | Tracking（方式設計8.11） |
+| 入力機器の補正（8.5。正面の向きは試したが採用しない） | Tracking（方式設計8.11） |
 | 観測した姿勢をアバターの骨格へ合わせる、表情への変換、鏡写し | Avatar |
 | 動かす範囲の選択の保存 | Tracking（`tracking-settings.json`） |
 | Serviceの生成と起動・終了の順序 | Application（Composition） |
@@ -145,9 +145,6 @@ public interface ITrackingSource
     void Stop();
     void SetOptions(TrackingOptions options);                  // 部位の変更はすぐに反映する
 
-    IReadOnlyObservable<float> Front { get; }                  // 本人の正面。カメラの正面から右への角度（8.5）
-    bool TakeFront();                                          // 今の向きを正面にする。人が映っていなければfalse
-    void ResetFront();                                         // カメラの正面に戻す
 }
 ```
 
@@ -168,7 +165,6 @@ public readonly struct TrackingOptions
 - すべての操作と通知はMain Threadで行う。
 - `Current`は`TrackingService`が毎Frame（`IFrameLoop`）更新する。Avatarは`LateUpdate`相当の時点で読む（Avatar詳細設計8.3）。
 - 1人分の`ITrackingSource`を1つ作る。複数人に広げるときは、Sourceを人数分にする（方式設計8.12）。Singletonにはしない。
-- 本人の正面（8.5）は選択肢に入れない。選ぶものではなく、本人から測るものだからである。
 
 ### 5.2 ITrackingProvider
 
@@ -493,12 +489,11 @@ Voomの平均は、揺れを抑えるために必要だった。製品では、�
 
 ### 8.5 基準の姿勢（入力の補正、方式設計8.11）
 
-段階7で、本人の正面を実装した（利用者の決定、2026-10-26）。カメラが横にあると、本人が自分の正面を向いていても、カメラからは向きを変えたように見え、アバターも横を向いていた。
+採用しない（利用者の決定、2026-10-26）。段階7で、カメラが横にあるときに本人の正面を取る機能を試した。「正面を合わせる」で本人の今の向き（両肩から、2Dでは頭から）を測り、平滑化の前に、観測をその分だけ鉛直の軸の周りに戻した。アバターは正面を向いたが、本人が動くとすぐに胴と頭が横に傾き、腕も斜めになった（利用者の動画）。横にあるカメラは体の奥の側をほとんど見られず、奥行きの誤差はカメラの軸の方向に出る。観測を回して戻すと、その誤差が体の左右と傾きに入る。回しても、カメラが見ていないものは補えない。
 
-- `TakeFront()`で、本人の今の向きを正面にする。両肩を結ぶ線から測り、2Dでは頭の向きから測る（2Dの体は、作りとしてカメラを向いているため）。測る観測は、すでに今の正面の分だけ戻したものなので、今の正面に足す。±60°（`FacingCorrection.MaxDegrees`）までとする。それより横のカメラは体の奥の側をほとんど見られないため、大きな向きは、よそ見をしていた可能性が高い。人が映っていないときはfalseを返し、何も変えない。
-- 観測は、正面の分だけ、腰を通る鉛直の軸の周りに戻す。補正（8.4）と体の2D（8.6）の後、平滑化の前に行う（`FacingCorrection.Turn`）。頭の向きと手も回す。体を回すのは3Dのときだけで、2Dの体はもともとカメラを向いている。カメラからの位置である頭の位置は、そのままにする。記録は観測のままとする（12.2）。
-- `ResetFront()`で、カメラの正面に戻す。正面は保存する（`frontDegrees`、10章）。
-- 行わないこと：初回の開始時の自動の測定（そのとき本人が正面を向いているとは限らない）、骨の長さと頭の基準の位置（8.4の奥行きの補正には要らない）。アバターの体格に合わせる補正（腕の長さの違い等）はAvatarが行う（方式設計7.6）。
+- カメラは、モニターの上など、本人の正面に置く。READMEにもそう書く。
+- 骨の長さと頭の基準の位置も扱わない（8.4の奥行きの補正には要らない）。
+- アバターの体格に合わせる補正（腕の長さの違い等）はAvatarが行う（方式設計7.6）。
 
 ### 8.6 体の動きの2D（BodyDepth）
 
@@ -574,12 +569,11 @@ public sealed class TrackingSettings
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite、Full、Heavy（負荷と精度）。選択肢の1つ
     public bool Mirror { get; set; } = true;                              // 鏡写し
     public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // 体の奥行き：3D（0）か2D（1）（8.6）。版3で手順なしに加えた
-    public float FrontDegrees { get; set; }                               // 本人の正面（8.5）。版4で手順なしに加えた
     public bool Running { get; set; }                                     // 開始していたか。次の起動で戻す
 }
 ```
 
-- 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだこと、開始していたか、正面のどれかが変わったときだけ行う。
+- 利用者が選んだことは`TrackingOptions`として読み書きする（`GetOptions`、`With`）。保存は、選んだことか開始していたかが変わったときだけ行う。
 - `tracking-settings.json`に保存する（設定のFolder、`ConfigFileStore`）。Capture、Stageと同じく、Project / Profileができたらそちらへ移す（方式設計6.10の`Profiles/Tracking/`）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
 - 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。

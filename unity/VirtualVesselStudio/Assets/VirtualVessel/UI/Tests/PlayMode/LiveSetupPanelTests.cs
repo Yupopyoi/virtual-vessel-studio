@@ -171,32 +171,6 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheTrackingCard_TakesTheFront_OrSaysWhyItCannot()
-        {
-            _root.Shell.Open("setup");
-            yield return null;
-            TrackingCard card = _root.Content.Q<TrackingCard>();
-            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontCamera));
-
-            _tracking.NextFront = (false, 0f);
-            Submit(card.TakeFront);
-            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontUnseen), "No one seen: what to do.");
-
-            _tracking.NextFront = (true, 22.4f);
-            Submit(card.TakeFront);
-            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontRight));
-            Assert.That(_tracking.Front.Value, Is.EqualTo(22.4f));
-
-            Submit(card.ResetFront);
-            Assert.That(card.FrontKey, Is.EqualTo(TrackingStrings.FrontCamera));
-
-            Assert.That(TrackingCard.FrontLine(22.4f, false), Is.EqualTo((TrackingStrings.FrontRight, "22")));
-            Assert.That(TrackingCard.FrontLine(-7.5f, false), Is.EqualTo((TrackingStrings.FrontLeft, "8")));
-            Assert.That(TrackingCard.FrontLine(0.3f, false), Is.EqualTo((TrackingStrings.FrontCamera, (string)null)));
-            Assert.That(TrackingCard.FrontLine(10f, true).Key, Is.EqualTo(TrackingStrings.FrontUnseen));
-        }
-
-        [UnityTest]
         public IEnumerator TheCredits_ListTheShippedComponents_AndShowAFullTextOnRequest()
         {
             _root.Shell.Open("setup");
@@ -564,28 +538,6 @@ namespace VirtualVessel.UI.Tests
             public void SetOptions(TrackingOptions options)
             {
                 _options.Value = options;
-            }
-
-            public ObservableValue<float> FrontValue { get; } = new ObservableValue<float>(0f);
-
-            public IReadOnlyObservable<float> Front => FrontValue;
-
-            /// <summary>What <see cref="TakeFront"/> answers and, when true, the front it takes.</summary>
-            public (bool Seen, float Degrees) NextFront { get; set; }
-
-            public bool TakeFront()
-            {
-                if (NextFront.Seen)
-                {
-                    FrontValue.Value = NextFront.Degrees;
-                }
-
-                return NextFront.Seen;
-            }
-
-            public void ResetFront()
-            {
-                FrontValue.Value = 0f;
             }
 
             public void Set(TrackingState state, TrackingProblem problem)

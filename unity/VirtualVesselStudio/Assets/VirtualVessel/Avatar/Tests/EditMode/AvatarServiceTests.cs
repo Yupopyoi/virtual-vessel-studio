@@ -437,17 +437,6 @@ namespace VirtualVessel.Avatar.Tests
             {
                 _options.Value = options;
             }
-
-            public IReadOnlyObservable<float> Front { get; } = new ObservableValue<float>(0f);
-
-            public bool TakeFront()
-            {
-                return false;
-            }
-
-            public void ResetFront()
-            {
-            }
         }
     }
 }

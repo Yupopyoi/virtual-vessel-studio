@@ -93,25 +93,6 @@
     margin: 2px 0;
 }
 
-/* The front: its buttons side by side, and the front in use under them. */
-.vv-tracking-card__buttons {
-    flex-direction: row;
-}
-
-.vv-tracking-card__buttons > * {
-    margin-right: var(--vv-space-s);
-}
-
-.vv-tracking-card__buttons > *:last-child {
-    margin-right: 0;
-}
-
-.vv-tracking-card__front-line {
-    margin-top: var(--vv-space-xs);
-    color: var(--vv-color-text-2);
-    white-space: normal;
-}
-
 /* The avatar Card (setup.md 5): the model's own image, square, and its terms of use. */
 .vv-avatar-card__thumbnail {
     width: 96px;

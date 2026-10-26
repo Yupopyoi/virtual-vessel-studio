@@ -37,14 +37,6 @@ namespace VirtualVessel.UI.Screens
         public const string ModelDescription = "setup.tracking.model.description";
         public const string ModelLite = "setup.tracking.model.lite";
         public const string ModelFull = "setup.tracking.model.full";
-        public const string Front = "setup.tracking.front";
-        public const string FrontDescription = "setup.tracking.front.description";
-        public const string FrontTake = "setup.tracking.front.take";
-        public const string FrontReset = "setup.tracking.front.reset";
-        public const string FrontCamera = "setup.tracking.front.camera";
-        public const string FrontRight = "setup.tracking.front.right";
-        public const string FrontLeft = "setup.tracking.front.left";
-        public const string FrontUnseen = "setup.tracking.front.unseen";
         public const string Camera = "setup.tracking.camera";
         public const string Face = "setup.tracking.part.face";
         public const string Body = "setup.tracking.part.body";
@@ -74,9 +66,6 @@ namespace VirtualVessel.UI.Screens
         public const string PartsClass = UssClass + "__parts";
         public const string LoadClass = UssClass + "__load";
         public const string TogglesClass = UssClass + "__toggles";
-        public const string ButtonsClass = UssClass + "__buttons";
-        public const string FrontClass = UssClass + "__front";
-        public const string FrontLineClass = UssClass + "__front-line";
 
         /// <summary>How often the load line is sampled: often enough to follow, slow enough to read.</summary>
         public const long LoadIntervalMs = 1000;
@@ -91,10 +80,7 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _noVideo;
         private readonly Label _parts;
         private readonly Label _load;
-        private readonly Label _frontLine;
         private ILocalizer _localizer;
-        private bool _frontUnseen;
-        private (string Key, string Degrees) _front = (TrackingStrings.FrontCamera, null);
 
         public TrackingCard(ITrackingSource tracking, ICaptureDeviceSource camera)
         {
@@ -199,34 +185,6 @@ namespace VirtualVessel.UI.Screens
             model.Add(Model);
             card.Add(model);
 
-            // With the camera to one side, the person's own front is taken as the front (tracking detailed design 8.5).
-            TakeFront = Ui.Button(TrackingStrings.FrontTake);
-            TakeFront.clicked += () =>
-            {
-                bool taken = _tracking.TakeFront();
-                ShowFront(_tracking.Front.Value, unseen: !taken);
-            };
-            ResetFront = Ui.Button(TrackingStrings.FrontReset);
-            ResetFront.clicked += () =>
-            {
-                _tracking.ResetFront();
-                ShowFront(_tracking.Front.Value, unseen: false);
-            };
-            var frontButtons = new VisualElement();
-            frontButtons.AddToClassList(ButtonsClass);
-            frontButtons.Add(TakeFront);
-            frontButtons.Add(ResetFront);
-            _frontLine = new Label();
-            _frontLine.AddToClassList(FrontLineClass);
-            _frontLine.AddToClassList("vv-text-caption");
-            var frontControl = new VisualElement();
-            frontControl.AddToClassList(FrontClass);
-            frontControl.Add(frontButtons);
-            frontControl.Add(_frontLine);
-            SettingRow front = Ui.SettingRow(TrackingStrings.Front, TrackingStrings.FrontDescription);
-            front.Add(frontControl);
-            card.Add(front);
-
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
             card.Add(Row(TrackingStrings.Camera, Devices));
@@ -266,13 +224,6 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The Pose model by <see cref="PoseModel"/>: light (0) or standard (1).</summary>
         public Segmented Model { get; }
-
-        public ActionButton TakeFront { get; }
-
-        public ActionButton ResetFront { get; }
-
-        /// <summary>The front line's key as shown, for tests.</summary>
-        public string FrontKey => _front.Key;
 
         /// <summary>The load line as shown, for tests.</summary>
         public string LoadText => _load.text;
@@ -335,23 +286,6 @@ namespace VirtualVessel.UI.Screens
                 | (hands ? TrackingRegions.Hands : TrackingRegions.None);
         }
 
-        /// <summary>
-        /// The front line: the camera's front, or how far to the person's right or left the front is,
-        /// in whole degrees; or, when no one was seen to take it, what to do. Pure.
-        /// </summary>
-        public static (string Key, string Degrees) FrontLine(float degrees, bool unseen)
-        {
-            if (unseen)
-            {
-                return (TrackingStrings.FrontUnseen, null);
-            }
-
-            int whole = (int)Math.Round(degrees, MidpointRounding.AwayFromZero);
-            return whole == 0 ? (TrackingStrings.FrontCamera, null)
-                : whole > 0 ? (TrackingStrings.FrontRight, whole.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                : (TrackingStrings.FrontLeft, (-whole).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-
         private static string Part(string name, TrackedPart part)
         {
             string mark = part.IsUsable ? "✓" : part.Status == TrackingStatus.Disabled ? "×" : "–";
@@ -363,7 +297,6 @@ namespace VirtualVessel.UI.Screens
             _localizer = localizer;
             RefreshDevices();
             Show();
-            ShowFront(_tracking.Front.Value, _frontUnseen);
             ShowVideo(_camera.Texture.Value);
             IVisualElementScheduledItem redraw = schedule.Execute(Redraw).Every(RedrawIntervalMs);
             var sampler = new AppLoadSampler();
@@ -376,7 +309,6 @@ namespace VirtualVessel.UI.Screens
                 _camera.Texture.Subscribe(ShowVideo),
                 _camera.State.Subscribe(_ => Devices.SetValueWithoutNotify(_camera.SelectedDeviceId ?? string.Empty)),
                 _tracking.Options.Subscribe(ShowOptions),
-                _tracking.Front.Subscribe(degrees => ShowFront(degrees, _frontUnseen)),
                 new DisposeAction(redraw.Pause),
                 new DisposeAction(load.Pause),
                 sampler,
@@ -397,8 +329,6 @@ namespace VirtualVessel.UI.Screens
             {
                 _parts.text = parts;
             }
-
-            RedrawFront();
         }
 
         private void ShowLoad(AppLoad load)
@@ -428,24 +358,6 @@ namespace VirtualVessel.UI.Screens
             // The image and the points over it flip together; the caption inside is flipped back so it reads.
             Preview.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));
             _noVideo.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));
-        }
-
-        private void ShowFront(float degrees, bool unseen)
-        {
-            _frontUnseen = unseen;
-            _front = FrontLine(degrees, unseen);
-            RedrawFront();
-        }
-
-        private void RedrawFront()
-        {
-            string text = _localizer == null ? _front.Key
-                : _front.Degrees == null ? _localizer.Get(_front.Key)
-                : _localizer.Get(_front.Key, ("degrees", _front.Degrees));
-            if (!string.Equals(_frontLine.text, text, StringComparison.Ordinal))
-            {
-                _frontLine.text = text;
-            }
         }
 
         private void RefreshDevices()

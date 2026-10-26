@@ -77,7 +77,7 @@ flowchart LR
 | Inference (face, body, and hand points and expression values) | Tracking (MediaPipe provider, using MediaPipeUnityPlugin internally) |
 | One coordinate system, the definition of left and right, confidence and status | Tracking (conversion in the provider and common processing) |
 | Smoothing, outlier removal, holding missing data | Tracking (common processing) |
-| Correcting the input (facing direction, reference pose) | Tracking (system design 8.11) |
+| Correcting the input (8.5: a facing direction was tried and not adopted) | Tracking (system design 8.11) |
 | Fitting the observed pose to the avatar skeleton, converting to expressions, mirroring | Avatar |
 | Saving the choice of what moves | Tracking (`tracking-settings.json`) |
 | Creating services and the order of startup and shutdown | Application (composition) |
@@ -146,9 +146,6 @@ public interface ITrackingSource
     void Stop();
     void SetOptions(TrackingOptions options);                  // A change of parts takes effect at once
 
-    IReadOnlyObservable<float> Front { get; }                  // The person's front, degrees to the right of the camera's (8.5)
-    bool TakeFront();                                          // The way the person faces now becomes the front; false when no one is seen
-    void ResetFront();                                         // Back to the camera's front
 }
 ```
 
@@ -169,7 +166,6 @@ public readonly struct TrackingOptions
 - All operations and notifications happen on the main thread.
 - `TrackingService` updates `Current` every frame (`IFrameLoop`). Avatar reads it at the equivalent of `LateUpdate` (Avatar detailed design 8.3).
 - One `ITrackingSource` is created per person. For several people, there will be one source per person (system design 8.12). It is not a singleton.
-- The person's front (8.5) is not one of the options: it is measured from the person, not chosen.
 
 ### 5.2 ITrackingProvider
 
@@ -494,12 +490,11 @@ For fingers, the joint **angles** (the angle between neighboring bones) are prim
 
 ### 8.5 Reference Pose (Input Correction, System Design 8.11)
 
-Step 7 implements the person's front (the user's decision, 2026-10-26). With the camera to one side, a person facing their own front is seen turned, and so was the avatar.
+Not adopted (the user's decision, 2026-10-26). Step 7 tried taking the person's front with the camera to one side: "Face the front" took how far the person was turned (from the shoulders, or the head in 2D) and turned every observation back by it about the vertical before smoothing. The avatar then faced forward, but as soon as the person moved, the torso and the head leaned to one side and the arms pointed off (the user's video). A camera to one side sees little of the far side of the body, and its depth errors lie along its own axis; turning the observation back moves those errors into the body's left, right, and lean. Turning cannot add what the camera does not see.
 
-- `TakeFront()` takes how far the person is turned now as their front: from the line between the shoulders, or from the head's turn in 2D, where the body faces the camera by construction. It is added to the front already in use, because it is read from observations already turned back by it, and limited to ±60° (`FacingCorrection.MaxDegrees`): a camera further to the side sees too little of the far side of the body, so a larger turn more likely comes from looking away. It returns false, changing nothing, when no one is seen.
-- Each observation is turned back by the front about the vertical through the hips, after the corrections (8.4) and the 2D body (8.6) and before smoothing (`FacingCorrection.Turn`). The head's turn and the hands turn too. The body turns in 3D only, as the 2D body already faces the camera. The head's position, relative to the camera, stays. Recordings keep what was observed (12.2).
-- `ResetFront()` goes back to the camera's front. The front is saved (`frontDegrees`, chapter 10).
-- Not done: measuring automatically at the first start (a person may not face their front then), and bone lengths and a reference head position (the depth correction of 8.4 does not need them). Correction to fit the avatar's body (different arm lengths and so on) is done by Avatar (system design 7.6).
+- The camera goes in front of the person, such as on top of the monitor; the README says so.
+- Not done either: bone lengths and a reference head position (the depth correction of 8.4 does not need them).
+- Correction to fit the avatar's body (different arm lengths and so on) is done by Avatar (system design 7.6).
 
 ### 8.6 The Body in 2D (BodyDepth)
 
@@ -575,12 +570,11 @@ public sealed class TrackingSettings
     public PoseModel PoseModel { get; set; } = PoseModel.Full;             // Lite, Full, Heavy (load and accuracy); one of the options
     public bool Mirror { get; set; } = true;                              // Mirroring
     public BodyDepth BodyDepth { get; set; } = BodyDepth.Tracked;          // The body in depth: 3D (0) or 2D (1) (8.6); added in version 3 without a step
-    public float FrontDegrees { get; set; }                               // The person's front (8.5); added in version 4 without a step
     public bool Running { get; set; }                                     // Whether it was started; restored at the next launch
 }
 ```
 
-- What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices, whether tracking was started, or the front change.
+- What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices or whether tracking was started change.
 - Saved to `tracking-settings.json` (settings folder, `ConfigFileStore`). Like Capture and Stage, it moves to Project / Profile once those exist (`Profiles/Tracking/` in system design 6.10).
 - The camera device choice is saved in `capture-settings.json` (`camera` source).
 - Mirroring (user's decision, 2026-10-19): when on, the camera image and points on the setup screen are flipped left to right, like a mirror. The avatar follows the same setting, moving its left hand for the user's right (Avatar detailed design 6.6). Tracking holds it as one setting so the preview and the avatar never disagree. `Current` keeps the person's own sides whatever the setting.
