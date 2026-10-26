@@ -61,7 +61,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             TextField field = input.Q<TextField>();
             field.Focus();
-            field.value = "じゃんけん";
+            input.SetValueWithoutNotify("じゃんけん");
             field.textSelection.cursorIndex = 5;
             field.textSelection.selectIndex = 5;
             yield return null;
@@ -81,6 +81,26 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(TextInput.IsEnter(KeyCode.None, '\n'), Is.True, "The line break it types.");
             Assert.That(TextInput.IsEnter(KeyCode.A, 'a'), Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator ATextField_TakesEnglishOnly_AndSaysSo()
+        {
+            // Japanese input left the caret short of each committed word (the user's video, 2026-10-25).
+            var input = new TextInput();
+            _scope.Add(input);
+            var changes = new List<string>();
+            input.RegisterValueChangedCallback(evt => changes.Add(evt.newValue));
+            yield return null;
+            TextField field = input.Q<TextField>();
+            input.SetValueWithoutNotify("記録");
+            field.value = "記録 v2";
+            field.value = "記録 v2です";
+            Assert.That(input.value, Is.EqualTo("記録 v2"), "What was there stays; Japanese typed in is dropped.");
+            Assert.That(changes, Is.EqualTo(new[] { "記録 v2" }), "A dropped edit is no change.");
+            Assert.That(field.textSelection.cursorIndex, Is.EqualTo(5));
+            Label hint = input.Q<Label>(className: "vv-field__hint");
+            Assert.That(hint.text, Does.Contain(CommonStrings.EnglishOnly), "The field says it takes English only (the key, with this test's empty table).");
         }
 
         [UnityTest]

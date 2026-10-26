@@ -54,6 +54,12 @@
     border-color: var(--vv-color-error);
 }
 
+.vv-field__hint {
+    margin-top: 4px;
+    color: var(--vv-color-text-2);
+    white-space: normal;
+}
+
 .vv-field__error {
     flex-direction: row;
     align-items: center;
