@@ -18,6 +18,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - [What you can do in v0.1.0](#what-you-can-do-in-v010)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Sample avatar: Otoha-chan](#sample-avatar-otoha-chan)
 - [Getting started](#getting-started)
 - [Tips for tracking](#tips-for-tracking)
 - [Known limitations](#known-limitations)
@@ -28,6 +29,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 
 ## What you can do in v0.1.0
 
+- **Sample avatar:** Otoha-chan (音葉ちゃん) comes with the app, so you can try it without a model of your own.
 - **Avatar:** register a VRM model (VRM 1.0, or VRM 0.x converted when loaded), and check the terms of use its author set.
 - **Tracking with a webcam:** the face (expressions, eyes, and mouth), the upper body, arms, hands, and fingers move the avatar. You can tune the face and how fast or steady the movement is.
 - **Video capture:**
@@ -43,7 +45,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 
 - Windows (64-bit), with a GPU that supports DirectX 11
 - A webcam, for tracking
-- A VRM model (`.vrm`) that its author allows you to use as an avatar
+- A VRM model (`.vrm`) that its author allows you to use as an avatar, or the included sample avatar
 - Optional: a capture board, for a game screen; a second monitor
 
 ## Install
@@ -61,6 +63,21 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 > [!IMPORTANT]
 > The app is not code-signed yet ([#81](https://github.com/Yupopyoi/virtual-vessel-studio/issues/81)). On the first run, Windows may show "Windows protected your PC". Choose **More info**, then **Run anyway**. Only do this with a ZIP downloaded from this repository's Releases page.
 
+## Sample avatar: Otoha-chan
+
+Otoha-chan (音葉ちゃん, `otoha-chan.vrm`) is a sample VRM avatar made for Virtual Vessel Studio. Use her to try tracking and the live screen before you prepare your own model.
+
+- **Where:** in the `Samples` folder of the app folder (`Samples\otoha-chan.vrm`), from v0.1.1.
+
+  The v0.1.0 package does not include her. Download [`otoha-chan.vrm`](https://github.com/Yupopyoi/virtual-vessel-studio/raw/main/tests/samples/otoha-chan.vrm) from this repository instead.
+- **How to use:** register `Samples\otoha-chan.vrm` as in [1. Register your avatar](#1-register-your-avatar), then choose **otoha-chan** in **Avatar to use**.
+- **Terms of use:** VRM Public License 1.0, with these terms set in the model:
+  - anyone may use her as an avatar, including for commercial use by corporations;
+  - you may redistribute and modify her, and credit is not required;
+  - excessively violent or sexual use, political or religious use, and antisocial or hateful use are not allowed.
+
+  The full terms are in `licenses\otoha-chan-LICENSE.md` and in **Settings** → **Credits and licenses**.
+
 ## Getting started
 
 The app has two main screens: **Settings**, for preparing devices before you stream, and **Live**, for watching and arranging the stream video. On the Settings screen, each setting is in a card that opens when you click its title.
@@ -68,7 +85,7 @@ The app has two main screens: **Settings**, for preparing devices before you str
 ### 1. Register your avatar
 
 1. Open **Settings** → **Avatar**.
-2. Click **Register an avatar…** and choose your `.vrm` file.
+2. Click **Register an avatar…** and choose your `.vrm` file, or the sample `Samples\otoha-chan.vrm` in the app folder.
 3. Check the model's terms of use, then click **Register**.
 
    The app keeps its own copy of the model, so your original file is not changed.
