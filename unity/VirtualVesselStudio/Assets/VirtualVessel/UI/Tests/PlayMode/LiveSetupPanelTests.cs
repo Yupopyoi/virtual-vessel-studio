@@ -157,13 +157,14 @@ namespace VirtualVessel.UI.Tests
 
             card.HandsToggle.value = false;
             Assert.That(_tracking.Options.Value.Regions, Is.EqualTo(TrackingRegions.Face | TrackingRegions.Body));
-            card.Model.value = (int)PoseModel.Heavy;
-            Assert.That(_tracking.Options.Value.PoseModel, Is.EqualTo(PoseModel.Heavy));
+            card.Model.value = (int)PoseModel.Lite;
+            Assert.That(_tracking.Options.Value.PoseModel, Is.EqualTo(PoseModel.Lite));
+            Assert.That(card.Model.ItemKeys, Is.EqualTo($"{TrackingStrings.ModelLite},{TrackingStrings.ModelFull}"), "Heavy is not offered.");
 
-            _tracking.SetOptions(_tracking.Options.Value.WithRegions(TrackingRegions.Body).WithPoseModel(PoseModel.Lite));
+            _tracking.SetOptions(_tracking.Options.Value.WithRegions(TrackingRegions.Body).WithPoseModel(PoseModel.Full));
             Assert.That(card.FaceToggle.value, Is.False, "Follows a change made elsewhere.");
             Assert.That(card.HandsToggle.value, Is.False);
-            Assert.That(card.Model.value, Is.EqualTo((int)PoseModel.Lite));
+            Assert.That(card.Model.value, Is.EqualTo((int)PoseModel.Full));
 
             Assert.That(TrackingCard.RegionsOf(true, false, true), Is.EqualTo(TrackingRegions.Face | TrackingRegions.Hands));
             Assert.That(TrackingCard.RegionsOf(false, false, false), Is.EqualTo(TrackingRegions.None));

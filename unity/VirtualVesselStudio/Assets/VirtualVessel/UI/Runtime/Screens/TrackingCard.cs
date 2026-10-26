@@ -37,7 +37,6 @@ namespace VirtualVessel.UI.Screens
         public const string ModelDescription = "setup.tracking.model.description";
         public const string ModelLite = "setup.tracking.model.lite";
         public const string ModelFull = "setup.tracking.model.full";
-        public const string ModelHeavy = "setup.tracking.model.heavy";
         public const string Front = "setup.tracking.front";
         public const string FrontDescription = "setup.tracking.front.description";
         public const string FrontTake = "setup.tracking.front.take";
@@ -194,7 +193,7 @@ namespace VirtualVessel.UI.Screens
             speed.Add(Speed);
             card.Add(speed);
 
-            Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull, TrackingStrings.ModelHeavy);
+            Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull);
             Model.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithPoseModel((PoseModel)evt.newValue)));
             SettingRow model = Ui.SettingRow(TrackingStrings.Model, TrackingStrings.ModelDescription);
             model.Add(Model);
@@ -265,7 +264,7 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Both hands and their fingers.</summary>
         public SwitchToggle HandsToggle { get; }
 
-        /// <summary>The Pose model by <see cref="PoseModel"/>: light (0), standard (1), precise (2).</summary>
+        /// <summary>The Pose model by <see cref="PoseModel"/>: light (0) or standard (1).</summary>
         public Segmented Model { get; }
 
         public ActionButton TakeFront { get; }

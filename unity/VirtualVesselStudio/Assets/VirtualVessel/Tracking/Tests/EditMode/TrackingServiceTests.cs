@@ -288,16 +288,19 @@ namespace VirtualVessel.Tracking.Tests
             _service.SetOptions(_service.Options.Value.WithMirror(false));
             Assert.That(provider.Models, Has.Count.EqualTo(1), "Other choices do not restart it.");
 
-            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Heavy));
-            Assert.That(provider.Models, Is.EqualTo(new[] { PoseModel.Full, PoseModel.Heavy }), "Loaded again with the new model.");
+            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Lite));
+            Assert.That(provider.Models, Is.EqualTo(new[] { PoseModel.Full, PoseModel.Lite }), "Loaded again with the new model.");
             Assert.That(provider.Stops, Is.EqualTo(1));
             Assert.That(_camera.Started, Is.True, "The camera keeps running.");
 
             _service.Stop();
-            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Lite));
+            _service.SetOptions(_service.Options.Value.WithPoseModel(PoseModel.Full));
             Assert.That(provider.Models, Has.Count.EqualTo(2), "Stopped, it is only kept for the next start.");
             _service.Start();
-            Assert.That(provider.Models[2], Is.EqualTo(PoseModel.Lite));
+            Assert.That(provider.Models[2], Is.EqualTo(PoseModel.Full));
+
+            Assert.That(TrackingOptions.Available(PoseModel.Heavy), Is.EqualTo(PoseModel.Full), "Heavy, saved earlier, reads as standard.");
+            Assert.That(_service.Options.Value.WithPoseModel(PoseModel.Heavy).PoseModel, Is.EqualTo(PoseModel.Full));
         }
 
         [Test]

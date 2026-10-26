@@ -16,7 +16,7 @@ namespace VirtualVessel.Tracking
             Smoothing = SmoothingLevel.Clamp(smoothing);
             Mirror = mirror;
             BodyDepth = bodyDepth == BodyDepth.Flat ? BodyDepth.Flat : BodyDepth.Tracked;
-            PoseModel = poseModel >= PoseModel.Lite && poseModel <= PoseModel.Heavy ? poseModel : PoseModel.Full;
+            PoseModel = Available(poseModel);
         }
 
         /// <summary>Everything tracked, upper body, the default smoothing level, mirrored, in depth (3D).</summary>
@@ -44,8 +44,8 @@ namespace VirtualVessel.Tracking
         public BodyDepth BodyDepth { get; }
 
         /// <summary>
-        /// The Pose model: lighter runs faster, heavier is more accurate (tracking detailed design 15). A
-        /// change restarts a running provider, which loads the model again in a few seconds.
+        /// The Pose model, light or standard: lighter runs faster (tracking detailed design 10, 15). A change
+        /// restarts a running provider, which loads the model again in a few seconds.
         /// </summary>
         public PoseModel PoseModel { get; }
 
@@ -56,6 +56,17 @@ namespace VirtualVessel.Tracking
         public static BodyRange Available(BodyRange range)
         {
             return range == BodyRange.UpperBody ? range : BodyRange.UpperBody;
+        }
+
+        /// <summary>
+        /// The Pose model that can be used: light or standard. Heavy is not offered: on the user's camera it
+        /// tracked worse than standard (2026-10-26), slower, and with smoothing, outlier limits, and depth
+        /// corrections all tuned on standard. A heavy model saved earlier, or an unknown value, reads as
+        /// standard. Pure.
+        /// </summary>
+        public static PoseModel Available(PoseModel model)
+        {
+            return model == PoseModel.Lite ? PoseModel.Lite : PoseModel.Full;
         }
 
         public TrackingOptions WithRegions(TrackingRegions regions)
