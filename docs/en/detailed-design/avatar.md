@@ -834,6 +834,24 @@ Tests made in step 4: `AvatarFaceTests` (EditMode: response curves, fitting a pa
 
 Tests made in step 3: `AvatarCoreTests`, `AvatarImportTests`, `AvatarServiceTests` (EditMode, fake loader), `VrmLoaderTests` (PlayMode, `[Explicit]`; samples are read from the folder in the `VV_SAMPLES_DIR` environment variable, else `samples` next to the repository, else the repository's `tests/samples`, by `VrmSamples`, which the tests on the samples share). The measurements on the developer's recordings with the samples are in `VrmRecordingTests` (PlayMode, `[Explicit]`), which replays a recording as the app runs it: corrections, 2D flattening when asked, smoothing, then 60 frames a second. The setup screen's Card: `AvatarCardPanelTests` (UI PlayMode).
 
+### 14.1 The Render Probe
+
+Motion is judged by how the avatar looks, and a screen recording by the user for each change was slow (the fist's thumb took several rounds). The render probe draws it instead (2026-10-27).
+
+```text
+pwsh tools/unity/render-probe.ps1 -Recording 20261025-122051.vvtrack -Times "8,16.5,19.5"
+```
+
+- It replays a developer's tracking recording (tracking detailed design 12) on a sample model as the app runs it: corrections, 2D when asked (`-TwoD`), smoothing at a level (`-Level`, the standard by default), then 60 frames a second (`RecordingReplay`, shared with `VrmRecordingTests`).
+- At each time it writes:
+  - `<seconds>-stream.png`: the avatar from the stream camera;
+  - `<seconds>-<side>-front.png`: each of the avatar's hands up close, from the front;
+  - `<seconds>-<side>-palm.png`: the same hand from its palm's side;
+  - `fingers.csv`: the finger angles shown.
+- It runs as the explicit PlayMode test `AvatarRenderProbe` in a mirrored copy, so the Editor can stay open. The output goes to `build/render-probe/` (not in Git). The images show the avatar, never the person.
+- A sleeve can hide a hand from some angles; the palm's side shows a fist's fingers best.
+- `RenderProbeOptionsTests` checks how the options are read.
+
 ---
 
 ## 15. Performance

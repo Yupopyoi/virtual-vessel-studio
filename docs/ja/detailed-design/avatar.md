@@ -834,6 +834,24 @@ public sealed class AvatarSettings
 
 段階3で作ったTest：`AvatarCoreTests`、`AvatarImportTests`、`AvatarServiceTests`（EditMode、偽のLoader）、`VrmLoaderTests`（PlayMode、`[Explicit]`。サンプルは環境変数`VV_SAMPLES_DIR`、なければRepositoryの隣の`samples`、それもなければRepositoryの`tests/samples`から読む。サンプルを使うTestが共有する`VrmSamples`が読む）。開発者の記録をサンプルで測るTestは`VrmRecordingTests`（PlayMode、`[Explicit]`）にあり、アプリと同じく、補正、指定があれば2Dの平らにする処理、平滑化を通して、60Frame/秒で記録を再生する。セットアップ画面のCardは`AvatarCardPanelTests`（UIのPlayMode）。
 
+### 14.1 描画の道具（Render Probe）
+
+動きの良し悪しはアバターの見た目で決まる。変更のたびに利用者が画面を録画するのは時間がかかった（握りこぶしの親指は何度も往復した）。そこで、描画の道具で代わりに描く（2026-10-27）。
+
+```text
+pwsh tools/unity/render-probe.ps1 -Recording 20261025-122051.vvtrack -Times "8,16.5,19.5"
+```
+
+- 開発者のトラッキングの記録（Tracking詳細設計12章）を、アプリと同じく、補正、指定があれば2D（`-TwoD`）、指定の段階の平滑化（`-Level`、既定は標準）を通して、1秒60Frameでサンプルのモデルに再生する（`RecordingReplay`、`VrmRecordingTests`と共有）。
+- 指定の時刻ごとに、次を書き出す。
+  - `<秒>-stream.png`：配信カメラから見たアバター
+  - `<秒>-<side>-front.png`：アバターのそれぞれの手を正面から近くで
+  - `<秒>-<side>-palm.png`：同じ手を手のひらの側から
+  - `fingers.csv`：表示した指の角度
+- ExplicitのPlayMode Test `AvatarRenderProbe`として、写したProjectで動く。そのためEditorは開いたままでよい。出力は`build/render-probe/`（Gitに入れない）。画像に写るのはアバターだけで、本人は写らない。
+- 角度によっては袖で手が隠れる。握りこぶしの指は、手のひらの側から最もよく見える。
+- オプションの読み方は`RenderProbeOptionsTests`で確かめる。
+
 ---
 
 ## 15. 性能
