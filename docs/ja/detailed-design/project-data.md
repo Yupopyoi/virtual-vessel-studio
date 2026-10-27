@@ -84,15 +84,16 @@ DataRoot/
   "createdAt": "2026-10-27T01:00:00.0000000Z",
   "updatedAt": "2026-10-27T01:00:00.0000000Z",
   "trackingProfileId": "<16進数32桁>",
-  "captureProfileId": "<16進数32桁>"
+  "captureProfileId": "<16進数32桁>",
+  "streamingProfileId": "<16進数32桁>"
 }
 ```
 
-- **Profile**（方式設計6.3、6.11）：トラッキングと取り込み。本人、カメラ、機器についての設定で、Projectどうしで共有できる。
+- **Profile**（方式設計6.3、6.11）：トラッキング、取り込み、Streaming。本人、カメラ、機器、出力についての設定で、Projectどうしで共有できる。Streaming Profileは、エンコードの値と録画のフォルダーを持つ（録画詳細設計10章）。
 - **Project自身の設定**（方式設計6.4）：使うアバターと表情の調整、配信画面の配置。Projectのフォルダーに、これまでと同じ形式のファイルとして置く。
 - **方式設計6.4との違い：**
   - 使うアバターは、`project.json`の`AvatarId`ではなく、Avatarが持つ`avatar-settings.json`に残す。Avatarはこれまでどおり読み書きする。
-  - Voice、Camera、Audio、StreamingのProfileは、それぞれの機能とともに加える。
+  - Voice、Camera、AudioのProfileは、それぞれの機能とともに加える。
 - どのファイルも`schemaVersion`を持つ。移したファイルの形式は変えていないため、版もそのままとする（方式設計6.14）。
 - IDは、アバターと同じく小文字の16進数32桁とする（方式設計6.6）。
 
@@ -144,7 +145,7 @@ DataRoot/
 - **壊れたファイル**（`app-settings.json`、`project.json`）：`ConfigFileStore`が退避し、既定を使う。壊れていた`project.json`は、下のように直す。
 - **直し方**（`Repair`、純粋）：
   - ProjectのIDをフォルダーの名前にする。
-  - 正しいIDでないProfileのIDは、新しいProfile（既定から始まる）に替える。
+  - 正しいIDでないProfileのID、またはそのProfileができる前のProjectのようにIDがないものは、新しいProfile（既定から始まる）に替える。
   - 表示名がなければ「Default」にする。
 - **IDは信頼しない入力**（CLAUDE.md 26章）：これらのファイルは、利用者として動くどのプログラムでも書ける。そのため、IDは小文字の16進数32桁のときだけ、フォルダーやファイルの名前に使う。書き込まれた「../x」がPathに届くことはない。
 - **使っているProjectがない**：あるProjectのうち最初のものを開き、その旨を記録する。新しく作るのは、1つもないときだけである。
@@ -152,7 +153,7 @@ DataRoot/
 
 ## 13. ログと診断
 
-Compositionは、`OpenedProject.Notes`の1つずつをInformationで記録し、続けてProjectとProfileを記録する：`Project <id> (Default) open: tracking profile <id>, capture profile <id>.` Notesには、写したファイル、退避した壊れたファイル、直したこと、使っているProjectがなかったことが入る。
+Compositionは、`OpenedProject.Notes`の1つずつをInformationで記録し、続けてProjectとProfileを記録する：`Project <id> (Default) open: tracking profile <id>, capture profile <id>, streaming profile <id>.` Notesには、写したファイル、退避した壊れたファイル、直したこと、使っているProjectがなかったことが入る。
 
 ## 14. Testの方針
 
@@ -183,7 +184,7 @@ Namespaceは`VirtualVessel.ProjectData.Projects`。
 | 項目 | 方針 |
 |---|---|
 | Projectの画面：作る、名前を変える、切り替える、消す（方式設計6.18、6.22） | 複数のProjectが要る最初の機能とともに |
-| ほかのProfile：Voice、Camera、Audio、Streaming | それぞれの機能とともに |
+| ほかのProfile：Voice、Camera、Audio | それぞれの機能とともに |
 | `project.json`の`AvatarId`（方式設計6.4） | 当面は`avatar-settings.json`に残す（6章） |
 | Profileの表示名 | Projectの画面とともに |
 | `Config/`の古い設定ファイルを消す | 当面はバックアップとして残す。後の版で消してもよい |

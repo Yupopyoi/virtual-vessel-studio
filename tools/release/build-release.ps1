@@ -8,7 +8,7 @@ in GitHub's hosted CI yet: by the Release workflow's build job on the self-hoste
 hand from a checkout of the tag. In order:
 
 1. Checks the working copy: no uncommitted changes, and the project version is -Version.
-2. Builds the native plugins and runs their tests (tools/native), and puts the pinned MediaPipe
+2. Builds the native plugins (capture, encode) and runs their tests (tools/native), and puts the pinned MediaPipe
    plugin and models in place (tools/deps).
 3. Runs the Unity EditMode and PlayMode tests (tools/unity/run-tests.ps1), unless -SkipTests.
 4. Builds the Windows player with the build identifier v<version>+<commit>.
@@ -67,6 +67,7 @@ if ($Upload)
 
 # 2–3. Native plugins, the pinned MediaPipe plugin and models, and tests.
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-capture.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-encode.ps1'))
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\deps\fetch-mediapipe.ps1'))
 if (-not $SkipTests)
 {

@@ -8,6 +8,9 @@ namespace VirtualVessel.ProjectData.Projects
     {
         Tracking,
         Capture,
+
+        /// <summary>The encoding settings shared by recording and, later, streaming (recording detailed design 10).</summary>
+        Streaming,
     }
 
     /// <summary>
@@ -32,6 +35,9 @@ namespace VirtualVessel.ProjectData.Projects
 
         public string CaptureProfileId { get; set; }
 
+        /// <summary>Added without a schema step: a project from before reads null, and gets a new profile when opened.</summary>
+        public string StreamingProfileId { get; set; }
+
         public ProjectManifest Clone()
         {
             return (ProjectManifest)MemberwiseClone();
@@ -40,20 +46,29 @@ namespace VirtualVessel.ProjectData.Projects
         /// <summary>The ID of the profile of <paramref name="kind"/>.</summary>
         public string ProfileId(ProfileKind kind)
         {
-            return kind == ProfileKind.Tracking ? TrackingProfileId : CaptureProfileId;
+            return kind switch
+            {
+                ProfileKind.Tracking => TrackingProfileId,
+                ProfileKind.Capture => CaptureProfileId,
+                _ => StreamingProfileId,
+            };
         }
 
         /// <summary>A copy that uses <paramref name="id"/> as the profile of <paramref name="kind"/>. Pure.</summary>
         public ProjectManifest WithProfile(ProfileKind kind, string id)
         {
             ProjectManifest next = Clone();
-            if (kind == ProfileKind.Tracking)
+            switch (kind)
             {
-                next.TrackingProfileId = id;
-            }
-            else
-            {
-                next.CaptureProfileId = id;
+                case ProfileKind.Tracking:
+                    next.TrackingProfileId = id;
+                    break;
+                case ProfileKind.Capture:
+                    next.CaptureProfileId = id;
+                    break;
+                default:
+                    next.StreamingProfileId = id;
+                    break;
             }
 
             return next;

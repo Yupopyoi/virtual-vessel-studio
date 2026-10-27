@@ -28,6 +28,7 @@ using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
+using VirtualVessel.Video.Recording;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -51,7 +52,7 @@ namespace VirtualVessel.Application.Startup
                 log?.Information(note);
             }
 
-            log?.Information($"Project {project.ProjectId} ({project.Manifest.DisplayName}) open: tracking profile {project.Manifest.TrackingProfileId}, capture profile {project.Manifest.CaptureProfileId}.");
+            log?.Information($"Project {project.ProjectId} ({project.Manifest.DisplayName}) open: tracking profile {project.Manifest.TrackingProfileId}, capture profile {project.Manifest.CaptureProfileId}, streaming profile {project.Manifest.StreamingProfileId}.");
             return project;
         }
 
@@ -69,6 +70,31 @@ namespace VirtualVessel.Application.Startup
             log?.Information($"{what} settings {loaded.Status} from {store.FilePath}.");
             var saves = new ConfigSaveScheduler<T>(store, context.MonotonicClock, s_saveDelay, failure => log?.Warning($"Failed to save the {what.ToLowerInvariant()} settings to {store.FilePath}.", failure));
             return (loaded.Value, saves);
+        }
+
+        /// <summary>
+        /// The project's streaming profile, or its defaults unsaved when there is no settings folder (tests).
+        /// A value out of range falls back to its default (<see cref="RecordingSettings.Usable"/>).
+        /// </summary>
+        private static (RecordingSettings Value, ConfigSaveScheduler<RecordingSettings> Saves) LoadStreaming(ApplicationCompositionContext context, OpenedProject project, ILog log)
+        {
+            if (project == null)
+            {
+                return (new RecordingSettings(), null);
+            }
+
+            (RecordingSettings settings, ConfigSaveScheduler<RecordingSettings> saves) = LoadSettings(
+                RecordingService.CreateStore(project.ProfileDirectory(ProfileKind.Streaming), context.SystemClock, project.ProfileFileName(ProfileKind.Streaming)),
+                "Streaming",
+                context,
+                log);
+            return ((settings ?? new RecordingSettings()).Usable(), saves);
+        }
+
+        /// <summary>The stream video in the streaming profile's size; the rest as Video's defaults. Pure.</summary>
+        public static VideoSettings VideoSettingsOf(RecordingSettings streaming)
+        {
+            return new VideoSettings { Width = streaming.Width, Height = streaming.Height };
         }
 
         private static AvatarService CreateAvatar(ApplicationCompositionContext context, OpenedProject project, VideoService video, StageService stage, TrackingService tracking, IPerformanceMetrics metrics, ILog log)

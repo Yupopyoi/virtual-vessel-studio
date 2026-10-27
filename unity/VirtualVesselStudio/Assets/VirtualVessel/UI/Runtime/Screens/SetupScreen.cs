@@ -8,7 +8,7 @@ namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The settings screen (id "setup"): a capture Card per source shown on the stream, the tracking
-    /// Card, the avatar Card, face tuning, the app settings, then the credits
+    /// Card, the avatar Card, face tuning, recording, the app settings, then the credits
     /// (docs/&lt;lang&gt;/ui/screens/setup.md), each closed until opened.
     /// </summary>
     public sealed class SetupScreen : VisualElement
@@ -57,6 +57,15 @@ namespace VirtualVessel.UI.Screens
             else
             {
                 Add(Ui.Text(AvatarStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
+            }
+
+            if (services.Recording != null)
+            {
+                Add(new RecordingCard(services.Recording, services.FileDialog, services.Explorer));
+            }
+            else
+            {
+                Add(Ui.Text(RecordingCardStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
             }
 
             if (appSettings != null)

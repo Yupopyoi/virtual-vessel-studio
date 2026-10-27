@@ -32,12 +32,14 @@
 
 | Class | 種類 | 役割 |
 |---|---|---|
-| `IRecordingService` | Interface | UIが使う：状態、経過時間、開始、停止、最後のファイル（5章） |
+| `IRecordingService` | Interface（UI） | UIが使う：状態、経過時間、開始、停止、最後のファイル、フォルダーと画質（5章） |
 | `RecordingService` | Class（Video） | Application Service：録画の開始と停止、フォルダーと空き容量の確認、ファイル名 |
 | `StreamFrameReader` | Class（Video） | Stream Render Targetを出力のFrame Rateで読み出し（`AsyncGPUReadback`）、Frameごとに共通の時計の時刻を付ける |
-| `NativeEncoder` | Class（Video） | `VirtualVessel.Encode.Native`を包む（`IDisposable`のHandle） |
+| `NativeEncoder` | Class（Video） | `VirtualVessel.Encode.Native`を包む（`IVideoEncoder`） |
+| `RecordingEnvironment` | Class（Video） | サービスの外とのつなぎ：エンコーダーを開く、Frameを読む、空き容量、現在の時刻、ビデオのフォルダー。Testでは偽物に替え、GPUとPluginなしで状態を確かめる |
 | `RecordingSettings` | Class | Streaming Profileのエンコードの値と、録画のフォルダー（10章） |
-| `RecordingNames` | Static Class | ファイル名と空き容量の確認。純粋（8.2） |
+| `RecordingNames` | Static Class | ファイル名、フォルダー、空き容量の確認、画質とビットレートの対応。純粋（8.2） |
+| `FramePacing` | Static Class | 出力のFrame Rateで、どのFrameを読むかを決める。純粋（8.1） |
 | `VirtualVessel.Encode.Native` | ネイティブのDLL | Media FoundationのSink WriterでのH.264とAAC、MP4 |
 
 ## 5. 公開API
@@ -49,19 +51,28 @@ public interface IRecordingService
     IReadOnlyObservable<RecordingProblem> Problem { get; } // None、FolderUnavailable、DiskFull、EncoderFailed、AudioUnavailable
     TimeSpan Elapsed { get; }                              // 録画中
     string LastFile { get; }                               // 最後に仕上げたファイル（「フォルダーを開く」用）
+    IReadOnlyObservable<RecordingOptions> Options { get; } // フォルダー、画質、大きさ、Frame Rate
+    void SetOptions(RecordingOptions options);             // 次の録画から使う
+    long? FreeBytes();                                     // 保存先の空き容量。読めなければnull
     void Start();
     void Stop();
 }
 ```
 
+- `IRecordingService`と`RecordingOptions`、状態と問題の列挙は、UIの`VirtualVessel.UI.Recording`に置き、Videoが実装する。VideoはUIを参照する（`IStreamPreviewSource`と同じ向き）ため、UIはVideoを参照できない。
+- `RecordingQuality`：`Standard`（6Mbps）、`High`（12Mbps）。ファイルのビットレートは、近いほうの画質として読む。画質を変えないかぎり、ファイルで直したビットレートは保つ。
+
 ### 5.1 ネイティブのAPI（`vv_encode.h`）
 
 ```c
-int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // パス、大きさ、fps、ビットレート、音声の読み出し口（なしも可）
-int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);
-int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);
-int32_t vv_encode_close(vv_encoder*);                                          // 残りを書き、ファイルを仕上げる
+int32_t vv_encode_api_version(void);                                           // 1
+int32_t vv_encode_open(const wchar_t* path, int32_t width, int32_t height, int32_t fps, int32_t bitrate, vv_encoder** encoder);
+int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);  // 受け皿がなければVV_ENCODE_DROPPED
+int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // 渡した数、書いた数、捨てた数、最後のエラー、ハードウェアか
+int32_t vv_encode_close(vv_encoder*);                                          // 残りを書き、ファイルを仕上げる。Frameが1つもなければファイルを消す
 ```
+
+- 今の版（API version 1）は映像だけである。音声を加えるとき、`vv_encode_open`は設定の構造体（`vv_encode_config`：パス、大きさ、fps、ビットレート、音声の読み出し口、なしも可）を取る形に変え、API versionを上げる。
 
 - 映像のFrameは、試作と同じく4つの受け皿に写し、エンコーダーのスレッドでエンコードする。受け皿が空いていないFrameは捨てて数える。
 - 音声は同じスレッドで、時刻に沿って読み出し口から取り出す。そのため、音声と映像は時刻の順に書かれる。
@@ -80,7 +91,9 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
                    └──失敗──▶ Failed ◀──┘（エンコーダーのエラー、空き容量の不足）
 ```
 
-- `Start`は、フォルダーと空き容量を確かめ、エンコーダーを開き、Frameの読み出しを始める。`Stop`は、読み出しを止め、エンコーダーの残りを書き、ファイルを仕上げる。最大1秒ほどかかる。
+- `Start`は、フォルダーを作り（なければ）、空き容量を確かめ、ファイル名を決めて、エンコーダーを作業用のスレッドで開く（Media Foundationの起動に時間がかかることがあるため）。開けたら次のFrameで`Recording`になり、Frameの読み出しを始める。
+- `Stop`は、読み出しを止め、途中の読み出しが届くのを最大1秒待ってから、作業用のスレッドでエンコーダーの残りを書き、ファイルを仕上げる。メインスレッドはエンコーダーを待たない。
+- 開始中の`Stop`は、開けた時点で停止に移る。開始中、録画中、停止中の`Start`は何もしない。
 - どの画面を表示していても、トラッキング、取り込み、アバターが変わっても、録画は続く。
 - 終了時に録画中なら、停止して仕上げる。ファイルは再生できる状態になる。
 - `Failed`は、次の`Start`まで問題を保つ。それまでに書いた部分は仕上げて残す。
@@ -120,7 +133,8 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
 }
 ```
 
-- `recordingFolder`がnullのときは、利用者自身のビデオのフォルダーの`Virtual Vessel Studio`とする。利用者が動画を探す場所だからである。Data Rootの中ではないため、Data Rootを移しても録画は移らない。
+- `width`と`height`は、Stream Render Targetの大きさにもなる。起動時に読み、Videoより先に決める。範囲の外の値（幅320〜3840、高さ180〜2160の偶数、Frame Rate 1〜60、ビットレート0.5〜50Mbps）は既定に戻す（`RecordingSettings.Usable`）。ファイルの書き間違いで配信の映像が止まらないようにするためである。
+- `recordingFolder`がnullのときは、利用者自身のビデオのフォルダーの`Virtual Vessel Studio`とする。利用者が既定のフォルダーを選び直したときもnullで保存し、ビデオのフォルダーの場所に従う。利用者が動画を探す場所だからである。Data Rootの中ではないため、Data Rootを移しても録画は移らない。
 - 大きさとFrame Rateは、録画中は変えられない（方式設計10.15）。
 - `ProfileKind`に`Streaming`を加える。ほかと同じく、ProjectにStreaming ProfileのIDを持たせ、初めて使うときに作る。
 
@@ -139,7 +153,7 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
 ## 13. ログと診断
 
 - 開始と停止を、ファイル名、大きさ、エンコーダー（ハードウェアかソフトウェアか）、設定とともに記録する。問題はWarningかError。毎Frameの記録はしない。
-- 計測（Diagnostics画面）：`Recording/FramesWritten`、`Recording/FramesDropped`（受け皿がない）、`Recording/FramesSkipped`（読み出しが待っている）、`Recording/ReadbackLatency`（Frame）、`Recording/AvOffset`（ms、書き込み時の映像に対する音声）。
+- 計測（Diagnostics画面）：`Recording/FramesWritten`、`Recording/FramesDropped`（受け皿がない）、`Recording/FramesSkipped`（読み出しが待っている）、`Recording/ReadbackLatency`（Frame）、`Recording/AvOffset`（ms、書き込み時の映像に対する音声。音声とともに加える）。
 
 ## 14. Testの方針
 
@@ -161,9 +175,12 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
 
 ```text
 native/encode/                         VirtualVessel.Encode.Native（CMake、Test）
-Video/Runtime/Recording/               RecordingService、StreamFrameReader、NativeEncoder、RecordingNames
-Video/Runtime/Recording/IRecordingService.cs
+Video/Runtime/Recording/               RecordingService、RecordingEnvironment、StreamFrameReader、FramePacing、NativeEncoder、RecordingNames、RecordingSettings
+UI/Runtime/Recording/IRecordingService.cs   IRecordingService、RecordingOptions、状態と問題の列挙
+UI/Runtime/Screens/                    RecordControl（ライブ画面）、RecordingCard（設定画面）
 ```
+
+- `StreamFrameReader`は`AsyncGPUReadback`のNativeArrayをそのままエンコーダーへ渡すため、Video Assemblyは`allowUnsafeCode`を有効にする。
 
 エンコーダーのDLLは`tools/native/build-encode.ps1`で作り、取り込みのPluginと同じくGitには入れない。リリースのビルドで作る（開発の進め方21章）。
 
@@ -183,8 +200,8 @@ Video/Runtime/Recording/IRecordingService.cs
 
 | 状態 | 表示 |
 |---|---|
-| Idle | Button（Secondary）「● 録画」と録画のIcon |
-| Starting、Stopping | Buttonを無効にし、「準備中…」／「仕上げ中…」 |
+| Idle | Button（Secondary）「● 録画」（記号の●を文字に含める） |
+| Starting、Stopping | Buttonを無効にし、「録画を開始しています…」／「ファイルを保存しています…」 |
 | Recording | Status Chip「録画中 00:12:34」（塗りつぶした丸とText、色だけにしない）と、Dangerの Button「■ 録画を停止」 |
 | Failed | 問題と対処を示すStatus Chip（5章）と、もう一度「● 録画」 |
 
@@ -192,8 +209,13 @@ Video/Runtime/Recording/IRecordingService.cs
   - 停止はDangerの操作とし、確認のダイアログの後でだけ行う：「録画を停止しますか？ここまでのファイルは保存されます。」に、「録画を停止」（Danger）と「キャンセル」。
   - 開始は確認しない。誤って始めても失うものはなく、止めるときは上の確認を通る。
   - 開始中・停止中は、2度目の押下に反応しない。SpaceやEnterは、Buttonにフォーカスがあるときだけ効く（全体のShortcutはまだ設けない）。
-- 停止の後、ファイルの場所を通知で知らせ、「フォルダーを開く」を付ける。
+- 停止の後、録画の操作の下に「保存しました: <ファイル名>」と「フォルダーを開く」を出す。「フォルダーを開く」は、エクスプローラーでそのファイルを選んだ状態で開く。通知（`INotificationService`）はButtonを持たないため、ライブ画面に置く。
+- 問題があるときは、Chipの下に何が起きたかと対処を出す（例：空き容量が足りないときは、ファイルを消すか、設定画面で別のドライブのフォルダーを選ぶ）。
 
 ### 18.2 設定画面
 
-「録画」のCard：フォルダー（「変更…」と「開く」）、画質（標準 6Mbps、高画質 12Mbps）、空き容量、大きさとFrame Rate（1920×1080、30fps。当面は固定）。音声の元はAudioのCardにある（Audio詳細設計18章）。
+「録画」のCard：フォルダー（「変更…」と「開く」）、画質（標準 6Mbps、高画質 12Mbps）、空き容量、大きさとFrame Rate（1920×1080、30fps。当面は固定）。
+
+- 「変更…」はWindowsのフォルダーを選ぶ画面（`SHBrowseForFolderW`）を、ファイルを選ぶ画面と同じく専用のスレッドで開く。描画と配信は止まらない。
+- 空き容量は、Cardを表示している間、10秒ごとに読み直す。
+- 変更は次の録画から使う。録画中の録画は、始めたときの設定のまま続く。音声の元はAudioのCardにある（Audio詳細設計18章）。

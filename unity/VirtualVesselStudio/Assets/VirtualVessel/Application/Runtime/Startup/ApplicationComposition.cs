@@ -24,6 +24,7 @@ using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
+using VirtualVessel.Video.Recording;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -110,19 +111,41 @@ namespace VirtualVessel.Application.Startup
             // 7.1). Optional: without it there is no stream video, and everything else runs.
             VideoService video = null;
             StageService stage = null;
+            RecordingService recording = null;
             if (context.MainCamera != null && context.FrameLoop != null)
             {
+                // The project's streaming profile gives the stream video its size and the recordings
+                // their encoding (recording detailed design 10), so it is read before Video starts.
+                Lazy<(RecordingSettings Value, ConfigSaveScheduler<RecordingSettings> Saves)> streaming = new Lazy<(RecordingSettings, ConfigSaveScheduler<RecordingSettings>)>(
+                    () => LoadStreaming(context, project?.Value, logging.Provider.GetLog("Video", "Recording")));
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VideoService.ServiceName,
                     ServiceCriticality.Optional,
                     () => video = new VideoService(
-                        new VideoSettings(),
+                        VideoSettingsOf(streaming.Value.Value),
                         context.MainCamera,
                         context.FrameLoop,
                         context.MonotonicClock,
                         metrics,
                         logging.Provider.GetLog("Video", "Stream")),
                     new[] { LoggingService.ServiceName }));
+
+                // Recording reads the stream video back and encodes it (recording detailed design 7).
+                // Optional: without the encoder plugin or its service everything else runs. After Video,
+                // so a recording in progress is finished before the stream video stops.
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    RecordingService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => recording = new RecordingService(
+                        streaming.Value.Value,
+                        streaming.Value.Saves,
+                        video.Size,
+                        context.FrameLoop,
+                        context.MonotonicClock,
+                        RecordingEnvironment.Native(video.Video, context.MonotonicClock),
+                        metrics,
+                        logging.Provider.GetLog("Video", "Recording")),
+                    new[] { LoggingService.ServiceName, VideoService.ServiceName }));
 
                 // Stage puts the capture videos on the stream screen (Stage detailed design 7), so it
                 // needs both; when either does not start, the host does not create it.
@@ -213,6 +236,8 @@ namespace VirtualVessel.Application.Startup
                                 StreamPreview = video?.Preview,
                                 FrameSources = stage?.Screens,
                                 Captures = capture,
+                                Recording = recording,
+                                Explorer = new WindowsFileExplorer(),
                                 Tracking = tracking,
                                 TrackingRecordings = recordings,
                                 Avatars = avatar,
