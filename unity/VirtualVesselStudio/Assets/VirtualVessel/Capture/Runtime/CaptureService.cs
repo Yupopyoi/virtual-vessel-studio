@@ -74,10 +74,13 @@ namespace VirtualVessel.Capture
             return new CaptureService(CreateSources(settings, clock, metrics, log), frameLoop, clock, log, settings, saves);
         }
 
-        /// <summary>Creates the store of capture-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<CaptureSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>
+        /// Creates the store of the capture settings in <paramref name="directory"/>: the project's capture
+        /// profile (project data detailed design 6), or capture-settings.json when no file name is given.
+        /// </summary>
+        public static ConfigFileStore<CaptureSettings> CreateStore(string directory, ISystemClock clock, string fileName = CaptureSettings.FileName)
         {
-            return new ConfigFileStore<CaptureSettings>(configDirectory, CaptureSettings.FileName, CaptureSettings.SchemaVersion, () => new CaptureSettings(), clock);
+            return new ConfigFileStore<CaptureSettings>(directory, fileName, CaptureSettings.SchemaVersion, () => new CaptureSettings(), clock);
         }
 
         public IVideoCaptureSource Find(string id)

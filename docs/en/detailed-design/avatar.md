@@ -760,7 +760,7 @@ public sealed class AvatarSettings
 }
 ```
 
-- Saved to `avatar-settings.json` (settings folder, `ConfigFileStore`). Moves to Project / Profile once those exist.
+- Saved to `avatar-settings.json` in the project's folder (`Projects/<ProjectId>/`, `ConfigFileStore`; project data detailed design 6). Until the refactoring after step 7 it was in the settings folder; the first project took a copy of it (project data detailed design 8).
 - Per-avatar settings are in `avatar-profile.json` (6.3).
 - An older file without `Face` reads as the default tuning (a field was only added, so the version stays).
 - Mirroring is a Tracking setting (6.6).
@@ -907,7 +907,7 @@ Assets/VirtualVessel/Avatar/
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
 | FBX | Starting with the choice of library. After v0.1.0 |
 | Screens for adjusting the spawn point and camera position | When designing Stage Scenes and Camera Points |
-| Moving settings to Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
+| Moving settings to Project / Profile | Done (2026-10-27): `avatar-settings.json` is in the project's folder (project data detailed design) |
 
 ---
 

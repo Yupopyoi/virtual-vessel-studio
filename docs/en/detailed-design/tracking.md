@@ -575,7 +575,7 @@ public sealed class TrackingSettings
 ```
 
 - What the user chose is read and written as `TrackingOptions` (`GetOptions`, `With`). It is saved only when the choices or whether tracking was started change.
-- Saved to `tracking-settings.json` (settings folder, `ConfigFileStore`). Like Capture and Stage, it moves to Project / Profile once those exist (`Profiles/Tracking/` in system design 6.10).
+- Saved as the project's tracking profile, `Profiles/Tracking/<ProfileId>.json` in the Data Root (`ConfigFileStore`; project data detailed design 6), in the format of `tracking-settings.json`. Until the refactoring after step 7 it was `tracking-settings.json` in the settings folder; the first project took a copy of it (project data detailed design 8).
 - The camera device choice is saved in `capture-settings.json` (`camera` source).
 - Mirroring (user's decision, 2026-10-19): when on, the camera image and points on the setup screen are flipped left to right, like a mirror. The avatar follows the same setting, moving its left hand for the user's right (Avatar detailed design 6.6). Tracking holds it as one setting so the preview and the avatar never disagree. `Current` keeps the person's own sides whatever the setting.
 - The Pose model is one of the options (step 7): Lite or Full. Heavy is not offered (`TrackingOptions.Available`): on the user's camera it tracked worse than Full (2026-10-26), being slower, with the smoothing, outlier limits, and depth corrections all tuned on Full. A saved Heavy reads as Full. The model file still ships; removing it is left for a later change. The provider loads it when it starts, so a change while tracking restarts the provider; the camera keeps running. Before step 7 it was fixed when the provider was created, and a change took effect only after restarting the app.
@@ -826,7 +826,7 @@ MediaPipeUnityPlugin keeps being updated (about nine months from v0.16.0 to v0.1
 | Distance at which a face counts as away from the body (12% of the image width) | Provisional. Revisited if mistakes remain with a real camera |
 | Adding full body (`FullBody`) | After v0.1.0 |
 | Combining lip sync from voice with face tracking | When designing Voice / Audio |
-| Moving tracking settings to Project / Profile | Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
+| Moving tracking settings to Project / Profile | Done (2026-10-27): the project's tracking profile (project data detailed design) |
 
 ---
 

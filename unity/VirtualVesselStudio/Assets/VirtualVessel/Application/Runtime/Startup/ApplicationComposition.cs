@@ -15,6 +15,7 @@ using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.DataRoot;
+using VirtualVessel.ProjectData.Projects;
 using VirtualVessel.Stage;
 using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Recording;
@@ -150,6 +151,12 @@ namespace VirtualVessel.Application.Startup
                     logging.Provider.GetLog("Diagnostics", "Performance")),
                 new[] { LoggingService.ServiceName }));
 
+            // The project in use, opened when the first service that keeps settings is created (project
+            // data detailed design 7). Only the settings folder's own files stay in Config.
+            Lazy<OpenedProject> project = context.ConfigDirectory != null
+                ? new Lazy<OpenedProject>(() => OpenProject(context, logging.Provider.GetLog("ProjectData", "Projects")))
+                : null;
+
             // Capture is Optional: without a capture board or a monitor everything else keeps working
             // (capture detailed design 7.1). Its sources are updated every frame, so it needs the frame
             // loop, which tests without frames leave out.
@@ -159,11 +166,11 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     CaptureService.ServiceName,
                     ServiceCriticality.Optional,
-                    // The settings live in capture-settings.json next to the UI settings (capture
-                    // detailed design 10); without a settings folder nothing is saved.
-                    () => capture = context.ConfigDirectory != null
+                    // The settings are the project's capture profile (project data detailed design 6);
+                    // without a settings folder nothing is saved.
+                    () => capture = project != null
                         ? CaptureService.Create(
-                            CaptureService.CreateStore(context.ConfigDirectory, context.SystemClock),
+                            CaptureService.CreateStore(project.Value.ProfileDirectory(ProfileKind.Capture), context.SystemClock, project.Value.ProfileFileName(ProfileKind.Capture)),
                             context.FrameLoop,
                             context.MonotonicClock,
                             metrics,
@@ -206,7 +213,7 @@ namespace VirtualVessel.Application.Startup
                             capture,
                             video,
                             context.FrameLoop,
-                            StageService.CreateStore(context.ConfigDirectory, context.SystemClock),
+                            StageService.CreateStore(project.Value.Directory, context.SystemClock),
                             context.MonotonicClock,
                             logging.Provider.GetLog("Stage", "Screens")),
                         new[] { LoggingService.ServiceName, CaptureService.ServiceName, VideoService.ServiceName }));
@@ -221,7 +228,7 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     TrackingService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => tracking = CreateTracking(context, capture, metrics, logging.Provider.GetLog("Tracking", "Source")),
+                    () => tracking = CreateTracking(context, project.Value, capture, metrics, logging.Provider.GetLog("Tracking", "Source")),
                     new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
             }
 
@@ -251,7 +258,7 @@ namespace VirtualVessel.Application.Startup
                     AvatarService.ServiceName,
                     ServiceCriticality.Optional,
                     // Tracking, when it started, was created just before: its frame work runs first each frame.
-                    () => avatar = CreateAvatar(context, video, stage, tracking, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
+                    () => avatar = CreateAvatar(context, project.Value, video, stage, tracking, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
                     new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName }));
             }
 
@@ -364,9 +371,30 @@ namespace VirtualVessel.Application.Startup
             };
         }
 
-        private static AvatarService CreateAvatar(ApplicationCompositionContext context, VideoService video, StageService stage, TrackingService tracking, IPerformanceMetrics metrics, ILog log)
+        /// <summary>
+        /// Opens the project in use (project data detailed design 7). The settings files of the version
+        /// before projects are copied into the first one: tracking and capture as its profiles, the avatar
+        /// and the stream screen's layout as the project's own.
+        /// </summary>
+        private static OpenedProject OpenProject(ApplicationCompositionContext context, ILog log)
         {
-            ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            var legacy = new LegacySettings(
+                new Dictionary<ProfileKind, string> { [ProfileKind.Tracking] = TrackingSettings.FileName, [ProfileKind.Capture] = CaptureSettings.FileName },
+                new[] { AvatarSettings.FileName, StageSettings.FileName });
+            var folders = new ProjectFolders(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.Projects), context.DataRoot.GetDirectory(DataRootDirectory.Profiles));
+            OpenedProject project = ProjectOpener.Open(folders, legacy, context.SystemClock, ProjectOpener.NewId);
+            foreach (string note in project.Notes)
+            {
+                log?.Information(note);
+            }
+
+            log?.Information($"Project {project.ProjectId} ({project.Manifest.DisplayName}) open: tracking profile {project.Manifest.TrackingProfileId}, capture profile {project.Manifest.CaptureProfileId}.");
+            return project;
+        }
+
+        private static AvatarService CreateAvatar(ApplicationCompositionContext context, OpenedProject project, VideoService video, StageService stage, TrackingService tracking, IPerformanceMetrics metrics, ILog log)
+        {
+            ConfigFileStore<AvatarSettings> store = AvatarService.CreateStore(project.Directory, context.SystemClock);
             ConfigLoadResult<AvatarSettings> loaded = store.Load();
             log?.Information($"Avatar settings {loaded.Status} from {store.FilePath}.");
             var saves = new ConfigSaveScheduler<AvatarSettings>(store, context.MonotonicClock, TimeSpan.FromSeconds(0.5), failure => log?.Warning($"Failed to save the avatar settings to {store.FilePath}.", failure));
@@ -386,9 +414,9 @@ namespace VirtualVessel.Application.Startup
                 tracking);
         }
 
-        private static TrackingService CreateTracking(ApplicationCompositionContext context, CaptureService capture, IPerformanceMetrics metrics, ILog log)
+        private static TrackingService CreateTracking(ApplicationCompositionContext context, OpenedProject project, CaptureService capture, IPerformanceMetrics metrics, ILog log)
         {
-            ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(context.ConfigDirectory, context.SystemClock);
+            ConfigFileStore<TrackingSettings> store = TrackingService.CreateStore(project.ProfileDirectory(ProfileKind.Tracking), context.SystemClock, project.ProfileFileName(ProfileKind.Tracking));
             ConfigLoadResult<TrackingSettings> loaded = store.Load();
             TrackingSettings settings = loaded.Value ?? new TrackingSettings();
             log?.Information($"Tracking settings {loaded.Status} from {store.FilePath}.");

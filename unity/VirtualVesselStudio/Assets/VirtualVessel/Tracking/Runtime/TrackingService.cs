@@ -104,10 +104,13 @@ namespace VirtualVessel.Tracking
         /// <summary>The provider observations come from now: the replay while one runs.</summary>
         private ITrackingProvider Active => _replay ?? _provider;
 
-        /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>
+        /// Creates the store of the tracking settings in <paramref name="directory"/>: the project's tracking
+        /// profile (project data detailed design 6), or tracking-settings.json when no file name is given.
+        /// </summary>
+        public static ConfigFileStore<TrackingSettings> CreateStore(string directory, ISystemClock clock, string fileName = TrackingSettings.FileName)
         {
-            return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock, TrackingSettings.Migrations);
+            return new ConfigFileStore<TrackingSettings>(directory, fileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock, TrackingSettings.Migrations);
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
