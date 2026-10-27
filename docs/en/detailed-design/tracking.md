@@ -768,7 +768,8 @@ Assets/VirtualVessel/Tracking/
 │  ├─ TrackingFrame.cs        TrackingFrame, TrackedPart, BodyPose, HandPose, FacePose
 │  ├─ TrackingTypes.cs        BodyJoint, HandJoint, FaceShape, TrackingStatus, TrackingRegions, BodyRange, TrackingState, TrackingProblem, SmoothingLevel
 │  ├─ ITrackingSource.cs      ITrackingSource, ITrackingProvider
-│  ├─ TrackingService.cs      TrackingService
+│  ├─ TrackingService.cs      TrackingService (replay in TrackingService.Replay.cs)
+│  ├─ TrackingStatusRules.cs  The state and problem shown to the user
 │  ├─ TrackingOptions.cs      TrackingOptions (what the user chose)
 │  ├─ TrackingSettings.cs     TrackingSettings, PoseModel
 │  ├─ Processing/             OneEuroFilter (with PositionFilter, RotationFilter), SmoothingProfile, OutlierGate, TrackingProcessor, TrackingStateMachine, EventRate, ObservationCorrections (with IObservationCorrection), CameraAxisArmStraightening, HandDepthFromForearm, BodyFlattening
