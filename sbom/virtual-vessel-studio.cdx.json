@@ -818,7 +818,7 @@
         }
       ],
       "scope": "required",
-      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLL. Windows system libraries (d3d11, dxgi, user32) are only linked against and not distributed."
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture) and VirtualVessel.Encode.Native.dll (native/encode), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's) are only linked against and not distributed."
     },
     {
       "type": "application",
@@ -837,6 +837,22 @@
       ],
       "scope": "excluded",
       "description": "Builds the native plugins (developers and CI); not distributed."
+    },
+    {
+      "type": "application",
+      "bom-ref": "tool:ffprobe",
+      "supplier": {
+        "name": "FFmpeg"
+      },
+      "name": "ffprobe (FFmpeg)",
+      "version": "any, optional",
+      "licenses": [
+        {
+          "expression": "LGPL-2.1-or-later OR GPL-2.0-or-later"
+        }
+      ],
+      "scope": "excluded",
+      "description": "Read by the recording PlayMode test (RecordingPlayTests), when it is on the developer's PATH, to check a recorded file's frames and duration. Not required, not in the repository, and not distributed."
     },
     {
       "type": "application",
