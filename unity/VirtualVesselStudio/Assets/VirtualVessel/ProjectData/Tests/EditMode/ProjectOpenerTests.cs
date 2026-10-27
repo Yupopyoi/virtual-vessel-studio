@@ -48,6 +48,7 @@ namespace VirtualVessel.ProjectData.Tests
             Assert.That(first.ProjectId, Is.EqualTo(Id(1)));
             Assert.That(first.Manifest.TrackingProfileId, Is.EqualTo(Id(2)));
             Assert.That(first.Manifest.CaptureProfileId, Is.EqualTo(Id(3)));
+            Assert.That(first.Manifest.StreamingProfileId, Is.EqualTo(Id(4)));
             Assert.That(first.Manifest.DisplayName, Is.EqualTo(ProjectOpener.DefaultDisplayName));
             Assert.That(first.Manifest.CreatedAt, Is.EqualTo("2026-10-27T01:00:00.0000000Z"));
             Assert.That(File.Exists(Path.Combine(first.Directory, ProjectManifest.FileName)), Is.True);
@@ -98,6 +99,21 @@ namespace VirtualVessel.ProjectData.Tests
             Assert.That(ProjectOpener.Choose(null, new[] { Id(9), Id(4) }), Is.EqualTo(Id(4)), "The first in ordinal order.");
             Assert.That(ProjectOpener.Choose(Id(9), new[] { Id(9), Id(4) }), Is.EqualTo(Id(9)));
             Assert.That(ProjectOpener.Choose(Id(9), Array.Empty<string>()), Is.Null);
+        }
+
+        [Test]
+        public void AProjectFromBeforeStreamingProfiles_GetsOne()
+        {
+            OpenedProject first = Open();
+            string manifest = Path.Combine(first.Directory, ProjectManifest.FileName);
+            File.WriteAllText(manifest, $"{{ \"schemaVersion\": 1, \"projectId\": \"{first.ProjectId}\", \"displayName\": \"Default\", \"trackingProfileId\": \"{Id(2)}\", \"captureProfileId\": \"{Id(3)}\" }}");
+
+            OpenedProject opened = Open();
+
+            Assert.That(ProjectOpener.IsValidId(opened.Manifest.StreamingProfileId), Is.True);
+            Assert.That(opened.Manifest.TrackingProfileId, Is.EqualTo(Id(2)), "The others are kept.");
+            Assert.That(File.ReadAllText(manifest), Does.Contain(opened.Manifest.StreamingProfileId), "Saved.");
+            Assert.That(opened.ProfileFileName(ProfileKind.Streaming), Is.EqualTo(opened.Manifest.StreamingProfileId + ".json"));
         }
 
         [Test]
