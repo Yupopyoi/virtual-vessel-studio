@@ -19,7 +19,7 @@ namespace VirtualVessel.Tracking.Tests
     {
         private static (TrackingState, TrackingProblem) Describe(CaptureState camera, CaptureProblem problem = CaptureProblem.None, TrackingState provider = TrackingState.Running, bool personSeen = true, bool wanted = true, bool hasProvider = true)
         {
-            return TrackingService.Describe(wanted, hasProvider, true, camera, problem, provider, personSeen);
+            return TrackingStatusRules.Describe(wanted, hasProvider, true, camera, problem, provider, personSeen);
         }
 
         [Test]

@@ -500,7 +500,7 @@ Assets/VirtualVessel/
 │  ├─ Runtime/                      VirtualVessel.Application
 │  │  ├─ ApplicationBootstrap.cs
 │  │  ├─ Hosting/ApplicationHost.cs, ApplicationServiceDescriptor.cs, ...
-│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs, ApplicationStartupOptions.cs
+│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs (+ .Modules.cs), ApplicationCompositionContext.cs, ApplicationStartupOptions.cs
 │  │  ├─ Logging/ApplicationLog.cs
 │  │  ├─ Session/SessionInfo.cs, SessionMarker.cs
 │  │  └─ Build/BuildInfo.cs
