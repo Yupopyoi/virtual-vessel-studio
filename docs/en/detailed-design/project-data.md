@@ -84,15 +84,16 @@ DataRoot/
   "createdAt": "2026-10-27T01:00:00.0000000Z",
   "updatedAt": "2026-10-27T01:00:00.0000000Z",
   "trackingProfileId": "<32 hex digits>",
-  "captureProfileId": "<32 hex digits>"
+  "captureProfileId": "<32 hex digits>",
+  "streamingProfileId": "<32 hex digits>"
 }
 ```
 
-- **Profiles** (system design 6.3, 6.11): tracking and capture. They are about the person, the camera, and the devices, and can be shared by projects.
+- **Profiles** (system design 6.3, 6.11): tracking, capture, and streaming. They are about the person, the camera, the devices, and the output, and can be shared by projects. The streaming profile holds the encoding values and the recording folder (recording detailed design 10).
 - **The project's own settings** (system design 6.4): the avatar in use with the face tuning, and the stream screen's layout. They are files in the project's folder, in the formats they had before.
 - **Differences from system design 6.4:**
   - The avatar in use stays in `avatar-settings.json`, which Avatar owns, instead of an `AvatarId` in `project.json`. Avatar keeps reading and writing it as before.
-  - Voice, Camera, Audio, and Streaming profiles are added with their functions.
+  - Voice, Camera, and Audio profiles are added with their functions.
 - Every file keeps `schemaVersion`, and the formats of the moved files did not change, so their versions stay as they were (system design 6.14).
 - IDs are 32 lowercase hexadecimal digits, as for avatars (system design 6.6).
 
@@ -144,7 +145,7 @@ As in chapter 6. Projects and profiles live in the Data Root, so they follow it 
 - **A broken file** (`app-settings.json`, `project.json`): `ConfigFileStore` moves it aside and the defaults are used. A broken `project.json` is then repaired as below.
 - **Repair** (`Repair`, pure):
   - the project ID is set to the folder's name;
-  - a profile ID that is not a valid ID is replaced by a new profile (which starts at the defaults);
+  - a profile ID that is not a valid ID, or missing as in a project made before that profile existed, is replaced by a new profile (which starts at the defaults);
   - a missing display name becomes "Default".
 - **IDs are untrusted input** (CLAUDE.md 26): any program running as the user can write these files, so an ID names a folder or a file only when it is 32 lowercase hexadecimal digits. A written "../x" never reaches a path.
 - **The project in use is missing:** the first existing project is opened, and this is noted. A new one is made only when there is none.
@@ -152,7 +153,7 @@ As in chapter 6. Projects and profiles live in the Data Root, so they follow it 
 
 ## 13. Logging and Diagnostics
 
-The composition logs each note of `OpenedProject.Notes` at Information, then the project and its profiles: `Project <id> (Default) open: tracking profile <id>, capture profile <id>.` Notes include files copied, broken files moved aside, repairs, and a missing project in use.
+The composition logs each note of `OpenedProject.Notes` at Information, then the project and its profiles: `Project <id> (Default) open: tracking profile <id>, capture profile <id>, streaming profile <id>.` Notes include files copied, broken files moved aside, repairs, and a missing project in use.
 
 ## 14. Testing Strategy
 
@@ -183,7 +184,7 @@ Namespace `VirtualVessel.ProjectData.Projects`.
 | Item | Plan |
 |---|---|
 | A screen for projects: making, renaming, switching, deleting (system design 6.18, 6.22) | With the first feature that needs more than one project |
-| More profiles: Voice, Camera, Audio, Streaming | With their functions |
+| More profiles: Voice, Camera, Audio | With their functions |
 | `AvatarId` in `project.json` (system design 6.4) | Stays in `avatar-settings.json` for now (chapter 6) |
 | Profile display names | With the projects screen |
 | Removing the old settings files in `Config/` | Kept as a backup for now; a later version may remove them |

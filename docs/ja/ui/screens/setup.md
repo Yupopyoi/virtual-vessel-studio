@@ -4,7 +4,7 @@
 
 配信の前に、使う機器や設定を整える画面。使っているソフトウェアのクレジットも、ここで見られる。
 
-映像の取り込み（Capture）のCard、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
+映像の取り込み（Capture）のCard、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、録画のCard（10章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
 
 - 画面の名前（ナビゲーションと見出し）は「設定」（英語 Settings）とする。機器の準備だけでなく、アプリの設定やクレジットも置くためである。
 - 画面の識別子（`setup`）、文字列のKey（`nav.setup`、`setup.*`）、文書の中の呼び方（セットアップ画面）は変えない。識別子は`ui-settings.json`の`lastScreen`に保存されているため、変えると前回の画面に戻れなくなる。
@@ -18,8 +18,9 @@
 3. トラッキング（4章）
 4. アバター（5章）
 5. 表情の調整（9章。アバターを使えるときだけ）
-6. アプリの設定
-7. クレジットとライセンス（8章）
+6. 録画（10章。録画を使えないときは「録画は使えません。」の一文）
+7. アプリの設定
+8. クレジットとライセンス（8章）
 
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
 - どのCardも折りたためる（`components.md` 3.10）。項目が増えても画面が長くならないよう、画面を開いた時点ではすべて閉じている。開閉の状態は保存せず、起動するたびに閉じた状態から始める。
@@ -181,3 +182,36 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 - アバターを使えないとき（Avatarがない）は、このCardを置かない。アバターを選んでいないときは、帯は動かない。
 - 照明の強さは、すぐに配信へ反映し、`stage-settings.json`へ保存する（Stage詳細設計6.3）。「既定に戻す」は表情の調整だけを戻し、照明の強さは戻さない。
 - 切り抜きは、映像全体を枠の中で拡大して置き、位置をずらし、枠の外を隠して行う。UnityのImageの表示範囲（UV）を変える方法では、変えても描き直されなかったため（2026-10-21）。
+
+## 10. 録画のCard
+
+`IRecordingService`（Video）を直接表示する（`RecordingCard`）。詳細は録画詳細設計18.2。
+
+| 行 | 内容 |
+|---|---|
+| 保存先 | フォルダーのパス（折り返す）と、「変更…」（Windowsのフォルダーを選ぶ画面）と「開く」（エクスプローラー） |
+| 画質 | Segmented：標準（6 Mbps）、高画質（12 Mbps） |
+| 空き容量 | 保存先のドライブの空き。Cardを表示している間、10秒ごとに読み直す |
+| 映像 | 大きさ、Frame Rate、形式（1920×1080・30 fps・MP4（H.264））。当面は変えられない |
+
+- 変更は次の録画から使う。録画中の録画は、始めたときの設定のまま続く。
+- 録画の開始と停止はライブ画面で行う（`live.md`）。
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.recording.title` | 録画 | Recording |
+| `setup.recording.unavailable` | 録画は使えません。 | Recording is not available. |
+| `setup.recording.folder` | 保存先 | Folder |
+| `setup.recording.folder.description` | 録画したファイルを保存するフォルダーです。次の録画から使われます。 | Where recordings are saved. Used from the next recording. |
+| `setup.recording.folder.pick` | 変更… | Change… |
+| `setup.recording.folder.pick-title` | 録画の保存先を選んでください | Choose where to save recordings |
+| `setup.recording.folder.open` | 開く | Open |
+| `setup.recording.quality` | 画質 | Quality |
+| `setup.recording.quality.description` | 高画質はきれいですが、ファイルが約2倍の大きさになります。 | High looks better, and its files are about twice as large. |
+| `setup.recording.quality.standard` | 標準（6 Mbps） | Standard (6 Mbps) |
+| `setup.recording.quality.high` | 高画質（12 Mbps） | High (12 Mbps) |
+| `setup.recording.free` | 空き容量 | Free space |
+| `setup.recording.free.value` | {size} GB | {size} GB |
+| `setup.recording.free.unknown` | わかりません | Unknown |
+| `setup.recording.format` | 映像 | Video |
+| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4（H.264） | {width}×{height}, {rate} fps, MP4 (H.264) |

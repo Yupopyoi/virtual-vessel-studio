@@ -32,12 +32,14 @@ Not in this design: streaming (RTMPS), external video output (Spout), other code
 
 | Class | Kind | Role |
 |---|---|---|
-| `IRecordingService` | Interface | What UI uses: state, elapsed time, start, stop, the last file (5) |
+| `IRecordingService` | Interface (UI) | What UI uses: state, elapsed time, start, stop, the last file, the folder and quality (5) |
 | `RecordingService` | Class (Video) | An application service: starts and stops recordings, checks the folder and free space, names files |
 | `StreamFrameReader` | Class (Video) | Reads the Stream Render Target back (`AsyncGPUReadback`) at the output frame rate and stamps each frame with the shared clock |
-| `NativeEncoder` | Class (Video) | Wraps `VirtualVessel.Encode.Native` (an `IDisposable` handle) |
+| `NativeEncoder` | Class (Video) | Wraps `VirtualVessel.Encode.Native` (`IVideoEncoder`) |
+| `RecordingEnvironment` | Class (Video) | What the service needs from outside: opening an encoder, reading frames, free space, the local time, the Videos folder. Tests give fakes, so the states are checked without a GPU or the plugin |
 | `RecordingSettings` | Class | The streaming profile's encoding values and the recording folder (10) |
-| `RecordingNames` | Static class | File names and the free-space check, pure (8.2) |
+| `RecordingNames` | Static class | File names, folders, the free-space check, quality and bitrate; pure (8.2) |
+| `FramePacing` | Static class | Which frames are read at the output frame rate; pure (8.1) |
 | `VirtualVessel.Encode.Native` | Native DLL | H.264 and AAC through Media Foundation's Sink Writer, MP4 |
 
 ## 5. Public API
@@ -49,19 +51,28 @@ public interface IRecordingService
     IReadOnlyObservable<RecordingProblem> Problem { get; } // None, FolderUnavailable, DiskFull, EncoderFailed, AudioUnavailable
     TimeSpan Elapsed { get; }                              // While recording
     string LastFile { get; }                               // The last finished file, for "Open folder"
+    IReadOnlyObservable<RecordingOptions> Options { get; } // Folder, quality, size, frame rate
+    void SetOptions(RecordingOptions options);             // Used from the next recording
+    long? FreeBytes();                                     // Free space where recordings go; null when unreadable
     void Start();
     void Stop();
 }
 ```
 
+- `IRecordingService`, `RecordingOptions`, and the state and problem enums are in UI's `VirtualVessel.UI.Recording`, and Video implements them. Video references UI (as for `IStreamPreviewSource`), so UI cannot reference Video.
+- `RecordingQuality`: `Standard` (6 Mbit/s), `High` (12 Mbit/s). A bitrate in the file reads as the nearer quality; an edited bitrate is kept until the quality is changed.
+
 ### 5.1 The Native API (`vv_encode.h`)
 
 ```c
-int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // path, size, fps, bitrates, audio tap (or none)
-int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);
-int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);
-int32_t vv_encode_close(vv_encoder*);                                          // Drains, finishes the file
+int32_t vv_encode_api_version(void);                                           // 1
+int32_t vv_encode_open(const wchar_t* path, int32_t width, int32_t height, int32_t fps, int32_t bitrate, vv_encoder** encoder);
+int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);  // VV_ENCODE_DROPPED with no free slot
+int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // Pushed, written, dropped, last error, hardware or not
+int32_t vv_encode_close(vv_encoder*);                                          // Drains, finishes the file; a file with no frame is deleted
 ```
+
+- This version (API version 1) is video only. With audio, `vv_encode_open` takes a configuration struct instead (`vv_encode_config`: path, size, fps, bitrates, the audio tap or none), and the API version goes up.
 
 - Video frames are copied into four slots and encoded on the encoder's thread, as in the spike; a frame with no free slot is dropped and counted.
 - Audio is pulled from the tap on the same thread, by time, so audio and video are written in order.
@@ -80,7 +91,9 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
                    └──failed──▶ Failed ◀┘ (encoder error, disk full)
 ```
 
-- `Start` checks the folder and free space, opens the encoder, and starts reading frames back. `Stop` stops reading, drains the encoder, and finishes the file; it takes up to a second.
+- `Start` creates the folder if needed, checks the free space, names the file, and opens the encoder on a worker thread (starting Media Foundation can take a moment). Once it is open, the next frame turns it `Recording` and starts reading frames back.
+- `Stop` stops reading, waits up to a second for readbacks on their way, then drains the encoder and finishes the file on a worker thread. The main thread never waits for the encoder.
+- `Stop` while starting stops once the encoder is open. `Start` while starting, recording, or stopping does nothing.
 - Recording goes on whatever screen is shown, and while tracking, capture, or the avatar change.
 - At shutdown a recording in progress is stopped and finished, so the file is playable.
 - `Failed` keeps the problem until the next `Start`. The part already written is finished and kept.
@@ -120,7 +133,8 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
 }
 ```
 
-- `recordingFolder` null means `Videos/Virtual Vessel Studio` in the user's own Videos folder, where users look for videos. The folder is not in the Data Root, so moving the Data Root does not move recordings.
+- `width` and `height` are also the Stream Render Target's size; they are read at startup, before Video starts. A value out of range (width 320–3840 and height 180–2160, even; frame rate 1–60; bitrate 0.5–50 Mbit/s) falls back to its default (`RecordingSettings.Usable`), so a mistake in the file cannot stop the stream video.
+- `recordingFolder` null means `Videos/Virtual Vessel Studio` in the user's own Videos folder, where users look for videos. Choosing the default folder again saves null too, so it follows the Videos folder. The folder is not in the Data Root, so moving the Data Root does not move recordings.
 - The size and frame rate cannot change while recording (system design 10.15).
 - `ProfileKind` gains `Streaming`; the project gets a streaming profile ID like the others, made on first use.
 
@@ -139,7 +153,7 @@ The recordings are the user's own files and are never deleted by the application
 ## 13. Logging and Diagnostics
 
 - Start and stop with the file name, size, encoder (hardware or software), and settings; problems at Warning or Error. Nothing per frame.
-- Metrics (Diagnostics screen): `Recording/FramesWritten`, `Recording/FramesDropped` (no slot), `Recording/FramesSkipped` (readbacks waiting), `Recording/ReadbackLatency` (frames), `Recording/AvOffset` (ms, audio against video at the writer).
+- Metrics (Diagnostics screen): `Recording/FramesWritten`, `Recording/FramesDropped` (no slot), `Recording/FramesSkipped` (readbacks waiting), `Recording/ReadbackLatency` (frames), `Recording/AvOffset` (ms, audio against video at the writer; added with audio).
 
 ## 14. Testing Strategy
 
@@ -161,9 +175,12 @@ The recordings are the user's own files and are never deleted by the application
 
 ```text
 native/encode/                         VirtualVessel.Encode.Native (CMake, tests)
-Video/Runtime/Recording/               RecordingService, StreamFrameReader, NativeEncoder, RecordingNames
-Video/Runtime/Recording/IRecordingService.cs
+Video/Runtime/Recording/               RecordingService, RecordingEnvironment, StreamFrameReader, FramePacing, NativeEncoder, RecordingNames, RecordingSettings
+UI/Runtime/Recording/IRecordingService.cs   IRecordingService, RecordingOptions, the state and problem enums
+UI/Runtime/Screens/                    RecordControl (live screen), RecordingCard (setup screen)
 ```
+
+- `StreamFrameReader` hands the readback's NativeArray straight to the encoder, so the Video assembly enables `allowUnsafeCode`.
 
 The encoder DLL is built by `tools/native/build-encode.ps1` and kept out of Git like the capture plugin; the release build builds it (development workflow 21).
 
@@ -183,8 +200,8 @@ A record control sits under the stream preview, so recording starts and stops fr
 
 | State | Shown |
 |---|---|
-| Idle | Button (Secondary) "● Record" with the record icon |
-| Starting, Stopping | The button disabled, "Starting…" / "Finishing…" |
+| Idle | Button (Secondary) "● Record" (the ● is part of the text) |
+| Starting, Stopping | The button disabled, "Starting recording…" / "Saving the file…" |
 | Recording | A status chip "REC 00:12:34" (a filled circle and text, never color alone) and a Danger button "■ Stop recording" |
 | Failed | A status chip with the problem and what to do (5), and "● Record" again |
 
@@ -192,8 +209,13 @@ A record control sits under the stream preview, so recording starts and stops fr
   - Stopping is a Danger action and runs only after a confirmation dialog: "Stop recording? The file so far is saved." with "Stop recording" (Danger) and "Cancel".
   - Starting needs no confirmation: starting by mistake loses nothing, and a stray start is stopped as above.
   - The button does not answer a second press while starting or stopping, and Space or Enter must be pressed on the button itself (no global shortcut yet).
-- After stopping, a notification says where the file is, with "Open folder".
+- After stopping, "Saved: <file name>" and "Open folder" appear under the record control. "Open folder" opens Explorer with the file selected. Notifications (`INotificationService`) have no buttons, so this is on the live screen.
+- A problem shows under the chip with what happened and what to do (for example, with too little space: delete files, or choose a folder on another drive on the setup screen).
 
 ### 18.2 The Setup Screen
 
-A "Recording" Card: the folder (with "Change…" and "Open"), the quality (Standard 6 Mbit/s, High 12 Mbit/s), the free space, and the size and frame rate (1920×1080, 30 fps, fixed for now). The audio sources are on the Audio Card (audio detailed design 18).
+A "Recording" Card: the folder (with "Change…" and "Open"), the quality (Standard 6 Mbit/s, High 12 Mbit/s), the free space, and the size and frame rate (1920×1080, 30 fps, fixed for now).
+
+- "Change…" opens Windows' folder screen (`SHBrowseForFolderW`) on a thread of its own, as the file screen does; rendering and the stream go on.
+- The free space is read again every 10 seconds while the Card is shown.
+- Changes are used from the next recording; a recording in progress keeps the settings it started with. The audio sources are on the Audio Card (audio detailed design 18).

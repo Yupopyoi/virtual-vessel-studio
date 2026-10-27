@@ -50,7 +50,7 @@ flowchart LR
     ScreenCam --> RT
     RT --> Preview
     Preview --> UI["UI：StreamPreview"]
-    RT --> Encoder["Encoder・録画（後続）"]
+    RT --> Encoder["読み出しとEncoder・録画（録画詳細設計）"]
 ```
 
 ---
@@ -140,7 +140,7 @@ public sealed class VideoSettings
 }
 ```
 
-- 保存しない（配信設定の設計時に決める。17章）。
+- 解像度は、ProjectのStreaming Profileの`width`と`height`から起動時に決める（録画詳細設計10章）。ほかの値は保存しない。
 - 解像度は16:9に限らない。プレビューと配置編集は、`Size`の縦横比に従う。
 
 ### 6.2 Stream Render Target
@@ -218,7 +218,7 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 
 ## 10. 設定
 
-6.1の`VideoSettings`を`VideoService`の生成時に渡す。保存先と変更の画面は後続で決める。
+6.1の`VideoSettings`を`VideoService`の生成時に渡す。解像度はStreaming Profileから取る（録画詳細設計10章）。変更の画面は後続で決める。
 
 ---
 
@@ -279,6 +279,7 @@ Assets/VirtualVessel/Video/
 │  ├─ IStreamOutput.cs              IStreamOutput, IStreamScreenLayer, VideoSize
 │  ├─ VideoSettings.cs
 │  ├─ VideoService.cs
+│  ├─ Recording/                    録画（録画詳細設計16章）
 │  ├─ StreamPreviewSource.cs
 │  ├─ StreamFrameMeter.cs
 │  └─ ScreenLayerMath.cs
@@ -287,7 +288,7 @@ Assets/VirtualVessel/Video/
    └─ PlayMode/
 ```
 
-参照：Core、Diagnostics、UI（`IStreamPreviewSource`）、URP。
+参照：Core、Diagnostics、ProjectData（Streaming Profileの保存）、UI（`IStreamPreviewSource`、`IRecordingService`）、URP。
 
 ---
 
@@ -295,8 +296,8 @@ Assets/VirtualVessel/Video/
 
 | 項目 | 対応予定 |
 |---|---|
-| Encoder、録画、配信 | 各設計時 |
-| 解像度とフレームレートの変更画面と保存 | 配信設定の設計時 |
+| 配信 | 配信の設計時（Encoderと録画は録画詳細設計） |
+| 解像度とフレームレートの変更画面 | 配信設定の設計時 |
 | アバター用の層 | アバターの設計時 |
 | MSAA、HDR | 計測してから |
 | 映像ごとにアバターの前後を選ぶ | 要望が出た時点で（7.2） |

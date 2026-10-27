@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the tracking Card, the avatar Card, the face tuning Card (chapter 9), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
@@ -18,8 +18,9 @@ Cards stacked from the top:
 3. Tracking (chapter 4)
 4. Avatar (chapter 5)
 5. Face tuning (chapter 9; only when avatars are available)
-6. App settings
-7. Credits and licenses (chapter 8)
+6. Recording (chapter 10; without recording, the line "Recording is not available.")
+7. App settings
+8. Credits and licenses (chapter 8)
 
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
 - Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
@@ -181,3 +182,36 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
 - The light's brightness reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3). "Reset" puts back only the face tuning, not the light.
 - The crop is made by placing the whole stream enlarged inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).
+
+## 10. Recording Card
+
+Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recording detailed design 18.2.
+
+| Row | Content |
+|---|---|
+| Folder | The folder's path (wrapped), "Change…" (Windows' folder screen), and "Open" (Explorer) |
+| Quality | Segmented: Standard (6 Mbps), High (12 Mbps) |
+| Free space | Free space on the folder's drive, read again every 10 seconds while the Card is shown |
+| Video | Size, frame rate, and format (1920×1080, 30 fps, MP4 (H.264)); fixed for now |
+
+- Changes are used from the next recording; a recording in progress keeps the settings it started with.
+- Recording is started and stopped on the live screen (`live.md`).
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.recording.title` | 録画 | Recording |
+| `setup.recording.unavailable` | 録画は使えません。 | Recording is not available. |
+| `setup.recording.folder` | 保存先 | Folder |
+| `setup.recording.folder.description` | 録画したファイルを保存するフォルダーです。次の録画から使われます。 | Where recordings are saved. Used from the next recording. |
+| `setup.recording.folder.pick` | 変更… | Change… |
+| `setup.recording.folder.pick-title` | 録画の保存先を選んでください | Choose where to save recordings |
+| `setup.recording.folder.open` | 開く | Open |
+| `setup.recording.quality` | 画質 | Quality |
+| `setup.recording.quality.description` | 高画質はきれいですが、ファイルが約2倍の大きさになります。 | High looks better, and its files are about twice as large. |
+| `setup.recording.quality.standard` | 標準（6 Mbps） | Standard (6 Mbps) |
+| `setup.recording.quality.high` | 高画質（12 Mbps） | High (12 Mbps) |
+| `setup.recording.free` | 空き容量 | Free space |
+| `setup.recording.free.value` | {size} GB | {size} GB |
+| `setup.recording.free.unknown` | わかりません | Unknown |
+| `setup.recording.format` | 映像 | Video |
+| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4（H.264） | {width}×{height}, {rate} fps, MP4 (H.264) |
