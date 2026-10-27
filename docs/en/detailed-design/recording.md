@@ -24,7 +24,7 @@ Not in this design: streaming (RTMPS), external video output (Spout), other code
 
 ## 3. Module Boundaries
 
-- Video does not reference Audio's classes. Audio offers the stream mix as a native reader (`vv_audio_stream_tap`, audio detailed design 5.2); Video's managed code passes it to the encoder, and the encoder reads audio on its own thread. The audio never crosses into managed code on its way to the file.
+- Video does not reference Audio's classes. Audio offers its stream bus as a native reader (`vv_audio_stream_tap`, audio detailed design 5.3); Video's managed code passes it to the encoder, and the encoder reads audio on its own thread. From the stream bus to the file, the audio stays in native code. What is mixed into the bus, and stages such as RVC before it, are Audio's (audio detailed design 5.2).
 - Capture is not referenced: captured video reaches the file only through the rendered stream video (system design 10.2).
 - The encoder's Media Foundation types stay in the native plugin. Managed code sees `IRecordingService` and plain values.
 
@@ -93,6 +93,8 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
 2. At the output rate (30 fps from a 60 fps render: every second frame), `StreamFrameReader` requests a readback and notes the shared clock's time (QPC) of the frame. At most two readbacks wait; a frame past that is skipped and counted.
 3. When the pixels arrive (a frame later), they are pushed to the encoder with that time.
 4. The encoder's thread converts and encodes the frame, reads the audio for up to that time from the tap, and writes both.
+
+- The stream bus is behind the moment it was heard by Audio's `StreamLatency` (audio detailed design 8.4): about 20–30 ms without stages, and more with RVC. The video frames are held that long before encoding, so the mouth and the voice match in the file (system design 10.9). Below one frame (33 ms) nothing is held.
 
 ### 8.2 Starting
 
@@ -169,7 +171,6 @@ The encoder DLL is built by `tools/native/build-encode.ps1` and kept out of Git 
 
 | Item | Plan |
 |---|---|
-| GPUs other than NVIDIA (AMD, Intel) and the software encoder's cost | Measure on other PCs before release |
 | Giving the encoder the GPU texture directly (no readback) | Only if the readback costs too much on other PCs |
 | Choosing H.265 or AV1 | After streaming |
 | Recording and streaming with different settings | With streaming |
