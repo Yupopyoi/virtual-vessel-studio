@@ -359,6 +359,11 @@ namespace VirtualVessel.UI.Tests
                 Assert.That(options.Filters.Single().Extensions, Is.EqualTo(new[] { ".vrm" }));
                 return Task.FromResult(Path);
             }
+
+            public Task<string> PickFolderAsync(string title)
+            {
+                return Task.FromResult<string>(null);
+            }
         }
 
         private sealed class FakeLighting : IStageLighting

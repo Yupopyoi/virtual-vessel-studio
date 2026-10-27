@@ -29,7 +29,27 @@ namespace VirtualVessel.UI.Dialogs
         {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             options ??= new FileDialogOptions();
+            string filter = FileDialogFilters.ToWin32(options.Filters);
+            string title = options.Title;
+            return ShowAlone(owner => Show(owner, filter, title));
+#else
+            throw new PlatformNotSupportedException("The file-picking screen is implemented for Windows only.");
+#endif
+        }
 
+        public Task<string> PickFolderAsync(string title)
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            return ShowAlone(owner => ShowFolders(owner, title));
+#else
+            throw new PlatformNotSupportedException("The folder-picking screen is implemented for Windows only.");
+#endif
+        }
+
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        /// <summary>Runs <paramref name="show"/> on a thread of its own, one screen at a time.</summary>
+        private Task<string> ShowAlone(Func<IntPtr, string> show)
+        {
             // One screen at a time; a second request while one is open is answered as canceled.
             if (Interlocked.Exchange(ref _open, 1) == 1)
             {
@@ -38,14 +58,12 @@ namespace VirtualVessel.UI.Dialogs
 
             // The owner is read on the main thread, where the application window belongs.
             IntPtr owner = GetActiveWindow();
-            string filter = FileDialogFilters.ToWin32(options.Filters);
-            string title = options.Title;
             var result = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
                 try
                 {
-                    result.TrySetResult(Show(owner, filter, title));
+                    result.TrySetResult(show(owner));
                 }
                 catch (Exception exception)
                 {
@@ -63,12 +81,58 @@ namespace VirtualVessel.UI.Dialogs
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             return result.Task;
-#else
-            throw new PlatformNotSupportedException("The file-picking screen is implemented for Windows only.");
-#endif
         }
 
-#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        /// <summary>
+        /// The shell's folder screen (SHBrowseForFolderW), plain P/Invoke like the file screen. The new
+        /// style, with a "Make new folder" button and resizing, needs OLE on its thread.
+        /// </summary>
+        private static string ShowFolders(IntPtr owner, string title)
+        {
+            int ole = OleInitialize(IntPtr.Zero);
+            IntPtr display = Marshal.AllocHGlobal(MaxPathChars * sizeof(char));
+            IntPtr titleText = title == null ? IntPtr.Zero : Marshal.StringToHGlobalUni(title);
+            IntPtr path = Marshal.AllocHGlobal(MaxPathChars * sizeof(char));
+            try
+            {
+                var info = new BrowseInfo
+                {
+                    Owner = owner,
+                    DisplayName = display,
+                    Title = titleText,
+                    Flags = BifReturnOnlyFileSystemFolders | BifNewDialogStyle,
+                };
+                IntPtr list = SHBrowseForFolderW(ref info);
+                if (list == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    return SHGetPathFromIDListEx(list, path, MaxPathChars, 0) ? Marshal.PtrToStringUni(path) : null;
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(list);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(display);
+                Marshal.FreeHGlobal(path);
+                if (titleText != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(titleText);
+                }
+
+                if (ole >= 0)
+                {
+                    OleUninitialize();
+                }
+            }
+        }
+
         private static string Show(IntPtr owner, string filter, string title)
         {
             IntPtr file = Marshal.AllocHGlobal(MaxPathChars * sizeof(char));
@@ -121,6 +185,36 @@ namespace VirtualVessel.UI.Dialogs
 
         [DllImport("comdlg32.dll")]
         private static extern int CommDlgExtendedError();
+
+        private const int BifReturnOnlyFileSystemFolders = 0x0001;
+        private const int BifNewDialogStyle = 0x0040;
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SHBrowseForFolderW(ref BrowseInfo info);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SHGetPathFromIDListEx(IntPtr list, IntPtr path, int pathChars, int options);
+
+        [DllImport("ole32.dll")]
+        private static extern int OleInitialize(IntPtr reserved);
+
+        [DllImport("ole32.dll")]
+        private static extern void OleUninitialize();
+
+        // BROWSEINFOW.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BrowseInfo
+        {
+            public IntPtr Owner;
+            public IntPtr Root;
+            public IntPtr DisplayName;
+            public IntPtr Title;
+            public int Flags;
+            public IntPtr Callback;
+            public IntPtr Parameter;
+            public int Image;
+        }
 
         // OPENFILENAMEW. Strings are passed as pointers so the filter's embedded null characters survive.
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

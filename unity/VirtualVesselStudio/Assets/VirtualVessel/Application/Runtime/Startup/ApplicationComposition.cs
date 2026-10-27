@@ -236,6 +236,8 @@ namespace VirtualVessel.Application.Startup
                                 StreamPreview = video?.Preview,
                                 FrameSources = stage?.Screens,
                                 Captures = capture,
+                                Recording = recording,
+                                Explorer = new WindowsFileExplorer(),
                                 Tracking = tracking,
                                 TrackingRecordings = recordings,
                                 Avatars = avatar,
