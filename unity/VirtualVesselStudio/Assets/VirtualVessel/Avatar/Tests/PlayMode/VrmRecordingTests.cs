@@ -35,7 +35,7 @@ namespace VirtualVessel.Avatar.Tests
                 foreach ((TrackingRecordingInfo info, bool flat) in recordings.SelectMany(recording => new[] { (recording, false), (recording, true) }))
                 {
                     // As the app runs: the standard smoothing, mirrored.
-                    var replay = new Replay(Path.Combine(folder, info.Id), SmoothingLevel.Standard, flat);
+                    var replay = new RecordingReplay(Path.Combine(folder, info.Id), SmoothingLevel.Standard, flat);
                     TrackingFrame output = replay.Output;
                     var controller = new AvatarController(model, ExpressionMapping.Default);
                     var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
@@ -155,7 +155,7 @@ namespace VirtualVessel.Avatar.Tests
             {
                 foreach (TrackingRecordingInfo info in recordings)
                 {
-                    var replay = new Replay(Path.Combine(folder, info.Id), SmoothingLevel.Min, flat: false);
+                    var replay = new RecordingReplay(Path.Combine(folder, info.Id), SmoothingLevel.Min, flat: false);
                     TrackingFrame output = replay.Output;
                     var controller = new AvatarController(model, ExpressionMapping.Default);
                     var tracked = new BodyMotion(model.Rig.Has(AvatarBone.UpperChest));
@@ -280,56 +280,6 @@ namespace VirtualVessel.Avatar.Tests
             }
 
             return (folder, recordings);
-        }
-
-        /// <summary>
-        /// One recording as the app plays it: each observation corrected for its kind of input (tracking
-        /// detailed design 8.4), flattened for 2D (8.6), and smoothed, then read 60 frames a second.
-        /// </summary>
-        private sealed class Replay
-        {
-            private readonly TrackingRecordingHeader _header;
-            private readonly List<TrackingFrame> _frames;
-            private readonly ObservationCorrections _corrections;
-            private readonly TrackingProcessor _processor = new TrackingProcessor();
-            private readonly TrackingFrame _corrected = new TrackingFrame();
-            private readonly int _smoothing;
-            private readonly bool _flat;
-
-            public Replay(string path, int smoothing, bool flat)
-            {
-                (_header, _frames) = TrackingRecordingFile.ReadAll(path);
-                _corrections = ObservationCorrections.For(_header.Traits, ObservationCorrections.Catalog);
-                _smoothing = smoothing;
-                _flat = flat;
-            }
-
-            /// <summary>The smoothed frame, as of the last time <see cref="Frames"/> gave.</summary>
-            public TrackingFrame Output { get; } = new TrackingFrame();
-
-            /// <summary>When the first observation was taken.</summary>
-            public double Start => _frames[0].Time;
-
-            /// <summary>The render frames' times, from the first observation to the last; each after the observations taken by then are processed.</summary>
-            public IEnumerable<double> Frames()
-            {
-                int next = 0;
-                for (double now = Start; now <= _frames[_frames.Count - 1].Time; now += 1.0 / 60.0)
-                {
-                    for (; next < _frames.Count && _frames[next].Time <= now; next++)
-                    {
-                        _corrections.Apply(_frames[next], _corrected);
-                        if (_flat)
-                        {
-                            BodyFlattening.Flatten(_corrected.Body);
-                        }
-
-                        _processor.Process(_corrected, _frames[next].Time, _header.Supported, TrackingRegions.All, _smoothing, Output);
-                    }
-
-                    yield return now;
-                }
-            }
         }
     }
 }
