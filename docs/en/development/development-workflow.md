@@ -641,6 +641,8 @@ As a rule, a detailed design includes:
 
 Private methods do not need to be designed in advance.
 
+A detailed design describes the current behavior and its values. How a decision was reached (what was tried, what the user saw, the measurements, and methods compared and dropped) goes to a decision record in `docs/<lang>/decisions/`, linked from the section it explains, with its date (decision records README). Without this, the designs filled with history and the current behavior became hard to read (the user's decision, 2026-10-27).
+
 ## 11.3 When User Confirmation Is Required
 
 If Claude Code determines that any of the following changes is necessary, it confirms with the user before implementation.
