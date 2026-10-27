@@ -1,0 +1,188 @@
+using System;
+using System.Runtime.InteropServices;
+
+namespace VirtualVessel.Video.Recording
+{
+    /// <summary>What a recording is encoded with (recording detailed design 10).</summary>
+    public readonly struct EncoderFormat
+    {
+        public EncoderFormat(int width, int height, int frameRate, int videoBitrate)
+        {
+            Width = width;
+            Height = height;
+            FrameRate = frameRate;
+            VideoBitrate = videoBitrate;
+        }
+
+        public int Width { get; }
+
+        public int Height { get; }
+
+        public int FrameRate { get; }
+
+        public int VideoBitrate { get; }
+
+        /// <summary>The bytes of one BGRA frame.</summary>
+        public int FrameBytes => Width * Height * 4;
+    }
+
+    /// <summary>The encoder's counts (vv_encode_stats).</summary>
+    public readonly struct EncoderStatus
+    {
+        public EncoderStatus(long pushed, long written, long dropped, int lastError, bool hardware)
+        {
+            Pushed = pushed;
+            Written = written;
+            Dropped = dropped;
+            LastError = lastError;
+            Hardware = hardware;
+        }
+
+        public long Pushed { get; }
+
+        public long Written { get; }
+
+        /// <summary>Frames with no free slot.</summary>
+        public long Dropped { get; }
+
+        /// <summary>The last failing HRESULT, or 0.</summary>
+        public int LastError { get; }
+
+        /// <summary>Whether a hardware encoder is in use; known once frames are written.</summary>
+        public bool Hardware { get; }
+
+        public bool Failed => LastError != 0;
+    }
+
+    /// <summary>
+    /// A video file being encoded. Frames are pushed from the main thread; <see cref="Close"/> may run on
+    /// another thread once no more frames are pushed.
+    /// </summary>
+    public interface IVideoEncoder
+    {
+        /// <summary>Copies a BGRA frame taken at <paramref name="timestamp"/> (the shared clock); false when it was dropped.</summary>
+        bool Push(IntPtr bgra, int length, long timestamp);
+
+        EncoderStatus GetStatus();
+
+        /// <summary>Encodes what is waiting and finishes the file; blocks for up to about a second. Returns the last counts.</summary>
+        EncoderStatus Close();
+    }
+
+    /// <summary>The encoder could not open (recording detailed design 12).</summary>
+    public sealed class EncoderException : Exception
+    {
+        public EncoderException(string message, Exception innerException = null)
+            : base(message, innerException)
+        {
+        }
+    }
+
+    /// <summary>
+    /// <c>VirtualVessel.Encode.Native</c>: H.264 in MP4 through Media Foundation, with a hardware encoder
+    /// when there is one (native/encode/include/vv_encode.h). Timestamps are QPC values, which the
+    /// application's monotonic clock (Stopwatch) reads on Windows.
+    /// </summary>
+    public sealed class NativeEncoder : IVideoEncoder
+    {
+        private const string Library = "VirtualVessel.Encode.Native";
+        private const int ApiVersion = 1;
+        private const int Ok = 0;
+
+        private IntPtr _handle;
+        private EncoderStatus _last;
+
+        private NativeEncoder(IntPtr handle)
+        {
+            _handle = handle;
+        }
+
+        /// <exception cref="EncoderException">The plugin is missing or of another version, or the file or encoder cannot open.</exception>
+        public static NativeEncoder Open(string path, EncoderFormat format)
+        {
+            int version;
+            try
+            {
+                version = vv_encode_api_version();
+            }
+            catch (Exception exception) when (exception is DllNotFoundException || exception is EntryPointNotFoundException)
+            {
+                throw new EncoderException($"The encoder plugin {Library} is not installed; build it with tools/native/build-encode.ps1.", exception);
+            }
+
+            if (version != ApiVersion)
+            {
+                throw new EncoderException($"The encoder plugin has API version {version}; version {ApiVersion} is needed.");
+            }
+
+            int result = vv_encode_open(path, format.Width, format.Height, format.FrameRate, format.VideoBitrate, out IntPtr handle);
+            if (result != Ok || handle == IntPtr.Zero)
+            {
+                throw new EncoderException($"The encoder did not open ({result}) for {format.Width}x{format.Height} at {format.FrameRate} fps.");
+            }
+
+            return new NativeEncoder(handle);
+        }
+
+        public bool Push(IntPtr bgra, int length, long timestamp)
+        {
+            return _handle != IntPtr.Zero && vv_encode_push_video(_handle, bgra, length, timestamp) == Ok;
+        }
+
+        public EncoderStatus GetStatus()
+        {
+            if (_handle == IntPtr.Zero)
+            {
+                return _last;
+            }
+
+            vv_encode_get_stats(_handle, out Stats stats);
+            _last = new EncoderStatus(stats.Pushed, stats.Written, stats.Dropped, stats.LastError, stats.Hardware != 0);
+            return _last;
+        }
+
+        public EncoderStatus Close()
+        {
+            if (_handle == IntPtr.Zero)
+            {
+                return _last;
+            }
+
+            EncoderStatus before = GetStatus();
+            int result = vv_encode_close(_handle);
+            _handle = IntPtr.Zero;
+
+            // The counts were read before the drain; a failure in it shows only in the result.
+            _last = result == Ok ? before : new EncoderStatus(before.Pushed, before.Written, before.Dropped, before.LastError != 0 ? before.LastError : result, before.Hardware);
+            return _last;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Stats
+        {
+            public long Pushed;
+            public long Written;
+            public long Dropped;
+            public long LastWriteUs;
+            public long MaxWriteUs;
+            public long TotalWriteUs;
+            public int LastError;
+            public int Hardware;
+        }
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_api_version();
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int vv_encode_open(string path, int width, int height, int fps, int bitrate, out IntPtr encoder);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_push_video(IntPtr encoder, IntPtr bgra, int length, long qpc);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_get_stats(IntPtr encoder, out Stats stats);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_close(IntPtr encoder);
+    }
+}
