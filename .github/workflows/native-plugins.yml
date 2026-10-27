@@ -37,3 +37,23 @@ jobs:
           path: native/capture/build/Release/VirtualVessel.Capture.Native.dll
           if-no-files-found: error
           retention-days: 14
+
+  encode:
+    name: Encoder plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Build only: the hosted runners (Windows Server) may lack Media Foundation's encoders, so the
+      # encoding test runs on developers' PCs and in the release build (development workflow 21).
+      - name: Build
+        shell: pwsh
+        run: ./tools/native/build-encode.ps1 -SkipTests
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VirtualVessel.Encode.Native
+          path: native/encode/build/Release/VirtualVessel.Encode.Native.dll
+          if-no-files-found: error
+          retention-days: 14
