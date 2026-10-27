@@ -45,15 +45,13 @@ namespace VirtualVessel.Tracking.MediaPipe
         {
         }
 
-        /// <summary>The Pose model file for <paramref name="model"/>. Pure.</summary>
+        /// <summary>
+        /// The Pose model file for <paramref name="model"/>. The heavy model is not shipped (it is not offered,
+        /// tracking detailed design 10), so it reads as the standard one. Pure.
+        /// </summary>
         public static string PoseModelFile(PoseModel model)
         {
-            return model switch
-            {
-                PoseModel.Lite => "pose_landmarker_lite.bytes",
-                PoseModel.Heavy => "pose_landmarker_heavy.bytes",
-                _ => "pose_landmarker_full.bytes",
-            };
+            return model == PoseModel.Lite ? "pose_landmarker_lite.bytes" : "pose_landmarker_full.bytes";
         }
 
         /// <summary>

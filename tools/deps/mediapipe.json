@@ -18,10 +18,6 @@
       "sha256": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1"
     },
     {
-      "file": "pose_landmarker_heavy.bytes",
-      "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b"
-    },
-    {
       "file": "hand_landmarker.bytes",
       "sha256": "32d1eab97e80a9a20edb29231e15301ce65abfd0fa9d41cf1757e0ecc8078a4e"
     }

@@ -577,7 +577,7 @@ public sealed class TrackingSettings
 - ProjectのTracking Profileとして、Data Rootの`Profiles/Tracking/<ProfileId>.json`に保存する（`ConfigFileStore`、Project Data詳細設計6章）。形式は`tracking-settings.json`のままである。段階7の後のリファクタリングまでは設定のFolderの`tracking-settings.json`にあり、最初のProjectがその写しを取った（Project Data詳細設計8章）。
 - カメラの機器の選択は`capture-settings.json`（`camera` Source）に保存する。
 - 鏡写し（利用者の決定、2026-10-19）：オンでは、セットアップ画面のカメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従い、利用者の右手でアバターの左手が動く（Avatar詳細設計6.6）。プレビューとアバターで向きが食い違わないよう、1つの設定としてTrackingが持つ。`Current`の左右は、設定に関わらず本人の左右のままとする。
-- Poseのモデルは選択肢の1つとした（段階7）。LiteかFullとする。Heavyは出さない（`TrackingOptions.Available`）。利用者のカメラでは、遅いうえ、平滑化、外れ値の上限、奥行きの補正をすべてFullで調整しているため、Fullより悪くなった（2026-10-26）。保存されたHeavyはFullとして読む。モデルのファイルは今も同梱しており、外すのは後の変更とする。Providerは開始するときにモデルを読み込むため、トラッキング中に変えるとProviderを開始し直す。カメラは動かしたままにする。段階7より前はProviderを作るときに決まり、変えてもアプリを起動し直すまで反映されなかった。
+- Poseのモデルは選択肢の1つとした（段階7）。LiteかFullとする。Heavyは出さない（`TrackingOptions.Available`）。利用者のカメラでは、遅いうえ、平滑化、外れ値の上限、奥行きの補正をすべてFullで調整しているため、Fullより悪くなった（2026-10-26）。保存されたHeavyはFullとして読む。Heavyのモデルのファイルは同梱しない（2026-10-27）。`tools/deps/mediapipe.json`から外し、取得のScriptは一覧にないモデルのファイルを消す。Providerは開始するときにモデルを読み込むため、トラッキング中に変えるとProviderを開始し直す。カメラは動かしたままにする。段階7より前はProviderを作るときに決まり、変えてもアプリを起動し直すまで反映されなかった。
 - 版2（段階4）：3段階の`smoothing`（0〜2）を、10段階の`smoothingLevel`（1〜10）に変えた。版1のファイルは読み込むときに移す。版1には段階を選ぶ画面がなく、標準（1）は利用者が選んだ値ではないため、既定（5）にする。なめらか（0）ときびきび（2）はファイルを手で変えたときだけのため、計測した値のまま3と7にする。ほかの値と知らない項目は残す。
 - 版4（2026-10-24）：段階をさらに4つずらした（8.2）。版3の段階は、4つ上の段階にして体の動きを保つ。版3の標準5は、既定のままの値として新しい標準5にする。版3の6〜10は、どれも10になる。
 - 版3（2026-10-24）：段階を2つずらした（8.2）。版2の段階は、2つ上の段階にして同じ動きを保つ。ただし版2の標準5は、ほとんどの場合に既定のままの値で、利用者が旧3を標準とするよう求めたため、新しい標準5にする。版2の9と10は、どちらも10になる。版1のファイルは、版2を経て移す。
@@ -795,7 +795,7 @@ Assets/VirtualVessel/Tracking/
   - `tools/deps/fetch-mediapipe.ps1`が、固定した版の`.tgz`を`build/deps/`へダウンロードし、SHA-256を確かめ、`unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/`へEmbedded Packageとして展開する（Gitの管理外）。Packagesの下に置いたPackageは`manifest.json`に書かなくてもUnityが見つけるため、Pluginがない作業Copyでも、Projectはそのまま開ける（MediaPipeのAssemblyがCompileされないだけ）。
   - `packages-lock.json`にはEmbedded Packageとして載る（版は`file:`）。Repositoryのチェックは、Embedded Packageの版を`tools/deps/mediapipe.json`の値で確かめる。
   - 手元とリリースのScript（`tools/release/build-release.ps1`）で同じScriptを使う。Native Pluginの扱い（DLLはGitに入れず、手順で作る）と同じ考え方である。
-- モデル（`face_landmarker_v2_with_blendshapes`、`pose_landmarker_lite` / `full` / `heavy`、`hand_landmarker`）は、PluginのPackageに入っているものを使う。それぞれのSHA-256を`tools/deps/mediapipe.json`に固定し、Scriptが確かめてから`Assets/StreamingAssets/Tracking/MediaPipe/`へ写す（Gitの管理外。BuildのStreamingAssetsに入る）。
+- モデル（`face_landmarker_v2_with_blendshapes`、`pose_landmarker_lite` / `full`、`hand_landmarker`）は、PluginのPackageに入っているものを使う。それぞれのSHA-256を`tools/deps/mediapipe.json`に固定し、Scriptが確かめてから`Assets/StreamingAssets/Tracking/MediaPipe/`へ写す（Gitの管理外。BuildのStreamingAssetsに入る）。
 - 配布物には、Windows x64のNative Library（`mediapipe_c.dll`）だけが入る（PluginのImport設定による）。
 - ライセンス：Pluginは MIT、MediaPipeとモデルはApache-2.0。PluginのNative Libraryに組み込まれたLibrary（Abseil、OpenCV、Protocol Buffers、TensorFlow Lite、XNNPACK等。すべてPermissive）は、Pluginの`Third Party Notices.md`にあり、リリースのPackageへ同梱する。SBOMへ記録した（CLAUDE.md 35章）。
 
