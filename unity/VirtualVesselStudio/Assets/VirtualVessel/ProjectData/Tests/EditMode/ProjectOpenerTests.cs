@@ -49,6 +49,7 @@ namespace VirtualVessel.ProjectData.Tests
             Assert.That(first.Manifest.TrackingProfileId, Is.EqualTo(Id(2)));
             Assert.That(first.Manifest.CaptureProfileId, Is.EqualTo(Id(3)));
             Assert.That(first.Manifest.StreamingProfileId, Is.EqualTo(Id(4)));
+            Assert.That(first.Manifest.AudioProfileId, Is.EqualTo(Id(5)));
             Assert.That(first.Manifest.DisplayName, Is.EqualTo(ProjectOpener.DefaultDisplayName));
             Assert.That(first.Manifest.CreatedAt, Is.EqualTo("2026-10-27T01:00:00.0000000Z"));
             Assert.That(File.Exists(Path.Combine(first.Directory, ProjectManifest.FileName)), Is.True);
@@ -114,6 +115,21 @@ namespace VirtualVessel.ProjectData.Tests
             Assert.That(opened.Manifest.TrackingProfileId, Is.EqualTo(Id(2)), "The others are kept.");
             Assert.That(File.ReadAllText(manifest), Does.Contain(opened.Manifest.StreamingProfileId), "Saved.");
             Assert.That(opened.ProfileFileName(ProfileKind.Streaming), Is.EqualTo(opened.Manifest.StreamingProfileId + ".json"));
+        }
+
+        [Test]
+        public void AProjectFromBeforeAudioProfiles_GetsOne()
+        {
+            OpenedProject first = Open();
+            string manifest = Path.Combine(first.Directory, ProjectManifest.FileName);
+            File.WriteAllText(manifest, $"{{ \"schemaVersion\": 1, \"projectId\": \"{first.ProjectId}\", \"displayName\": \"Default\", \"trackingProfileId\": \"{Id(2)}\", \"captureProfileId\": \"{Id(3)}\", \"streamingProfileId\": \"{Id(4)}\" }}");
+
+            OpenedProject opened = Open();
+
+            Assert.That(ProjectOpener.IsValidId(opened.Manifest.AudioProfileId), Is.True);
+            Assert.That(opened.Manifest.StreamingProfileId, Is.EqualTo(Id(4)), "The others are kept.");
+            Assert.That(File.ReadAllText(manifest), Does.Contain(opened.Manifest.AudioProfileId), "Saved.");
+            Assert.That(opened.ProfileDirectory(ProfileKind.Audio), Does.EndWith("Audio"));
         }
 
         [Test]

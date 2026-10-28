@@ -213,6 +213,7 @@ namespace VirtualVessel.ProjectData.Projects
                     TrackingProfileId = newId(),
                     CaptureProfileId = newId(),
                     StreamingProfileId = newId(),
+                    AudioProfileId = newId(),
                 };
                 notes.Add($"Made project {chosen}.");
 
@@ -313,7 +314,7 @@ namespace VirtualVessel.ProjectData.Projects
 
         private static bool SameManifest(ProjectManifest a, ProjectManifest b)
         {
-            return a.ProjectId == b.ProjectId && a.DisplayName == b.DisplayName && a.TrackingProfileId == b.TrackingProfileId && a.CaptureProfileId == b.CaptureProfileId && a.StreamingProfileId == b.StreamingProfileId;
+            return a.ProjectId == b.ProjectId && a.DisplayName == b.DisplayName && a.TrackingProfileId == b.TrackingProfileId && a.CaptureProfileId == b.CaptureProfileId && a.StreamingProfileId == b.StreamingProfileId && a.AudioProfileId == b.AudioProfileId;
         }
     }
 }
