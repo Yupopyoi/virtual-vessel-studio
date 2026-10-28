@@ -8,7 +8,7 @@ namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The settings screen (id "setup"): a capture Card per source shown on the stream, the tracking
-    /// Card, the avatar Card, face tuning, recording, the app settings, then the credits
+    /// Card, the audio Card, the avatar Card, face tuning, recording, the app settings, then the credits
     /// (docs/&lt;lang&gt;/ui/screens/setup.md), each closed until opened.
     /// </summary>
     public sealed class SetupScreen : VisualElement
@@ -38,6 +38,16 @@ namespace VirtualVessel.UI.Screens
                         Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source)));
                     }
                 }
+            }
+
+            // The sound right after the video it often comes with (audio detailed design 18).
+            if (services.Audio != null)
+            {
+                Add(new AudioCard(services.Audio, services.SystemSettings));
+            }
+            else
+            {
+                Add(Ui.Text(AudioStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
             }
 
             if (tracking != null && captures?.Find(CaptureService.TrackingCameraId) is ICaptureDeviceSource camera)

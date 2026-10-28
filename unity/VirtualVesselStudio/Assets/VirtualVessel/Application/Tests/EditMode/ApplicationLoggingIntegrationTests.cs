@@ -7,6 +7,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Startup;
+using VirtualVessel.Audio;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.Threading;
@@ -136,7 +137,9 @@ namespace VirtualVessel.Application.Tests
             try
             {
                 Assert.That(runtime.State, Is.EqualTo(ApplicationState.Running));
-                Assert.That(frameLoop.Count, Is.EqualTo(2), "Capture updates its sources and Tracking its frame every frame.");
+                // Audio follows its sources every frame too, where its plugin is built (not on CI's runners).
+                bool audio = runtime.Host.Services.Any(status => status.Name == AudioService.ServiceName && status.State == ApplicationServiceState.Running);
+                Assert.That(frameLoop.Count, Is.EqualTo(audio ? 3 : 2), "Capture updates its sources and Tracking its frame every frame.");
 
                 // Every source starts stopped and tracking is off, so a frame opens no device.
                 frameLoop.Tick(exception => Assert.Fail(exception.ToString()));

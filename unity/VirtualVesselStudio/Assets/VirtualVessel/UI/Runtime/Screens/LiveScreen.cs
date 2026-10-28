@@ -58,6 +58,13 @@ namespace VirtualVessel.UI.Screens
                 Add(Record);
             }
 
+            // Next to recording, so the user sees the voice and the game are heard (audio detailed design 18).
+            if (services.Audio != null && services.Audio.Sources.Count > 0)
+            {
+                Audio = new AudioStrip(services.Audio);
+                Add(Audio);
+            }
+
             // Right under the stream, so an arm that rests can be told from one the camera does not see.
             if (tracking != null)
             {
@@ -84,6 +91,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Starting and stopping a recording; null without recording.</summary>
         public RecordControl Record { get; }
+
+        /// <summary>The sources' levels and mute buttons; null without audio.</summary>
+        public AudioStrip Audio { get; }
 
         /// <summary>The arms and hands in view; null without tracking.</summary>
         public LimbStatusRow Limbs { get; }
