@@ -41,13 +41,25 @@ namespace VirtualVessel.UI.Recording
         High,
     }
 
+    /// <summary>The video format of recordings (recording detailed design 10; decision record on AV1).</summary>
+    public enum RecordingCodec
+    {
+        /// <summary>The default where the GPU has an AV1 encoder: better at the same bitrate, and no H.264 patent pool.</summary>
+        Av1,
+
+        /// <summary>For older editors and phones, and GPUs without an AV1 encoder.</summary>
+        H264,
+    }
+
     /// <summary>What the user sets for recordings, and the video's fixed size and rate.</summary>
     public readonly struct RecordingOptions : IEquatable<RecordingOptions>
     {
-        public RecordingOptions(string folder, RecordingQuality quality, int width, int height, int frameRate)
+        public RecordingOptions(string folder, RecordingQuality quality, RecordingCodec codec, bool av1Available, int width, int height, int frameRate)
         {
             Folder = folder;
             Quality = quality;
+            Codec = codec;
+            Av1Available = av1Available;
             Width = width;
             Height = height;
             FrameRate = frameRate;
@@ -58,6 +70,12 @@ namespace VirtualVessel.UI.Recording
 
         public RecordingQuality Quality { get; }
 
+        /// <summary>The format the next recording uses: H.264 whenever AV1 is not available.</summary>
+        public RecordingCodec Codec { get; }
+
+        /// <summary>Whether the GPU has an AV1 encoder; without one, AV1 cannot be chosen.</summary>
+        public bool Av1Available { get; }
+
         public int Width { get; }
 
         public int Height { get; }
@@ -66,17 +84,23 @@ namespace VirtualVessel.UI.Recording
 
         public RecordingOptions WithFolder(string folder)
         {
-            return new RecordingOptions(folder, Quality, Width, Height, FrameRate);
+            return new RecordingOptions(folder, Quality, Codec, Av1Available, Width, Height, FrameRate);
         }
 
         public RecordingOptions WithQuality(RecordingQuality quality)
         {
-            return new RecordingOptions(Folder, quality, Width, Height, FrameRate);
+            return new RecordingOptions(Folder, quality, Codec, Av1Available, Width, Height, FrameRate);
+        }
+
+        public RecordingOptions WithCodec(RecordingCodec codec)
+        {
+            return new RecordingOptions(Folder, Quality, codec, Av1Available, Width, Height, FrameRate);
         }
 
         public bool Equals(RecordingOptions other)
         {
-            return string.Equals(Folder, other.Folder, StringComparison.Ordinal) && Quality == other.Quality && Width == other.Width && Height == other.Height && FrameRate == other.FrameRate;
+            return string.Equals(Folder, other.Folder, StringComparison.Ordinal) && Quality == other.Quality && Codec == other.Codec && Av1Available == other.Av1Available &&
+                Width == other.Width && Height == other.Height && FrameRate == other.FrameRate;
         }
 
         public override bool Equals(object obj)
@@ -86,7 +110,7 @@ namespace VirtualVessel.UI.Recording
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Folder, Quality, Width, Height, FrameRate);
+            return HashCode.Combine(Folder, Quality, Codec, Av1Available, Width, Height, FrameRate);
         }
     }
 
@@ -108,7 +132,7 @@ namespace VirtualVessel.UI.Recording
 
         IReadOnlyObservable<RecordingOptions> Options { get; }
 
-        /// <summary>Changes the folder or the quality. A recording in progress keeps its own; the next one uses these.</summary>
+        /// <summary>Changes the folder, the quality, or the format. A recording in progress keeps its own; the next one uses these.</summary>
         void SetOptions(RecordingOptions options);
 
         /// <summary>The free space where recordings go, in bytes; null when it cannot be read.</summary>

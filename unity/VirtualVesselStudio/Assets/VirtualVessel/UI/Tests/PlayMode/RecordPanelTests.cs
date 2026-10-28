@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -150,15 +151,82 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card, Is.Not.Null);
             Assert.That(card.FolderText.text, Is.EqualTo("C:\\Videos\\Virtual Vessel Studio"));
             Assert.That(card.FreeText.text, Is.EqualTo("12.5 GB"));
-            Assert.That(card.FormatText.text, Is.EqualTo("1920×1080・30 fps・MP4（H.264）"));
+            Assert.That(card.FormatText.text, Is.EqualTo("1920×1080・30 fps・MP4"));
             Assert.That(card.Quality.value, Is.EqualTo(0));
 
             card.Quality.value = 1;
             Assert.That(_recording.Options.Value.Quality, Is.EqualTo(RecordingQuality.High));
 
+            Assert.That(card.Codec.value, Is.EqualTo((int)RecordingCodec.Av1), "AV1 first, as recommended.");
+            card.Codec.value = (int)RecordingCodec.H264;
+            Assert.That(_recording.Options.Value.Codec, Is.EqualTo(RecordingCodec.H264));
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecDescription));
+
+            // A GPU without an AV1 encoder: AV1 is shown but cannot be chosen, and the description says why.
+            _recording.SetOptions(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.High, RecordingCodec.H264, false, 1920, 1080, 30));
+            yield return null;
+            Assert.That(card.Codec.IsItemEnabled((int)RecordingCodec.Av1), Is.False);
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecNoAv1));
+
             Submit(card.OpenButton);
             yield return null;
             Assert.That(_explorer.Shown, Is.EqualTo("C:\\Videos\\Virtual Vessel Studio"));
+        }
+
+        [UnityTest]
+        public IEnumerator TheSetupCard_KeepsItsControlsInside_LinedUp_AndReadable()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            RecordingCard recording = _root.Content.Q<RecordingCard>();
+            recording.Q<Card>().Expanded = true;
+            yield return null;
+            yield return null;
+
+            // The test window is narrow, so the controls wrap under the names; then as wide as the user's window.
+            CheckLayout(recording, wide: false);
+            recording.style.width = 900;
+            recording.style.flexShrink = 0;
+            yield return null;
+            yield return null;
+            CheckLayout(recording, wide: true);
+        }
+
+        /// <summary>
+        /// Measured on the real styles: nothing past the Card, the folder's buttons lined up with the other
+        /// rows' controls (at the right edge when wide, at the left under the names when narrow), and the
+        /// values in the text color, as readable as the rows' names.
+        /// </summary>
+        private static void CheckLayout(RecordingCard recording, bool wide)
+        {
+            Card card = recording.Q<Card>();
+            float right = card.contentContainer.worldBound.xMax;
+            foreach (VisualElement control in new VisualElement[] { recording.Quality, recording.Codec, recording.PickButton, recording.OpenButton, recording.FreeText, recording.FormatText, recording.FolderText })
+            {
+                Assert.That(control.worldBound.xMax, Is.LessThanOrEqualTo(right + 0.5f), $"{control.GetType().Name} reaches past the Card (wide: {wide}).");
+            }
+
+            // Compared by the rows' control boxes; a label's own box is inset by its padding.
+            Rect buttons = recording.OpenButton.parent.parent.worldBound;
+            Rect free = recording.FreeText.parent.worldBound;
+            Rect quality = recording.Quality.parent.worldBound;
+            if (wide)
+            {
+                Assert.That(buttons.xMax, Is.EqualTo(free.xMax).Within(1f), "The folder's buttons end where the other values do.");
+                Assert.That(quality.xMax, Is.EqualTo(free.xMax).Within(1f));
+            }
+            else
+            {
+                Assert.That(buttons.xMin, Is.EqualTo(free.xMin).Within(1f), "Wrapped, the folder's buttons start where the other values do.");
+            }
+
+            var rows = recording.Query<SettingRow>().ToList();
+            Assert.That(recording.FolderText.parent, Is.SameAs(rows[0].TextArea), "The path reads under the row's name.");
+            Color name = rows[0].Q<Label>(className: SettingRow.UssClass + "__name").resolvedStyle.color;
+            foreach (Label value in new[] { recording.FolderText, recording.FreeText, recording.FormatText })
+            {
+                Assert.That(value.resolvedStyle.color, Is.EqualTo(name), $"{value.text} is not in the text color.");
+            }
         }
 
         [Test]
@@ -194,7 +262,7 @@ namespace VirtualVessel.UI.Tests
         {
             private readonly ObservableValue<RecordingState> _state = new ObservableValue<RecordingState>(RecordingState.Idle);
             private readonly ObservableValue<RecordingProblem> _problem = new ObservableValue<RecordingProblem>(RecordingProblem.None);
-            private readonly ObservableValue<RecordingOptions> _options = new ObservableValue<RecordingOptions>(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.Standard, 1920, 1080, 30));
+            private readonly ObservableValue<RecordingOptions> _options = new ObservableValue<RecordingOptions>(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.Standard, RecordingCodec.Av1, true, 1920, 1080, 30));
 
             public int Started { get; private set; }
 

@@ -23,7 +23,8 @@ extern "C"
 {
 #endif
 
-#define VV_ENCODE_API_VERSION 1
+// 2: the codec is chosen (H.264 or AV1) and the open call takes a configuration struct.
+#define VV_ENCODE_API_VERSION 2
 
 #define VV_ENCODE_OK 0
 #define VV_ENCODE_INVALID_ARGUMENT (-1)
@@ -32,6 +33,19 @@ extern "C"
 #define VV_ENCODE_DROPPED 1
 
 typedef struct vv_encoder vv_encoder;
+
+#define VV_ENCODE_CODEC_H264 0
+#define VV_ENCODE_CODEC_AV1 1
+
+typedef struct vv_encode_config
+{
+    const wchar_t* path;     // The MP4 file to write.
+    int32_t width;           // Even.
+    int32_t height;          // Even.
+    int32_t fps;
+    int32_t bitrate;         // Bits per second.
+    int32_t codec;           // VV_ENCODE_CODEC_*. H.264 is written in the High profile.
+} vv_encode_config;
 
 typedef struct vv_encode_stats
 {
@@ -47,8 +61,11 @@ typedef struct vv_encode_stats
 
 VV_ENCODE_API int32_t vv_encode_api_version(void);
 
-// Opens an MP4 file at path and starts the encoding thread. bitrate is in bits per second.
-VV_ENCODE_API int32_t vv_encode_open(const wchar_t* path, int32_t width, int32_t height, int32_t fps, int32_t bitrate, vv_encoder** encoder);
+// 1 when the system has a hardware encoder for the codec (VV_ENCODE_CODEC_*), else 0.
+VV_ENCODE_API int32_t vv_encode_hardware_available(int32_t codec);
+
+// Opens an MP4 file and starts the encoding thread. The video is tagged BT.709, limited range.
+VV_ENCODE_API int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);
 
 // Copies one BGRA frame (rows bottom to top, as Unity reads them back) taken at qpc for encoding.
 // Returns VV_ENCODE_DROPPED when every slot is still waiting for the encoder.

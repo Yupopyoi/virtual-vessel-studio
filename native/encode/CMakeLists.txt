@@ -1,4 +1,4 @@
-# The encoder native plugin (recording detailed design): H.264 in MP4 through Media Foundation.
+# The encoder native plugin (recording detailed design): H.264 or AV1 in MP4 through Media Foundation.
 # Built with tools/native/build-encode.ps1.
 
 cmake_minimum_required(VERSION 3.21)
@@ -22,5 +22,6 @@ target_link_libraries(VirtualVessel.Encode.Native PRIVATE mfplat mfreadwrite mfu
 
 enable_testing()
 add_executable(vv_encode_tests tests/encode_tests.cpp)
-target_link_libraries(vv_encode_tests PRIVATE VirtualVessel.Encode.Native)
+target_compile_definitions(vv_encode_tests PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(vv_encode_tests PRIVATE VirtualVessel.Encode.Native mfplat mfreadwrite mfuuid ole32)
 add_test(NAME vv_encode_tests COMMAND vv_encode_tests)

@@ -5,11 +5,11 @@
 Encode the stream video and the stream audio, and record them to a video file (system design 10.7–10.9, 10.13). Streaming (10.10–10.12) is added on the same encoding later, as another output.
 
 - Recording comes before streaming (the user's decision, 2026-10-27): it is checked locally, without a network or a stream key.
-- The defaults are 1920×1080 at 30 fps, H.264, with AAC audio, in MP4 (the user's decision).
+- The defaults are 1920×1080 at 30 fps, with AAC audio, in MP4 (the user's decision). The video is AV1 where the GPU has an AV1 encoder and H.264 (High) elsewhere; the user can choose H.264 (the user's decision, 2026-10-28; why: [decisions/recording.md](../decisions/recording.md)).
 - The audio is the stream mix of the Audio module (audio detailed design): the microphone and the game's audio.
-- A spike (2026-10-27, branch `spike/encoder`) showed that encoding in the application keeps up: on the development PC (Core i7-13700F, RTX 4070), reading back every second frame and encoding it with the hardware encoder through Media Foundation left the frame time unchanged (16.7 ms at 60 fps), cost 0.35–0.48 ms of main thread a frame, used about 5% of the GPU's encoder and 1.4% of the CPU (24 threads), and dropped no frame.
+- A spike (2026-10-27; its probe was not kept, so the numbers are recorded here) showed that encoding in the application keeps up: on the development PC (Core i7-13700F, RTX 4070), reading back every second frame and encoding it with the hardware encoder through Media Foundation left the frame time unchanged (16.7 ms at 60 fps), cost 0.35–0.48 ms of main thread a frame, used about 5% of the GPU's encoder and 1.4% of the CPU (24 threads), and dropped no frame.
 
-Not in this design: streaming (RTMPS), external video output (Spout), other codecs.
+Not in this design: streaming (RTMPS), external video output (Spout), other codecs (H.265, VP9).
 
 ## 2. Responsibilities
 
@@ -17,7 +17,7 @@ Not in this design: streaming (RTMPS), external video output (Spout), other code
 |---|---|
 | Rendering the stream video (Stream Render Target) | Video (video detailed design) |
 | Reading the stream video back and timing each frame | Video (`StreamFrameReader`) |
-| Encoding video (H.264) and audio (AAC), and muxing them into MP4 | Video, native `VirtualVessel.Encode.Native` |
+| Encoding video (AV1 or H.264) and audio (AAC), and muxing them into MP4 | Video, native `VirtualVessel.Encode.Native` |
 | Starting, stopping, and naming a recording; its state | Video (`RecordingService`) |
 | The stream audio (capture, mixing) | Audio (audio detailed design) |
 | The record button, the recording state on the live screen, and the recording settings | UI |
@@ -40,7 +40,7 @@ Not in this design: streaming (RTMPS), external video output (Spout), other code
 | `RecordingSettings` | Class | The streaming profile's encoding values and the recording folder (10) |
 | `RecordingNames` | Static class | File names, folders, the free-space check, quality and bitrate; pure (8.2) |
 | `FramePacing` | Static class | Which frames are read at the output frame rate; pure (8.1) |
-| `VirtualVessel.Encode.Native` | Native DLL | H.264 and AAC through Media Foundation's Sink Writer, MP4 |
+| `VirtualVessel.Encode.Native` | Native DLL | AV1 or H.264, and AAC, through Media Foundation's Sink Writer, MP4 |
 
 ## 5. Public API
 
@@ -61,18 +61,22 @@ public interface IRecordingService
 
 - `IRecordingService`, `RecordingOptions`, and the state and problem enums are in UI's `VirtualVessel.UI.Recording`, and Video implements them. Video references UI (as for `IStreamPreviewSource`), so UI cannot reference Video.
 - `RecordingQuality`: `Standard` (6 Mbit/s), `High` (12 Mbit/s). A bitrate in the file reads as the nearer quality; an edited bitrate is kept until the quality is changed.
+- `RecordingCodec`: `Av1`, `H264`. `RecordingOptions.Codec` is the format the next recording uses, and `Av1Available` whether the GPU has an AV1 encoder (read once at startup, `vv_encode_hardware_available`). Without one the codec is always H.264.
 
 ### 5.1 The Native API (`vv_encode.h`)
 
 ```c
-int32_t vv_encode_api_version(void);                                           // 1
-int32_t vv_encode_open(const wchar_t* path, int32_t width, int32_t height, int32_t fps, int32_t bitrate, vv_encoder** encoder);
+int32_t vv_encode_api_version(void);                                           // 2
+int32_t vv_encode_hardware_available(int32_t codec);                           // 1 when the GPU has an encoder for VV_ENCODE_CODEC_H264 or _AV1
+int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // path, width, height, fps, bitrate, codec
 int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);  // VV_ENCODE_DROPPED with no free slot
 int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // Pushed, written, dropped, last error, hardware or not
 int32_t vv_encode_close(vv_encoder*);                                          // Drains, finishes the file; a file with no frame is deleted
 ```
 
-- This version (API version 1) is video only. With audio, `vv_encode_open` takes a configuration struct instead (`vv_encode_config`: path, size, fps, bitrates, the audio tap or none), and the API version goes up.
+- This version (API version 2) is video only. With audio, `vv_encode_config` gains the audio bitrate and the audio tap (or none), and the API version goes up.
+- H.264 is written in the High profile (without it the encoder chose Constrained Baseline), and AV1 in its Main profile.
+- The video is tagged BT.709, limited range (matrix, primaries, transfer, range), and the input is marked full range, so players convert the colors back as they were rendered. Untagged files looked darker in some players.
 
 - Video frames are copied into four slots and encoded on the encoder's thread, as in the spike; a frame with no free slot is dropped and counted.
 - Audio is pulled from the tap on the same thread, by time, so audio and video are written in order.
@@ -81,7 +85,7 @@ int32_t vv_encode_close(vv_encoder*);                                          /
 
 - `RecordingState`: `Idle`, `Starting`, `Recording`, `Stopping`, `Failed`.
 - `RecordingProblem`: `None`, `FolderUnavailable` (cannot create or write the folder), `DiskFull` (less than the reserve, 8.2), `EncoderFailed` (the encoder could not open or failed while writing), `AudioUnavailable` (recording goes on without audio).
-- Files: `<folder>/VirtualVesselStudio_2026-10-27_22-30-05.mp4` (local time), H.264 High, AAC-LC 48 kHz stereo.
+- Files: `<folder>/VirtualVesselStudio_2026-10-27_22-30-05.mp4` (local time), AV1 Main or H.264 High, BT.709 limited range, AAC-LC 48 kHz stereo.
 
 ## 7. State and Lifecycle
 
@@ -117,7 +121,7 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
 ## 9. Threading
 
 - Main thread: readback requests and pushing the pixels (a copy into a slot, about 0.5 ms a frame).
-- Encoder thread (native): conversion, H.264 and AAC through Media Foundation, muxing, writing. Nothing waits for it on the main thread; a full queue drops a frame.
+- Encoder thread (native): conversion, AV1 or H.264 and AAC through Media Foundation, muxing, writing. Nothing waits for it on the main thread; a full queue drops a frame.
 - The audio tap is read on the encoder thread; the Audio module fills it on its own thread (audio detailed design 9).
 
 ## 10. Configuration
@@ -129,9 +133,12 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
   "schemaVersion": 1,
   "width": 1920, "height": 1080, "frameRate": 30,
   "videoBitrate": 6000000, "audioBitrate": 160000,
-  "recordingFolder": null
+  "recordingFolder": null,
+  "videoCodec": null
 }
 ```
+
+- `videoCodec` is "av1" or "h264" once the user has chosen, and null until then: null records AV1 where the GPU has an AV1 encoder and H.264 elsewhere, so a profile shared by PCs follows each one. A chosen "av1" on a PC without an AV1 encoder records H.264 and keeps the choice. Added in schema version 1 without a step: a file without it reads as null.
 
 - `width` and `height` are also the Stream Render Target's size; they are read at startup, before Video starts. A value out of range (width 320–3840 and height 180–2160, even; frame rate 1–60; bitrate 0.5–50 Mbit/s) falls back to its default (`RecordingSettings.Usable`), so a mistake in the file cannot stop the stream video.
 - `recordingFolder` null means `Videos/Virtual Vessel Studio` in the user's own Videos folder, where users look for videos. Choosing the default folder again saves null too, so it follows the Videos folder. The folder is not in the Data Root, so moving the Data Root does not move recordings.
@@ -144,8 +151,8 @@ The recordings are the user's own files and are never deleted by the application
 
 ## 12. Error Handling and Recovery
 
-- The encoder fails to open (no H.264 encoder, the file cannot be created): `Failed` with `EncoderFailed` or `FolderUnavailable`; nothing else stops.
-- A hardware encoder is used when there is one; otherwise Media Foundation's software encoder. Which one is logged (system design 5.15).
+- The encoder fails to open (no encoder for the format, the file cannot be created): `Failed` with `EncoderFailed` or `FolderUnavailable`; nothing else stops.
+- A hardware encoder is used when there is one; otherwise Media Foundation's software encoder (H.264 only; AV1 is used only with a hardware encoder, since software AV1 is too slow for real time). The format and whether the encoder is hardware are logged (system design 5.15).
 - A write error while recording: the encoder stops, the part written is finished, and the state is `Failed`.
 - No audio (the Audio module unavailable or no device): the recording goes on with video only and `AudioUnavailable` is shown.
 - Recording never stops the avatar, tracking, or capture (system design 10.16).
@@ -162,7 +169,7 @@ The recordings are the user's own files and are never deleted by the application
 | EditMode | `RecordingNames` (names, collisions, free space), the state machine with a fake encoder, settings and migration |
 | Native (ctest) | Encoding synthetic video and a synthetic tone; the file's duration, frame count, and audio length (the spike's test, extended) |
 | PlayMode | Recording the stream video for a few seconds; the file plays with the expected size and duration (`ffprobe` when present) |
-| Performance (Explicit) | The spike's measurement as a test: frame time with and without recording, main-thread cost, drops, CPU and GPU (`EncodeSpikeProbe`, moved to Video) |
+| Performance (Explicit) | The spike's measurement as a test: frame time with and without recording, main-thread cost, drops, CPU and GPU (to be written in Video; the spike's probe was not kept) |
 | Manual | A/V sync: a clap seen and heard at the same moment in the file |
 
 ## 15. Performance
@@ -189,7 +196,8 @@ The encoder DLL is built by `tools/native/build-encode.ps1` and kept out of Git 
 | Item | Plan |
 |---|---|
 | Giving the encoder the GPU texture directly (no readback) | Only if the readback costs too much on other PCs |
-| Choosing H.265 or AV1 | After streaming |
+| Whether AV1 plays on PCs without the AV1 Video Extension | Check on another PC; until then the setup screen says to choose H.264 if files do not open |
+| The format for streaming (YouTube takes AV1, other services may need H.264) | With streaming |
 | Recording and streaming with different settings | With streaming |
 
 ## 18. UI
@@ -216,6 +224,7 @@ A record control sits under the stream preview, so recording starts and stops fr
 
 A "Recording" Card: the folder (with "Change…" and "Open"), the quality (Standard 6 Mbit/s, High 12 Mbit/s), the free space, and the size and frame rate (1920×1080, 30 fps, fixed for now).
 
+- The format: Segmented "AV1" / "H.264"; the recommendation and when to choose H.264 are in the description (short items keep the control within 260px). Without an AV1 encoder, AV1 is shown but cannot be chosen, and the description says the GPU does not support it.
 - "Change…" opens Windows' folder screen (`SHBrowseForFolderW`) on a thread of its own, as the file screen does; rendering and the stream go on.
 - The free space is read again every 10 seconds while the Card is shown.
 - Changes are used from the next recording; a recording in progress keeps the settings it started with. The audio sources are on the Audio Card (audio detailed design 18).

@@ -1,18 +1,22 @@
 using System;
 using System.Runtime.InteropServices;
+using VirtualVessel.UI.Recording;
 
 namespace VirtualVessel.Video.Recording
 {
     /// <summary>What a recording is encoded with (recording detailed design 10).</summary>
     public readonly struct EncoderFormat
     {
-        public EncoderFormat(int width, int height, int frameRate, int videoBitrate)
+        public EncoderFormat(int width, int height, int frameRate, int videoBitrate, RecordingCodec codec)
         {
             Width = width;
             Height = height;
             FrameRate = frameRate;
             VideoBitrate = videoBitrate;
+            Codec = codec;
         }
+
+        public RecordingCodec Codec { get; }
 
         public int Width { get; }
 
@@ -86,8 +90,10 @@ namespace VirtualVessel.Video.Recording
     public sealed class NativeEncoder : IVideoEncoder
     {
         private const string Library = "VirtualVessel.Encode.Native";
-        private const int ApiVersion = 1;
+        private const int ApiVersion = 2;
         private const int Ok = 0;
+        private const int CodecH264 = 0;
+        private const int CodecAv1 = 1;
 
         private IntPtr _handle;
         private EncoderStatus _last;
@@ -115,13 +121,40 @@ namespace VirtualVessel.Video.Recording
                 throw new EncoderException($"The encoder plugin has API version {version}; version {ApiVersion} is needed.");
             }
 
-            int result = vv_encode_open(path, format.Width, format.Height, format.FrameRate, format.VideoBitrate, out IntPtr handle);
+            var config = new Config
+            {
+                Path = path,
+                Width = format.Width,
+                Height = format.Height,
+                Fps = format.FrameRate,
+                Bitrate = format.VideoBitrate,
+                Codec = CodeOf(format.Codec),
+            };
+            int result = vv_encode_open(ref config, out IntPtr handle);
             if (result != Ok || handle == IntPtr.Zero)
             {
-                throw new EncoderException($"The encoder did not open ({result}) for {format.Width}x{format.Height} at {format.FrameRate} fps.");
+                throw new EncoderException($"The encoder did not open ({result}) for {format.Codec} {format.Width}x{format.Height} at {format.FrameRate} fps.");
             }
 
             return new NativeEncoder(handle);
+        }
+
+        /// <summary>Whether the system has a hardware encoder for <paramref name="codec"/>; false without the plugin.</summary>
+        public static bool HardwareAvailable(RecordingCodec codec)
+        {
+            try
+            {
+                return vv_encode_api_version() == ApiVersion && vv_encode_hardware_available(CodeOf(codec)) != 0;
+            }
+            catch (Exception exception) when (exception is DllNotFoundException || exception is EntryPointNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        private static int CodeOf(RecordingCodec codec)
+        {
+            return codec == RecordingCodec.Av1 ? CodecAv1 : CodecH264;
         }
 
         public bool Push(IntPtr bgra, int length, long timestamp)
@@ -157,6 +190,19 @@ namespace VirtualVessel.Video.Recording
             return _last;
         }
 
+        // vv_encode_config.
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct Config
+        {
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string Path;
+            public int Width;
+            public int Height;
+            public int Fps;
+            public int Bitrate;
+            public int Codec;
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         private struct Stats
         {
@@ -173,8 +219,11 @@ namespace VirtualVessel.Video.Recording
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_encode_api_version();
 
-        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
-        private static extern int vv_encode_open(string path, int width, int height, int fps, int bitrate, out IntPtr encoder);
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_hardware_available(int codec);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_encode_open(ref Config config, out IntPtr encoder);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_encode_push_video(IntPtr encoder, IntPtr bgra, int length, long qpc);

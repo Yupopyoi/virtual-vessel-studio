@@ -1,9 +1,17 @@
-// Encodes synthetic frames to a temporary MP4 and measures the encoder, at the stream's size; then checks
-// that an encoder closed without frames leaves no file.
+// Encodes synthetic frames to a temporary MP4 with each codec the system has a hardware encoder for, at
+// the stream's size and rate, measures the encoder, and reads the file back to check its format: the
+// codec, the H.264 profile, and the color tags. Then checks that an encoder closed without frames leaves
+// no file, and that a bad configuration is refused.
 
 #include "vv_encode.h"
 
 #include <windows.h>
+
+#include <codecapi.h>
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+#include <wrl/client.h>
 
 #include <chrono>
 #include <cstdio>
@@ -11,66 +19,165 @@
 #include <thread>
 #include <vector>
 
-int main()
-{
-    const int32_t width = 1920;
-    const int32_t height = 1080;
-    const int32_t fps = 30;
-    const int frames = 300;
-    wchar_t folder[MAX_PATH];
-    GetTempPathW(MAX_PATH, folder);
-    std::wstring path = std::wstring(folder) + L"vv_encode_test.mp4";
-    DeleteFileW(path.c_str());
+using Microsoft::WRL::ComPtr;
 
-    vv_encoder* encoder = nullptr;
-    int32_t opened = vv_encode_open(path.c_str(), width, height, fps, 6'000'000, &encoder);
-    if (opened != VV_ENCODE_OK)
+namespace
+{
+    constexpr int32_t Width = 1920;
+    constexpr int32_t Height = 1080;
+    constexpr int32_t Fps = 30;
+
+    std::wstring TempPath(const wchar_t* name)
     {
-        std::printf("FAIL: open returned %d\n", opened);
-        return 1;
+        wchar_t folder[MAX_PATH];
+        GetTempPathW(MAX_PATH, folder);
+        return std::wstring(folder) + name;
     }
 
-    std::vector<uint8_t> frame(static_cast<size_t>(width) * height * 4);
-    auto start = std::chrono::steady_clock::now();
-    for (int i = 0; i < frames; i++)
+    // The file's video type as a player sees it: the subtype, the profile, the matrix, and the range.
+    bool ReadFormat(const std::wstring& path, GUID& subtype, UINT32& profile, UINT32& matrix, UINT32& range)
     {
-        // A moving gradient, so the encoder has motion to code.
-        for (int32_t y = 0; y < height; y++)
+        ComPtr<IMFSourceReader> reader;
+        if (FAILED(MFCreateSourceReaderFromURL(path.c_str(), nullptr, &reader)))
         {
-            uint8_t* row = frame.data() + (static_cast<size_t>(y) * width * 4);
-            for (int32_t x = 0; x < width; x++)
-            {
-                row[(x * 4) + 0] = static_cast<uint8_t>(x + (i * 4));
-                row[(x * 4) + 1] = static_cast<uint8_t>(y + (i * 2));
-                row[(x * 4) + 2] = static_cast<uint8_t>(i);
-                row[(x * 4) + 3] = 255;
-            }
+            return false;
         }
 
-        LARGE_INTEGER now;
-        QueryPerformanceCounter(&now);
-        vv_encode_push_video(encoder, frame.data(), static_cast<int32_t>(frame.size()), now.QuadPart);
-        std::this_thread::sleep_until(start + std::chrono::microseconds((static_cast<int64_t>(i) + 1) * 1'000'000 / fps));
+        ComPtr<IMFMediaType> type;
+        if (FAILED(reader->GetNativeMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), 0, &type)))
+        {
+            return false;
+        }
+
+        type->GetGUID(MF_MT_SUBTYPE, &subtype);
+        profile = MFGetAttributeUINT32(type.Get(), MF_MT_MPEG2_PROFILE, 0);
+        matrix = MFGetAttributeUINT32(type.Get(), MF_MT_YUV_MATRIX, 0);
+        range = MFGetAttributeUINT32(type.Get(), MF_MT_VIDEO_NOMINAL_RANGE, 0);
+        return true;
     }
 
-    vv_encode_stats stats = {};
-    vv_encode_get_stats(encoder, &stats);
-    int32_t closed = vv_encode_close(encoder);
-    WIN32_FILE_ATTRIBUTE_DATA file = {};
-    bool exists = GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &file) != 0;
-    long long bytes = exists ? (static_cast<long long>(file.nFileSizeHigh) << 32) | file.nFileSizeLow : 0;
-
-    std::printf("pushed %lld, written %lld, dropped %lld, write avg %lld us, max %lld us, hardware %d, error 0x%08x, file %lld bytes\n",
-        static_cast<long long>(stats.pushed), static_cast<long long>(stats.written), static_cast<long long>(stats.dropped),
-        stats.written > 0 ? static_cast<long long>(stats.total_write_us / stats.written) : 0LL, static_cast<long long>(stats.max_write_us),
-        stats.hardware, static_cast<unsigned>(stats.last_error), bytes);
-
-    if (closed != VV_ENCODE_OK || !exists || bytes == 0 || stats.written + stats.dropped != frames)
+    bool EncodeOne(int32_t codec, const wchar_t* name)
     {
-        std::printf("FAIL\n");
-        return 1;
+        std::wstring path = TempPath(codec == VV_ENCODE_CODEC_AV1 ? L"vv_encode_test_av1.mp4" : L"vv_encode_test_h264.mp4");
+        DeleteFileW(path.c_str());
+        const int frames = 150;
+
+        vv_encode_config config = { path.c_str(), Width, Height, Fps, 6'000'000, codec };
+        vv_encoder* encoder = nullptr;
+        int32_t opened = vv_encode_open(&config, &encoder);
+        if (opened != VV_ENCODE_OK)
+        {
+            std::wprintf(L"FAIL %s: open returned %d\n", name, opened);
+            return false;
+        }
+
+        std::vector<uint8_t> frame(static_cast<size_t>(Width) * Height * 4);
+        auto start = std::chrono::steady_clock::now();
+        for (int i = 0; i < frames; i++)
+        {
+            // A moving gradient, so the encoder has motion to code.
+            for (int32_t y = 0; y < Height; y++)
+            {
+                uint8_t* row = frame.data() + (static_cast<size_t>(y) * Width * 4);
+                for (int32_t x = 0; x < Width; x++)
+                {
+                    row[(x * 4) + 0] = static_cast<uint8_t>(x + (i * 4));
+                    row[(x * 4) + 1] = static_cast<uint8_t>(y + (i * 2));
+                    row[(x * 4) + 2] = static_cast<uint8_t>(i);
+                    row[(x * 4) + 3] = 255;
+                }
+            }
+
+            LARGE_INTEGER now;
+            QueryPerformanceCounter(&now);
+            vv_encode_push_video(encoder, frame.data(), static_cast<int32_t>(frame.size()), now.QuadPart);
+            std::this_thread::sleep_until(start + std::chrono::microseconds((static_cast<int64_t>(i) + 1) * 1'000'000 / Fps));
+        }
+
+        vv_encode_stats stats = {};
+        vv_encode_get_stats(encoder, &stats);
+        int32_t closed = vv_encode_close(encoder);
+        WIN32_FILE_ATTRIBUTE_DATA file = {};
+        bool exists = GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &file) != 0;
+        long long bytes = exists ? (static_cast<long long>(file.nFileSizeHigh) << 32) | file.nFileSizeLow : 0;
+        std::wprintf(L"%s: pushed %lld, written %lld, dropped %lld, write avg %lld us, max %lld us, hardware %d, error 0x%08x, file %lld bytes\n",
+            name, static_cast<long long>(stats.pushed), static_cast<long long>(stats.written), static_cast<long long>(stats.dropped),
+            stats.written > 0 ? static_cast<long long>(stats.total_write_us / stats.written) : 0LL, static_cast<long long>(stats.max_write_us),
+            stats.hardware, static_cast<unsigned>(stats.last_error), bytes);
+
+        if (closed != VV_ENCODE_OK || !exists || bytes == 0 || stats.written + stats.dropped != frames)
+        {
+            std::wprintf(L"FAIL %s: the file was not written\n", name);
+            return false;
+        }
+
+        GUID subtype = {};
+        UINT32 profile = 0;
+        UINT32 matrix = 0;
+        UINT32 range = 0;
+        if (!ReadFormat(path, subtype, profile, matrix, range))
+        {
+            std::wprintf(L"FAIL %s: the file cannot be read back\n", name);
+            return false;
+        }
+
+        const GUID expected = codec == VV_ENCODE_CODEC_AV1 ? MFVideoFormat_AV1 : MFVideoFormat_H264;
+        std::wprintf(L"%s: profile %u, matrix %u, range %u\n", name, profile, matrix, range);
+        bool ok = subtype == expected && (codec != VV_ENCODE_CODEC_H264 || profile == eAVEncH264VProfile_High) && matrix == MFVideoTransferMatrix_BT709 &&
+            range == MFNominalRange_16_235;
+        if (!ok)
+        {
+            std::wprintf(L"FAIL %s: the file's format is not the one asked for\n", name);
+        }
+
+        DeleteFileW(path.c_str());
+        return ok;
+    }
+}
+
+int main()
+{
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    MFStartup(MF_VERSION);
+    bool ok = vv_encode_api_version() == VV_ENCODE_API_VERSION;
+
+    // H.264 always runs: without a hardware encoder the Sink Writer falls back to Microsoft's.
+    ok = EncodeOne(VV_ENCODE_CODEC_H264, L"H.264") && ok;
+    if (vv_encode_hardware_available(VV_ENCODE_CODEC_AV1))
+    {
+        ok = EncodeOne(VV_ENCODE_CODEC_AV1, L"AV1") && ok;
+    }
+    else
+    {
+        std::printf("SKIP AV1: no hardware AV1 encoder on this system\n");
     }
 
-    std::printf("PASS\n");
-    return 0;
+    // Closed without a frame: no unplayable file is left.
+    std::wstring empty = TempPath(L"vv_encode_test_empty.mp4");
+    vv_encode_config config = { empty.c_str(), Width, Height, Fps, 6'000'000, VV_ENCODE_CODEC_H264 };
+    vv_encoder* encoder = nullptr;
+    if (vv_encode_open(&config, &encoder) == VV_ENCODE_OK)
+    {
+        vv_encode_close(encoder);
+        if (GetFileAttributesW(empty.c_str()) != INVALID_FILE_ATTRIBUTES)
+        {
+            std::printf("FAIL: an empty recording left its file\n");
+            DeleteFileW(empty.c_str());
+            ok = false;
+        }
+    }
+
+    vv_encode_config odd = { empty.c_str(), Width + 1, Height, Fps, 6'000'000, VV_ENCODE_CODEC_H264 };
+    vv_encode_config unknown = { empty.c_str(), Width, Height, Fps, 6'000'000, 7 };
+    if (vv_encode_open(&odd, &encoder) != VV_ENCODE_INVALID_ARGUMENT || vv_encode_open(&unknown, &encoder) != VV_ENCODE_INVALID_ARGUMENT ||
+        vv_encode_hardware_available(7) != 0)
+    {
+        std::printf("FAIL: a bad configuration was accepted\n");
+        ok = false;
+    }
+
+    MFShutdown();
+    CoUninitialize();
+    std::printf(ok ? "PASS\n" : "FAIL\n");
+    return ok ? 0 : 1;
 }
