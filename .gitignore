@@ -144,6 +144,8 @@ Desktop.ini
 /unity/VirtualVesselStudio/Assets/VirtualVessel/Capture/Plugins.meta
 /unity/VirtualVesselStudio/Assets/VirtualVessel/Video/Plugins/
 /unity/VirtualVesselStudio/Assets/VirtualVessel/Video/Plugins.meta
+/unity/VirtualVesselStudio/Assets/VirtualVessel/Audio/Plugins/
+/unity/VirtualVesselStudio/Assets/VirtualVessel/Audio/Plugins.meta
 
 # ------------------------------------------------------------
 # UI screenshots written by tools/ui/capture-ui.ps1 (UI foundation detailed design 7.10)
