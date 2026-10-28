@@ -4,7 +4,7 @@
 
 配信の前に、使う機器や設定を整える画面。使っているソフトウェアのクレジットも、ここで見られる。
 
-映像の取り込み（Capture）のCard、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、録画のCard（10章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
+映像の取り込み（Capture）のCard、音声のCard（11章）、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、録画のCard（10章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
 
 - 画面の名前（ナビゲーションと見出し）は「設定」（英語 Settings）とする。機器の準備だけでなく、アプリの設定やクレジットも置くためである。
 - 画面の識別子（`setup`）、文字列のKey（`nav.setup`、`setup.*`）、文書の中の呼び方（セットアップ画面）は変えない。識別子は`ui-settings.json`の`lastScreen`に保存されているため、変えると前回の画面に戻れなくなる。
@@ -15,12 +15,13 @@
 
 1. 映像の取り込み（ゲーム画面）
 2. 映像の取り込み（サブモニター）
-3. トラッキング（4章）
-4. アバター（5章）
-5. 表情の調整（9章。アバターを使えるときだけ）
-6. 録画（10章。録画を使えないときは「録画は使えません。」の一文）
-7. アプリの設定
-8. クレジットとライセンス（8章）
+3. 音声（11章。音声を使えないときは「音声は使えません。」の一文）
+4. トラッキング（4章）
+5. アバター（5章）
+6. 表情の調整（9章。アバターを使えるときだけ）
+7. 録画（10章。録画を使えないときは「録画は使えません。」の一文）
+8. アプリの設定
+9. クレジットとライセンス（8章）
 
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
 - どのCardも折りたためる（`components.md` 3.10）。項目が増えても画面が長くならないよう、画面を開いた時点ではすべて閉じている。開閉の状態は保存せず、起動するたびに閉じた状態から始める。
@@ -221,3 +222,45 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.recording.free.unknown` | わかりません | Unknown |
 | `setup.recording.format` | 映像 | Video |
 | `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |
+
+## 11. 音声のCard
+
+`IAudioService`（Audio）を直接表示する（`AudioCard`）。音の元（マイク、ゲームの音声）ごとに行をまとめる。詳細はAudio詳細設計18章。
+
+| 行 | 内容 |
+|---|---|
+| 見出し | 音の元の名前と、状態のStatus Chip（オフ、開始中、動作中、ミュート中、見つかりません、使えません。形と文字で示す） |
+| 問題 | 何が起きたかと対処。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」 |
+| デバイス | Select。先頭に「なし」。抜かれている機器は「接続されていないデバイス」として残す |
+| 音量 | Slider、-60〜+12dB |
+| ミュート | Toggle |
+| 入力レベル | Level Meter、-60〜0dB |
+
+- Cardを表示している間、機器を5秒ごとに数え直す。
+- マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ）。
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.audio.title` | 音声 | Audio |
+| `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
+| `setup.audio.microphone` | マイク | Microphone |
+| `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.device` | デバイス | Device |
+| `setup.audio.device.microphone` | 話す声を拾うマイクです。 | The microphone that picks up your voice. |
+| `setup.audio.device.game` | キャプチャーボードの音声などを選びます。 | Choose the capture board's audio, for example. |
+| `setup.audio.device.none` | なし | None |
+| `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.gain` | 音量 | Volume |
+| `setup.audio.mute` | ミュート | Mute |
+| `setup.audio.level` | 入力レベル | Input level |
+| `setup.audio.state.off` | オフ | Off |
+| `setup.audio.state.starting` | 開始中 | Starting |
+| `setup.audio.state.running` | 動作中 | Running |
+| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.failed` | 使えません | Unavailable |
+| `setup.audio.state.muted` | ミュート中 | Muted |
+| `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
+| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有をやめてください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
+| `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
+| `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |

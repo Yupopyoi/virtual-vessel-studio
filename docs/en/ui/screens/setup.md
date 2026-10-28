@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the audio Card (chapter 11), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
@@ -15,12 +15,13 @@ Cards stacked from the top:
 
 1. Capture (game screen)
 2. Capture (sub monitor)
-3. Tracking (chapter 4)
-4. Avatar (chapter 5)
-5. Face tuning (chapter 9; only when avatars are available)
-6. Recording (chapter 10; without recording, the line "Recording is not available.")
-7. App settings
-8. Credits and licenses (chapter 8)
+3. Audio (chapter 11; without audio, the line "Audio is not available.")
+4. Tracking (chapter 4)
+5. Avatar (chapter 5)
+6. Face tuning (chapter 9; only when avatars are available)
+7. Recording (chapter 10; without recording, the line "Recording is not available.")
+8. App settings
+9. Credits and licenses (chapter 8)
 
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
 - Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
@@ -221,3 +222,45 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 | `setup.recording.free.unknown` | わかりません | Unknown |
 | `setup.recording.format` | 映像 | Video |
 | `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |
+
+## 11. Audio Card
+
+Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source (the microphone, the game audio); details in audio detailed design 18.
+
+| Row | Content |
+|---|---|
+| Heading | The source's name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
+| Problem | What happened and what to do; when microphone access is denied, "Open microphone privacy settings" |
+| Device | Select, "None" first; an unplugged device stays as "A device not connected now" |
+| Volume | Slider, -60 to +12 dB |
+| Mute | Toggle |
+| Input level | Level Meter, -60 to 0 dB |
+
+- Devices are listed again every 5 seconds while the Card is shown.
+- The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio).
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.audio.title` | 音声 | Audio |
+| `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
+| `setup.audio.microphone` | マイク | Microphone |
+| `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.device` | デバイス | Device |
+| `setup.audio.device.microphone` | 話す声を拾うマイクです。 | The microphone that picks up your voice. |
+| `setup.audio.device.game` | キャプチャーボードの音声などを選びます。 | Choose the capture board's audio, for example. |
+| `setup.audio.device.none` | なし | None |
+| `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.gain` | 音量 | Volume |
+| `setup.audio.mute` | ミュート | Mute |
+| `setup.audio.level` | 入力レベル | Input level |
+| `setup.audio.state.off` | オフ | Off |
+| `setup.audio.state.starting` | 開始中 | Starting |
+| `setup.audio.state.running` | 動作中 | Running |
+| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.failed` | 使えません | Unavailable |
+| `setup.audio.state.muted` | ミュート中 | Muted |
+| `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
+| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有をやめてください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
+| `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
+| `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
