@@ -74,8 +74,14 @@ namespace VirtualVessel.Video.Tests
         }
 
         [UnityTest]
-        public IEnumerator TwoSeconds_AreRecordedToAPlayableFile()
+        public IEnumerator TwoSeconds_AreRecordedToAPlayableFile([Values(RecordingCodec.Av1, RecordingCodec.H264)] RecordingCodec codec)
         {
+            if (codec == RecordingCodec.Av1 && !_recording.Options.Value.Av1Available)
+            {
+                Assert.Ignore("This GPU has no AV1 encoder.");
+            }
+
+            _recording.SetOptions(_recording.Options.Value.WithCodec(codec));
             _recording.Start();
             yield return Until(RecordingState.Recording);
             var recorded = Stopwatch.StartNew();
@@ -93,10 +99,11 @@ namespace VirtualVessel.Video.Tests
             Assert.That(new FileInfo(file).Length, Is.GreaterThan(1000));
 
             // ffprobe, where it is installed, reads the file as a player would.
-            (int frames, double seconds)? probed = Probe(file);
-            if (probed is (int frames, double seconds))
+            (string name, int frames, double seconds)? probed = Probe(file);
+            if (probed is (string name, int frames, double seconds))
             {
-                Debug.Log($"Recorded {frames} frames over {seconds:0.00} s.");
+                Debug.Log($"Recorded {name}: {frames} frames over {seconds:0.00} s.");
+                Assert.That(name, Is.EqualTo(codec == RecordingCodec.Av1 ? "av1" : "h264"));
                 Assert.That(seconds, Is.EqualTo(2.0).Within(0.3));
                 Assert.That(frames, Is.EqualTo(60).Within(8), "30 fps over two seconds.");
             }
@@ -114,11 +121,11 @@ namespace VirtualVessel.Video.Tests
             }
         }
 
-        private static (int Frames, double Seconds)? Probe(string file)
+        private static (string Codec, int Frames, double Seconds)? Probe(string file)
         {
             try
             {
-                var start = new ProcessStartInfo("ffprobe", $"-v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames:format=duration -of csv=p=0 \"{file}\"")
+                var start = new ProcessStartInfo("ffprobe", $"-v error -count_frames -select_streams v:0 -show_entries stream=codec_name,nb_read_frames:format=duration -of csv=p=0 \"{file}\"")
                 {
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -127,7 +134,8 @@ namespace VirtualVessel.Video.Tests
                 using Process process = Process.Start(start);
                 string[] lines = process.StandardOutput.ReadToEnd().Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                 process.WaitForExit(10_000);
-                return (int.Parse(lines[0].Trim(), CultureInfo.InvariantCulture), double.Parse(lines[1].Trim(), CultureInfo.InvariantCulture));
+                string[] stream = lines[0].Split(',');
+                return (stream[0].Trim(), int.Parse(stream[1].Trim(), CultureInfo.InvariantCulture), double.Parse(lines[1].Trim(), CultureInfo.InvariantCulture));
             }
             catch (Exception exception) when (exception is System.ComponentModel.Win32Exception || exception is FormatException || exception is IndexOutOfRangeException)
             {

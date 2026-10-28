@@ -5,7 +5,7 @@ using VirtualVessel.UI.Recording;
 
 namespace VirtualVessel.Video.Recording
 {
-    /// <summary>File names, folders, free space, and quality of recordings (recording detailed design 8.2, 10). Pure.</summary>
+    /// <summary>File names, folders, free space, quality, and format of recordings (recording detailed design 8.2, 10). Pure.</summary>
     public static class RecordingNames
     {
         public const string Prefix = "VirtualVesselStudio_";
@@ -75,6 +75,23 @@ namespace VirtualVessel.Video.Recording
         public static int BitrateOf(RecordingQuality quality)
         {
             return quality == RecordingQuality.High ? RecordingSettings.HighBitrate : RecordingSettings.StandardBitrate;
+        }
+
+        public const string Av1Setting = "av1";
+        public const string H264Setting = "h264";
+
+        /// <summary>
+        /// The format to record in: H.264 when chosen or when the GPU has no AV1 encoder, AV1 otherwise, so a
+        /// project moved to an older PC still records. An unknown value reads as not chosen.
+        /// </summary>
+        public static RecordingCodec CodecOf(string setting, bool av1Available)
+        {
+            return av1Available && !string.Equals(setting, H264Setting, StringComparison.OrdinalIgnoreCase) ? RecordingCodec.Av1 : RecordingCodec.H264;
+        }
+
+        public static string SettingOf(RecordingCodec codec)
+        {
+            return codec == RecordingCodec.Av1 ? Av1Setting : H264Setting;
         }
     }
 }

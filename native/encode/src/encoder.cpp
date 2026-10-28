@@ -1,10 +1,11 @@
 // The encoder of vv_encode.h: slots filled by the caller, encoded on a thread of the encoder's own with
-// Media Foundation's Sink Writer (H.264 in MP4, a hardware encoder when the system has one).
+// Media Foundation's Sink Writer (H.264 or AV1 in MP4, a hardware encoder when the system has one).
 
 #include "vv_encode.h"
 
 #include <windows.h>
 
+#include <codecapi.h>
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
@@ -49,6 +50,11 @@ namespace
         return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
     }
 
+    const GUID& SubtypeOf(int32_t codec)
+    {
+        return codec == VV_ENCODE_CODEC_AV1 ? MFVideoFormat_AV1 : MFVideoFormat_H264;
+    }
+
     // Whether any transform the Sink Writer chose for the stream is a hardware one.
     bool UsesHardware(IMFSinkWriter* writer, DWORD stream)
     {
@@ -84,6 +90,7 @@ struct vv_encoder
     int32_t height = 0;
     int32_t fps = 0;
     int32_t bitrate = 0;
+    int32_t codec = VV_ENCODE_CODEC_H264;
 
     std::mutex mutex;
     std::condition_variable wake;
@@ -121,9 +128,20 @@ struct vv_encoder
         if (SUCCEEDED(hr))
         {
             output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-            output->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+            output->SetGUID(MF_MT_SUBTYPE, SubtypeOf(codec));
             output->SetUINT32(MF_MT_AVG_BITRATE, static_cast<UINT32>(bitrate));
             output->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+            if (codec == VV_ENCODE_CODEC_H264)
+            {
+                // Without it the encoder picks Constrained Baseline, about 0.5 dB worse at the same bitrate (spike/av1-encoder).
+                output->SetUINT32(MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_High);
+            }
+
+            // Tagged so players convert the colors back as they were made; untagged files looked darker in some.
+            output->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709);
+            output->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709);
+            output->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_709);
+            output->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235);
             MFSetAttributeSize(output.Get(), MF_MT_FRAME_SIZE, static_cast<UINT32>(width), static_cast<UINT32>(height));
             MFSetAttributeRatio(output.Get(), MF_MT_FRAME_RATE, static_cast<UINT32>(fps), 1);
             MFSetAttributeRatio(output.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
@@ -141,6 +159,7 @@ struct vv_encoder
             input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
             input->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
             input->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+            input->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_0_255);
             input->SetUINT32(MF_MT_DEFAULT_STRIDE, static_cast<UINT32>(width * 4));
             MFSetAttributeSize(input.Get(), MF_MT_FRAME_SIZE, static_cast<UINT32>(width), static_cast<UINT32>(height));
             MFSetAttributeRatio(input.Get(), MF_MT_FRAME_RATE, static_cast<UINT32>(fps), 1);
@@ -276,22 +295,53 @@ extern "C"
         return VV_ENCODE_API_VERSION;
     }
 
-    int32_t vv_encode_open(const wchar_t* path, int32_t width, int32_t height, int32_t fps, int32_t bitrate, vv_encoder** encoder)
+    int32_t vv_encode_hardware_available(int32_t codec)
     {
-        if (path == nullptr || encoder == nullptr || width <= 0 || height <= 0 || (width % 2) != 0 || (height % 2) != 0 || fps <= 0 || bitrate <= 0)
+        if (codec != VV_ENCODE_CODEC_H264 && codec != VV_ENCODE_CODEC_AV1)
+        {
+            return 0;
+        }
+
+        HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        MFT_REGISTER_TYPE_INFO output = { MFMediaType_Video, SubtypeOf(codec) };
+        IMFActivate** activates = nullptr;
+        UINT32 count = 0;
+        HRESULT hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER, nullptr, &output, &activates, &count);
+        for (UINT32 i = 0; i < count; i++)
+        {
+            activates[i]->Release();
+        }
+
+        CoTaskMemFree(activates);
+        if (SUCCEEDED(com))
+        {
+            CoUninitialize();
+        }
+
+        return SUCCEEDED(hr) && count > 0 ? 1 : 0;
+    }
+
+    int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder)
+    {
+        if (config == nullptr || config->path == nullptr || encoder == nullptr || config->width <= 0 || config->height <= 0 || (config->width % 2) != 0 ||
+            (config->height % 2) != 0 || config->fps <= 0 || config->bitrate <= 0 || (config->codec != VV_ENCODE_CODEC_H264 && config->codec != VV_ENCODE_CODEC_AV1))
         {
             return VV_ENCODE_INVALID_ARGUMENT;
         }
+
+        const int32_t width = config->width;
+        const int32_t height = config->height;
 
         *encoder = nullptr;
         try
         {
             auto created = new vv_encoder();
-            created->path = path;
+            created->path = config->path;
             created->width = width;
             created->height = height;
-            created->fps = fps;
-            created->bitrate = bitrate;
+            created->fps = config->fps;
+            created->bitrate = config->bitrate;
+            created->codec = config->codec;
             LARGE_INTEGER frequency;
             QueryPerformanceFrequency(&frequency);
             created->qpcFrequency = frequency.QuadPart;

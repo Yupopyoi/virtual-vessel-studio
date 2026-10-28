@@ -28,6 +28,11 @@ namespace VirtualVessel.UI.Screens
         public const string QualityDescription = "setup.recording.quality.description";
         public const string QualityStandard = "setup.recording.quality.standard";
         public const string QualityHigh = "setup.recording.quality.high";
+        public const string Codec = "setup.recording.codec";
+        public const string CodecDescription = "setup.recording.codec.description";
+        public const string CodecNoAv1 = "setup.recording.codec.no-av1";
+        public const string CodecAv1 = "setup.recording.codec.av1";
+        public const string CodecH264 = "setup.recording.codec.h264";
         public const string Free = "setup.recording.free";
         public const string FreeValue = "setup.recording.free.value";
         public const string FreeUnknown = "setup.recording.free.unknown";
@@ -36,8 +41,8 @@ namespace VirtualVessel.UI.Screens
     }
 
     /// <summary>
-    /// Recording on the setup screen (recording detailed design 18.2): the folder, the quality, the free
-    /// space there, and the fixed size and rate. Changes go to the recording service, which saves them in
+    /// Recording on the setup screen (recording detailed design 18.2): the folder, the quality, the format,
+    /// the free space there, and the fixed size and rate. Changes go to the recording service, which saves them in
     /// the project's streaming profile; a recording in progress keeps its own.
     /// </summary>
     public sealed class RecordingCard : VisualElement
@@ -83,6 +88,13 @@ namespace VirtualVessel.UI.Screens
             quality.Add(Quality);
             card.Add(quality);
 
+            // AV1 first, as recommended; without an AV1 encoder it is shown but cannot be chosen, and the description says why.
+            Codec = Ui.Segmented(RecordingCardStrings.CodecAv1, RecordingCardStrings.CodecH264);
+            Codec.RegisterValueChangedCallback(evt => _recording.SetOptions(_recording.Options.Value.WithCodec((RecordingCodec)evt.newValue)));
+            CodecRow = Ui.SettingRow(RecordingCardStrings.Codec, RecordingCardStrings.CodecDescription);
+            CodecRow.Add(Codec);
+            card.Add(CodecRow);
+
             FreeText = new Label();
             FreeText.AddToClassList("vv-text-mono");
             SettingRow free = Ui.SettingRow(RecordingCardStrings.Free);
@@ -105,6 +117,10 @@ namespace VirtualVessel.UI.Screens
         public ActionButton OpenButton { get; }
 
         public Segmented Quality { get; }
+
+        public Segmented Codec { get; }
+
+        public SettingRow CodecRow { get; }
 
         public Label FreeText { get; }
 
@@ -155,6 +171,9 @@ namespace VirtualVessel.UI.Screens
             RecordingOptions options = _recording.Options.Value;
             FolderText.text = options.Folder ?? string.Empty;
             Quality.SetValueWithoutNotify((int)options.Quality);
+            Codec.SetItemEnabled((int)RecordingCodec.Av1, options.Av1Available);
+            Codec.SetValueWithoutNotify((int)options.Codec);
+            CodecRow.DescriptionKey = options.Av1Available ? RecordingCardStrings.CodecDescription : RecordingCardStrings.CodecNoAv1;
             FormatText.text = _services?.Localizer?.Get(RecordingCardStrings.FormatValue, ("width", options.Width), ("height", options.Height), ("rate", options.FrameRate))
                 ?? $"{options.Width}×{options.Height}, {options.FrameRate} fps";
             ShowFree();

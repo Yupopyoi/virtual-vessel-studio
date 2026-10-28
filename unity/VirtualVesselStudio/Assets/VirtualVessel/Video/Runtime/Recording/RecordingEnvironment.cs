@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using UnityEngine;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
+using VirtualVessel.UI.Recording;
 
 namespace VirtualVessel.Video.Recording
 {
@@ -18,13 +19,15 @@ namespace VirtualVessel.Video.Recording
             Func<EncoderFormat, IVideoEncoder, IStreamFrameReader> readFrames,
             Func<string, long?> freeBytes,
             Func<DateTime> localNow,
-            string videosFolder)
+            string videosFolder,
+            bool av1Available)
         {
             OpenEncoder = openEncoder ?? throw new ArgumentNullException(nameof(openEncoder));
             ReadFrames = readFrames ?? throw new ArgumentNullException(nameof(readFrames));
             FreeBytes = freeBytes ?? throw new ArgumentNullException(nameof(freeBytes));
             LocalNow = localNow ?? throw new ArgumentNullException(nameof(localNow));
             VideosFolder = videosFolder ?? throw new ArgumentNullException(nameof(videosFolder));
+            Av1Available = av1Available;
         }
 
         /// <summary>Opens an encoder for the path; runs on a worker thread and throws <see cref="EncoderException"/>.</summary>
@@ -40,6 +43,9 @@ namespace VirtualVessel.Video.Recording
         /// <summary>The user's own Videos folder.</summary>
         public string VideosFolder { get; }
 
+        /// <summary>Whether the GPU has an AV1 encoder, read once at startup.</summary>
+        public bool Av1Available { get; }
+
         /// <summary>The native encoder reading the stream video back from the GPU.</summary>
         public static RecordingEnvironment Native(IReadOnlyObservable<Texture> video, IMonotonicClock clock)
         {
@@ -48,7 +54,8 @@ namespace VirtualVessel.Video.Recording
                 (format, encoder) => new StreamFrameReader(video, format, encoder, clock),
                 DiskFreeBytes,
                 () => DateTime.Now,
-                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
+                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
+                NativeEncoder.HardwareAvailable(RecordingCodec.Av1));
         }
 
         /// <summary>The free space for the caller on the disk of <paramref name="folder"/>; works for network folders too.</summary>

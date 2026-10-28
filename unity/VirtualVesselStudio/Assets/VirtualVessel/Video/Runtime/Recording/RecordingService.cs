@@ -62,7 +62,7 @@ namespace VirtualVessel.Video.Recording
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _environment = environment ?? throw new ArgumentNullException(nameof(environment));
             _log = log;
-            _options = new ObservableValue<RecordingOptions>(OptionsOf(_settings, size, environment.VideosFolder));
+            _options = new ObservableValue<RecordingOptions>(OptionsOf(_settings, size, environment.VideosFolder, environment.Av1Available));
             _written = metrics?.Counter("Recording", "FramesWritten");
             _dropped = metrics?.Counter("Recording", "FramesDropped");
             _skipped = metrics?.Counter("Recording", "FramesSkipped");
@@ -89,21 +89,24 @@ namespace VirtualVessel.Video.Recording
         }
 
         /// <summary>What the user sees of <paramref name="settings"/>. Pure.</summary>
-        public static RecordingOptions OptionsOf(RecordingSettings settings, VideoSize size, string videosFolder)
+        public static RecordingOptions OptionsOf(RecordingSettings settings, VideoSize size, string videosFolder, bool av1Available)
         {
             return new RecordingOptions(
                 RecordingNames.Folder(settings.RecordingFolder, videosFolder),
                 RecordingNames.QualityOf(settings.VideoBitrate),
+                RecordingNames.CodecOf(settings.VideoCodec, av1Available),
+                av1Available,
                 size.Width,
                 size.Height,
                 settings.FrameRate);
         }
 
         /// <summary>
-        /// A copy of <paramref name="settings"/> with the user's folder and quality. The default folder is
-        /// kept as null, so it follows the Videos folder; an unchanged quality keeps a bitrate edited in the file. Pure.
+        /// A copy of <paramref name="settings"/> with the user's folder, quality, and format. The default folder
+        /// is kept as null, so it follows the Videos folder; an unchanged quality keeps a bitrate edited in the
+        /// file, and an unchanged format keeps the choice unmade, so it follows the PC's GPU. Pure.
         /// </summary>
-        public static RecordingSettings With(RecordingSettings settings, RecordingOptions options, string videosFolder)
+        public static RecordingSettings With(RecordingSettings settings, RecordingOptions options, string videosFolder, bool av1Available)
         {
             RecordingSettings next = settings.Clone();
             next.RecordingFolder = string.IsNullOrWhiteSpace(options.Folder) || string.Equals(options.Folder, RecordingNames.DefaultFolder(videosFolder), StringComparison.OrdinalIgnoreCase)
@@ -114,20 +117,25 @@ namespace VirtualVessel.Video.Recording
                 next.VideoBitrate = RecordingNames.BitrateOf(options.Quality);
             }
 
+            if (RecordingNames.CodecOf(settings.VideoCodec, av1Available) != options.Codec)
+            {
+                next.VideoCodec = RecordingNames.SettingOf(options.Codec);
+            }
+
             return next;
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
             _tick = _frameLoop.Register(Tick);
-            _log?.Information($"Recording ready: {_size.Width}x{_size.Height} at {_settings.FrameRate} fps, {_settings.VideoBitrate / 1000} kbit/s, to {_options.Value.Folder}.");
+            _log?.Information($"Recording ready: {_options.Value.Codec} (AV1 encoder {(_environment.Av1Available ? "found" : "not found")}), {_size.Width}x{_size.Height} at {_settings.FrameRate} fps, {_settings.VideoBitrate / 1000} kbit/s, to {_options.Value.Folder}.");
             return Task.CompletedTask;
         }
 
         public void SetOptions(RecordingOptions options)
         {
-            _settings = With(_settings, options, _environment.VideosFolder);
-            _options.Set(OptionsOf(_settings, _size, _environment.VideosFolder));
+            _settings = With(_settings, options, _environment.VideosFolder, _environment.Av1Available);
+            _options.Set(OptionsOf(_settings, _size, _environment.VideosFolder, _environment.Av1Available));
             _saves?.Changed(_settings.Clone());
         }
 
@@ -164,7 +172,7 @@ namespace VirtualVessel.Video.Recording
             }
 
             string path = RecordingNames.NewFile(folder, _environment.LocalNow(), File.Exists);
-            var format = new EncoderFormat(_size.Width, _size.Height, _settings.FrameRate, _settings.VideoBitrate);
+            var format = new EncoderFormat(_size.Width, _size.Height, _settings.FrameRate, _settings.VideoBitrate, _options.Value.Codec);
             Func<string, EncoderFormat, IVideoEncoder> open = _environment.OpenEncoder;
 
             // Opening starts Media Foundation and the encoder, which can take a moment: not on the main thread.
@@ -282,7 +290,7 @@ namespace VirtualVessel.Video.Recording
             session.NextStatus = now + Ticks(s_statusInterval);
             session.NextSpace = now + Ticks(s_spaceInterval);
             _state.Set(RecordingState.Recording);
-            _log?.Information($"Recording started: {Path.GetFileName(session.Path)} in {Path.GetDirectoryName(session.Path)}, {session.Format.Width}x{session.Format.Height} at {session.Format.FrameRate} fps, {session.Format.VideoBitrate / 1000} kbit/s.");
+            _log?.Information($"Recording started: {Path.GetFileName(session.Path)} in {Path.GetDirectoryName(session.Path)}, {session.Format.Codec} {session.Format.Width}x{session.Format.Height} at {session.Format.FrameRate} fps, {session.Format.VideoBitrate / 1000} kbit/s.");
             if (session.StopWhenOpen)
             {
                 BeginStop(RecordingProblem.None);

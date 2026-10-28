@@ -150,11 +150,22 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card, Is.Not.Null);
             Assert.That(card.FolderText.text, Is.EqualTo("C:\\Videos\\Virtual Vessel Studio"));
             Assert.That(card.FreeText.text, Is.EqualTo("12.5 GB"));
-            Assert.That(card.FormatText.text, Is.EqualTo("1920×1080・30 fps・MP4（H.264）"));
+            Assert.That(card.FormatText.text, Is.EqualTo("1920×1080・30 fps・MP4"));
             Assert.That(card.Quality.value, Is.EqualTo(0));
 
             card.Quality.value = 1;
             Assert.That(_recording.Options.Value.Quality, Is.EqualTo(RecordingQuality.High));
+
+            Assert.That(card.Codec.value, Is.EqualTo((int)RecordingCodec.Av1), "AV1 first, as recommended.");
+            card.Codec.value = (int)RecordingCodec.H264;
+            Assert.That(_recording.Options.Value.Codec, Is.EqualTo(RecordingCodec.H264));
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecDescription));
+
+            // A GPU without an AV1 encoder: AV1 is shown but cannot be chosen, and the description says why.
+            _recording.SetOptions(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.High, RecordingCodec.H264, false, 1920, 1080, 30));
+            yield return null;
+            Assert.That(card.Codec.IsItemEnabled((int)RecordingCodec.Av1), Is.False);
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecNoAv1));
 
             Submit(card.OpenButton);
             yield return null;
@@ -194,7 +205,7 @@ namespace VirtualVessel.UI.Tests
         {
             private readonly ObservableValue<RecordingState> _state = new ObservableValue<RecordingState>(RecordingState.Idle);
             private readonly ObservableValue<RecordingProblem> _problem = new ObservableValue<RecordingProblem>(RecordingProblem.None);
-            private readonly ObservableValue<RecordingOptions> _options = new ObservableValue<RecordingOptions>(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.Standard, 1920, 1080, 30));
+            private readonly ObservableValue<RecordingOptions> _options = new ObservableValue<RecordingOptions>(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.Standard, RecordingCodec.Av1, true, 1920, 1080, 30));
 
             public int Started { get; private set; }
 

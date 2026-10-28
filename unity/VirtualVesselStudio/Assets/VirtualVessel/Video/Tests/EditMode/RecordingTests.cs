@@ -78,13 +78,42 @@ namespace VirtualVessel.Video.Tests
         {
             var settings = new RecordingSettings { VideoBitrate = 8_000_000 };
             string videos = "V";
-            RecordingOptions options = RecordingService.OptionsOf(settings, new VideoSize(1920, 1080), videos);
+            RecordingOptions options = RecordingService.OptionsOf(settings, new VideoSize(1920, 1080), videos, true);
 
-            RecordingSettings same = RecordingService.With(settings, options, videos);
-            RecordingSettings high = RecordingService.With(settings, options.WithQuality(RecordingQuality.High).WithFolder("D:\\Rec"), videos);
+            RecordingSettings same = RecordingService.With(settings, options, videos, true);
+            RecordingSettings high = RecordingService.With(settings, options.WithQuality(RecordingQuality.High).WithFolder("D:\\Rec"), videos, true);
 
             Assert.That((same.RecordingFolder, same.VideoBitrate), Is.EqualTo(((string)null, 8_000_000)));
             Assert.That((high.RecordingFolder, high.VideoBitrate), Is.EqualTo(("D:\\Rec", 12_000_000)));
+        }
+
+        [Test]
+        public void Codec_IsAv1WhereTheGpuHasIt_UnlessH264WasChosen()
+        {
+            Assert.That(RecordingNames.CodecOf(null, av1Available: true), Is.EqualTo(RecordingCodec.Av1));
+            Assert.That(RecordingNames.CodecOf("av1", av1Available: true), Is.EqualTo(RecordingCodec.Av1));
+            Assert.That(RecordingNames.CodecOf("h264", av1Available: true), Is.EqualTo(RecordingCodec.H264));
+            Assert.That(RecordingNames.CodecOf("H264", av1Available: true), Is.EqualTo(RecordingCodec.H264));
+            Assert.That(RecordingNames.CodecOf("vp9", av1Available: true), Is.EqualTo(RecordingCodec.Av1), "An unknown value reads as not chosen.");
+            Assert.That(RecordingNames.CodecOf("av1", av1Available: false), Is.EqualTo(RecordingCodec.H264), "A project moved to an older PC still records.");
+            Assert.That(RecordingNames.CodecOf(null, av1Available: false), Is.EqualTo(RecordingCodec.H264));
+        }
+
+        [Test]
+        public void With_SavesTheCodecOnlyWhenTheUserChangesIt()
+        {
+            var settings = new RecordingSettings();
+            RecordingOptions options = RecordingService.OptionsOf(settings, new VideoSize(1920, 1080), "V", true);
+
+            Assert.That(options.Codec, Is.EqualTo(RecordingCodec.Av1));
+            Assert.That(RecordingService.With(settings, options, "V", true).VideoCodec, Is.Null, "Unchosen, it follows the PC's GPU.");
+            Assert.That(RecordingService.With(settings, options.WithCodec(RecordingCodec.H264), "V", true).VideoCodec, Is.EqualTo("h264"));
+
+            // On a PC without AV1 the options show H.264 and the Card cannot change it; a saved choice is kept.
+            var chosen = new RecordingSettings { VideoCodec = "av1" };
+            RecordingOptions older = RecordingService.OptionsOf(chosen, new VideoSize(1920, 1080), "V", false);
+            Assert.That((older.Codec, older.Av1Available), Is.EqualTo((RecordingCodec.H264, false)));
+            Assert.That(RecordingService.With(chosen, older, "V", false).VideoCodec, Is.EqualTo("av1"));
         }
     }
 
@@ -130,6 +159,7 @@ namespace VirtualVessel.Video.Tests
         private FakeReader _reader;
         private long? _free;
         private Exception _openFailure;
+        private bool _av1;
 
         [SetUp]
         public void SetUp()
@@ -141,6 +171,7 @@ namespace VirtualVessel.Video.Tests
             _reader = null;
             _free = 100 * Gigabyte;
             _openFailure = null;
+            _av1 = true;
         }
 
         [TearDown]
@@ -325,6 +356,32 @@ namespace VirtualVessel.Video.Tests
             Assert.That(_encoder.Format.VideoBitrate, Is.EqualTo(12_000_000));
         }
 
+        [Test]
+        public void TheEncoder_GetsTheCodecInUse()
+        {
+            using (RecordingService service = Create())
+            {
+                service.Start();
+                TickUntil(service, RecordingState.Recording);
+                Assert.That(_encoder.Format.Codec, Is.EqualTo(RecordingCodec.Av1), "AV1 by default where the GPU has it.");
+                service.Stop();
+                TickUntil(service, RecordingState.Idle);
+
+                service.SetOptions(service.Options.Value.WithCodec(RecordingCodec.H264));
+                service.Start();
+                TickUntil(service, RecordingState.Recording);
+                Assert.That(_encoder.Format.Codec, Is.EqualTo(RecordingCodec.H264));
+            }
+
+            _av1 = false;
+            using (RecordingService older = Create())
+            {
+                older.Start();
+                TickUntil(older, RecordingState.Recording);
+                Assert.That(_encoder.Format.Codec, Is.EqualTo(RecordingCodec.H264), "Without an AV1 encoder.");
+            }
+        }
+
         private RecordingService Create()
         {
             var environment = new RecordingEnvironment(
@@ -341,7 +398,8 @@ namespace VirtualVessel.Video.Tests
                 (format, encoder) => _reader = new FakeReader(),
                 _ => _free,
                 () => new DateTime(2026, 10, 27, 22, 30, 5),
-                _folder);
+                _folder,
+                _av1);
             var settings = new RecordingSettings { RecordingFolder = _folder };
             var service = new RecordingService(settings, null, new VideoSize(1920, 1080), _loop, _clock, environment, null, null);
             service.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();

@@ -33,6 +33,12 @@ namespace VirtualVessel.Video.Recording
         /// <summary>A full path, or null for the user's Videos folder (<see cref="RecordingNames.DefaultFolder"/>).</summary>
         public string RecordingFolder { get; set; }
 
+        /// <summary>
+        /// "av1" or "h264" once the user has chosen; null for AV1 where the GPU has an AV1 encoder and H.264
+        /// elsewhere (<see cref="RecordingNames.CodecOf"/>). Added in version 1 without a step: a file without it reads as null.
+        /// </summary>
+        public string VideoCodec { get; set; }
+
         public static IReadOnlyList<ConfigMigration> Migrations { get; } = Array.Empty<ConfigMigration>();
 
         public RecordingSettings Clone()
