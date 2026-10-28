@@ -50,6 +50,8 @@ namespace VirtualVessel.UI.Screens
         public const string UssClass = "vv-recording-card";
         public const string FolderClass = UssClass + "__folder";
         public const string FolderButtonsClass = UssClass + "__folder-buttons";
+        public const string ValueClass = UssClass + "__value";
+        public const string PickClass = UssClass + "__pick";
 
         /// <summary>How often the free space is read again while the Card is shown.</summary>
         public const long FreeIntervalMs = 10_000;
@@ -68,8 +70,10 @@ namespace VirtualVessel.UI.Screens
 
             FolderText = new Label();
             FolderText.AddToClassList(FolderClass);
+            FolderText.AddToClassList(ValueClass);
             FolderText.AddToClassList("vv-text-mono");
             PickButton = Ui.Button(RecordingCardStrings.FolderPick).Bind(new UiCommand(PickFolderAsync));
+            PickButton.AddToClassList(PickClass);
             PickButton.style.display = files != null ? DisplayStyle.Flex : DisplayStyle.None;
             OpenButton = Ui.Button(RecordingCardStrings.FolderOpen).Bind(new UiCommand(() => explorer?.Show(_recording.Options.Value.Folder)));
             OpenButton.style.display = explorer != null ? DisplayStyle.Flex : DisplayStyle.None;
@@ -77,8 +81,9 @@ namespace VirtualVessel.UI.Screens
             folderButtons.AddToClassList(FolderButtonsClass);
             folderButtons.Add(PickButton);
             folderButtons.Add(OpenButton);
+            // The path under the row's name, where a long one can wrap; only the buttons are on the right.
             SettingRow folder = Ui.SettingRow(RecordingCardStrings.Folder, RecordingCardStrings.FolderDescription);
-            folder.Add(FolderText);
+            folder.TextArea.Add(FolderText);
             folder.Add(folderButtons);
             card.Add(folder);
 
@@ -96,12 +101,14 @@ namespace VirtualVessel.UI.Screens
             card.Add(CodecRow);
 
             FreeText = new Label();
+            FreeText.AddToClassList(ValueClass);
             FreeText.AddToClassList("vv-text-mono");
             SettingRow free = Ui.SettingRow(RecordingCardStrings.Free);
             free.Add(FreeText);
             card.Add(free);
 
             FormatText = new Label();
+            FormatText.AddToClassList(ValueClass);
             FormatText.AddToClassList("vv-text-body");
             SettingRow format = Ui.SettingRow(RecordingCardStrings.Format);
             format.Add(FormatText);

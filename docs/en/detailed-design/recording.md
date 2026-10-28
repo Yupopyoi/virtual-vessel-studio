@@ -224,7 +224,7 @@ A record control sits under the stream preview, so recording starts and stops fr
 
 A "Recording" Card: the folder (with "Change…" and "Open"), the quality (Standard 6 Mbit/s, High 12 Mbit/s), the free space, and the size and frame rate (1920×1080, 30 fps, fixed for now).
 
-- The format: Segmented "AV1 (recommended)" / "H.264 (most compatible)". Without an AV1 encoder, AV1 is shown but cannot be chosen, and the description says the GPU does not support it.
+- The format: Segmented "AV1" / "H.264"; the recommendation and when to choose H.264 are in the description (short items keep the control within 260px). Without an AV1 encoder, AV1 is shown but cannot be chosen, and the description says the GPU does not support it.
 - "Change…" opens Windows' folder screen (`SHBrowseForFolderW`) on a thread of its own, as the file screen does; rendering and the stream go on.
 - The free space is read again every 10 seconds while the Card is shown.
 - Changes are used from the next recording; a recording in progress keeps the settings it started with. The audio sources are on the Audio Card (audio detailed design 18).

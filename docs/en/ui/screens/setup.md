@@ -189,9 +189,9 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 
 | Row | Content |
 |---|---|
-| Folder | The folder's path (wrapped), "Change…" (Windows' folder screen), and "Open" (Explorer) |
-| Quality | Segmented: Standard (6 Mbps), High (12 Mbps) |
-| Format | Segmented: AV1 (recommended), H.264 (most compatible). Without an AV1 encoder on the GPU, AV1 cannot be chosen and the description says why (recording detailed design 18.2) |
+| Folder | On the right, "Change…" (Windows' folder screen) and "Open" (Explorer). The folder's path is under the description, where it wraps (`components.md` 3.9) |
+| Quality | Segmented: Standard, High. The bitrates (6 Mbps, 12 Mbps) are in the description |
+| Format | Segmented: AV1, H.264. The description says AV1 is recommended and when to choose H.264. Without an AV1 encoder on the GPU, AV1 cannot be chosen and the description says why (recording detailed design 18.2) |
 | Free space | Free space on the folder's drive, read again every 10 seconds while the Card is shown |
 | Video | Size, frame rate, and container (1920×1080, 30 fps, MP4); fixed for now |
 
@@ -208,14 +208,14 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 | `setup.recording.folder.pick-title` | 録画の保存先を選んでください | Choose where to save recordings |
 | `setup.recording.folder.open` | 開く | Open |
 | `setup.recording.quality` | 画質 | Quality |
-| `setup.recording.quality.description` | 高画質はきれいですが、ファイルが約2倍の大きさになります。 | High looks better, and its files are about twice as large. |
-| `setup.recording.quality.standard` | 標準（6 Mbps） | Standard (6 Mbps) |
-| `setup.recording.quality.high` | 高画質（12 Mbps） | High (12 Mbps) |
+| `setup.recording.quality.description` | 標準は6 Mbps、高画質は12 Mbpsです。高画質はきれいですが、ファイルが約2倍の大きさになります。 | Standard is 6 Mbps and High 12 Mbps. High looks better, and its files are about twice as large. |
+| `setup.recording.quality.standard` | 標準 | Standard |
+| `setup.recording.quality.high` | 高画質 | High |
 | `setup.recording.codec` | 形式 | Format |
-| `setup.recording.codec.description` | AV1は同じ画質でファイルが小さく、おすすめです。古い編集ソフトやスマートフォンで開けないときはH.264を選んでください。 | AV1 gives smaller files at the same quality and is recommended. Choose H.264 if an older editor or phone cannot open the files. |
+| `setup.recording.codec.description` | AV1がおすすめです。同じ画質でファイルが小さくなります。古い編集ソフトやスマートフォンで開けないときは、H.264を選んでください。 | AV1 is recommended: smaller files at the same quality. Choose H.264 if an older editor or phone cannot open the files. |
 | `setup.recording.codec.no-av1` | このPCのGPUはAV1に対応していないため、H.264で録画します。 | This PC's GPU does not support AV1, so recordings use H.264. |
-| `setup.recording.codec.av1` | AV1（おすすめ） | AV1 (recommended) |
-| `setup.recording.codec.h264` | H.264（互換性重視） | H.264 (most compatible) |
+| `setup.recording.codec.av1` | AV1 | AV1 |
+| `setup.recording.codec.h264` | H.264 | H.264 |
 | `setup.recording.free` | 空き容量 | Free space |
 | `setup.recording.free.value` | {size} GB | {size} GB |
 | `setup.recording.free.unknown` | わかりません | Unknown |
