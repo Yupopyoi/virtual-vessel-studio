@@ -20,3 +20,4 @@ Why the design is as it is. A detailed design (`docs/en/detailed-design/`) descr
 |---|---|
 | [avatar-motion.md](avatar-motion.md) | Avatar detailed design chapter 7: the upper body, expressions, fingers, keeping the arms out of the body, the hands, and how fast the arms turn |
 | [tracking-processing.md](tracking-processing.md) | Tracking detailed design chapters 8 and 9: smoothing, outlier removal, depth corrections, the reference pose, the body in 2D, and background removal |
+| [recording.md](recording.md) | Recording detailed design chapters 1, 5.1, and 10: AV1 by default and H.264 as the fallback, the H.264 profile, and the color tags |

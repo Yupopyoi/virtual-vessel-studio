@@ -20,3 +20,4 @@
 |---|---|
 | [avatar-motion.md](avatar-motion.md) | Avatar詳細設計7章：上半身、表情、指、腕を体から避けること、手、腕の回る速さ |
 | [tracking-processing.md](tracking-processing.md) | Tracking詳細設計8章と9章：平滑化、外れ値の除去、奥行きの補正、基準の姿勢、体の2D、背景の除去 |
+| [recording.md](recording.md) | 録画詳細設計1章、5.1、10章：既定のAV1となければのH.264、H.264のプロファイル、色の情報 |

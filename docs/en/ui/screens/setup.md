@@ -191,8 +191,9 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 |---|---|
 | Folder | The folder's path (wrapped), "Change…" (Windows' folder screen), and "Open" (Explorer) |
 | Quality | Segmented: Standard (6 Mbps), High (12 Mbps) |
+| Format | Segmented: AV1 (recommended), H.264 (most compatible). Without an AV1 encoder on the GPU, AV1 cannot be chosen and the description says why (recording detailed design 18.2) |
 | Free space | Free space on the folder's drive, read again every 10 seconds while the Card is shown |
-| Video | Size, frame rate, and format (1920×1080, 30 fps, MP4 (H.264)); fixed for now |
+| Video | Size, frame rate, and container (1920×1080, 30 fps, MP4); fixed for now |
 
 - Changes are used from the next recording; a recording in progress keeps the settings it started with.
 - Recording is started and stopped on the live screen (`live.md`).
@@ -210,8 +211,13 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 | `setup.recording.quality.description` | 高画質はきれいですが、ファイルが約2倍の大きさになります。 | High looks better, and its files are about twice as large. |
 | `setup.recording.quality.standard` | 標準（6 Mbps） | Standard (6 Mbps) |
 | `setup.recording.quality.high` | 高画質（12 Mbps） | High (12 Mbps) |
+| `setup.recording.codec` | 形式 | Format |
+| `setup.recording.codec.description` | AV1は同じ画質でファイルが小さく、おすすめです。古い編集ソフトやスマートフォンで開けないときはH.264を選んでください。 | AV1 gives smaller files at the same quality and is recommended. Choose H.264 if an older editor or phone cannot open the files. |
+| `setup.recording.codec.no-av1` | このPCのGPUはAV1に対応していないため、H.264で録画します。 | This PC's GPU does not support AV1, so recordings use H.264. |
+| `setup.recording.codec.av1` | AV1（おすすめ） | AV1 (recommended) |
+| `setup.recording.codec.h264` | H.264（互換性重視） | H.264 (most compatible) |
 | `setup.recording.free` | 空き容量 | Free space |
 | `setup.recording.free.value` | {size} GB | {size} GB |
 | `setup.recording.free.unknown` | わかりません | Unknown |
 | `setup.recording.format` | 映像 | Video |
-| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4（H.264） | {width}×{height}, {rate} fps, MP4 (H.264) |
+| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |

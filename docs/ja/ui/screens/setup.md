@@ -191,8 +191,9 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 |---|---|
 | 保存先 | フォルダーのパス（折り返す）と、「変更…」（Windowsのフォルダーを選ぶ画面）と「開く」（エクスプローラー） |
 | 画質 | Segmented：標準（6 Mbps）、高画質（12 Mbps） |
+| 形式 | Segmented：AV1（おすすめ）、H.264（互換性重視）。GPUにAV1のエンコーダーがないときは、AV1を選べず、説明がその理由を示す（録画詳細設計18.2） |
 | 空き容量 | 保存先のドライブの空き。Cardを表示している間、10秒ごとに読み直す |
-| 映像 | 大きさ、Frame Rate、形式（1920×1080・30 fps・MP4（H.264））。当面は変えられない |
+| 映像 | 大きさ、Frame Rate、容器（1920×1080・30 fps・MP4）。当面は変えられない |
 
 - 変更は次の録画から使う。録画中の録画は、始めたときの設定のまま続く。
 - 録画の開始と停止はライブ画面で行う（`live.md`）。
@@ -210,8 +211,13 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.recording.quality.description` | 高画質はきれいですが、ファイルが約2倍の大きさになります。 | High looks better, and its files are about twice as large. |
 | `setup.recording.quality.standard` | 標準（6 Mbps） | Standard (6 Mbps) |
 | `setup.recording.quality.high` | 高画質（12 Mbps） | High (12 Mbps) |
+| `setup.recording.codec` | 形式 | Format |
+| `setup.recording.codec.description` | AV1は同じ画質でファイルが小さく、おすすめです。古い編集ソフトやスマートフォンで開けないときはH.264を選んでください。 | AV1 gives smaller files at the same quality and is recommended. Choose H.264 if an older editor or phone cannot open the files. |
+| `setup.recording.codec.no-av1` | このPCのGPUはAV1に対応していないため、H.264で録画します。 | This PC's GPU does not support AV1, so recordings use H.264. |
+| `setup.recording.codec.av1` | AV1（おすすめ） | AV1 (recommended) |
+| `setup.recording.codec.h264` | H.264（互換性重視） | H.264 (most compatible) |
 | `setup.recording.free` | 空き容量 | Free space |
 | `setup.recording.free.value` | {size} GB | {size} GB |
 | `setup.recording.free.unknown` | わかりません | Unknown |
 | `setup.recording.format` | 映像 | Video |
-| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4（H.264） | {width}×{height}, {rate} fps, MP4 (H.264) |
+| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |
