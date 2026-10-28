@@ -18,7 +18,7 @@ Why recording (recording detailed design) is as it is: the formats compared, the
 - VP9: the GPU's encoder (NVENC) does not encode it.
 - Keeping H.264 only: the patent concern stays.
 
-**The spike (branch `spike/av1-encoder`, not merged; `native/encode/spike/av1_probe.cpp` there):** on the development PC (Core i7-13700F, RTX 4070, Windows 11):
+**The spike (2026-10-28; a probe program that was not kept, so its results are recorded here):** on the development PC (Core i7-13700F, RTX 4070, Windows 11):
 
 - Media Foundation lists "NVIDIA AV1 Encoder MFT" (hardware). The Sink Writer the recording already used writes AV1 into MP4 when only the output subtype is changed; ffprobe reads it as AV1 Main.
 - Load at 1080p30 for 20 s, frames pushed in real time: the same for both. CPU 1.4% of 24 threads, the GPU's encoder 5% for H.264 and 4.5% for AV1.

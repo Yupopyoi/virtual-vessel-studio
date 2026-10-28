@@ -18,7 +18,7 @@
 - VP9：GPUのエンコーダー（NVENC）がエンコードしない。
 - H.264だけのまま：特許の心配が残る。
 
-**試作（`spike/av1-encoder`ブランチ、マージしない。そこにある`native/encode/spike/av1_probe.cpp`）：** 開発PC（Core i7-13700F、RTX 4070、Windows 11）で：
+**試作（2026-10-28。試作のプログラムは残していないため、結果をここに記録する）：** 開発PC（Core i7-13700F、RTX 4070、Windows 11）で：
 
 - Media Foundationは「NVIDIA AV1 Encoder MFT」（ハードウェア）を挙げる。録画で使っていたSink Writerのまま、出力の種類だけを変えるとAV1をMP4に書ける。ffprobeはAV1 Mainと読む。
 - 1080p30で20秒、実時間でFrameを渡したときの負荷：両方とも同じ。CPUは24スレッドの1.4%、GPUのエンコーダーはH.264で5%、AV1で4.5%。
