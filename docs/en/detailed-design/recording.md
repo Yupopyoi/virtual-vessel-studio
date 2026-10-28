@@ -7,7 +7,7 @@ Encode the stream video and the stream audio, and record them to a video file (s
 - Recording comes before streaming (the user's decision, 2026-10-27): it is checked locally, without a network or a stream key.
 - The defaults are 1920×1080 at 30 fps, with AAC audio, in MP4 (the user's decision). The video is AV1 where the GPU has an AV1 encoder and H.264 (High) elsewhere; the user can choose H.264 (the user's decision, 2026-10-28; why: [decisions/recording.md](../decisions/recording.md)).
 - The audio is the stream mix of the Audio module (audio detailed design): the microphone and the game's audio.
-- A spike (2026-10-27, branch `spike/encoder`) showed that encoding in the application keeps up: on the development PC (Core i7-13700F, RTX 4070), reading back every second frame and encoding it with the hardware encoder through Media Foundation left the frame time unchanged (16.7 ms at 60 fps), cost 0.35–0.48 ms of main thread a frame, used about 5% of the GPU's encoder and 1.4% of the CPU (24 threads), and dropped no frame.
+- A spike (2026-10-27; its probe was not kept, so the numbers are recorded here) showed that encoding in the application keeps up: on the development PC (Core i7-13700F, RTX 4070), reading back every second frame and encoding it with the hardware encoder through Media Foundation left the frame time unchanged (16.7 ms at 60 fps), cost 0.35–0.48 ms of main thread a frame, used about 5% of the GPU's encoder and 1.4% of the CPU (24 threads), and dropped no frame.
 
 Not in this design: streaming (RTMPS), external video output (Spout), other codecs (H.265, VP9).
 
@@ -169,7 +169,7 @@ The recordings are the user's own files and are never deleted by the application
 | EditMode | `RecordingNames` (names, collisions, free space), the state machine with a fake encoder, settings and migration |
 | Native (ctest) | Encoding synthetic video and a synthetic tone; the file's duration, frame count, and audio length (the spike's test, extended) |
 | PlayMode | Recording the stream video for a few seconds; the file plays with the expected size and duration (`ffprobe` when present) |
-| Performance (Explicit) | The spike's measurement as a test: frame time with and without recording, main-thread cost, drops, CPU and GPU (`EncodeSpikeProbe`, moved to Video) |
+| Performance (Explicit) | The spike's measurement as a test: frame time with and without recording, main-thread cost, drops, CPU and GPU (to be written in Video; the spike's probe was not kept) |
 | Manual | A/V sync: a clap seen and heard at the same moment in the file |
 
 ## 15. Performance
