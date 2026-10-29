@@ -840,11 +840,11 @@
     },
     {
       "type": "application",
-      "bom-ref": "tool:ffprobe",
+      "bom-ref": "tool:ffmpeg",
       "supplier": {
         "name": "FFmpeg"
       },
-      "name": "ffprobe (FFmpeg)",
+      "name": "FFmpeg (ffmpeg, ffprobe)",
       "version": "any, optional",
       "licenses": [
         {
@@ -852,7 +852,7 @@
         }
       ],
       "scope": "excluded",
-      "description": "Read by the recording PlayMode test (RecordingPlayTests), when it is on the developer's PATH, to check a recorded file's frames and duration. Not required, not in the repository, and not distributed."
+      "description": "Developer tools, used only when they are on the developer's PATH: the recording PlayMode test (RecordingPlayTests) reads a recorded file's frames and duration with ffprobe, and the streaming plugin's native tests use ffmpeg in listen mode as a local RTMP server to receive a stream and read it back. Not required, not in the repository, and not distributed."
     },
     {
       "type": "application",
