@@ -76,7 +76,7 @@ Static Service Locatorや、全Serviceを保持して任意に取得できるGlo
 | `IMonotonicClock` | Interface | 単調増加する高分解能時刻 |
 | `ISystemClock` | Interface | 壁時計（UTC） |
 | `IMainThreadDispatcher` | Interface | 任意のThreadからMain Threadへ処理を渡す |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装 |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装。Windowsでは、単調な時計はQueryPerformanceCounterを直接読む。ネイティブのPluginは音声と映像の時刻をQPCの値で扱い、Unityの`Stopwatch`は同じ速さで別の0から数えるためである（録画詳細設計8.1） |
 | `MainThreadDispatcher` | Class | Queueによる`IMainThreadDispatcher`の実装。Main Threadの所有者が毎Frame`Drain`を呼ぶ |
 | `IFrameLoop` / `FrameLoop` | Interface / Class | 毎Frame、Main Threadで呼ぶ処理の登録と呼び出し（5.5） |
 

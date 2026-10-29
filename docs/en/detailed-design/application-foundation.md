@@ -76,7 +76,7 @@ No static service locator or global context that holds all services and allows a
 | `IMonotonicClock` | Interface | Monotonically increasing high-resolution time |
 | `ISystemClock` | Interface | Wall-clock time (UTC) |
 | `IMainThreadDispatcher` | Interface | Passes work from any thread to the main thread |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations. On Windows the monotonic clock reads QueryPerformanceCounter itself: the native plugins time audio and video in QPC values, and Unity's `Stopwatch` counts at the same rate from another zero (recording detailed design 8.1) |
 | `MainThreadDispatcher` | Class | Queue-based implementation of `IMainThreadDispatcher`. The owner of the main thread calls `Drain` every frame |
 | `IFrameLoop` / `FrameLoop` | Interface / Class | Registers and calls work run on the main thread every frame (5.5) |
 
