@@ -20,7 +20,8 @@ namespace VirtualVessel.Video.Recording
             Func<string, long?> freeBytes,
             Func<DateTime> localNow,
             string videosFolder,
-            bool av1Available)
+            bool av1Available,
+            Func<RecordingAudio> audio = null)
         {
             OpenEncoder = openEncoder ?? throw new ArgumentNullException(nameof(openEncoder));
             ReadFrames = readFrames ?? throw new ArgumentNullException(nameof(readFrames));
@@ -28,6 +29,7 @@ namespace VirtualVessel.Video.Recording
             LocalNow = localNow ?? throw new ArgumentNullException(nameof(localNow));
             VideosFolder = videosFolder ?? throw new ArgumentNullException(nameof(videosFolder));
             Av1Available = av1Available;
+            Audio = audio ?? (() => default);
         }
 
         /// <summary>Opens an encoder for the path; runs on a worker thread and throws <see cref="EncoderException"/>.</summary>
@@ -46,8 +48,11 @@ namespace VirtualVessel.Video.Recording
         /// <summary>Whether the GPU has an AV1 encoder, read once at startup.</summary>
         public bool Av1Available { get; }
 
+        /// <summary>The stream bus at the moment a recording starts; default when Audio is not running.</summary>
+        public Func<RecordingAudio> Audio { get; }
+
         /// <summary>The native encoder reading the stream video back from the GPU.</summary>
-        public static RecordingEnvironment Native(IReadOnlyObservable<Texture> video, IMonotonicClock clock)
+        public static RecordingEnvironment Native(IReadOnlyObservable<Texture> video, IMonotonicClock clock, Func<RecordingAudio> audio = null)
         {
             return new RecordingEnvironment(
                 NativeEncoder.Open,
@@ -55,7 +60,8 @@ namespace VirtualVessel.Video.Recording
                 DiskFreeBytes,
                 () => DateTime.Now,
                 Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                NativeEncoder.HardwareAvailable(RecordingCodec.Av1));
+                NativeEncoder.HardwareAvailable(RecordingCodec.Av1),
+                audio);
         }
 
         /// <summary>The free space for the caller on the disk of <paramref name="folder"/>; works for network folders too.</summary>

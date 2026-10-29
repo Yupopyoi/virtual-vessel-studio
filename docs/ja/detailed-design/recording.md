@@ -66,15 +66,18 @@ public interface IRecordingService
 ### 5.1 ネイティブのAPI（`vv_encode.h`）
 
 ```c
-int32_t vv_encode_api_version(void);                                           // 2
+int32_t vv_encode_api_version(void);                                           // 3
 int32_t vv_encode_hardware_available(int32_t codec);                           // VV_ENCODE_CODEC_H264か_AV1のエンコーダーがGPUにあれば1
-int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // パス、幅、高さ、fps、ビットレート、形式
+int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // パス、幅、高さ、fps、ビットレート、形式、
+                                                                               // 音声のビットレート、音声の読み出しとContext（nullなら映像だけ）
 int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);  // 受け皿がなければVV_ENCODE_DROPPED
-int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // 渡した数、書いた数、捨てた数、最後のエラー、ハードウェアか
+int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // 渡した数、書いた数、捨てた数、最後のエラー、ハードウェアか、
+                                                                               // 書いた音声のFrame数、映像に対する音声の位置
 int32_t vv_encode_close(vv_encoder*);                                          // 残りを書き、ファイルを仕上げる。Frameが1つもなければファイルを消す
 ```
 
-- 今の版（API version 2）は映像だけである。音声を加えるとき、`vv_encode_config`に音声のビットレートと読み出し口（なしも可）を加え、API versionを上げる。
+- API version 3で音声のトラックを加えた：AAC-LC、48kHzステレオ、96・128・160・192kbps（Media FoundationのAACのエンコーダーはこれだけを受け付けるため、ビットレートは近いものにする）。バスのfloatのサンプルを16bitのPCMに変えて渡す。
+- `vv_encode_audio_read`は、音声エンジンの読み出し口（`vv_audio_stream_tap.read`）と同じ形である。マネージドの側が読み出し口の2つの値をそのまま渡すため、どちらのPluginも相手にリンクしない。
 - H.264はHighプロファイルで書く（指定しないとエンコーダーはConstrained Baselineを選んでいた）。AV1はMainプロファイルである。
 - 映像にBT.709・limited rangeの色の情報（行列、原色、伝達特性、範囲）を付け、入力はfull rangeと示す。プレーヤーが、描いたときの色に戻せるようにするためである。情報がないファイルは、プレーヤーによって暗く見えた。
 
@@ -110,6 +113,13 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
 2. 出力のFrame Rate（60fpsの描画から30fps：2Frameに1回）で、`StreamFrameReader`が読み出しを依頼し、そのFrameの共通の時計の時刻（QPC）を記録する。待っている読み出しは2つまでとし、それを超えるFrameは飛ばして数える。
 3. 画素が届いたら（1Frame後）、その時刻とともにエンコーダーへ渡す。
 4. エンコーダーのスレッドは、Frameを変換してエンコードし、その時刻までの音声を読み出し口から取り出して、両方を書く。
+
+- ファイルの0は最初の映像のFrameとする。読み出し口がそれより前の音声を渡しても（バスは直近の数秒を持っている）、それは書かない。そのため、音声は映像と同時に始まる。
+- 読み出し口から受け取った音声のかたまりは、その時刻が示すファイルの時間軸の位置に置く（`FrameAt`、`Place`）。隙間は無音で埋め、ファイルより前の分と、書いた分に重なる分は書かない。1ms以内のずれは続きとして扱うため、途切れないバスはサンプルごとにそのまま書かれ、エンコーダーの処理の時刻によって映像とずれることはない。
+- 音声が映像より1秒以上遅れないよう、無音で追いつく。Media Foundationのファイルの書き手は遅れている側の流れを待つため、バスが止まると映像まで待たされ、Frameが捨てられてしまうからである。映像より1秒以上先のかたまりは書かない（このファイルのものではありえない）。
+- 映像のFrameとバスは、同じ時計で時刻を付ける必要がある。アプリの単調な時計はQPCを直接読む（Application基盤詳細設計）。別の0から数えるUnityの`Stopwatch`のままでは、最初の録画で音声のトラックが空になり、Frameの大半が捨てられた。
+- 最後のFrameの音声は、少しの間（バスの遅れと混ぜ合わせの周期）まだ混ぜ合わせの途中である。エンコーダーは、ファイルを仕上げる前に最大200msそれを待つ。
+- Frameを書く時点で、その音声がまだ混ぜ合わされていないことがある。その分は次のFrameとともに書く。無音で埋めた量はログに書く（`audio_silence_frames`）。録画中の`Recording/AvOffset`は、そのため音声が約1Frame遅れて見える。仕上げたファイルでは、両方とも最後まで入っている。
 
 - 配信用のバスは、Audioの`StreamLatency`（Audio詳細設計8.4）だけ、聞こえた時刻より遅れている：処理の段がなければ約20〜30ms、RVCがあればそれ以上。映像のFrameはその分だけ保ってからエンコードし、ファイルの中で口の動きと声を合わせる（方式設計10.9）。1Frame（33ms）未満なら保たない。
 
@@ -154,13 +164,13 @@ Idle ──Start──▶ Starting ──開いた──▶ Recording ──Stop
 - エンコーダーを開けない（その形式のエンコーダーがない、ファイルを作れない）：`EncoderFailed`か`FolderUnavailable`で`Failed`にする。ほかは止めない。
 - ハードウェアのエンコーダーがあればそれを使い、なければMedia Foundationのソフトウェアのエンコーダーを使う（H.264だけ。ソフトウェアのAV1は実時間に間に合わないため、AV1はハードウェアのエンコーダーがあるときだけ使う）。形式と、ハードウェアかどうかを記録する（方式設計5.15）。
 - 録画中の書き込みのエラー：エンコーダーを止め、書いた部分を仕上げ、`Failed`にする。
-- 音声がない（Audio Moduleが使えない、機器がない）：映像だけで録画を続け、`AudioUnavailable`を表示する。
+- 音声がない（Audio Moduleが始まらず、配信用のバスがない）：映像だけで録画を続け、録画中に`AudioUnavailable`（「音声なしで録画しています。」）を表示する。機器のない音の元はバスの上で無音になるだけで、バスはある。そのときのファイルは無音のトラックを持つ。
 - 録画は、アバター、トラッキング、取り込みを止めない（方式設計10.16）。
 
 ## 13. ログと診断
 
 - 開始と停止を、ファイル名、大きさ、エンコーダー（ハードウェアかソフトウェアか）、設定とともに記録する。問題はWarningかError。毎Frameの記録はしない。
-- 計測（Diagnostics画面）：`Recording/FramesWritten`、`Recording/FramesDropped`（受け皿がない）、`Recording/FramesSkipped`（読み出しが待っている）、`Recording/ReadbackLatency`（Frame）、`Recording/AvOffset`（ms、書き込み時の映像に対する音声。音声とともに加える）。
+- 計測（Diagnostics画面）：`Recording/FramesWritten`、`Recording/FramesDropped`（受け皿がない）、`Recording/FramesSkipped`（読み出しが待っている）、`Recording/ReadbackLatency`（Frame）、`Recording/AvOffset`（ms、最後に書いたときの、映像に対する音声の終わりの位置。負は遅れ）。
 
 ## 14. Testの方針
 
@@ -195,6 +205,8 @@ UI/Runtime/Screens/                    RecordControl（ライブ画面）、Reco
 
 | 項目 | 方針 |
 |---|---|
+| 音声の遅れが1Frame以上のときに映像を保つ（8.1） | ボイスチェンジとともに（Audio詳細設計の段階3）。それまでは遅れは30msで、1Frame未満 |
+| 音声と映像の同期を手で確かめる（手を叩いたところが、見えるのと聞こえるのが同時か） | 利用者が、この版で |
 | GPUのTextureを直接エンコーダーへ渡す（読み出しなし） | ほかのPCで読み出しの負荷が大きすぎるときだけ |
 | AV1 Video Extensionが入っていないPCでAV1を再生できるか | ほかのPCで確かめる。それまでは、設定画面で「開けないときはH.264を選ぶ」と案内する |
 | 配信の形式（YouTubeはAV1を受け付けるが、ほかのサービスはH.264が要ることがある） | 配信とともに |

@@ -61,6 +61,11 @@ namespace vv::audio
         // The stream bus's peak since the last call, linear.
         float TakeBusPeak();
 
+        // Delays the stream bus by this many QPC ticks for its readers: each frame is given as heard that much
+        // later, so a recording puts the voice with the avatar's motion, which tracking delays (audio
+        // detailed design 8.5). A change while reading shows as a jump the reader fills or leaves out.
+        void SetStreamDelay(int64_t ticks);
+
         // The QPC of the bus frame at index, from the anchor. Pure.
         static int64_t FrameQpc(int64_t anchorQpc, uint64_t index, int64_t frequency);
 
@@ -105,5 +110,6 @@ namespace vv::audio
         std::atomic<bool> _busAnchored{ false };
         std::atomic<float> _busPeak{ 0.0f };
         uint64_t _busRead = 0; // Reader only.
+        std::atomic<int64_t> _streamDelay{ 0 };
     };
 }

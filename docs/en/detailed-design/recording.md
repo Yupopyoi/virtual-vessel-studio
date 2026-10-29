@@ -66,15 +66,18 @@ public interface IRecordingService
 ### 5.1 The Native API (`vv_encode.h`)
 
 ```c
-int32_t vv_encode_api_version(void);                                           // 2
+int32_t vv_encode_api_version(void);                                           // 3
 int32_t vv_encode_hardware_available(int32_t codec);                           // 1 when the GPU has an encoder for VV_ENCODE_CODEC_H264 or _AV1
-int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // path, width, height, fps, bitrate, codec
+int32_t vv_encode_open(const vv_encode_config* config, vv_encoder** encoder);  // path, width, height, fps, bitrate, codec,
+                                                                               // audio bitrate, audio read and context (null: video only)
 int32_t vv_encode_push_video(vv_encoder*, const uint8_t* bgra, int32_t length, int64_t qpc);  // VV_ENCODE_DROPPED with no free slot
-int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // Pushed, written, dropped, last error, hardware or not
+int32_t vv_encode_get_stats(vv_encoder*, vv_encode_stats* stats);               // Pushed, written, dropped, last error, hardware or not,
+                                                                               // audio frames written, the audio's offset against the video
 int32_t vv_encode_close(vv_encoder*);                                          // Drains, finishes the file; a file with no frame is deleted
 ```
 
-- This version (API version 2) is video only. With audio, `vv_encode_config` gains the audio bitrate and the audio tap (or none), and the API version goes up.
+- API version 3 adds the audio track: AAC-LC, 48 kHz stereo, at 96, 128, 160, or 192 kbit/s (the bitrate is rounded to the nearest; Media Foundation's AAC encoder takes only these), from 16-bit PCM converted from the bus's float samples.
+- `vv_encode_audio_read` has the signature of the audio engine's tap (`vv_audio_stream_tap.read`); the managed side passes the tap's two values through, so neither plugin links to the other.
 - H.264 is written in the High profile (without it the encoder chose Constrained Baseline), and AV1 in its Main profile.
 - The video is tagged BT.709, limited range (matrix, primaries, transfer, range), and the input is marked full range, so players convert the colors back as they were rendered. Untagged files looked darker in some players.
 
@@ -110,6 +113,13 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
 2. At the output rate (30 fps from a 60 fps render: every second frame), `StreamFrameReader` requests a readback and notes the shared clock's time (QPC) of the frame. At most two readbacks wait; a frame past that is skipped and counted.
 3. When the pixels arrive (a frame later), they are pushed to the encoder with that time.
 4. The encoder's thread converts and encodes the frame, reads the audio for up to that time from the tap, and writes both.
+
+- The file's zero is the first video frame. Audio the tap gives from before it (the bus keeps the last seconds) is left out, so the audio starts with the video.
+- Each chunk the tap gives is placed where its time puts it on the file's timeline (`FrameAt`, `Place`): a gap is filled with silence, and what comes before the file or overlaps what was written is left out. Within 1 ms it simply follows on, so a continuous bus is written sample for sample and never drifts from the video by the encoder's own timing.
+- The audio is never let fall more than a second behind the video: silence catches up. Media Foundation's file writer waits for the stream that is behind, so a stalled bus would otherwise hold the video back and its frames would be dropped. A chunk more than a second past the video is left out (it cannot belong to this file).
+- Video frames and the bus must be timed on the same clock: the application's monotonic clock reads QPC itself (application foundation detailed design). With Unity's `Stopwatch`, which counts from another zero, the first recordings had an empty audio track and dropped most of their frames.
+- At the end, the audio for the last frame is still being mixed for a moment (the bus's latency and a mix period); the encoder waits up to 200 ms for it before finishing the file.
+- The audio for a frame may not be mixed yet when the frame is written; it is written with the next frame. The log notes how much was filled with silence (`audio_silence_frames`). `Recording/AvOffset` shows this as about one frame of audio behind while recording; the finished file has both to the end.
 
 - The stream bus is behind the moment it was heard by Audio's `StreamLatency` (audio detailed design 8.4): about 20–30 ms without stages, and more with RVC. The video frames are held that long before encoding, so the mouth and the voice match in the file (system design 10.9). Below one frame (33 ms) nothing is held.
 
@@ -154,13 +164,13 @@ The recordings are the user's own files and are never deleted by the application
 - The encoder fails to open (no encoder for the format, the file cannot be created): `Failed` with `EncoderFailed` or `FolderUnavailable`; nothing else stops.
 - A hardware encoder is used when there is one; otherwise Media Foundation's software encoder (H.264 only; AV1 is used only with a hardware encoder, since software AV1 is too slow for real time). The format and whether the encoder is hardware are logged (system design 5.15).
 - A write error while recording: the encoder stops, the part written is finished, and the state is `Failed`.
-- No audio (the Audio module unavailable or no device): the recording goes on with video only and `AudioUnavailable` is shown.
+- No audio (the Audio module did not start, so there is no stream bus): the recording goes on with video only, and `AudioUnavailable` is shown while it records ("Recording without audio."). Sources without a device are silence on the bus, not a missing bus: the file then has a silent track.
 - Recording never stops the avatar, tracking, or capture (system design 10.16).
 
 ## 13. Logging and Diagnostics
 
 - Start and stop with the file name, size, encoder (hardware or software), and settings; problems at Warning or Error. Nothing per frame.
-- Metrics (Diagnostics screen): `Recording/FramesWritten`, `Recording/FramesDropped` (no slot), `Recording/FramesSkipped` (readbacks waiting), `Recording/ReadbackLatency` (frames), `Recording/AvOffset` (ms, audio against video at the writer; added with audio).
+- Metrics (Diagnostics screen): `Recording/FramesWritten`, `Recording/FramesDropped` (no slot), `Recording/FramesSkipped` (readbacks waiting), `Recording/ReadbackLatency` (frames), `Recording/AvOffset` (ms, where the audio ends against the video at the last write; negative is behind).
 
 ## 14. Testing Strategy
 
@@ -195,6 +205,8 @@ The encoder DLL is built by `tools/native/build-encode.ps1` and kept out of Git 
 
 | Item | Plan |
 |---|---|
+| Holding the video by the audio's latency when it is a frame or more (8.1) | With voice conversion (audio detailed design step 3); without it the latency is 30 ms, under a frame |
+| A/V sync checked by hand (a clap seen and heard together) | The user, with this version |
 | Giving the encoder the GPU texture directly (no readback) | Only if the readback costs too much on other PCs |
 | Whether AV1 plays on PCs without the AV1 Video Extension | Check on another PC; until then the setup screen says to choose H.264 if files do not open |
 | The format for streaming (YouTube takes AV1, other services may need H.264) | With streaming |

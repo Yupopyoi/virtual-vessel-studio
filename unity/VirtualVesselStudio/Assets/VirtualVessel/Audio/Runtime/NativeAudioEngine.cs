@@ -53,6 +53,8 @@ namespace VirtualVessel.Audio
 
         void SetStreamSend(int source, float sendDb);
 
+        void SetStreamDelay(TimeSpan delay);
+
         AudioEngineStatus GetStatus(int source);
 
         TimeSpan StreamLatency { get; }
@@ -76,7 +78,7 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 1;
+        private const int ApiVersion = 2;
         private const int Ok = 0;
         private const int StreamBus = 0;
         private const int MaxDevices = 64;
@@ -168,6 +170,11 @@ namespace VirtualVessel.Audio
         public void SetStreamSend(int source, float sendDb)
         {
             vv_audio_set_send(_engine, source, StreamBus, sendDb);
+        }
+
+        public void SetStreamDelay(TimeSpan delay)
+        {
+            vv_audio_set_stream_delay(_engine, AudioSettings.ClampDelayMs(delay.TotalMilliseconds));
         }
 
         public AudioEngineStatus GetStatus(int source)
@@ -283,5 +290,8 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_get_stream_tap(IntPtr engine, out Tap tap);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_set_stream_delay(IntPtr engine, int delayMs);
     }
 }

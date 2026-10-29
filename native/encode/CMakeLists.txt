@@ -22,6 +22,7 @@ target_link_libraries(VirtualVessel.Encode.Native PRIVATE mfplat mfreadwrite mfu
 
 enable_testing()
 add_executable(vv_encode_tests tests/encode_tests.cpp)
+target_include_directories(vv_encode_tests PRIVATE src)
 target_compile_definitions(vv_encode_tests PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(vv_encode_tests PRIVATE VirtualVessel.Encode.Native mfplat mfreadwrite mfuuid ole32)
 add_test(NAME vv_encode_tests COMMAND vv_encode_tests)

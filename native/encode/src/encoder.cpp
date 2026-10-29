@@ -3,6 +3,8 @@
 
 #include "vv_encode.h"
 
+#include "audio_track.h"
+
 #include <windows.h>
 
 #include <codecapi.h>
@@ -42,8 +44,15 @@ namespace
     {
         std::vector<uint8_t> data;
         int64_t time = 0;
+        int64_t qpc = 0;
         SlotState state = SlotState::Free;
     };
+
+    // The stream tap is read in chunks of 100 ms.
+    constexpr int32_t AudioChunkFrames = 4800;
+
+    // At the end, the audio for the last frame may still be in the mix: it is waited for this long at most.
+    constexpr int AudioDrainMilliseconds = 200;
 
     int64_t MicrosecondsSince(std::chrono::steady_clock::time_point start)
     {
@@ -91,6 +100,17 @@ struct vv_encoder
     int32_t fps = 0;
     int32_t bitrate = 0;
     int32_t codec = VV_ENCODE_CODEC_H264;
+    int32_t audioBitrate = 0;
+    vv_encode_audio_read audioRead = nullptr;
+    void* audioContext = nullptr;
+
+    // Encoder thread only.
+    DWORD audioStream = 0;
+    int64_t audioStartQpc = 0;    // The first video frame's QPC: the file's zero.
+    bool audioStarted = false;    // A flag rather than a value, since a QPC from another base may be negative.
+    int64_t audioWritten = 0;     // Frames written from the file's zero, which time each next audio sample.
+    std::vector<float> audioFloats;
+    std::vector<int16_t> audioPcm;
 
     std::mutex mutex;
     std::condition_variable wake;
@@ -102,8 +122,17 @@ struct vv_encoder
     HRESULT openResult = S_OK;
     vv_encode_stats stats = {};
     std::thread worker;
-    int64_t firstQpc = -1;
+    int64_t firstQpc = 0;
+    bool firstSeen = false;
     int64_t qpcFrequency = 1;
+    int64_t lastVideoEnd = 0;
+    int64_t lastVideoQpc = 0;
+
+    // The QPC ticks of a file time; the inverse of TicksToFileTime, for placing the file's zero.
+    int64_t TicksOf(int64_t fileTime) const
+    {
+        return ((fileTime / 10'000'000) * qpcFrequency) + (((fileTime % 10'000'000) * qpcFrequency) / 10'000'000);
+    }
 
     HRESULT Open(ComPtr<IMFSinkWriter>& writer, DWORD& stream)
     {
@@ -167,9 +196,174 @@ struct vv_encoder
             hr = writer->SetInputMediaType(stream, input.Get(), nullptr);
         }
 
+        if (SUCCEEDED(hr) && audioRead != nullptr)
+        {
+            hr = AddAudio(writer.Get());
+        }
+
         if (SUCCEEDED(hr))
         {
             hr = writer->BeginWriting();
+        }
+
+        return hr;
+    }
+
+    // AAC-LC, 48 kHz stereo, from 16-bit PCM (the encoder's input).
+    HRESULT AddAudio(IMFSinkWriter* writer)
+    {
+        ComPtr<IMFMediaType> output;
+        HRESULT hr = MFCreateMediaType(&output);
+        if (SUCCEEDED(hr))
+        {
+            output->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+            output->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC);
+            output->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+            output->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, vv::encode::AudioRate);
+            output->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, vv::encode::AudioChannels);
+            output->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, vv::encode::AacBytesPerSecond(audioBitrate));
+            hr = writer->AddStream(output.Get(), &audioStream);
+        }
+
+        ComPtr<IMFMediaType> input;
+        if (SUCCEEDED(hr))
+        {
+            hr = MFCreateMediaType(&input);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+            input->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+            input->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+            input->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, vv::encode::AudioRate);
+            input->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, vv::encode::AudioChannels);
+            input->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, vv::encode::AudioChannels * 2);
+            input->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, vv::encode::AudioRate * vv::encode::AudioChannels * 2);
+            hr = writer->SetInputMediaType(audioStream, input.Get(), nullptr);
+        }
+
+        audioFloats.resize(static_cast<size_t>(AudioChunkFrames) * vv::encode::AudioChannels);
+        audioPcm.resize(static_cast<size_t>(AudioChunkFrames) * vv::encode::AudioChannels);
+        return hr;
+    }
+
+    // Writes the stream bus's audio up to untilQpc, each chunk where its time puts it on the file's
+    // timeline: a gap is filled with silence, and what comes before the file or overlaps what was written is
+    // left out, so the audio stays with the video whatever the bus does. When videoEnd is given and the
+    // audio is more than a second behind it, silence catches up, so the file writer, which waits for the
+    // stream that is behind, never holds the video back. Returns the file time the audio now ends at, or -1
+    // without audio.
+    int64_t PumpAudio(IMFSinkWriter* writer, int64_t untilQpc, int64_t videoEnd)
+    {
+        if (audioRead == nullptr || !audioStarted)
+        {
+            return -1;
+        }
+
+        HRESULT write = S_OK;
+        for (;;)
+        {
+            int64_t chunkQpc = 0;
+            int32_t frames = audioRead(audioContext, audioFloats.data(), AudioChunkFrames, untilQpc, &chunkQpc);
+            if (frames <= 0)
+            {
+                break;
+            }
+
+            // A chunk more than a second past the video is not this file's (a clock on another base): it
+            // is left out rather than filled up to with silence.
+            int64_t position = vv::encode::FrameAt(chunkQpc, audioStartQpc, qpcFrequency);
+            int64_t videoFrames = vv::encode::FileTimeToFrames(videoEnd >= 0 ? videoEnd : lastVideoEnd);
+            if (position > videoFrames + vv::encode::MaxAudioLagFrames)
+            {
+                continue;
+            }
+
+            vv::encode::Placement placement = vv::encode::Place(position, frames, audioWritten);
+            write = WriteSilence(writer, placement.silence);
+            int64_t kept = frames - placement.skip;
+            if (SUCCEEDED(write) && kept > 0)
+            {
+                size_t samples = static_cast<size_t>(kept) * vv::encode::AudioChannels;
+                vv::encode::ToPcm16(audioFloats.data() + (static_cast<size_t>(placement.skip) * vv::encode::AudioChannels), audioPcm.data(), samples);
+                write = WriteAudio(writer, audioPcm.data(), samples * sizeof(int16_t), vv::encode::FramesToFileTime(audioWritten), vv::encode::FramesToFileTime(kept));
+                audioWritten += SUCCEEDED(write) ? kept : 0;
+            }
+
+            if (FAILED(write))
+            {
+                break;
+            }
+        }
+
+        if (SUCCEEDED(write) && videoEnd >= 0)
+        {
+            write = WriteSilence(writer, vv::encode::FileTimeToFrames(videoEnd) - vv::encode::MaxAudioLagFrames - audioWritten);
+        }
+
+        std::lock_guard<std::mutex> lock(mutex);
+        stats.audio_frames = audioWritten;
+        if (FAILED(write))
+        {
+            stats.last_error = write;
+            return -1;
+        }
+
+        return vv::encode::FramesToFileTime(audioWritten);
+    }
+
+    // Writes frames of silence (none for zero or less) and counts them.
+    HRESULT WriteSilence(IMFSinkWriter* writer, int64_t frames)
+    {
+        HRESULT hr = S_OK;
+        while (SUCCEEDED(hr) && frames > 0)
+        {
+            int64_t run = frames < AudioChunkFrames ? frames : AudioChunkFrames;
+            size_t samples = static_cast<size_t>(run) * vv::encode::AudioChannels;
+            std::fill(audioPcm.begin(), audioPcm.begin() + static_cast<ptrdiff_t>(samples), static_cast<int16_t>(0));
+            hr = WriteAudio(writer, audioPcm.data(), samples * sizeof(int16_t), vv::encode::FramesToFileTime(audioWritten), vv::encode::FramesToFileTime(run));
+            if (SUCCEEDED(hr))
+            {
+                audioWritten += run;
+                frames -= run;
+                std::lock_guard<std::mutex> lock(mutex);
+                stats.audio_silence_frames += run;
+            }
+        }
+
+        return hr;
+    }
+
+    HRESULT WriteAudio(IMFSinkWriter* writer, const int16_t* pcm, size_t bytes, int64_t time, int64_t duration)
+    {
+        ComPtr<IMFMediaBuffer> buffer;
+        HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(bytes), &buffer);
+        BYTE* target = nullptr;
+        if (SUCCEEDED(hr))
+        {
+            hr = buffer->Lock(&target, nullptr, nullptr);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            std::memcpy(target, pcm, bytes);
+            buffer->Unlock();
+            buffer->SetCurrentLength(static_cast<DWORD>(bytes));
+        }
+
+        ComPtr<IMFSample> sample;
+        if (SUCCEEDED(hr))
+        {
+            hr = MFCreateSample(&sample);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            sample->AddBuffer(buffer.Get());
+            sample->SetSampleTime(time);
+            sample->SetSampleDuration(duration);
+            hr = writer->WriteSample(audioStream, sample.Get());
         }
 
         return hr;
@@ -229,6 +423,13 @@ struct vv_encoder
                 write = MFCreateSample(&sample);
             }
 
+            // The file's zero is the first frame; audio from before it is left out.
+            if (!audioStarted)
+            {
+                audioStarted = true;
+                audioStartQpc = slot.qpc - TicksOf(slot.time);
+            }
+
             if (SUCCEEDED(write))
             {
                 sample->AddBuffer(buffer.Get());
@@ -247,11 +448,36 @@ struct vv_encoder
                 }
             }
 
-            std::lock_guard<std::mutex> lock(mutex);
-            slot.state = SlotState::Free;
-            if (FAILED(write))
+            int64_t frameEnd = slot.time + duration;
+            int64_t frameQpc = slot.qpc;
             {
-                stats.last_error = write;
+                std::lock_guard<std::mutex> lock(mutex);
+                slot.state = SlotState::Free;
+                if (FAILED(write))
+                {
+                    stats.last_error = write;
+                }
+            }
+
+            // The audio up to this frame, in order with the video (recording detailed design 5.1).
+            int64_t audioEnd = PumpAudio(writer.Get(), frameQpc, frameEnd);
+            lastVideoEnd = frameEnd;
+            lastVideoQpc = frameQpc;
+            if (audioEnd >= 0)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                stats.av_offset_us = (audioEnd - frameEnd) / 10;
+            }
+        }
+
+        // The audio for the last frame is still being mixed for a moment: wait for it, briefly.
+        if (writer && audioRead != nullptr && lastVideoEnd > 0)
+        {
+            auto waited = std::chrono::steady_clock::now();
+            int64_t untilQpc = lastVideoQpc + (qpcFrequency / fps);
+            while (PumpAudio(writer.Get(), untilQpc, -1) < lastVideoEnd && MicrosecondsSince(waited) < AudioDrainMilliseconds * 1000)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
 
@@ -342,6 +568,9 @@ extern "C"
             created->fps = config->fps;
             created->bitrate = config->bitrate;
             created->codec = config->codec;
+            created->audioBitrate = config->audio_bitrate;
+            created->audioRead = config->audio_read;
+            created->audioContext = config->audio_context;
             LARGE_INTEGER frequency;
             QueryPerformanceFrequency(&frequency);
             created->qpcFrequency = frequency.QuadPart;
@@ -416,14 +645,16 @@ extern "C"
 
         {
             std::lock_guard<std::mutex> lock(encoder->mutex);
-            if (encoder->firstQpc < 0)
+            if (!encoder->firstSeen)
             {
+                encoder->firstSeen = true;
                 encoder->firstQpc = qpc;
             }
 
             // QPC ticks to the file's 100 ns units, from the first frame; split to keep the product in range.
             int64_t ticks = qpc - encoder->firstQpc;
-            slot.time = ((ticks / encoder->qpcFrequency) * 10'000'000) + (((ticks % encoder->qpcFrequency) * 10'000'000) / encoder->qpcFrequency);
+            slot.time = vv::encode::TicksToFileTime(ticks, encoder->qpcFrequency);
+            slot.qpc = qpc;
             slot.state = SlotState::Full;
             encoder->queue.push_back(index);
         }

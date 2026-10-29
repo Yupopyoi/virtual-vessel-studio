@@ -8,6 +8,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Audio;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.Video.Recording;
@@ -28,6 +29,7 @@ namespace VirtualVessel.Video.Tests
         private VideoService _video;
         private RecordingService _recording;
         private string _folder;
+        private IAudioEngine _audio;
 
         [SetUp]
         public void SetUp()
@@ -50,7 +52,7 @@ namespace VirtualVessel.Video.Tests
                 _video.Size,
                 _loop,
                 clock,
-                RecordingEnvironment.Native(_video.Video, clock),
+                RecordingEnvironment.Native(_video.Video, clock, StreamBus),
                 null,
                 null);
             _recording.InitializeAsync(CancellationToken.None).Wait();
@@ -61,6 +63,10 @@ namespace VirtualVessel.Video.Tests
         {
             _recording?.ShutdownAsync(CancellationToken.None).Wait();
             _recording?.Dispose();
+            _audio?.Dispose();
+
+            // NUnit keeps the fixture between tests: each starts its own engine.
+            _audio = null;
             _video?.Dispose();
             if (_cameraObject != null)
             {
@@ -107,6 +113,17 @@ namespace VirtualVessel.Video.Tests
                 Assert.That(seconds, Is.EqualTo(2.0).Within(0.3));
                 Assert.That(frames, Is.EqualTo(60).Within(8), "30 fps over two seconds.");
             }
+
+            // With the audio engine running, the stream bus is in the file as AAC, as long as the video. The
+            // packets are counted, not the header's duration, which an empty track also has.
+            (string name, int packets)? audio = ProbeAudio(file);
+            if (_audio != null && audio is (string audioName, int audioPackets))
+            {
+                double audioSeconds = audioPackets * 1024 / 48000.0;
+                Debug.Log($"Recorded audio {audioName}: {audioPackets} packets, {audioSeconds:0.00} s.");
+                Assert.That(audioName, Is.EqualTo("aac"));
+                Assert.That(audioSeconds, Is.EqualTo(2.0).Within(0.3), "AAC packets are 1024 frames at 48 kHz.");
+            }
         }
 
         private IEnumerator Until(RecordingState state)
@@ -118,6 +135,48 @@ namespace VirtualVessel.Video.Tests
                 Assert.That(waited.Elapsed, Is.LessThan(TimeSpan.FromSeconds(10)), $"Still {_recording.State.Value}.");
                 _loop.Tick(e => throw e);
                 yield return null;
+            }
+        }
+
+        /// <summary>
+        /// The real audio engine with no source: its stream bus is silence, so the test records the bus
+        /// without opening a microphone. Null where the audio plugin is not built; the file is then video only.
+        /// </summary>
+        private RecordingAudio StreamBus()
+        {
+            if (_audio == null)
+            {
+                try
+                {
+                    _audio = NativeAudioEngine.Create();
+                }
+                catch (AudioEngineException)
+                {
+                    return default;
+                }
+            }
+
+            return new RecordingAudio(_audio.StreamTap.Context, _audio.StreamTap.Read, _audio.StreamLatency);
+        }
+
+        private static (string Codec, int Packets)? ProbeAudio(string file)
+        {
+            try
+            {
+                var start = new ProcessStartInfo("ffprobe", $"-v error -count_packets -select_streams a:0 -show_entries stream=codec_name,nb_read_packets -of csv=p=0 \"{file}\"")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                };
+                using Process process = Process.Start(start);
+                string[] fields = process.StandardOutput.ReadToEnd().Trim().Split(',');
+                process.WaitForExit(10_000);
+                return (fields[0].Trim(), int.Parse(fields[1].Trim(), CultureInfo.InvariantCulture));
+            }
+            catch (Exception exception) when (exception is System.ComponentModel.Win32Exception || exception is FormatException || exception is IndexOutOfRangeException)
+            {
+                return null;
             }
         }
 

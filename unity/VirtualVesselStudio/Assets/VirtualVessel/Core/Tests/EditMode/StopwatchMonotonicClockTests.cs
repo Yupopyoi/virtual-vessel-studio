@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using VirtualVessel.Core.Time;
 
@@ -37,6 +38,23 @@ namespace VirtualVessel.Core.Tests
             TimeSpan elapsed = clock.GetElapsed(start, end);
 
             Assert.That(elapsed.TotalHours, Is.EqualTo(1.0).Within(0.0001));
+        }
+
+        [DllImport("kernel32.dll")]
+        private static extern bool QueryPerformanceCounter(out long value);
+
+        [Test]
+        public void Timestamps_AreTheNativePluginsQpcValues()
+        {
+            // Unity's Stopwatch counts from another zero; the recording's audio and video must share one
+            // (recording detailed design 8.1). A recording without audio was the result when they did not.
+            var clock = new StopwatchMonotonicClock();
+
+            QueryPerformanceCounter(out long before);
+            long timestamp = clock.GetTimestamp();
+            QueryPerformanceCounter(out long after);
+
+            Assert.That(timestamp, Is.InRange(before, after));
         }
     }
 }

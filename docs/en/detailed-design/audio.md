@@ -135,6 +135,14 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - `StreamLatency` reports it; Video delays the stream video by the same amount before encoding, so the mouth and the voice match (system design 10.9). Without RVC it is 30 ms (the 20 ms a source gathers before it plays, and a device period of about 10 ms), and the video is not delayed.
 - The stream bus's times come from its sample count since the first block. The mix thread mixes the blocks the QPC clock says are due, not one per wake, so a late wake does not shift the times.
 
+### 8.5 Delaying the Stream for the Avatar
+
+- The avatar's motion comes later than the voice: the camera, the inference, and the smoothing that keeps it steady take time (tracking detailed design 8). A recording of the user's claps showed the avatar's hands at least 0.2 s after the sound (2026-10-29).
+- So recording and streaming get the stream bus later by a delay the user sets (0 to 1000 ms, 300 ms by default, the user's choice): the tap gives each frame as heard that much later (`vv_audio_set_stream_delay`). What the user hears (the monitor bus, step 2) is not delayed.
+- The delay is not part of `StreamLatency`, which is the cost of processing that Video holds the video for (8.4); this one goes the other way.
+- A change while recording shows as a jump in the bus's times; the encoder fills it with silence or leaves out the overlap (recording detailed design 8.1).
+- Measuring the avatar's delay and setting it automatically is an open issue (#100).
+
 ## 9. Threading
 
 - One capture thread per device source and one mix thread, native, at above-normal priority (MMCSS "Audio"). No allocation, no lock held while waiting, and no logging on them; counters only.
@@ -151,12 +159,14 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
   "sources": [
     { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0 } },
     { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0 } }
-  ]
+  ],
+  "streamDelayMs": 300
 }
 ```
 
 - Sources are a list, so BGM, SE, and more microphones are added without changing the format. A source of a role this version does not know is kept and not played; unknown fields at the top of the file are kept (CLAUDE.md 25). Unknown fields inside a source are not kept yet.
 - JSON cannot hold -inf, so a send of -120 dB or below is none.
+- `streamDelayMs` (8.5) was added in schema version 1 without a step: a file without it reads as 300.
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
 - `ProfileKind` gains `Audio`.
 
@@ -195,7 +205,7 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 1)
+native/audio/include/vv_audio.h        The C API (version 2: the stream delay)
 native/audio/src/                      mixer (the mix, the bus, the tap; no threads or devices), frame_ring, dsp (gains, limiter),
                                        device_source (WASAPI capture), exports (the engine and the mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
@@ -225,6 +235,7 @@ An "Audio" Card on the setup screen, one row group per source:
 | Volume | Slider, -60 to +12 dB in 1 dB steps |
 | Mute | Toggle |
 | Input level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
+| Stream and recording audio delay (once, after the sources) | Slider, 0 to 1000 ms in 10 ms steps (8.5) |
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
 - Sends to the monitor come with step 2.

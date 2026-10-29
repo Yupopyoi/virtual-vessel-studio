@@ -160,6 +160,7 @@ namespace VirtualVessel.Video.Tests
         private long? _free;
         private Exception _openFailure;
         private bool _av1;
+        private RecordingAudio _audio;
 
         [SetUp]
         public void SetUp()
@@ -172,6 +173,7 @@ namespace VirtualVessel.Video.Tests
             _free = 100 * Gigabyte;
             _openFailure = null;
             _av1 = true;
+            _audio = new RecordingAudio(new IntPtr(1), new IntPtr(2), TimeSpan.FromMilliseconds(30));
         }
 
         [TearDown]
@@ -357,6 +359,34 @@ namespace VirtualVessel.Video.Tests
         }
 
         [Test]
+        public void TheStreamBus_IsRecorded_WhenAudioRuns()
+        {
+            using RecordingService service = Create();
+            service.Start();
+            TickUntil(service, RecordingState.Recording);
+
+            Assert.That(_encoder.Format.Audio.IsValid, Is.True);
+            Assert.That(_encoder.Format.AudioBitrate, Is.EqualTo(160_000));
+            Assert.That(service.Problem.Value, Is.EqualTo(RecordingProblem.None));
+        }
+
+        [Test]
+        public void WithoutAudio_TheRecordingGoesOnWithVideoOnly_AndSaysSo()
+        {
+            _audio = default;
+            using RecordingService service = Create();
+            service.Start();
+            TickUntil(service, RecordingState.Recording);
+
+            Assert.That(_encoder.Format.Audio.IsValid, Is.False);
+            Assert.That(service.Problem.Value, Is.EqualTo(RecordingProblem.AudioUnavailable), "Shown while recording (recording detailed design 12).");
+
+            service.Stop();
+            TickUntil(service, RecordingState.Idle);
+            Assert.That(service.LastFile, Is.Not.Null, "Finished as any recording.");
+        }
+
+        [Test]
         public void TheEncoder_GetsTheCodecInUse()
         {
             using (RecordingService service = Create())
@@ -399,7 +429,8 @@ namespace VirtualVessel.Video.Tests
                 _ => _free,
                 () => new DateTime(2026, 10, 27, 22, 30, 5),
                 _folder,
-                _av1);
+                _av1,
+                () => _audio);
             var settings = new RecordingSettings { RecordingFolder = _folder };
             var service = new RecordingService(settings, null, new VideoSize(1920, 1080), _loop, _clock, environment, null, null);
             service.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();

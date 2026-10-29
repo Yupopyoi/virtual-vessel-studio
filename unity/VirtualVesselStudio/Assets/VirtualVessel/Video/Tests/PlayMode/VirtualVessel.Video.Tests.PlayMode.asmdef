@@ -3,6 +3,7 @@
     "rootNamespace": "VirtualVessel.Video.Tests",
     "references": [
         "UnityEngine.TestRunner",
+        "VirtualVessel.Audio",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ProjectData",

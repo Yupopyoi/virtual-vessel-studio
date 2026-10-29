@@ -338,6 +338,8 @@
         "setup.audio.problem.access-denied": "Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it.",
         "setup.audio.problem.failed": "The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen.",
         "setup.audio.open-privacy": "Open microphone privacy settings",
+        "setup.audio.delay": "Stream and recording audio delay",
+        "setup.audio.delay.description": "The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed.",
         "setup.avatar.title": "Avatar",
         "setup.avatar.unavailable": "Avatars are not available.",
         "setup.avatar.use": "Avatar to use",
