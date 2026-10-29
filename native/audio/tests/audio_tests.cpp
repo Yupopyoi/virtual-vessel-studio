@@ -277,17 +277,44 @@ namespace
     }
 }
 
+namespace
+{
+    // A crash would otherwise lose the buffered output and say nothing of where it was: print the
+    // exception and the module and offset it happened at, so a CI failure can be found.
+    LONG WINAPI ReportCrash(EXCEPTION_POINTERS* exception)
+    {
+        void* address = exception->ExceptionRecord->ExceptionAddress;
+        HMODULE module = nullptr;
+        char name[MAX_PATH] = "?";
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, static_cast<LPCSTR>(address), &module))
+        {
+            GetModuleFileNameA(module, name, MAX_PATH);
+        }
+
+        std::printf("CRASH: exception 0x%08lx at %s+0x%llx\n", exception->ExceptionRecord->ExceptionCode, name,
+            static_cast<unsigned long long>(static_cast<const char*>(address) - reinterpret_cast<const char*>(module)));
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+
+    void Step(const char* name, void (*test)())
+    {
+        std::printf("== %s\n", name);
+        test();
+    }
+}
+
 int main()
 {
-    GainMuteAndSends();
-    SumAndLimit();
-    Drift(1.001, "a device 0.1% fast");
-    Drift(0.999, "a device 0.1% slow");
-    RunningDry();
-    TapTiming();
-    Ramps();
-    Problems();
-    EngineOnThisPc();
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
+    SetUnhandledExceptionFilter(ReportCrash);
+    Step("gain, mute, and sends", GainMuteAndSends);
+    Step("sum and limit", SumAndLimit);
+    Step("drift", [] { Drift(1.001, "a device 0.1% fast"); Drift(0.999, "a device 0.1% slow"); });
+    Step("running dry", RunningDry);
+    Step("tap timing", TapTiming);
+    Step("ramps", Ramps);
+    Step("problems", Problems);
+    Step("the engine on this PC", EngineOnThisPc);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;
 }

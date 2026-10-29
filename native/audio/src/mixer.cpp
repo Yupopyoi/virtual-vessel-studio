@@ -249,8 +249,10 @@ namespace vv::audio
         uint64_t byTime = 0;
         if (untilQpc >= anchor)
         {
-            int64_t ticks = untilQpc - anchor;
-            byTime = static_cast<uint64_t>(((ticks / _frequency) * SampleRate) + (((ticks % _frequency) * SampleRate) / _frequency)) + 1;
+            // Unsigned, so "until any time" (INT64_MAX) cannot overflow.
+            uint64_t ticks = static_cast<uint64_t>(untilQpc - anchor);
+            uint64_t frequency = static_cast<uint64_t>(_frequency);
+            byTime = ((ticks / frequency) * SampleRate) + (((ticks % frequency) * SampleRate) / frequency) + 1;
         }
 
         uint64_t end = std::min({ written, byTime, _busRead + static_cast<uint64_t>(frames) });
