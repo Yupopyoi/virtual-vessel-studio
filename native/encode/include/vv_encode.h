@@ -24,7 +24,8 @@ extern "C"
 #endif
 
 // 2: the codec is chosen (H.264 or AV1) and the open call takes a configuration struct.
-#define VV_ENCODE_API_VERSION 2
+// 3: an AAC audio track read from the audio engine's stream tap; stats gain the audio's frames and offset.
+#define VV_ENCODE_API_VERSION 3
 
 #define VV_ENCODE_OK 0
 #define VV_ENCODE_INVALID_ARGUMENT (-1)
@@ -37,6 +38,10 @@ typedef struct vv_encoder vv_encoder;
 #define VV_ENCODE_CODEC_H264 0
 #define VV_ENCODE_CODEC_AV1 1
 
+// The audio engine's stream tap (vv_audio_stream_tap.read): copies up to `frames` stereo float frames at
+// 48 kHz of the stream bus, ending no later than `until_qpc`, returns how many, and writes the QPC of the first.
+typedef int32_t (*vv_encode_audio_read)(void* context, float* out, int32_t frames, int64_t until_qpc, int64_t* first_qpc);
+
 typedef struct vv_encode_config
 {
     const wchar_t* path;     // The MP4 file to write.
@@ -45,6 +50,9 @@ typedef struct vv_encode_config
     int32_t fps;
     int32_t bitrate;         // Bits per second.
     int32_t codec;           // VV_ENCODE_CODEC_*. H.264 is written in the High profile.
+    int32_t audio_bitrate;   // AAC in bits per second (96, 128, 160, or 192 kbit/s); ignored without audio.
+    vv_encode_audio_read audio_read; // Null for a video-only file.
+    void* audio_context;
 } vv_encode_config;
 
 typedef struct vv_encode_stats
@@ -57,6 +65,8 @@ typedef struct vv_encode_stats
     int64_t total_write_us;  // All WriteSample time together.
     int32_t last_error;      // The last failing HRESULT, or 0.
     int32_t hardware;        // 1 when the Sink Writer reports a hardware encoder in use, else 0.
+    int64_t audio_frames;    // Audio frames written (48 kHz).
+    int64_t av_offset_us;    // Where the audio ends against the video at the last write, in microseconds; positive is ahead.
 } vv_encode_stats;
 
 VV_ENCODE_API int32_t vv_encode_api_version(void);
