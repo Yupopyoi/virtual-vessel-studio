@@ -42,3 +42,15 @@ add_executable(vv_stream_network_tests tests/network_tests.cpp)
 target_link_libraries(vv_stream_network_tests PRIVATE vv_stream_network)
 add_test(NAME vv_stream_network_tests COMMAND vv_stream_network_tests)
 
+# The plugin: the stream session, its threads, and the C API (vv_stream.h).
+add_library(VirtualVessel.Stream.Native SHARED
+    src/exports.cpp
+    src/mft_encoders.cpp)
+target_include_directories(VirtualVessel.Stream.Native PUBLIC include)
+target_compile_definitions(VirtualVessel.Stream.Native PRIVATE VV_STREAM_EXPORTS)
+target_link_libraries(VirtualVessel.Stream.Native PRIVATE vv_stream_network mfplat mfuuid ole32)
+
+# Streaming synthetic video and a tone to a local ffmpeg and reading back what arrived (needs ffmpeg and ffprobe).
+add_executable(vv_stream_tests tests/stream_tests.cpp)
+target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol)
+add_test(NAME vv_stream_tests COMMAND vv_stream_tests)
