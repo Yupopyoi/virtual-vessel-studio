@@ -210,7 +210,7 @@ The encoder DLL is built by `tools/native/build-encode.ps1` and kept out of Git 
 | Giving the encoder the GPU texture directly (no readback) | Only if the readback costs too much on other PCs |
 | Whether AV1 plays on PCs without the AV1 Video Extension | Check on another PC; until then the setup screen says to choose H.264 if files do not open |
 | The format for streaming (YouTube takes AV1, other services may need H.264) | With streaming |
-| Recording and streaming with different settings | With streaming |
+| Recording and streaming with different settings | Streaming keeps its own bitrate (streaming detailed design 10) |
 
 ## 18. UI
 
