@@ -205,11 +205,27 @@ namespace
         Check(problem == VV_AUDIO_PROBLEM_ACCESS_DENIED, "microphone access denied by Windows");
     }
 
+    // Where each export starts in the DLL, so a crash's offset can be placed in a function.
+    void PrintExports()
+    {
+        HMODULE module = GetModuleHandleW(L"VirtualVessel.Audio.Native.dll");
+        const char* names[] = { "vv_audio_list_inputs", "vv_audio_create", "vv_audio_destroy", "vv_audio_add_source", "vv_audio_remove_source",
+            "vv_audio_set_device", "vv_audio_get_source_status", "vv_audio_get_stream_tap", "vv_audio_api_version" };
+        for (const char* name : names)
+        {
+            FARPROC address = module != nullptr ? GetProcAddress(module, name) : nullptr;
+            std::printf("export %s at +0x%llx\n", name, address != nullptr ? static_cast<unsigned long long>(reinterpret_cast<const char*>(address) - reinterpret_cast<const char*>(module)) : 0ULL);
+        }
+    }
+
     void EngineOnThisPc()
     {
+        PrintExports();
         vv_audio_device devices[32];
         int32_t count = -1;
+        std::printf("listing inputs\n");
         bool audio = vv_audio_list_inputs(devices, 32, &count) == VV_AUDIO_OK;
+        std::printf("listed: %s, %d\n", audio ? "ok" : "failed", count);
         if (!audio)
         {
             // CI's hosted runners (Windows Server) have no audio service; the mix is tested above.
@@ -222,14 +238,17 @@ namespace
             std::wprintf(L"input %d: %s%s\n", i, devices[i].name, devices[i].is_default ? L" (default)" : L"");
         }
 
+        std::printf("creating the engine\n");
         vv_audio_engine* engine = nullptr;
         Check(vv_audio_create(&engine) == VV_AUDIO_OK, "the engine starts");
+        std::printf("adding a source\n");
         int32_t source = -1;
         Check(vv_audio_add_source(engine, &source) == VV_AUDIO_OK, "a source is added");
         vv_audio_source_status status = {};
         vv_audio_get_source_status(engine, source, &status);
         Check(status.state == VV_AUDIO_SOURCE_OFF, "a source without a device is off");
 
+        std::printf("choosing a missing device\n");
         vv_audio_set_device(engine, source, L"{0.0.1.00000000}.{00000000-0000-0000-0000-000000000000}");
         auto start = std::chrono::steady_clock::now();
         while (status.state != VV_AUDIO_SOURCE_UNAVAILABLE && std::chrono::steady_clock::now() - start < std::chrono::seconds(3))
@@ -263,6 +282,7 @@ namespace
             }
         }
 
+        std::printf("reading the tap\n");
         vv_audio_stream_tap tap = {};
         vv_audio_get_stream_tap(engine, &tap);
         std::vector<float> out(48000 * Channels);
@@ -272,7 +292,9 @@ namespace
         int32_t read = tap.read(tap.context, out.data(), 48000, now.QuadPart, &first);
         Check(read > 0 && first < now.QuadPart, "the tap gives the stream bus up to now");
 
+        std::printf("removing the source\n");
         Check(vv_audio_remove_source(engine, source) == VV_AUDIO_OK, "a source is removed");
+        std::printf("destroying the engine\n");
         vv_audio_destroy(engine);
     }
 }
