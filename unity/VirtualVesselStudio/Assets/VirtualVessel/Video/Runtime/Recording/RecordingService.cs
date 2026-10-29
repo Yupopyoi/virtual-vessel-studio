@@ -41,6 +41,7 @@ namespace VirtualVessel.Video.Recording
         private readonly PerfCounter _dropped;
         private readonly PerfCounter _skipped;
         private readonly PerfGauge _latency;
+        private readonly PerfGauge _avOffset;
         private RecordingSettings _settings;
         private Session _session;
         private IDisposable _tick;
@@ -67,6 +68,7 @@ namespace VirtualVessel.Video.Recording
             _dropped = metrics?.Counter("Recording", "FramesDropped");
             _skipped = metrics?.Counter("Recording", "FramesSkipped");
             _latency = metrics?.Gauge("Recording", "ReadbackLatency", "frames");
+            _avOffset = metrics?.Gauge("Recording", "AvOffset", "ms");
         }
 
         public string Name => ServiceName;
@@ -172,12 +174,14 @@ namespace VirtualVessel.Video.Recording
             }
 
             string path = RecordingNames.NewFile(folder, _environment.LocalNow(), File.Exists);
-            var format = new EncoderFormat(_size.Width, _size.Height, _settings.FrameRate, _settings.VideoBitrate, _options.Value.Codec);
+            // The stream bus as it is now; without it the recording goes on with video only (recording detailed design 12).
+            RecordingAudio audio = _environment.Audio();
+            var format = new EncoderFormat(_size.Width, _size.Height, _settings.FrameRate, _settings.VideoBitrate, _options.Value.Codec).WithAudio(audio, _settings.AudioBitrate);
             Func<string, EncoderFormat, IVideoEncoder> open = _environment.OpenEncoder;
 
             // Opening starts Media Foundation and the encoder, which can take a moment: not on the main thread.
             _session = new Session(path, format, Task.Run(() => open(path, format)));
-            _problem.Set(RecordingProblem.None);
+            _problem.Set(audio.IsValid ? RecordingProblem.None : RecordingProblem.AudioUnavailable);
             _state.Set(RecordingState.Starting);
         }
 
@@ -290,7 +294,7 @@ namespace VirtualVessel.Video.Recording
             session.NextStatus = now + Ticks(s_statusInterval);
             session.NextSpace = now + Ticks(s_spaceInterval);
             _state.Set(RecordingState.Recording);
-            _log?.Information($"Recording started: {Path.GetFileName(session.Path)} in {Path.GetDirectoryName(session.Path)}, {session.Format.Codec} {session.Format.Width}x{session.Format.Height} at {session.Format.FrameRate} fps, {session.Format.VideoBitrate / 1000} kbit/s.");
+            _log?.Information($"Recording started: {Path.GetFileName(session.Path)} in {Path.GetDirectoryName(session.Path)}, {session.Format.Codec} {session.Format.Width}x{session.Format.Height} at {session.Format.FrameRate} fps, {session.Format.VideoBitrate / 1000} kbit/s, {(session.Format.Audio.IsValid ? $"audio {session.Format.AudioBitrate / 1000} kbit/s" : "no audio")}.");
             if (session.StopWhenOpen)
             {
                 BeginStop(RecordingProblem.None);
@@ -398,6 +402,10 @@ namespace VirtualVessel.Video.Recording
             long skipped = session.Reader?.Skipped ?? 0;
             _skipped?.Add(skipped - session.CountedSkipped);
             _latency?.Set(session.Reader?.LatencyFrames ?? 0);
+            if (session.Format.Audio.IsValid)
+            {
+                _avOffset?.Set(status.AvOffsetMs);
+            }
             session.Counted = status;
             session.CountedSkipped = skipped;
         }
@@ -407,7 +415,7 @@ namespace VirtualVessel.Video.Recording
             long bytes = File.Exists(session.Path) ? new FileInfo(session.Path).Length : 0;
             string encoder = status.Hardware ? "hardware" : "software";
             string outcome = problem == RecordingProblem.None ? "finished" : $"ended early ({problem})";
-            _log?.Information($"Recording {outcome}: {Path.GetFileName(session.Path)}, {bytes / (1024 * 1024)} MB, {status.Written} frames written, {status.Dropped} dropped, {session.Reader?.Skipped ?? 0} skipped, {encoder} encoder.");
+            _log?.Information($"Recording {outcome}: {Path.GetFileName(session.Path)}, {bytes / (1024 * 1024)} MB, {status.Written} frames written, {status.Dropped} dropped, {session.Reader?.Skipped ?? 0} skipped, {encoder} encoder, {status.AudioFrames / 48000.0:0.0} s of audio.");
         }
 
         private long Ticks(TimeSpan span)

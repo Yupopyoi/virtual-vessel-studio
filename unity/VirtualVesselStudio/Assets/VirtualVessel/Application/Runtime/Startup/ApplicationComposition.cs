@@ -156,7 +156,7 @@ namespace VirtualVessel.Application.Startup
                         video.Size,
                         context.FrameLoop,
                         context.MonotonicClock,
-                        RecordingEnvironment.Native(video.Video, context.MonotonicClock),
+                        RecordingEnvironment.Native(video.Video, context.MonotonicClock, () => RecordingAudioOf(audio)),
                         metrics,
                         logging.Provider.GetLog("Video", "Recording")),
                     new[] { LoggingService.ServiceName, VideoService.ServiceName }));

@@ -117,6 +117,20 @@ namespace VirtualVessel.Application.Startup
                 tracking);
         }
 
+        /// <summary>
+        /// Audio's stream bus for a recording as plain values, so Video does not reference Audio (recording
+        /// detailed design 3); none when Audio did not start. Read when each recording starts.
+        /// </summary>
+        public static RecordingAudio RecordingAudioOf(IAudioService audio)
+        {
+            if (audio == null || !audio.StreamTap.IsValid)
+            {
+                return default;
+            }
+
+            return new RecordingAudio(audio.StreamTap.Context, audio.StreamTap.Read, audio.StreamLatency);
+        }
+
         private static AudioService CreateAudio(ApplicationCompositionContext context, OpenedProject project, IPerformanceMetrics metrics, ILog log)
         {
             (AudioSettings settings, ConfigSaveScheduler<AudioSettings> saves) = LoadSettings(

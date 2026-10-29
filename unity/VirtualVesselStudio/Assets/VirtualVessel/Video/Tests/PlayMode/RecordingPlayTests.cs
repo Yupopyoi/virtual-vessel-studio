@@ -8,6 +8,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Audio;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.Video.Recording;
@@ -28,6 +29,7 @@ namespace VirtualVessel.Video.Tests
         private VideoService _video;
         private RecordingService _recording;
         private string _folder;
+        private IAudioEngine _audio;
 
         [SetUp]
         public void SetUp()
@@ -50,7 +52,7 @@ namespace VirtualVessel.Video.Tests
                 _video.Size,
                 _loop,
                 clock,
-                RecordingEnvironment.Native(_video.Video, clock),
+                RecordingEnvironment.Native(_video.Video, clock, StreamBus),
                 null,
                 null);
             _recording.InitializeAsync(CancellationToken.None).Wait();
@@ -61,6 +63,7 @@ namespace VirtualVessel.Video.Tests
         {
             _recording?.ShutdownAsync(CancellationToken.None).Wait();
             _recording?.Dispose();
+            _audio?.Dispose();
             _video?.Dispose();
             if (_cameraObject != null)
             {
@@ -107,6 +110,15 @@ namespace VirtualVessel.Video.Tests
                 Assert.That(seconds, Is.EqualTo(2.0).Within(0.3));
                 Assert.That(frames, Is.EqualTo(60).Within(8), "30 fps over two seconds.");
             }
+
+            // With the audio engine running, the stream bus is in the file as AAC, as long as the video.
+            (string name, double seconds)? audio = ProbeAudio(file);
+            if (_audio != null && audio is (string audioName, double audioSeconds))
+            {
+                Debug.Log($"Recorded audio {audioName} over {audioSeconds:0.00} s.");
+                Assert.That(audioName, Is.EqualTo("aac"));
+                Assert.That(audioSeconds, Is.EqualTo(2.0).Within(0.3));
+            }
         }
 
         private IEnumerator Until(RecordingState state)
@@ -118,6 +130,48 @@ namespace VirtualVessel.Video.Tests
                 Assert.That(waited.Elapsed, Is.LessThan(TimeSpan.FromSeconds(10)), $"Still {_recording.State.Value}.");
                 _loop.Tick(e => throw e);
                 yield return null;
+            }
+        }
+
+        /// <summary>
+        /// The real audio engine with no source: its stream bus is silence, so the test records the bus
+        /// without opening a microphone. Null where the audio plugin is not built; the file is then video only.
+        /// </summary>
+        private RecordingAudio StreamBus()
+        {
+            if (_audio == null)
+            {
+                try
+                {
+                    _audio = NativeAudioEngine.Create();
+                }
+                catch (AudioEngineException)
+                {
+                    return default;
+                }
+            }
+
+            return new RecordingAudio(_audio.StreamTap.Context, _audio.StreamTap.Read, _audio.StreamLatency);
+        }
+
+        private static (string Codec, double Seconds)? ProbeAudio(string file)
+        {
+            try
+            {
+                var start = new ProcessStartInfo("ffprobe", $"-v error -select_streams a:0 -show_entries stream=codec_name,duration -of csv=p=0 \"{file}\"")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                };
+                using Process process = Process.Start(start);
+                string[] fields = process.StandardOutput.ReadToEnd().Trim().Split(',');
+                process.WaitForExit(10_000);
+                return (fields[0].Trim(), double.Parse(fields[1].Trim(), CultureInfo.InvariantCulture));
+            }
+            catch (Exception exception) when (exception is System.ComponentModel.Win32Exception || exception is FormatException || exception is IndexOutOfRangeException)
+            {
+                return null;
             }
         }
 

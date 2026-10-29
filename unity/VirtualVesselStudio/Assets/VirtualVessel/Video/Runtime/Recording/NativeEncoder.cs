@@ -4,6 +4,30 @@ using VirtualVessel.UI.Recording;
 
 namespace VirtualVessel.Video.Recording
 {
+    /// <summary>
+    /// The stream bus to record (audio detailed design 5.3), as plain values the composition gives from the
+    /// Audio module, so Video does not reference it. Default (no tap) records video only.
+    /// </summary>
+    public readonly struct RecordingAudio
+    {
+        public RecordingAudio(IntPtr context, IntPtr read, TimeSpan latency)
+        {
+            Context = context;
+            Read = read;
+            Latency = latency;
+        }
+
+        public IntPtr Context { get; }
+
+        /// <summary>The tap's native read function (vv_encode_audio_read).</summary>
+        public IntPtr Read { get; }
+
+        /// <summary>How far the bus is behind the moment the sound was heard (audio detailed design 8.4).</summary>
+        public TimeSpan Latency { get; }
+
+        public bool IsValid => Context != IntPtr.Zero && Read != IntPtr.Zero;
+    }
+
     /// <summary>What a recording is encoded with (recording detailed design 10).</summary>
     public readonly struct EncoderFormat
     {
@@ -14,9 +38,29 @@ namespace VirtualVessel.Video.Recording
             FrameRate = frameRate;
             VideoBitrate = videoBitrate;
             Codec = codec;
+            AudioBitrate = 0;
+            Audio = default;
+        }
+
+        private EncoderFormat(EncoderFormat format, RecordingAudio audio, int audioBitrate)
+            : this(format.Width, format.Height, format.FrameRate, format.VideoBitrate, format.Codec)
+        {
+            Audio = audio;
+            AudioBitrate = audioBitrate;
         }
 
         public RecordingCodec Codec { get; }
+
+        /// <summary>The stream bus to record; without a tap the file is video only.</summary>
+        public RecordingAudio Audio { get; }
+
+        /// <summary>AAC in bits per second.</summary>
+        public int AudioBitrate { get; }
+
+        public EncoderFormat WithAudio(RecordingAudio audio, int audioBitrate)
+        {
+            return new EncoderFormat(this, audio, audioBitrate);
+        }
 
         public int Width { get; }
 
@@ -33,14 +77,22 @@ namespace VirtualVessel.Video.Recording
     /// <summary>The encoder's counts (vv_encode_stats).</summary>
     public readonly struct EncoderStatus
     {
-        public EncoderStatus(long pushed, long written, long dropped, int lastError, bool hardware)
+        public EncoderStatus(long pushed, long written, long dropped, int lastError, bool hardware, long audioFrames = 0, double avOffsetMs = 0)
         {
             Pushed = pushed;
             Written = written;
             Dropped = dropped;
             LastError = lastError;
             Hardware = hardware;
+            AudioFrames = audioFrames;
+            AvOffsetMs = avOffsetMs;
         }
+
+        /// <summary>Audio frames written, at 48 kHz.</summary>
+        public long AudioFrames { get; }
+
+        /// <summary>Where the audio ends against the video at the last write, in ms; positive is ahead.</summary>
+        public double AvOffsetMs { get; }
 
         public long Pushed { get; }
 
@@ -90,7 +142,7 @@ namespace VirtualVessel.Video.Recording
     public sealed class NativeEncoder : IVideoEncoder
     {
         private const string Library = "VirtualVessel.Encode.Native";
-        private const int ApiVersion = 2;
+        private const int ApiVersion = 3;
         private const int Ok = 0;
         private const int CodecH264 = 0;
         private const int CodecAv1 = 1;
@@ -129,6 +181,9 @@ namespace VirtualVessel.Video.Recording
                 Fps = format.FrameRate,
                 Bitrate = format.VideoBitrate,
                 Codec = CodeOf(format.Codec),
+                AudioBitrate = format.AudioBitrate,
+                AudioRead = format.Audio.IsValid ? format.Audio.Read : IntPtr.Zero,
+                AudioContext = format.Audio.IsValid ? format.Audio.Context : IntPtr.Zero,
             };
             int result = vv_encode_open(ref config, out IntPtr handle);
             if (result != Ok || handle == IntPtr.Zero)
@@ -170,7 +225,7 @@ namespace VirtualVessel.Video.Recording
             }
 
             vv_encode_get_stats(_handle, out Stats stats);
-            _last = new EncoderStatus(stats.Pushed, stats.Written, stats.Dropped, stats.LastError, stats.Hardware != 0);
+            _last = new EncoderStatus(stats.Pushed, stats.Written, stats.Dropped, stats.LastError, stats.Hardware != 0, stats.AudioFrames, stats.AvOffsetUs / 1000.0);
             return _last;
         }
 
@@ -186,7 +241,7 @@ namespace VirtualVessel.Video.Recording
             _handle = IntPtr.Zero;
 
             // The counts were read before the drain; a failure in it shows only in the result.
-            _last = result == Ok ? before : new EncoderStatus(before.Pushed, before.Written, before.Dropped, before.LastError != 0 ? before.LastError : result, before.Hardware);
+            _last = result == Ok ? before : new EncoderStatus(before.Pushed, before.Written, before.Dropped, before.LastError != 0 ? before.LastError : result, before.Hardware, before.AudioFrames, before.AvOffsetMs);
             return _last;
         }
 
@@ -201,6 +256,9 @@ namespace VirtualVessel.Video.Recording
             public int Fps;
             public int Bitrate;
             public int Codec;
+            public int AudioBitrate;
+            public IntPtr AudioRead;
+            public IntPtr AudioContext;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -214,6 +272,8 @@ namespace VirtualVessel.Video.Recording
             public long TotalWriteUs;
             public int LastError;
             public int Hardware;
+            public long AudioFrames;
+            public long AvOffsetUs;
         }
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
