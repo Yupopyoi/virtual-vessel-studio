@@ -135,6 +135,14 @@ typedef struct vv_audio_stream_tap
 - `StreamLatency`がその量を示す。Videoは、エンコードの前に配信の映像を同じだけ遅らせ、口の動きと声を合わせる（方式設計10.9）。RVCがなければ30ms（音の元が鳴り始める前に溜める20msと、機器の周期約10ms）で、映像は遅らせない。
 - 配信用のバスの時刻は、最初のブロックからのサンプル数で決まる。混ぜ合わせのスレッドは、起きた時刻ではなく、QPCの時計で何ブロック目が済んでいるべきかで混ぜるため、起きるのが遅れても時刻はずれない。
 
+### 8.5 アバターに合わせて配信の音を遅らせる
+
+- アバターの動きは声より遅れる。カメラ、推定、揺れを抑える平滑化に時間がかかるためである（Tracking詳細設計8章）。利用者が手を叩いた録画では、アバターの手は音より少なくとも0.2秒遅れて現れた（2026-10-29）。
+- そこで、録画と配信は、利用者が決めた遅延（0〜1000ms、既定は利用者の決定で300ms）だけ遅れて配信用のバスを受け取る。読み出し口は、各Frameをその分遅れて聞こえたものとして渡す（`vv_audio_set_stream_delay`）。利用者自身が聞く音（モニターのバス、段階2）は遅らせない。
+- この遅延は`StreamLatency`に含めない。`StreamLatency`は処理の遅れで、Videoはその分映像を保つ（8.4）。こちらは逆向きである。
+- 録画中に変えると、バスの時刻が跳ぶ。エンコーダーは、隙間を無音で埋めるか、重なりを書かない（録画詳細設計8.1）。
+- アバターの遅れを測って自動で設定することは、未解決の課題とする（#100）。
+
 ## 9. Thread
 
 - 機器の音の元ごとに1つの取り込みのスレッドと、1つの混ぜ合わせのスレッド。ネイティブで、標準より高い優先度（MMCSSの「Audio」）。Allocation、待つ間のLock、ログの記録はせず、数を数えるだけとする。
@@ -151,12 +159,14 @@ typedef struct vv_audio_stream_tap
   "sources": [
     { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0 } },
     { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0 } }
-  ]
+  ],
+  "streamDelayMs": 300
 }
 ```
 
 - 音の元は一覧なので、BGM、SE、2本目のマイクも形式を変えずに足せる。知らない用途の音の元は残し、鳴らさない。ファイルの最上位の知らない項目は残す（CLAUDE.md 25章）。音の元の中の知らない項目は、今は残らない。
 - JSONは-infを書けないため、送りの-120dB以下を「なし」とする。
+- `streamDelayMs`（8.5）は、Schema version 1のまま手順なしで加えた。ない古いファイルは300として読む。
 - マイクは、初めて使うときにWindowsの既定の入力の機器とする。ゲームの音声には既定がない（キャプチャーボードを選ぶ必要がある）。
 - `ProfileKind`に`Audio`を加える。
 
@@ -195,7 +205,7 @@ typedef struct vv_audio_stream_tap
 ## 16. Folder / Namespace
 
 ```text
-native/audio/include/vv_audio.h        公開のC API（version 1）
+native/audio/include/vv_audio.h        公開のC API（version 2：配信の遅延）
 native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、dsp（音量、リミッター）、
                                        device_source（WASAPIでの取り込み）、exports（エンジンと混ぜ合わせのスレッド）
 native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
@@ -225,6 +235,7 @@ UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip�
 | 音量 | Slider、-60〜+12dB、1dB刻み |
 | ミュート | Toggle |
 | 入力レベル | Level Meter（components 3.5）。-60dB（空）〜0dB（満） |
+| 配信・録画の音声の遅延（音の元の後に1つ） | Slider、0〜1000ms、10ms刻み（8.5） |
 
 - Cardを表示している間、機器を5秒ごとに数え直し、つないだ機器が選べるようになる。
 - モニターへの送りの量は段階2で加える。

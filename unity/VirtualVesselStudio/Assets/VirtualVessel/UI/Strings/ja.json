@@ -338,6 +338,8 @@
         "setup.audio.problem.access-denied": "Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。",
         "setup.audio.problem.failed": "デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。",
         "setup.audio.open-privacy": "マイクのプライバシー設定を開く",
+        "setup.audio.delay": "配信・録画の音声の遅延",
+        "setup.audio.delay.description": "アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。",
         "setup.avatar.title": "アバター",
         "setup.avatar.unavailable": "アバターを使えません。",
         "setup.avatar.use": "使うアバター",

@@ -68,6 +68,10 @@ namespace VirtualVessel.UI.Tests
             AudioSourceOptions options = _audio.Game.Options.Value;
             Assert.That((options.DeviceId, options.GainDb, options.Muted), Is.EqualTo(("board", -4f, true)));
             Assert.That(card.Groups[0].Devices.value, Is.EqualTo("mic"), "Each source keeps its own.");
+
+            Assert.That(card.Delay.value, Is.EqualTo(300f), "Recording and streaming 300 ms later by default.");
+            card.Delay.value = 200f;
+            Assert.That(_audio.StreamDelay.Value, Is.EqualTo(TimeSpan.FromMilliseconds(200)));
         }
 
         [UnityTest]
@@ -157,6 +161,7 @@ namespace VirtualVessel.UI.Tests
         private static void CheckInside(AudioCard card)
         {
             float right = card.Q<Card>().contentContainer.worldBound.xMax;
+            Assert.That(card.Delay.worldBound.xMax, Is.LessThanOrEqualTo(right + 0.5f), "The delay slider reaches past the Card.");
             foreach (AudioCard.SourceGroup group in card.Groups)
             {
                 foreach (VisualElement element in new VisualElement[] { group.Devices, group.Gain, group.Mute, group.Meter, group.Problem, group.PrivacyButton, group.Status })
@@ -244,6 +249,15 @@ namespace VirtualVessel.UI.Tests
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 
             public AudioStreamTap StreamTap => default;
+
+            private readonly ObservableValue<TimeSpan> _delay = new ObservableValue<TimeSpan>(TimeSpan.FromMilliseconds(300));
+
+            public IReadOnlyObservable<TimeSpan> StreamDelay => _delay;
+
+            public void SetStreamDelay(TimeSpan delay)
+            {
+                _delay.Set(delay);
+            }
 
             public void RefreshDevices()
             {

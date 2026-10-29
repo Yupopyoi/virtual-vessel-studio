@@ -235,6 +235,7 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | Volume | Slider, -60 to +12 dB |
 | Mute | Toggle |
 | Input level | Level Meter, -60 to 0 dB |
+| Stream and recording audio delay | Slider, 0 to 1000 ms, 300 ms by default; once, after the sources (audio detailed design 8.5) |
 
 - Devices are listed again every 5 seconds while the Card is shown.
 - The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio).
@@ -264,3 +265,5 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
+| `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
+| `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |

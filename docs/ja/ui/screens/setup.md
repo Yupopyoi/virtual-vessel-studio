@@ -235,6 +235,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 音量 | Slider、-60〜+12dB |
 | ミュート | Toggle |
 | 入力レベル | Level Meter、-60〜0dB |
+| 配信・録画の音声の遅延 | Slider、0〜1000ms、既定300ms。音の元の後に1つ（Audio詳細設計8.5） |
 
 - Cardを表示している間、機器を5秒ごとに数え直す。
 - マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ）。
@@ -264,3 +265,5 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
+| `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
+| `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |

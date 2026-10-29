@@ -180,6 +180,15 @@ namespace VirtualVessel.Audio
         /// <summary>How far the stream bus is behind the moment the sound was heard (audio detailed design 8.4).</summary>
         TimeSpan StreamLatency { get; }
 
+        /// <summary>
+        /// How much later recording and streaming get the sound, so the voice meets the avatar's motion,
+        /// which tracking delays (audio detailed design 8.5). What the user hears is not delayed.
+        /// </summary>
+        IReadOnlyObservable<TimeSpan> StreamDelay { get; }
+
+        /// <summary>Kept within 0 to <see cref="AudioSettings.MaxStreamDelayMs"/> ms and saved in the audio profile.</summary>
+        void SetStreamDelay(TimeSpan delay);
+
         AudioStreamTap StreamTap { get; }
     }
 }

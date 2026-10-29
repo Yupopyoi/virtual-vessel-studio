@@ -22,13 +22,24 @@ namespace VirtualVessel.Audio
         /// <summary>The game audio starts a little lower than the voice, so talking over a game stays clear.</summary>
         public const float GameAudioGainDb = -6f;
 
+        /// <summary>The user's choice of a default (2026-10-29): the avatar's motion was measured at least 0.2 s behind the voice.</summary>
+        public const int DefaultStreamDelayMs = 300;
+
+        public const int MaxStreamDelayMs = 1000;
+
         public List<AudioSourceSettings> Sources { get; set; } = new List<AudioSourceSettings>();
+
+        /// <summary>
+        /// How much later recording and streaming get the sound (audio detailed design 8.5). Added in version 1
+        /// without a step: a file without it reads as the default.
+        /// </summary>
+        public int StreamDelayMs { get; set; } = DefaultStreamDelayMs;
 
         public static IReadOnlyList<ConfigMigration> Migrations { get; } = Array.Empty<ConfigMigration>();
 
         public AudioSettings Clone()
         {
-            var clone = new AudioSettings { Sources = new List<AudioSourceSettings>() };
+            var clone = new AudioSettings { Sources = new List<AudioSourceSettings>(), StreamDelayMs = StreamDelayMs };
             foreach (AudioSourceSettings source in Sources ?? new List<AudioSourceSettings>())
             {
                 clone.Sources.Add(source?.Clone());
@@ -73,6 +84,12 @@ namespace VirtualVessel.Audio
             }
 
             return next;
+        }
+
+        /// <summary>A delay in range, in whole milliseconds. Pure.</summary>
+        public static int ClampDelayMs(double milliseconds)
+        {
+            return double.IsNaN(milliseconds) ? DefaultStreamDelayMs : (int)Math.Round(Math.Max(0, Math.Min(MaxStreamDelayMs, milliseconds)));
         }
 
         /// <summary>The role of a saved source, or null for one this version does not know. Pure.</summary>

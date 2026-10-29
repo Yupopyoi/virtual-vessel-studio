@@ -38,6 +38,8 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemAccessDenied = "setup.audio.problem.access-denied";
         public const string ProblemFailed = "setup.audio.problem.failed";
         public const string OpenPrivacy = "setup.audio.open-privacy";
+        public const string Delay = "setup.audio.delay";
+        public const string DelayDescription = "setup.audio.delay.description";
         public const string LiveMicrophone = "live.audio.microphone";
         public const string LiveGameAudio = "live.audio.game";
         public const string LiveMute = "live.audio.mute";
@@ -76,8 +78,19 @@ namespace VirtualVessel.UI.Screens
                 card.Add(group.Root);
             }
 
+            // Recording and streaming get the sound later, to meet the avatar's motion (audio detailed design 8.5).
+            Delay = Ui.Slider(null, 0, AudioSettings.MaxStreamDelayMs, "ms");
+            Delay.Step = 10f;
+            Delay.RegisterValueChangedCallback(evt => _audio.SetStreamDelay(TimeSpan.FromMilliseconds(evt.newValue)));
+            SettingRow delay = Ui.SettingRow(AudioStrings.Delay, AudioStrings.DelayDescription);
+            delay.Add(Delay);
+            card.Add(delay);
+
             PanelLifetime.WhileAttached(this, Attach);
         }
+
+        /// <summary>How much later recording and streaming get the sound, in ms.</summary>
+        public ValueSlider Delay { get; }
 
         /// <summary>The groups in the order of the sources: the microphone, then the game audio.</summary>
         public IReadOnlyList<SourceGroup> Groups => _groups;
@@ -131,6 +144,7 @@ namespace VirtualVessel.UI.Screens
             {
                 new DisposeAction(refresh.Pause),
                 _audio.InputDevices.Subscribe(devices => ShowDevices(devices, services)),
+                _audio.StreamDelay.Subscribe(delay => Delay.SetValueWithoutNotify((float)delay.TotalMilliseconds)),
             };
             if (services?.Localizer != null)
             {
@@ -145,6 +159,7 @@ namespace VirtualVessel.UI.Screens
             }
 
             ShowDevices(_audio.InputDevices.Value, services);
+            Delay.SetValueWithoutNotify((float)_audio.StreamDelay.Value.TotalMilliseconds);
             return new DisposeAll(subscriptions);
         }
 

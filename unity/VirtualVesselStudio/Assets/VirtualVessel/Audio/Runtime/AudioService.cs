@@ -32,6 +32,7 @@ namespace VirtualVessel.Audio
         private readonly ILog _log;
         private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(Array.Empty<AudioDevice>());
         private readonly List<Source> _sources = new List<Source>();
+        private readonly ObservableValue<TimeSpan> _streamDelay = new ObservableValue<TimeSpan>(TimeSpan.FromMilliseconds(AudioSettings.DefaultStreamDelayMs));
         private AudioSettings _settings;
         private IAudioEngine _engine;
         private IDisposable _tick;
@@ -67,6 +68,8 @@ namespace VirtualVessel.Audio
 
         public AudioStreamTap StreamTap => _engine?.StreamTap ?? default;
 
+        public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
+
         public static ConfigFileStore<AudioSettings> CreateStore(string directory, ISystemClock clock, string fileName = AudioSettings.FileName)
         {
             return new ConfigFileStore<AudioSettings>(directory, fileName, AudioSettings.SchemaVersion, () => new AudioSettings(), clock, AudioSettings.Migrations);
@@ -97,9 +100,25 @@ namespace VirtualVessel.Audio
             }
 
             _sources.Sort((a, b) => a.Role.CompareTo(b.Role));
+            _streamDelay.Set(TimeSpan.FromMilliseconds(AudioSettings.ClampDelayMs(_settings.StreamDelayMs)));
+            _engine.SetStreamDelay(_streamDelay.Value);
             _tick = _frameLoop.Register(Tick);
-            _log?.Information($"Audio started: {devices.Count} input device(s), stream latency {StreamLatency.TotalMilliseconds:0} ms.");
+            _log?.Information($"Audio started: {devices.Count} input device(s), stream latency {StreamLatency.TotalMilliseconds:0} ms, recording and streaming {_streamDelay.Value.TotalMilliseconds:0} ms later.");
             return Task.CompletedTask;
+        }
+
+        public void SetStreamDelay(TimeSpan delay)
+        {
+            var clamped = TimeSpan.FromMilliseconds(AudioSettings.ClampDelayMs(delay.TotalMilliseconds));
+            if (!_streamDelay.Set(clamped))
+            {
+                return;
+            }
+
+            _engine?.SetStreamDelay(clamped);
+            _settings = _settings.Clone();
+            _settings.StreamDelayMs = (int)clamped.TotalMilliseconds;
+            _saves?.Changed(_settings.Clone());
         }
 
         public void RefreshDevices()

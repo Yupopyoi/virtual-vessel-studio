@@ -145,6 +145,27 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void TheStreamDelay_StartsAt300Ms_AndReachesTheEngine()
+        {
+            using AudioService service = Start(new AudioSettings());
+            Assert.That(service.StreamDelay.Value, Is.EqualTo(TimeSpan.FromMilliseconds(300)), "The user's default.");
+            Assert.That(_engine.Delay, Is.EqualTo(TimeSpan.FromMilliseconds(300)));
+
+            service.SetStreamDelay(TimeSpan.FromMilliseconds(5000));
+            Assert.That(_engine.Delay, Is.EqualTo(TimeSpan.FromMilliseconds(1000)), "At most a second.");
+            service.SetStreamDelay(TimeSpan.FromMilliseconds(-20));
+            Assert.That(service.StreamDelay.Value, Is.EqualTo(TimeSpan.Zero));
+        }
+
+        [Test]
+        public void ASavedDelay_IsUsed()
+        {
+            using AudioService service = Start(new AudioSettings { StreamDelayMs = 120 });
+
+            Assert.That(_engine.Delay, Is.EqualTo(TimeSpan.FromMilliseconds(120)));
+        }
+
+        [Test]
         public void TheEngine_IsReleasedWhenTheServiceIsDisposed()
         {
             AudioService service = Start(new AudioSettings());
@@ -221,6 +242,13 @@ namespace VirtualVessel.Audio.Tests
 
             public void SetStreamSend(int source, float sendDb)
             {
+            }
+
+            public TimeSpan Delay { get; private set; }
+
+            public void SetStreamDelay(TimeSpan delay)
+            {
+                Delay = delay;
             }
 
             public AudioEngineStatus GetStatus(int source)
