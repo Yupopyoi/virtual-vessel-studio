@@ -1,5 +1,5 @@
-// The recording's audio track (recording detailed design 8.1): the stream bus's frames placed on the file's
-// timeline, which starts at the first video frame. Pure functions, so the timing is tested without devices.
+// The audio track of a recording or a stream (recording detailed design 8.1): the stream bus's frames placed on the
+// timeline that starts at the first video frame. Pure functions, so the timing is tested without devices.
 #pragma once
 
 #include <cstddef>
