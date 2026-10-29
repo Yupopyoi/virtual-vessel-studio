@@ -67,6 +67,7 @@ typedef struct vv_encode_stats
     int32_t hardware;        // 1 when the Sink Writer reports a hardware encoder in use, else 0.
     int64_t audio_frames;    // Audio frames written (48 kHz).
     int64_t av_offset_us;    // Where the audio ends against the video at the last write, in microseconds; positive is ahead.
+    int64_t audio_silence_frames; // Silence written where the bus had a gap or fell more than a second behind.
 } vv_encode_stats;
 
 VV_ENCODE_API int32_t vv_encode_api_version(void);

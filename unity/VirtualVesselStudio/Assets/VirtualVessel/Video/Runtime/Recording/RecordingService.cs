@@ -415,7 +415,7 @@ namespace VirtualVessel.Video.Recording
             long bytes = File.Exists(session.Path) ? new FileInfo(session.Path).Length : 0;
             string encoder = status.Hardware ? "hardware" : "software";
             string outcome = problem == RecordingProblem.None ? "finished" : $"ended early ({problem})";
-            _log?.Information($"Recording {outcome}: {Path.GetFileName(session.Path)}, {bytes / (1024 * 1024)} MB, {status.Written} frames written, {status.Dropped} dropped, {session.Reader?.Skipped ?? 0} skipped, {encoder} encoder, {status.AudioFrames / 48000.0:0.0} s of audio.");
+            _log?.Information($"Recording {outcome}: {Path.GetFileName(session.Path)}, {bytes / (1024 * 1024)} MB, {status.Written} frames written, {status.Dropped} dropped, {session.Reader?.Skipped ?? 0} skipped, {encoder} encoder, {status.AudioFrames / 48000.0:0.0} s of audio ({status.AudioSilenceFrames / 48000.0:0.0} s filled with silence).");
         }
 
         private long Ticks(TimeSpan span)

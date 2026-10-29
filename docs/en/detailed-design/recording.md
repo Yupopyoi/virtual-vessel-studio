@@ -115,9 +115,11 @@ Idle ──Start──▶ Starting ──opened──▶ Recording ──Stop─
 4. The encoder's thread converts and encodes the frame, reads the audio for up to that time from the tap, and writes both.
 
 - The file's zero is the first video frame. Audio the tap gives from before it (the bus keeps the last seconds) is left out, so the audio starts with the video.
-- The audio samples are timed by their count from the first one kept, since the bus is continuous; they never drift from the video by the encoder's own timing.
+- Each chunk the tap gives is placed where its time puts it on the file's timeline (`FrameAt`, `Place`): a gap is filled with silence, and what comes before the file or overlaps what was written is left out. Within 1 ms it simply follows on, so a continuous bus is written sample for sample and never drifts from the video by the encoder's own timing.
+- The audio is never let fall more than a second behind the video: silence catches up. Media Foundation's file writer waits for the stream that is behind, so a stalled bus would otherwise hold the video back and its frames would be dropped. A chunk more than a second past the video is left out (it cannot belong to this file).
+- Video frames and the bus must be timed on the same clock: the application's monotonic clock reads QPC itself (application foundation detailed design). With Unity's `Stopwatch`, which counts from another zero, the first recordings had an empty audio track and dropped most of their frames.
 - At the end, the audio for the last frame is still being mixed for a moment (the bus's latency and a mix period); the encoder waits up to 200 ms for it before finishing the file.
-- The audio for a frame may not be mixed yet when the frame is written; it is written with the next frame. `Recording/AvOffset` shows this as about one frame of audio behind while recording; the finished file has both to the end.
+- The audio for a frame may not be mixed yet when the frame is written; it is written with the next frame. The log notes how much was filled with silence (`audio_silence_frames`). `Recording/AvOffset` shows this as about one frame of audio behind while recording; the finished file has both to the end.
 
 - The stream bus is behind the moment it was heard by Audio's `StreamLatency` (audio detailed design 8.4): about 20–30 ms without stages, and more with RVC. The video frames are held that long before encoding, so the mouth and the voice match in the file (system design 10.9). Below one frame (33 ms) nothing is held.
 

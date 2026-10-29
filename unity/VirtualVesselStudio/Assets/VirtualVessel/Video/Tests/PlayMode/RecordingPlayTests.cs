@@ -64,6 +64,9 @@ namespace VirtualVessel.Video.Tests
             _recording?.ShutdownAsync(CancellationToken.None).Wait();
             _recording?.Dispose();
             _audio?.Dispose();
+
+            // NUnit keeps the fixture between tests: each starts its own engine.
+            _audio = null;
             _video?.Dispose();
             if (_cameraObject != null)
             {
@@ -111,13 +114,15 @@ namespace VirtualVessel.Video.Tests
                 Assert.That(frames, Is.EqualTo(60).Within(8), "30 fps over two seconds.");
             }
 
-            // With the audio engine running, the stream bus is in the file as AAC, as long as the video.
-            (string name, double seconds)? audio = ProbeAudio(file);
-            if (_audio != null && audio is (string audioName, double audioSeconds))
+            // With the audio engine running, the stream bus is in the file as AAC, as long as the video. The
+            // packets are counted, not the header's duration, which an empty track also has.
+            (string name, int packets)? audio = ProbeAudio(file);
+            if (_audio != null && audio is (string audioName, int audioPackets))
             {
-                Debug.Log($"Recorded audio {audioName} over {audioSeconds:0.00} s.");
+                double audioSeconds = audioPackets * 1024 / 48000.0;
+                Debug.Log($"Recorded audio {audioName}: {audioPackets} packets, {audioSeconds:0.00} s.");
                 Assert.That(audioName, Is.EqualTo("aac"));
-                Assert.That(audioSeconds, Is.EqualTo(2.0).Within(0.3));
+                Assert.That(audioSeconds, Is.EqualTo(2.0).Within(0.3), "AAC packets are 1024 frames at 48 kHz.");
             }
         }
 
@@ -154,11 +159,11 @@ namespace VirtualVessel.Video.Tests
             return new RecordingAudio(_audio.StreamTap.Context, _audio.StreamTap.Read, _audio.StreamLatency);
         }
 
-        private static (string Codec, double Seconds)? ProbeAudio(string file)
+        private static (string Codec, int Packets)? ProbeAudio(string file)
         {
             try
             {
-                var start = new ProcessStartInfo("ffprobe", $"-v error -select_streams a:0 -show_entries stream=codec_name,duration -of csv=p=0 \"{file}\"")
+                var start = new ProcessStartInfo("ffprobe", $"-v error -count_packets -select_streams a:0 -show_entries stream=codec_name,nb_read_packets -of csv=p=0 \"{file}\"")
                 {
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -167,7 +172,7 @@ namespace VirtualVessel.Video.Tests
                 using Process process = Process.Start(start);
                 string[] fields = process.StandardOutput.ReadToEnd().Trim().Split(',');
                 process.WaitForExit(10_000);
-                return (fields[0].Trim(), double.Parse(fields[1].Trim(), CultureInfo.InvariantCulture));
+                return (fields[0].Trim(), int.Parse(fields[1].Trim(), CultureInfo.InvariantCulture));
             }
             catch (Exception exception) when (exception is System.ComponentModel.Win32Exception || exception is FormatException || exception is IndexOutOfRangeException)
             {

@@ -22,20 +22,51 @@ namespace vv::encode
         return ((frames / AudioRate) * 10'000'000) + (((frames % AudioRate) * 10'000'000) / AudioRate);
     }
 
-    // How many frames of a chunk that starts at chunkQpc come before the file starts at startQpc, and are
-    // left out (rounded up, so the first kept frame is not before the video).
-    inline int64_t FramesBefore(int64_t chunkQpc, int64_t startQpc, int64_t frequency)
+    // A file time (100 ns units) in frames.
+    inline int64_t FileTimeToFrames(int64_t fileTime)
     {
-        if (chunkQpc >= startQpc)
+        return ((fileTime / 10'000'000) * AudioRate) + (((fileTime % 10'000'000) * AudioRate) / 10'000'000);
+    }
+
+    // Where a chunk that starts at chunkQpc lands on the file's timeline, in frames from its zero at
+    // startQpc, rounded to the nearest frame; negative before the file starts.
+    inline int64_t FrameAt(int64_t chunkQpc, int64_t startQpc, int64_t frequency)
+    {
+        int64_t ticks = chunkQpc >= startQpc ? chunkQpc - startQpc : startQpc - chunkQpc;
+        int64_t frames = ((ticks / frequency) * AudioRate) + ((((ticks % frequency) * AudioRate) + (frequency / 2)) / frequency);
+        return chunkQpc >= startQpc ? frames : -frames;
+    }
+
+    // How a chunk joins the audio written so far: silence to fill a gap before it, or frames of it to leave
+    // out where it overlaps what was written (or comes before the file). Within the tolerance it simply
+    // follows on, so the rounding of times never adds or drops a frame of a continuous bus.
+    struct Placement
+    {
+        int64_t silence = 0;
+        int64_t skip = 0;
+    };
+
+    constexpr int64_t PlacementTolerance = 48; // 1 ms
+
+    inline Placement Place(int64_t position, int64_t frames, int64_t written)
+    {
+        Placement placement;
+        int64_t delta = position - written;
+        if (delta > PlacementTolerance)
         {
-            return 0;
+            placement.silence = delta;
+        }
+        else if (delta < -PlacementTolerance)
+        {
+            placement.skip = -delta < frames ? -delta : frames;
         }
 
-        int64_t ticks = startQpc - chunkQpc;
-        int64_t whole = (ticks / frequency) * AudioRate;
-        int64_t rest = (ticks % frequency) * AudioRate;
-        return whole + (rest / frequency) + (rest % frequency != 0 ? 1 : 0);
+        return placement;
     }
+
+    // The audio may fall at most this far behind the video before silence fills it, so a stalled bus never
+    // holds the video back: the file writer waits for the stream that is behind.
+    constexpr int64_t MaxAudioLagFrames = AudioRate;
 
     // AAC in Media Foundation takes 96, 128, 160, or 192 kbit/s; a bitrate is rounded to the nearest of them.
     inline uint32_t AacBytesPerSecond(int32_t bitrate)

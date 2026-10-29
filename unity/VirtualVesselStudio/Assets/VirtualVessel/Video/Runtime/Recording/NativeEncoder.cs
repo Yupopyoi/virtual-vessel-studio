@@ -77,8 +77,9 @@ namespace VirtualVessel.Video.Recording
     /// <summary>The encoder's counts (vv_encode_stats).</summary>
     public readonly struct EncoderStatus
     {
-        public EncoderStatus(long pushed, long written, long dropped, int lastError, bool hardware, long audioFrames = 0, double avOffsetMs = 0)
+        public EncoderStatus(long pushed, long written, long dropped, int lastError, bool hardware, long audioFrames = 0, double avOffsetMs = 0, long audioSilenceFrames = 0)
         {
+            AudioSilenceFrames = audioSilenceFrames;
             Pushed = pushed;
             Written = written;
             Dropped = dropped;
@@ -93,6 +94,9 @@ namespace VirtualVessel.Video.Recording
 
         /// <summary>Where the audio ends against the video at the last write, in ms; positive is ahead.</summary>
         public double AvOffsetMs { get; }
+
+        /// <summary>Silence written where the stream bus had a gap or fell more than a second behind.</summary>
+        public long AudioSilenceFrames { get; }
 
         public long Pushed { get; }
 
@@ -225,7 +229,7 @@ namespace VirtualVessel.Video.Recording
             }
 
             vv_encode_get_stats(_handle, out Stats stats);
-            _last = new EncoderStatus(stats.Pushed, stats.Written, stats.Dropped, stats.LastError, stats.Hardware != 0, stats.AudioFrames, stats.AvOffsetUs / 1000.0);
+            _last = new EncoderStatus(stats.Pushed, stats.Written, stats.Dropped, stats.LastError, stats.Hardware != 0, stats.AudioFrames, stats.AvOffsetUs / 1000.0, stats.AudioSilenceFrames);
             return _last;
         }
 
@@ -241,7 +245,7 @@ namespace VirtualVessel.Video.Recording
             _handle = IntPtr.Zero;
 
             // The counts were read before the drain; a failure in it shows only in the result.
-            _last = result == Ok ? before : new EncoderStatus(before.Pushed, before.Written, before.Dropped, before.LastError != 0 ? before.LastError : result, before.Hardware, before.AudioFrames, before.AvOffsetMs);
+            _last = result == Ok ? before : new EncoderStatus(before.Pushed, before.Written, before.Dropped, before.LastError != 0 ? before.LastError : result, before.Hardware, before.AudioFrames, before.AvOffsetMs, before.AudioSilenceFrames);
             return _last;
         }
 
@@ -274,6 +278,7 @@ namespace VirtualVessel.Video.Recording
             public int Hardware;
             public long AudioFrames;
             public long AvOffsetUs;
+            public long AudioSilenceFrames;
         }
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]

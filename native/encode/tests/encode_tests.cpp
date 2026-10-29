@@ -186,10 +186,64 @@ namespace
         return ok;
     }
 
+    // Video times on another base than the bus (as Unity's Stopwatch was, an hour off): the audio never
+    // lines up, and the video must still be written at full rate, with silence keeping the audio near it.
+    bool AudioOnAnotherClock(int64_t offsetSeconds)
+    {
+        std::wstring path = TempPath(L"vv_encode_test_clock.mp4");
+        DeleteFileW(path.c_str());
+        LARGE_INTEGER frequency;
+        LARGE_INTEGER now;
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&now);
+        ToneTap tap;
+        tap.frequency = frequency.QuadPart;
+        tap.anchor = now.QuadPart - (frequency.QuadPart / 2);
+        const int64_t offset = offsetSeconds * frequency.QuadPart;
+
+        vv_encode_config config = { path.c_str(), Width, Height, Fps, 6'000'000, VV_ENCODE_CODEC_H264, 160'000, &ToneTap::Read, &tap };
+        vv_encoder* encoder = nullptr;
+        if (vv_encode_open(&config, &encoder) != VV_ENCODE_OK)
+        {
+            std::printf("FAIL another clock: open\n");
+            return false;
+        }
+
+        const int frames = 90;
+        std::vector<uint8_t> frame(static_cast<size_t>(Width) * Height * 4, 128);
+        auto start = std::chrono::steady_clock::now();
+        for (int i = 0; i < frames; i++)
+        {
+            QueryPerformanceCounter(&now);
+            vv_encode_push_video(encoder, frame.data(), static_cast<int32_t>(frame.size()), now.QuadPart + offset);
+            std::this_thread::sleep_until(start + std::chrono::microseconds((static_cast<int64_t>(i) + 1) * 1'000'000 / Fps));
+        }
+
+        vv_encode_stats stats = {};
+        vv_encode_get_stats(encoder, &stats);
+        int32_t closed = vv_encode_close(encoder);
+        std::printf("another clock (%+lld s): written %lld, dropped %lld, audio %lld, silence %lld\n", static_cast<long long>(offsetSeconds),
+            static_cast<long long>(stats.written), static_cast<long long>(stats.dropped), static_cast<long long>(stats.audio_frames), static_cast<long long>(stats.audio_silence_frames));
+        DeleteFileW(path.c_str());
+        bool ok = closed == VV_ENCODE_OK && stats.dropped == 0 && stats.audio_frames <= vv::encode::AudioRate * 3 && stats.audio_frames >= vv::encode::AudioRate;
+        if (!ok)
+        {
+            std::printf("FAIL: a bus on another clock held the video back or filled too much\n");
+        }
+
+        return ok;
+    }
+
     bool AudioTiming()
     {
-        bool ok = vv::encode::FramesBefore(1000, 1000, 10'000'000) == 0 && vv::encode::FramesBefore(0, 10'000'000, 10'000'000) == 48000 &&
-            vv::encode::FramesBefore(0, 1, 10'000'000) == 1 && vv::encode::FramesToFileTime(48000) == 10'000'000 &&
+        vv::encode::Placement gap = vv::encode::Place(1000, 480, 0);
+        vv::encode::Placement overlap = vv::encode::Place(-100, 480, 0);
+        vv::encode::Placement before = vv::encode::Place(-1000, 480, 0);
+        vv::encode::Placement follows = vv::encode::Place(30, 480, 0);
+        bool ok = vv::encode::FrameAt(10'000'000, 0, 10'000'000) == 48000 && vv::encode::FrameAt(0, 10'000'000, 10'000'000) == -48000 &&
+            vv::encode::FrameAt(104, 0, 10'000'000) == 0 && vv::encode::FrameAt(105, 0, 10'000'000) == 1 &&
+            gap.silence == 1000 && gap.skip == 0 && overlap.skip == 100 && before.skip == 480 && follows.silence == 0 && follows.skip == 0 &&
+            vv::encode::FileTimeToFrames(10'000'000) == 48000 && vv::encode::FramesToFileTime(48000) == 10'000'000 &&
             vv::encode::TicksToFileTime(10'000'000LL * 3600 * 24, 10'000'000) == 864'000'000'000LL && vv::encode::AacBytesPerSecond(160'000) == 20000 &&
             vv::encode::AacBytesPerSecond(150'000) == 20000 && vv::encode::AacBytesPerSecond(64'000) == 12000;
         float in[] = { 0.0f, 1.0f, -1.0f, 2.0f, -2.0f };
@@ -294,6 +348,8 @@ int main()
     // H.264 always runs: without a hardware encoder the Sink Writer falls back to Microsoft's.
     ok = EncodeOne(VV_ENCODE_CODEC_H264, L"H.264") && ok;
     ok = EncodeWithAudio() && ok;
+    ok = AudioOnAnotherClock(-3600) && ok;
+    ok = AudioOnAnotherClock(3600) && ok;
     if (vv_encode_hardware_available(VV_ENCODE_CODEC_AV1))
     {
         ok = EncodeOne(VV_ENCODE_CODEC_AV1, L"AV1") && ok;
