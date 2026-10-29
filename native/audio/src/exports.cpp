@@ -143,21 +143,33 @@ extern "C"
         ComPtr<IMMDeviceEnumerator> enumerator;
         HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
         ComPtr<IMMDeviceCollection> collection;
+        // Without an audio service (a server), calls can succeed and still give nothing: every result is checked.
+        if (SUCCEEDED(hr) && !enumerator)
+        {
+            hr = E_POINTER;
+        }
+
         if (SUCCEEDED(hr))
         {
             hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection);
         }
 
+        if (SUCCEEDED(hr) && !collection)
+        {
+            hr = E_POINTER;
+        }
+
         std::wstring defaultId;
         ComPtr<IMMDevice> defaultDevice;
-        if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &defaultDevice)))
+        if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &defaultDevice)) && defaultDevice)
         {
             LPWSTR id = nullptr;
-            if (SUCCEEDED(defaultDevice->GetId(&id)))
+            if (SUCCEEDED(defaultDevice->GetId(&id)) && id != nullptr)
             {
                 defaultId = id;
-                CoTaskMemFree(id);
             }
+
+            CoTaskMemFree(id);
         }
 
         UINT total = 0;
@@ -170,8 +182,9 @@ extern "C"
         {
             ComPtr<IMMDevice> device;
             LPWSTR id = nullptr;
-            if (FAILED(collection->Item(i, &device)) || FAILED(device->GetId(&id)))
+            if (FAILED(collection->Item(i, &device)) || !device || FAILED(device->GetId(&id)) || id == nullptr)
             {
+                CoTaskMemFree(id);
                 continue;
             }
 
@@ -184,7 +197,7 @@ extern "C"
                 ComPtr<IPropertyStore> properties;
                 PROPVARIANT name;
                 PropVariantInit(&name);
-                if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties)) && SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR)
+                if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties)) && properties && SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR && name.pwszVal != nullptr)
                 {
                     CopyText(entry.name, _countof(entry.name), name.pwszVal);
                 }

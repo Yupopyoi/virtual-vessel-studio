@@ -154,9 +154,20 @@ namespace vv::audio
         ComPtr<IMMDeviceEnumerator> enumerator;
         HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
         ComPtr<IMMDevice> device;
+        // Without an audio service (a server), calls can succeed and still give nothing: every result is checked.
+        if (SUCCEEDED(hr) && !enumerator)
+        {
+            hr = E_POINTER;
+        }
+
         if (SUCCEEDED(hr))
         {
             hr = enumerator->GetDevice(deviceId.c_str(), &device);
+        }
+
+        if (SUCCEEDED(hr) && !device)
+        {
+            hr = E_NOTFOUND;
         }
 
         DWORD deviceState = 0;
@@ -169,6 +180,11 @@ namespace vv::audio
         if (SUCCEEDED(hr))
         {
             hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(client.GetAddressOf()));
+        }
+
+        if (SUCCEEDED(hr) && !client)
+        {
+            hr = E_POINTER;
         }
 
         // Windows converts the device's own rate and channels to 48 kHz float stereo.
@@ -194,6 +210,11 @@ namespace vv::audio
         if (SUCCEEDED(hr))
         {
             hr = client->GetService(IID_PPV_ARGS(&capture));
+        }
+
+        if (SUCCEEDED(hr) && !capture)
+        {
+            hr = E_POINTER;
         }
 
         if (SUCCEEDED(hr))
