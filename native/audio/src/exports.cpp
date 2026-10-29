@@ -140,73 +140,79 @@ extern "C"
 
         *count = 0;
         HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        ComPtr<IMMDeviceEnumerator> enumerator;
-        HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
-        ComPtr<IMMDeviceCollection> collection;
-        // Without an audio service (a server), calls can succeed and still give nothing: every result is checked.
-        if (SUCCEEDED(hr) && !enumerator)
-        {
-            hr = E_POINTER;
-        }
+        HRESULT hr = S_OK;
 
-        if (SUCCEEDED(hr))
+        // The COM objects are released in this block, before COM is uninitialized below; released after it,
+        // they crashed on a system where this was the last use of COM (CI's runner).
         {
-            hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection);
-        }
-
-        if (SUCCEEDED(hr) && !collection)
-        {
-            hr = E_POINTER;
-        }
-
-        std::wstring defaultId;
-        ComPtr<IMMDevice> defaultDevice;
-        if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &defaultDevice)) && defaultDevice)
-        {
-            LPWSTR id = nullptr;
-            if (SUCCEEDED(defaultDevice->GetId(&id)) && id != nullptr)
+            ComPtr<IMMDeviceEnumerator> enumerator;
+            hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+            ComPtr<IMMDeviceCollection> collection;
+            // Without an audio service (a server), calls can succeed and still give nothing: every result is checked.
+            if (SUCCEEDED(hr) && !enumerator)
             {
-                defaultId = id;
+                hr = E_POINTER;
             }
 
-            CoTaskMemFree(id);
-        }
-
-        UINT total = 0;
-        if (SUCCEEDED(hr))
-        {
-            hr = collection->GetCount(&total);
-        }
-
-        for (UINT i = 0; SUCCEEDED(hr) && i < total; i++)
-        {
-            ComPtr<IMMDevice> device;
-            LPWSTR id = nullptr;
-            if (FAILED(collection->Item(i, &device)) || !device || FAILED(device->GetId(&id)) || id == nullptr)
+            if (SUCCEEDED(hr))
             {
-                CoTaskMemFree(id);
-                continue;
+                hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection);
             }
 
-            if (*count < capacity)
+            if (SUCCEEDED(hr) && !collection)
             {
-                vv_audio_device& entry = devices[*count];
-                CopyText(entry.id, _countof(entry.id), id);
-                entry.is_default = defaultId == id ? 1 : 0;
-                CopyText(entry.name, _countof(entry.name), id);
-                ComPtr<IPropertyStore> properties;
-                PROPVARIANT name;
-                PropVariantInit(&name);
-                if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties)) && properties && SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR && name.pwszVal != nullptr)
+                hr = E_POINTER;
+            }
+
+            std::wstring defaultId;
+            ComPtr<IMMDevice> defaultDevice;
+            if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &defaultDevice)) && defaultDevice)
+            {
+                LPWSTR id = nullptr;
+                if (SUCCEEDED(defaultDevice->GetId(&id)) && id != nullptr)
                 {
-                    CopyText(entry.name, _countof(entry.name), name.pwszVal);
+                    defaultId = id;
                 }
 
-                PropVariantClear(&name);
+                CoTaskMemFree(id);
             }
 
-            CoTaskMemFree(id);
-            (*count)++;
+            UINT total = 0;
+            if (SUCCEEDED(hr))
+            {
+                hr = collection->GetCount(&total);
+            }
+
+            for (UINT i = 0; SUCCEEDED(hr) && i < total; i++)
+            {
+                ComPtr<IMMDevice> device;
+                LPWSTR id = nullptr;
+                if (FAILED(collection->Item(i, &device)) || !device || FAILED(device->GetId(&id)) || id == nullptr)
+                {
+                    CoTaskMemFree(id);
+                    continue;
+                }
+
+                if (*count < capacity)
+                {
+                    vv_audio_device& entry = devices[*count];
+                    CopyText(entry.id, _countof(entry.id), id);
+                    entry.is_default = defaultId == id ? 1 : 0;
+                    CopyText(entry.name, _countof(entry.name), id);
+                    ComPtr<IPropertyStore> properties;
+                    PROPVARIANT name;
+                    PropVariantInit(&name);
+                    if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties)) && properties && SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR && name.pwszVal != nullptr)
+                    {
+                        CopyText(entry.name, _countof(entry.name), name.pwszVal);
+                    }
+
+                    PropVariantClear(&name);
+                }
+
+                CoTaskMemFree(id);
+                (*count)++;
+            }
         }
 
         if (SUCCEEDED(com))
