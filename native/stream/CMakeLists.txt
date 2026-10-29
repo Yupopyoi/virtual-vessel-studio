@@ -29,3 +29,14 @@ enable_testing()
 add_executable(vv_stream_protocol_tests tests/protocol_tests.cpp)
 target_link_libraries(vv_stream_protocol_tests PRIVATE vv_stream_protocol)
 add_test(NAME vv_stream_protocol_tests COMMAND vv_stream_protocol_tests)
+
+# The connection: TCP, TLS (SChannel), and the RTMP publisher.
+add_library(vv_stream_network STATIC
+    src/transport.cpp
+    src/tls_transport.cpp
+    src/rtmp_client.cpp)
+target_link_libraries(vv_stream_network PUBLIC vv_stream_protocol ws2_32 secur32)
+
+add_executable(vv_stream_network_tests tests/network_tests.cpp)
+target_link_libraries(vv_stream_network_tests PRIVATE vv_stream_network)
+add_test(NAME vv_stream_network_tests COMMAND vv_stream_network_tests)
