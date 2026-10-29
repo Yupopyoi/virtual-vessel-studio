@@ -5,6 +5,8 @@
 #include "flv.h"
 #include "rtmp_protocol.h"
 #include "rtmp_url.h"
+#include "reconnect.h"
+#include "send_queue.h"
 
 #include <cstdio>
 #include <string>
@@ -170,6 +172,44 @@ namespace
         messages.clear();
         Check(!badReader.Feed(bad.data(), bad.size(), messages), "a message larger than allowed is refused");
     }
+
+    Packet VideoPacket(uint32_t timestamp, bool keyframe)
+    {
+        Packet packet;
+        packet.type = rtmp::Video;
+        packet.timestamp = timestamp;
+        packet.keyframe = keyframe;
+        return packet;
+    }
+
+    void Queue()
+    {
+        SendQueue queue(3000);
+        queue.Push(VideoPacket(0, true));
+        for (uint32_t t = 33; t <= 2970; t += 33)
+        {
+            queue.Push(VideoPacket(t, false));
+        }
+
+        Packet audio;
+        audio.type = rtmp::Audio;
+        audio.timestamp = 3010;
+        queue.Push(audio);
+        Check(queue.Dropped() == 0 && queue.DurationMs() == 3010, "up to the limit nothing is dropped");
+
+        queue.Push(VideoPacket(3036, false));
+        queue.Push(VideoPacket(3069, false));
+        Check(queue.Dropped() == 2, "over the limit, video that is not a keyframe is dropped");
+
+        queue.Push(VideoPacket(3102, true));
+        Packet first;
+        Check(queue.Pop(first, 0) && first.type == rtmp::Audio, "a keyframe clears the waiting video, and audio stays");
+        Packet next;
+        Check(queue.Pop(next, 0) && next.keyframe && next.timestamp == 3102 && !queue.Pop(next, 0), "the stream goes on from the keyframe");
+        Check(queue.Dropped() == 2 + 91, "every dropped frame is counted");
+
+        Check(ReconnectDelayMs(0) == 1000 && ReconnectDelayMs(4) == 15'000 && ReconnectDelayMs(5) == 30'000 && ReconnectDelayMs(40) == 30'000, "reconnect backoff");
+    }
 }
 
 int main()
@@ -180,6 +220,7 @@ int main()
     Aac();
     Av1();
     Chunks();
+    Queue();
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;
 }

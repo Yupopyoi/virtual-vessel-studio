@@ -16,11 +16,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # The C++ runtime is linked statically, so the plugin needs no Visual C++ redistributable.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-# The protocol: no sockets or Windows APIs, so it is tested on its own.
+# The protocol and the send queue: no sockets or Windows APIs, so they are tested on their own.
 add_library(vv_stream_protocol STATIC
     src/amf0.cpp
     src/flv.cpp
-    src/rtmp_protocol.cpp)
+    src/rtmp_protocol.cpp
+    src/send_queue.cpp)
 target_include_directories(vv_stream_protocol PUBLIC src ../common/include)
 target_compile_definitions(vv_stream_protocol PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(vv_stream_protocol PUBLIC /W4 /WX /permissive- /utf-8 /external:anglebrackets /external:W0)
@@ -40,3 +41,4 @@ target_link_libraries(vv_stream_network PUBLIC vv_stream_protocol ws2_32 secur32
 add_executable(vv_stream_network_tests tests/network_tests.cpp)
 target_link_libraries(vv_stream_network_tests PRIVATE vv_stream_network)
 add_test(NAME vv_stream_network_tests COMMAND vv_stream_network_tests)
+
