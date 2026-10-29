@@ -5,6 +5,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Audio;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
@@ -104,6 +105,19 @@ namespace VirtualVessel.Application.Startup
                             context.MonotonicClock,
                             metrics,
                             logging.Provider.GetLog("Capture", "Sources")),
+                    new[] { LoggingService.ServiceName }));
+            }
+
+            // Audio captures the microphone and the game's audio and mixes them for recording (audio detailed
+            // design 7), before Video so its stream bus is there for recording. Optional: without the plugin
+            // or a device everything else runs, and recordings are video only.
+            AudioService audio = null;
+            if (context.FrameLoop != null && project != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    AudioService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => audio = CreateAudio(context, project.Value, metrics, logging.Provider.GetLog("Audio", "Sources")),
                     new[] { LoggingService.ServiceName }));
             }
 
@@ -236,6 +250,8 @@ namespace VirtualVessel.Application.Startup
                                 StreamPreview = video?.Preview,
                                 FrameSources = stage?.Screens,
                                 Captures = capture,
+                                Audio = audio,
+                                SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
                                 Explorer = new WindowsFileExplorer(),
                                 Tracking = tracking,

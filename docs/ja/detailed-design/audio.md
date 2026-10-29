@@ -49,14 +49,11 @@ Audio Moduleは、配信の映像とともに出す音を集め、録画と後�
 ```csharp
 public interface IAudioService
 {
-    IReadOnlyObservable<IReadOnlyList<IAudioSource>> Sources { get; }
-    IReadOnlyList<AudioDevice> InputDevices { get; }    // IDと名前
-    IReadOnlyList<AudioDevice> OutputDevices { get; }   // モニターのバス用（段階2）
+    IReadOnlyList<IAudioSource> Sources { get; }                          // マイク、ゲームの音声の順。BGMとSEで増える
+    IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices { get; } // ID、名前、Windowsの既定か
     void RefreshDevices();
-    IAudioSource AddSource(AudioSourceRole role);       // 後の用途。最初の版は2つを最初から持つ
-    void RemoveSource(IAudioSource source);
-    AudioStreamTap StreamTap { get; }                   // エンコーダー用（5.3）
-    TimeSpan StreamLatency { get; }                     // 音の元の遅れの最大：配信用のバスがどれだけ遅れているか（8.4）
+    AudioStreamTap StreamTap { get; }                   // エンコーダー用（5.3）。Contextと関数のポインター
+    TimeSpan StreamLatency { get; }                     // 配信用のバスがどれだけ遅れているか（8.4）
 }
 
 public interface IAudioSource
@@ -64,16 +61,16 @@ public interface IAudioSource
     string Id { get; }
     AudioSourceRole Role { get; }
     IReadOnlyObservable<AudioSourceState> State { get; } // Off、Starting、Running、Unavailable、Error
-    string DeviceId { get; }
-    void SelectDevice(string deviceId);                 // nullで止める
-    float GainDb { get; set; }                          // -60〜+12
-    bool Muted { get; set; }
-    float SendDb(AudioBus bus);                         // それぞれのバスへ送る量。送らないときは-inf
-    void SetSend(AudioBus bus, float db);
-    float PeakDb { get; }                               // 処理の段と音量の後。メーター用
-    void Attach(IManagedAudioStage stage);              // 後で：マイクのRVC
+    IReadOnlyObservable<AudioProblem> Problem { get; }   // None、InUse、AccessDenied、Failed
+    IReadOnlyObservable<AudioSourceOptions> Options { get; } // 機器、音量（-60〜+12dB）、ミュート、配信用のバスへの送り（-infはなし）
+    void SetOptions(AudioSourceOptions options);        // すぐに反映し、Profileに保存する
+    float PeakDb { get; }                               // 直近0.1秒の最大。音量の後、ミュートの前。メーター用
 }
 ```
+
+- 選んだ値は、Trackingや録画と同じく`Options`と`SetOptions`でまとめて扱う。設定画面とライブ画面のどちらで変えても、両方に反映される。
+- 音の元の足し引き（`AddSource`、`RemoveSource`）、モニターのバスと出力の機器、マネージドの処理の段（`Attach`）は、それぞれの段階（17章）で加える。最初の版は、マイクとゲームの音声の2つを最初から持つ。
+- `IAudioEngine`は、`AudioService`とネイティブのエンジン（`NativeAudioEngine`）の間に置く。Testでは偽物に替え、機器とPluginなしで`AudioService`を確かめる。
 
 ### 5.2 音の元、処理の段、バス
 
@@ -108,7 +105,7 @@ typedef struct vv_audio_stream_tap
 
 ## 7. 状態とライフサイクル
 
-- `AudioService`は、Loggingの後、Videoの録画の前に始まる。Profileの音の元を作り、その機器を開く。機器がなければ`Unavailable`とし、現れたら開き直す（機器の通知）。
+- `AudioService`は、Loggingの後、Videoの録画の前に始まる。Profileの音の元を作り、その機器を開く。機器がなければ`Unavailable`とし、音の元のスレッドが1秒ごとに開き直す。Windowsの機器の通知は使わない。1秒の遅れで足り、通知のCOMのコールバックとスレッドの扱いがなくて済むためである。
 - 機器のない音の元は`Off`とする。バスには、ほかの音の元か、無音が流れる。
 - 音の元は動いている間に足し引きでき、混ぜ合わせは次のブロックからそれを使う。
 - 終了時に、エンジンのスレッドを止め、機器を手放す。
@@ -135,7 +132,8 @@ typedef struct vv_audio_stream_tap
 ### 8.4 音の元どうしの時刻合わせ
 
 - 音の元の遅れは、その処理の段の遅れの合計とする（音量とミュートは0）。混ぜ合わせは、ほかの音の元を最も大きい遅れに合わせて遅らせる。変換した声とゲームの音声がずれないようにするためである。
-- `StreamLatency`がその量を示す。Videoは、エンコードの前に配信の映像を同じだけ遅らせ、口の動きと声を合わせる（方式設計10.9）。RVCがなければ約20〜30msで、映像は遅らせない。
+- `StreamLatency`がその量を示す。Videoは、エンコードの前に配信の映像を同じだけ遅らせ、口の動きと声を合わせる（方式設計10.9）。RVCがなければ30ms（音の元が鳴り始める前に溜める20msと、機器の周期約10ms）で、映像は遅らせない。
+- 配信用のバスの時刻は、最初のブロックからのサンプル数で決まる。混ぜ合わせのスレッドは、起きた時刻ではなく、QPCの時計で何ブロック目が済んでいるべきかで混ぜるため、起きるのが遅れても時刻はずれない。
 
 ## 9. Thread
 
@@ -157,7 +155,8 @@ typedef struct vv_audio_stream_tap
 }
 ```
 
-- 音の元は一覧なので、BGM、SE、2本目のマイクも形式を変えずに足せる。知らない項目と用途は残す（CLAUDE.md 25章）。
+- 音の元は一覧なので、BGM、SE、2本目のマイクも形式を変えずに足せる。知らない用途の音の元は残し、鳴らさない。ファイルの最上位の知らない項目は残す（CLAUDE.md 25章）。音の元の中の知らない項目は、今は残らない。
+- JSONは-infを書けないため、送りの-120dB以下を「なし」とする。
 - マイクは、初めて使うときにWindowsの既定の入力の機器とする。ゲームの音声には既定がない（キャプチャーボードを選ぶ必要がある）。
 - `ProfileKind`に`Audio`を加える。
 
@@ -176,7 +175,8 @@ typedef struct vv_audio_stream_tap
 ## 13. ログと診断
 
 - 開いた機器（名前、形式）、なくなった機器、また見つかった機器、足した・外した音の元、処理の段の遅れ、問題を記録する。ブロックごとの記録はしない。
-- 計測：音の元ごとの`Audio/<音の元>.Overruns`、`Underruns`、`DriftCorrections`、`StageLate`、`Audio/MixLatency`、`Audio/StreamLatency`。
+- 計測：音の元ごとの`Audio/<用途>.Overruns`、`Underruns`、`DriftCorrections`（用途は`Microphone`、`GameAudio`）。`StageLate`は処理の段とともに加える。`StreamLatency`は起動時にログに書く。
+- 機器は名前でログに書き、IDは書かない。
 - 音声そのものは、ログにも診断にも書かない（CLAUDE.md 20章）。
 
 ## 14. Testの方針
@@ -195,12 +195,16 @@ typedef struct vv_audio_stream_tap
 ## 16. Folder / Namespace
 
 ```text
-native/audio/                          VirtualVessel.Audio.Native（CMake、Test）
-Audio/Runtime/                         IAudioService、IAudioSource、AudioService、NativeAudioEngine、AudioSettings
+native/audio/include/vv_audio.h        公開のC API（version 1）
+native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、dsp（音量、リミッター）、
+                                       device_source（WASAPIでの取り込み）、exports（エンジンと混ぜ合わせのスレッド）
+native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
+Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）
 Audio/Tests/EditMode/
+UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip（ライブ画面）
 ```
 
-新しいModule `VirtualVessel.Audio`（方式設計2.4）。DLLは`tools/native/build-audio.ps1`で作る。
+新しいModule `VirtualVessel.Audio`（方式設計2.4）。UIがAudioを参照する（CaptureやTrackingと同じ向き）。DLLは`tools/native/build-audio.ps1`で`Audio/Plugins/x86_64`に作り、Gitには入れない。リリースのビルドとCIでも作る。
 
 ## 17. 段階
 
@@ -215,10 +219,13 @@ Audio/Tests/EditMode/
 
 | 行 | 内容 |
 |---|---|
-| 機器 | Dropdown（ゲームの音声は先頭に「なし」） |
-| 音量 | Slider、dB |
+| 見出し | 音の元の名前と、その状態のStatus Chip（形と文字。ミュート中は警告の形の「ミュート中」） |
+| 問題 | 取り込みと同じく、何が起きたかと対処。Windowsがマイクへのアクセスを許可していないときは、「マイクのプライバシー設定を開く」Button（`ms-settings:privacy-microphone`） |
+| デバイス | Select（先頭に「なし」、どちらの音の元も）。選んだ機器が抜かれているときは「接続されていないデバイス」として残す |
+| 音量 | Slider、-60〜+12dB、1dB刻み |
 | ミュート | Toggle |
-| レベル | Level Meter（components 3.5） |
-| 問題 | 取り込みと同じく、音の元の状態と対処 |
+| 入力レベル | Level Meter（components 3.5）。-60dB（空）〜0dB（満） |
 
-モニターへの送りの量は段階2で加える。ライブ画面では、録画の操作の隣に、音の元ごとの小さなメーターとミュートのButtonを置き、録画中に音が入っていることが分かるようにする。
+- Cardを表示している間、機器を5秒ごとに数え直し、つないだ機器が選べるようになる。
+- モニターへの送りの量は段階2で加える。
+- ライブ画面では、録画の操作の下に、音の元ごとのミュートのIconButton（ミュート中は斜線のマイク）、名前、小さなメーターを置き、録画中に音が入っていることが分かるようにする（`live.md`）。

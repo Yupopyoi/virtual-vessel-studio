@@ -5,6 +5,7 @@ using VirtualVessel.Application.Build;
 using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
+using VirtualVessel.Audio;
 using VirtualVessel.Avatar;
 using VirtualVessel.Avatar.Vrm;
 using VirtualVessel.Capture;
@@ -52,7 +53,7 @@ namespace VirtualVessel.Application.Startup
                 log?.Information(note);
             }
 
-            log?.Information($"Project {project.ProjectId} ({project.Manifest.DisplayName}) open: tracking profile {project.Manifest.TrackingProfileId}, capture profile {project.Manifest.CaptureProfileId}, streaming profile {project.Manifest.StreamingProfileId}.");
+            log?.Information($"Project {project.ProjectId} ({project.Manifest.DisplayName}) open: tracking profile {project.Manifest.TrackingProfileId}, capture profile {project.Manifest.CaptureProfileId}, streaming profile {project.Manifest.StreamingProfileId}, audio profile {project.Manifest.AudioProfileId}.");
             return project;
         }
 
@@ -114,6 +115,18 @@ namespace VirtualVessel.Application.Startup
                 metrics,
                 log,
                 tracking);
+        }
+
+        private static AudioService CreateAudio(ApplicationCompositionContext context, OpenedProject project, IPerformanceMetrics metrics, ILog log)
+        {
+            (AudioSettings settings, ConfigSaveScheduler<AudioSettings> saves) = LoadSettings(
+                AudioService.CreateStore(project.ProfileDirectory(ProfileKind.Audio), context.SystemClock, project.ProfileFileName(ProfileKind.Audio)),
+                "Audio",
+                context,
+                log);
+
+            // WASAPI stays behind NativeAudioEngine; the rest of the application sees IAudioService (audio detailed design 3).
+            return new AudioService(settings, saves, NativeAudioEngine.Create, context.FrameLoop, context.MonotonicClock, ProjectOpener.NewId, metrics, log);
         }
 
         private static TrackingService CreateTracking(ApplicationCompositionContext context, OpenedProject project, CaptureService capture, IPerformanceMetrics metrics, ILog log)

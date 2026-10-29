@@ -49,14 +49,11 @@ Not in this design: a virtual microphone (system design 9.4).
 ```csharp
 public interface IAudioService
 {
-    IReadOnlyObservable<IReadOnlyList<IAudioSource>> Sources { get; }
-    IReadOnlyList<AudioDevice> InputDevices { get; }    // Id and name
-    IReadOnlyList<AudioDevice> OutputDevices { get; }   // For the monitor bus (step 2)
+    IReadOnlyList<IAudioSource> Sources { get; }                          // The microphone, then the game audio; BGM and SE add more
+    IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices { get; } // ID, name, and whether it is Windows' default
     void RefreshDevices();
-    IAudioSource AddSource(AudioSourceRole role);       // Later roles; the first version has its two from the start
-    void RemoveSource(IAudioSource source);
-    AudioStreamTap StreamTap { get; }                   // For the encoder (5.3)
-    TimeSpan StreamLatency { get; }                     // The largest source latency: how far the stream bus is behind (8.4)
+    AudioStreamTap StreamTap { get; }                   // For the encoder (5.3): the context and the function pointer
+    TimeSpan StreamLatency { get; }                     // How far the stream bus is behind (8.4)
 }
 
 public interface IAudioSource
@@ -64,16 +61,16 @@ public interface IAudioSource
     string Id { get; }
     AudioSourceRole Role { get; }
     IReadOnlyObservable<AudioSourceState> State { get; } // Off, Starting, Running, Unavailable, Error
-    string DeviceId { get; }
-    void SelectDevice(string deviceId);                 // null turns it off
-    float GainDb { get; set; }                          // -60 to +12
-    bool Muted { get; set; }
-    float SendDb(AudioBus bus);                         // How much goes to each bus; -inf for none
-    void SetSend(AudioBus bus, float db);
-    float PeakDb { get; }                               // After the stages and gain, for the meter
-    void Attach(IManagedAudioStage stage);              // Later: RVC on the microphone
+    IReadOnlyObservable<AudioProblem> Problem { get; }   // None, InUse, AccessDenied, Failed
+    IReadOnlyObservable<AudioSourceOptions> Options { get; } // Device, gain (-60 to +12 dB), mute, the stream send (-inf for none)
+    void SetOptions(AudioSourceOptions options);        // Applied at once and saved in the profile
+    float PeakDb { get; }                               // The highest of the last 0.1 s, after the gain and before mute, for the meter
 }
 ```
+
+- The user's choices are handled together as `Options` and `SetOptions`, as for tracking and recording, so a change on the setup screen or the live screen shows on both.
+- Adding and removing sources (`AddSource`, `RemoveSource`), the monitor bus and output devices, and managed stages (`Attach`) come with their steps (17). The first version has its two sources, the microphone and the game audio, from the start.
+- `IAudioEngine` stands between `AudioService` and the native engine (`NativeAudioEngine`); tests give a fake one, so `AudioService` is checked without devices or the plugin.
 
 ### 5.2 Sources, Stages, Buses
 
@@ -108,7 +105,7 @@ typedef struct vv_audio_stream_tap
 
 ## 7. State and Lifecycle
 
-- `AudioService` starts after Logging and before Video's recording. It builds the sources of the profile and opens their devices; a missing device is `Unavailable` and opens again when it appears (device notifications).
+- `AudioService` starts after Logging and before Video's recording. It builds the sources of the profile and opens their devices; a missing device is `Unavailable`, and the source's thread tries it again every second. Windows' device notifications are not used: a second's delay is enough, and it saves their COM callbacks and threading.
 - A source with no device is `Off`; the buses then carry the other sources, or silence.
 - Sources can be added and removed while running; the mix picks them up at its next block.
 - At shutdown the engine's threads stop and the devices are released.
@@ -135,7 +132,8 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 ### 8.4 Aligning Sources in Time
 
 - Each source's latency is the sum of its stages' latencies (0 for gain and mute). The mix delays every other source to the largest one, so a converted voice and the game's audio stay together.
-- `StreamLatency` reports it; Video delays the stream video by the same amount before encoding, so the mouth and the voice match (system design 10.9). Without RVC it is about 20–30 ms and the video is not delayed.
+- `StreamLatency` reports it; Video delays the stream video by the same amount before encoding, so the mouth and the voice match (system design 10.9). Without RVC it is 30 ms (the 20 ms a source gathers before it plays, and a device period of about 10 ms), and the video is not delayed.
+- The stream bus's times come from its sample count since the first block. The mix thread mixes the blocks the QPC clock says are due, not one per wake, so a late wake does not shift the times.
 
 ## 9. Threading
 
@@ -157,7 +155,8 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 }
 ```
 
-- Sources are a list, so BGM, SE, and more microphones are added without changing the format. Unknown fields and roles are kept (CLAUDE.md 25).
+- Sources are a list, so BGM, SE, and more microphones are added without changing the format. A source of a role this version does not know is kept and not played; unknown fields at the top of the file are kept (CLAUDE.md 25). Unknown fields inside a source are not kept yet.
+- JSON cannot hold -inf, so a send of -120 dB or below is none.
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
 - `ProfileKind` gains `Audio`.
 
@@ -176,7 +175,8 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 13. Logging and Diagnostics
 
 - Devices opened (name, format), lost, and found again; sources added and removed; stage latencies; problems. Nothing per block.
-- Metrics: per source `Audio/<source>.Overruns`, `Underruns`, `DriftCorrections`, `StageLate`; `Audio/MixLatency`; `Audio/StreamLatency`.
+- Metrics: per source `Audio/<role>.Overruns`, `Underruns`, `DriftCorrections` (roles `Microphone`, `GameAudio`). `StageLate` comes with stages; `StreamLatency` is logged at start.
+- Devices are logged by name, never by ID.
 - Audio is never written to logs or diagnostics (CLAUDE.md 20).
 
 ## 14. Testing Strategy
@@ -195,12 +195,16 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/                          VirtualVessel.Audio.Native (CMake, tests)
-Audio/Runtime/                         IAudioService, IAudioSource, AudioService, NativeAudioEngine, AudioSettings
+native/audio/include/vv_audio.h        The C API (version 1)
+native/audio/src/                      mixer (the mix, the bus, the tap; no threads or devices), frame_ring, dsp (gains, limiter),
+                                       device_source (WASAPI capture), exports (the engine and the mix thread)
+native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
+Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine)
 Audio/Tests/EditMode/
+UI/Runtime/Screens/                    AudioCard (setup screen), AudioStrip (live screen)
 ```
 
-A new module `VirtualVessel.Audio` (system design 2.4). The DLL is built by `tools/native/build-audio.ps1`.
+A new module `VirtualVessel.Audio` (system design 2.4); UI references Audio, as it does Capture and Tracking. The DLL is built by `tools/native/build-audio.ps1` into `Audio/Plugins/x86_64` and kept out of Git; the release build and CI build it too.
 
 ## 17. Steps
 
@@ -215,10 +219,13 @@ An "Audio" Card on the setup screen, one row group per source:
 
 | Row | Content |
 |---|---|
-| Device | Dropdown ("None" first for the game audio) |
-| Gain | Slider, dB |
+| Heading | The source's name and a Status Chip of its state (a shape and text; "Muted" with the warning shape when muted) |
+| Problem | What happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`) |
+| Device | Select ("None" first, for both sources). A chosen device that is unplugged stays as "A device not connected now" |
+| Volume | Slider, -60 to +12 dB in 1 dB steps |
 | Mute | Toggle |
-| Level | Level Meter (components 3.5) |
-| Problem | The source's state and what to do, as for capture |
+| Input level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
 
-Sends to the monitor come with step 2. On the live screen, next to the record control, a compact meter per source with a mute button, so the user sees that sound is going in while recording.
+- Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
+- Sends to the monitor come with step 2.
+- On the live screen, under the record control, each source's mute IconButton (the crossed-out microphone when muted), its name, and a compact meter, so the user sees that sound is going in while recording (`live.md`).

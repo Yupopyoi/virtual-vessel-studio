@@ -59,6 +59,57 @@
     color: var(--vv-color-text-2);
 }
 
+/* The sound going in, under the record control (live.md 3): per source a mute button, its name, and a meter. */
+.vv-audio-strip {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--vv-space-xs);
+}
+
+.vv-audio-strip__source {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 var(--vv-space-m) var(--vv-space-xs) 0;
+}
+
+.vv-audio-strip__source > Label {
+    margin: 0 var(--vv-space-s) 0 var(--vv-space-xs);
+    color: var(--vv-color-text-2);
+}
+
+.vv-audio-strip__meter {
+    width: 120px;
+}
+
+/* The audio Card (setup.md 11): a group per source, its name and state, then its rows. */
+.vv-audio-card__group {
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-audio-card__heading {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-audio-card__heading > Label {
+    color: var(--vv-color-text);
+    -unity-font-style: bold;
+}
+
+.vv-audio-card__privacy {
+    align-self: flex-start;
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-audio-card__problem {
+    margin-bottom: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
 /*
  * The recording Card (setup.md 10): values in the text color. A folder's path can be long, so it is under
  * the row's name, where it wraps, and only its buttons are on the right, like the other rows' controls.

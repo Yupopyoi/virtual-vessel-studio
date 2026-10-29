@@ -4,7 +4,7 @@
 
 The screen used while streaming. The user adjusts where videos are placed while looking at the stream video itself.
 
-It has the stream preview, starting and stopping a recording, and placement editing. Starting and stopping the stream, audio, camera switching, and so on are added with their features.
+It has the stream preview, starting and stopping a recording, the sound going in, and placement editing. Starting and stopping the stream, audio, camera switching, and so on are added with their features.
 
 ## 2. Layout
 
@@ -15,6 +15,7 @@ It has the stream preview, starting and stopping a recording, and placement edit
 │ │  └ Placement editing (overlay)  │ │
 │ └─────────────────────────────────┘ │
 │ [● REC 00:12:34] [■ Stop recording] │
+│ [🎤] Mic ▮▮▮▯  [🎤] Game ▮▯▯▯       │
 │ In view: [✓ Left arm] [○ Left hand]… │
 │ ┌ Stacking order ─┐ How to edit      │
 │ │ Layer List      │                  │
@@ -27,6 +28,7 @@ It has the stream preview, starting and stopping a recording, and placement edit
 | Stream preview | Preview (`components.md` 3.17) | `IStreamPreviewSource` (Video), at 16:9 across the screen's width (at most 960 px) |
 | Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage) |
 | Recording | Status Chip (3.13) and Buttons (3.1); `RecordControl` | Right under the preview; `IRecordingService` (Video). What each state shows, the confirmation to stop, and the saved file: recording detailed design 18.1. Left out without recording |
+| Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The mute button toggles, and muted shows the crossed-out microphone (by shape). The meter is -60 to 0 dB. Left out without audio |
 | In view | Status Chips (3.13), one per arm and hand | Under the preview, while tracking runs: which of the person's arms and hands the camera sees, by the person's own sides, as the avatar uses them (`LimbStatusRow`, refreshed every 0.2 s). An arm is seen with its shoulder, elbow, and wrist seen and in the image (check); partly without the wrist (warning, "wrist not seen"); otherwise not in view (outline). A hand is seen when the hand tracking finds it. The user asked to see why an arm or a hand rests (2026-10-25) |
 | Stacking order | Layer List (3.20) in a Card | Below the preview; the video in front is at the top |
 | How to edit | Description (Text 2) | "Drag a video to move it and drag its corners to resize it. Right-click for more." |
@@ -80,5 +82,9 @@ Placement editing follows UI foundation detailed design 9.3 and 9.4. With the ke
 | `live.record.problem.disk` | 空き容量が足りないため録画できません（または途中で止めました）。不要なファイルを消すか、設定画面の「録画」で別のドライブのフォルダーを選んでください。 | There is not enough free space to record (or the recording was stopped). Delete files you do not need, or choose a folder on another drive under Recording on the setup screen. |
 | `live.record.problem.encoder` | 動画を書き出せませんでした。もう一度録画してください。続く場合は診断画面のログを確認してください。 | The video could not be written. Record again; if it keeps happening, check the log on the Diagnostics screen. |
 | `live.record.problem.audio` | 音声なしで録画しています。 | Recording without audio. |
+| `live.audio.microphone` | マイク | Mic |
+| `live.audio.game` | ゲーム | Game |
+| `live.audio.mute` | ミュート | Mute |
+| `live.audio.unmute` | ミュートを解除 | Unmute |
 | `stage.screen.game` | ゲーム画面 | Game screen |
 | `stage.screen.subscreen` | サブモニター | Sub monitor |

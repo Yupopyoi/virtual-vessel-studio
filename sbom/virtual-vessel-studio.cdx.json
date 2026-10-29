@@ -818,7 +818,7 @@
         }
       ],
       "scope": "required",
-      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture) and VirtualVessel.Encode.Native.dll (native/encode), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's) are only linked against and not distributed."
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine) are only linked against and not distributed."
     },
     {
       "type": "application",

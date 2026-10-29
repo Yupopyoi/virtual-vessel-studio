@@ -11,6 +11,9 @@ namespace VirtualVessel.ProjectData.Projects
 
         /// <summary>The encoding settings shared by recording and, later, streaming (recording detailed design 10).</summary>
         Streaming,
+
+        /// <summary>The audio sources, their devices, gains, and sends (audio detailed design 10).</summary>
+        Audio,
     }
 
     /// <summary>
@@ -38,6 +41,9 @@ namespace VirtualVessel.ProjectData.Projects
         /// <summary>Added without a schema step: a project from before reads null, and gets a new profile when opened.</summary>
         public string StreamingProfileId { get; set; }
 
+        /// <summary>Added without a schema step, as the streaming profile was.</summary>
+        public string AudioProfileId { get; set; }
+
         public ProjectManifest Clone()
         {
             return (ProjectManifest)MemberwiseClone();
@@ -50,7 +56,8 @@ namespace VirtualVessel.ProjectData.Projects
             {
                 ProfileKind.Tracking => TrackingProfileId,
                 ProfileKind.Capture => CaptureProfileId,
-                _ => StreamingProfileId,
+                ProfileKind.Streaming => StreamingProfileId,
+                _ => AudioProfileId,
             };
         }
 
@@ -66,8 +73,11 @@ namespace VirtualVessel.ProjectData.Projects
                 case ProfileKind.Capture:
                     next.CaptureProfileId = id;
                     break;
-                default:
+                case ProfileKind.Streaming:
                     next.StreamingProfileId = id;
+                    break;
+                default:
+                    next.AudioProfileId = id;
                     break;
             }
 
