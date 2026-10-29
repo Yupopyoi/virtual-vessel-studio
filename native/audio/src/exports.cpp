@@ -395,6 +395,17 @@ extern "C"
         return engine != nullptr ? StreamLatencyMicroseconds : 0;
     }
 
+    int32_t vv_audio_set_stream_delay(vv_audio_engine* engine, int32_t delay_ms)
+    {
+        if (engine == nullptr || delay_ms < 0 || delay_ms > VV_AUDIO_MAX_STREAM_DELAY_MS)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        engine->mixer.SetStreamDelay((static_cast<int64_t>(delay_ms) * engine->frequency) / 1000);
+        return VV_AUDIO_OK;
+    }
+
     int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, vv_audio_stream_tap* tap)
     {
         if (engine == nullptr || tap == nullptr)

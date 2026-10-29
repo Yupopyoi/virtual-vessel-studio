@@ -21,7 +21,8 @@ extern "C"
 {
 #endif
 
-#define VV_AUDIO_API_VERSION 1
+// 2: the stream bus can be delayed (vv_audio_set_stream_delay).
+#define VV_AUDIO_API_VERSION 2
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -102,8 +103,14 @@ VV_AUDIO_API int32_t vv_audio_get_source_status(vv_audio_engine* engine, int32_t
 // The stream bus's highest level since the last call, after the limiter, in dBFS.
 VV_AUDIO_API int32_t vv_audio_get_bus_peak(vv_audio_engine* engine, int32_t bus, float* peak_db);
 
-// How far the stream bus is behind the moment the sound reached the device, in microseconds.
+// How far the stream bus is behind the moment the sound reached the device, in microseconds. The delay
+// below is not included: it is chosen, not a cost of processing.
 VV_AUDIO_API int64_t vv_audio_stream_latency_us(vv_audio_engine* engine);
+
+// Delays the stream bus for its readers (recording, streaming) by up to a second, in milliseconds, so the
+// voice meets the avatar's motion, which tracking delays. What the user hears is not delayed.
+#define VV_AUDIO_MAX_STREAM_DELAY_MS 1000
+VV_AUDIO_API int32_t vv_audio_set_stream_delay(vv_audio_engine* engine, int32_t delay_ms);
 
 VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, vv_audio_stream_tap* tap);
 

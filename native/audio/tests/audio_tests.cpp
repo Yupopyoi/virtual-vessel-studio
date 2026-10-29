@@ -174,6 +174,20 @@ namespace
         Check(read == 3800 && first == anchor + 1000, "the next read follows on");
         Check(mixer.ReadStream(out.data(), 4000, INT64_MAX, &first) == 0, "and stops at what was mixed");
 
+        // A delayed bus gives each frame as heard that much later: the same frames, later times, and fewer by a time.
+        Mixer delayed(Frequency);
+        delayed.SetStreamDelay(300);
+        for (int b = 0; b < 10; b++)
+        {
+            delayed.MixBlock(anchor + (static_cast<int64_t>(b) * BlockFrames));
+        }
+
+        read = delayed.ReadStream(out.data(), 4000, anchor + 999, &first);
+        Check(read == 700 && first == anchor + 300, "a delay moves the bus later for its readers");
+        delayed.SetStreamDelay(-5);
+        read = delayed.ReadStream(out.data(), 4000, anchor + 999, &first);
+        Check(read == 300 && first == anchor + 700, "a negative delay is none");
+
         // With the real QPC frequency, a frame's time is its index over the rate.
         Check(Mixer::FrameQpc(0, 48000ULL * 3600, 10'000'000) == 36'000'000'000LL, "an hour in, frame times stay exact");
     }

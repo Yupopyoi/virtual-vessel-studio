@@ -238,7 +238,8 @@ namespace vv::audio
             return 0;
         }
 
-        int64_t anchor = _busAnchor.load(std::memory_order_relaxed);
+        // The delay moves the whole timeline, so frames are both chosen and timed as heard that much later.
+        int64_t anchor = _busAnchor.load(std::memory_order_relaxed) + _streamDelay.load(std::memory_order_relaxed);
         uint64_t written = _busWritten.load(std::memory_order_acquire);
 
         // Frames older than the ring holds were overwritten; keep a block of margin from the writer.
@@ -281,6 +282,11 @@ namespace vv::audio
     float Mixer::TakeBusPeak()
     {
         return _busPeak.exchange(0.0f);
+    }
+
+    void Mixer::SetStreamDelay(int64_t ticks)
+    {
+        _streamDelay.store(ticks > 0 ? ticks : 0, std::memory_order_relaxed);
     }
 
     void Mixer::RaisePeak(std::atomic<float>& peak, float value)
