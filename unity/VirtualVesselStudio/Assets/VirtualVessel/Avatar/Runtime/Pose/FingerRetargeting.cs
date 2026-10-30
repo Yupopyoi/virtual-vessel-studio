@@ -93,21 +93,6 @@ namespace VirtualVessel.Avatar
         public const float ThumbOpenBend = 20f;
         public const float ThumbGain = 1.5f;
 
-        /// <summary>
-        /// The thumb's reading toward its side and the scale past it, as for the other fingers: on the user's
-        /// recordings the whole thumb read a median of 33° from the fingers in an open hand and 53° in half of
-        /// a heart, where the metacarpal alone barely differed (41° and 44°), and shown as read it still
-        /// pointed at the face (2026-10-30).
-        /// </summary>
-        public const float OpenThumbAzimuth = 33f;
-        public const float ThumbAzimuthGain = 1.75f;
-
-        /// <summary>How far the thumb can point (<see cref="ThumbAim"/>).</summary>
-        public const float MinThumbAzimuth = -20f;
-        public const float MaxThumbAzimuth = 90f;
-        public const float MinThumbElevation = -20f;
-        public const float MaxThumbElevation = 70f;
-
         /// <summary>The model's bone of <paramref name="finger"/>'s <paramref name="joint"/>th joint (0 nearest the hand) on <paramref name="side"/>.</summary>
         public static AvatarBone Bone(ArmSide side, Finger finger, int joint)
         {
@@ -119,9 +104,9 @@ namespace VirtualVessel.Avatar
         /// Writes the finger angles of <paramref name="hand"/> into <paramref name="into"/>, within the limits;
         /// false, writing nothing, when the hand is not seen. <paramref name="left"/> is whether it is the
         /// person's left hand, whose thumb is on the other side. <paramref name="tuning"/> is the user's
-        /// strength; null is the default.
+        /// strength; null is the default. <paramref name="mirror"/> is whether the avatar mirrors the user.
         /// </summary>
-        public static bool TryMeasure(HandPose hand, bool left, FingerPose into, FingerTuning tuning = null)
+        public static bool TryMeasure(HandPose hand, bool left, FingerPose into, FingerTuning tuning = null, bool mirror = false)
         {
             tuning ??= FingerTuning.Default;
             float baseGain = BaseGain * tuning.Bend;
@@ -171,7 +156,7 @@ namespace VirtualVessel.Avatar
             into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, thumbGain, MaxThumbBend), ThumbTuckBend * tuck));
             into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, thumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
             into.SetSpread(Finger.Thumb, 0f);
-            (into.ThumbAzimuth, into.ThumbElevation) = ThumbAim(hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbCmc], hand[HandJoint.MiddleMcp] - wrist, back, thumbward);
+            into.ThumbDirection = ThumbDirection(hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbCmc], mirror);
             into.ThumbAim = (1f - tuck) * 100f;
             return true;
         }
@@ -200,20 +185,16 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// Where the thumb (<paramref name="thumb"/>, from its base to its tip) points in the palm, in degrees: from the fingers
-        /// (<paramref name="along"/>) toward the thumb's side, and out of the palm's side of the hand, within
-        /// the limits. A model's thumb rests in its own direction, often nearly along the fingers, so bending
-        /// its joints alone pointed it at the face in half of a heart, where the user's points down (the
-        /// user's report, 2026-10-30). Pure.
+        /// Where the whole thumb (<paramref name="thumb"/>, from its base to its tip) points in the avatar
+        /// root's space. A model's thumb rests in its own direction, and only following its bend pointed it at
+        /// the face in half of a heart, where the user's points down (the user's report, 2026-10-30). In root
+        /// space and not in the palm, because the shown palm can differ from the tracked one: 30° on those
+        /// recordings, which kept the thumb above level while the tracked one was below. Pure.
         /// </summary>
-        public static (float Azimuth, float Elevation) ThumbAim(Vector3 thumb, Vector3 along, Vector3 back, Vector3 thumbward)
+        public static Vector3 ThumbDirection(Vector3 thumb, bool mirror)
         {
-            Vector3 forward = along.normalized;
-            Vector3 up = Vector3.ProjectOnPlane(back, forward).normalized;
-            Vector3 side = Vector3.ProjectOnPlane(Vector3.ProjectOnPlane(thumbward, forward), up).normalized;
-            float azimuth = Mathf.Atan2(Vector3.Dot(thumb, side), Vector3.Dot(thumb, forward)) * Mathf.Rad2Deg;
-            float elevation = Mathf.Asin(Mathf.Clamp(Vector3.Dot(thumb.normalized, -up), -1f, 1f)) * Mathf.Rad2Deg;
-            return (Mathf.Clamp(OpenThumbAzimuth + ((azimuth - OpenThumbAzimuth) * ThumbAzimuthGain), MinThumbAzimuth, MaxThumbAzimuth), Mathf.Clamp(elevation, MinThumbElevation, MaxThumbElevation));
+            Vector3 direction = thumb.normalized;
+            return mirror ? new Vector3(-direction.x, direction.y, direction.z) : direction;
         }
 
         /// <summary>The bend shown for a bend read: past <paramref name="open"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
@@ -266,9 +247,10 @@ namespace VirtualVessel.Avatar
                     // The fingers bend into the palm; the thumb bends across it, toward the little finger.
                     Vector3 toward = finger == Finger.Thumb ? -rest.Thumbward : -rest.Back;
                     Quaternion turn = Quaternion.AngleAxis(pose.Bend(finger, joint), Axis(direction, toward));
-                    if (joint == 0 && finger == Finger.Thumb)
+                    if (joint == 0 && finger == Finger.Thumb && pose.ThumbDirection.sqrMagnitude > 1e-4f)
                     {
-                        Quaternion aim = Quaternion.FromToRotation(direction, rest.InPalm(pose.ThumbAzimuth, pose.ThumbElevation));
+                        // The turn is in the hand's frame, and the direction is in the root's.
+                        Quaternion aim = Quaternion.FromToRotation(direction, Quaternion.Inverse(hand) * pose.ThumbDirection);
                         turn = Quaternion.Slerp(Quaternion.identity, aim, pose.ThumbAim / 100f) * turn;
                     }
 
@@ -302,30 +284,18 @@ namespace VirtualVessel.Avatar
     {
         private readonly Vector3[] _directions;
 
-        private FingerRest(Vector3[] directions, Vector3 along, Vector3 back, Vector3 thumbward)
+        private FingerRest(Vector3[] directions, Vector3 back, Vector3 thumbward)
         {
             _directions = directions;
-            Along = along;
             Back = back;
             Thumbward = thumbward;
         }
-
-        /// <summary>From the wrist toward the fingers, in the palm's plane.</summary>
-        public Vector3 Along { get; }
 
         /// <summary>Out of the back of the hand.</summary>
         public Vector3 Back { get; }
 
         /// <summary>Across the hand toward the thumb, at right angles to <see cref="Back"/>.</summary>
         public Vector3 Thumbward { get; }
-
-        /// <summary>The direction <paramref name="azimuth"/> degrees from the fingers toward the thumb's side and <paramref name="elevation"/> degrees out of the palm's side. Pure.</summary>
-        public Vector3 InPalm(float azimuth, float elevation)
-        {
-            float a = azimuth * Mathf.Deg2Rad;
-            float e = elevation * Mathf.Deg2Rad;
-            return (((Along * Mathf.Cos(a)) + (Thumbward * Mathf.Sin(a))) * Mathf.Cos(e)) - (Back * Mathf.Sin(e));
-        }
 
         /// <summary>Where the bone of <paramref name="finger"/>'s <paramref name="joint"/>th joint points.</summary>
         public Vector3 Direction(Finger finger, int joint)
@@ -374,7 +344,7 @@ namespace VirtualVessel.Avatar
                 }
             }
 
-            return new FingerRest(directions, Vector3.Cross(left ? thumbward : back, left ? back : thumbward).normalized, back, thumbward);
+            return new FingerRest(directions, back, thumbward);
         }
 
         private static AvatarBone Bone(ArmSide side, Finger finger)

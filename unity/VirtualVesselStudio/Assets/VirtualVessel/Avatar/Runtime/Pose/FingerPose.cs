@@ -29,28 +29,25 @@ namespace VirtualVessel.Avatar
         /// <summary>A loosely closed hand, the rest when no hand is seen. Not to be written.</summary>
         public static readonly FingerPose Relaxed = CreateRelaxed();
 
-        // After the fingers: the thumb's aim (see ThumbAzimuth).
-        private const int AzimuthAt = FingerCount * Stride;
-        private const int ElevationAt = AzimuthAt + 1;
-        private const int AimAt = AzimuthAt + 2;
+        // After the fingers: where the thumb points, x, y, z, then how far it follows that.
+        private const int ThumbAt = FingerCount * Stride;
+        private const int AimAt = ThumbAt + 3;
 
         public float[] Values { get; } = new float[AimAt + 1];
 
-        /// <summary>Where the thumb's base points in the palm: degrees from the fingers toward the thumb's side.</summary>
-        public float ThumbAzimuth
+        /// <summary>Where the whole thumb points, in the avatar root's space; blended over time, so not always of unit length.</summary>
+        public Vector3 ThumbDirection
         {
-            get => Values[AzimuthAt];
-            set => Values[AzimuthAt] = value;
+            get => new Vector3(Values[ThumbAt], Values[ThumbAt + 1], Values[ThumbAt + 2]);
+            set
+            {
+                Values[ThumbAt] = value.x;
+                Values[ThumbAt + 1] = value.y;
+                Values[ThumbAt + 2] = value.z;
+            }
         }
 
-        /// <summary>The same, degrees out of the palm's side of the hand.</summary>
-        public float ThumbElevation
-        {
-            get => Values[ElevationAt];
-            set => Values[ElevationAt] = value;
-        }
-
-        /// <summary>How far the thumb's base follows that aim, in percent; 0 keeps the model's own direction.</summary>
+        /// <summary>How far the thumb's base follows that direction, in percent; 0 keeps the model's own direction.</summary>
         public float ThumbAim
         {
             get => Values[AimAt];

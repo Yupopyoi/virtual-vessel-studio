@@ -44,45 +44,28 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void ThumbAim_ReadsThePalmsDirections_AndScalesPastAnOpenHand()
+        public void ThumbDirection_IsInRootSpace_AndMirrored()
         {
-            Vector3 along = Vector3.forward;
-            Vector3 back = Vector3.up;
-            Vector3 thumbward = Vector3.right;
-            Vector3 Toward(float azimuth)
-            {
-                return Quaternion.AngleAxis(azimuth, Vector3.up) * Vector3.forward;
-            }
-
-            (float open, float flat) = FingerRetargeting.ThumbAim(Toward(FingerRetargeting.OpenThumbAzimuth), along, back, thumbward);
-            Assert.That(open, Is.EqualTo(FingerRetargeting.OpenThumbAzimuth).Within(0.01f), "An open hand's thumb stays where it reads.");
-            Assert.That(flat, Is.EqualTo(0f).Within(0.01f));
-
-            (float heart, _) = FingerRetargeting.ThumbAim(Toward(53f), along, back, thumbward);
-            Assert.That(heart, Is.EqualTo(68f).Within(0.01f));
-
-            (float wide, _) = FingerRetargeting.ThumbAim(Vector3.right - Vector3.forward, along, back, thumbward);
-            Assert.That(wide, Is.EqualTo(FingerRetargeting.MaxThumbAzimuth));
-
-            (_, float lifted) = FingerRetargeting.ThumbAim(Vector3.forward - Vector3.up, along, back, thumbward);
-            Assert.That(lifted, Is.EqualTo(45f).Within(0.01f), "Out of the palm's side, away from the back of the hand.");
+            Assert.That(Vector3.Distance(FingerRetargeting.ThumbDirection(new Vector3(2f, -1f, 2f), false), new Vector3(2f, -1f, 2f) / 3f), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(FingerRetargeting.ThumbDirection(new Vector3(2f, -1f, 2f), true), new Vector3(-2f, -1f, 2f) / 3f), Is.LessThan(0.001f));
         }
 
         [Test]
-        public void ThumbAim_TurnsTheModelsThumb_AsFarAsItIsAimed()
+        public void TheThumb_PointsThatWay_WhateverTheHandShownDoes()
         {
             FingerRest rest = FingerRest.Of(null, ArmSide.Right);
             var rotations = new Quaternion[FingerPose.FingerCount * FingerPose.JointCount];
-            var pose = new FingerPose { ThumbAzimuth = 70f, ThumbElevation = 10f, ThumbAim = 100f };
+            Vector3 down = new Vector3(0.6f, -0.8f, 0f);
+            var pose = new FingerPose { ThumbDirection = down, ThumbAim = 100f };
+            Quaternion hand = Quaternion.Euler(20f, 40f, -30f);
 
-            FingerRetargeting.Rotations(rest, Quaternion.identity, pose, rotations);
-            Assert.That(Vector3.Angle(rotations[0] * rest.Direction(Finger.Thumb, 0), rest.InPalm(70f, 10f)), Is.LessThan(0.1f));
+            FingerRetargeting.Rotations(rest, hand, pose, rotations);
+            Assert.That(Vector3.Angle(rotations[0] * rest.Direction(Finger.Thumb, 0), down), Is.LessThan(0.1f));
 
             pose.ThumbAim = 0f;
-            FingerRetargeting.Rotations(rest, Quaternion.identity, pose, rotations);
-            Assert.That(Quaternion.Angle(rotations[0], Quaternion.identity), Is.LessThan(0.1f), "Without aim the thumb keeps the model's direction.");
+            FingerRetargeting.Rotations(rest, hand, pose, rotations);
+            Assert.That(Quaternion.Angle(rotations[0], hand), Is.LessThan(0.1f), "Without aim the thumb keeps the model's direction.");
         }
-
         [Test]
         public void AnUntuckedThumb_FollowsTheHand_AndAHandNotSeenDoesNot()
         {

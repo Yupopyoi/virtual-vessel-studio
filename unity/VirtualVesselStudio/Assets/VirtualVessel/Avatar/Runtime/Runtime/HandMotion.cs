@@ -96,7 +96,7 @@ namespace VirtualVessel.Avatar
                     _to = palm;
 
                     // The person's hand on the avatar's side is the other one in a mirror; its thumb is on its own side.
-                    if (!FingerRetargeting.TryMeasure(hand, _side.IsLeft != mirror, _measured, tuning))
+                    if (!FingerRetargeting.TryMeasure(hand, _side.IsLeft != mirror, _measured, tuning, mirror))
                     {
                         _measured.CopyFrom(_toFingers);
                     }
