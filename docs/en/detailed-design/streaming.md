@@ -158,7 +158,7 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 
 ## 11. Storage
 
-- The stream key is kept in Windows Credential Manager as a generic credential (`CredWrite`, target `VirtualVesselStudio/stream/<credentialId>`, for that user only). The profile holds only the ID that makes the target name.
+- The stream key is kept in Windows Credential Manager as a generic credential (`CredWrite`, target `VirtualVesselStudio/stream/<credentialId>`, for that user and that PC only (`CRED_PERSIST_LOCAL_MACHINE`)). The profile holds only the ID that makes the target name. The ID is 32 hexadecimal digits; profiles can be edited or come from someone else, so its form is checked before use, and it cannot name a target outside this application's own.
 - A profile exported and shared never contains the key; another PC needs the key registered again.
 - Compared (the user agreed, 2026-10-30): written as it is in a settings file, the key leaks through sharing, Issue attachments, and backups. Encrypted with DPAPI in a file and Credential Manager both keep it from other users and other PCs; Credential Manager also keeps it out of files, and the user can see and remove it in Windows' own screen.
 - A program running as the same user (malware) can read it whichever way it is kept. Not holding a key at all (the YouTube API's OAuth, with revocable tokens) is a later step of system design 10.11.
@@ -209,6 +209,7 @@ Streaming/Tests/EditMode/
 ProjectData/Runtime/Credentials/        ICredentialStore, WindowsCredentialStore
 UI/Runtime/Streaming/IStreamingService.cs
 UI/Runtime/Screens/                     StreamControl (live screen), StreamingCard (setup screen)
+Streaming/Plugins/x86_64/               VirtualVessel.Stream.Native.dll (kept out of Git)
 Video/Shaders/                          The NV12 conversion
 ```
 
