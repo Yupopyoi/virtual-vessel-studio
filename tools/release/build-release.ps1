@@ -69,6 +69,7 @@ if ($Upload)
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-capture.ps1'))
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-encode.ps1'))
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-audio.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-stream.ps1'))
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\deps\fetch-mediapipe.ps1'))
 if (-not $SkipTests)
 {

@@ -909,6 +909,7 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 | Plugin | 内容 |
 |---|---|
 | Capture（`native/capture/`） | 開発者と同じ`tools/native/build-capture.ps1`で、CMakeの構成、Releaseのビルド、Nativeのテスト（`vv_capture_tests`）を行う。できたDLLをArtifactとして14日間保存する |
+| 配信（`native/stream/`） | `tools/native/build-stream.ps1`でビルドし、プロトコルのテスト（`vv_stream_protocol_tests`）だけを実行する。ホステッドランナーにはエンコーダーがないことがあり、接続のテストにはffmpegとYouTubeが要るので、これらは開発者のPCとリリースビルドで実行する。ビルドしたDLLは14日間、成果物として残す |
 
 - 手元では、同じスクリプトでビルドし、DLLをUnityのProjectへ写す（Visual StudioとCMakeが必要）。
 - 配布物へのDLLの組み込みは、main Build（18.2）のNative Plugin Packagingで扱う。
