@@ -236,7 +236,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeStreaming : IStreamingService
+        internal sealed class FakeStreaming : IStreamingService
         {
             private readonly ObservableValue<StreamingState> _state = new ObservableValue<StreamingState>(StreamingState.Idle);
             private readonly ObservableValue<StreamingProblem> _problem = new ObservableValue<StreamingProblem>(StreamingProblem.None);
