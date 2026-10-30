@@ -207,15 +207,109 @@ namespace
         Check(DbToLinear(-INFINITY) == 0.0f && std::isinf(LinearToDb(0.0f)), "-inf is silence");
     }
 
+    // Mixes blocks of a tone from `source` and returns the monitor bus's peak over the last half.
+    float RunMonitor(Mixer& mixer, int source, float amplitude, int blocks, uint64_t& mixed)
+    {
+        size_t phase = 0;
+        float peak = 0.0f;
+        std::vector<float> out(BlockFrames * Channels);
+        for (int b = 0; b < blocks; b++)
+        {
+            std::vector<float> tone = Tone(amplitude, BlockFrames, phase);
+            mixer.Write(source, tone.data(), BlockFrames);
+            mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+            mixed++;
+            size_t read = mixer.ReadMonitor(out.data(), BlockFrames);
+            if (b >= blocks / 2)
+            {
+                peak = std::max(peak, Peak(out.data(), static_cast<int>(read), Channels));
+            }
+        }
+
+        return peak;
+    }
+
+    void MonitorBus()
+    {
+        Mixer mixer(Frequency);
+        int a = -1;
+        mixer.Add(&a);
+        uint64_t mixed = 0;
+        Check(RunMonitor(mixer, a, 0.5f, 100, mixed) == 0.0f, "a source reaches the monitor only when asked to");
+
+        mixer.SetSend(a, 1, 0.0f);
+        Check(std::fabs(RunMonitor(mixer, a, 0.5f, 100, mixed) - 0.5f) < 0.01f, "a source sent to the monitor is heard there");
+
+        mixer.SetSend(a, 0, -200.0f);
+        Check(std::fabs(RunMonitor(mixer, a, 0.5f, 100, mixed) - 0.5f) < 0.01f, "the sends are apart: none to the stream, still heard");
+
+        mixer.SetMonitor(-6.0206f, false);
+        Check(std::fabs(RunMonitor(mixer, a, 0.5f, 100, mixed) - 0.25f) < 0.01f, "the monitor has its own volume");
+
+        mixer.SetMonitor(0.0f, true);
+        Check(RunMonitor(mixer, a, 0.5f, 100, mixed) == 0.0f, "muting the monitor silences it");
+
+        mixer.SetMonitor(0.0f, false);
+        mixer.SetGain(a, 0.0f, true);
+        Check(RunMonitor(mixer, a, 0.5f, 100, mixed) == 0.0f, "a muted source is silent on the monitor too");
+
+        // Ring: nobody plays, so it fills, and a new reader starts from now rather than from long ago.
+        mixer.SetGain(a, 0.0f, false);
+        for (int b = 0; b < 200; b++)
+        {
+            mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+            mixed++;
+        }
+
+        Check(mixer.MonitorAvailable() < 20000, "the monitor bus does not grow without a reader");
+        mixer.DiscardMonitor();
+        Check(mixer.MonitorAvailable() == 0, "what waited is let go");
+
+        // The stream delay is for the stream: the monitor is heard at once.
+        Mixer delayed(Frequency);
+        int d = -1;
+        delayed.Add(&d);
+        delayed.SetSend(d, 1, 0.0f);
+        delayed.SetStreamDelay(SampleRate);
+        uint64_t delayedMixed = 0;
+        Check(RunMonitor(delayed, d, 0.5f, 100, delayedMixed) > 0.4f, "the stream delay does not delay the monitor");
+    }
+
+    void Fill()
+    {
+        vv::audio::FillTracker fill;
+        Check(fill.Next(vv::audio::PrimeFrames - 1, 480).take == 0, "it waits to fill up");
+        Check(fill.Next(vv::audio::PrimeFrames, 480).take == 480, "then it plays");
+        Check(fill.Next(100, 480).ranDry, "it says when it ran dry");
+        Check(fill.Next(100, 480).take == 0, "and waits to fill up again");
+
+        vv::audio::FillTracker settled;
+        for (int i = 0; i < 60; i++)
+        {
+            settled.Next(1000, 480);
+        }
+
+        int corrected = 0;
+        int more = 0;
+        for (int i = 0; i < 200; i++)
+        {
+            vv::audio::FillStep step = settled.Next(1300, 480);
+            corrected += step.corrected ? 1 : 0;
+            more += step.take == 481 ? 1 : 0;
+        }
+
+        Check(more > 0 && more == corrected, "a fill running high takes a frame more");
+    }
+
     void Problems()
     {
         int state = 0;
         int problem = 0;
-        DeviceSource::Classify(AUDCLNT_E_DEVICE_INVALIDATED, state, problem);
+        DeviceLoop::Classify(AUDCLNT_E_DEVICE_INVALIDATED, state, problem);
         Check(state == VV_AUDIO_SOURCE_UNAVAILABLE, "an unplugged device is unavailable");
-        DeviceSource::Classify(AUDCLNT_E_DEVICE_IN_USE, state, problem);
+        DeviceLoop::Classify(AUDCLNT_E_DEVICE_IN_USE, state, problem);
         Check(state == VV_AUDIO_SOURCE_ERROR && problem == VV_AUDIO_PROBLEM_IN_USE, "a device in exclusive use");
-        DeviceSource::Classify(E_ACCESSDENIED, state, problem);
+        DeviceLoop::Classify(E_ACCESSDENIED, state, problem);
         Check(problem == VV_AUDIO_PROBLEM_ACCESS_DENIED, "microphone access denied by Windows");
     }
 
@@ -308,6 +402,35 @@ namespace
 
         std::printf("removing the source\n");
         Check(vv_audio_remove_source(engine, source) == VV_AUDIO_OK, "a source is removed");
+
+        // The monitor on Windows' default output, playing silence: no tone on the developer's speakers.
+        vv_audio_device outputs[32];
+        int32_t outputCount = 0;
+        vv_audio_list_outputs(outputs, 32, &outputCount);
+        std::printf("output devices: %d\n", outputCount);
+        vv_audio_monitor_status monitor = {};
+        vv_audio_get_monitor_status(engine, &monitor);
+        Check(monitor.state == VV_AUDIO_SOURCE_OFF, "the monitor is off with no device");
+        for (int32_t i = 0; i < outputCount && i < 32; i++)
+        {
+            if (outputs[i].is_default)
+            {
+                vv_audio_set_monitor_device(engine, outputs[i].id);
+                auto opened = std::chrono::steady_clock::now();
+                while (monitor.state != VV_AUDIO_SOURCE_RUNNING && std::chrono::steady_clock::now() - opened < std::chrono::seconds(3))
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                    vv_audio_get_monitor_status(engine, &monitor);
+                }
+
+                Check(monitor.state == VV_AUDIO_SOURCE_RUNNING, "the monitor runs on the default output");
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                vv_audio_get_monitor_status(engine, &monitor);
+                std::printf("monitor: underruns %lld, corrections %lld\n", monitor.underruns, monitor.drift_corrections);
+                vv_audio_set_monitor_device(engine, nullptr);
+            }
+        }
+
         std::printf("destroying the engine\n");
         vv_audio_destroy(engine);
     }
@@ -348,6 +471,8 @@ int main()
     Step("drift", [] { Drift(1.001, "a device 0.1% fast"); Drift(0.999, "a device 0.1% slow"); });
     Step("running dry", RunningDry);
     Step("tap timing", TapTiming);
+    Step("monitor bus", MonitorBus);
+    Step("fill", Fill);
     Step("ramps", Ramps);
     Step("problems", Problems);
     Step("the engine on this PC", EngineOnThisPc);

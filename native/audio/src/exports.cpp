@@ -2,6 +2,7 @@
 
 #include "vv_audio.h"
 
+#include "device_output.h"
 #include "device_source.h"
 #include "mixer.h"
 
@@ -26,6 +27,7 @@
 
 using Microsoft::WRL::ComPtr;
 using vv::audio::BlockFrames;
+using vv::audio::DeviceOutput;
 using vv::audio::DeviceSource;
 using vv::audio::Mixer;
 
@@ -58,12 +60,13 @@ namespace
 struct vv_audio_engine
 {
     explicit vv_audio_engine(int64_t frequency)
-        : mixer(frequency), frequency(frequency)
+        : mixer(frequency), frequency(frequency), monitor(mixer)
     {
     }
 
     Mixer mixer;
     int64_t frequency;
+    DeviceOutput monitor;
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
     std::atomic<bool> stop{ false };
@@ -124,14 +127,9 @@ struct vv_audio_engine
     }
 };
 
-extern "C"
+namespace
 {
-    int32_t vv_audio_api_version(void)
-    {
-        return VV_AUDIO_API_VERSION;
-    }
-
-    int32_t vv_audio_list_inputs(vv_audio_device* devices, int32_t capacity, int32_t* count)
+    int32_t ListDevices(EDataFlow flow, vv_audio_device* devices, int32_t capacity, int32_t* count)
     {
         if (count == nullptr || capacity < 0 || (devices == nullptr && capacity > 0))
         {
@@ -156,7 +154,7 @@ extern "C"
 
             if (SUCCEEDED(hr))
             {
-                hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection);
+                hr = enumerator->EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE, &collection);
             }
 
             if (SUCCEEDED(hr) && !collection)
@@ -166,7 +164,7 @@ extern "C"
 
             std::wstring defaultId;
             ComPtr<IMMDevice> defaultDevice;
-            if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &defaultDevice)) && defaultDevice)
+            if (SUCCEEDED(hr) && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(flow, eConsole, &defaultDevice)) && defaultDevice)
             {
                 LPWSTR id = nullptr;
                 if (SUCCEEDED(defaultDevice->GetId(&id)) && id != nullptr)
@@ -221,6 +219,24 @@ extern "C"
         }
 
         return SUCCEEDED(hr) ? VV_AUDIO_OK : VV_AUDIO_SYSTEM_ERROR;
+    }
+}
+
+extern "C"
+{
+    int32_t vv_audio_api_version(void)
+    {
+        return VV_AUDIO_API_VERSION;
+    }
+
+    int32_t vv_audio_list_inputs(vv_audio_device* devices, int32_t capacity, int32_t* count)
+    {
+        return ListDevices(eCapture, devices, capacity, count);
+    }
+
+    int32_t vv_audio_list_outputs(vv_audio_device* devices, int32_t capacity, int32_t* count)
+    {
+        return ListDevices(eRender, devices, capacity, count);
     }
 
     int32_t vv_audio_create(vv_audio_engine** engine)
@@ -351,7 +367,7 @@ extern "C"
             return VV_AUDIO_NOT_FOUND;
         }
 
-        if (bus != VV_AUDIO_BUS_STREAM)
+        if (bus != VV_AUDIO_BUS_STREAM && bus != VV_AUDIO_BUS_MONITOR)
         {
             return VV_AUDIO_INVALID_ARGUMENT;
         }
@@ -367,7 +383,7 @@ extern "C"
             return VV_AUDIO_NOT_FOUND;
         }
 
-        const DeviceSource& device = *engine->sources[source];
+        const vv::audio::DeviceLoop& device = engine->sources[source]->Loop();
         vv::audio::SourceCounters counters = engine->mixer.TakeCounters(source);
         status->state = device.State();
         status->problem = device.Problem();
@@ -376,6 +392,52 @@ extern "C"
         status->overruns = counters.overruns;
         status->underruns = counters.underruns;
         status->drift_corrections = counters.driftCorrections;
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_set_monitor_device(vv_audio_engine* engine, const wchar_t* device_id)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        try
+        {
+            engine->monitor.SetDevice(device_id != nullptr ? device_id : L"");
+            return VV_AUDIO_OK;
+        }
+        catch (...)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+    }
+
+    int32_t vv_audio_set_monitor_gain(vv_audio_engine* engine, float gain_db, int32_t muted)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        engine->mixer.SetMonitor(gain_db, muted != 0);
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_get_monitor_status(vv_audio_engine* engine, vv_audio_monitor_status* status)
+    {
+        if (engine == nullptr || status == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        const vv::audio::DeviceLoop& device = engine->monitor.Loop();
+        status->state = device.State();
+        status->problem = device.Problem();
+        status->last_error = device.LastError();
+        status->peak_db = vv::audio::LinearToDb(engine->mixer.TakeMonitorPeak());
+        status->underruns = engine->monitor.Underruns();
+        status->drift_corrections = engine->monitor.DriftCorrections();
         return VV_AUDIO_OK;
     }
 
