@@ -373,7 +373,9 @@ namespace VirtualVessel.UI.Tests
 
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 
-            public AudioStreamTap StreamTap => default;
+            public AudioStreamTap RecordingTap => default;
+
+            public AudioStreamTap StreamingTap => default;
 
             private readonly ObservableValue<TimeSpan> _delay = new ObservableValue<TimeSpan>(TimeSpan.FromMilliseconds(300));
 

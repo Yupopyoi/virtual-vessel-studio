@@ -108,7 +108,7 @@ typedef struct vv_audio_stream_tap
 } vv_audio_stream_tap;
 ```
 
-- Managed code gets it from `vv_audio_get_stream_tap` and passes it to the encoder as plain values; Video never links to the audio DLL.
+- Managed code gets it from `vv_audio_get_stream_tap` and passes it to the encoder as plain values; Video never links to the audio DLL. Recording and streaming each have a tap with its own place on the bus (`VV_AUDIO_READER_*`, API version 3).
 - One reader at a time (recording; streaming shares the same encoded audio).
 
 ## 6. Data Models
@@ -221,7 +221,7 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 3: the monitor bus and its output device)
+native/audio/include/vv_audio.h        The C API (version 4: a tap per reader)
 native/audio/src/                      mixer (the mix, the buses, the tap; no threads or devices), frame_ring, fill_tracker (a ring between two clocks),
                                        dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
                                        device_output (the monitor's playback), exports (the engine and its mix thread)

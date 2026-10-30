@@ -270,6 +270,10 @@ namespace VirtualVessel.Audio
         /// <summary>Kept within 0 to <see cref="AudioSettings.MaxStreamDelayMs"/> ms and saved in the audio profile.</summary>
         void SetStreamDelay(TimeSpan delay);
 
-        AudioStreamTap StreamTap { get; }
+        /// <summary>The stream bus for recording; it keeps its own place, apart from <see cref="StreamingTap"/>.</summary>
+        AudioStreamTap RecordingTap { get; }
+
+        /// <summary>The stream bus for streaming, which can run alongside a recording.</summary>
+        AudioStreamTap StreamingTap { get; }
     }
 }

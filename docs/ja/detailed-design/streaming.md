@@ -108,7 +108,7 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 5. FLVのタグにして送信の待ち行列に入れる。送信のスレッドがRTMPのChunkにしてTLSの上で送る。
 
 - 録画と配信を同時に行うときは、それぞれが別にエンコードする（NVENCは同時に複数のエンコードを扱える）。エンコード結果の共有は17章。
-- 配信用のバスを録画と配信の2か所から読むため、Audioの読み出し口を読み手ごとの位置を持てる形にする（Audioの読み出し口のAPI version 3、`vv_audio_open_reader`）。
+- 配信用のバスを録画と配信の2か所から読むため、Audioの読み出し口を読み手ごとの位置を持てる形にする（Audio API version 3。`vv_audio_get_stream_tap`に`VV_AUDIO_READER_RECORDING`か`VV_AUDIO_READER_STREAMING`を渡し、それぞれ固定の読み出し口を得る）。
 
 ### 8.2 送信の詰まり
 

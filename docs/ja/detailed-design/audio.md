@@ -108,7 +108,7 @@ typedef struct vv_audio_stream_tap
 } vv_audio_stream_tap;
 ```
 
-- マネージドのコードは`vv_audio_get_stream_tap`でこれを受け取り、素朴な値としてエンコーダーへ渡す。Videoは音声のDLLにリンクしない。
+- マネージドのコードは`vv_audio_get_stream_tap`でこれを受け取り、素朴な値としてエンコーダーへ渡す。Videoは音声のDLLにリンクしない。録画と配信は、バス上の位置を別々に持つ読み出し口をそれぞれ使う（`VV_AUDIO_READER_*`、API version 3）。
 - 読むのは一度に1つ（録画。配信は、エンコードした同じ音声を共有する）。
 
 ## 6. Data Model
@@ -221,7 +221,7 @@ typedef struct vv_audio_stream_tap
 ## 16. Folder / Namespace
 
 ```text
-native/audio/include/vv_audio.h        公開のC API（version 3：モニターのバスと出力の機器）
+native/audio/include/vv_audio.h        公開のC API（version 4：読み手ごとのタップ）
 native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、fill_tracker（2つの時計の間の溜まり）、
                                        dsp（音量、リミッター）、device_loop（機器のスレッド、WASAPIの共有モード）、device_source（取り込み）、
                                        device_output（モニターの再生）、exports（エンジンと混ぜ合わせのスレッド）

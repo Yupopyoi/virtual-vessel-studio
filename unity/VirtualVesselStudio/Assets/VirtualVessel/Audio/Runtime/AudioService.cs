@@ -72,7 +72,9 @@ namespace VirtualVessel.Audio
 
         public TimeSpan StreamLatency => _engine?.StreamLatency ?? TimeSpan.Zero;
 
-        public AudioStreamTap StreamTap => _engine?.StreamTap ?? default;
+        public AudioStreamTap RecordingTap => _engine?.RecordingTap ?? default;
+
+        public AudioStreamTap StreamingTap => _engine?.StreamingTap ?? default;
 
         public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
 

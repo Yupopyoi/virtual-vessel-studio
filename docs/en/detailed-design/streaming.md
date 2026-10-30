@@ -108,7 +108,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 5. Both are made into FLV tags and put in the send queue. The sending thread makes them into RTMP chunks and sends them over TLS.
 
 - Recording and streaming at the same time each encode on their own (NVENC handles several sessions). Sharing the encoded output is in 17.
-- With recording and streaming both reading the stream bus, Audio's tap gets a read position per reader (audio tap API version 3, `vv_audio_open_reader`).
+- With recording and streaming both reading the stream bus, Audio's tap gets a read position per reader (audio API version 3: `vv_audio_get_stream_tap` takes `VV_AUDIO_READER_RECORDING` or `VV_AUDIO_READER_STREAMING`, one fixed tap for each).
 
 ### 8.2 A Congested Connection
 

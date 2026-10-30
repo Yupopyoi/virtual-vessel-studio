@@ -235,12 +235,14 @@ namespace vv::audio
         return anchorQpc + (seconds * frequency) + ((rest * frequency) / SampleRate);
     }
 
-    int32_t Mixer::ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc)
+    int32_t Mixer::ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc, int reader)
     {
-        if (out == nullptr || frames <= 0 || !_busAnchored.load(std::memory_order_acquire))
+        if (out == nullptr || frames <= 0 || reader < 0 || reader >= MaxReaders || !_busAnchored.load(std::memory_order_acquire))
         {
             return 0;
         }
+
+        uint64_t& position = _busRead[reader];
 
         // The delay moves the whole timeline, so frames are both chosen and timed as heard that much later.
         int64_t anchor = _busAnchor.load(std::memory_order_relaxed) + _streamDelay.load(std::memory_order_relaxed);
@@ -248,7 +250,7 @@ namespace vv::audio
 
         // Frames older than the ring holds were overwritten; keep a block of margin from the writer.
         uint64_t oldest = written > BusFrames - BlockFrames ? written - (BusFrames - BlockFrames) : 0;
-        _busRead = _busRead < oldest ? oldest : _busRead;
+        position = position < oldest ? oldest : position;
 
         // Only frames that began by untilQpc: (until - anchor) / frequency seconds after the anchor.
         uint64_t byTime = 0;
@@ -260,26 +262,26 @@ namespace vv::audio
             byTime = ((ticks / frequency) * SampleRate) + (((ticks % frequency) * SampleRate) / frequency) + 1;
         }
 
-        uint64_t end = std::min({ written, byTime, _busRead + static_cast<uint64_t>(frames) });
-        if (end <= _busRead)
+        uint64_t end = std::min({ written, byTime, position + static_cast<uint64_t>(frames) });
+        if (end <= position)
         {
             return 0;
         }
 
         if (firstQpc != nullptr)
         {
-            *firstQpc = FrameQpc(anchor, _busRead, _frequency);
+            *firstQpc = FrameQpc(anchor, position, _frequency);
         }
 
-        int32_t count = static_cast<int32_t>(end - _busRead);
+        int32_t count = static_cast<int32_t>(end - position);
         for (int32_t i = 0; i < count; i++)
         {
-            size_t at = static_cast<size_t>((_busRead + static_cast<uint64_t>(i)) & _busMask);
+            size_t at = static_cast<size_t>((position + static_cast<uint64_t>(i)) & _busMask);
             out[static_cast<size_t>(i) * Channels] = _bus[at * Channels];
             out[(static_cast<size_t>(i) * Channels) + 1] = _bus[(at * Channels) + 1];
         }
 
-        _busRead = end;
+        position = end;
         return count;
     }
 

@@ -278,7 +278,9 @@ namespace VirtualVessel.Audio.Tests
 
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 
-            public AudioStreamTap StreamTap => default;
+            public AudioStreamTap RecordingTap => default;
+
+            public AudioStreamTap StreamingTap => default;
 
             public IReadOnlyList<AudioDevice> Outputs { get; set; } = new[] { new AudioDevice("speakers", "Speakers", true) };
 

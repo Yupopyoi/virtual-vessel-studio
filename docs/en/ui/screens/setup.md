@@ -18,7 +18,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
 | Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available.") |
 | Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
-| Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming |
+| Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
