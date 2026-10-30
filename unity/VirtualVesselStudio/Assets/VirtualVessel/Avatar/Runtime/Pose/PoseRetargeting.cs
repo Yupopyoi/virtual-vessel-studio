@@ -222,14 +222,16 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// Writes one arm and its shoulder; returns whether the upper arm (shoulder and elbow) and the
-        /// forearm (the wrist too) were seen. Without the wrist the forearm is left straight here; the
+        /// Writes one arm and its shoulder; returns whether the arm (<see cref="BodyPose.IsArmSeen"/>) and the
+        /// forearm (its wrist) were seen. Without the wrist the forearm is left straight here; the
         /// motion keeps its last bend (<see cref="WithoutWrist"/>).
         /// </summary>
         private static (bool Arm, bool Forearm) WriteArm(BodyPose body, bool mirror, ArmSide side, Quaternion torso, bool torsoSeen, float armDownDegrees, BodyTarget into)
         {
             bool left = side.IsLeft;
-            bool seen = torsoSeen && Visible(body, side.ShoulderJoint, mirror) && Visible(body, side.ElbowJoint, mirror);
+            bool seen = torsoSeen && (mirror
+                ? body.IsArmSeen(Opposite(side.ShoulderJoint), Opposite(side.ElbowJoint), Opposite(side.WristJoint))
+                : body.IsArmSeen(side.ShoulderJoint, side.ElbowJoint, side.WristJoint));
             if (!seen)
             {
                 Quaternion lowered = torso * AvatarRestPose.UpperArm(left, armDownDegrees);
