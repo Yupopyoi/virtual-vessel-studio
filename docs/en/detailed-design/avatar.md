@@ -530,10 +530,10 @@ Built in step 5 (`PoseRetargeting`, `BodyMotion`). Every bone's rotation from th
 - The neck turns 40% of the way from the top of the torso to the head (7.1).
 - The upper arm points at the elbow. Its twist is set by the plane the elbow bends in. A nearly straight arm's bend plane is unknown, so the twist of the shortest swing from the torso is used, blended in between: from the torso below a sine of 0.25 between upper arm and forearm, from the bend plane at 0.50 and above. The forearm points at the wrist; its twist is in 7.7.
 - A shoulder rises only for an arm raised above level, by 25% of how far it is raised (at most 20°).
-- A joint not seen is not used (`BodyPose.IsSeen`: visibility at least 0.5 and inside the camera image, tracking detailed design 8.4). Both shoulders seen move the torso; a shoulder and an elbow move the upper arm; the wrist points the forearm.
+- A joint not seen is not used (`BodyPose.IsSeen`: visibility at least 0.5 and inside the camera image, tracking detailed design 8.4). Both shoulders seen move the torso; a shoulder and an elbow move the upper arm, and with the wrist seen an elbow out of the image is taken from MediaPipe's guess (`BodyPose.IsArmSeen`: a camera that frames the upper body often cuts the elbow off while the hand is up; the user's request, 2026-10-30); the wrist points the forearm.
 - While the wrist is hidden (behind the head, for example), the upper arm points at the elbow and keeps its previous twist, and the forearm keeps its last seen bend (`PoseRetargeting.WithoutWrist`).
 - While the wrist is out of the camera image with the elbow in it, the forearm keeps its bend for 0.5 s, then goes back over 1 s to straight along the upper arm, and comes back over 0.2 s when the wrist is in the image again (`BodyMotion.LeftArmPresence.Forearm`, `RightArmPresence.Forearm`, 8.4).
-- A lost arm (shoulder or elbow unseen) returns to hanging from the torso (70° below level by default), never to the T pose. The profile's `pose.armDownAngle` is not built yet (chapter 17).
+- A lost arm (shoulder unseen, or both elbow and wrist) returns to hanging from the torso (70° below level by default), never to the T pose. The profile's `pose.armDownAngle` is not built yet (chapter 17).
 - In a mirror, the person's sides are swapped and reflected through X = 0 before anything is worked out (`PoseRetargeting.Joint`). Visibility is read on the person's side.
 - The lower body stays in the arms-down reference pose.
 
