@@ -123,6 +123,15 @@ namespace VirtualVessel.UI.Screens
                 output.Add(Ui.Text(RecordingCardStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
             }
 
+            if (services.Streaming != null)
+            {
+                output.Add(new StreamingCard(services.Streaming));
+            }
+            else
+            {
+                output.Add(Ui.Text(StreamingCardStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
+            }
+
             if (appSettings != null)
             {
                 app.Add(appSettings);

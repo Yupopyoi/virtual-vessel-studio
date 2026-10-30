@@ -187,7 +187,7 @@ namespace VirtualVessel.Streaming
         public async Task<StreamingProblem> TestConnectionAsync()
         {
             string url = _options.Value.ServerUrl;
-            if (!StreamDestination.IsUsableUrl(url))
+            if (!StreamingOptions.IsRtmpUrl(url))
             {
                 return StreamingProblem.ServerUnreachable;
             }
@@ -221,7 +221,7 @@ namespace VirtualVessel.Streaming
                 return;
             }
 
-            if (!StreamDestination.IsUsableUrl(options.ServerUrl))
+            if (!StreamingOptions.IsRtmpUrl(options.ServerUrl))
             {
                 _log?.Warning("Streaming cannot start: the server URL cannot be used.");
                 Fail(StreamingProblem.ServerUnreachable);

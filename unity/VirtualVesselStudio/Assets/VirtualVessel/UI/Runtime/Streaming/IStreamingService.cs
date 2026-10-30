@@ -81,6 +81,18 @@ namespace VirtualVessel.UI.Streaming
         /// <summary>Bits per second.</summary>
         public int VideoBitrate { get; }
 
+        /// <summary>Whether a stream can go to <paramref name="url"/>: rtmp:// or rtmps:// with a host. Pure.</summary>
+        public static bool IsRtmpUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out Uri parsed) && (parsed.Scheme == "rtmp" || parsed.Scheme == "rtmps") && parsed.Host.Length > 0;
+        }
+
+        /// <summary>With rtmp:// the key travels unencrypted, and the setup screen says so. Pure.</summary>
+        public static bool IsUnencrypted(string url)
+        {
+            return url != null && url.StartsWith("rtmp://", StringComparison.OrdinalIgnoreCase);
+        }
+
         public StreamingOptions WithDestination(StreamDestinationKind destination)
         {
             return new StreamingOptions(destination, ServerUrl, KeyRegistered, Codec, Av1Available, VideoBitrate);

@@ -151,6 +151,19 @@ namespace VirtualVessel.UI.Controls
             set => _error.Key = value;
         }
 
+        /// <summary>Hides what is typed, for secrets.</summary>
+        public bool Masked
+        {
+            get => _field.isPasswordField;
+            set => _field.isPasswordField = value;
+        }
+
+        /// <summary>Puts the caret in the field.</summary>
+        public void FocusInput()
+        {
+            _field.Focus();
+        }
+
         [UxmlAttribute("max-length")]
         public int MaxLength
         {

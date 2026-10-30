@@ -80,7 +80,7 @@ namespace VirtualVessel.Streaming.Tests
         [TestCase(null, false)]
         public void Urls_MustBeRtmp(string url, bool usable)
         {
-            Assert.That(StreamDestination.IsUsableUrl(url), Is.EqualTo(usable));
+            Assert.That(StreamingOptions.IsRtmpUrl(url), Is.EqualTo(usable));
         }
 
         [Test]
@@ -92,8 +92,8 @@ namespace VirtualVessel.Streaming.Tests
         [Test]
         public void Unencrypted_IsRtmpWithoutTls()
         {
-            Assert.That(StreamDestination.IsUnencrypted("rtmp://host/app"), Is.True);
-            Assert.That(StreamDestination.IsUnencrypted("rtmps://host/app"), Is.False);
+            Assert.That(StreamingOptions.IsUnencrypted("rtmp://host/app"), Is.True);
+            Assert.That(StreamingOptions.IsUnencrypted("rtmps://host/app"), Is.False);
         }
 
         [Test]

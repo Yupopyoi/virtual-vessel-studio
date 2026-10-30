@@ -279,3 +279,46 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.monitor.device` | 出力先 | Output |
 | `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
 | `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |
+
+## 12. 配信のCard
+
+`IStreamingService`（Streaming）を直接表示する（`StreamingCard`）。行と動きは配信詳細設計18.2。ストリームキーの値は表示せず、登録するダイアログは伏せ字で入力する。配信中はどの行も変更できず、その理由を示す。
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.streaming.title` | 配信 | Streaming |
+| `setup.streaming.unavailable` | 配信は使えません。 | Streaming is not available. |
+| `setup.streaming.locked` | 配信中は変更できません。 | These cannot change while streaming. |
+| `setup.streaming.destination` | 配信先 | Destination |
+| `setup.streaming.destination.youtube` | YouTube | YouTube |
+| `setup.streaming.destination.custom` | 他のサーバー | Other server |
+| `setup.streaming.url` | サーバーのURL | Server URL |
+| `setup.streaming.url.description` | YouTubeは既定のままで使えます。rtmp:// か rtmps:// で始まるURLです。 | YouTube works with the default. The URL starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.placeholder` | rtmps://example.com/live | rtmps://example.com/live |
+| `setup.streaming.url.invalid` | rtmp:// か rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。使えるなら rtmps:// にしてください。 | rtmp:// is not encrypted, and neither is the stream key sent over it. Use rtmps:// if you can. |
+| `setup.streaming.key` | ストリームキー | Stream key |
+| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。プロジェクトのファイルには入らず、他のPCでは登録し直します。 | Kept in Windows Credential Manager. It is not in project files, and is registered again on another PC. |
+| `setup.streaming.key.registered` | 登録済み | Registered |
+| `setup.streaming.key.not-registered` | 未登録 | Not registered |
+| `setup.streaming.key.register` | 登録… | Register… |
+| `setup.streaming.key.remove` | 削除 | Remove |
+| `setup.streaming.key.dialog.title` | ストリームキーの登録 | Register the stream key |
+| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを貼り付けてください。登録した後は表示されません。 | Paste the stream key from YouTube Studio. It is not shown again once registered. |
+| `setup.streaming.key.dialog.field` | ストリームキー | Stream key |
+| `setup.streaming.key.dialog.confirm` | 登録 | Register |
+| `setup.streaming.key.failed` | 登録できませんでした。もう一度試してください。 | It could not be registered. Please try again. |
+| `setup.streaming.key.remove.title` | ストリームキーを削除しますか？ | Remove the stream key? |
+| `setup.streaming.key.remove.body` | 配信するには、もう一度登録が必要です。 | You will need to register it again to stream. |
+| `setup.streaming.key.remove.confirm` | 削除 | Remove |
+| `setup.streaming.codec` | 形式 | Format |
+| `setup.streaming.codec.description` | AV1がおすすめです。同じビットレートできれいに映ります。うまく配信できないときは、H.264を選んでください。 | AV1 is recommended: it looks better at the same bitrate. Choose H.264 if the stream does not work. |
+| `setup.streaming.codec.no-av1` | このPCのGPUか配信先がAV1に対応していないため、H.264で配信します。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
+| `setup.streaming.codec.av1` | AV1 | AV1 |
+| `setup.streaming.codec.h264` | H.264 | H.264 |
+| `setup.streaming.bitrate` | 映像のビットレート | Video bitrate |
+| `setup.streaming.bitrate.description` | 1080p 30 fpsなら6 Mbpsがおすすめです。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
+| `setup.streaming.test` | 接続テスト | Connection test |
+| `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
+| `setup.streaming.test.run` | テスト | Test |
+| `setup.streaming.test.ok` | 接続できました。 | Connected. |

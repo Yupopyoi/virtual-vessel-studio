@@ -66,16 +66,6 @@ namespace VirtualVessel.Streaming
             return Math.Min(Math.Max(bitrate, MinVideoBitrate), MaxVideoBitrate);
         }
 
-        public static bool IsUsableUrl(string url)
-        {
-            return Uri.TryCreate(url, UriKind.Absolute, out Uri parsed) && (parsed.Scheme == "rtmp" || parsed.Scheme == "rtmps") && parsed.Host.Length > 0;
-        }
-
-        /// <summary>With rtmp:// the key travels unencrypted, and the setup screen says so.</summary>
-        public static bool IsUnencrypted(string url)
-        {
-            return url != null && url.StartsWith("rtmp://", StringComparison.OrdinalIgnoreCase);
-        }
 
         /// <summary>Only the host is logged: some destinations put the key in the path.</summary>
         public static string HostOf(string url)
