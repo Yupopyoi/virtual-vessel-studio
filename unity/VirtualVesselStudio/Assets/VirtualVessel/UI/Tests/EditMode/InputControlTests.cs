@@ -18,21 +18,135 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
-        public void TextInput_KeepsOnlyTheEnglishItWasGiven()
+        public void ImeCommit_LeavesTheCommittedWordInOrder()
         {
-            // Japanese input left the caret short of each committed word (the user's video, 2026-10-25), so the
-            // fields take English only for now.
-            Assert.That(TextInput.KeepTypedEnglish("ab", "abc", out int caret), Is.EqualTo("abc"));
-            Assert.That(caret, Is.EqualTo(3));
-            Assert.That(TextInput.KeepTypedEnglish("ab", "a入力b", out caret), Is.EqualTo("ab"), "Japanese typed in is dropped.");
-            Assert.That(caret, Is.EqualTo(1), "The caret stays where the text went in.");
-            Assert.That(TextInput.KeepTypedEnglish("ac", "aB1-あ c", out caret), Is.EqualTo("aB1- c"), "Letters, digits, symbols and spaces stay.");
-            Assert.That(caret, Is.EqualTo(5));
-            Assert.That(TextInput.KeepTypedEnglish("親指の記録", "親指の記録 v2", out caret), Is.EqualTo("親指の記録 v2"), "Text already there is kept.");
-            Assert.That(TextInput.KeepTypedEnglish("abc", "ac", out caret), Is.EqualTo("ac"), "Deleting is left alone.");
-            Assert.That(TextInput.KeepTypedEnglish("aa", "aaa", out caret), Is.EqualTo("aaa"));
-            Assert.That(TextInput.KeepTypedEnglish(null, "x\ty", out caret), Is.EqualTo("xy"), "Control characters are dropped.");
-            Assert.That(caret, Is.EqualTo(2));
+            // The order of the user's log of "こんにちは" (2026-10-31), which Unity left as "こにちはん".
+            var ime = new ImeCommit();
+            Assert.That(ime.Composition("ｋ", string.Empty, 0, 0), Is.False, "While composing, the text is Unity's.");
+            ime.Composition("こ", "ｋ", 1, 1);
+            ime.Composition("こんにちは", "こんにち", 4, 4);
+            foreach (char character in "こんにちは")
+            {
+                ime.Text(character);
+            }
+
+            Assert.That(ime.Composition(string.Empty, "こんにちは", 5, 5), Is.True);
+            Assert.That(new[] { ime.Changed(), ime.Changed(), ime.Changed(), ime.Changed(), ime.Changed() }, Is.EqualTo(new[] { false, false, false, false, true }), "Right on the last character, so nothing out of order is drawn.");
+            Assert.That(ime.Result, Is.EqualTo(("こんにちは", 5)));
+            Assert.That(Finished(ime), Is.EqualTo(("こんにちは", 5)));
+            Assert.That(ime.Changed(), Is.False, "Then typing goes on as usual.");
+        }
+
+        [Test]
+        public void ImeCommit_EndsWithTheComposition_EvenWithNoChangeToTheText()
+        {
+            // "ｍ" committed as "ｍ" brings no change; waiting for one kept it for the next word.
+            var ime = new ImeCommit();
+            ime.Composition("ｍ", "入力欄が", 4, 4);
+            ime.Text('ｍ');
+            Assert.That(ime.Composition(string.Empty, "入力欄がｍ", 5, 5), Is.True);
+            Assert.That(Finished(ime), Is.EqualTo(("入力欄がｍ", 5)));
+
+            ime.Text('\b');
+            Assert.That(ime.Composition(string.Empty, "入力欄が", 4, 4), Is.False, "Nothing is left of it.");
+        }
+
+        [Test]
+        public void ImeCommit_LeavesOutBackspaceAndEnter()
+        {
+            var ime = new ImeCommit();
+            ime.Composition("あい", "x", 1, 1);
+            ime.Text('\b');
+            ime.Composition("あ", "xあい", 3, 3);
+            ime.Text('あ');
+            ime.Text('\r');
+            ime.Composition(string.Empty, "xあ", 2, 2);
+
+            Assert.That(Finished(ime), Is.EqualTo(("xあ", 2)));
+        }
+
+        [Test]
+        public void ImeCommit_KeepsTheTextAroundTheComposition()
+        {
+            var ime = new ImeCommit();
+            ime.Composition("か", "abcde", 2, 3);
+            ime.Text('か');
+            ime.Text('な');
+            ime.Composition(string.Empty, "abかde", 3, 3);
+
+            Assert.That(Finished(ime), Is.EqualTo(("abかなde", 4)), "A selection is replaced, and the caret is after the word.");
+        }
+
+        [Test]
+        public void ImeCommit_PutsTheTextBack_WhenTheCompositionIsCanceled()
+        {
+            var ime = new ImeCommit();
+            ime.Composition("あいう", "ab", 1, 1);
+
+            Assert.That(ime.Composition(string.Empty, "aあいうb", 4, 4), Is.True);
+            Assert.That(Finished(ime), Is.EqualTo(("ab", 1)));
+        }
+
+        [Test]
+        public void ImeCommit_FollowsAPartialCommit()
+        {
+            var ime = new ImeCommit();
+            ime.Composition("きょうは", string.Empty, 0, 0);
+            ime.Text('今');
+            ime.Text('日');
+            ime.Composition("は", "今日は", 2, 2);
+            ime.Text('は');
+            ime.Composition(string.Empty, "今日は", 3, 3);
+
+            Assert.That(Finished(ime), Is.EqualTo(("今日は", 3)));
+        }
+
+        [Test]
+        public void ImeCommit_LeavesTypingWithoutACompositionAlone()
+        {
+            var ime = new ImeCommit();
+            ime.Text('a');
+
+            Assert.That(ime.Composition(string.Empty, "a", 1, 1), Is.False);
+        }
+
+        [Test]
+        public void ImeCommit_ANextWordBeforeTheFinish_CarriesTheFirstOn()
+        {
+            // Typing on within moments of a commit: a finish due then must not empty the field.
+            var ime = new ImeCommit();
+            ime.Composition("あ", "x", 1, 1);
+            ime.Text('あ');
+            ime.Composition(string.Empty, "xあ", 2, 2);
+            ime.Composition("い", "xあ", 2, 2);
+
+            Assert.That(ime.TryFinish(out _), Is.False);
+
+            ime.Text('い');
+            ime.Composition(string.Empty, "xあい", 3, 3);
+            Assert.That(Finished(ime), Is.EqualTo(("xあい", 3)));
+            Assert.That(ime.TryFinish(out _), Is.False, "A second finish finds nothing to do.");
+        }
+
+        [Test]
+        public void ImeCommit_ForgetsACompositionWhenCanceled()
+        {
+            // Clicking away in the middle of a word: its text must not come back with the next one.
+            var ime = new ImeCommit();
+            ime.Composition("あ", "old", 3, 3);
+            ime.Cancel();
+
+            ime.Composition("い", "new", 3, 3);
+            ime.Text('い');
+            ime.Composition(string.Empty, "newい", 4, 4);
+
+            Assert.That(Finished(ime), Is.EqualTo(("newい", 4)));
+        }
+
+        private static (string Text, int Caret) Finished(ImeCommit ime)
+        {
+            Assert.That(ime.TryFinish(out (string Text, int Caret) result), Is.True);
+            return result;
         }
 
         [Test]

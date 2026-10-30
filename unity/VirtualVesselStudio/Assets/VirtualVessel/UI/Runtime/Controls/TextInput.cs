@@ -1,4 +1,5 @@
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
@@ -52,10 +53,15 @@ namespace VirtualVessel.UI.Controls
     {
         public const string UssClass = "vv-text-input";
 
+        // Longer than a frame, so Unity has put in all of a commit's characters and left its caret. The text
+        // is put right sooner, when the last character arrives; this also covers a commit that changes nothing.
+        private const long CommitSettleMs = 30;
+
         private readonly KeyedText _label;
         private readonly KeyedText _placeholder;
         private readonly TextField _field;
         private readonly FieldError _error;
+        private readonly ImeCommit _imeCommit = new ImeCommit();
 
         public TextInput()
         {
@@ -69,11 +75,6 @@ namespace VirtualVessel.UI.Controls
             _field.AddToClassList("vv-field__input");
             _field.AddToClassList("vv-text-body");
             Add(_field);
-            Label hint = QuietText.Of(new Label());
-            hint.AddToClassList("vv-field__hint");
-            hint.AddToClassList("vv-text-caption");
-            Add(hint);
-            new KeyedText(this, value => hint.text = value).Key = CommonStrings.EnglishOnly;
             _error = new FieldError(this);
             Add(_error.Element);
 
@@ -101,34 +102,24 @@ namespace VirtualVessel.UI.Controls
             }, TrickleDown.TrickleDown);
             _field.RegisterCallback<NavigationSubmitEvent>(evt => evt.StopImmediatePropagation(), TrickleDown.TrickleDown);
 
-            // English only for now: Unity's field (with the Input System) left the caret one character short of
-            // each word Japanese input committed, so what was typed next went in before the word's last
-            // character ("入力欄が" became "入欄が…力", the user's video, 2026-10-25), and moving the caret back
-            // after the edit did not help. Japanese input is turned off while the field is focused, once Unity
-            // has turned it on, and characters it could still bring in are dropped (#74).
-            _field.RegisterCallback<FocusInEvent>(_ =>
-            {
-                TurnOffJapaneseInput();
-                _field.schedule.Execute(TurnOffJapaneseInput);
-            });
+            // Japanese input is followed only while this field has the focus (ImeCommit).
+            _field.RegisterCallback<FocusInEvent>(_ => FollowKeyboard(true));
+            _field.RegisterCallback<FocusOutEvent>(_ => FollowKeyboard(false));
+            _field.RegisterCallback<DetachFromPanelEvent>(_ => FollowKeyboard(false));
 
-            // Re-send what is typed, English only, from this element, so bindings see one field.
+            // Re-send what is typed from this element, so bindings see one field.
             _field.RegisterValueChangedCallback(evt =>
             {
                 evt.StopPropagation();
-                string kept = KeepTypedEnglish(evt.previousValue, evt.newValue, out int caret);
-                if (kept != evt.newValue)
+                string next = evt.newValue;
+                if (_imeCommit.Changed())
                 {
-                    _field.SetValueWithoutNotify(kept);
-                    _field.textSelection.cursorIndex = caret;
-                    _field.textSelection.selectIndex = caret;
-                    if (kept == evt.previousValue)
-                    {
-                        return;
-                    }
+                    (string text, int caret) = _imeCommit.Result;
+                    PutText(text, caret);
+                    next = text;
                 }
 
-                SendChange(evt.previousValue, kept);
+                SendChange(evt.previousValue, next);
             });
         }
 
@@ -173,7 +164,6 @@ namespace VirtualVessel.UI.Controls
             get => _field.value;
             set
             {
-                // Set by code, such as a saved description: kept as it is, as only typing is English only.
                 string previous = _field.value;
                 _field.SetValueWithoutNotify(value);
                 if (!string.Equals(previous, _field.value, System.StringComparison.Ordinal))
@@ -181,43 +171,6 @@ namespace VirtualVessel.UI.Controls
                     SendChange(previous, _field.value);
                 }
             }
-        }
-
-        /// <summary>
-        /// <paramref name="after"/>, an edit of <paramref name="before"/>, without the characters it put in
-        /// that are not printable ASCII (English letters, digits, symbols and spaces), with the caret just
-        /// after what is left of them. Text already there is kept as it is. Pure.
-        /// </summary>
-        public static string KeepTypedEnglish(string before, string after, out int caret)
-        {
-            before ??= string.Empty;
-            after ??= string.Empty;
-            int shorter = System.Math.Min(before.Length, after.Length);
-            int prefix = 0;
-            while (prefix < shorter && before[prefix] == after[prefix])
-            {
-                prefix++;
-            }
-
-            int suffix = 0;
-            while (suffix < shorter - prefix && before[before.Length - 1 - suffix] == after[after.Length - 1 - suffix])
-            {
-                suffix++;
-            }
-
-            var kept = new System.Text.StringBuilder(after.Length);
-            kept.Append(after, 0, prefix);
-            for (int i = prefix; i < after.Length - suffix; i++)
-            {
-                if (after[i] >= ' ' && after[i] <= '~')
-                {
-                    kept.Append(after[i]);
-                }
-            }
-
-            caret = kept.Length;
-            kept.Append(after, after.Length - suffix, suffix);
-            return kept.ToString();
         }
 
         /// <summary>Whether a key press is Enter, from the main keys or the keypad, or the line break it types. Pure.</summary>
@@ -235,9 +188,61 @@ namespace VirtualVessel.UI.Controls
             }
         }
 
-        private static void TurnOffJapaneseInput()
+        private void FollowKeyboard(bool follow)
         {
-            Keyboard.current?.SetIMEEnabled(false);
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null)
+            {
+                return;
+            }
+
+            keyboard.onIMECompositionChange -= OnComposition;
+            keyboard.onTextInput -= OnKeyboardText;
+            if (follow)
+            {
+                keyboard.onIMECompositionChange += OnComposition;
+                keyboard.onTextInput += OnKeyboardText;
+            }
+            else
+            {
+                _imeCommit.Cancel();
+            }
+        }
+
+        private void OnComposition(IMECompositionString composition)
+        {
+            if (_imeCommit.Composition(composition.ToString(), _field.value ?? string.Empty, _field.textSelection.cursorIndex, _field.textSelection.selectIndex))
+            {
+                // Unity puts the characters in later in this frame.
+                _field.schedule.Execute(FinishCommit).StartingIn(CommitSettleMs);
+            }
+        }
+
+        private void OnKeyboardText(char character)
+        {
+            _imeCommit.Text(character);
+        }
+
+        private void PutText(string text, int caret)
+        {
+            _field.SetValueWithoutNotify(text);
+            _field.textSelection.cursorIndex = caret;
+            _field.textSelection.selectIndex = caret;
+        }
+
+        private void FinishCommit()
+        {
+            if (!_imeCommit.TryFinish(out (string Text, int Caret) result))
+            {
+                return;
+            }
+
+            string previous = _field.value;
+            PutText(result.Text, result.Caret);
+            if (!string.Equals(previous, result.Text, System.StringComparison.Ordinal))
+            {
+                SendChange(previous, result.Text);
+            }
         }
 
         public void SetValueWithoutNotify(string newValue)

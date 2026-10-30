@@ -43,7 +43,6 @@
         "frame.back": "最背面へ",
         "frame.back.tip": "ほかの映像より奥に表示します",
         "field.number-invalid": "数字を入力してください。",
-        "field.english-only": "いまは半角の英数字と記号だけ入力できます。",
         "error.unexpected": "問題が発生したため、操作を完了できませんでした。もう一度お試しください。",
         "preview.label": "配信プレビュー",
         "preview.frame-rate.tip": "配信映像のフレームレート。設定した値を下回ると映像がカクつきます",
