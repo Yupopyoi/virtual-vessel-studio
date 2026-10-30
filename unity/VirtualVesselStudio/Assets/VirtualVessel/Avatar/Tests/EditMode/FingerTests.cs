@@ -32,15 +32,17 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
-        public void Arc_TurnsAHookIntoACurve_AndLeavesTheEndsAlone()
+        public void Arc_SharesTheTotalBend_SoAHookAndItsOppositeMatch()
         {
-            (float baseBend, float middle) = FingerRetargeting.Arc(10f, 90f);
-            Assert.That(baseBend, Is.EqualTo(38f).Within(0.01f));
-            Assert.That(middle, Is.EqualTo(62f).Within(0.01f));
+            (float hookBase, float hookMiddle) = FingerRetargeting.Arc(26f, 48f);
+            (float bentBase, float bentMiddle) = FingerRetargeting.Arc(48f, 26f);
 
+            Assert.That((hookBase, hookMiddle), Is.EqualTo((bentBase, bentMiddle)));
+            Assert.That(hookBase + hookMiddle, Is.EqualTo(74f).Within(0.01f));
             Assert.That(FingerRetargeting.Arc(0f, 0f), Is.EqualTo((0f, 0f)), "An open hand.");
-            Assert.That(FingerRetargeting.Arc(60f, 26f), Is.EqualTo((60f, 26f)), "A base bent more than the middle stays.");
-            Assert.That(FingerRetargeting.Arc(90f, 100f), Is.EqualTo((90f, 100f)), "A fist: the base is at its limit, so the middle keeps its bend.");
+            (float fistBase, float fistMiddle) = FingerRetargeting.Arc(FingerRetargeting.MaxBaseBend, FingerRetargeting.MaxMiddleBend);
+            Assert.That(fistBase, Is.EqualTo(FingerRetargeting.MaxBaseBend).Within(0.01f), "A fist.");
+            Assert.That(fistMiddle, Is.EqualTo(FingerRetargeting.MaxMiddleBend).Within(0.01f));
         }
 
         [Test]
@@ -213,8 +215,8 @@ namespace VirtualVessel.Avatar.Tests
             var pose = new FingerPose();
             FingerRetargeting.TryMeasure(hand, left: false, pose);
 
-            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain).Within(Tolerance * 2f), "Into the palm at the base.");
-            float middle = FingerRetargeting.ShownMiddle(Finger.Middle, 50f);
+            (float shownBase, float middle) = FingerRetargeting.Arc((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain, FingerRetargeting.ShownMiddle(Finger.Middle, 50f));
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(shownBase).Within(Tolerance * 2f), "Into the palm at the base.");
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "A thumb standing out of the fist does not fold.");

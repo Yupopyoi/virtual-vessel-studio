@@ -53,8 +53,8 @@ namespace VirtualVessel.Avatar
         /// <summary>How far a hand may face the camera and still count as edge-on: the palm's normal along the camera's axis.</summary>
         public const float MaxEdgeOnFacing = 0.7f;
 
-        /// <summary>The share of the middle joint's extra bend given to the base (<see cref="Arc"/>).</summary>
-        public const float ArcShare = 0.35f;
+        /// <summary>The base's share of a finger's bend (<see cref="Arc"/>): its share in a fist.</summary>
+        public const float ArcShare = MaxBaseBend / (MaxBaseBend + MaxMiddleBend);
 
         /// <summary>How far a finger spreads either way at its base.</summary>
         public const float MaxSpread = 15f;
@@ -184,15 +184,16 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// The base and middle joints with a share of what the middle bends past the base moved to the base
-        /// (<see cref="ArcShare"/>), so a finger curves as a whole. In a rounded hand, such as half of a heart,
-        /// the base reads small and the middle large: on the user's recordings (2026-10-30), 5-20° and
-        /// 60-88°, which showed as a straight finger hooked at the end. Pure.
+        /// The base and middle joints with their total bend shared as in a fist (<see cref="ArcShare"/>), so a
+        /// finger curves as a whole. The total reads steadily and the split does not: half of a heart read
+        /// 26° and 48° on the left hand and 46° and 24° on the right, 74° and 70° in all, and a split followed
+        /// as read showed a straight finger hooked at the end (the user's recordings, 2026-10-30). A finger
+        /// bent only at its base, straight beyond, shows curved. Pure.
         /// </summary>
         public static (float Base, float Middle) Arc(float baseBend, float middleBend)
         {
-            float moved = Mathf.Min(Mathf.Max(0f, middleBend - baseBend) * ArcShare, MaxBaseBend - baseBend);
-            return (baseBend + moved, middleBend - moved);
+            float total = baseBend + middleBend;
+            return (total * ArcShare, total * (1f - ArcShare));
         }
 
         /// <summary>
