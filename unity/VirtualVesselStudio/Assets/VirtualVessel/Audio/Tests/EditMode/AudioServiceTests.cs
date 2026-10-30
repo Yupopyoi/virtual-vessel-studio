@@ -36,6 +36,42 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void FirstUse_HearsTheGame_NotThemselves_OnTheDefaultOutput()
+        {
+            var outputs = new[] { new AudioDevice("speakers", "Speakers", false), new AudioDevice("phones", "Headphones", true) };
+
+            AudioSettings prepared = AudioSettings.Prepared(new AudioSettings(), s_devices, Ids(), outputs);
+
+            Assert.That(prepared.Monitor.DeviceId, Is.EqualTo("phones"));
+            Assert.That(prepared.Sources[0].ToOptions().Monitored, Is.False, "One's own voice echoes back, and leaks into the microphone from speakers.");
+            Assert.That(prepared.Sources[1].ToOptions().Monitored, Is.True);
+        }
+
+        [Test]
+        public void ASavedChoice_OfNoMonitor_StaysNone()
+        {
+            var saved = new AudioSettings { Monitor = new AudioMonitorSettings { DeviceId = null, GainDb = -6f } };
+
+            AudioSettings prepared = AudioSettings.Prepared(saved, s_devices, Ids(), new[] { new AudioDevice("speakers", "Speakers", true) });
+
+            Assert.That(prepared.Monitor.DeviceId, Is.Null);
+            Assert.That(prepared.Monitor.GainDb, Is.EqualTo(-6f));
+        }
+
+        [Test]
+        public void TheMonitorSend_GoesBothWays()
+        {
+            var saved = new AudioSourceSettings { Id = "a", Role = AudioSettings.GameAudioRole };
+
+            AudioSourceOptions on = saved.With(new AudioSourceOptions(null, 0f, false, 0f).WithMonitored(true)).ToOptions();
+            AudioSourceOptions off = saved.With(on.WithMonitored(false)).ToOptions();
+
+            Assert.That(on.MonitorSendDb, Is.EqualTo(0f));
+            Assert.That(off.Monitored, Is.False);
+            Assert.That(saved.With(off).Sends[AudioSettings.MonitorBus], Is.EqualTo(AudioSettings.NoSendDb), "JSON cannot write negative infinity.");
+        }
+
+        [Test]
         public void SavedSources_AreKept_IncludingRolesThisVersionDoesNotKnow()
         {
             var saved = new AudioSettings
@@ -119,6 +155,34 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(_engine.Devices[1], Is.EqualTo("capture-board"));
             Assert.That(_engine.Gains[1], Is.EqualTo((-3f, true)));
             Assert.That(game.Options.Value.DeviceId, Is.EqualTo("capture-board"));
+        }
+
+        [Test]
+        public void TheMonitor_StartsOnTheDefaultOutput_AndFollowsTheUser()
+        {
+            using AudioService service = Start(new AudioSettings());
+            Assert.That(_engine.MonitorDevice, Is.EqualTo("speakers"));
+            Assert.That(_engine.MonitorSends[0], Is.EqualTo(float.NegativeInfinity), "The microphone is not heard.");
+            Assert.That(_engine.MonitorSends[1], Is.EqualTo(0f), "The game is.");
+
+            service.Monitor.SetOptions(service.Monitor.Options.Value.WithDevice("phones").WithGain(-12f).WithMuted(true));
+            service.Sources[0].SetOptions(service.Sources[0].Options.Value.WithMonitored(true));
+
+            Assert.That(_engine.MonitorDevice, Is.EqualTo("phones"));
+            Assert.That(_engine.MonitorGain, Is.EqualTo((-12f, true)));
+            Assert.That(_engine.MonitorSends[0], Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void TheMonitorsState_IsReadWithTheSources()
+        {
+            using AudioService service = Start(new AudioSettings());
+
+            _engine.MonitorStatus = new AudioEngineStatus(AudioSourceState.Unavailable, AudioProblem.None, 0, -20f, 0, 0, 0);
+            _loop.Tick(e => throw e);
+
+            Assert.That(service.Monitor.State.Value, Is.EqualTo(AudioSourceState.Unavailable));
+            Assert.That(service.Monitor.PeakDb, Is.EqualTo(-20f));
         }
 
         [Test]
@@ -215,6 +279,41 @@ namespace VirtualVessel.Audio.Tests
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 
             public AudioStreamTap StreamTap => default;
+
+            public IReadOnlyList<AudioDevice> Outputs { get; set; } = new[] { new AudioDevice("speakers", "Speakers", true) };
+
+            public string MonitorDevice { get; private set; }
+
+            public (float GainDb, bool Muted) MonitorGain { get; private set; }
+
+            public Dictionary<int, float> MonitorSends { get; } = new Dictionary<int, float>();
+
+            public AudioEngineStatus MonitorStatus { get; set; }
+
+            public IReadOnlyList<AudioDevice> ListOutputs()
+            {
+                return Outputs;
+            }
+
+            public void SetMonitorSend(int source, float sendDb)
+            {
+                MonitorSends[source] = sendDb;
+            }
+
+            public void SetMonitorDevice(string deviceId)
+            {
+                MonitorDevice = deviceId;
+            }
+
+            public void SetMonitorGain(float gainDb, bool muted)
+            {
+                MonitorGain = (gainDb, muted);
+            }
+
+            public AudioEngineStatus GetMonitorStatus()
+            {
+                return MonitorStatus;
+            }
 
             public IReadOnlyList<AudioDevice> ListInputs()
             {

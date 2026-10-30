@@ -80,12 +80,13 @@ namespace VirtualVessel.Audio
         public const float MinGainDb = -60f;
         public const float MaxGainDb = 12f;
 
-        public AudioSourceOptions(string deviceId, float gainDb, bool muted, float streamSendDb)
+        public AudioSourceOptions(string deviceId, float gainDb, bool muted, float streamSendDb, float monitorSendDb = float.NegativeInfinity)
         {
             DeviceId = deviceId;
             GainDb = gainDb;
             Muted = muted;
             StreamSendDb = streamSendDb;
+            MonitorSendDb = monitorSendDb;
         }
 
         /// <summary>The endpoint ID; null turns the source off.</summary>
@@ -98,24 +99,35 @@ namespace VirtualVessel.Audio
         /// <summary>How much reaches the stream bus (recording, streaming), in dB; negative infinity for none.</summary>
         public float StreamSendDb { get; }
 
+        /// <summary>How much reaches the user's own monitor, in dB; negative infinity for none.</summary>
+        public float MonitorSendDb { get; }
+
+        /// <summary>Whether the user hears this source.</summary>
+        public bool Monitored => !float.IsNegativeInfinity(MonitorSendDb);
+
         public AudioSourceOptions WithDevice(string deviceId)
         {
-            return new AudioSourceOptions(string.IsNullOrEmpty(deviceId) ? null : deviceId, GainDb, Muted, StreamSendDb);
+            return new AudioSourceOptions(string.IsNullOrEmpty(deviceId) ? null : deviceId, GainDb, Muted, StreamSendDb, MonitorSendDb);
         }
 
         public AudioSourceOptions WithGain(float gainDb)
         {
-            return new AudioSourceOptions(DeviceId, Math.Max(MinGainDb, Math.Min(MaxGainDb, gainDb)), Muted, StreamSendDb);
+            return new AudioSourceOptions(DeviceId, Math.Max(MinGainDb, Math.Min(MaxGainDb, gainDb)), Muted, StreamSendDb, MonitorSendDb);
         }
 
         public AudioSourceOptions WithMuted(bool muted)
         {
-            return new AudioSourceOptions(DeviceId, GainDb, muted, StreamSendDb);
+            return new AudioSourceOptions(DeviceId, GainDb, muted, StreamSendDb, MonitorSendDb);
+        }
+
+        public AudioSourceOptions WithMonitored(bool monitored)
+        {
+            return new AudioSourceOptions(DeviceId, GainDb, Muted, StreamSendDb, monitored ? 0f : float.NegativeInfinity);
         }
 
         public bool Equals(AudioSourceOptions other)
         {
-            return DeviceId == other.DeviceId && GainDb.Equals(other.GainDb) && Muted == other.Muted && StreamSendDb.Equals(other.StreamSendDb);
+            return DeviceId == other.DeviceId && GainDb.Equals(other.GainDb) && Muted == other.Muted && StreamSendDb.Equals(other.StreamSendDb) && MonitorSendDb.Equals(other.MonitorSendDb);
         }
 
         public override bool Equals(object obj)
@@ -125,8 +137,72 @@ namespace VirtualVessel.Audio
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(DeviceId, GainDb, Muted, StreamSendDb);
+            return HashCode.Combine(DeviceId, GainDb, Muted, StreamSendDb, MonitorSendDb);
         }
+    }
+
+    /// <summary>What the user sets for their own monitor (audio detailed design 5, 10).</summary>
+    public readonly struct AudioMonitorOptions : IEquatable<AudioMonitorOptions>
+    {
+        public AudioMonitorOptions(string deviceId, float gainDb, bool muted)
+        {
+            DeviceId = deviceId;
+            GainDb = gainDb;
+            Muted = muted;
+        }
+
+        /// <summary>The output's endpoint ID; null turns the monitor off.</summary>
+        public string DeviceId { get; }
+
+        public float GainDb { get; }
+
+        public bool Muted { get; }
+
+        public AudioMonitorOptions WithDevice(string deviceId)
+        {
+            return new AudioMonitorOptions(string.IsNullOrEmpty(deviceId) ? null : deviceId, GainDb, Muted);
+        }
+
+        public AudioMonitorOptions WithGain(float gainDb)
+        {
+            return new AudioMonitorOptions(DeviceId, Math.Max(AudioSourceOptions.MinGainDb, Math.Min(AudioSourceOptions.MaxGainDb, gainDb)), Muted);
+        }
+
+        public AudioMonitorOptions WithMuted(bool muted)
+        {
+            return new AudioMonitorOptions(DeviceId, GainDb, muted);
+        }
+
+        public bool Equals(AudioMonitorOptions other)
+        {
+            return DeviceId == other.DeviceId && GainDb.Equals(other.GainDb) && Muted == other.Muted;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is AudioMonitorOptions other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(DeviceId, GainDb, Muted);
+        }
+    }
+
+    /// <summary>What the user hears: the monitor bus on an output device, apart from the stream (system design 9.4).</summary>
+    public interface IAudioMonitor
+    {
+        IReadOnlyObservable<AudioSourceState> State { get; }
+
+        IReadOnlyObservable<AudioProblem> Problem { get; }
+
+        IReadOnlyObservable<AudioMonitorOptions> Options { get; }
+
+        /// <summary>Applied at once and saved in the project's audio profile.</summary>
+        void SetOptions(AudioMonitorOptions options);
+
+        /// <summary>The highest level of the last tenth of a second, in dBFS.</summary>
+        float PeakDb { get; }
     }
 
     /// <summary>One source of sound: a device, its gain and mute, and its level (audio detailed design 5).</summary>
@@ -174,7 +250,12 @@ namespace VirtualVessel.Audio
 
         IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices { get; }
 
-        /// <summary>Lists the input devices again, such as when the user opens the device choice.</summary>
+        IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices { get; }
+
+        /// <summary>The user's own monitor.</summary>
+        IAudioMonitor Monitor { get; }
+
+        /// <summary>Lists the devices again, such as when the user opens the device choice.</summary>
         void RefreshDevices();
 
         /// <summary>How far the stream bus is behind the moment the sound was heard (audio detailed design 8.4).</summary>

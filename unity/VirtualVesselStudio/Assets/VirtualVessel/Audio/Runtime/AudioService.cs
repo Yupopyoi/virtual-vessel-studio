@@ -31,10 +31,12 @@ namespace VirtualVessel.Audio
         private readonly IPerformanceMetrics _metrics;
         private readonly ILog _log;
         private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(Array.Empty<AudioDevice>());
+        private readonly ObservableValue<IReadOnlyList<AudioDevice>> _outputs = new ObservableValue<IReadOnlyList<AudioDevice>>(Array.Empty<AudioDevice>());
         private readonly List<Source> _sources = new List<Source>();
         private readonly ObservableValue<TimeSpan> _streamDelay = new ObservableValue<TimeSpan>(TimeSpan.FromMilliseconds(AudioSettings.DefaultStreamDelayMs));
         private AudioSettings _settings;
         private IAudioEngine _engine;
+        private MonitorOutput _monitor;
         private IDisposable _tick;
         private long _nextPoll;
 
@@ -64,6 +66,10 @@ namespace VirtualVessel.Audio
 
         public IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices => _devices;
 
+        public IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices => _outputs;
+
+        public IAudioMonitor Monitor => _monitor;
+
         public TimeSpan StreamLatency => _engine?.StreamLatency ?? TimeSpan.Zero;
 
         public AudioStreamTap StreamTap => _engine?.StreamTap ?? default;
@@ -79,9 +85,11 @@ namespace VirtualVessel.Audio
         {
             _engine = _createEngine();
             IReadOnlyList<AudioDevice> devices = _engine.ListInputs();
+            IReadOnlyList<AudioDevice> outputs = _engine.ListOutputs();
             _devices.Set(devices);
-            AudioSettings prepared = AudioSettings.Prepared(_settings, devices, _newId);
-            if (prepared.Sources.Count != _settings.Sources?.Count)
+            _outputs.Set(outputs);
+            AudioSettings prepared = AudioSettings.Prepared(_settings, devices, _newId, outputs);
+            if (prepared.Sources.Count != _settings.Sources?.Count || _settings.Monitor == null)
             {
                 _saves?.Changed(prepared.Clone());
             }
@@ -100,6 +108,10 @@ namespace VirtualVessel.Audio
             }
 
             _sources.Sort((a, b) => a.Role.CompareTo(b.Role));
+            _monitor = new MonitorOutput(this, _settings.Monitor.ToOptions(), _metrics);
+            _engine.SetMonitorGain(_monitor.Options.Value.GainDb, _monitor.Options.Value.Muted);
+            _engine.SetMonitorDevice(_monitor.Options.Value.DeviceId);
+            _log?.Information($"Audio monitor on {DeviceName(_monitor.Options.Value.DeviceId, outputs)}.");
             _streamDelay.Set(TimeSpan.FromMilliseconds(AudioSettings.ClampDelayMs(_settings.StreamDelayMs)));
             _engine.SetStreamDelay(_streamDelay.Value);
             _tick = _frameLoop.Register(Tick);
@@ -126,6 +138,7 @@ namespace VirtualVessel.Audio
             if (_engine != null)
             {
                 _devices.Set(_engine.ListInputs());
+                _outputs.Set(_engine.ListOutputs());
             }
         }
 
@@ -189,6 +202,31 @@ namespace VirtualVessel.Audio
                     LogState(source, status);
                 }
             }
+
+            AudioEngineStatus monitor = _engine.GetMonitorStatus();
+            AudioSourceState before = _monitor.State.Value;
+            _monitor.Update(monitor);
+            if (before != monitor.State)
+            {
+                LogMonitor(monitor);
+            }
+        }
+
+        private void LogMonitor(AudioEngineStatus status)
+        {
+            string device = DeviceName(_monitor.Options.Value.DeviceId, _outputs.Value);
+            switch (status.State)
+            {
+                case AudioSourceState.Running:
+                    _log?.Information($"Audio monitor running on {device}.");
+                    break;
+                case AudioSourceState.Unavailable:
+                    _log?.Warning($"Audio monitor: {device} is not connected; it opens again when it is back.");
+                    break;
+                case AudioSourceState.Error:
+                    _log?.Warning($"Audio monitor: {device} cannot be opened ({status.Problem}, HRESULT 0x{status.LastError:X8}).");
+                    break;
+            }
         }
 
         private void LogState(Source source, AudioEngineStatus status)
@@ -213,6 +251,7 @@ namespace VirtualVessel.Audio
             _engine.SetDevice(engineSource, options.DeviceId);
             _engine.SetGain(engineSource, options.GainDb, options.Muted);
             _engine.SetStreamSend(engineSource, options.StreamSendDb);
+            _engine.SetMonitorSend(engineSource, options.MonitorSendDb);
         }
 
         private void Changed(Source source, AudioSourceOptions previous, AudioSourceOptions options)
@@ -225,7 +264,22 @@ namespace VirtualVessel.Audio
 
             _engine?.SetGain(source.Engine, options.GainDb, options.Muted);
             _engine?.SetStreamSend(source.Engine, options.StreamSendDb);
+            _engine?.SetMonitorSend(source.Engine, options.MonitorSendDb);
             _settings = WithSource(_settings, source.Id, options);
+            _saves?.Changed(_settings.Clone());
+        }
+
+        private void MonitorChanged(AudioMonitorOptions previous, AudioMonitorOptions options)
+        {
+            if (previous.DeviceId != options.DeviceId)
+            {
+                _engine?.SetMonitorDevice(options.DeviceId);
+                _log?.Information($"Audio monitor moves to {DeviceName(options.DeviceId, _outputs.Value)}.");
+            }
+
+            _engine?.SetMonitorGain(options.GainDb, options.Muted);
+            _settings = _settings.Clone();
+            _settings.Monitor = AudioMonitorSettings.Of(options);
             _saves?.Changed(_settings.Clone());
         }
 
@@ -242,6 +296,53 @@ namespace VirtualVessel.Audio
             }
 
             return next;
+        }
+
+        private sealed class MonitorOutput : IAudioMonitor
+        {
+            private readonly AudioService _owner;
+            private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Off);
+            private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
+            private readonly ObservableValue<AudioMonitorOptions> _options;
+            private readonly PerfCounter _underruns;
+            private readonly PerfCounter _driftCorrections;
+            private AudioEngineStatus _counted;
+
+            public MonitorOutput(AudioService owner, AudioMonitorOptions options, IPerformanceMetrics metrics)
+            {
+                _owner = owner;
+                _options = new ObservableValue<AudioMonitorOptions>(options);
+                PeakDb = float.NegativeInfinity;
+                _underruns = metrics?.Counter("Audio", "Monitor.Underruns");
+                _driftCorrections = metrics?.Counter("Audio", "Monitor.DriftCorrections");
+            }
+
+            public IReadOnlyObservable<AudioSourceState> State => _state;
+
+            public IReadOnlyObservable<AudioProblem> Problem => _problem;
+
+            public IReadOnlyObservable<AudioMonitorOptions> Options => _options;
+
+            public float PeakDb { get; private set; }
+
+            public void SetOptions(AudioMonitorOptions options)
+            {
+                AudioMonitorOptions previous = _options.Value;
+                if (_options.Set(options))
+                {
+                    _owner.MonitorChanged(previous, options);
+                }
+            }
+
+            public void Update(AudioEngineStatus status)
+            {
+                PeakDb = status.PeakDb;
+                _problem.Set(status.Problem);
+                _state.Set(status.State);
+                _underruns?.Add(status.Underruns - _counted.Underruns);
+                _driftCorrections?.Add(status.DriftCorrections - _counted.DriftCorrections);
+                _counted = status;
+            }
         }
 
         private sealed class Source : IAudioSource

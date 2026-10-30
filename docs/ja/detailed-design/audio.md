@@ -51,6 +51,8 @@ public interface IAudioService
 {
     IReadOnlyList<IAudioSource> Sources { get; }                          // マイク、ゲームの音声の順。BGMとSEで増える
     IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices { get; } // ID、名前、Windowsの既定か
+    IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices { get; } // モニターの出力先
+    IAudioMonitor Monitor { get; }                      // 利用者が聞く音（5.2）
     void RefreshDevices();
     AudioStreamTap StreamTap { get; }                   // エンコーダー用（5.3）。Contextと関数のポインター
     TimeSpan StreamLatency { get; }                     // 配信用のバスがどれだけ遅れているか（8.4）
@@ -62,26 +64,37 @@ public interface IAudioSource
     AudioSourceRole Role { get; }
     IReadOnlyObservable<AudioSourceState> State { get; } // Off、Starting、Running、Unavailable、Error
     IReadOnlyObservable<AudioProblem> Problem { get; }   // None、InUse、AccessDenied、Failed
-    IReadOnlyObservable<AudioSourceOptions> Options { get; } // 機器、音量（-60〜+12dB）、ミュート、配信用のバスへの送り（-infはなし）
+    IReadOnlyObservable<AudioSourceOptions> Options { get; } // 機器、音量（-60〜+12dB）、ミュート、配信用のバスとモニターのバスへの送り（-infはなし）
     void SetOptions(AudioSourceOptions options);        // すぐに反映し、Profileに保存する
     float PeakDb { get; }                               // 直近0.1秒の最大。音量の後、ミュートの前。メーター用
+}
+
+public interface IAudioMonitor
+{
+    IReadOnlyObservable<AudioSourceState> State { get; }
+    IReadOnlyObservable<AudioProblem> Problem { get; }
+    IReadOnlyObservable<AudioMonitorOptions> Options { get; } // 出力の機器、音量、ミュート。配信とは別に持つ
+    void SetOptions(AudioMonitorOptions options);
+    float PeakDb { get; }
 }
 ```
 
 - 選んだ値は、Trackingや録画と同じく`Options`と`SetOptions`でまとめて扱う。設定画面とライブ画面のどちらで変えても、両方に反映される。
-- 音の元の足し引き（`AddSource`、`RemoveSource`）、モニターのバスと出力の機器、マネージドの処理の段（`Attach`）は、それぞれの段階（17章）で加える。最初の版は、マイクとゲームの音声の2つを最初から持つ。
+- 音の元の足し引き（`AddSource`、`RemoveSource`）、マネージドの処理の段（`Attach`）は、それぞれの段階（17章）で加える。最初の版は、マイクとゲームの音声の2つを最初から持つ。
 - `IAudioEngine`は、`AudioService`とネイティブのエンジン（`NativeAudioEngine`）の間に置く。Testでは偽物に替え、機器とPluginなしで`AudioService`を確かめる。
 
 ### 5.2 音の元、処理の段、バス
 
 ```text
 マイク       ─ 取り込み ─▶ [RVC（マネージド、後で）] ─▶ 音量／ミュート ─┬─▶ 配信用のバス ─▶ リミッター ─▶ 読み出し口 ─▶ エンコーダー
-ゲームの音声 ─ 取り込み ───────────────────────────▶ 音量／ミュート ─┼─▶ モニターのバス ─▶ リミッター ─▶ 出力の機器（段階2）
+ゲームの音声 ─ 取り込み ───────────────────────────▶ 音量／ミュート ─┼─▶ モニターのバス ─▶ リミッター ─▶ モニターの音量 ─▶ 出力の機器
 BGM／SE     ─ クリップの再生（後で） ───────────────▶ 音量／ミュート ─┘
 ```
 
-- 音の元ごとの送りの量で、それぞれのバスに何が届くかを決める。マイクは配信用だけ、BGMは両方、ゲームの音声はモニターにも（段階2）、のようにできる。
-- 既定：マイクは配信用だけ。ゲームの音声は配信用（段階2でモニターにも）。BGMとSEは両方。
+- 音の元ごとの送りの量で、それぞれのバスに何が届くかを決める。マイクは配信用だけ、BGMは両方、ゲームの音声はモニターにも、のようにできる。
+- 既定：マイクは配信用だけ。ゲームの音声は両方。BGMとSEは両方。自分の声は、返ってくると話しにくく、スピーカーならマイクへ回り込むので、既定では聞かない。
+- 音の元のミュートは、配信とモニターの両方を止める。
+- モニターは配信用のバスとは別の音量、ミュート、リミッターを持つ（方式設計9.4）。
 
 ### 5.3 配信用の音声の読み出し口
 
@@ -116,12 +129,12 @@ typedef struct vv_audio_stream_tap
 
 1. 機器の音の元ごとの取り込みのスレッド（WASAPIの共有モード、イベント駆動、10ms）が、QPCの付いたパケットを受け取り、48kHz floatステレオに変換し（`AUTOCONVERTPCM`）、音の元の入力のリングバッファーに書く。
 2. 混ぜ合わせのスレッドが10msごとに、音の元ごとに同じ時刻のブロック（処理の段の後）を取り、音量、ミュート、送りの量をかけて、バスへ足す。
-3. それぞれのバスのピークを−1dBFSに抑え、リングバッファーに書く：配信用のバスは読み出し口へ、モニターのバスは出力の機器へ（段階2）。
+3. それぞれのバスのピークを−1dBFSに抑え、リングバッファーに書く：配信用のバスは読み出し口へ、モニターのバスは出力の機器へ。モニターの出力のスレッド（WASAPIの共有モード、イベント駆動）がそれを再生する。
 4. エンコーダーが、読み出し口（5.3）を通して配信用のバスを読む。
 
 ### 8.2 時計
 
-機器はそれぞれ別の時計で動く。そのずれ（1秒に数サンプル）は、音の元の入力でときどき1サンプルを捨てるか繰り返して吸収し、どのリングバッファーもあふれたり空になったりしないようにする。
+機器はそれぞれ別の時計で動く。そのずれ（1秒に数サンプル）は、音の元の入力とモニターの出力でときどき1サンプルを捨てるか繰り返して吸収し、どのリングバッファーもあふれたり空になったりしないようにする（`FillTracker`）。
 
 ### 8.3 Unityの中で動く処理の段（RVC）
 
@@ -138,14 +151,14 @@ typedef struct vv_audio_stream_tap
 ### 8.5 アバターに合わせて配信の音を遅らせる
 
 - アバターの動きは声より遅れる。カメラ、推定、揺れを抑える平滑化に時間がかかるためである（Tracking詳細設計8章）。利用者が手を叩いた録画では、アバターの手は音より少なくとも0.2秒遅れて現れた（2026-10-29）。
-- そこで、録画と配信は、利用者が決めた遅延（0〜1000ms、既定は利用者の決定で300ms）だけ遅れて配信用のバスを受け取る。読み出し口は、各Frameをその分遅れて聞こえたものとして渡す（`vv_audio_set_stream_delay`）。利用者自身が聞く音（モニターのバス、段階2）は遅らせない。
+- そこで、録画と配信は、利用者が決めた遅延（0〜1000ms、既定は利用者の決定で300ms）だけ遅れて配信用のバスを受け取る。読み出し口は、各Frameをその分遅れて聞こえたものとして渡す（`vv_audio_set_stream_delay`）。利用者自身が聞く音（モニターのバス）は遅らせない。
 - この遅延は`StreamLatency`に含めない。`StreamLatency`は処理の遅れで、Videoはその分映像を保つ（8.4）。こちらは逆向きである。
 - 録画中に変えると、バスの時刻が跳ぶ。エンコーダーは、隙間を無音で埋めるか、重なりを書かない（録画詳細設計8.1）。
 - アバターの遅れを測って自動で設定することは、未解決の課題とする（#100）。
 
 ## 9. Thread
 
-- 機器の音の元ごとに1つの取り込みのスレッドと、1つの混ぜ合わせのスレッド。ネイティブで、標準より高い優先度（MMCSSの「Audio」）。Allocation、待つ間のLock、ログの記録はせず、数を数えるだけとする。
+- 機器の音の元ごとに1つの取り込みのスレッド、1つのモニターの出力のスレッドと、1つの混ぜ合わせのスレッド。ネイティブで、標準より高い優先度（MMCSSの「Audio」）。Allocation、待つ間のLock、ログの記録はせず、数を数えるだけとする。
 - マネージドの処理の段はUnityの中で動き、これらのスレッドでは動かさない（8.3）。
 - マネージドは、メインスレッドから100msごとにレベルと状態を読む。
 
@@ -157,9 +170,10 @@ typedef struct vv_audio_stream_tap
 {
   "schemaVersion": 1,
   "sources": [
-    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0 } },
-    { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0 } }
+    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0, "monitor": -120 } },
+    { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0, "monitor": 0 } }
   ],
+  "monitor": { "deviceId": "...", "gainDb": 0, "muted": false },
   "streamDelayMs": 300
 }
 ```
@@ -167,6 +181,7 @@ typedef struct vv_audio_stream_tap
 - 音の元は一覧なので、BGM、SE、2本目のマイクも形式を変えずに足せる。知らない用途の音の元は残し、鳴らさない。ファイルの最上位の知らない項目は残す（CLAUDE.md 25章）。音の元の中の知らない項目は、今は残らない。
 - JSONは-infを書けないため、送りの-120dB以下を「なし」とする。
 - `streamDelayMs`（8.5）は、Schema version 1のまま手順なしで加えた。ない古いファイルは300として読む。
+- `monitor`と送りの`monitor`も、Schema version 1のまま手順なしで加えた。`monitor`がないファイルはWindowsの既定の出力の機器で始め、送りがない音の元はゲームの音声だけを聞く。`deviceId`がnullなら、利用者が「なし」を選んだので既定に戻さない。
 - マイクは、初めて使うときにWindowsの既定の入力の機器とする。ゲームの音声には既定がない（キャプチャーボードを選ぶ必要がある）。
 - `ProfileKind`に`Audio`を加える。
 
@@ -176,7 +191,7 @@ typedef struct vv_audio_stream_tap
 
 ## 12. エラーと回復
 
-- 機器を抜いた：`Unavailable`。その部分は無音になり、挿し直すと開き直す。
+- 機器を抜いた：`Unavailable`。その部分は無音になり、挿し直すと開き直す。モニターの出力の機器も同じである。配信と録画の音は止まらない。
 - 機器をほかのアプリが占有している：`Error`と「ほかのアプリがこの機器を使っています」。
 - Windowsのプライバシーの設定でマイクが許可されていない：`Error`と「Windowsの設定 > プライバシーでマイクへのアクセスを許可してください」、そのページを開くButton。
 - マネージドの処理の段が失敗した、遅れた：その音の元は無音になり（数える）、通しに戻せる（方式設計9.13）。
@@ -185,7 +200,7 @@ typedef struct vv_audio_stream_tap
 ## 13. ログと診断
 
 - 開いた機器（名前、形式）、なくなった機器、また見つかった機器、足した・外した音の元、処理の段の遅れ、問題を記録する。ブロックごとの記録はしない。
-- 計測：音の元ごとの`Audio/<用途>.Overruns`、`Underruns`、`DriftCorrections`（用途は`Microphone`、`GameAudio`）。`StageLate`は処理の段とともに加える。`StreamLatency`は起動時にログに書く。
+- 計測：音の元ごとの`Audio/<用途>.Overruns`、`Underruns`、`DriftCorrections`（用途は`Microphone`、`GameAudio`）、モニターの`Audio/Monitor.Underruns`、`DriftCorrections`。`StageLate`は処理の段とともに加える。`StreamLatency`は起動時にログに書く。
 - 機器は名前でログに書き、IDは書かない。
 - 音声そのものは、ログにも診断にも書かない（CLAUDE.md 20章）。
 
@@ -193,21 +208,23 @@ typedef struct vv_audio_stream_tap
 
 | 種類 | 対象 |
 |---|---|
-| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ |
+| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ、モニターのバス（別の送りと音量、遅らせないこと） |
 | EditMode | 偽のエンジンでの`AudioService`：Profileからの音の元、足し引き、機器の消失と復帰、設定と移行 |
 | 実機（手動） | 実際のマイクとキャプチャーボード：レベル、抜き差し、録画の同期（録画詳細設計14章） |
 
 ## 15. 性能
 
 - 機器から配信用のバスまでの遅れ：約20〜30ms（10msの周期2つと混ぜ合わせ）に、処理の段それぞれの遅れが加わる。
+- 機器からモニターの出力までの遅れの目標：約60ms（取り込みと混ぜ合わせの30msに、モニターの溜め20msと出力の機器の周期約10ms）。キャプチャーボード自身の遅れは別に加わる。
 - CPU：機器の音の元2つで、1コアの1%を十分に下回る。
 
 ## 16. Folder / Namespace
 
 ```text
-native/audio/include/vv_audio.h        公開のC API（version 2：配信の遅延）
-native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、dsp（音量、リミッター）、
-                                       device_source（WASAPIでの取り込み）、exports（エンジンと混ぜ合わせのスレッド）
+native/audio/include/vv_audio.h        公開のC API（version 3：モニターのバスと出力の機器）
+native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、fill_tracker（2つの時計の間の溜まり）、
+                                       dsp（音量、リミッター）、device_loop（機器のスレッド、WASAPIの共有モード）、device_source（取り込み）、
+                                       device_output（モニターの再生）、exports（エンジンと混ぜ合わせのスレッド）
 native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
 Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）
 Audio/Tests/EditMode/
@@ -219,9 +236,11 @@ UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip�
 ## 17. 段階
 
 1. マイクとゲームの音声、音量とミュート、配信用のバス、レベル、設定（この版）。
-2. モニターのバス：ゲームの音声と、後でBGMとSEを、利用者のヘッドホンへ。送りの量は別に持つ（方式設計9.4）。
+2. モニターのバス：ゲームの音声と、後でBGMとSEを、利用者のヘッドホンへ。送りの量は別に持つ（方式設計9.4）。完了。
 3. ボイスチェンジを、マイクのマネージドの処理の段として加え（8.3）、配信の映像をそれに合わせて遅らせる（8.4）。
 4. BGMとSEのクリップの再生。ファイルはData Rootに置く。
+
+要件にはまだないが、キャプチャーボードなしで同じPCのゲームの音を取ること（アプリの音声のループバック）は、利用者が望んでいる（2026-10-31）。加えるときは次に注意する：新しい`AudioSourceInput`として足す。その音はゲームから利用者の耳へすでに直接届いているので、モニターへ送ると二重に聞こえる。既定の送りはなしとする。映像側は`capture.md`の未決事項を見る。
 
 ## 18. UI
 
@@ -238,5 +257,6 @@ UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip�
 | 配信・録画の音声の遅延（音の元の後に1つ） | Slider、0〜1000ms、10ms刻み（8.5） |
 
 - Cardを表示している間、機器を5秒ごとに数え直し、つないだ機器が選べるようになる。
-- モニターへの送りの量は段階2で加える。
+- 音の元ごとの「自分で聞く」Toggleが、モニターのバスへの送りを切り替える。量の調整は、必要になったときに加える。
+- 音の元の後に「モニター」の行をまとめる：出力先のSelect（先頭に「なし」）、音量、ミュート、レベル。見出しの状態の表示は音の元と同じである。
 - ライブ画面では、録画の操作の下に、音の元ごとのミュートのIconButton（ミュート中は斜線のマイク）、名前、小さなメーターを置き、録画中に音が入っていることが分かるようにする（`live.md`）。

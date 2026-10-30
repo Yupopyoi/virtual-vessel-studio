@@ -265,5 +265,12 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
+| `setup.audio.monitored` | 自分で聞く | Hear it myself |
+| `setup.audio.monitored.description` | オンにすると、下の「モニター」から聞こえます。配信と録画には関係しません。 | Plays on the monitor below. This does not change the stream or recordings. |
+| `setup.audio.monitor` | モニター | Monitor |
+| `setup.audio.monitor.device` | 出力先 | Output |
+| `setup.audio.monitor.device.description` | 自分が聞く音を出す機器です。ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | The device you listen on. Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.monitor.gain` | 音量 | Volume |
+| `setup.audio.monitor.mute` | ミュート | Mute |
 | `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
 | `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |

@@ -75,6 +75,23 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheMonitor_HasItsOwnOutputAndVolume_AndEachSourceChoosesToBeHeard()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            Assert.That(card.Monitor.Devices.value, Is.EqualTo("speakers"));
+
+            card.Monitor.Devices.value = "phones";
+            card.Monitor.Gain.value = -12f;
+            Assert.That(_audio.Monitor.Options.Value.DeviceId, Is.EqualTo("phones"));
+            Assert.That(_audio.Monitor.Options.Value.GainDb, Is.EqualTo(-12f));
+
+            card.Groups[1].Monitored.value = true;
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.True);
+            Assert.That(_audio.Microphone.Options.Value.Monitored, Is.False, "Only the chosen source.");
+        }
+
+        [UnityTest]
         public IEnumerator AProblem_SaysWhatToDo_AndDeniedAccessOpensWindowsSettings()
         {
             AudioCard card = OpenCard();
@@ -224,6 +241,26 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
+        private sealed class FakeMonitor : IAudioMonitor
+        {
+            private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Running);
+            private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
+            private readonly ObservableValue<AudioMonitorOptions> _options = new ObservableValue<AudioMonitorOptions>(new AudioMonitorOptions("speakers", 0f, false));
+
+            public IReadOnlyObservable<AudioSourceState> State => _state;
+
+            public IReadOnlyObservable<AudioProblem> Problem => _problem;
+
+            public IReadOnlyObservable<AudioMonitorOptions> Options => _options;
+
+            public float PeakDb => -20f;
+
+            public void SetOptions(AudioMonitorOptions options)
+            {
+                _options.Set(options);
+            }
+        }
+
         private sealed class FakeAudio : IAudioService
         {
             private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(new[]
@@ -245,6 +282,10 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyList<IAudioSource> Sources => new IAudioSource[] { Microphone, Game };
 
             public IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices => _devices;
+
+            public IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices { get; } = new ObservableValue<IReadOnlyList<AudioDevice>>(new[] { new AudioDevice("speakers", "Speakers", true), new AudioDevice("phones", "Headphones", false) });
+
+            public IAudioMonitor Monitor { get; } = new FakeMonitor();
 
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 
