@@ -284,7 +284,8 @@
 }
 
 /* The stage light changes the stream too; the note under its slider says so. */
-.vv-face-card__light-note {
+.vv-face-card__light-note,
+.vv-face-card__fingers-note {
     margin-top: var(--vv-space-xs);
     white-space: normal;
     color: var(--vv-color-text-2);

@@ -187,6 +187,24 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public async Task FingerTuning_AppliesToTheAvatarAtOnce_AndIsSavedForTheNextStart()
+        {
+            _service = await StartAsync();
+            await _service.ImportAsync(Source(), null, CancellationToken.None);
+            var tuning = new FingerTuning { Bend = 1.4f, Thumb = 0.8f };
+
+            _service.SetFingerTuning(tuning);
+
+            Assert.That(_service.FingerTuning.Value, Is.EqualTo(tuning));
+            Assert.That(_service.Controller.FingerTuning, Is.EqualTo(tuning), "The avatar on the stream uses it now.");
+            await _service.ShutdownAsync(CancellationToken.None);
+            _service.Dispose();
+
+            _service = await StartAsync();
+            Assert.That(_service.FingerTuning.Value, Is.EqualTo(tuning), "It belongs to the user and stays across starts.");
+        }
+
+        [Test]
         public async Task FaceTuning_AppliesToTheAvatarAtOnce_AndIsSavedForTheNextStart()
         {
             _service = await StartAsync();

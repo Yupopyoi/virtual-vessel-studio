@@ -44,6 +44,18 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public const float EndShare = 2f / 3f;
 
+        /// <summary>How close in the image a nearer finger hides a joint, as a share of the palm's length there (<see cref="HiddenFingers"/>).</summary>
+        public const float HiddenReach = 0.2f;
+
+        /// <summary>How many of a finger's three joints must be hidden.</summary>
+        public const int HiddenJoints = 2;
+
+        /// <summary>How far a hand may face the camera and still count as edge-on: the palm's normal along the camera's axis.</summary>
+        public const float MaxEdgeOnFacing = 0.7f;
+
+        /// <summary>The base's share of a finger's bend (<see cref="Arc"/>): its share in a fist.</summary>
+        public const float ArcShare = MaxBaseBend / (MaxBaseBend + MaxMiddleBend);
+
         /// <summary>How far a finger spreads either way at its base.</summary>
         public const float MaxSpread = 15f;
 
@@ -100,10 +112,15 @@ namespace VirtualVessel.Avatar
         /// <summary>
         /// Writes the finger angles of <paramref name="hand"/> into <paramref name="into"/>, within the limits;
         /// false, writing nothing, when the hand is not seen. <paramref name="left"/> is whether it is the
-        /// person's left hand, whose thumb is on the other side.
+        /// person's left hand, whose thumb is on the other side. <paramref name="tuning"/> is the user's
+        /// strength; null is the default. <paramref name="mirror"/> is whether the avatar mirrors the user.
         /// </summary>
-        public static bool TryMeasure(HandPose hand, bool left, FingerPose into)
+        public static bool TryMeasure(HandPose hand, bool left, FingerPose into, FingerTuning tuning = null, bool mirror = false)
         {
+            tuning ??= FingerTuning.Default;
+            float baseGain = BaseGain * tuning.Bend;
+            float thumbGain = ThumbGain * tuning.Thumb;
+
             if (hand == null || !hand.IsUsable)
             {
                 return false;
@@ -133,21 +150,25 @@ namespace VirtualVessel.Avatar
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                float middleBend = ShownMiddle(finger, Vector3.Angle(proximal, middle));
-                into.SetBend(finger, 0, Shown(bend, OpenBend, BaseGain, MaxBaseBend));
+                (float baseBend, float middleBend) = Arc(Shown(bend, OpenBend, baseGain, MaxBaseBend), Mathf.Min(ShownMiddle(finger, Vector3.Angle(proximal, middle)) * tuning.Bend, MaxMiddleBend));
+                into.SetBend(finger, 0, baseBend);
                 into.SetBend(finger, 1, middleBend);
                 into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
             }
+
+            FollowSeenFingers(HiddenFingers(hand), into);
 
             Vector3 thumbBase = hand[HandJoint.ThumbMcp] - hand[HandJoint.ThumbCmc];
             Vector3 thumbMiddle = hand[HandJoint.ThumbIp] - hand[HandJoint.ThumbMcp];
             Vector3 thumbEnd = hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbIp];
             float tuck = Tuck(hand[HandJoint.ThumbTip] - indexBase, thumbward);
             into.SetBend(Finger.Thumb, 0, MaxThumbFold * tuck);
-            into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, ThumbGain, MaxThumbBend), ThumbTuckBend * tuck));
-            into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
+            into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, thumbGain, MaxThumbBend), ThumbTuckBend * tuck));
+            into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, thumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
             into.SetSpread(Finger.Thumb, 0f);
+            into.ThumbDirection = ThumbDirection(hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbCmc], mirror);
+            into.ThumbAim = (1f - tuck) * 100f;
             return true;
         }
 
@@ -160,6 +181,127 @@ namespace VirtualVessel.Avatar
         {
             int i = (int)finger - 1;
             return Mathf.InverseLerp(s_middleOpen[i], s_middleFist[i], read) * MaxMiddleBend;
+        }
+
+        /// <summary>
+        /// The base and middle joints with their total bend shared as in a fist (<see cref="ArcShare"/>), so a
+        /// finger curves as a whole. The total reads steadily and the split does not: half of a heart read
+        /// 26° and 48° on the left hand and 46° and 24° on the right, 74° and 70° in all, and a split followed
+        /// as read showed a straight finger hooked at the end (the user's recordings, 2026-10-30). A finger
+        /// bent only at its base, straight beyond, shows curved. Pure.
+        /// </summary>
+        public static (float Base, float Middle) Arc(float baseBend, float middleBend)
+        {
+            float total = baseBend + middleBend;
+            return (total * ArcShare, total * (1f - ArcShare));
+        }
+
+        /// <summary>
+        /// Which of the four fingers are hidden behind others, a bit each from the index finger. A hand seen
+        /// edge-on lines its fingers up, and MediaPipe only guesses those behind: in half of a heart the
+        /// little finger was in front and the other three read unlike it and each other (the user's recordings,
+        /// 2026-10-30). A finger counts when most of its joints lie close to a nearer finger in the image.
+        /// Only fingers hide it, and only edge-on: a finger folded behind the palm is seen as folded, and
+        /// following a raised one would open it. Pure.
+        /// </summary>
+        public static int HiddenFingers(HandPose hand)
+        {
+            Vector2[] image = hand.ImagePositions;
+            float reach = Vector2.Distance(image[(int)HandJoint.Wrist], image[(int)HandJoint.MiddleMcp]) * HiddenReach;
+            Vector3 normal = Vector3.Cross(hand[HandJoint.IndexMcp] - hand[HandJoint.Wrist], hand[HandJoint.LittleMcp] - hand[HandJoint.Wrist]).normalized;
+            if (reach <= 0f || Mathf.Abs(normal.z) > MaxEdgeOnFacing)
+            {
+                return 0;
+            }
+
+            int hidden = 0;
+            for (int finger = 0; finger < 4; finger++)
+            {
+                int first = (int)HandJoint.IndexMcp + (finger * 4);
+                int covered = 0;
+                for (int joint = first + 1; joint < first + 4; joint++)
+                {
+                    covered += IsCovered(hand, joint, finger, reach) ? 1 : 0;
+                }
+
+                hidden |= covered >= HiddenJoints ? 1 << finger : 0;
+            }
+
+            return hidden;
+        }
+
+        /// <summary>
+        /// Gives each finger in <paramref name="hidden"/> (<see cref="HiddenFingers"/>) the bends of the nearest
+        /// finger seen, in <paramref name="pose"/>; with none seen, each keeps its own. Writes the caller's buffer.
+        /// </summary>
+        public static void FollowSeenFingers(int hidden, FingerPose pose)
+        {
+            if (hidden == 0 || hidden == 0b1111)
+            {
+                return;
+            }
+
+            for (int finger = 0; finger < 4; finger++)
+            {
+                if ((hidden & (1 << finger)) == 0)
+                {
+                    continue;
+                }
+
+                int seen = NearestSeen(hidden, finger);
+                for (int joint = 0; joint < FingerPose.JointCount; joint++)
+                {
+                    pose.SetBend(Finger.Index + finger, joint, pose.Bend(Finger.Index + seen, joint));
+                }
+            }
+        }
+
+        private static int NearestSeen(int hidden, int finger)
+        {
+            for (int distance = 1; distance < 4; distance++)
+            {
+                if (finger + distance < 4 && (hidden & (1 << (finger + distance))) == 0)
+                {
+                    return finger + distance;
+                }
+
+                if (finger - distance >= 0 && (hidden & (1 << (finger - distance))) == 0)
+                {
+                    return finger - distance;
+                }
+            }
+
+            return finger;
+        }
+
+        private static bool IsCovered(HandPose hand, int joint, int finger, float reach)
+        {
+            for (int other = 0; other < 4; other++)
+            {
+                int first = (int)HandJoint.IndexMcp + (other * 4);
+                for (int near = first + 1; other != finger && near < first + 4; near++)
+                {
+                    if (hand.Positions[near].z > hand.Positions[joint].z && Vector2.Distance(hand.ImagePositions[joint], hand.ImagePositions[near]) < reach)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Where the whole thumb (<paramref name="thumb"/>, from its base to its tip) points in the avatar
+        /// root's space. A model's thumb rests in its own direction, and only following its bend pointed it at
+        /// the face in half of a heart, where the user's points down (the user's report, 2026-10-30). In root
+        /// space and not in the palm, because the shown palm can differ from the tracked one: 30° on those
+        /// recordings, which kept the thumb above level while the tracked one was below. Pure.
+        /// </summary>
+        public static Vector3 ThumbDirection(Vector3 thumb, bool mirror)
+        {
+            Vector3 direction = thumb.normalized;
+            return mirror ? new Vector3(-direction.x, direction.y, direction.z) : direction;
         }
 
         /// <summary>The bend shown for a bend read: past <paramref name="open"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
@@ -212,6 +354,13 @@ namespace VirtualVessel.Avatar
                     // The fingers bend into the palm; the thumb bends across it, toward the little finger.
                     Vector3 toward = finger == Finger.Thumb ? -rest.Thumbward : -rest.Back;
                     Quaternion turn = Quaternion.AngleAxis(pose.Bend(finger, joint), Axis(direction, toward));
+                    if (joint == 0 && finger == Finger.Thumb && pose.ThumbDirection.sqrMagnitude > 1e-4f)
+                    {
+                        // The turn is in the hand's frame, and the direction is in the root's.
+                        Quaternion aim = Quaternion.FromToRotation(direction, Quaternion.Inverse(hand) * pose.ThumbDirection);
+                        turn = Quaternion.Slerp(Quaternion.identity, aim, pose.ThumbAim / 100f) * turn;
+                    }
+
                     if (joint == 0 && finger != Finger.Thumb)
                     {
                         turn = Quaternion.AngleAxis(pose.Spread(finger), Axis(direction, rest.Thumbward)) * turn;
