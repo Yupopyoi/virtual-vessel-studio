@@ -32,6 +32,18 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void Arc_TurnsAHookIntoACurve_AndLeavesTheEndsAlone()
+        {
+            (float baseBend, float middle) = FingerRetargeting.Arc(10f, 90f);
+            Assert.That(baseBend, Is.EqualTo(38f).Within(0.01f));
+            Assert.That(middle, Is.EqualTo(62f).Within(0.01f));
+
+            Assert.That(FingerRetargeting.Arc(0f, 0f), Is.EqualTo((0f, 0f)), "An open hand.");
+            Assert.That(FingerRetargeting.Arc(60f, 26f), Is.EqualTo((60f, 26f)), "A base bent more than the middle stays.");
+            Assert.That(FingerRetargeting.Arc(90f, 100f), Is.EqualTo((90f, 100f)), "A fist: the base is at its limit, so the middle keeps its bend.");
+        }
+
+        [Test]
         public void Tuning_OfOneIsTheSameAsNone()
         {
             HandPose hand = Hand(bends: 50f, middleBends: 50f, endBends: 5f, spread: 5f, thumbOpen: 10f, thumbBends: 50f);

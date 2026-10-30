@@ -633,6 +633,7 @@ Built in step 6, part 2.
 - Four fingers:
   - the base bends 0–90° toward the palm: the bend read past 10° (`OpenBend`), scaled by 1.5 (`BaseGain`), because MediaPipe reads curled fingers small;
   - the middle joint bends 0–100°: each finger's reading of an open hand shows straight and its reading of a fist shows 100°, in proportion between (`ShownMiddle`; open 18, 36, 25, 23°, fist 85, 90, 84, 72°, index to little finger);
+  - where the middle joint bends past the base, 35% of the difference moves to the base (`Arc`, `ArcShare`), so a finger curves as a whole. In a rounded hand, such as half of a heart, the base reads 5-20° and the middle 60-88° (the user's recordings, 2026-10-30), which showed as a straight finger hooked at the end. An open hand and a fist barely change;
   - the end joint bends two thirds as far as the middle one (`EndShare`, at most 80°);
   - the base spreads ±15° toward the thumb, fading as the finger bends.
 - The thumb is tucked in by how far its tip reaches across the palm from the index finger's base: from -0.3 of the palm's width (`TuckFrom`) to fully at 0 (`TuckFull`). The tip tells a tucked thumb from one raised out of a fist.

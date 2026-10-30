@@ -44,6 +44,9 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public const float EndShare = 2f / 3f;
 
+        /// <summary>The share of the middle joint's extra bend given to the base (<see cref="Arc"/>).</summary>
+        public const float ArcShare = 0.35f;
+
         /// <summary>How far a finger spreads either way at its base.</summary>
         public const float MaxSpread = 15f;
 
@@ -138,8 +141,8 @@ namespace VirtualVessel.Avatar
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                float middleBend = Mathf.Min(ShownMiddle(finger, Vector3.Angle(proximal, middle)) * tuning.Bend, MaxMiddleBend);
-                into.SetBend(finger, 0, Shown(bend, OpenBend, baseGain, MaxBaseBend));
+                (float baseBend, float middleBend) = Arc(Shown(bend, OpenBend, baseGain, MaxBaseBend), Mathf.Min(ShownMiddle(finger, Vector3.Angle(proximal, middle)) * tuning.Bend, MaxMiddleBend));
+                into.SetBend(finger, 0, baseBend);
                 into.SetBend(finger, 1, middleBend);
                 into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
@@ -165,6 +168,18 @@ namespace VirtualVessel.Avatar
         {
             int i = (int)finger - 1;
             return Mathf.InverseLerp(s_middleOpen[i], s_middleFist[i], read) * MaxMiddleBend;
+        }
+
+        /// <summary>
+        /// The base and middle joints with a share of what the middle bends past the base moved to the base
+        /// (<see cref="ArcShare"/>), so a finger curves as a whole. In a rounded hand, such as half of a heart,
+        /// the base reads small and the middle large: on the user's recordings (2026-10-30), 5-20° and
+        /// 60-88°, which showed as a straight finger hooked at the end. Pure.
+        /// </summary>
+        public static (float Base, float Middle) Arc(float baseBend, float middleBend)
+        {
+            float moved = Mathf.Min(Mathf.Max(0f, middleBend - baseBend) * ArcShare, MaxBaseBend - baseBend);
+            return (baseBend + moved, middleBend - moved);
         }
 
         /// <summary>The bend shown for a bend read: past <paramref name="open"/>, scaled by <paramref name="gain"/>, from 0 to <paramref name="max"/>. Pure.</summary>
