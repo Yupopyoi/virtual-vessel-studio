@@ -79,6 +79,70 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void HiddenFingers_FollowTheNearestSeen_AndNoneSeenKeepTheirOwn()
+        {
+            var pose = new FingerPose();
+            pose.SetBend(Finger.Index, 1, 10f);
+            pose.SetBend(Finger.Middle, 1, 20f);
+            pose.SetBend(Finger.Ring, 1, 30f);
+            pose.SetBend(Finger.Little, 1, 40f);
+
+            FingerRetargeting.FollowSeenFingers(0b0111, pose);
+            Assert.That(pose.Bend(Finger.Index, 1), Is.EqualTo(40f));
+            Assert.That(pose.Bend(Finger.Ring, 1), Is.EqualTo(40f));
+
+            pose.SetBend(Finger.Index, 1, 10f);
+            pose.SetBend(Finger.Middle, 1, 20f);
+            FingerRetargeting.FollowSeenFingers(0b0010, pose);
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(40f), "The nearer of the two, toward the little finger on a tie.");
+
+            pose.SetBend(Finger.Middle, 1, 20f);
+            FingerRetargeting.FollowSeenFingers(0b1111, pose);
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(20f));
+        }
+
+        [Test]
+        public void HiddenFingers_AreThoseBehindOthers_InAHandSeenEdgeOn()
+        {
+            HandPose hand = EdgeOnHand(new[] { 0.2f, 0.4f, 0.6f, 0.8f });
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0b0111), "The little finger is the nearest, and hides the rest.");
+
+            hand = EdgeOnHand(new[] { 0.8f, 0.6f, 0.4f, 0.2f });
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0b1110));
+        }
+
+        [Test]
+        public void HiddenFingers_NeedAHandSeenEdgeOn()
+        {
+            HandPose hand = EdgeOnHand(new[] { 0.2f, 0.4f, 0.6f, 0.8f });
+            hand[HandJoint.IndexMcp] = new Vector3(0.05f, 0.1f, 0f);
+            hand[HandJoint.LittleMcp] = new Vector3(-0.05f, 0.1f, 0f);
+
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0), "A hand facing the camera shows its fingers; one folded behind the palm is folded.");
+        }
+
+        private static HandPose EdgeOnHand(float[] depths)
+        {
+            var hand = new HandPose();
+            hand.ImagePositions[(int)HandJoint.Wrist] = new Vector2(0.5f, 0.5f);
+            hand.ImagePositions[(int)HandJoint.MiddleMcp] = new Vector2(0.5f, 0.4f);
+            hand[HandJoint.Wrist] = Vector3.zero;
+            hand[HandJoint.IndexMcp] = new Vector3(0f, 0.1f, depths[0] * 0.1f);
+            hand[HandJoint.LittleMcp] = new Vector3(0f, 0.1f, depths[3] * 0.1f);
+            for (int finger = 0; finger < 4; finger++)
+            {
+                int first = (int)HandJoint.IndexMcp + (finger * 4);
+                for (int joint = 1; joint < 4; joint++)
+                {
+                    hand.ImagePositions[first + joint] = new Vector2(0.5f, 0.38f - (joint * 0.02f));
+                    hand.Positions[first + joint] = new Vector3(0f, 0.1f + (joint * 0.02f), depths[finger]);
+                }
+            }
+
+            return hand;
+        }
+
+        [Test]
         public void Tuning_OfOneIsTheSameAsNone()
         {
             HandPose hand = Hand(bends: 50f, middleBends: 50f, endBends: 5f, spread: 5f, thumbOpen: 10f, thumbBends: 50f);

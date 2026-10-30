@@ -44,6 +44,15 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public const float EndShare = 2f / 3f;
 
+        /// <summary>How close in the image a nearer finger hides a joint, as a share of the palm's length there (<see cref="HiddenFingers"/>).</summary>
+        public const float HiddenReach = 0.2f;
+
+        /// <summary>How many of a finger's three joints must be hidden.</summary>
+        public const int HiddenJoints = 2;
+
+        /// <summary>How far a hand may face the camera and still count as edge-on: the palm's normal along the camera's axis.</summary>
+        public const float MaxEdgeOnFacing = 0.7f;
+
         /// <summary>The share of the middle joint's extra bend given to the base (<see cref="Arc"/>).</summary>
         public const float ArcShare = 0.35f;
 
@@ -148,6 +157,8 @@ namespace VirtualVessel.Avatar
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
             }
 
+            FollowSeenFingers(HiddenFingers(hand), into);
+
             Vector3 thumbBase = hand[HandJoint.ThumbMcp] - hand[HandJoint.ThumbCmc];
             Vector3 thumbMiddle = hand[HandJoint.ThumbIp] - hand[HandJoint.ThumbMcp];
             Vector3 thumbEnd = hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbIp];
@@ -182,6 +193,101 @@ namespace VirtualVessel.Avatar
         {
             float moved = Mathf.Min(Mathf.Max(0f, middleBend - baseBend) * ArcShare, MaxBaseBend - baseBend);
             return (baseBend + moved, middleBend - moved);
+        }
+
+        /// <summary>
+        /// Which of the four fingers are hidden behind others, a bit each from the index finger. A hand seen
+        /// edge-on lines its fingers up, and MediaPipe only guesses those behind: in half of a heart the
+        /// little finger was in front and the other three read unlike it and each other (the user's recordings,
+        /// 2026-10-30). A finger counts when most of its joints lie close to a nearer finger in the image.
+        /// Only fingers hide it, and only edge-on: a finger folded behind the palm is seen as folded, and
+        /// following a raised one would open it. Pure.
+        /// </summary>
+        public static int HiddenFingers(HandPose hand)
+        {
+            Vector2[] image = hand.ImagePositions;
+            float reach = Vector2.Distance(image[(int)HandJoint.Wrist], image[(int)HandJoint.MiddleMcp]) * HiddenReach;
+            Vector3 normal = Vector3.Cross(hand[HandJoint.IndexMcp] - hand[HandJoint.Wrist], hand[HandJoint.LittleMcp] - hand[HandJoint.Wrist]).normalized;
+            if (reach <= 0f || Mathf.Abs(normal.z) > MaxEdgeOnFacing)
+            {
+                return 0;
+            }
+
+            int hidden = 0;
+            for (int finger = 0; finger < 4; finger++)
+            {
+                int first = (int)HandJoint.IndexMcp + (finger * 4);
+                int covered = 0;
+                for (int joint = first + 1; joint < first + 4; joint++)
+                {
+                    covered += IsCovered(hand, joint, finger, reach) ? 1 : 0;
+                }
+
+                hidden |= covered >= HiddenJoints ? 1 << finger : 0;
+            }
+
+            return hidden;
+        }
+
+        /// <summary>
+        /// Gives each finger in <paramref name="hidden"/> (<see cref="HiddenFingers"/>) the bends of the nearest
+        /// finger seen, in <paramref name="pose"/>; with none seen, each keeps its own. Writes the caller's buffer.
+        /// </summary>
+        public static void FollowSeenFingers(int hidden, FingerPose pose)
+        {
+            if (hidden == 0 || hidden == 0b1111)
+            {
+                return;
+            }
+
+            for (int finger = 0; finger < 4; finger++)
+            {
+                if ((hidden & (1 << finger)) == 0)
+                {
+                    continue;
+                }
+
+                int seen = NearestSeen(hidden, finger);
+                for (int joint = 0; joint < FingerPose.JointCount; joint++)
+                {
+                    pose.SetBend(Finger.Index + finger, joint, pose.Bend(Finger.Index + seen, joint));
+                }
+            }
+        }
+
+        private static int NearestSeen(int hidden, int finger)
+        {
+            for (int distance = 1; distance < 4; distance++)
+            {
+                if (finger + distance < 4 && (hidden & (1 << (finger + distance))) == 0)
+                {
+                    return finger + distance;
+                }
+
+                if (finger - distance >= 0 && (hidden & (1 << (finger - distance))) == 0)
+                {
+                    return finger - distance;
+                }
+            }
+
+            return finger;
+        }
+
+        private static bool IsCovered(HandPose hand, int joint, int finger, float reach)
+        {
+            for (int other = 0; other < 4; other++)
+            {
+                int first = (int)HandJoint.IndexMcp + (other * 4);
+                for (int near = first + 1; other != finger && near < first + 4; near++)
+                {
+                    if (hand.Positions[near].z > hand.Positions[joint].z && Vector2.Distance(hand.ImagePositions[joint], hand.ImagePositions[near]) < reach)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
