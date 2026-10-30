@@ -260,6 +260,8 @@ Requiredとするのは、それなしでは診断も復旧もできないServic
 
 ### 7.1 起動
 
+ビルドしたアプリは、同時に1つだけ起動する（Unityの`forceSingleInstance`）。2つ起動すると、カメラ、マイク、キャプチャー機器を取り合い、同じ設定とログへ書き込み、同じストリームキーで二重に配信するおそれがあるためである。
+
 ```mermaid
 sequenceDiagram
     participant Unity
