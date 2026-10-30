@@ -8,7 +8,7 @@ using VirtualVessel.Core.Time;
 
 namespace VirtualVessel.Video.Recording
 {
-    /// <summary>Reads the stream video for an encoder, a frame at a time; the recording service ticks it each frame.</summary>
+    /// <summary>Reads the stream video for an encoder, a frame at a time; the service using it ticks it each frame.</summary>
     public interface IStreamFrameReader
     {
         /// <summary>Frames not read because two readbacks were still waiting, or the video was missing or of another size.</summary>
@@ -27,6 +27,35 @@ namespace VirtualVessel.Video.Recording
 
         /// <summary>Nothing more is pushed: readbacks still waiting are let go when they arrive. Before the encoder closes.</summary>
         void Release();
+    }
+
+    /// <summary>Takes a frame at a time: a recording's encoder, or the stream's publisher.</summary>
+    public interface IFrameSink
+    {
+        /// <summary>Copies the frame; false when it could not take it.</summary>
+        bool Push(IntPtr data, int length, long timestamp);
+    }
+
+    /// <summary>How a frame is got from the GPU, and how it reaches the sink once it has arrived.</summary>
+    public interface IFrameReadback
+    {
+        void Request(Texture texture, Action<AsyncGPUReadbackRequest> arrived);
+
+        void Deliver(NativeArray<byte> data, long time, IFrameSink sink);
+    }
+
+    /// <summary>The video as it is, BGRA, for recording.</summary>
+    public sealed class BgraFrameReadback : IFrameReadback
+    {
+        public void Request(Texture texture, Action<AsyncGPUReadbackRequest> arrived)
+        {
+            AsyncGPUReadback.Request(texture, 0, TextureFormat.BGRA32, arrived);
+        }
+
+        public unsafe void Deliver(NativeArray<byte> data, long time, IFrameSink sink)
+        {
+            sink.Push((IntPtr)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(data), data.Length, time);
+        }
     }
 
     /// <summary>When frames are due at the output rate. Pure.</summary>
@@ -51,7 +80,7 @@ namespace VirtualVessel.Video.Recording
 
     /// <summary>
     /// Reads the Stream Render Target back with AsyncGPUReadback at the output rate and pushes each frame
-    /// to the encoder with the shared clock's time of the frame (recording detailed design 8.1). At most
+    /// to the sink with the shared clock's time of the frame (recording detailed design 8.1). At most
     /// two readbacks wait; the spike measured them arriving a frame later at 0.35–0.48 ms of main thread
     /// a frame (recording detailed design 1).
     /// </summary>
@@ -60,8 +89,10 @@ namespace VirtualVessel.Video.Recording
         public const int MaxWaiting = 2;
 
         private readonly IReadOnlyObservable<Texture> _video;
-        private readonly EncoderFormat _format;
-        private readonly IVideoEncoder _encoder;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly IFrameSink _sink;
+        private readonly IFrameReadback _readback;
         private readonly IMonotonicClock _clock;
         private readonly long _interval;
 
@@ -76,13 +107,15 @@ namespace VirtualVessel.Video.Recording
         private bool _stopped;
         private bool _released;
 
-        public StreamFrameReader(IReadOnlyObservable<Texture> video, EncoderFormat format, IVideoEncoder encoder, IMonotonicClock clock)
+        public StreamFrameReader(IReadOnlyObservable<Texture> video, int width, int height, int frameRate, IFrameSink sink, IFrameReadback readback, IMonotonicClock clock)
         {
             _video = video ?? throw new ArgumentNullException(nameof(video));
-            _encoder = encoder ?? throw new ArgumentNullException(nameof(encoder));
+            _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+            _readback = readback ?? throw new ArgumentNullException(nameof(readback));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            _format = format;
-            _interval = clock.Frequency / Math.Max(1, format.FrameRate);
+            _width = width;
+            _height = height;
+            _interval = clock.Frequency / Math.Max(1, frameRate);
             _arrived = Arrived;
         }
 
@@ -114,7 +147,7 @@ namespace VirtualVessel.Video.Recording
             }
 
             Texture texture = _video.Value;
-            if (Waiting >= MaxWaiting || texture == null || texture.width != _format.Width || texture.height != _format.Height)
+            if (Waiting >= MaxWaiting || texture == null || texture.width != _width || texture.height != _height)
             {
                 Skipped++;
                 return;
@@ -124,7 +157,7 @@ namespace VirtualVessel.Video.Recording
             _times[slot] = now;
             _frames[slot] = Time.frameCount;
             Waiting++;
-            AsyncGPUReadback.Request(texture, 0, TextureFormat.BGRA32, _arrived);
+            _readback.Request(texture, _arrived);
         }
 
         public void Stop()
@@ -138,7 +171,7 @@ namespace VirtualVessel.Video.Recording
             _released = true;
         }
 
-        private unsafe void Arrived(AsyncGPUReadbackRequest request)
+        private void Arrived(AsyncGPUReadbackRequest request)
         {
             long time = _times[_first];
             int frame = _frames[_first];
@@ -156,8 +189,7 @@ namespace VirtualVessel.Video.Recording
             }
 
             LatencyFrames = Time.frameCount - frame;
-            NativeArray<byte> data = request.GetData<byte>();
-            _encoder.Push((IntPtr)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(data), data.Length, time);
+            _readback.Deliver(request.GetData<byte>(), time, _sink);
         }
     }
 }

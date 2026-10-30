@@ -118,11 +118,8 @@ namespace VirtualVessel.Video.Recording
     /// A video file being encoded. Frames are pushed from the main thread; <see cref="Close"/> may run on
     /// another thread once no more frames are pushed.
     /// </summary>
-    public interface IVideoEncoder
+    public interface IVideoEncoder : IFrameSink
     {
-        /// <summary>Copies a BGRA frame taken at <paramref name="timestamp"/> (the shared clock); false when it was dropped.</summary>
-        bool Push(IntPtr bgra, int length, long timestamp);
-
         EncoderStatus GetStatus();
 
         /// <summary>Encodes what is waiting and finishes the file; blocks for up to about a second. Returns the last counts.</summary>
