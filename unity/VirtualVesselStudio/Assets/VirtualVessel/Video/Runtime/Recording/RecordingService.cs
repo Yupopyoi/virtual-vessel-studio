@@ -141,6 +141,17 @@ namespace VirtualVessel.Video.Recording
             _saves?.Changed(_settings.Clone());
         }
 
+        /// <summary>
+        /// Keeps the stream's settings, which share this profile's file. This service owns the writing, so a
+        /// save from either side cannot put back what the other changed.
+        /// </summary>
+        public void SaveStream(StreamSettings stream)
+        {
+            _settings = _settings.Clone();
+            _settings.Stream = stream.Clone();
+            _saves?.Changed(_settings.Clone());
+        }
+
         public long? FreeBytes()
         {
             return _environment.FreeBytes(_options.Value.Folder);

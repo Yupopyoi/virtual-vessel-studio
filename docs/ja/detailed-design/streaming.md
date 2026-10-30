@@ -28,6 +28,7 @@
 - 新しいModule `VirtualVessel.Streaming`（方式設計2.4の「Streaming」）。Videoの`IStreamOutput`と`StreamFrameReader`を使い、Audioの読み出し口は録画と同じく値として受け取る（録画詳細設計3章）。
 - Media Foundation、RTMP、FLV、TLSの型はネイティブのPluginの中だけに置く。マネージドの側は`IStreamingService`と単純な値だけを見る。
 - 送信先ごとの違い（URLの形、使えるコーデック、推奨のビットレート）は`StreamDestination`にまとめ、エンコーダーと送信の処理には持ち込まない（方式設計10.10「Encode、Multiplex、Publishを分ける」）。
+- 配信の設定は録画とStreaming Profileのファイルを共有するので、書き込みは`RecordingService.SaveStream`に集める。どちらかの保存が、もう一方の変更を巻き戻さないためである。
 - ストリームキーはStreaming Profileに書かない。Profileは資格情報のID（`credentialId`）だけを持ち、値はWindowsの資格情報マネージャーにある（方式設計6.13）。
 
 ## 4. 主なClassとInterface
@@ -51,8 +52,9 @@ public interface IStreamingService
     TimeSpan Elapsed { get; }                              // Liveになってから
     IReadOnlyObservable<StreamingOptions> Options { get; } // 送信先、サーバーURL、キーが登録済みか、コーデック、ビットレート
     void SetOptions(StreamingOptions options);             // 配信中は変えられない（方式設計10.15）
-    void SetStreamKey(string key);                         // 資格情報マネージャーへ。空で消す。値は読み戻さない
+    bool SetStreamKey(string key);                         // 資格情報マネージャーへ。空で消す。失敗はfalse。値は読み戻さない
     StreamingStats Stats { get; }                          // 実際のビットレート、待ち行列、捨てたFrame、再接続の回数
+    Task<StreamingProblem> TestConnectionAsync();          // RTMPのconnectまで。配信は始まらない
     void Start();
     void Stop();
 }
@@ -77,7 +79,7 @@ int32_t vv_stream_close(vv_stream*);                             // 送り終え
 ## 6. Data Model
 
 - `StreamingState`：`Idle`、`Connecting`（接続とRTMPの`publish`まで）、`Live`、`Reconnecting`、`Stopping`、`Failed`。
-- `StreamingProblem`：`None`、`NoStreamKey`、`ServerUnreachable`（名前解決、TCP、TLSの失敗）、`Rejected`（サービスが`publish`を断った：多くはキーの誤り）、`ConnectionLost`（再接続中）、`EncoderFailed`、`CodecNotSupported`（送信先がそのコーデックを受け付けない）、`AudioUnavailable`（音声なしで配信を続ける）。
+- `StreamingProblem`：`None`、`NoStreamKey`、`ServerUnreachable`（名前解決、TCP、TLSの失敗）、`Rejected`（サービスが`publish`を断った：多くはキーの誤り）、`ConnectionLost`（再接続中）、`EncoderFailed`、`AudioUnavailable`（音声なしで配信を続ける）。
 - `StreamDestinationKind`：`YouTube`、`CustomRtmp`。
 - `StreamingStats`：実際のビットレート（直近5秒）、待ち行列の長さ（ms）、捨てたFrame、再接続の回数、エンコードの時間。
 
@@ -172,7 +174,6 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 | 配信を断られた | `Failed`、`Rejected` | ストリームキーが正しいか、YouTube Studioで確かめてください |
 | 配信中に切れた | `Reconnecting`、`ConnectionLost` | 自動で再接続しています。録画は続いています |
 | エンコーダーが使えない | `Failed`、`EncoderFailed` | もう一度試すか、診断画面のログを確かめてください |
-| 送信先がコーデックを受け付けない | `Failed`、`CodecNotSupported` | 設定画面で形式をH.264にしてください |
 | 音声がない | `Live`のまま、`AudioUnavailable` | 音声なしで配信しています |
 
 - TLSの証明書はWindowsの通常の検証に従い、検証を飛ばす設定は作らない。
@@ -210,7 +211,7 @@ ProjectData/Runtime/Credentials/        ICredentialStore、WindowsCredentialStor
 UI/Runtime/Streaming/IStreamingService.cs
 UI/Runtime/Screens/                     StreamControl（ライブ画面）、StreamingCard（設定画面）
 Streaming/Plugins/x86_64/               VirtualVessel.Stream.Native.dll（Gitには含めない）
-Video/Shaders/                          NV12への変換
+Video/Runtime/Resources/                NV12への変換（StreamNv12.compute）
 ```
 
 DLLは`tools/native/build-stream.ps1`で作り、Gitに入れない。

@@ -14,9 +14,11 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Credentials;
 using VirtualVessel.ProjectData.DataRoot;
 using VirtualVessel.ProjectData.Projects;
 using VirtualVessel.Stage;
+using VirtualVessel.Streaming;
 using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
@@ -126,6 +128,7 @@ namespace VirtualVessel.Application.Startup
             VideoService video = null;
             StageService stage = null;
             RecordingService recording = null;
+            StreamingService streamingService = null;
             if (context.MainCamera != null && context.FrameLoop != null)
             {
                 // The project's streaming profile gives the stream video its size and the recordings
@@ -160,6 +163,26 @@ namespace VirtualVessel.Application.Startup
                         metrics,
                         logging.Provider.GetLog("Video", "Recording")),
                     new[] { LoggingService.ServiceName, VideoService.ServiceName }));
+
+                // Streaming reads the stream video back as NV12 and sends it (streaming detailed design 7).
+                // Optional, like recording; a stream in progress disconnects before the stream video stops.
+                // Its settings share the profile's file, so Recording writes them.
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    StreamingService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => streamingService = new StreamingService(
+                        streaming.Value.Value.Stream,
+                        settings => recording?.SaveStream(settings),
+                        video.Size,
+                        streaming.Value.Value.FrameRate,
+                        streaming.Value.Value.AudioBitrate,
+                        context.FrameLoop,
+                        context.MonotonicClock,
+                        new WindowsCredentialStore(),
+                        StreamingEnvironment.Native(video.Video, context.MonotonicClock, () => StreamingAudioOf(audio)),
+                        metrics,
+                        logging.Provider.GetLog("Streaming", "Service")),
+                    new[] { LoggingService.ServiceName, VideoService.ServiceName, RecordingService.ServiceName }));
 
                 // Stage puts the capture videos on the stream screen (Stage detailed design 7), so it
                 // needs both; when either does not start, the host does not create it.
@@ -253,6 +276,7 @@ namespace VirtualVessel.Application.Startup
                                 Audio = audio,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
+                                Streaming = streamingService,
                                 Explorer = new WindowsFileExplorer(),
                                 Tracking = tracking,
                                 TrackingRecordings = recordings,

@@ -9,7 +9,7 @@ using VirtualVessel.Core.Time;
 namespace VirtualVessel.Video.Recording
 {
     /// <summary>Reads the stream video for an encoder, a frame at a time; the service using it ticks it each frame.</summary>
-    public interface IStreamFrameReader
+    public interface IStreamFrameReader : IDisposable
     {
         /// <summary>Frames not read because two readbacks were still waiting, or the video was missing or of another size.</summary>
         long Skipped { get; }
@@ -169,6 +169,12 @@ namespace VirtualVessel.Video.Recording
         {
             _stopped = true;
             _released = true;
+        }
+
+        public void Dispose()
+        {
+            Release();
+            (_readback as IDisposable)?.Dispose();
         }
 
         private void Arrived(AsyncGPUReadbackRequest request)

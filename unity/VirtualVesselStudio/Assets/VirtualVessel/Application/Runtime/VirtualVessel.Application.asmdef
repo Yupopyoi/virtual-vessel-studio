@@ -13,6 +13,7 @@
         "VirtualVessel.Tracking",
         "VirtualVessel.Tracking.MediaPipe",
         "VirtualVessel.UI",
+        "VirtualVessel.Streaming",
         "VirtualVessel.Video"
     ],
     "includePlatforms": [],

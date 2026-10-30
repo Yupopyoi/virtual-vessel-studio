@@ -11,6 +11,7 @@ using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -39,6 +40,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Recording the stream (Video); null says recording is unavailable.</summary>
         public IRecordingService Recording { get; set; }
+
+        /// <summary>Streaming (Streaming); null says streaming is unavailable.</summary>
+        public IStreamingService Streaming { get; set; }
 
         /// <summary>Showing files and folders in Explorer; null leaves out "Open folder".</summary>
         public IFileExplorer Explorer { get; set; }
