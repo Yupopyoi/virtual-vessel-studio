@@ -62,6 +62,12 @@ namespace VirtualVessel.Avatar
         /// <summary>Applies <paramref name="tuning"/> from the next observation and saves it.</summary>
         void SetFaceTuning(FaceTuning tuning);
 
+        /// <summary>How strongly the user's fingers bend the avatar's; the user's, kept when the avatar changes.</summary>
+        IReadOnlyObservable<FingerTuning> FingerTuning { get; }
+
+        /// <summary>Applies at once and is saved.</summary>
+        void SetFingerTuning(FingerTuning tuning);
+
         /// <summary>
         /// What the avatar's face shows this frame, for showing the result of tuning; null without an
         /// avatar. Rewritten every frame, so read it within the frame and do not keep it.

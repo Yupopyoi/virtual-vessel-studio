@@ -641,7 +641,7 @@ Built in step 6, part 2.
 - `FingerRest` holds each finger bone's direction, the back of the hand, and the direction toward the thumb, from the bone positions measured at load (`AvatarBodyShape`, 7.6); a typical hand where the model lacks a bone. `FingerRetargeting.Rotations` (pure) turns each joint about the model's own axes, into the palm for the four fingers and across it for the thumb, carrying the parent's turn on the hand's final rotation (after 7.6 and 7.8).
 - `HandMotion` moves the fingers with the palm on the same observation clock (7.3). It holds them while the hand is lost, then goes over 1 s to the loosely closed hand (`FingerPose.Relaxed`: 15°, 20°, and 10°; the thumb 5°, 10°, and 10°). Without hand tracking the fingers stay loosely closed. A shown angle changes at most 600° a second.
 - Checked on the three sample models (`VrmLoaderTests.Fingers_CloseTheModelsOwnHand`) and drawn with the render probe (14.1).
-- The values were tuned on one person and one model; tuning per person and per model is #67 (chapter 17).
+- The values were tuned on one person and one model. How a hand bends depends on the person and the camera, so the user can set the strength of the four fingers and of the thumb (`FingerTuning`, 50–200% each, 100% by default). It scales the bend after an open hand's reading is taken off, so an open hand stays open at any value. Tucking the thumb goes by where its tip is, and does not change. The tuning belongs to the user, not to a model, and is saved in `avatar-settings.json` (chapter 10). Tuning per model is added if it proves necessary (#67).
 
 Why it is so, and the readings behind the values: [decisions/avatar-motion.md](../decisions/avatar-motion.md) (7.5).
 

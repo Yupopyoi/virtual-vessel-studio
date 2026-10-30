@@ -59,10 +59,14 @@ namespace VirtualVessel.Avatar
         /// </summary>
         public FaceTuning Face { get; set; } = new FaceTuning();
 
+        /// <summary>How strongly the user's fingers bend the avatar's (avatar detailed design 7.5). The same; files without it read the defaults.</summary>
+        public FingerTuning Fingers { get; set; } = new FingerTuning();
+
         public AvatarSettings Clone()
         {
             var copy = (AvatarSettings)MemberwiseClone();
             copy.Face = Face?.Clone() ?? new FaceTuning();
+            copy.Fingers = FingerTuning.Normalized(Fingers);
             return copy;
         }
     }

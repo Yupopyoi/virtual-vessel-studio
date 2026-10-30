@@ -49,12 +49,15 @@ namespace VirtualVessel.Avatar
 
         public FingerPose RightFingers => _right.Fingers;
 
+        /// <summary>The user's finger strength; used from the next observation.</summary>
+        public FingerTuning Tuning { get; set; } = FingerTuning.Default;
+
         /// <param name="frame">The tracking frame; null when there is no tracking.</param>
         /// <param name="now">Seconds on the clock of the hands' timestamps.</param>
         public void Update(TrackingFrame frame, bool mirror, double now)
         {
-            _left.Update(frame == null ? null : HandRetargeting.PersonHand(frame, ArmSide.Left, mirror), mirror, now);
-            _right.Update(frame == null ? null : HandRetargeting.PersonHand(frame, ArmSide.Right, mirror), mirror, now);
+            _left.Update(frame == null ? null : HandRetargeting.PersonHand(frame, ArmSide.Left, mirror), mirror, now, Tuning);
+            _right.Update(frame == null ? null : HandRetargeting.PersonHand(frame, ArmSide.Right, mirror), mirror, now, Tuning);
         }
 
         private sealed class Side
@@ -81,7 +84,7 @@ namespace VirtualVessel.Avatar
 
             public float Presence { get; private set; }
 
-            public void Update(HandPose hand, bool mirror, double now)
+            public void Update(HandPose hand, bool mirror, double now, FingerTuning tuning)
             {
                 float elapsed = _clock.Tick(now);
                 bool usable = HandRetargeting.TryPalm(hand, mirror, out Quaternion palm);
@@ -93,7 +96,7 @@ namespace VirtualVessel.Avatar
                     _to = palm;
 
                     // The person's hand on the avatar's side is the other one in a mirror; its thumb is on its own side.
-                    if (!FingerRetargeting.TryMeasure(hand, _side.IsLeft != mirror, _measured))
+                    if (!FingerRetargeting.TryMeasure(hand, _side.IsLeft != mirror, _measured, tuning))
                     {
                         _measured.CopyFrom(_toFingers);
                     }

@@ -32,6 +32,68 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void Tuning_OfOneIsTheSameAsNone()
+        {
+            HandPose hand = Hand(bends: 50f, middleBends: 50f, endBends: 5f, spread: 5f, thumbOpen: 10f, thumbBends: 50f);
+            var plain = new FingerPose();
+            var tuned = new FingerPose();
+
+            FingerRetargeting.TryMeasure(hand, left: false, plain);
+            FingerRetargeting.TryMeasure(hand, left: false, tuned, new FingerTuning());
+
+            for (Finger finger = Finger.Thumb; finger <= Finger.Little; finger++)
+            {
+                for (int joint = 0; joint < FingerPose.JointCount; joint++)
+                {
+                    Assert.That(tuned.Bend(finger, joint), Is.EqualTo(plain.Bend(finger, joint)), $"{finger} {joint}");
+                }
+            }
+        }
+
+        [Test]
+        public void Tuning_ScalesTheBend_WithinTheLimits()
+        {
+            HandPose hand = Hand(bends: 30f, middleBends: 50f, endBends: 5f, spread: 0f, thumbOpen: 10f, thumbBends: 40f);
+            var plain = new FingerPose();
+            var strong = new FingerPose();
+            var weak = new FingerPose();
+            FingerRetargeting.TryMeasure(hand, left: false, plain);
+            FingerRetargeting.TryMeasure(hand, left: false, strong, new FingerTuning { Bend = 1.5f, Thumb = 1.5f });
+            FingerRetargeting.TryMeasure(hand, left: false, weak, new FingerTuning { Bend = 0.5f, Thumb = 0.5f });
+
+            Assert.That(strong.Bend(Finger.Middle, 0), Is.EqualTo(plain.Bend(Finger.Middle, 0) * 1.5f).Within(0.01f));
+            Assert.That(strong.Bend(Finger.Middle, 1), Is.EqualTo(plain.Bend(Finger.Middle, 1) * 1.5f).Within(0.01f));
+            Assert.That(weak.Bend(Finger.Middle, 1), Is.EqualTo(plain.Bend(Finger.Middle, 1) * 0.5f).Within(0.01f));
+            Assert.That(strong.Bend(Finger.Thumb, 2), Is.EqualTo(plain.Bend(Finger.Thumb, 2) * 1.5f).Within(0.01f));
+
+            FingerRetargeting.TryMeasure(Hand(bends: 80f, middleBends: 120f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 50f), left: false, strong, new FingerTuning { Bend = 2f });
+            Assert.That(strong.Bend(Finger.Middle, 0), Is.LessThanOrEqualTo(FingerRetargeting.MaxBaseBend));
+            Assert.That(strong.Bend(Finger.Middle, 1), Is.LessThanOrEqualTo(FingerRetargeting.MaxMiddleBend));
+        }
+
+        [Test]
+        public void Tuning_KeepsAnOpenHandOpen()
+        {
+            HandPose hand = Hand(bends: 0f, middleBends: 0f, endBends: 0f, spread: 0f, thumbOpen: 45f, thumbBends: 0f);
+            var pose = new FingerPose();
+
+            FingerRetargeting.TryMeasure(hand, left: false, pose, new FingerTuning { Bend = 2f, Thumb = 2f });
+
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(0f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(0f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Thumb, 1), Is.EqualTo(0f).Within(Tolerance));
+        }
+
+        [Test]
+        public void Tuning_FromAFile_IsKeptInRange()
+        {
+            Assert.That(FingerTuning.Normalized(null), Is.EqualTo(new FingerTuning()));
+            Assert.That(FingerTuning.Normalized(new FingerTuning { Bend = 9f, Thumb = float.NaN }), Is.EqualTo(new FingerTuning { Bend = FingerTuning.Max, Thumb = 1f }));
+            Assert.That(new FingerTuning().WithBend(0f).Bend, Is.EqualTo(FingerTuning.Min));
+            Assert.That(new FingerTuning { Bend = 1.5f }.WithThumb(0.7f).Bend, Is.EqualTo(1.5f));
+        }
+
+        [Test]
         public void ABentHand_IsShownBentFurtherThanRead_WithinTheLimits()
         {
             // The tracked hand reads its bends small; past what an open hand reads, they are scaled up.

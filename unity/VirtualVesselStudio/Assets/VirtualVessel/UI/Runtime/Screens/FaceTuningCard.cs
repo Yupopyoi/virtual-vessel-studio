@@ -23,6 +23,9 @@ namespace VirtualVessel.UI.Screens
         public const string Mouth = "setup.face.mouth";
         public const string Gaze = "setup.face.gaze";
         public const string Smile = "setup.face.smile";
+        public const string Fingers = "setup.face.fingers";
+        public const string Thumb = "setup.face.thumb";
+        public const string FingersDescription = "setup.face.fingers.description";
         public const string Reset = "setup.face.reset";
         public const string ResetButton = "setup.face.reset.button";
         public const string PictureHeight = "setup.face.picture.height";
@@ -49,6 +52,7 @@ namespace VirtualVessel.UI.Screens
         public const string PartsClass = UssClass + "__parts";
         public const string PartClass = UssClass + "__part";
         public const string LightNoteClass = UssClass + "__light-note";
+        public const string FingersNoteClass = UssClass + "__fingers-note";
 
         /// <summary>The sliders show percent: 100 is the default sensitivity.</summary>
         public const float PercentPerUnit = 100f;
@@ -175,14 +179,35 @@ namespace VirtualVessel.UI.Screens
                 _meters[i] = meter;
             }
 
+            // The stream beside them shows the hands too, with the picture's height and zoom.
+            Fingers = Ui.Slider(FaceTuningStrings.Fingers, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, "%");
+            Fingers.Step = 10f;
+            Fingers.RegisterValueChangedCallback(evt => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithBend(evt.newValue / PercentPerUnit)));
+            parts.Add(Fingers);
+            Thumb = Ui.Slider(FaceTuningStrings.Thumb, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, "%");
+            Thumb.Step = 10f;
+            Thumb.RegisterValueChangedCallback(evt => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithThumb(evt.newValue / PercentPerUnit)));
+            parts.Add(Thumb);
+            parts.Add(Ui.Text(FaceTuningStrings.FingersDescription, FingersNoteClass, "vv-text-caption"));
+
             ResetButton = Ui.Button(FaceTuningStrings.ResetButton);
-            ResetButton.clicked += () => _avatars.SetFaceTuning(new FaceTuning());
+            ResetButton.clicked += () =>
+            {
+                _avatars.SetFaceTuning(new FaceTuning());
+                _avatars.SetFingerTuning(new FingerTuning());
+            };
             SettingRow resetRow = Ui.SettingRow(FaceTuningStrings.Reset);
             resetRow.Add(ResetButton);
             parts.Add(resetRow);
 
             PanelLifetime.WhileAttached(this, _ => Attach());
         }
+
+        /// <summary>How strongly the four fingers bend, in percent.</summary>
+        public ValueSlider Fingers { get; }
+
+        /// <summary>How strongly the thumb bends, in percent.</summary>
+        public ValueSlider Thumb { get; }
 
         /// <summary>The stream, to watch the avatar while tuning.</summary>
         public Image Preview { get; }
@@ -266,9 +291,11 @@ namespace VirtualVessel.UI.Screens
             var subscriptions = new List<IDisposable>
             {
                 _avatars.FaceTuning.Subscribe(ShowTuning),
+                _avatars.FingerTuning.Subscribe(ShowFingers),
                 new DisposeAction(meters.Pause),
             };
             ShowTuning(_avatars.FaceTuning.Value);
+            ShowFingers(_avatars.FingerTuning.Value);
             if (_stream != null)
             {
                 subscriptions.Add(_stream.Video.Subscribe(ShowVideo));
@@ -293,6 +320,12 @@ namespace VirtualVessel.UI.Screens
 
             WinksToggle.SetValueWithoutNotify(tuning.Winks);
             _sliders[(int)FaceTuningPart.Wink].SetEnabled(tuning.Winks);
+        }
+
+        private void ShowFingers(FingerTuning tuning)
+        {
+            Fingers.SetValueWithoutNotify(tuning.Bend * PercentPerUnit);
+            Thumb.SetValueWithoutNotify(tuning.Thumb * PercentPerUnit);
         }
 
         private void ShowLight(float intensity)

@@ -100,10 +100,15 @@ namespace VirtualVessel.Avatar
         /// <summary>
         /// Writes the finger angles of <paramref name="hand"/> into <paramref name="into"/>, within the limits;
         /// false, writing nothing, when the hand is not seen. <paramref name="left"/> is whether it is the
-        /// person's left hand, whose thumb is on the other side.
+        /// person's left hand, whose thumb is on the other side. <paramref name="tuning"/> is the user's
+        /// strength; null is the default.
         /// </summary>
-        public static bool TryMeasure(HandPose hand, bool left, FingerPose into)
+        public static bool TryMeasure(HandPose hand, bool left, FingerPose into, FingerTuning tuning = null)
         {
+            tuning ??= FingerTuning.Default;
+            float baseGain = BaseGain * tuning.Bend;
+            float thumbGain = ThumbGain * tuning.Thumb;
+
             if (hand == null || !hand.IsUsable)
             {
                 return false;
@@ -133,8 +138,8 @@ namespace VirtualVessel.Avatar
                 Vector3 proximal = hand.Positions[first + 1] - knuckle;
                 Vector3 middle = hand.Positions[first + 2] - hand.Positions[first + 1];
                 (float bend, float spread) = Base(knuckle - wrist, proximal, back, thumbward);
-                float middleBend = ShownMiddle(finger, Vector3.Angle(proximal, middle));
-                into.SetBend(finger, 0, Shown(bend, OpenBend, BaseGain, MaxBaseBend));
+                float middleBend = Mathf.Min(ShownMiddle(finger, Vector3.Angle(proximal, middle)) * tuning.Bend, MaxMiddleBend);
+                into.SetBend(finger, 0, Shown(bend, OpenBend, baseGain, MaxBaseBend));
                 into.SetBend(finger, 1, middleBend);
                 into.SetBend(finger, 2, Mathf.Min(middleBend * EndShare, MaxEndBend));
                 into.SetSpread(finger, Mathf.Clamp(spread, -MaxSpread, MaxSpread));
@@ -145,8 +150,8 @@ namespace VirtualVessel.Avatar
             Vector3 thumbEnd = hand[HandJoint.ThumbTip] - hand[HandJoint.ThumbIp];
             float tuck = Tuck(hand[HandJoint.ThumbTip] - indexBase, thumbward);
             into.SetBend(Finger.Thumb, 0, MaxThumbFold * tuck);
-            into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, ThumbGain, MaxThumbBend), ThumbTuckBend * tuck));
-            into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, ThumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
+            into.SetBend(Finger.Thumb, 1, Mathf.Max(Shown(Vector3.Angle(thumbBase, thumbMiddle), ThumbOpenBend, thumbGain, MaxThumbBend), ThumbTuckBend * tuck));
+            into.SetBend(Finger.Thumb, 2, Mathf.Max(Shown(Vector3.Angle(thumbMiddle, thumbEnd), ThumbOpenBend, thumbGain, MaxThumbEndBend), ThumbTuckEndBend * tuck));
             into.SetSpread(Finger.Thumb, 0f);
             return true;
         }
