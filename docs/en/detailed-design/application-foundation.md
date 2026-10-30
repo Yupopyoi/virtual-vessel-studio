@@ -260,6 +260,8 @@ The format of `%LOCALAPPDATA%\VirtualVesselStudio\bootstrap.json` from system de
 
 ### 7.1 Startup
 
+A built application runs one instance at a time (Unity's `forceSingleInstance`). Two instances would fight over the camera, the microphone, and the capture devices, write the same settings and logs, and could publish the same stream key twice.
+
 ```mermaid
 sequenceDiagram
     participant Unity
