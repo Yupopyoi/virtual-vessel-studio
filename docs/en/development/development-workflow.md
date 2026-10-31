@@ -901,6 +901,7 @@ Native plugins keep their C++ sources in Git, and the built DLLs are not committ
 | Plugin | What it does |
 |---|---|
 | Capture (`native/capture/`) | Runs `tools/native/build-capture.ps1`, the same script developers use: CMake configuration, a Release build, and the native tests (`vv_capture_tests`). The built DLL is kept as an artifact for 14 days |
+| Streaming (`native/stream/`) | Builds with `tools/native/build-stream.ps1` and runs only the protocol tests (`vv_stream_protocol_tests`): the hosted runners may lack the encoders, and the connection tests need ffmpeg and YouTube, so those run on developers' PCs and in the release build. The built DLL is kept as an artifact for 14 days |
 
 - Locally, the same script builds the DLL and copies it into the Unity project (Visual Studio and CMake are needed).
 - Putting the DLL into the distributed application belongs to Native Plugin Packaging in the main build (18.2).

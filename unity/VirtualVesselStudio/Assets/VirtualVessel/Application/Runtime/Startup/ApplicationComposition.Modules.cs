@@ -123,12 +123,23 @@ namespace VirtualVessel.Application.Startup
         /// </summary>
         public static RecordingAudio RecordingAudioOf(IAudioService audio)
         {
-            if (audio == null || !audio.StreamTap.IsValid)
+            if (audio == null || !audio.RecordingTap.IsValid)
             {
                 return default;
             }
 
-            return new RecordingAudio(audio.StreamTap.Context, audio.StreamTap.Read, audio.StreamLatency);
+            return new RecordingAudio(audio.RecordingTap.Context, audio.RecordingTap.Read, audio.StreamLatency);
+        }
+
+        /// <summary>The same for a stream, with its own tap, so a stream and a recording can run at once.</summary>
+        public static RecordingAudio StreamingAudioOf(IAudioService audio)
+        {
+            if (audio == null || !audio.StreamingTap.IsValid)
+            {
+                return default;
+            }
+
+            return new RecordingAudio(audio.StreamingTap.Context, audio.StreamingTap.Read, audio.StreamLatency);
         }
 
         private static AudioService CreateAudio(ApplicationCompositionContext context, OpenedProject project, IPerformanceMetrics metrics, ILog log)

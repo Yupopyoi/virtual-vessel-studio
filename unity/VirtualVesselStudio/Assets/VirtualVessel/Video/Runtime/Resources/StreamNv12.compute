@@ -1,0 +1,79 @@
+// Turns the stream video into NV12, BT.709 limited range, for the streaming encoder (streaming detailed design
+// 8.1): a Y plane, then a plane of interleaved U and V at half the size, with rows top to bottom. Doing this here
+// means three quarters of the readback of BGRA, and no color conversion on the CPU.
+#pragma kernel Luma
+#pragma kernel Chroma
+
+Texture2D<float4> _Source;
+RWByteAddressBuffer _Output;
+uint _Width;
+uint _Height;
+
+// Bytes per row; a multiple of 4, because the buffer is written a word at a time.
+uint _Stride;
+
+float3 ToSrgb(float3 linearColor)
+{
+    float3 low = linearColor * 12.92;
+    float3 high = 1.055 * pow(max(linearColor, 0.0), 1.0 / 2.4) - 0.055;
+    return lerp(high, low, step(linearColor, 0.0031308));
+}
+
+// The target is read as linear light, and the encoder expects the video's own sRGB values. Unity keeps rows from
+// the bottom; the encoder takes them from the top.
+float3 Pixel(uint x, uint row)
+{
+    uint2 at = uint2(min(x, _Width - 1), _Height - 1 - min(row, _Height - 1));
+    return ToSrgb(saturate(_Source.Load(int3(at, 0)).rgb));
+}
+
+float LumaOf(float3 color)
+{
+    return dot(color, float3(0.2126, 0.7152, 0.0722));
+}
+
+uint Byte(float value)
+{
+    return (uint)clamp(value + 0.5, 0.0, 255.0);
+}
+
+// Each thread writes one word: four pixels of a row.
+[numthreads(8, 8, 1)]
+void Luma(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x * 4 >= _Stride || id.y >= _Height)
+    {
+        return;
+    }
+
+    uint word = 0;
+    for (uint i = 0; i < 4; i++)
+    {
+        word |= Byte(16.0 + 219.0 * LumaOf(Pixel((id.x * 4) + i, id.y))) << (i * 8);
+    }
+
+    _Output.Store((id.y * _Stride) + (id.x * 4), word);
+}
+
+// Each thread writes one word: two pairs of U and V, each the average of a square of four pixels.
+[numthreads(8, 8, 1)]
+void Chroma(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x * 4 >= _Stride || id.y >= _Height / 2)
+    {
+        return;
+    }
+
+    uint word = 0;
+    for (uint i = 0; i < 2; i++)
+    {
+        uint x = (id.x * 4) + (i * 2);
+        uint row = id.y * 2;
+        float3 color = (Pixel(x, row) + Pixel(x + 1, row) + Pixel(x, row + 1) + Pixel(x + 1, row + 1)) * 0.25;
+        float luma = LumaOf(color);
+        word |= Byte(128.0 + 224.0 * (color.b - luma) / 1.8556) << (i * 16);
+        word |= Byte(128.0 + 224.0 * (color.r - luma) / 1.5748) << ((i * 16) + 8);
+    }
+
+    _Output.Store(((_Height + id.y) * _Stride) + (id.x * 4), word);
+}

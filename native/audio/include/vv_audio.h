@@ -23,7 +23,8 @@ extern "C"
 
 // 2: the stream bus can be delayed (vv_audio_set_stream_delay).
 // 3: the monitor bus and its output device.
-#define VV_AUDIO_API_VERSION 3
+// 4: each reader of the stream bus has its own tap (VV_AUDIO_READER_*).
+#define VV_AUDIO_API_VERSION 4
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -85,7 +86,7 @@ typedef struct vv_audio_stream_tap
 {
     void* context;
     // Copies up to `frames` stereo float frames of the stream bus, ending no later than `until_qpc`, and
-    // returns how many; writes the QPC of the first one. One reader at a time.
+    // returns how many; writes the QPC of the first one. A tap keeps its own place and has one thread at a time.
     int32_t (*read)(void* context, float* out, int32_t frames, int64_t until_qpc, int64_t* first_qpc);
 } vv_audio_stream_tap;
 
@@ -135,7 +136,10 @@ VV_AUDIO_API int32_t vv_audio_set_monitor_gain(vv_audio_engine* engine, float ga
 
 VV_AUDIO_API int32_t vv_audio_get_monitor_status(vv_audio_engine* engine, vv_audio_monitor_status* status);
 
-VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, vv_audio_stream_tap* tap);
+// Recording and streaming read the stream bus at once, so each has a tap of its own.
+#define VV_AUDIO_READER_RECORDING 0
+#define VV_AUDIO_READER_STREAMING 1
+VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap);
 
 #ifdef __cplusplus
 }

@@ -39,11 +39,16 @@ namespace VirtualVessel.Video.Recording
         /// </summary>
         public string VideoCodec { get; set; }
 
+        /// <summary>The stream's own settings (streaming detailed design 10). Added in version 1 without a step: a file without it reads as the defaults.</summary>
+        public StreamSettings Stream { get; set; } = new StreamSettings();
+
         public static IReadOnlyList<ConfigMigration> Migrations { get; } = Array.Empty<ConfigMigration>();
 
         public RecordingSettings Clone()
         {
-            return (RecordingSettings)MemberwiseClone();
+            var copy = (RecordingSettings)MemberwiseClone();
+            copy.Stream = (Stream ?? new StreamSettings()).Clone();
+            return copy;
         }
 
         /// <summary>
@@ -76,6 +81,32 @@ namespace VirtualVessel.Video.Recording
             }
 
             return next;
+        }
+    }
+
+    /// <summary>
+    /// Where the stream goes (streaming detailed design 10). The key itself is never here: it is in the
+    /// operating system's credential store, under <see cref="CredentialId"/> (system design 6.13).
+    /// </summary>
+    public sealed class StreamSettings
+    {
+        /// <summary>"youtube" or "custom".</summary>
+        public string Destination { get; set; } = "youtube";
+
+        /// <summary>Null for the destination's default URL.</summary>
+        public string ServerUrl { get; set; }
+
+        /// <summary>Null until a key is registered.</summary>
+        public string CredentialId { get; set; }
+
+        /// <summary>"av1" or "h264" once the user has chosen; null for AV1 where it can be used, and H.264 elsewhere.</summary>
+        public string VideoCodec { get; set; }
+
+        public int VideoBitrate { get; set; } = RecordingSettings.StandardBitrate;
+
+        public StreamSettings Clone()
+        {
+            return (StreamSettings)MemberwiseClone();
         }
     }
 }

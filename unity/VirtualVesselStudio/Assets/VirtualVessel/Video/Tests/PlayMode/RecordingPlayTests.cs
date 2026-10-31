@@ -156,7 +156,7 @@ namespace VirtualVessel.Video.Tests
                 }
             }
 
-            return new RecordingAudio(_audio.StreamTap.Context, _audio.StreamTap.Read, _audio.StreamLatency);
+            return new RecordingAudio(_audio.RecordingTap.Context, _audio.RecordingTap.Read, _audio.StreamLatency);
         }
 
         private static (string Codec, int Packets)? ProbeAudio(string file)

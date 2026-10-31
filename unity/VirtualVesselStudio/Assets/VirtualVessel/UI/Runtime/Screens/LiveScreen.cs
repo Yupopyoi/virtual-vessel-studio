@@ -58,6 +58,13 @@ namespace VirtualVessel.UI.Screens
                 Add(Record);
             }
 
+            // Next to recording: going live and ending the stream (streaming detailed design 18.1).
+            if (services.Streaming != null)
+            {
+                Stream = new StreamControl(services.Streaming);
+                Add(Stream);
+            }
+
             // Next to recording, so the user sees the voice and the game are heard (audio detailed design 18).
             if (services.Audio != null && services.Audio.Sources.Count > 0)
             {
@@ -91,6 +98,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Starting and stopping a recording; null without recording.</summary>
         public RecordControl Record { get; }
+
+        public StreamControl Stream { get; }
 
         /// <summary>The sources' levels and mute buttons; null without audio.</summary>
         public AudioStrip Audio { get; }

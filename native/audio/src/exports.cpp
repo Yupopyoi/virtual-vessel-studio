@@ -29,6 +29,7 @@ using Microsoft::WRL::ComPtr;
 using vv::audio::BlockFrames;
 using vv::audio::DeviceOutput;
 using vv::audio::DeviceSource;
+using vv::audio::MaxReaders;
 using vv::audio::Mixer;
 
 namespace
@@ -57,6 +58,16 @@ namespace
     }
 }
 
+namespace
+{
+    // What a tap's context points at: the bus, and whose place on it.
+    struct TapReader
+    {
+        Mixer* mixer = nullptr;
+        int reader = 0;
+    };
+}
+
 struct vv_audio_engine
 {
     explicit vv_audio_engine(int64_t frequency)
@@ -67,6 +78,7 @@ struct vv_audio_engine
     Mixer mixer;
     int64_t frequency;
     DeviceOutput monitor;
+    TapReader readers[MaxReaders];
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
     std::atomic<bool> stop{ false };
@@ -468,17 +480,19 @@ extern "C"
         return VV_AUDIO_OK;
     }
 
-    int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, vv_audio_stream_tap* tap)
+    int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap)
     {
-        if (engine == nullptr || tap == nullptr)
+        if (engine == nullptr || tap == nullptr || reader < 0 || reader >= MaxReaders)
         {
             return VV_AUDIO_INVALID_ARGUMENT;
         }
 
-        tap->context = &engine->mixer;
+        engine->readers[reader] = TapReader{ &engine->mixer, reader };
+        tap->context = &engine->readers[reader];
         tap->read = [](void* context, float* out, int32_t frames, int64_t until_qpc, int64_t* first_qpc) -> int32_t
         {
-            return static_cast<Mixer*>(context)->ReadStream(out, frames, until_qpc, first_qpc);
+            auto tapReader = static_cast<TapReader*>(context);
+            return tapReader->mixer->ReadStream(out, frames, until_qpc, first_qpc, tapReader->reader);
         };
         return VV_AUDIO_OK;
     }

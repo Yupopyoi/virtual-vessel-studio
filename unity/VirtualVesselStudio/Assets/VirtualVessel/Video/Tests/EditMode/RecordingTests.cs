@@ -514,6 +514,10 @@ namespace VirtualVessel.Video.Tests
             {
                 Released = true;
             }
+
+            public void Dispose()
+            {
+            }
         }
 
         private sealed class ManualClock : IMonotonicClock

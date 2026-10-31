@@ -69,7 +69,9 @@ namespace VirtualVessel.Audio
 
         TimeSpan StreamLatency { get; }
 
-        AudioStreamTap StreamTap { get; }
+        AudioStreamTap RecordingTap { get; }
+
+        AudioStreamTap StreamingTap { get; }
     }
 
     /// <summary>The audio engine could not start (audio detailed design 12).</summary>
@@ -88,7 +90,9 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 3;
+        private const int ApiVersion = 4;
+        private const int ReaderRecording = 0;
+        private const int ReaderStreaming = 1;
         private const int Ok = 0;
         private const int StreamBus = 0;
         private const int MonitorBus = 1;
@@ -99,14 +103,18 @@ namespace VirtualVessel.Audio
         private NativeAudioEngine(IntPtr engine)
         {
             _engine = engine;
-            vv_audio_get_stream_tap(engine, out Tap tap);
-            StreamTap = new AudioStreamTap(tap.Context, tap.Read);
+            vv_audio_get_stream_tap(engine, ReaderRecording, out Tap recording);
+            RecordingTap = new AudioStreamTap(recording.Context, recording.Read);
+            vv_audio_get_stream_tap(engine, ReaderStreaming, out Tap streaming);
+            StreamingTap = new AudioStreamTap(streaming.Context, streaming.Read);
             StreamLatency = TimeSpan.FromTicks(vv_audio_stream_latency_us(engine) * 10);
         }
 
         public TimeSpan StreamLatency { get; }
 
-        public AudioStreamTap StreamTap { get; }
+        public AudioStreamTap RecordingTap { get; }
+
+        public AudioStreamTap StreamingTap { get; }
 
         /// <exception cref="AudioEngineException">The plugin is missing or of another version, or the engine cannot start.</exception>
         public static NativeAudioEngine Create()
@@ -355,7 +363,7 @@ namespace VirtualVessel.Audio
         private static extern long vv_audio_stream_latency_us(IntPtr engine);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int vv_audio_get_stream_tap(IntPtr engine, out Tap tap);
+        private static extern int vv_audio_get_stream_tap(IntPtr engine, int reader, out Tap tap);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_set_stream_delay(IntPtr engine, int delayMs);

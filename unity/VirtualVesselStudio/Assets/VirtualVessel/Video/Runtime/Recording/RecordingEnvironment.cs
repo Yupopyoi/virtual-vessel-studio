@@ -56,7 +56,7 @@ namespace VirtualVessel.Video.Recording
         {
             return new RecordingEnvironment(
                 NativeEncoder.Open,
-                (format, encoder) => new StreamFrameReader(video, format, encoder, clock),
+                (format, encoder) => new StreamFrameReader(video, format.Width, format.Height, format.FrameRate, encoder, new BgraFrameReadback(), clock),
                 DiskFreeBytes,
                 () => DateTime.Now,
                 Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),

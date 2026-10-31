@@ -18,6 +18,9 @@ namespace vv::audio
     constexpr int BlockFrames = 480; // 10 ms
     constexpr int MaxSources = 16;
 
+    // Who reads the stream bus at once: recording and streaming.
+    constexpr int MaxReaders = 2;
+
     struct SourceCounters
     {
         int64_t overruns = 0;
@@ -72,8 +75,8 @@ namespace vv::audio
         // The monitor bus's peak since the last call, linear, after its gain.
         float TakeMonitorPeak();
 
-        // The stream tap (vv_audio_stream_tap.read); one reader thread.
-        int32_t ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc);
+        // The stream tap (vv_audio_stream_tap.read). Each reader keeps its own place and has one thread.
+        int32_t ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc, int reader = 0);
 
         // The stream bus's peak since the last call, linear.
         float TakeBusPeak();
@@ -135,7 +138,7 @@ namespace vv::audio
         std::atomic<int64_t> _busAnchor{ 0 };
         std::atomic<bool> _busAnchored{ false };
         std::atomic<float> _busPeak{ 0.0f };
-        uint64_t _busRead = 0; // Reader only.
+        uint64_t _busRead[MaxReaders] = {}; // Each by its own reader only.
         std::atomic<int64_t> _streamDelay{ 0 };
     };
 }

@@ -190,6 +190,24 @@
  * The recording Card (setup.md 10): values in the text color. A folder's path can be long, so it is under
  * the row's name, where it wraps, and only its buttons are on the right, like the other rows' controls.
  */
+.vv-streaming-card__value {
+    color: var(--vv-color-text);
+}
+
+.vv-streaming-card__note {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+    margin-top: var(--vv-space-xs);
+}
+
+.vv-streaming-card__buttons {
+    flex-direction: row;
+}
+
+.vv-streaming-card__buttons > * {
+    margin-left: var(--vv-space-s);
+}
+
 .vv-recording-card__value {
     color: var(--vv-color-text);
 }

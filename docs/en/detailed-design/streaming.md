@@ -28,6 +28,7 @@ Not in this design: the YouTube API (OAuth, creating broadcasts), streaming to s
 - A new module `VirtualVessel.Streaming` (system design 2.4, "Streaming"). It uses Video's `IStreamOutput` and `StreamFrameReader`, and takes Audio's tap as plain values, as recording does (recording detailed design 3).
 - Media Foundation, RTMP, FLV, and TLS types stay in the native plugin. Managed code sees `IStreamingService` and plain values.
 - What differs per destination (the URL's form, the codecs it takes, the recommended bitrate) is in `StreamDestination`, and is not carried into encoding or sending (system design 10.10: Encode, Multiplex, and Publish are kept apart).
+- The stream's settings share the streaming profile's file with recording, so RecordingService.SaveStream does all the writing; a save from either side cannot put back what the other changed.
 - The stream key is not written to the streaming profile. The profile holds only a credential ID (`credentialId`); the value is in Windows Credential Manager (system design 6.13).
 
 ## 4. Main Classes and Interfaces
@@ -51,8 +52,9 @@ public interface IStreamingService
     TimeSpan Elapsed { get; }                              // Since Live
     IReadOnlyObservable<StreamingOptions> Options { get; } // Destination, server URL, whether a key is registered, codec, bitrate
     void SetOptions(StreamingOptions options);             // Not while streaming (system design 10.15)
-    void SetStreamKey(string key);                         // To Credential Manager; empty removes it; never read back
+    bool SetStreamKey(string key);                         // To Credential Manager; empty removes it; false on failure; never read back
     StreamingStats Stats { get; }                          // Actual bitrate, queue, dropped frames, reconnects
+    Task<StreamingProblem> TestConnectionAsync();          // As far as RTMP connect; no stream starts
     void Start();
     void Stop();
 }
@@ -77,7 +79,7 @@ int32_t vv_stream_close(vv_stream*);                             // Sends what i
 ## 6. Data Models
 
 - `StreamingState`: `Idle`, `Connecting` (until RTMP `publish` is accepted), `Live`, `Reconnecting`, `Stopping`, `Failed`.
-- `StreamingProblem`: `None`, `NoStreamKey`, `ServerUnreachable` (name resolution, TCP, or TLS failed), `Rejected` (the service refused `publish`, usually a wrong key), `ConnectionLost` (reconnecting), `EncoderFailed`, `CodecNotSupported` (the destination does not take the codec), `AudioUnavailable` (streaming goes on without audio).
+- `StreamingProblem`: `None`, `NoStreamKey`, `ServerUnreachable` (name resolution, TCP, or TLS failed), `Rejected` (the service refused `publish`, usually a wrong key), `ConnectionLost` (reconnecting), `EncoderFailed`, `AudioUnavailable` (streaming goes on without audio).
 - `StreamDestinationKind`: `YouTube`, `CustomRtmp`.
 - `StreamingStats`: the actual bitrate (last 5 s), the queue length (ms), dropped frames, reconnects, encoding time.
 
@@ -108,7 +110,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 5. Both are made into FLV tags and put in the send queue. The sending thread makes them into RTMP chunks and sends them over TLS.
 
 - Recording and streaming at the same time each encode on their own (NVENC handles several sessions). Sharing the encoded output is in 17.
-- With recording and streaming both reading the stream bus, Audio's tap gets a read position per reader (audio tap API version 3, `vv_audio_open_reader`).
+- With recording and streaming both reading the stream bus, Audio's tap gets a read position per reader (audio API version 3: `vv_audio_get_stream_tap` takes `VV_AUDIO_READER_RECORDING` or `VV_AUDIO_READER_STREAMING`, one fixed tap for each).
 
 ### 8.2 A Congested Connection
 
@@ -158,7 +160,7 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 
 ## 11. Storage
 
-- The stream key is kept in Windows Credential Manager as a generic credential (`CredWrite`, target `VirtualVesselStudio/stream/<credentialId>`, for that user only). The profile holds only the ID that makes the target name.
+- The stream key is kept in Windows Credential Manager as a generic credential (`CredWrite`, target `VirtualVesselStudio/stream/<credentialId>`, for that user and that PC only (`CRED_PERSIST_LOCAL_MACHINE`)). The profile holds only the ID that makes the target name. The ID is 32 hexadecimal digits; profiles can be edited or come from someone else, so its form is checked before use, and it cannot name a target outside this application's own.
 - A profile exported and shared never contains the key; another PC needs the key registered again.
 - Compared (the user agreed, 2026-10-30): written as it is in a settings file, the key leaks through sharing, Issue attachments, and backups. Encrypted with DPAPI in a file and Credential Manager both keep it from other users and other PCs; Credential Manager also keeps it out of files, and the user can see and remove it in Windows' own screen.
 - A program running as the same user (malware) can read it whichever way it is kept. Not holding a key at all (the YouTube API's OAuth, with revocable tokens) is a later step of system design 10.11.
@@ -172,7 +174,6 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 | The stream was refused | `Failed`, `Rejected` | Check the stream key in YouTube Studio |
 | Lost while streaming | `Reconnecting`, `ConnectionLost` | Reconnecting automatically; recording goes on |
 | The encoder cannot be used | `Failed`, `EncoderFailed` | Try again, or check the log on the Diagnostics screen |
-| The destination does not take the codec | `Failed`, `CodecNotSupported` | Choose H.264 as the format on the setup screen |
 | No audio | Stays `Live`, `AudioUnavailable` | Streaming without audio |
 
 - TLS certificates are checked as Windows normally checks them; there is no setting to skip it.
@@ -183,6 +184,7 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 - Start and stop, the kind of destination, the server's host name, codec, bitrate, encoder (hardware or not), connection state changes, reconnects, and problems. Nothing per frame.
 - **The key never appears in logs, diagnostics, error strings, or diagnostics exports** (system design 10.12). Only the URL's host name is logged, since some destinations put the key in the path. The key's state is logged only as registered or not.
 - Metrics (Diagnostics screen, system design 5.15): `Streaming/Bitrate`, `Streaming/QueueMs`, `Streaming/FramesDropped`, `Streaming/Reconnects`, `Streaming/EncodeTime`, `Streaming/AvOffset`.
+- When frames are lost, the numbers not read from the GPU, lost because the encoder was behind, and lost because the connection was behind are logged as a Warning, at most once in 5 seconds, since each cause has a different remedy. The end of a stream logs the same breakdown.
 
 ## 14. Testing Strategy
 
@@ -209,7 +211,8 @@ Streaming/Tests/EditMode/
 ProjectData/Runtime/Credentials/        ICredentialStore, WindowsCredentialStore
 UI/Runtime/Streaming/IStreamingService.cs
 UI/Runtime/Screens/                     StreamControl (live screen), StreamingCard (setup screen)
-Video/Shaders/                          The NV12 conversion
+Streaming/Plugins/x86_64/               VirtualVessel.Stream.Native.dll (kept out of Git)
+Video/Runtime/Resources/                The NV12 conversion (StreamNv12.compute)
 ```
 
 The DLL is built by `tools/native/build-stream.ps1` and kept out of Git.

@@ -174,6 +174,11 @@ namespace
         Check(read == 3800 && first == anchor + 1000, "the next read follows on");
         Check(mixer.ReadStream(out.data(), 4000, INT64_MAX, &first) == 0, "and stops at what was mixed");
 
+        // Each reader keeps its own place, so recording and streaming both get every frame.
+        read = mixer.ReadStream(out.data(), 4000, anchor + 999, &first, 1);
+        Check(read == 1000 && first == anchor, "a second reader starts from the same frames");
+        Check(mixer.ReadStream(out.data(), 100, INT64_MAX, &first, MaxReaders) == 0, "a reader that does not exist reads nothing");
+
         // A delayed bus gives each frame as heard that much later: the same frames, later times, and fewer by a time.
         Mixer delayed(Frequency);
         delayed.SetStreamDelay(300);
@@ -392,7 +397,7 @@ namespace
 
         std::printf("reading the tap\n");
         vv_audio_stream_tap tap = {};
-        vv_audio_get_stream_tap(engine, &tap);
+        vv_audio_get_stream_tap(engine, VV_AUDIO_READER_RECORDING, &tap);
         std::vector<float> out(48000 * Channels);
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);

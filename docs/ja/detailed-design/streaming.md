@@ -28,6 +28,7 @@
 - 新しいModule `VirtualVessel.Streaming`（方式設計2.4の「Streaming」）。Videoの`IStreamOutput`と`StreamFrameReader`を使い、Audioの読み出し口は録画と同じく値として受け取る（録画詳細設計3章）。
 - Media Foundation、RTMP、FLV、TLSの型はネイティブのPluginの中だけに置く。マネージドの側は`IStreamingService`と単純な値だけを見る。
 - 送信先ごとの違い（URLの形、使えるコーデック、推奨のビットレート）は`StreamDestination`にまとめ、エンコーダーと送信の処理には持ち込まない（方式設計10.10「Encode、Multiplex、Publishを分ける」）。
+- 配信の設定は録画とStreaming Profileのファイルを共有するので、書き込みは`RecordingService.SaveStream`に集める。どちらかの保存が、もう一方の変更を巻き戻さないためである。
 - ストリームキーはStreaming Profileに書かない。Profileは資格情報のID（`credentialId`）だけを持ち、値はWindowsの資格情報マネージャーにある（方式設計6.13）。
 
 ## 4. 主なClassとInterface
@@ -51,8 +52,9 @@ public interface IStreamingService
     TimeSpan Elapsed { get; }                              // Liveになってから
     IReadOnlyObservable<StreamingOptions> Options { get; } // 送信先、サーバーURL、キーが登録済みか、コーデック、ビットレート
     void SetOptions(StreamingOptions options);             // 配信中は変えられない（方式設計10.15）
-    void SetStreamKey(string key);                         // 資格情報マネージャーへ。空で消す。値は読み戻さない
+    bool SetStreamKey(string key);                         // 資格情報マネージャーへ。空で消す。失敗はfalse。値は読み戻さない
     StreamingStats Stats { get; }                          // 実際のビットレート、待ち行列、捨てたFrame、再接続の回数
+    Task<StreamingProblem> TestConnectionAsync();          // RTMPのconnectまで。配信は始まらない
     void Start();
     void Stop();
 }
@@ -77,7 +79,7 @@ int32_t vv_stream_close(vv_stream*);                             // 送り終え
 ## 6. Data Model
 
 - `StreamingState`：`Idle`、`Connecting`（接続とRTMPの`publish`まで）、`Live`、`Reconnecting`、`Stopping`、`Failed`。
-- `StreamingProblem`：`None`、`NoStreamKey`、`ServerUnreachable`（名前解決、TCP、TLSの失敗）、`Rejected`（サービスが`publish`を断った：多くはキーの誤り）、`ConnectionLost`（再接続中）、`EncoderFailed`、`CodecNotSupported`（送信先がそのコーデックを受け付けない）、`AudioUnavailable`（音声なしで配信を続ける）。
+- `StreamingProblem`：`None`、`NoStreamKey`、`ServerUnreachable`（名前解決、TCP、TLSの失敗）、`Rejected`（サービスが`publish`を断った：多くはキーの誤り）、`ConnectionLost`（再接続中）、`EncoderFailed`、`AudioUnavailable`（音声なしで配信を続ける）。
 - `StreamDestinationKind`：`YouTube`、`CustomRtmp`。
 - `StreamingStats`：実際のビットレート（直近5秒）、待ち行列の長さ（ms）、捨てたFrame、再接続の回数、エンコードの時間。
 
@@ -108,7 +110,7 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 5. FLVのタグにして送信の待ち行列に入れる。送信のスレッドがRTMPのChunkにしてTLSの上で送る。
 
 - 録画と配信を同時に行うときは、それぞれが別にエンコードする（NVENCは同時に複数のエンコードを扱える）。エンコード結果の共有は17章。
-- 配信用のバスを録画と配信の2か所から読むため、Audioの読み出し口を読み手ごとの位置を持てる形にする（Audioの読み出し口のAPI version 3、`vv_audio_open_reader`）。
+- 配信用のバスを録画と配信の2か所から読むため、Audioの読み出し口を読み手ごとの位置を持てる形にする（Audio API version 3。`vv_audio_get_stream_tap`に`VV_AUDIO_READER_RECORDING`か`VV_AUDIO_READER_STREAMING`を渡し、それぞれ固定の読み出し口を得る）。
 
 ### 8.2 送信の詰まり
 
@@ -158,7 +160,7 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 
 ## 11. 保存
 
-- ストリームキーは、Windowsの資格情報マネージャーに、汎用の資格情報として保存する（`CredWrite`、対象名`VirtualVesselStudio/stream/<credentialId>`、そのユーザーだけ）。Profileには対象名を作るためのIDだけを書く。
+- ストリームキーは、Windowsの資格情報マネージャーに、汎用の資格情報として保存する（`CredWrite`、対象名`VirtualVesselStudio/stream/<credentialId>`、そのユーザーだけ、そのPCだけ（`CRED_PERSIST_LOCAL_MACHINE`））。Profileには対象名を作るためのIDだけを書く。IDは32桁の16進数で、Profileは編集されたり他人から届いたりするので、使う前に形を検査し、このアプリの対象名の外を指せないようにする。
 - Profileを書き出して共有しても、キーは含まれない。別のPCでは、キーを登録し直す必要がある。
 - 比べた方法（利用者の確認、2026-10-30）：設定ファイルにそのまま書くと、共有、Issueへの添付、バックアップから漏れる。DPAPIで暗号化してファイルに書くのと資格情報マネージャーは、どちらもほかのユーザーやほかのPCからは読めないが、資格情報マネージャーはキーがファイルに入らず、利用者がWindowsの画面で確かめて消せる。
 - 同じユーザーとして動くプログラム（マルウェア）からは、どの保存方法でも守れない。キーそのものを持たない方法（YouTube APIのOAuth、取り消せるトークン）は、方式設計10.11の後の段とする。
@@ -172,7 +174,6 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 | 配信を断られた | `Failed`、`Rejected` | ストリームキーが正しいか、YouTube Studioで確かめてください |
 | 配信中に切れた | `Reconnecting`、`ConnectionLost` | 自動で再接続しています。録画は続いています |
 | エンコーダーが使えない | `Failed`、`EncoderFailed` | もう一度試すか、診断画面のログを確かめてください |
-| 送信先がコーデックを受け付けない | `Failed`、`CodecNotSupported` | 設定画面で形式をH.264にしてください |
 | 音声がない | `Live`のまま、`AudioUnavailable` | 音声なしで配信しています |
 
 - TLSの証明書はWindowsの通常の検証に従い、検証を飛ばす設定は作らない。
@@ -183,6 +184,7 @@ Idle ──Start──▶ Connecting ──publishが受理──▶ Live ──
 - 開始と終了、送信先の種類、サーバーのホスト名、コーデック、ビットレート、エンコーダー（ハードウェアかどうか）、接続の状態の変化、再接続の回数、問題を記録する。毎Frameの記録はしない。
 - **キーは、ログ、診断、エラーの文字列、診断情報の書き出しのどこにも出さない**（方式設計10.12）。URLは、パスにキーを含む送信先があるため、ホスト名だけを記録する。キーの状態は「登録済み／未登録」だけを書く。
 - 計測（診断画面、方式設計5.15）：`Streaming/Bitrate`、`Streaming/QueueMs`、`Streaming/FramesDropped`、`Streaming/Reconnects`、`Streaming/EncodeTime`、`Streaming/AvOffset`。
+- フレームが失われたら、読み戻せなかった数、エンコーダーが追いつかなかった数、接続が追いつかなかった数を分けて、5秒に1回までWarningに記録する。原因ごとに対処が違うためである。配信の終わりにも同じ内訳を記録する。
 
 ## 14. Testの方針
 
@@ -209,7 +211,8 @@ Streaming/Tests/EditMode/
 ProjectData/Runtime/Credentials/        ICredentialStore、WindowsCredentialStore
 UI/Runtime/Streaming/IStreamingService.cs
 UI/Runtime/Screens/                     StreamControl（ライブ画面）、StreamingCard（設定画面）
-Video/Shaders/                          NV12への変換
+Streaming/Plugins/x86_64/               VirtualVessel.Stream.Native.dll（Gitには含めない）
+Video/Runtime/Resources/                NV12への変換（StreamNv12.compute）
 ```
 
 DLLは`tools/native/build-stream.ps1`で作り、Gitに入れない。

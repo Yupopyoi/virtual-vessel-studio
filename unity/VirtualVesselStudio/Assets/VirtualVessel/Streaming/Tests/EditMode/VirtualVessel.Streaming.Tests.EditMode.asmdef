@@ -1,0 +1,29 @@
+{
+    "name": "VirtualVessel.Streaming.Tests.EditMode",
+    "rootNamespace": "VirtualVessel.Streaming.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.UI",
+        "VirtualVessel.Streaming",
+        "VirtualVessel.Video"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

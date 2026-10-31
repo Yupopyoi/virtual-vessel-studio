@@ -22,6 +22,9 @@ namespace VirtualVessel.UI.Dialogs
         /// <summary>Returns true when the user confirms; false for Cancel, Esc, or a canceled token.</summary>
         /// <param name="details">Read-only content under the body, such as a model's terms of use; null for none.</param>
         Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default, VisualElement details = null);
+
+        /// <summary>Asks for a secret in a masked field. Returns what was entered, or null for Cancel, Esc, or a canceled token.</summary>
+        Task<string> AskSecretAsync(string titleKey, string bodyKey, string fieldKey, string confirmKey, CancellationToken cancellationToken = default);
     }
 
     /// <summary>
@@ -52,7 +55,24 @@ namespace VirtualVessel.UI.Dialogs
             _root = root ?? throw new ArgumentNullException(nameof(root));
         }
 
-        public async Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default, VisualElement details = null)
+        public async Task<string> AskSecretAsync(string titleKey, string bodyKey, string fieldKey, string confirmKey, CancellationToken cancellationToken = default)
+        {
+            TextInput field = Ui.TextField(fieldKey);
+            field.Masked = true;
+            bool confirmed = await AskAsync(titleKey, bodyKey, confirmKey, ConfirmStyle.Normal, field, field, cancellationToken);
+            string entered = confirmed ? field.value : null;
+
+            // The field has left the screen; what was typed does not stay in it.
+            field.SetValueWithoutNotify(string.Empty);
+            return entered;
+        }
+
+        public Task<bool> ConfirmAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style = ConfirmStyle.Normal, CancellationToken cancellationToken = default, VisualElement details = null)
+        {
+            return AskAsync(titleKey, bodyKey, confirmKey, style, details, null, cancellationToken);
+        }
+
+        private async Task<bool> AskAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, VisualElement details, TextInput input, CancellationToken cancellationToken)
         {
             if (_root == null)
             {
@@ -62,7 +82,7 @@ namespace VirtualVessel.UI.Dialogs
             await _turn.WaitAsync(cancellationToken);
             try
             {
-                return await ShowAsync(titleKey, bodyKey, confirmKey, style, details, cancellationToken);
+                return await ShowAsync(titleKey, bodyKey, confirmKey, style, details, input, cancellationToken);
             }
             finally
             {
@@ -70,7 +90,7 @@ namespace VirtualVessel.UI.Dialogs
             }
         }
 
-        private async Task<bool> ShowAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, VisualElement details, CancellationToken cancellationToken)
+        private async Task<bool> ShowAsync(string titleKey, string bodyKey, string confirmKey, ConfirmStyle style, VisualElement details, TextInput input, CancellationToken cancellationToken)
         {
             var result = new TaskCompletionSource<bool>();
             Focusable previousFocus = _root.focusController?.focusedElement;
@@ -94,7 +114,7 @@ namespace VirtualVessel.UI.Dialogs
                 result.TrySetResult(false);
                 evt.StopPropagation();
             };
-            EventCallback<NavigationMoveEvent> onMove = evt => TrapFocus(evt, dialog);
+            EventCallback<NavigationMoveEvent> onMove = evt => TrapFocus(evt, dialog, input);
             _root.RegisterCallback(onKey, TrickleDown.TrickleDown);
             _root.RegisterCallback(onCancel, TrickleDown.TrickleDown);
             _root.RegisterCallback(onMove, TrickleDown.TrickleDown);
@@ -103,7 +123,17 @@ namespace VirtualVessel.UI.Dialogs
             {
                 _root.Add(overlay);
                 Current = dialog;
-                overlay.schedule.Execute(() => (FocusCancelFirst(style) ? dialog.Cancel : dialog.Confirm).Focus());
+                overlay.schedule.Execute(() =>
+                {
+                    if (input != null)
+                    {
+                        input.FocusInput();
+                    }
+                    else
+                    {
+                        (FocusCancelFirst(style) ? dialog.Cancel : dialog.Confirm).Focus();
+                    }
+                });
                 try
                 {
                     return await result.Task;
@@ -120,8 +150,8 @@ namespace VirtualVessel.UI.Dialogs
             }
         }
 
-        /// <summary>Keeps Tab and Shift+Tab between the dialog's buttons.</summary>
-        private void TrapFocus(NavigationMoveEvent evt, ConfirmDialog dialog)
+        /// <summary>Keeps Tab and Shift+Tab inside the dialog: its buttons, and its field when it has one.</summary>
+        private void TrapFocus(NavigationMoveEvent evt, ConfirmDialog dialog, TextInput input)
         {
             if (evt.direction != NavigationMoveEvent.Direction.Next && evt.direction != NavigationMoveEvent.Direction.Previous
                 && evt.direction != NavigationMoveEvent.Direction.Left && evt.direction != NavigationMoveEvent.Direction.Right)
@@ -129,8 +159,39 @@ namespace VirtualVessel.UI.Dialogs
                 return;
             }
 
-            bool onConfirm = dialog.Confirm.focusController?.focusedElement == dialog.Confirm;
-            (onConfirm ? dialog.Cancel : dialog.Confirm).Focus();
+            Focusable focused = dialog.Confirm.focusController?.focusedElement;
+            bool forward = evt.direction == NavigationMoveEvent.Direction.Next || evt.direction == NavigationMoveEvent.Direction.Right;
+            if (input == null)
+            {
+                (focused == dialog.Confirm ? dialog.Cancel : dialog.Confirm).Focus();
+            }
+            else if (focused == dialog.Confirm)
+            {
+                if (forward)
+                {
+                    input.FocusInput();
+                }
+                else
+                {
+                    dialog.Cancel.Focus();
+                }
+            }
+            else if (focused == dialog.Cancel)
+            {
+                if (forward)
+                {
+                    dialog.Confirm.Focus();
+                }
+                else
+                {
+                    input.FocusInput();
+                }
+            }
+            else
+            {
+                (forward ? dialog.Cancel : dialog.Confirm).Focus();
+            }
+
             evt.StopPropagation();
             _root.focusController?.IgnoreEvent(evt);
         }

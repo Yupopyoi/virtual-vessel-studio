@@ -77,3 +77,27 @@ jobs:
           path: native/audio/build/Release/VirtualVessel.Audio.Native.dll
           if-no-files-found: error
           retention-days: 14
+
+  stream:
+    name: Streaming plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only the protocol tests: the hosted runners may lack Media Foundation's encoders, and the connection
+      # tests need ffmpeg and YouTube, so those run on developers' PCs (streaming detailed design 14).
+      - name: Build
+        shell: pwsh
+        run: ./tools/native/build-stream.ps1 -SkipTests
+
+      - name: Protocol tests
+        shell: pwsh
+        run: ctest --test-dir native/stream/build -C Release -R vv_stream_protocol_tests --output-on-failure
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VirtualVessel.Stream.Native
+          path: native/stream/build/Release/VirtualVessel.Stream.Native.dll
+          if-no-files-found: error
+          retention-days: 14
