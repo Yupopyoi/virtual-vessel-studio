@@ -299,7 +299,7 @@ sequenceDiagram
 
 A timeout is set for the whole shutdown; if exceeded, the remaining processing is abandoned and the application exits. Services that timed out are recorded.
 
-When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout.
+When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout. When scripts are recompiled during Play Mode, the same sequence runs just before the reload (`AssemblyReloadEvents.beforeAssemblyReload`): a reload does not go through quitting, and if nothing stops them, native threads keep running with no way left to reach them (the sound went on until the Editor was closed, 2026-10-31).
 
 If shutdown happens in the middle of startup, services that are still initializing are disposed without `ShutdownAsync` being called.
 
