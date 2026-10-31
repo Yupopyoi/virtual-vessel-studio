@@ -184,6 +184,7 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 - Start and stop, the kind of destination, the server's host name, codec, bitrate, encoder (hardware or not), connection state changes, reconnects, and problems. Nothing per frame.
 - **The key never appears in logs, diagnostics, error strings, or diagnostics exports** (system design 10.12). Only the URL's host name is logged, since some destinations put the key in the path. The key's state is logged only as registered or not.
 - Metrics (Diagnostics screen, system design 5.15): `Streaming/Bitrate`, `Streaming/QueueMs`, `Streaming/FramesDropped`, `Streaming/Reconnects`, `Streaming/EncodeTime`, `Streaming/AvOffset`.
+- When frames are lost, the numbers not read from the GPU, lost because the encoder was behind, and lost because the connection was behind are logged as a Warning, at most once in 5 seconds, since each cause has a different remedy. The end of a stream logs the same breakdown.
 
 ## 14. Testing Strategy
 

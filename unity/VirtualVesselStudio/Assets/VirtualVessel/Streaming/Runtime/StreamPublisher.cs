@@ -60,7 +60,7 @@ namespace VirtualVessel.Streaming
 
     public readonly struct PublisherStatus
     {
-        public PublisherStatus(PublisherState state, PublisherProblem problem, bool hardware, int reconnects, long bytesSent, long queueMs, long framesPushed, long framesSent, long framesDropped, long encodeMicroseconds, double avOffsetMs)
+        public PublisherStatus(PublisherState state, PublisherProblem problem, bool hardware, int reconnects, long bytesSent, long queueMs, long framesPushed, long framesSent, long framesDropped, long encodeMicroseconds, double avOffsetMs, long framesDroppedFromQueue = 0)
         {
             State = state;
             Problem = problem;
@@ -73,6 +73,7 @@ namespace VirtualVessel.Streaming
             FramesDropped = framesDropped;
             EncodeMicroseconds = encodeMicroseconds;
             AvOffsetMs = avOffsetMs;
+            FramesDroppedFromQueue = framesDroppedFromQueue;
         }
 
         public PublisherState State { get; }
@@ -96,6 +97,9 @@ namespace VirtualVessel.Streaming
         public long EncodeMicroseconds { get; }
 
         public double AvOffsetMs { get; }
+
+        /// <summary>Of <see cref="FramesDropped"/>, those lost because the connection fell behind; the rest, because the encoder did.</summary>
+        public long FramesDroppedFromQueue { get; }
     }
 
     /// <summary>Encodes pushed NV12 frames and sends them, on threads of its own.</summary>
@@ -120,7 +124,7 @@ namespace VirtualVessel.Streaming
     public sealed class NativeStreamPublisher : IStreamPublisher
     {
         private const string Library = "VirtualVessel.Stream.Native";
-        private const int ApiVersion = 1;
+        private const int ApiVersion = 2;
         private const int Ok = 0;
         private const int CodecH264 = 0;
         private const int CodecAv1 = 1;
@@ -215,7 +219,8 @@ namespace VirtualVessel.Streaming
                 stats.FramesSent,
                 stats.FramesDropped,
                 stats.EncodeUsTotal,
-                stats.AvOffsetUs / 1000.0);
+                stats.AvOffsetUs / 1000.0,
+                stats.FramesDroppedQueue);
         }
 
         public void Close()
@@ -285,6 +290,7 @@ namespace VirtualVessel.Streaming
             public long FramesDropped;
             public long EncodeUsTotal;
             public long AvOffsetUs;
+            public long FramesDroppedQueue;
         }
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]

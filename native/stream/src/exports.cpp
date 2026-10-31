@@ -640,6 +640,7 @@ extern "C"
         *stats = stream->stats;
         stats->queue_ms = queueMs;
         stats->frames_dropped += queueDropped;
+        stats->frames_dropped_queue = queueDropped;
         return VV_STREAM_OK;
     }
 

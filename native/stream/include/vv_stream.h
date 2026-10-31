@@ -20,7 +20,8 @@ extern "C"
 {
 #endif
 
-#define VV_STREAM_API_VERSION 1
+// 2: frames_dropped_queue tells the two causes of a lost frame apart.
+#define VV_STREAM_API_VERSION 2
 
 #define VV_STREAM_OK 0
 #define VV_STREAM_INVALID_ARGUMENT (-1)
@@ -77,6 +78,7 @@ typedef struct vv_stream_stats
     int64_t frames_dropped;   // No free slot, or dropped to the next keyframe when the queue was full.
     int64_t encode_us_total;  // Video encoding time, for the average.
     int64_t av_offset_us;     // Where the audio ends against the video at the last frame.
+    int64_t frames_dropped_queue; // Of frames_dropped, those dropped because the connection fell behind.
 } vv_stream_stats;
 
 VV_STREAM_API int32_t vv_stream_api_version(void);

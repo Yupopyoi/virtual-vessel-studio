@@ -28,6 +28,9 @@ namespace VirtualVessel.Streaming
 
         private static readonly TimeSpan s_statusInterval = TimeSpan.FromMilliseconds(250);
 
+        // Lost frames are logged together, so a bad connection does not log four times a second.
+        private static readonly TimeSpan s_lossLogInterval = TimeSpan.FromSeconds(5);
+
         /// <summary>The window of the actual bitrate; one sample a status.</summary>
         private const int BitrateSamples = 20;
 
@@ -281,10 +284,11 @@ namespace VirtualVessel.Streaming
             {
                 // A stream in progress sends what is queued and disconnects (streaming detailed design 7).
                 session.Reader.Release();
-                Task closing = session.Closing ?? Task.Run(session.Publisher.Close);
-                await closing.ConfigureAwait(false);
-                session.Reader.Dispose();
-                _session = null;
+                session.Closing ??= Task.Run(session.Publisher.Close);
+                await session.Closing.ConfigureAwait(false);
+                _log?.Information(Summary(session));
+
+                // The reader holds Unity objects and this may be another thread now; Dispose frees it.
             }
         }
 
@@ -394,7 +398,7 @@ namespace VirtualVessel.Streaming
 
             session.Reader.Dispose();
             _session = null;
-            _log?.Information($"Streaming ended: {session.Counted.BytesSent / (1024 * 1024)} MB sent, {session.Counted.FramesSent} frames, {session.Counted.FramesDropped} dropped, {session.Counted.Reconnects} reconnects.");
+            _log?.Information(Summary(session));
             if (session.Failure == StreamingProblem.None)
             {
                 _problem.Set(StreamingProblem.None);
@@ -458,6 +462,36 @@ namespace VirtualVessel.Streaming
             Stats = new StreamingStats(bitsPerSecond, status.QueueMs, status.FramesDropped + skipped, status.Reconnects);
             session.Counted = status;
             session.CountedSkipped = skipped;
+            LogLoss(session, skipped, status, now);
+        }
+
+        private void LogLoss(Session session, long skipped, PublisherStatus status, long now)
+        {
+            if (now < session.NextLossLog)
+            {
+                return;
+            }
+
+            long lost = status.FramesDropped + skipped;
+            if (lost != session.LoggedLost)
+            {
+                session.LoggedLost = lost;
+                session.NextLossLog = now + Ticks(s_lossLogInterval);
+                _log?.Warning($"Frames lost so far: {Losses(skipped, status)}; {status.QueueMs} ms queued, {status.EncodeMicroseconds / Math.Max(1, status.FramesSent) / 1000.0:0.0} ms to encode.");
+            }
+        }
+
+        /// <summary>Where frames were lost, which tells the cause apart (streaming detailed design 8.2). Pure.</summary>
+        internal static string Losses(long skipped, PublisherStatus status)
+        {
+            long encoder = status.FramesDropped - status.FramesDroppedFromQueue;
+            return $"{skipped} not read from the GPU, {encoder} the encoder was behind, {status.FramesDroppedFromQueue} the connection was behind";
+        }
+
+        private static string Summary(Session session)
+        {
+            PublisherStatus counted = session.Counted;
+            return $"Streaming ended: {counted.BytesSent / (1024 * 1024)} MB sent, {counted.FramesSent} frames, lost: {Losses(session.CountedSkipped, counted)}, {counted.Reconnects} reconnects.";
         }
 
         internal static long BitsPerSecond(long bytes, double seconds)
@@ -502,6 +536,10 @@ namespace VirtualVessel.Streaming
             public PublisherStatus Counted { get; set; }
 
             public long CountedSkipped { get; set; }
+
+            public long LoggedLost { get; set; }
+
+            public long NextLossLog { get; set; }
 
             public long[] Times { get; } = new long[BitrateSamples];
 

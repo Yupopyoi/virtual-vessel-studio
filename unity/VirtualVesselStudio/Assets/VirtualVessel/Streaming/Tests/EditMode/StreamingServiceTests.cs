@@ -329,7 +329,18 @@ namespace VirtualVessel.Streaming.Tests
             _service.ShutdownAsync(CancellationToken.None).GetAwaiter().GetResult();
 
             Assert.That(_publisher.Closed, Is.True);
+            Assert.That(_reader.Disposed, Is.False, "It holds Unity objects, and shutdown may end on another thread.");
+
+            _service.Dispose();
             Assert.That(_reader.Disposed, Is.True);
+        }
+
+        [Test]
+        public void Losses_TellTheCausesApart()
+        {
+            var status = new PublisherStatus(PublisherState.Live, PublisherProblem.None, true, 0, 0, 0, 0, 0, 30, 0, 0, framesDroppedFromQueue: 20);
+
+            Assert.That(StreamingService.Losses(4, status), Is.EqualTo("4 not read from the GPU, 10 the encoder was behind, 20 the connection was behind"));
         }
 
         private static string SavedText(StreamSettings settings)
