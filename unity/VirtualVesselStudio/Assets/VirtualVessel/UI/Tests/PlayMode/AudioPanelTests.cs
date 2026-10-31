@@ -57,7 +57,7 @@ namespace VirtualVessel.UI.Tests
             AudioCard card = OpenCard();
             yield return null;
             Assert.That(card.Groups.Count, Is.EqualTo(2));
-            AudioCard.SourceGroup game = card.Groups[1];
+            AudioSourceRow game = card.Groups[1];
             Assert.That(game.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "mic", "board" }), "None first, then the devices.");
             Assert.That(game.Devices.value, Is.EqualTo(string.Empty));
 
@@ -75,10 +75,110 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheColumns_MakeWayForTheControlsOwnNames_WhenTheCardIsNarrow()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            card.style.width = 1000;
+            yield return null;
+            yield return null;
+            VisualElement columns = card.Q(className: AudioCard.ColumnsClass);
+            VisualElement label = card.Q(className: AudioCard.CellLabelClass);
+            Assert.That(columns.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(label.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            AudioSourceRow game = card.Groups[1];
+            Assert.That(game.Mute.worldBound.y, Is.EqualTo(game.Meter.worldBound.y).Within(24f), "One row per source.");
+            CheckInside(card);
+
+            card.style.width = 400;
+            yield return null;
+            yield return null;
+            Assert.That(columns.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(label.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            CheckInside(card);
+        }
+
+        [Test]
+        public void TheDevice_IsOnlyShown_WhenTheGameCaptureCardChoosesIt()
+        {
+            var card = new AudioCard(_audio, _settings, gameDeviceOnCapture: true);
+            Assert.That(card.Groups[0].Devices.enabledSelf, Is.True, "The microphone's device is chosen here.");
+            Assert.That(card.Groups[1].Devices.enabledSelf, Is.False);
+        }
+
+        [Test]
+        public void Find_MatchesTheVideoDevicesName_InsideTheAudioDevicesName()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("camera", "マイク (USB 2.0 Camera)", false),
+                new AudioDevice("board", "デジタル オーディオ インターフェイス (MiraBox Capture)", false),
+            };
+
+            Assert.That(GameAudioRow.Find(devices, "MiraBox Capture"), Is.EqualTo("board"));
+            Assert.That(GameAudioRow.Find(devices, "mirabox-capture"), Is.EqualTo("board"), "Case and punctuation do not count.");
+            Assert.That(GameAudioRow.Find(devices, "Other Board"), Is.Null);
+            Assert.That(GameAudioRow.Find(devices, null), Is.Null);
+        }
+
+        [Test]
+        public void Follow_KeepsAChoiceThatIsTheUsersOwn()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("line", "Line In", false),
+                new AudioDevice("a", "Audio (Board A)", false),
+                new AudioDevice("b", "Audio (Board B)", false),
+            };
+
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board B"), Is.EqualTo("b"), "It followed the old board.");
+            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheGameCaptureCard_ChoosesTheAudioWithTheVideo()
+        {
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture);
+            var row = new GameAudioRow(_audio);
+            var card = new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row);
+            _root.Content.Add(card);
+            yield return null;
+            Assert.That(row.Devices.value, Is.EqualTo(string.Empty));
+
+            card.Devices.value = "Board A";
+            yield return null;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("board"));
+            Assert.That(row.Devices.value, Is.EqualTo("board"), "The row shows what the source now uses.");
+            Assert.That(video.SelectedDeviceId, Is.EqualTo("Board A"));
+
+            row.Devices.value = string.Empty;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "It can be chosen by hand here too.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheMonitor_HasItsOwnOutputAndVolume_AndEachSourceChoosesToBeHeard()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            Assert.That(card.Monitor.Devices.value, Is.EqualTo("speakers"));
+
+            card.Monitor.Devices.value = "phones";
+            card.Monitor.Gain.value = -12f;
+            Assert.That(_audio.Monitor.Options.Value.DeviceId, Is.EqualTo("phones"));
+            Assert.That(_audio.Monitor.Options.Value.GainDb, Is.EqualTo(-12f));
+
+            card.Groups[1].Monitored.value = true;
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.True);
+            Assert.That(_audio.Microphone.Options.Value.Monitored, Is.False, "Only the chosen source.");
+        }
+
+        [UnityTest]
         public IEnumerator AProblem_SaysWhatToDo_AndDeniedAccessOpensWindowsSettings()
         {
             AudioCard card = OpenCard();
-            AudioCard.SourceGroup microphone = card.Groups[0];
+            AudioSourceRow microphone = card.Groups[0];
             _audio.Microphone.Report(AudioSourceState.Running, AudioProblem.None);
             yield return null;
             Assert.That((microphone.Status.Status, microphone.Status.TextKey), Is.EqualTo((StatusKind.Success, AudioStrings.Running)));
@@ -155,6 +255,7 @@ namespace VirtualVessel.UI.Tests
         private AudioCard OpenCard()
         {
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AudioPage;
             return _root.Content.Q<AudioCard>();
         }
 
@@ -162,7 +263,7 @@ namespace VirtualVessel.UI.Tests
         {
             float right = card.Q<Card>().contentContainer.worldBound.xMax;
             Assert.That(card.Delay.worldBound.xMax, Is.LessThanOrEqualTo(right + 0.5f), "The delay slider reaches past the Card.");
-            foreach (AudioCard.SourceGroup group in card.Groups)
+            foreach (AudioSourceRow group in card.Groups)
             {
                 foreach (VisualElement element in new VisualElement[] { group.Devices, group.Gain, group.Mute, group.Meter, group.Problem, group.PrivacyButton, group.Status })
                 {
@@ -224,12 +325,32 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
+        private sealed class FakeMonitor : IAudioMonitor
+        {
+            private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Running);
+            private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
+            private readonly ObservableValue<AudioMonitorOptions> _options = new ObservableValue<AudioMonitorOptions>(new AudioMonitorOptions("speakers", 0f, false));
+
+            public IReadOnlyObservable<AudioSourceState> State => _state;
+
+            public IReadOnlyObservable<AudioProblem> Problem => _problem;
+
+            public IReadOnlyObservable<AudioMonitorOptions> Options => _options;
+
+            public float PeakDb => -20f;
+
+            public void SetOptions(AudioMonitorOptions options)
+            {
+                _options.Set(options);
+            }
+        }
+
         private sealed class FakeAudio : IAudioService
         {
             private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(new[]
             {
                 new AudioDevice("mic", "Microphone", true),
-                new AudioDevice("board", "Capture board", false),
+                new AudioDevice("board", "Digital Audio Interface (Board A)", false),
             });
 
             public FakeAudio()
@@ -245,6 +366,10 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyList<IAudioSource> Sources => new IAudioSource[] { Microphone, Game };
 
             public IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices => _devices;
+
+            public IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices { get; } = new ObservableValue<IReadOnlyList<AudioDevice>>(new[] { new AudioDevice("speakers", "Speakers", true), new AudioDevice("phones", "Headphones", false) });
+
+            public IAudioMonitor Monitor { get; } = new FakeMonitor();
 
             public TimeSpan StreamLatency => TimeSpan.FromMilliseconds(30);
 

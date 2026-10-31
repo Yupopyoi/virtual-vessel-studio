@@ -22,7 +22,8 @@ extern "C"
 #endif
 
 // 2: the stream bus can be delayed (vv_audio_set_stream_delay).
-#define VV_AUDIO_API_VERSION 2
+// 3: the monitor bus and its output device.
+#define VV_AUDIO_API_VERSION 3
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -34,15 +35,16 @@ extern "C"
 #define VV_AUDIO_MAX_SOURCES 16
 
 #define VV_AUDIO_BUS_STREAM 0
+#define VV_AUDIO_BUS_MONITOR 1
 
-// What a source is doing.
+// What a source, or the monitor output, is doing.
 #define VV_AUDIO_SOURCE_OFF 0          // No device chosen.
 #define VV_AUDIO_SOURCE_STARTING 1     // Opening the device.
 #define VV_AUDIO_SOURCE_RUNNING 2
 #define VV_AUDIO_SOURCE_UNAVAILABLE 3  // The device is missing or unplugged; it is tried again every second.
 #define VV_AUDIO_SOURCE_ERROR 4        // The device cannot be opened (in exclusive use, access denied); tried again every second.
 
-// Why a source is in error.
+// Why a source, or the monitor output, is in error.
 #define VV_AUDIO_PROBLEM_NONE 0
 #define VV_AUDIO_PROBLEM_IN_USE 1          // Another application uses the device exclusively.
 #define VV_AUDIO_PROBLEM_ACCESS_DENIED 2   // Windows' privacy settings deny microphone access.
@@ -54,7 +56,7 @@ typedef struct vv_audio_device
 {
     wchar_t id[256];        // The endpoint ID, stable across restarts.
     wchar_t name[128];      // The friendly name, for the user.
-    int32_t is_default;     // 1 for Windows' default input device (console role).
+    int32_t is_default;     // 1 for Windows' default device of that direction (console role).
 } vv_audio_device;
 
 typedef struct vv_audio_source_status
@@ -67,6 +69,16 @@ typedef struct vv_audio_source_status
     int64_t underruns;          // Mix blocks the source had too little audio for (played as silence).
     int64_t drift_corrections;  // Samples dropped or repeated to follow the device's clock.
 } vv_audio_source_status;
+
+typedef struct vv_audio_monitor_status
+{
+    int32_t state;              // VV_AUDIO_SOURCE_*
+    int32_t problem;            // VV_AUDIO_PROBLEM_*
+    int32_t last_error;         // The last failing HRESULT, or 0.
+    float peak_db;              // The monitor bus's highest level since the last call, in dBFS; -inf for silence.
+    int64_t underruns;          // Times the output had nothing ready and played silence.
+    int64_t drift_corrections;  // Samples dropped or repeated to follow the device's clock.
+} vv_audio_monitor_status;
 
 // The stream bus for the encoder: plain values, so the encoder needs no link to this DLL.
 typedef struct vv_audio_stream_tap
@@ -82,6 +94,9 @@ VV_AUDIO_API int32_t vv_audio_api_version(void);
 // Lists the active input (capture) devices. Writes up to `capacity` and the total count.
 VV_AUDIO_API int32_t vv_audio_list_inputs(vv_audio_device* devices, int32_t capacity, int32_t* count);
 
+// The same for the active output devices, for the monitor.
+VV_AUDIO_API int32_t vv_audio_list_outputs(vv_audio_device* devices, int32_t capacity, int32_t* count);
+
 // Starts the engine's mix thread. Destroy stops every thread and releases the devices.
 VV_AUDIO_API int32_t vv_audio_create(vv_audio_engine** engine);
 VV_AUDIO_API void vv_audio_destroy(vv_audio_engine* engine);
@@ -95,7 +110,7 @@ VV_AUDIO_API int32_t vv_audio_set_device(vv_audio_engine* engine, int32_t source
 // Gain in dB (-60 to +12); muted silences the source but keeps its level meter.
 VV_AUDIO_API int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted);
 
-// How much of the source reaches a bus, in dB; -inf for none.
+// How much of the source reaches a bus, in dB; -inf for none. A source reaches the monitor only when asked to.
 VV_AUDIO_API int32_t vv_audio_set_send(vv_audio_engine* engine, int32_t source, int32_t bus, float send_db);
 
 VV_AUDIO_API int32_t vv_audio_get_source_status(vv_audio_engine* engine, int32_t source, vv_audio_source_status* status);
@@ -111,6 +126,14 @@ VV_AUDIO_API int64_t vv_audio_stream_latency_us(vv_audio_engine* engine);
 // voice meets the avatar's motion, which tracking delays. What the user hears is not delayed.
 #define VV_AUDIO_MAX_STREAM_DELAY_MS 1000
 VV_AUDIO_API int32_t vv_audio_set_stream_delay(vv_audio_engine* engine, int32_t delay_ms);
+
+// Plays the monitor bus on the output device with this endpoint ID; null or empty turns it off.
+VV_AUDIO_API int32_t vv_audio_set_monitor_device(vv_audio_engine* engine, const wchar_t* device_id);
+
+// The monitor's own volume in dB (-60 to +12), apart from the stream's; muted silences it.
+VV_AUDIO_API int32_t vv_audio_set_monitor_gain(vv_audio_engine* engine, float gain_db, int32_t muted);
+
+VV_AUDIO_API int32_t vv_audio_get_monitor_status(vv_audio_engine* engine, vv_audio_monitor_status* status);
 
 VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, vv_audio_stream_tap* tap);
 

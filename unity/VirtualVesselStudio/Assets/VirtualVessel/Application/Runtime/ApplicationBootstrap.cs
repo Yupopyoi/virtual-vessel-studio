@@ -81,6 +81,9 @@ namespace VirtualVessel.Application
                 _mainCamera);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
+#if UNITY_EDITOR
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+#endif
             _startTask = StartRuntimeAsync();
         }
 
@@ -95,6 +98,11 @@ namespace VirtualVessel.Application
             // In the Editor, exiting Play Mode does not raise wantsToQuit and does not wait for
             // asynchronous work, so shut down synchronously here. In a player build the asynchronous
             // path below has already run, and this does nothing.
+            StopNow();
+        }
+
+        private void StopNow()
+        {
             if (_runtime != null && _stopTask == null)
             {
                 try
@@ -111,7 +119,21 @@ namespace VirtualVessel.Application
         private void OnDestroy()
         {
             UnityEngine.Application.wantsToQuit -= OnWantsToQuit;
+#if UNITY_EDITOR
+            UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+#endif
         }
+
+#if UNITY_EDITOR
+        // A recompile during Play replaces the managed world without quitting. Nothing would stop the
+        // services, and native threads whose handles are lost keep running until the Editor closes:
+        // the game's sound goes on playing after Play ends.
+        private void OnBeforeAssemblyReload()
+        {
+            _log?.Write(ApplicationLogLevel.Warning, "Scripts were recompiled during Play. The application stops; stop Play and start it again.");
+            StopNow();
+        }
+#endif
 
         /// <summary>
         /// Starts the asynchronous shutdown without quitting Unity. Used by tests.

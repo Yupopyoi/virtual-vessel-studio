@@ -43,6 +43,7 @@ namespace VirtualVessel.UI.Tests
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
             _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, Lighting = _lighting }));
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
             yield return null;
         }
 

@@ -702,7 +702,8 @@ public interface IUiCommand
   "reducedMotion": "system",
   "fontSet": "NotoSans",
   "developerMode": false,
-  "lastScreen": "live"
+  "lastScreen": "live",
+  "lastSetupPage": "video"
 }
 ```
 
@@ -716,6 +717,7 @@ public interface IUiCommand
 | `fontSet` | `NotoSans` | |
 | `developerMode` | `false` | |
 | `lastScreen` | `live` | |
+| `lastSetupPage` | なし（先頭のページ） | 設定画面で最後に開いたページ（`video`、`audio`、`avatar`、`output`、`app`） |
 
 - 読み書きはProjectDataの`ConfigFileStore`が行う（8.3）。
 - 知らない値（存在しないパレット名等）は既定値として扱い、ファイルの値は上書きするまで残す。
@@ -725,6 +727,7 @@ public interface IUiCommand
   - `background`：`dark`、`light`。`reducedMotion`：`system`、`on`、`off`。
   - `uiScale`：表の段階のみ。任意の値を許すと、極端な値で画面を操作できなくなるためである。
   - `lastScreen`：画面の一覧にあるもの（`ScreenHost`、実装順序7-2）。
+  - `lastSetupPage`：ページの一覧にあるもの。外れた値は先頭のページを開く（`SetupScreen.PageOf`、純粋関数）。
 - ファイルがないときの`language`は、OSの言語から決めて設定に入れる（`Localizer.ChooseInitialLocale`）。
 
 ### 8.2 FrameLayout

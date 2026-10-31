@@ -4,6 +4,7 @@
 #pragma once
 
 #include "dsp.h"
+#include "fill_tracker.h"
 #include "frame_ring.h"
 
 #include <atomic>
@@ -16,13 +17,6 @@ namespace vv::audio
     constexpr int SampleRate = 48000;
     constexpr int BlockFrames = 480; // 10 ms
     constexpr int MaxSources = 16;
-
-    // A source starts playing once this much is waiting, so the device's packets and the mix's blocks
-    // can arrive out of step without running dry (audio detailed design 15: about 20 ms).
-    constexpr size_t PrimeFrames = 960;
-
-    // How far the average fill may wander from the one it settled at before a sample is dropped or repeated.
-    constexpr double DriftTolerance = 96.0; // 2 ms
 
     struct SourceCounters
     {
@@ -55,6 +49,29 @@ namespace vv::audio
         // first block anchors the bus's timeline, and each next block follows it without a gap.
         void MixBlock(int64_t blockQpc);
 
+        // The user's own monitor. Never delayed: the stream delay is for what the avatar's motion has to meet
+        // (audio detailed design 8.5), and what the user hears comes at once. Gain applies after the limiter.
+        void SetMonitor(float gainDb, bool muted);
+
+        // The reader side of the monitor bus: the output thread.
+        size_t MonitorAvailable() const
+        {
+            return _monitor.Available();
+        }
+
+        size_t ReadMonitor(float* out, size_t frames)
+        {
+            return _monitor.Read(out, frames);
+        }
+
+        void DiscardMonitor()
+        {
+            _monitor.Read(nullptr, _monitor.Available());
+        }
+
+        // The monitor bus's peak since the last call, linear, after its gain.
+        float TakeMonitorPeak();
+
         // The stream tap (vv_audio_stream_tap.read); one reader thread.
         int32_t ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc);
 
@@ -77,18 +94,17 @@ namespace vv::audio
             std::atomic<float> gain{ 1.0f };
             std::atomic<bool> muted{ false };
             std::atomic<float> send{ 1.0f };
+            std::atomic<float> monitorSend{ 0.0f };
             std::atomic<int64_t> overruns{ 0 };
             std::atomic<int64_t> underruns{ 0 };
             std::atomic<int64_t> driftCorrections{ 0 };
             std::atomic<float> peak{ 0.0f };
 
             // Mix thread only.
-            bool primed = false;
-            int blocksSincePrimed = 0;
-            double fillAverage = 0.0;
-            double fillTarget = 0.0;
+            FillTracker fill;
             float appliedGain = 1.0f;
             float appliedOutput = 1.0f;
+            float appliedMonitor = 0.0f;
         };
 
         // Reads one block of a source into the scratch block, following its fill; false when it has nothing to play.
@@ -101,6 +117,16 @@ namespace vv::audio
         std::vector<float> _scratch;
         std::vector<float> _block;
         LimiterState _limiter;
+
+        // The monitor bus: unlike the stream bus it is played once, so it is a ring its reader empties.
+        std::vector<float> _monitorScratch;
+        std::vector<float> _monitorBlock;
+        LimiterState _monitorLimiter;
+        FrameRing _monitor;
+        std::atomic<float> _monitorGain{ 1.0f };
+        std::atomic<bool> _monitorMuted{ false };
+        float _appliedMonitorGain = 1.0f;
+        std::atomic<float> _monitorPeak{ 0.0f };
 
         // The stream bus: overwritten in a circle, so with no reader it simply keeps the last seconds.
         std::vector<float> _bus;

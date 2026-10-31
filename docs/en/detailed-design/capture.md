@@ -453,6 +453,7 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 | Where capture settings are stored | Done (2026-10-27): the project's capture profile, `Profiles/Capture/<ProfileId>.json`, in the format of `capture-settings.json` (project data detailed design 6) |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
+| Taking a game on the same PC without a capture board | Not a requirement yet, but the user wants it (2026-10-31). When added: window capture as a new `IVideoCaptureSource`, and its sound as a new source in Audio (`audio.md` 17). |
 | Sharing directly on the GPU | Decided from the measured upload times |
 | Capture setup screen and live screen controls | Decided: the capture Cards on the setup screen (`docs/en/ui/screens/setup.md`); the live screen has no capture controls |
 

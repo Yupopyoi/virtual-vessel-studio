@@ -32,6 +32,9 @@ namespace VirtualVessel.UI.Settings
 
         public string LastScreen { get; set; } = UiSettingsResolver.DefaultScreen;
 
+        /// <summary>The page last open on the settings screen, or null for the first.</summary>
+        public string LastSetupPage { get; set; }
+
         /// <summary>The settings for a first start, in <paramref name="language"/> chosen from the OS.</summary>
         public static UiSettings CreateDefault(string language)
         {
@@ -52,7 +55,8 @@ namespace VirtualVessel.UI.Settings
                 && string.Equals(a.ReducedMotion, b.ReducedMotion, StringComparison.Ordinal)
                 && string.Equals(a.FontSet, b.FontSet, StringComparison.Ordinal)
                 && a.DeveloperMode == b.DeveloperMode
-                && string.Equals(a.LastScreen, b.LastScreen, StringComparison.Ordinal);
+                && string.Equals(a.LastScreen, b.LastScreen, StringComparison.Ordinal)
+                && string.Equals(a.LastSetupPage, b.LastSetupPage, StringComparison.Ordinal);
         }
     }
 }

@@ -18,6 +18,8 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_library(vv_audio_core STATIC
     src/mixer.cpp
+    src/device_loop.cpp
+    src/device_output.cpp
     src/device_source.cpp)
 target_include_directories(vv_audio_core PUBLIC include src)
 target_compile_definitions(vv_audio_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)

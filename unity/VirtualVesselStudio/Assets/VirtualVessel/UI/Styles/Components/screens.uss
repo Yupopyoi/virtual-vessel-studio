@@ -84,14 +84,90 @@
 
 /* The audio Card (setup.md 11): a group per source, its name and state, then its rows. */
 .vv-audio-card__group {
-    margin-bottom: var(--vv-space-m);
+    padding: var(--vv-space-xs) 0;
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+/* The mixer (setup.md 11): headings and rows share the column widths, so controls line up. */
+.vv-audio-card__columns,
+.vv-audio-card__row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-audio-card__columns {
+    color: var(--vv-color-text-3);
+    padding-bottom: var(--vv-space-xs);
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+.vv-audio-card__cell {
+    flex-shrink: 0;
+    margin-right: var(--vv-space-s);
+}
+
+.vv-audio-card__cell--name {
+    width: 120px;
+}
+
+.vv-audio-card__cell--device {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 160px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.vv-audio-card__cell--gain {
+    width: 160px;
+}
+
+.vv-audio-card__cell--toggle {
+    width: 56px;
+}
+
+.vv-audio-card__cell--level {
+    width: 120px;
+    margin-right: 0;
+}
+
+.vv-audio-card__cell-label {
+    display: none;
+    color: var(--vv-color-text-3);
+}
+
+/* Too narrow for the columns: each control carries its own name instead of the headings. */
+.vv-audio-card--narrow .vv-audio-card__columns,
+.vv-audio-card--narrow .vv-audio-card__cell--empty {
+    display: none;
+}
+
+.vv-audio-card--narrow .vv-audio-card__row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.vv-audio-card--narrow .vv-audio-card__cell-label {
+    display: flex;
+}
+
+.vv-audio-card--narrow .vv-audio-card__cell--name,
+.vv-audio-card--narrow .vv-audio-card__cell--device {
+    width: 100%;
+    flex-basis: auto;
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-audio-card__note {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-3);
 }
 
 .vv-audio-card__heading {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--vv-space-xs);
+    align-items: flex-start;
 }
 
 .vv-audio-card__heading > Label {
@@ -146,13 +222,17 @@
     color: var(--vv-color-text-2);
 }
 
-.vv-setup > .vv-screen__note {
+.vv-setup__page > .vv-screen__note {
     margin: 0 0 var(--vv-space-m) 0;
 }
 
-/* Every Card on the settings screen keeps M below it, whichever module builds it, so closed Cards never touch. */
-.vv-setup > * {
+/* Everything on a settings page keeps M below it, whichever module builds it. */
+.vv-setup > *, .vv-setup__page > * {
     margin-bottom: var(--vv-space-m);
+}
+
+.vv-setup > .vv-setup__page {
+    margin-bottom: 0;
 }
 
 /* The small video on a capture Card, only to check the device; 16:9, the video fitted inside. */

@@ -51,6 +51,8 @@ public interface IAudioService
 {
     IReadOnlyList<IAudioSource> Sources { get; }                          // The microphone, then the game audio; BGM and SE add more
     IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices { get; } // ID, name, and whether it is Windows' default
+    IReadOnlyObservable<IReadOnlyList<AudioDevice>> OutputDevices { get; } // Where the monitor can play
+    IAudioMonitor Monitor { get; }                      // What the user hears (5.2)
     void RefreshDevices();
     AudioStreamTap StreamTap { get; }                   // For the encoder (5.3): the context and the function pointer
     TimeSpan StreamLatency { get; }                     // How far the stream bus is behind (8.4)
@@ -62,26 +64,37 @@ public interface IAudioSource
     AudioSourceRole Role { get; }
     IReadOnlyObservable<AudioSourceState> State { get; } // Off, Starting, Running, Unavailable, Error
     IReadOnlyObservable<AudioProblem> Problem { get; }   // None, InUse, AccessDenied, Failed
-    IReadOnlyObservable<AudioSourceOptions> Options { get; } // Device, gain (-60 to +12 dB), mute, the stream send (-inf for none)
+    IReadOnlyObservable<AudioSourceOptions> Options { get; } // Device, gain (-60 to +12 dB), mute, the stream and monitor sends (-inf for none)
     void SetOptions(AudioSourceOptions options);        // Applied at once and saved in the profile
     float PeakDb { get; }                               // The highest of the last 0.1 s, after the gain and before mute, for the meter
+}
+
+public interface IAudioMonitor
+{
+    IReadOnlyObservable<AudioSourceState> State { get; }
+    IReadOnlyObservable<AudioProblem> Problem { get; }
+    IReadOnlyObservable<AudioMonitorOptions> Options { get; } // Output device, volume, mute, apart from the stream's
+    void SetOptions(AudioMonitorOptions options);
+    float PeakDb { get; }
 }
 ```
 
 - The user's choices are handled together as `Options` and `SetOptions`, as for tracking and recording, so a change on the setup screen or the live screen shows on both.
-- Adding and removing sources (`AddSource`, `RemoveSource`), the monitor bus and output devices, and managed stages (`Attach`) come with their steps (17). The first version has its two sources, the microphone and the game audio, from the start.
+- Adding and removing sources (`AddSource`, `RemoveSource`) and managed stages (`Attach`) come with their steps (17). The first version has its two sources, the microphone and the game audio, from the start.
 - `IAudioEngine` stands between `AudioService` and the native engine (`NativeAudioEngine`); tests give a fake one, so `AudioService` is checked without devices or the plugin.
 
 ### 5.2 Sources, Stages, Buses
 
 ```text
 Microphone ─ capture ─▶ [RVC (managed, later)] ─▶ gain/mute ─┬─▶ Stream bus ─▶ limiter ─▶ stream tap ─▶ encoder
-Game audio ─ capture ─────────────────────────▶ gain/mute ─┼─▶ Monitor bus ─▶ limiter ─▶ output device (step 2)
+Game audio ─ capture ─────────────────────────▶ gain/mute ─┼─▶ Monitor bus ─▶ limiter ─▶ monitor volume ─▶ output device
 BGM / SE   ─ clip player (later) ─────────────▶ gain/mute ─┘
 ```
 
-- Each source's sends set what reaches each bus, so the microphone can go to the stream only, while BGM goes to both, and game audio may go to the monitor too (step 2).
-- Defaults: microphone to the stream only; game audio to the stream (and the monitor in step 2); BGM and SE to both.
+- Each source's sends set what reaches each bus, so the microphone can go to the stream only, while BGM goes to both, and game audio goes to the monitor too.
+- Defaults: microphone to the stream only; game audio to both; BGM and SE to both. One's own voice is hard to talk over when it comes back, and from speakers it leaks into the microphone, so it is not heard by default.
+- A source's mute stops it on both buses.
+- The monitor has its own volume, mute, and limiter, apart from the stream bus's (system design 9.4).
 
 ### 5.3 The Stream Tap
 
@@ -116,7 +129,7 @@ typedef struct vv_audio_stream_tap
 
 1. Each device source's capture thread (WASAPI shared mode, event driven, 10 ms) receives packets with their QPC, converts them to 48 kHz float stereo (`AUTOCONVERTPCM`), and writes them to the source's input ring buffer.
 2. The mix thread, every 10 ms, takes each source's block for the same time (after its stages), applies gain, mute, and the sends, and adds it to the buses.
-3. Each bus is limited to −1 dBFS and written to its ring buffer: the stream bus for the tap, the monitor bus for the output device (step 2).
+3. Each bus is limited to −1 dBFS and written to its ring buffer: the stream bus for the tap, the monitor bus for the output device. The monitor output thread (WASAPI shared mode, event-driven) plays it.
 4. The encoder reads the stream bus through the tap (5.3).
 
 ### 8.2 Clocks
@@ -138,7 +151,7 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 ### 8.5 Delaying the Stream for the Avatar
 
 - The avatar's motion comes later than the voice: the camera, the inference, and the smoothing that keeps it steady take time (tracking detailed design 8). A recording of the user's claps showed the avatar's hands at least 0.2 s after the sound (2026-10-29).
-- So recording and streaming get the stream bus later by a delay the user sets (0 to 1000 ms, 300 ms by default, the user's choice): the tap gives each frame as heard that much later (`vv_audio_set_stream_delay`). What the user hears (the monitor bus, step 2) is not delayed.
+- So recording and streaming get the stream bus later by a delay the user sets (0 to 1000 ms, 300 ms by default, the user's choice): the tap gives each frame as heard that much later (`vv_audio_set_stream_delay`). What the user hears (the monitor bus) is not delayed.
 - The delay is not part of `StreamLatency`, which is the cost of processing that Video holds the video for (8.4); this one goes the other way.
 - A change while recording shows as a jump in the bus's times; the encoder fills it with silence or leaves out the overlap (recording detailed design 8.1).
 - Measuring the avatar's delay and setting it automatically is an open issue (#100).
@@ -157,9 +170,10 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 {
   "schemaVersion": 1,
   "sources": [
-    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0 } },
-    { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0 } }
+    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0, "monitor": -120 } },
+    { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0, "monitor": 0 } }
   ],
+  "monitor": { "deviceId": "...", "gainDb": 0, "muted": false },
   "streamDelayMs": 300
 }
 ```
@@ -167,6 +181,7 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - Sources are a list, so BGM, SE, and more microphones are added without changing the format. A source of a role this version does not know is kept and not played; unknown fields at the top of the file are kept (CLAUDE.md 25). Unknown fields inside a source are not kept yet.
 - JSON cannot hold -inf, so a send of -120 dB or below is none.
 - `streamDelayMs` (8.5) was added in schema version 1 without a step: a file without it reads as 300.
+- `monitor` and the `monitor` send were added the same way. A file without `monitor` starts on Windows' default output, and a source without the send is heard only if it is the game audio. A `deviceId` of null is the user's choice of none, and stays.
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
 - `ProfileKind` gains `Audio`.
 
@@ -176,7 +191,7 @@ Settings only (10). No audio is stored by this module; recordings are written by
 
 ## 12. Error Handling and Recovery
 
-- A device unplugged: `Unavailable`; silence in its place; it opens again when plugged in.
+- A device unplugged: `Unavailable`; silence in its place; it opens again when plugged in. The same for the monitor's output device, which stops neither the stream nor recording.
 - A device in exclusive use by another application: `Error` with "Another application is using this device".
 - Microphone access denied by Windows privacy settings: `Error` with "Allow microphone access in Windows Settings > Privacy" and a button that opens that page.
 - A managed stage that fails or falls behind: its source plays silence (counted), and the source can be switched back to pass-through (system design 9.13).
@@ -185,7 +200,7 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 13. Logging and Diagnostics
 
 - Devices opened (name, format), lost, and found again; sources added and removed; stage latencies; problems. Nothing per block.
-- Metrics: per source `Audio/<role>.Overruns`, `Underruns`, `DriftCorrections` (roles `Microphone`, `GameAudio`). `StageLate` comes with stages; `StreamLatency` is logged at start.
+- Metrics: per source `Audio/<role>.Overruns`, `Underruns`, `DriftCorrections` (roles `Microphone`, `GameAudio`), and the monitor's `Audio/Monitor.Underruns`, `DriftCorrections`. `StageLate` comes with stages; `StreamLatency` is logged at start.
 - Devices are logged by name, never by ID.
 - Audio is never written to logs or diagnostics (CLAUDE.md 20).
 
@@ -193,21 +208,23 @@ Settings only (10). No audio is stored by this module; recordings are written by
 
 | Kind | Target |
 |---|---|
-| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, a delayed stage and the alignment of the others |
+| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others |
 | EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration |
 | Hardware (manual) | A real microphone and capture board: levels, unplugging, the recording's sync (recording detailed design 14) |
 
 ## 15. Performance
 
 - Latency from a device to the stream bus: about 20–30 ms (two 10 ms periods and the mix), plus any stage's own latency.
+- Latency from a device to the monitor output, as a target: about 60 ms (30 ms of capture and mix, the monitor's 20 ms of fill, and the output device's period of about 10 ms). A capture board's own latency comes on top.
 - CPU: well under 1% of one core for two device sources.
 
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 2: the stream delay)
-native/audio/src/                      mixer (the mix, the bus, the tap; no threads or devices), frame_ring, dsp (gains, limiter),
-                                       device_source (WASAPI capture), exports (the engine and the mix thread)
+native/audio/include/vv_audio.h        The C API (version 3: the monitor bus and its output device)
+native/audio/src/                      mixer (the mix, the buses, the tap; no threads or devices), frame_ring, fill_tracker (a ring between two clocks),
+                                       dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
+                                       device_output (the monitor's playback), exports (the engine and its mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
 Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine)
 Audio/Tests/EditMode/
@@ -219,24 +236,28 @@ A new module `VirtualVessel.Audio` (system design 2.4); UI references Audio, as 
 ## 17. Steps
 
 1. The microphone and the game's audio, gain and mute, the stream bus, levels, settings (this version).
-2. The monitor bus: game audio and later BGM and SE on the user's headphones, with their own sends (system design 9.4).
+2. The monitor bus: game audio and later BGM and SE on the user's headphones, with their own sends (system design 9.4). Done.
 3. Voice conversion as a managed stage on the microphone (8.3), and the stream video delayed to match (8.4).
 4. Clip players for BGM and SE, with their files in the Data Root.
 
+Not a requirement yet, but the user wants it (2026-10-31): taking a game's sound on the same PC without a capture board (application audio loopback). When it is added: it comes as a new `AudioSourceInput`. Its sound already reaches the user directly from the game, so sending it to the monitor would be heard twice, and its default send must be none. For the video, see the open issues of `capture.md`.
+
 ## 18. UI
 
-An "Audio" Card on the setup screen, one row group per source:
+A Card on the setup screen's Audio page. As a mixer, it has a row each for the sources and the monitor, in shared columns (user decision, 2026-10-31: a group of rows per source took 15 rows, and BGM and SE would add more):
 
-| Row | Content |
+| Column | Content |
 |---|---|
-| Heading | The source's name and a Status Chip of its state (a shape and text; "Muted" with the warning shape when muted) |
-| Problem | What happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`) |
-| Device | Select ("None" first, for both sources). A chosen device that is unplugged stays as "A device not connected now" |
+| Source | The name and a Status Chip of its state (a shape and text; "Muted" with the warning shape when muted) |
+| Device | Select ("None" first). A chosen device that is unplugged stays as "A device not connected now". The game audio's is disabled and only shows the device's name (below) |
 | Volume | Slider, -60 to +12 dB in 1 dB steps |
+| Hear | Toggle switching the send to the monitor bus. Setting the amount can come when it is needed |
 | Mute | Toggle |
-| Input level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
-| Stream and recording audio delay (once, after the sources) | Slider, 0 to 1000 ms in 10 ms steps (8.5) |
+| Level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
+
+Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
-- Sends to the monitor come with step 2.
+- The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.
+- After the sources comes the "Monitor" row: the output Select ("None" first), the volume, mute, and the level. Its state shows as a source's does.
 - On the live screen, under the record control, each source's mute IconButton (the crossed-out microphone when muted), its name, and a compact meter, so the user sees that sound is going in while recording (`live.md`).

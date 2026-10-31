@@ -43,6 +43,8 @@ namespace VirtualVessel.Audio
     {
         IReadOnlyList<AudioDevice> ListInputs();
 
+        IReadOnlyList<AudioDevice> ListOutputs();
+
         int AddSource();
 
         void RemoveSource(int source);
@@ -53,9 +55,17 @@ namespace VirtualVessel.Audio
 
         void SetStreamSend(int source, float sendDb);
 
+        void SetMonitorSend(int source, float sendDb);
+
+        void SetMonitorDevice(string deviceId);
+
+        void SetMonitorGain(float gainDb, bool muted);
+
         void SetStreamDelay(TimeSpan delay);
 
         AudioEngineStatus GetStatus(int source);
+
+        AudioEngineStatus GetMonitorStatus();
 
         TimeSpan StreamLatency { get; }
 
@@ -78,9 +88,10 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 2;
+        private const int ApiVersion = 3;
         private const int Ok = 0;
         private const int StreamBus = 0;
+        private const int MonitorBus = 1;
         private const int MaxDevices = 64;
 
         private IntPtr _engine;
@@ -127,18 +138,13 @@ namespace VirtualVessel.Audio
         public IReadOnlyList<AudioDevice> ListInputs()
         {
             var devices = new Device[MaxDevices];
-            if (vv_audio_list_inputs(devices, devices.Length, out int count) != Ok)
-            {
-                return Array.Empty<AudioDevice>();
-            }
+            return vv_audio_list_inputs(devices, devices.Length, out int count) == Ok ? ToList(devices, count) : Array.Empty<AudioDevice>();
+        }
 
-            var list = new List<AudioDevice>(Math.Min(count, MaxDevices));
-            for (int i = 0; i < count && i < MaxDevices; i++)
-            {
-                list.Add(new AudioDevice(devices[i].Id, devices[i].Name, devices[i].IsDefault != 0));
-            }
-
-            return list;
+        public IReadOnlyList<AudioDevice> ListOutputs()
+        {
+            var devices = new Device[MaxDevices];
+            return vv_audio_list_outputs(devices, devices.Length, out int count) == Ok ? ToList(devices, count) : Array.Empty<AudioDevice>();
         }
 
         public int AddSource()
@@ -172,6 +178,31 @@ namespace VirtualVessel.Audio
             vv_audio_set_send(_engine, source, StreamBus, sendDb);
         }
 
+        public void SetMonitorSend(int source, float sendDb)
+        {
+            vv_audio_set_send(_engine, source, MonitorBus, sendDb);
+        }
+
+        public void SetMonitorDevice(string deviceId)
+        {
+            vv_audio_set_monitor_device(_engine, deviceId);
+        }
+
+        public void SetMonitorGain(float gainDb, bool muted)
+        {
+            vv_audio_set_monitor_gain(_engine, gainDb, muted ? 1 : 0);
+        }
+
+        public AudioEngineStatus GetMonitorStatus()
+        {
+            if (vv_audio_get_monitor_status(_engine, out MonitorStatus status) != Ok)
+            {
+                return new AudioEngineStatus(AudioSourceState.Off, AudioProblem.None, 0, float.NegativeInfinity, 0, 0, 0);
+            }
+
+            return new AudioEngineStatus(StateOf(status.State), ProblemOf(status.Problem), status.LastError, status.PeakDb, 0, status.Underruns, status.DriftCorrections);
+        }
+
         public void SetStreamDelay(TimeSpan delay)
         {
             vv_audio_set_stream_delay(_engine, AudioSettings.ClampDelayMs(delay.TotalMilliseconds));
@@ -194,6 +225,17 @@ namespace VirtualVessel.Audio
                 vv_audio_destroy(_engine);
                 _engine = IntPtr.Zero;
             }
+        }
+
+        private static IReadOnlyList<AudioDevice> ToList(Device[] devices, int count)
+        {
+            var list = new List<AudioDevice>(Math.Min(count, MaxDevices));
+            for (int i = 0; i < count && i < MaxDevices; i++)
+            {
+                list.Add(new AudioDevice(devices[i].Id, devices[i].Name, devices[i].IsDefault != 0));
+            }
+
+            return list;
         }
 
         /// <summary>VV_AUDIO_SOURCE_*. Pure.</summary>
@@ -247,6 +289,18 @@ namespace VirtualVessel.Audio
             public long DriftCorrections;
         }
 
+        // vv_audio_monitor_status.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorStatus
+        {
+            public int State;
+            public int Problem;
+            public int LastError;
+            public float PeakDb;
+            public long Underruns;
+            public long DriftCorrections;
+        }
+
         // vv_audio_stream_tap.
         [StructLayout(LayoutKind.Sequential)]
         private struct Tap
@@ -260,6 +314,9 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_list_inputs([Out] Device[] devices, int capacity, out int count);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_list_outputs([Out] Device[] devices, int capacity, out int count);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_create(out IntPtr engine);
@@ -284,6 +341,15 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_get_source_status(IntPtr engine, int source, out Status status);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int vv_audio_set_monitor_device(IntPtr engine, string deviceId);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_set_monitor_gain(IntPtr engine, float gainDb, int muted);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_get_monitor_status(IntPtr engine, out MonitorStatus status);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern long vv_audio_stream_latency_us(IntPtr engine);

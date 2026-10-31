@@ -13,9 +13,8 @@ namespace vv::audio
         // About 1.4 s per source: room for a device's burst after a stall of the mix.
         constexpr size_t InputFrames = 1 << 16;
 
-        // The settled fill is measured over the first half second after a source starts playing.
-        constexpr int SettleBlocks = 50;
-        constexpr double FillSmoothing = 0.05;
+        // About 0.34 s: more than the output needs, and bounded, so a stall cannot leave it far behind.
+        constexpr size_t MonitorFrames = 1 << 14;
     }
 
     Mixer::Mixer(int64_t qpcFrequency)
@@ -23,7 +22,10 @@ namespace vv::audio
           _scratch(static_cast<size_t>(BlockFrames + 1) * Channels),
           _block(static_cast<size_t>(BlockFrames) * Channels),
           _bus(BusFrames * Channels),
-          _busMask(BusFrames - 1)
+          _busMask(BusFrames - 1),
+          _monitorScratch(static_cast<size_t>(BlockFrames) * Channels),
+          _monitorBlock(static_cast<size_t>(BlockFrames) * Channels),
+          _monitor(MonitorFrames)
     {
     }
 
@@ -38,16 +40,15 @@ namespace vv::audio
                 slot.gain = 1.0f;
                 slot.muted = false;
                 slot.send = 1.0f;
+                slot.monitorSend = 0.0f;
                 slot.overruns = 0;
                 slot.underruns = 0;
                 slot.driftCorrections = 0;
                 slot.peak = 0.0f;
-                slot.primed = false;
-                slot.blocksSincePrimed = 0;
-                slot.fillAverage = 0.0;
-                slot.fillTarget = 0.0;
+                slot.fill = FillTracker();
                 slot.appliedGain = 1.0f;
                 slot.appliedOutput = 1.0f;
+                slot.appliedMonitor = 0.0f;
                 slot.used = true;
                 *id = i;
                 return true;
@@ -96,9 +97,19 @@ namespace vv::audio
 
     void Mixer::SetSend(int id, int bus, float sendDb)
     {
-        if (Used(id) && bus == 0)
+        if (!Used(id))
         {
-            _slots[id].send = DbToLinear(sendDb > MaxGainDb ? MaxGainDb : sendDb);
+            return;
+        }
+
+        float linear = DbToLinear(sendDb > MaxGainDb ? MaxGainDb : sendDb);
+        if (bus == 0)
+        {
+            _slots[id].send = linear;
+        }
+        else if (bus == 1)
+        {
+            _slots[id].monitorSend = linear;
         }
     }
 
@@ -120,54 +131,24 @@ namespace vv::audio
 
     bool Mixer::ReadSource(Slot& slot)
     {
-        size_t available = slot.input->Available();
-        if (!slot.primed)
+        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames);
+        if (step.ranDry)
         {
-            if (available < PrimeFrames)
-            {
-                return false;
-            }
-
-            slot.primed = true;
-            slot.blocksSincePrimed = 0;
-            slot.fillAverage = static_cast<double>(available);
-        }
-
-        if (available < static_cast<size_t>(BlockFrames))
-        {
-            // Ran dry: what is left is let go, and the source waits to fill up again, so it does not stutter.
+            // What is left is let go, and the source waits to fill up again, so it does not stutter.
             slot.underruns++;
-            slot.input->Read(nullptr, available);
-            slot.primed = false;
+            slot.input->Read(nullptr, slot.input->Available());
             return false;
         }
 
-        slot.fillAverage += (static_cast<double>(available) - slot.fillAverage) * FillSmoothing;
-        slot.blocksSincePrimed++;
-        if (slot.blocksSincePrimed == SettleBlocks)
+        if (step.take == 0)
         {
-            slot.fillTarget = slot.fillAverage;
+            return false;
         }
 
         // The device's clock runs a little fast or slow against the mix's; one sample now and then keeps
         // the fill where it settled (audio detailed design 8.2).
-        int take = BlockFrames;
-        if (slot.blocksSincePrimed > SettleBlocks)
-        {
-            if (slot.fillAverage > slot.fillTarget + DriftTolerance && available > static_cast<size_t>(BlockFrames))
-            {
-                take = BlockFrames + 1;
-                slot.fillAverage -= 1.0;
-                slot.driftCorrections++;
-            }
-            else if (slot.fillAverage < slot.fillTarget - DriftTolerance)
-            {
-                take = BlockFrames - 1;
-                slot.fillAverage += 1.0;
-                slot.driftCorrections++;
-            }
-        }
-
+        int take = step.take;
+        slot.driftCorrections += step.corrected ? 1 : 0;
         slot.input->Read(_scratch.data(), static_cast<size_t>(take));
         if (take == BlockFrames - 1)
         {
@@ -182,6 +163,7 @@ namespace vv::audio
     void Mixer::MixBlock(int64_t blockQpc)
     {
         std::fill(_block.begin(), _block.end(), 0.0f);
+        std::fill(_monitorBlock.begin(), _monitorBlock.end(), 0.0f);
         for (Slot& slot : _slots)
         {
             if (!slot.used || !ReadSource(slot))
@@ -191,17 +173,39 @@ namespace vv::audio
 
             // The meter shows the level after the gain and before mute, so a muted microphone still shows it hears.
             float gain = slot.gain.load();
-            float output = slot.muted.load() ? 0.0f : slot.send.load();
+            bool muted = slot.muted.load();
+            float output = muted ? 0.0f : slot.send.load();
+            float monitor = muted ? 0.0f : slot.monitorSend.load();
             float peak = ApplyRamp(_scratch.data(), BlockFrames, Channels, slot.appliedGain, gain);
-            ApplyRamp(_scratch.data(), BlockFrames, Channels, slot.appliedOutput, output);
-            slot.appliedGain = gain;
-            slot.appliedOutput = output;
             RaisePeak(slot.peak, peak);
+            slot.appliedGain = gain;
+            if (monitor > 0.0f || slot.appliedMonitor > 0.0f)
+            {
+                std::copy_n(_scratch.begin(), _monitorScratch.size(), _monitorScratch.begin());
+                ApplyRamp(_monitorScratch.data(), BlockFrames, Channels, slot.appliedMonitor, monitor);
+                slot.appliedMonitor = monitor;
+                for (size_t i = 0; i < _monitorBlock.size(); i++)
+                {
+                    _monitorBlock[i] += _monitorScratch[i];
+                }
+            }
+
+            ApplyRamp(_scratch.data(), BlockFrames, Channels, slot.appliedOutput, output);
+            slot.appliedOutput = output;
             for (size_t i = 0; i < _block.size(); i++)
             {
                 _block[i] += _scratch[i];
             }
         }
+
+        _monitorLimiter = Limit(_monitorBlock.data(), BlockFrames, Channels, _monitorLimiter);
+        float monitorGain = _monitorMuted.load() ? 0.0f : _monitorGain.load();
+        ApplyRamp(_monitorBlock.data(), BlockFrames, Channels, _appliedMonitorGain, monitorGain);
+        _appliedMonitorGain = monitorGain;
+        RaisePeak(_monitorPeak, Peak(_monitorBlock.data(), BlockFrames, Channels));
+
+        // With no device playing, or too far behind, the ring is full and the block is left out.
+        _monitor.Write(_monitorBlock.data(), BlockFrames);
 
         _limiter = Limit(_block.data(), BlockFrames, Channels, _limiter);
         RaisePeak(_busPeak, Peak(_block.data(), BlockFrames, Channels));
@@ -277,6 +281,17 @@ namespace vv::audio
 
         _busRead = end;
         return count;
+    }
+
+    void Mixer::SetMonitor(float gainDb, bool muted)
+    {
+        _monitorGain = DbToLinear(ClampGainDb(gainDb));
+        _monitorMuted = muted;
+    }
+
+    float Mixer::TakeMonitorPeak()
+    {
+        return _monitorPeak.exchange(0.0f);
     }
 
     float Mixer::TakeBusPeak()

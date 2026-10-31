@@ -453,6 +453,7 @@ tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 | Capture設定の保存先 | 完了（2026-10-27）：ProjectのCapture Profile、`Profiles/Capture/<ProfileId>.json`。形式は`capture-settings.json`のまま（Project Data詳細設計6章） |
 | 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
+| キャプチャーボードなしで同じPCのゲームを取り込むこと | 要件にはまだないが、利用者が望んでいる（2026-10-31）。加えるときは、ウィンドウの取り込みを新しい`IVideoCaptureSource`として足し、音はAudioの新しい音の元とする（`audio.md`17章）。 |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |
 | Capture Setup画面、Live画面の操作 | 決定：セットアップ画面のCaptureのCard（`docs/ja/ui/screens/setup.md`）。ライブ画面には取り込みの操作を置かない |
 

@@ -71,43 +71,34 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator Setup_CardsStartClosed_ShowTheirStateInTheTitle_AndTheTitleOpensThem()
+        public IEnumerator Setup_ShowsOnePageAtATime_AndRemembersIt()
         {
             _root.Shell.Open("setup");
             yield return null;
-            VisualElement screen = _root.Shell.Host.GetScreen("setup");
-            List<Card> cards = screen.Query<Card>().ToList();
-            Assert.That(cards.Count, Is.EqualTo(5), "Two capture Cards, tracking, the app settings, and the credits.");
-            foreach (Card each in cards)
-            {
-                Assert.That(each.Collapsible, Is.True);
-                Assert.That(each.Expanded, Is.False, "Each start begins closed; nothing is saved.");
-                Assert.That(each.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
-            }
-
-            // Measured on the real styles: everything on the screen keeps M (16px) from the next, whichever module built it.
-            List<VisualElement> items = screen.Children().ToList();
-            for (int i = 1; i < items.Count; i++)
-            {
-                float gap = items[i].worldBound.yMin - items[i - 1].worldBound.yMax;
-                Assert.That(gap, Is.EqualTo(16f).Within(0.5f), $"Between {items[i - 1].GetType().Name} and {items[i].GetType().Name}.");
-            }
-
+            var screen = (SetupScreen)_root.Shell.Host.GetScreen("setup");
             CaptureSourceCard capture = screen.Q<CaptureSourceCard>();
-            Card card = capture.Q<Card>();
-            Assert.That(capture.Status.parent, Is.SameAs(card.HeaderEnd), "The state shows while the Card is closed.");
-            Assert.That(screen.Q<TrackingCard>().Status.parent, Is.SameAs(screen.Q<TrackingCard>().Q<Card>().HeaderEnd));
+            Assert.That(screen.Tabs.value, Is.EqualTo(SetupScreen.VideoPage));
+            Assert.That(capture.resolvedStyle.width, Is.GreaterThan(0f));
+            Assert.That(screen.Q<TrackingCard>().parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
 
-            Click(card.Header);
-            yield return null;
-            Assert.That(card.Expanded, Is.True, "A click on the title opens the Card.");
-            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
-            Assert.That(cards[1].Expanded, Is.False, "Each Card opens on its own.");
+            // Measured on the real styles: everything on a page keeps M (16px) from the next, whichever module built it.
+            List<VisualElement> items = capture.parent.Children().ToList();
+            Assert.That(items.Count, Is.EqualTo(2));
+            Assert.That(items[1].worldBound.yMin - items[0].worldBound.yMax, Is.EqualTo(16f).Within(0.5f));
 
-            Submit(card.Header);
+            screen.Tabs.value = SetupScreen.AvatarPage;
             yield return null;
-            Assert.That(card.Expanded, Is.False, "Enter or Space on the focused title closes it again.");
-            Assert.That(card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(capture.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(screen.Q<TrackingCard>().parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(_root.Settings.LastSetupPage, Is.EqualTo("avatar"));
+        }
+
+        [Test]
+        public void PageOf_FallsBackToTheFirstPage_ForAnIdNotKnown()
+        {
+            Assert.That(SetupScreen.PageOf("output"), Is.EqualTo(SetupScreen.OutputPage));
+            Assert.That(SetupScreen.PageOf("gone"), Is.EqualTo(SetupScreen.VideoPage));
+            Assert.That(SetupScreen.PageOf(null), Is.EqualTo(SetupScreen.VideoPage));
         }
 
         [UnityTest]
@@ -411,7 +402,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private class FakeDeviceSource : ICaptureDeviceSource
+        internal class FakeDeviceSource : ICaptureDeviceSource
         {
             private readonly ObservableValue<CaptureState> _state = new ObservableValue<CaptureState>(CaptureState.Stopped);
             private readonly ObservableValue<CaptureProblem> _problem = new ObservableValue<CaptureProblem>(CaptureProblem.None);
