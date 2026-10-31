@@ -1328,6 +1328,8 @@ Do not perform normal feature development directly on `main` or `develop`.
 
 Before starting implementation work, create or switch to a dedicated short-lived task branch created from `develop`. Its Pull Request targets `develop`.
 
+The exception is `feature/tracking`, an integration branch for tracking, avatar motion, and hand work (development workflow 6.1). These change in many small steps, so they stay apart from `develop` until they settle. Task branches for this work are created from `feature/tracking` and their Pull Requests target it. The user decides when it goes into `develop`.
+
 Pull Requests into `main` are only:
 
 - the release PR from `develop` (development workflow 21),
