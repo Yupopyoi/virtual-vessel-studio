@@ -227,6 +227,14 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - Refreshing a table changes only the texts; rows are not rebuilt.
 - Cell text can be data, such as names users typed, so it is never parsed as rich text.
 
+### 3.25 Mixer
+
+- A row per source, in shared columns: the source (name and state), the device, the volume, hear, mute, and the level. The column headings are Caption, Text 3.
+- 1 px Border lines between rows. The device column takes the remaining width; the others have fixed widths.
+- A problem's explanation appears under its row, only when there is one.
+- An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.
+- Without enough width, the column headings hide, rows wrap, and each control carries its name.
+
 ---
 
 ## 4. Adding a Component

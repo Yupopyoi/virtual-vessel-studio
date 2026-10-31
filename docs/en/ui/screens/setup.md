@@ -11,21 +11,21 @@ It has the capture Cards, the audio Card (chapter 11), the tracking Card, the av
 
 ## 2. Layout
 
-Cards stacked from the top:
+The Cards are divided into pages by subject, switched by Tabs at the top of the screen (`components.md` 3.8). With more Cards, a subject had become hard to find, so they are no longer one column (user decision, 2026-10-31).
 
-1. Capture (game screen)
-2. Capture (sub monitor)
-3. Audio (chapter 11; without audio, the line "Audio is not available.")
-4. Tracking (chapter 4)
-5. Avatar (chapter 5)
-6. Face tuning (chapter 9; only when avatars are available)
-7. Recording (chapter 10; without recording, the line "Recording is not available.")
-8. App settings
-9. Credits and licenses (chapter 8)
+| Page | Key | Cards |
+|---|---|---|
+| Video | `setup.page.video` | Capture (game screen, sub monitor) |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available.") |
+| Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
+| Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming |
+| App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
 
+- The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
+- All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
-- The state (Status Indicator) sits at the right end of the Card's title band, so it shows while the Card is closed. The explanation of a problem comes first in the body.
+- Cards do not collapse. With pages, closing them to keep the screen short is no longer needed.
+- The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
 
@@ -226,18 +226,20 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 
 ## 11. Audio Card
 
-Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source (the microphone, the game audio); details in audio detailed design 18.
+Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio) and the monitor, in shared columns. Another source adds only a row. Details in audio detailed design 18.
 
 | Row | Content |
 |---|---|
-| Heading | The source's name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
-| Problem | What happened and what to do; when microphone access is denied, "Open microphone privacy settings" |
-| Device | Select, "None" first; an unplugged device stays as "A device not connected now" |
+| Source | The name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
+| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
 | Volume | Slider, -60 to +12 dB |
+| Hear | Toggle; not on the monitor's row |
 | Mute | Toggle |
-| Input level | Level Meter, -60 to 0 dB |
-| Stream and recording audio delay | Slider, 0 to 1000 ms, 300 ms by default; once, after the sources (audio detailed design 8.5) |
+| Level | Level Meter, -60 to 0 dB |
 
+Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Under the table, the notes and the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
+
+- When the Card is narrower than 760 px, the column headings hide, rows wrap, and each control carries its name.
 - Devices are listed again every 5 seconds while the Card is shown.
 - The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
 
@@ -247,16 +249,15 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
 | `setup.audio.microphone` | マイク | Microphone |
 | `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
-| `setup.audio.device.microphone` | 話す声を拾うマイクです。 | The microphone that picks up your voice. |
 | `setup.capture.audio` | 音声 | Audio |
 | `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
-| `setup.audio.device.game` | キャプチャーボードの音声などを選びます。 | Choose the capture board's audio, for example. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
 | `setup.audio.gain` | 音量 | Volume |
 | `setup.audio.mute` | ミュート | Mute |
-| `setup.audio.level` | 入力レベル | Input level |
+| `setup.audio.level` | レベル | Level |
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
@@ -268,12 +269,11 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
-| `setup.audio.monitored` | 自分で聞く | Hear it myself |
-| `setup.audio.monitored.description` | オンにすると、下の「モニター」から聞こえます。配信と録画には関係しません。 | Plays on the monitor below. This does not change the stream or recordings. |
+| `setup.audio.monitored` | 聞く | Hear |
+| `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
 | `setup.audio.monitor.device` | 出力先 | Output |
-| `setup.audio.monitor.device.description` | 自分が聞く音を出す機器です。ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | The device you listen on. Headphones are recommended: speakers can leak into the microphone. |
-| `setup.audio.monitor.gain` | 音量 | Volume |
-| `setup.audio.monitor.mute` | ミュート | Mute |
 | `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
 | `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |

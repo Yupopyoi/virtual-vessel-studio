@@ -244,20 +244,20 @@ Not a requirement yet, but the user wants it (2026-10-31): taking a game's sound
 
 ## 18. UI
 
-An "Audio" Card on the setup screen, one row group per source:
+A Card on the setup screen's Audio page. As a mixer, it has a row each for the sources and the monitor, in shared columns (user decision, 2026-10-31: a group of rows per source took 15 rows, and BGM and SE would add more):
 
-| Row | Content |
+| Column | Content |
 |---|---|
-| Heading | The source's name and a Status Chip of its state (a shape and text; "Muted" with the warning shape when muted) |
-| Problem | What happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`) |
-| Device | Select ("None" first, for both sources). A chosen device that is unplugged stays as "A device not connected now" |
+| Source | The name and a Status Chip of its state (a shape and text; "Muted" with the warning shape when muted) |
+| Device | Select ("None" first). A chosen device that is unplugged stays as "A device not connected now". The game audio's is disabled and only shows the device's name (below) |
 | Volume | Slider, -60 to +12 dB in 1 dB steps |
+| Hear | Toggle switching the send to the monitor bus. Setting the amount can come when it is needed |
 | Mute | Toggle |
-| Input level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
-| Stream and recording audio delay (once, after the sources) | Slider, 0 to 1000 ms in 10 ms steps (8.5) |
+| Level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
+
+Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
-- The game audio's device can also be chosen on the game capture Card (`GameAudioRow`). Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.
-- Each source's "Hear it myself" Toggle switches its send to the monitor bus. Setting the amount can come when it is needed.
-- After the sources, the "Monitor" rows: the output Select ("None" first), the volume, mute, and the level. The heading shows the state as a source's does.
+- The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.
+- After the sources comes the "Monitor" row: the output Select ("None" first), the volume, mute, and the level. Its state shows as a source's does.
 - On the live screen, under the record control, each source's mute IconButton (the crossed-out microphone when muted), its name, and a compact meter, so the user sees that sound is going in while recording (`live.md`).
