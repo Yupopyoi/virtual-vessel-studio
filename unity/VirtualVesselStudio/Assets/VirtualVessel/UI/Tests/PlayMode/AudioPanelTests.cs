@@ -74,6 +74,57 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_audio.StreamDelay.Value, Is.EqualTo(TimeSpan.FromMilliseconds(200)));
         }
 
+        [Test]
+        public void Find_MatchesTheVideoDevicesName_InsideTheAudioDevicesName()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("camera", "マイク (USB 2.0 Camera)", false),
+                new AudioDevice("board", "デジタル オーディオ インターフェイス (MiraBox Capture)", false),
+            };
+
+            Assert.That(GameAudioRow.Find(devices, "MiraBox Capture"), Is.EqualTo("board"));
+            Assert.That(GameAudioRow.Find(devices, "mirabox-capture"), Is.EqualTo("board"), "Case and punctuation do not count.");
+            Assert.That(GameAudioRow.Find(devices, "Other Board"), Is.Null);
+            Assert.That(GameAudioRow.Find(devices, null), Is.Null);
+        }
+
+        [Test]
+        public void Follow_KeepsAChoiceThatIsTheUsersOwn()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("line", "Line In", false),
+                new AudioDevice("a", "Audio (Board A)", false),
+                new AudioDevice("b", "Audio (Board B)", false),
+            };
+
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board B"), Is.EqualTo("b"), "It followed the old board.");
+            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheGameCaptureCard_ChoosesTheAudioWithTheVideo()
+        {
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture);
+            var row = new GameAudioRow(_audio);
+            var card = new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row);
+            _root.Content.Add(card);
+            yield return null;
+            Assert.That(row.Devices.value, Is.EqualTo(string.Empty));
+
+            card.Devices.value = "Board A";
+            yield return null;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("board"));
+            Assert.That(row.Devices.value, Is.EqualTo("board"), "The row shows what the source now uses.");
+            Assert.That(video.SelectedDeviceId, Is.EqualTo("Board A"));
+
+            row.Devices.value = string.Empty;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "It can be chosen by hand here too.");
+        }
+
         [UnityTest]
         public IEnumerator TheMonitor_HasItsOwnOutputAndVolume_AndEachSourceChoosesToBeHeard()
         {
@@ -266,7 +317,7 @@ namespace VirtualVessel.UI.Tests
             private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(new[]
             {
                 new AudioDevice("mic", "Microphone", true),
-                new AudioDevice("board", "Capture board", false),
+                new AudioDevice("board", "Digital Audio Interface (Board A)", false),
             });
 
             public FakeAudio()

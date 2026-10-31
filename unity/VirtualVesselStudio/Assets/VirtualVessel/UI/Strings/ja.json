@@ -252,6 +252,8 @@
         "setup.capture.unavailable": "映像の取り込みを使えません。",
         "setup.capture.capture": "取り込む",
         "setup.capture.device": "機器",
+        "setup.capture.audio": "音声",
+        "setup.capture.audio.description": "ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。",
         "setup.capture.device.choose": "カメラを選択",
         "setup.capture.device.automatic": "自動（メイン以外のモニター）",
         "setup.capture.device.none": "機器が見つかりません",

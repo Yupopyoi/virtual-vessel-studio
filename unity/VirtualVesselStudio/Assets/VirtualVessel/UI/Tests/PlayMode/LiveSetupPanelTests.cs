@@ -411,7 +411,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private class FakeDeviceSource : ICaptureDeviceSource
+        internal class FakeDeviceSource : ICaptureDeviceSource
         {
             private readonly ObservableValue<CaptureState> _state = new ObservableValue<CaptureState>(CaptureState.Stopped);
             private readonly ObservableValue<CaptureProblem> _problem = new ObservableValue<CaptureProblem>(CaptureProblem.None);

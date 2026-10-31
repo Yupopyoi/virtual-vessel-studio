@@ -18,6 +18,8 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.capture.unavailable";
         public const string Capture = "setup.capture.capture";
         public const string Device = "setup.capture.device";
+        public const string Audio = "setup.capture.audio";
+        public const string AudioDescription = "setup.capture.audio.description";
         public const string ChooseCamera = "setup.capture.device.choose";
         public const string AutomaticMonitor = "setup.capture.device.automatic";
         public const string NoDevice = "setup.capture.device.none";
@@ -54,16 +56,19 @@ namespace VirtualVessel.UI.Screens
         public const string PreviewEmptyClass = PreviewClass + "-empty";
 
         private readonly ICaptureDeviceSource _source;
+        private readonly GameAudioRow _audio;
         private readonly string _emptyChoiceKey;
         private readonly KeyedText _problemText;
         private readonly Label _problem;
         private readonly Label _noVideo;
 
         /// <param name="emptyChoiceKey">The device choice with no device: "Choose a camera" or "Automatic".</param>
-        public CaptureSourceCard(ICaptureDeviceSource source, string titleKey, string emptyChoiceKey)
+        /// <param name="audio">The sound that comes with this video, or null when none does.</param>
+        public CaptureSourceCard(ICaptureDeviceSource source, string titleKey, string emptyChoiceKey, GameAudioRow audio = null)
         {
             _source = source ?? throw new ArgumentNullException(nameof(source));
             _emptyChoiceKey = emptyChoiceKey;
+            _audio = audio;
             AddToClassList(UssClass);
             Card card = Ui.Card(titleKey);
             Add(card);
@@ -103,8 +108,16 @@ namespace VirtualVessel.UI.Screens
             card.Add(Row(CaptureStrings.Capture, Capture));
 
             Devices = Ui.Select(null);
-            Devices.RegisterValueChangedCallback(evt => _source.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
+            Devices.RegisterValueChangedCallback(evt =>
+            {
+                _audio?.VideoChanged(NameOf(evt.previousValue), NameOf(evt.newValue));
+                _source.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue);
+            });
             card.Add(Row(CaptureStrings.Device, Devices));
+            if (audio != null)
+            {
+                card.Add(audio);
+            }
 
             ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
             refresh.clicked += RefreshDevices;
@@ -192,6 +205,11 @@ namespace VirtualVessel.UI.Screens
             }
 
             return new Subscriptions(subscriptions);
+        }
+
+        private string NameOf(string deviceId)
+        {
+            return _source.Devices.FirstOrDefault(device => device.Id == deviceId)?.DisplayName;
         }
 
         private void RefreshDevices()

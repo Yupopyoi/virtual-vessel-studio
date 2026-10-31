@@ -37,6 +37,8 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 映像 | 画像（256×144、16:9に収める） | 取り込んだ映像を小さく表示し、選んだ機器が合っているか確かめられるようにする。映像がないときは「映像なし」 |
 | 取り込む | Toggle | オンで開始、オフで停止。開始していたかは保存し、次の起動で戻す |
 | 機器 | Dropdown | 見つかった機器。ゲーム画面は先頭に「カメラを選択」、サブモニターは先頭に「自動（メイン以外のモニター）」 |
+| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
+| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
 | 左右反転 | Toggle | 映像の向きを直す |
 | 上下反転 | Toggle | 映像の向きを直す |
@@ -64,6 +66,7 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 動きの速さ | Slider（1〜10、1刻み） | 平滑化の段階（Tracking詳細設計8.2）。説明：「大きくするほど動きが速く、小さくするほど揺れが少なくなります。」既定は5（2026-10-24に段階を2つ、さらに4つずらし、遅れ300ms程度までの安定な段階を5とした）。変えるとすぐに反映し、保存する |
 | 体の検出 | Segmented（軽量、標準） | Poseのモデル（Tracking詳細設計10章）。既定は標準。説明：「軽量は負荷が下がりますが、体のとらえ方が粗くなります。変えると、数秒かけて準備し直します。」トラッキング中に変えると、新しいモデルで開始し直す。保存する。Heavy（「高精度」）は出さない。利用者のカメラでは標準より悪くなった（2026-10-26） |
 | カメラ | Dropdown | 見つかった機器。先頭に「カメラを選択」。選ぶまでカメラは開かない |
+| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
 
 ### 4.1 トラッキングの状態の表示
@@ -238,7 +241,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 配信・録画の音声の遅延 | Slider、0〜1000ms、既定300ms。音の元の後に1つ（Audio詳細設計8.5） |
 
 - Cardを表示している間、機器を5秒ごとに数え直す。
-- マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ）。
+- マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ。映像の機器を選ぶと自動で選ばれる。3章）。
 
 | Key | 日本語 | English |
 |---|---|---|
@@ -248,6 +251,8 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.game` | ゲームの音声 | Game audio |
 | `setup.audio.device` | デバイス | Device |
 | `setup.audio.device.microphone` | 話す声を拾うマイクです。 | The microphone that picks up your voice. |
+| `setup.capture.audio` | 音声 | Audio |
+| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.game` | キャプチャーボードの音声などを選びます。 | Choose the capture board's audio, for example. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |

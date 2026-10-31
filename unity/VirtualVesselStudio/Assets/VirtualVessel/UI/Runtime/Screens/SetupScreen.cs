@@ -35,7 +35,8 @@ namespace VirtualVessel.UI.Screens
                     // The tracking camera is set up in the tracking Card, which uses it.
                     if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
                     {
-                        Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source)));
+                        GameAudioRow audio = source.Kind == CaptureSourceKind.GameCapture && services.Audio != null ? new GameAudioRow(services.Audio) : null;
+                        Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), audio));
                     }
                 }
             }

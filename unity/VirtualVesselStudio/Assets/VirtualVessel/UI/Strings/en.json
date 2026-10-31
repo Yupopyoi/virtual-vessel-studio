@@ -252,6 +252,8 @@
         "setup.capture.unavailable": "Capture is not available.",
         "setup.capture.capture": "Capture",
         "setup.capture.device": "Device",
+        "setup.capture.audio": "Audio",
+        "setup.capture.audio.description": "The device the game's sound comes from. Choosing a video device chooses its audio too.",
         "setup.capture.device.choose": "Choose a camera",
         "setup.capture.device.automatic": "Automatic (not the main monitor)",
         "setup.capture.device.none": "No device found",

@@ -37,6 +37,7 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
 | Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
+| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Left out when audio is not available |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 | Flip left and right | Toggle | Corrects the video's orientation |
 | Flip top and bottom | Toggle | Corrects the video's orientation |
@@ -238,7 +239,7 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | Stream and recording audio delay | Slider, 0 to 1000 ms, 300 ms by default; once, after the sources (audio detailed design 8.5) |
 
 - Devices are listed again every 5 seconds while the Card is shown.
-- The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio).
+- The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
 
 | Key | 日本語 | English |
 |---|---|---|
@@ -248,6 +249,8 @@ Shows `IAudioService` (Audio) directly (`AudioCard`), a group of rows per source
 | `setup.audio.game` | ゲームの音声 | Game audio |
 | `setup.audio.device` | デバイス | Device |
 | `setup.audio.device.microphone` | 話す声を拾うマイクです。 | The microphone that picks up your voice. |
+| `setup.capture.audio` | 音声 | Audio |
+| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.game` | キャプチャーボードの音声などを選びます。 | Choose the capture board's audio, for example. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |

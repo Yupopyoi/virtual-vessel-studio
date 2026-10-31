@@ -257,6 +257,7 @@ An "Audio" Card on the setup screen, one row group per source:
 | Stream and recording audio delay (once, after the sources) | Slider, 0 to 1000 ms in 10 ms steps (8.5) |
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
+- The game audio's device can also be chosen on the game capture Card (`GameAudioRow`). Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.
 - Each source's "Hear it myself" Toggle switches its send to the monitor bus. Setting the amount can come when it is needed.
 - After the sources, the "Monitor" rows: the output Select ("None" first), the volume, mute, and the level. The heading shows the state as a source's does.
 - On the live screen, under the record control, each source's mute IconButton (the crossed-out microphone when muted), its name, and a compact meter, so the user sees that sound is going in while recording (`live.md`).
