@@ -184,6 +184,18 @@ namespace
 
     void Queue()
     {
+        {
+            // Audio is encoded a little past the video, so the front of a short queue can be later than its back.
+            SendQueue ahead(3000);
+            Packet early;
+            early.type = rtmp::Audio;
+            early.timestamp = 1100;
+            ahead.Push(early);
+            ahead.Push(VideoPacket(1033, false));
+            ahead.Push(VideoPacket(1066, false));
+            Check(ahead.DurationMs() == 0 && ahead.Dropped() == 0, "audio ahead of the video is not a full queue");
+        }
+
         SendQueue queue(3000);
         queue.Push(VideoPacket(0, true));
         for (uint32_t t = 33; t <= 2970; t += 33)

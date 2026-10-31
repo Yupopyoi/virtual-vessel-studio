@@ -8,7 +8,15 @@ namespace vv::stream
     {
         uint32_t Span(const std::deque<Packet>& packets)
         {
-            return packets.size() < 2 ? 0 : packets.back().timestamp - packets.front().timestamp;
+            if (packets.size() < 2)
+            {
+                return 0;
+            }
+
+            // Signed: audio runs a little ahead of the video, so the front can be later than the back. Unsigned,
+            // that reads as 49 days of queue and drops video on a connection with nothing waiting.
+            int32_t span = static_cast<int32_t>(packets.back().timestamp - packets.front().timestamp);
+            return span > 0 ? static_cast<uint32_t>(span) : 0;
         }
     }
 
