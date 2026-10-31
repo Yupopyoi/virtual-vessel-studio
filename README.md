@@ -11,11 +11,11 @@
 Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and content creation. It brings 3D avatars, tracking, video capture, and stages together in one app, with no separate tools to set up.
 
 > [!NOTE]
-> **v0.1.0 is an early preview.** You can move a VRM avatar with a webcam and arrange captured videos on the stream screen. Streaming, recording, audio, and voice conversion are not included yet (see [Known limitations](#known-limitations)).
+> **v0.1.2 is an early preview.** You can move a VRM avatar with a webcam, arrange captured videos on the stream screen, mix the audio, and stream to YouTube or record. Voice conversion is not included yet (see [Known limitations](#known-limitations)).
 
 ## Contents
 
-- [What you can do in v0.1.0](#what-you-can-do-in-v010)
+- [What you can do in v0.1.2](#what-you-can-do-in-v012)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Sample avatar: Otoha-chan](#sample-avatar-otoha-chan)
@@ -27,11 +27,11 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - [For developers](#for-developers)
 - [License](#license)
 
-## What you can do in v0.1.0
+## What you can do in v0.1.2
 
 - **Sample avatar:** Otoha-chan (音葉ちゃん) comes with the app, so you can try it without a model of your own.
 - **Avatar:** register a VRM model (VRM 1.0, or VRM 0.x converted when loaded), and check the terms of use its author set.
-- **Tracking with a webcam:** the face (expressions, eyes, and mouth), the upper body, arms, hands, and fingers move the avatar. You can tune the face and how fast or steady the movement is.
+- **Tracking with a webcam:** the face (expressions, eyes, and mouth), the upper body, arms, hands, and fingers move the avatar. You can tune the face, how far the fingers bend, and how fast or steady the movement is.
 - **Video capture:**
   - a game screen through a capture board;
   - a second monitor.
@@ -39,6 +39,9 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
   - see the stream video;
   - move and resize the videos on it;
   - see which of your arms and hands the camera sees.
+- **Audio:** mix your microphone and the game's audio, hear the game yourself, and delay the audio to match the avatar.
+- **Streaming:** stream to YouTube, or another RTMP(S) server, with AV1 or H.264. The connection comes back by itself if it drops.
+- **Recording:** record the stream video and audio to a file, while streaming or on its own.
 - **Japanese and English UI**, dark and light themes, and a UI scale setting.
 
 ## Requirements
@@ -46,7 +49,9 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - Windows (64-bit), with a GPU that supports DirectX 11
 - A webcam, for tracking
 - A VRM model (`.vrm`) that its author allows you to use as an avatar, or the included sample avatar
-- Optional: a capture board, for a game screen; a second monitor
+- For streaming: an internet connection with upload speed to spare (more than 6 Mbit/s for the default bitrate)
+- Optional: a microphone; a capture board, for a game screen; a second monitor
+- Recommended for streaming and recording: a GPU with a hardware video encoder. AV1 needs one that encodes AV1.
 
 ## Install
 
@@ -54,7 +59,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 2. (Optional) Check the download against `SHA256SUMS.txt` on the same page:
 
    ```powershell
-   Get-FileHash .\VirtualVesselStudio-v0.1.0-win-x64.zip -Algorithm SHA256
+   Get-FileHash .\VirtualVesselStudio-v0.1.2-win-x64.zip -Algorithm SHA256
    ```
 
 3. Extract the ZIP to a folder you can write to, such as `Documents\VirtualVesselStudio`. Keep all files together.
@@ -80,11 +85,11 @@ Otoha-chan (音葉ちゃん, `otoha-chan.vrm`) is a sample VRM avatar made for V
 
 ## Getting started
 
-The app has two main screens: **Settings**, for preparing devices before you stream, and **Live**, for watching and arranging the stream video. On the Settings screen, each setting is in a card that opens when you click its title.
+The app has two main screens: **Settings**, for preparing devices before you stream, and **Live**, for watching and arranging the stream video. The Settings screen has five pages, chosen with the tabs at the top: **Video**, **Audio**, **Avatar**, **Streaming and recording**, and **App**. Each setting is in a card that opens when you click its title.
 
 ### 1. Register your avatar
 
-1. Open **Settings** → **Avatar**.
+1. Open the **Avatar** card on the **Avatar** page of **Settings**.
 2. Click **Register an avatar…** and choose your `.vrm` file, or the sample `Samples\otoha-chan.vrm` in the app folder.
 3. Check the model's terms of use, then click **Register**.
 
@@ -93,7 +98,7 @@ The app has two main screens: **Settings**, for preparing devices before you str
 
 ### 2. Start tracking
 
-1. Open **Settings** → **Tracking**.
+1. Open the **Tracking** card on the **Avatar** page of **Settings**.
 2. Choose your webcam in **Camera**.
 3. Turn on **Track**.
 
@@ -102,13 +107,13 @@ The app has two main screens: **Settings**, for preparing devices before you str
    - **Mirror**: on by default; the avatar moves like a mirror image of you.
    - **Body movement**: 3D, or 2D for steadier arms. 2D uses only the movement seen from the front.
    - **Movement speed**: higher follows faster; lower is steadier.
-5. Open **Face tuning** to adjust how easily the eyes close, winks, brows, and mouth react, while watching the avatar.
+5. Open **Face and finger tuning** to adjust how easily the eyes close, winks, brows, mouth, and fingers react, while watching the avatar.
 
 Settings are saved automatically. Tracking starts again the next time you open the app.
 
 ### 3. Capture videos (optional)
 
-1. Open **Settings** → **Capture (game screen)** or **Capture (sub monitor)**.
+1. Open **Capture (game screen)** or **Capture (sub monitor)** on the **Video** page of **Settings**.
 2. Choose the device and turn on **Capture**. Use the flip switches if the video is mirrored or upside down.
 
 ### 4. Arrange the stream screen
@@ -117,6 +122,21 @@ Settings are saved automatically. Tracking starts again the next time you open t
 2. Drag a video to move it, or drag its corners to resize it. Right-click a video for more options.
 3. Change the stacking order in **Stacking order**.
 4. **In view** shows whether the camera sees each arm and hand. A part it cannot see rests in its default pose.
+
+### 5. Set up the audio (optional)
+
+1. Open the **Audio** page of **Settings**.
+2. Choose your microphone, and set the level of each source in the mixer.
+3. The game's audio comes from the capture board. Its row is under **Capture (game screen)** on the **Video** page, which also picks a matching device for you.
+
+### 6. Stream or record
+
+1. Open the **Streaming and recording** page of **Settings**.
+2. To stream, click **Register…** in **Streaming** and paste the stream key from YouTube Studio. The key is kept in Windows Credential Manager, and is not shown again.
+3. To record, choose a **Folder** in **Recording** if you want to change it.
+4. On **Live**, click **● Go live** or **● Record**.
+
+Depending on your YouTube settings, a stream may be public at once.
 
 ## Tips for tracking
 
@@ -131,9 +151,8 @@ Settings are saved automatically. Tracking starts again the next time you open t
 
 | Limitation | Issue |
 | --- | --- |
-| Streaming, recording, audio, and real-time voice conversion are not included yet | — |
-| Text fields accept English letters, numbers, and symbols only, because of a Japanese input (IME) problem | [#74](https://github.com/Yupopyoi/virtual-vessel-studio/issues/74) |
-| Finger movement cannot be tuned per person or per model | [#67](https://github.com/Yupopyoi/virtual-vessel-studio/issues/67) |
+| Real-time voice conversion, and BGM and sound effects, are not included yet | — |
+| Finger strength is one setting for each person; it is not kept per model | [#67](https://github.com/Yupopyoi/virtual-vessel-studio/issues/67) |
 | The app is not code-signed, and it does not check for updates | [#81](https://github.com/Yupopyoi/virtual-vessel-studio/issues/81) |
 
 See all [open issues](https://github.com/Yupopyoi/virtual-vessel-studio/issues).
@@ -143,6 +162,7 @@ See all [open issues](https://github.com/Yupopyoi/virtual-vessel-studio/issues).
 - **Tracking says it cannot open the camera:** another app may be using it. Close it, or choose another camera.
 - **"No person in view":** sit in front of the camera with your face and upper body in view.
 - **An avatar cannot be loaded:** the model's humanoid bones may be incomplete, or the file may be damaged. Check that it is a valid VRM file.
+- **The stream stutters, or says the connection cannot keep up:** lower **Video bitrate** in **Streaming**. It needs to fit well inside your upload speed.
 - **Reporting a problem:** open a [bug report](https://github.com/Yupopyoi/virtual-vessel-studio/issues/new/choose). Include:
   - the version;
   - what you did and what happened;
