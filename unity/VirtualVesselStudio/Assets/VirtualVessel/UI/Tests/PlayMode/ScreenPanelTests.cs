@@ -425,6 +425,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             _root.Settings.SetReducedMotion(ReducedMotionMode.On);
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AppPage;
             yield return null;
             yield return null;
             var card = _root.Shell.Host.GetScreen("setup").Q<AppSettingsCard>();

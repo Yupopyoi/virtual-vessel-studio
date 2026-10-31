@@ -223,6 +223,7 @@ namespace VirtualVessel.UI.Tests
         private AudioCard OpenCard()
         {
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AudioPage;
             return _root.Content.Q<AudioCard>();
         }
 

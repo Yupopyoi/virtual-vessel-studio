@@ -146,13 +146,17 @@
     color: var(--vv-color-text-2);
 }
 
-.vv-setup > .vv-screen__note {
+.vv-setup__page > .vv-screen__note {
     margin: 0 0 var(--vv-space-m) 0;
 }
 
-/* Every Card on the settings screen keeps M below it, whichever module builds it, so closed Cards never touch. */
-.vv-setup > * {
+/* Everything on a settings page keeps M below it, whichever module builds it. */
+.vv-setup > *, .vv-setup__page > * {
     margin-bottom: var(--vv-space-m);
+}
+
+.vv-setup > .vv-setup__page {
+    margin-bottom: 0;
 }
 
 /* The small video on a capture Card, only to check the device; 16:9, the video fitted inside. */
