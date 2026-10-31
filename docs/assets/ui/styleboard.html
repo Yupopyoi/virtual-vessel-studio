@@ -200,7 +200,8 @@ button, input, select { font: inherit; color: inherit; }
 .nav-item:hover { background: var(--surface-2); color: var(--text); }
 .nav-item[aria-current="page"] { background: var(--tint); color: var(--text); box-shadow: inset 3px 0 0 var(--accent-line); }
 .nav-ico { width: 18px; height: 18px; flex: none; }
-.nav-foot { margin-top: auto; padding: 10px 12px; font-size: 12px; color: var(--text-3); display: grid; gap: 2px; }
+.nav-quit { margin-top: auto; }
+.nav-foot { padding: 10px 12px; font-size: 12px; color: var(--text-3); display: grid; gap: 2px; }
 
 .main { padding: var(--space-xl); display: grid; gap: var(--space-m); grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-content: start; }
 .topline { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-s); flex-wrap: wrap; position: relative; padding-bottom: var(--space-s); }
@@ -535,6 +536,10 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
           <span data-i18n="nav.diag">診断</span>
         </button>
+        <button class="nav-item nav-quit" data-tip="tip.nav.quit">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v9"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/></svg>
+          <span data-i18n="nav.quit">終了</span>
+        </button>
         <div class="nav-foot">
           <span class="mono">v0.1.0</span>
           <span data-i18n="nav.project">プロジェクト: 夜カフェ雑談</span>
@@ -840,7 +845,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "subtitle": "Design system preview", "palette": "Palette", "base": "Base", "dark": "Dark", "light": "Light", "lang": "Language",
     "s1.eyebrow": "Screen sample", "s1.title": "The live screen (Live UI)",
     "s1.desc": "Only the controls you touch while streaming. It is built entirely from the colors, type and parts defined below. Toggles and sliders work.",
-    "nav.live": "Live", "nav.setup": "Setup", "nav.diag": "Diagnostics", "nav.project": "Project: Night café chat",
+    "nav.live": "Live", "nav.setup": "Setup", "nav.diag": "Diagnostics", "nav.quit": "Quit", "nav.project": "Project: Night café chat",
     "live.title": "Live", "live.onair": "LIVE", "live.preview": "Stream preview", "live.end": "End stream",
     "voice.title": "Voice changer", "voice.toggle": "Convert my voice", "voice.model": "Model: Kirara v3 (RVC)", "voice.pitch": "Pitch",
     "audio.title": "Audio", "audio.mic": "Microphone",
@@ -891,6 +896,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
       "tip.nav.setup": ["アバターや機材を配信前に設定します"],
       "tip.nav.lab": ["自分用の声のモデルを作ります"],
       "tip.nav.diag": ["動作の詳細を確認します（開発者向け）"],
+      "tip.nav.quit": ["アプリを終了します"],
       "tip.onair": ["配信を始めてからの経過時間"],
       "tip.rec": ["録画を始めてからの経過時間"],
       "tip.fps": ["配信映像のフレームレート。60 を下回ると映像がカクつきます"],
@@ -916,6 +922,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
       "tip.nav.setup": ["Set up avatars and devices before you stream"],
       "tip.nav.lab": ["Create your own voice models"],
       "tip.nav.diag": ["Inspect how things are running (for developers)"],
+      "tip.nav.quit": ["Closes the application"],
       "tip.onair": ["Time since the stream started"],
       "tip.rec": ["Time since recording started"],
       "tip.fps": ["Stream frame rate. Below 60 the video looks choppy"],

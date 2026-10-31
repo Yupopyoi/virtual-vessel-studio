@@ -15,8 +15,11 @@
     background-color: var(--vv-color-bg);
 }
 
-.vv-shell__version {
+.vv-shell__quit {
     margin-top: auto;
+}
+
+.vv-shell__version {
     padding: 10px 12px;
     font-size: 12px;
     color: var(--vv-color-text-3);

@@ -155,6 +155,7 @@ For each component, the following states are defined:
 - Selected: background Tint, text Text, a 3px Accent Line at the left edge.
 - Each item has a tooltip describing the screen's role.
 - Operated with Tab and Enter. The Up and Down keys also move between items.
+- **Quit** sits at the bottom, above the version. It is not a screen, so it never shows as selected. Pressing it opens a confirmation dialog (3.11). The confirm button is normally Primary; while streaming or recording, the body says what ends and the dialog is Danger (Cancel gets focus).
 
 ### 3.17 Preview
 
