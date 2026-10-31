@@ -24,16 +24,80 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The same script developers run: CMake configure, Release build, native tests, copy into Unity.
       - name: Build and test
         shell: pwsh
         run: ./tools/native/build-capture.ps1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: VirtualVessel.Capture.Native
           path: native/capture/build/Release/VirtualVessel.Capture.Native.dll
+          if-no-files-found: error
+          retention-days: 14
+
+  encode:
+    name: Encoder plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Build only: the hosted runners (Windows Server) may lack Media Foundation's encoders, so the
+      # encoding test runs on developers' PCs and in the release build (development workflow 21).
+      - name: Build
+        shell: pwsh
+        run: ./tools/native/build-encode.ps1 -SkipTests
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VirtualVessel.Encode.Native
+          path: native/encode/build/Release/VirtualVessel.Encode.Native.dll
+          if-no-files-found: error
+          retention-days: 14
+
+  audio:
+    name: Audio plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # The mix is tested with synthetic signals; the hosted runners have no audio devices, so the tests
+      # skip the device part there (development workflow 18.1.1).
+      - name: Build and test
+        shell: pwsh
+        run: ./tools/native/build-audio.ps1
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VirtualVessel.Audio.Native
+          path: native/audio/build/Release/VirtualVessel.Audio.Native.dll
+          if-no-files-found: error
+          retention-days: 14
+
+  stream:
+    name: Streaming plugin
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only the protocol tests: the hosted runners may lack Media Foundation's encoders, and the connection
+      # tests need ffmpeg and YouTube, so those run on developers' PCs (streaming detailed design 14).
+      - name: Build
+        shell: pwsh
+        run: ./tools/native/build-stream.ps1 -SkipTests
+
+      - name: Protocol tests
+        shell: pwsh
+        run: ctest --test-dir native/stream/build -C Release -R vv_stream_protocol_tests --output-on-failure
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: VirtualVessel.Stream.Native
+          path: native/stream/build/Release/VirtualVessel.Stream.Native.dll
           if-no-files-found: error
           retention-days: 14

@@ -14,6 +14,7 @@ namespace VirtualVessel.UI.Controls
 
         private readonly KeyedText _name;
         private readonly KeyedText _description;
+        private readonly VisualElement _text;
         private readonly VisualElement _control;
 
         public SettingRow()
@@ -26,6 +27,7 @@ namespace VirtualVessel.UI.Controls
             AddToClassList(UssClass);
             var text = new VisualElement();
             text.AddToClassList(UssClass + "__text");
+            _text = text;
             var name = new Label();
             name.AddToClassList(UssClass + "__name");
             name.AddToClassList("vv-text-body");
@@ -51,6 +53,12 @@ namespace VirtualVessel.UI.Controls
         }
 
         public override VisualElement contentContainer => _control;
+
+        /// <summary>
+        /// The name and description. A value that reads with them and can be long, such as a folder's path,
+        /// goes here under the description, so the control on the right stays as narrow as the others.
+        /// </summary>
+        public VisualElement TextArea => _text;
 
         [UxmlAttribute("name-key")]
         public string NameKey

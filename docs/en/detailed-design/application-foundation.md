@@ -76,7 +76,7 @@ No static service locator or global context that holds all services and allows a
 | `IMonotonicClock` | Interface | Monotonically increasing high-resolution time |
 | `ISystemClock` | Interface | Wall-clock time (UTC) |
 | `IMainThreadDispatcher` | Interface | Passes work from any thread to the main thread |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clock implementations. On Windows the monotonic clock reads QueryPerformanceCounter itself: the native plugins time audio and video in QPC values, and Unity's `Stopwatch` counts at the same rate from another zero (recording detailed design 8.1) |
 | `MainThreadDispatcher` | Class | Queue-based implementation of `IMainThreadDispatcher`. The owner of the main thread calls `Drain` every frame |
 | `IFrameLoop` / `FrameLoop` | Interface / Class | Registers and calls work run on the main thread every frame (5.5) |
 
@@ -260,6 +260,8 @@ The format of `%LOCALAPPDATA%\VirtualVesselStudio\bootstrap.json` from system de
 
 ### 7.1 Startup
 
+A built application runs one instance at a time (Unity's `forceSingleInstance`). Two instances would fight over the camera, the microphone, and the capture devices, write the same settings and logs, and could publish the same stream key twice.
+
 ```mermaid
 sequenceDiagram
     participant Unity
@@ -297,7 +299,7 @@ sequenceDiagram
 
 A timeout is set for the whole shutdown; if exceeded, the remaining processing is abandoned and the application exits. Services that timed out are recorded.
 
-When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout.
+When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout. When scripts are recompiled during Play Mode, the same sequence runs just before the reload (`AssemblyReloadEvents.beforeAssemblyReload`): a reload does not go through quitting, and if nothing stops them, native threads keep running with no way left to reach them (the sound went on until the Editor was closed, 2026-10-31).
 
 If shutdown happens in the middle of startup, services that are still initializing are disposed without `ShutdownAsync` being called.
 
@@ -500,7 +502,7 @@ Assets/VirtualVessel/
 │  ├─ Runtime/                      VirtualVessel.Application
 │  │  ├─ ApplicationBootstrap.cs
 │  │  ├─ Hosting/ApplicationHost.cs, ApplicationServiceDescriptor.cs, ...
-│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs, ApplicationStartupOptions.cs
+│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs (+ .Modules.cs), ApplicationCompositionContext.cs, ApplicationStartupOptions.cs
 │  │  ├─ Logging/ApplicationLog.cs
 │  │  ├─ Session/SessionInfo.cs, SessionMarker.cs
 │  │  └─ Build/BuildInfo.cs

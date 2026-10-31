@@ -6,6 +6,7 @@
         "UnityEditor.TestRunner",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData",
         "VirtualVessel.UI",
         "VirtualVessel.Video"
     ],

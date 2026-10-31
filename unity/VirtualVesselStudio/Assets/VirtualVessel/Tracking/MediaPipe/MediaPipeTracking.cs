@@ -20,9 +20,9 @@ namespace VirtualVessel.Tracking.MediaPipe
         /// </summary>
         public const bool FaceSidesMirrored = false;
 
-        public static ITrackingProvider Create(IVideoCaptureSource camera, string modelDirectory, PoseModel poseModel, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+        public static ITrackingProvider Create(IVideoCaptureSource camera, string modelDirectory, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
-            return new MediaPipeTrackingProvider(camera, modelDirectory, poseModel, FaceSidesMirrored, clock, metrics, log);
+            return new MediaPipeTrackingProvider(camera, modelDirectory, FaceSidesMirrored, clock, metrics, log);
         }
     }
 }

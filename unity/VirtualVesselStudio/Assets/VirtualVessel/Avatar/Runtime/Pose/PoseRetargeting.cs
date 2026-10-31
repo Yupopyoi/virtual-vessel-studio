@@ -52,14 +52,14 @@ namespace VirtualVessel.Avatar
             into[UpperBodyBone.Chest] = hasUpperChest ? Quaternion.Slerp(Quaternion.identity, torso, ChestShare) : torso;
             into[UpperBodyBone.UpperChest] = torso;
 
-            (bool leftArm, bool leftForearm) = WriteArm(body, mirror, ArmSide.Left, torso, into.TorsoSeen, armDownDegrees, into);
-            (bool rightArm, bool rightForearm) = WriteArm(body, mirror, ArmSide.Right, torso, into.TorsoSeen, armDownDegrees, into);
-            into.LeftArmSeen = leftArm;
-            into.LeftForearmSeen = leftForearm;
-            into.RightArmSeen = rightArm;
-            into.RightForearmSeen = rightForearm;
-            into.LeftWristInView = leftArm && InImage(body, ArmSide.Left.WristJoint, mirror);
-            into.RightWristInView = rightArm && InImage(body, ArmSide.Right.WristJoint, mirror);
+            into.LeftArm = View(WriteArm(body, mirror, ArmSide.Left, torso, into.TorsoSeen, armDownDegrees, into), body, mirror, ArmSide.Left);
+            into.RightArm = View(WriteArm(body, mirror, ArmSide.Right, torso, into.TorsoSeen, armDownDegrees, into), body, mirror, ArmSide.Right);
+        }
+
+        /// <summary>What was seen of one arm: as written, and its wrist in the image when the arm was seen.</summary>
+        private static ArmView View((bool Arm, bool Forearm) written, BodyPose body, bool mirror, ArmSide side)
+        {
+            return new ArmView(written.Arm, written.Forearm, written.Arm && InImage(body, side.WristJoint, mirror));
         }
 
         /// <summary>
@@ -222,14 +222,16 @@ namespace VirtualVessel.Avatar
         }
 
         /// <summary>
-        /// Writes one arm and its shoulder; returns whether the upper arm (shoulder and elbow) and the
-        /// forearm (the wrist too) were seen. Without the wrist the forearm is left straight here; the
+        /// Writes one arm and its shoulder; returns whether the arm (<see cref="BodyPose.IsArmSeen"/>) and the
+        /// forearm (its wrist) were seen. Without the wrist the forearm is left straight here; the
         /// motion keeps its last bend (<see cref="WithoutWrist"/>).
         /// </summary>
         private static (bool Arm, bool Forearm) WriteArm(BodyPose body, bool mirror, ArmSide side, Quaternion torso, bool torsoSeen, float armDownDegrees, BodyTarget into)
         {
             bool left = side.IsLeft;
-            bool seen = torsoSeen && Visible(body, side.ShoulderJoint, mirror) && Visible(body, side.ElbowJoint, mirror);
+            bool seen = torsoSeen && (mirror
+                ? body.IsArmSeen(Opposite(side.ShoulderJoint), Opposite(side.ElbowJoint), Opposite(side.WristJoint))
+                : body.IsArmSeen(side.ShoulderJoint, side.ElbowJoint, side.WristJoint));
             if (!seen)
             {
                 Quaternion lowered = torso * AvatarRestPose.UpperArm(left, armDownDegrees);

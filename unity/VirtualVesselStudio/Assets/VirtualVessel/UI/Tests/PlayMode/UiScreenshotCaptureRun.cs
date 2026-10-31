@@ -54,7 +54,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null) }));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null) }));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;

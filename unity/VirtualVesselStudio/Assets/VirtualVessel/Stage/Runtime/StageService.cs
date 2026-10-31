@@ -72,10 +72,10 @@ namespace VirtualVessel.Stage
 
         internal GameObject Backdrop => _backdrop;
 
-        /// <summary>Creates the store of stage-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<StageSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>Creates the store of stage-settings.json in <paramref name="directory"/>, the project's folder (project data detailed design 6).</summary>
+        public static ConfigFileStore<StageSettings> CreateStore(string directory, ISystemClock clock)
         {
-            return new ConfigFileStore<StageSettings>(configDirectory, StageSettings.FileName, StageSettings.SchemaVersion, () => new StageSettings(), clock);
+            return new ConfigFileStore<StageSettings>(directory, StageSettings.FileName, StageSettings.SchemaVersion, () => new StageSettings(), clock);
         }
 
         /// <summary>The placement to use for a screen: the saved one when it can be used, else the default. Pure.</summary>

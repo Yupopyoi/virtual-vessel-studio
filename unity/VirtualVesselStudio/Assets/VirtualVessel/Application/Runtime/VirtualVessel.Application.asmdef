@@ -2,6 +2,7 @@
     "name": "VirtualVessel.Application",
     "rootNamespace": "VirtualVessel.Application",
     "references": [
+        "VirtualVessel.Audio",
         "VirtualVessel.Avatar",
         "VirtualVessel.Avatar.Vrm",
         "VirtualVessel.Capture",
@@ -12,6 +13,7 @@
         "VirtualVessel.Tracking",
         "VirtualVessel.Tracking.MediaPipe",
         "VirtualVessel.UI",
+        "VirtualVessel.Streaming",
         "VirtualVessel.Video"
     ],
     "includePlatforms": [],

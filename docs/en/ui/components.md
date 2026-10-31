@@ -81,7 +81,8 @@ For each component, the following states are defined:
 
 - Background Background, 1px border, Radius S, label above (Caption-like, Text 2).
 - Example text (placeholder) is shown in Text 3, so it reads as an example and not as an entered value. It goes away when the field is focused. Left in view, the first characters typed were shown as the example, with the caret where the example ended (the user's report, 2026-10-25). The space before and after the text belongs to the text element, not the box: Unity drew an empty field's caret at the box's inner edge, ignoring the box's padding, so the first click put it left of where the text then started (the user's video, 2026-10-25). A one-line field does not take Enter: Unity moved the caret to the start on Enter, so after Japanese input committed a word with Enter, what was typed next went in near the start (the user's report, 2026-10-25).
-- For now, a Text Field takes English letters, digits, symbols, and spaces only (#74). While it is focused, Japanese input (IME) is turned off, and other characters typed or pasted in are dropped. A line under the field says so, in Caption and Text 2. A value set by code (such as a saved Japanese description) is shown as it is. Unity's TextField (taking input through the Input System) left the caret one character short of each word Japanese input committed, so what was typed next went in before the word's last character ("入力欄が" became "入欄が…力", the user's video, 2026-10-25). Moving the caret back after the inserted text on each edit did not help. It is believed to be a Unity bug; this is undone once it is fixed.
+- A Text Field takes Japanese input (IME). Unity's `TextField` keeps the word being composed in its text; on commit it replaces that with the first character and adds the rest in the same frame, but leaves the caret at the composition's end. So the second character stayed behind the others: "こんにちは" became "こにちはん" (the user's log, 2026-10-31; #74). Moving the caret did not change where characters went. The committed characters themselves arrive in order, so `TextInput` rebuilds the text from them when the last one arrives, before the frame is drawn (`ImeCommit`).
+- The text caret is drawn in Text and the selection in Accent Line. Unity's default caret is dark and could not be seen against the background (the user's report, 2026-10-31).
 - On focus: border Accent Line and a 3px Glow outside. Unity cannot draw an outer glow, so the Accent Line border alone shows focus (UI foundation detailed design 6.7).
 - A numeric field uses right-aligned tabular digits with a unit box on the right (for example `Hz`).
 - On error: a 2px Error border, and below it a △ icon and the error text. The error text says what is wrong and what to do.
@@ -95,6 +96,8 @@ For each component, the following states are defined:
 
 - On the left, the setting name (Body, weight 500; Regular when the font has no medium weight) and its description (Caption, Text 3); on the right, the control (up to 260px).
 - Rows are separated by a 1px divider.
+- The control fits in 260px. Segmented items have short names ("Standard", "AV1"), and anything more goes in the description. A value too long for it, such as a folder's path, goes under the description (`SettingRow.TextArea`) instead of on the right, and wraps there, so every row's control lines up.
+- Values are in Text, more readable than the description.
 - On narrow screens the control moves below the description. The name and description keep at least 240px: UI Toolkit breaks the line by the minimum width, not by the basis alone, so without it the text was squeezed beside the control, one character a line.
 
 ### 3.10 Card
@@ -169,6 +172,7 @@ For each component, the following states are defined:
 - Picks one of two to four options. Used for background, the placement editing mode, and similar. Language (which grows with each string table) and UI size (six steps) use a Dropdown.
 - The outer box uses Radius Control and each item about Radius S (7px). The selected item has background Primary and text On Accent.
 - With five or more options, or long text, use a Dropdown instead.
+- An option that is coming but cannot be chosen yet, such as full body tracking, may be shown with its text saying so ("Full body (soon)"). It is drawn in the Disabled color, a click does nothing, and the arrow keys pass over it (`SetItemEnabled`).
 
 ### 3.19 Media Frame
 
@@ -222,6 +226,14 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - When the room is narrower than the columns together, the table scrolls sideways inside itself and never spills out. A vertical wheel still scrolls the whole screen.
 - Refreshing a table changes only the texts; rows are not rebuilt.
 - Cell text can be data, such as names users typed, so it is never parsed as rich text.
+
+### 3.25 Mixer
+
+- A row per source, in shared columns: the source (name and state), the device, the volume, hear, mute, and the level. The column headings are Caption, Text 3.
+- 1 px Border lines between rows. The device column takes the remaining width; the others have fixed widths.
+- A problem's explanation appears under its row, only when there is one.
+- An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.
+- Without enough width, the column headings hide, rows wrap, and each control carries its name.
 
 ---
 

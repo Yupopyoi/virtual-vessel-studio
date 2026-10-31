@@ -92,7 +92,9 @@ namespace VirtualVessel.UI.Screens
                 return LimbSeen.Unseen;
             }
 
-            bool upper = body.IsSeen(left ? BodyJoint.LeftShoulder : BodyJoint.RightShoulder) && body.IsSeen(left ? BodyJoint.LeftElbow : BodyJoint.RightElbow);
+            bool upper = left
+                ? body.IsArmSeen(BodyJoint.LeftShoulder, BodyJoint.LeftElbow, BodyJoint.LeftWrist)
+                : body.IsArmSeen(BodyJoint.RightShoulder, BodyJoint.RightElbow, BodyJoint.RightWrist);
             if (!upper)
             {
                 return LimbSeen.Unseen;

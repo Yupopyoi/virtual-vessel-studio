@@ -93,4 +93,13 @@ foreach ($model in $manifest.models)
     Copy-Item $source (Join-Path $models $model.file) -Force
 }
 
+# Models no longer listed (such as an earlier heavy Pose model, or one from a removed feature) would
+# still ship with the build, so the folder holds exactly the listed ones.
+$listed = @($manifest.models | ForEach-Object { $_.file })
+Get-ChildItem $models -File -Filter '*.bytes' | Where-Object { $listed -notcontains $_.Name } | ForEach-Object {
+    Remove-Item $_.FullName -Force
+    Remove-Item "$($_.FullName).meta" -Force -ErrorAction SilentlyContinue
+    "Removed $($_.Name), which is no longer listed."
+}
+
 "Copied $($manifest.models.Count) models to $models."

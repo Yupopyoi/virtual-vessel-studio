@@ -37,6 +37,17 @@ namespace VirtualVessel.UI.Dialogs
     {
         /// <summary>The picked file's full path, or null when the user cancels.</summary>
         Task<string> OpenAsync(FileDialogOptions options);
+
+        /// <summary>The picked folder's full path, or null when the user cancels.</summary>
+        /// <param name="title">Already translated; null for the system's title.</param>
+        Task<string> PickFolderAsync(string title);
+    }
+
+    /// <summary>Shows files and folders in the system's file manager, such as a finished recording.</summary>
+    public interface IFileExplorer
+    {
+        /// <summary>Opens the folder of <paramref name="path"/> with the file selected; a folder path opens that folder.</summary>
+        void Show(string path);
     }
 
     public static class FileDialogFilters

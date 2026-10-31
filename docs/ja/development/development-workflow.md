@@ -649,6 +649,8 @@ docs/en/detailed-design/<module>.md
 
 Private Methodまで事前設計する必要はない。
 
+詳細設計には、今の動作とその値を書く。決定に至った経緯（試したこと、利用者が見たこと、計測、比べて外した方法）は、`docs/<lang>/decisions/`の決定記録に日付とともに書き、説明する節からリンクする（決定記録のREADME）。こうしないと、詳細設計が経緯で埋まり、今の動作が読み取りにくくなった（利用者の決定、2026-10-27）。
+
 ## 11.3 ユーザー確認が必要な場合
 
 Claude Codeが以下の変更を必要と判断した場合は、実装前にユーザーへ確認する。
@@ -907,6 +909,7 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 | Plugin | 内容 |
 |---|---|
 | Capture（`native/capture/`） | 開発者と同じ`tools/native/build-capture.ps1`で、CMakeの構成、Releaseのビルド、Nativeのテスト（`vv_capture_tests`）を行う。できたDLLをArtifactとして14日間保存する |
+| 配信（`native/stream/`） | `tools/native/build-stream.ps1`でビルドし、プロトコルのテスト（`vv_stream_protocol_tests`）だけを実行する。ホステッドランナーにはエンコーダーがないことがあり、接続のテストにはffmpegとYouTubeが要るので、これらは開発者のPCとリリースビルドで実行する。ビルドしたDLLは14日間、成果物として残す |
 
 - 手元では、同じスクリプトでビルドし、DLLをUnityのProjectへ写す（Visual StudioとCMakeが必要）。
 - 配布物へのDLLの組み込みは、main Build（18.2）のNative Plugin Packagingで扱う。

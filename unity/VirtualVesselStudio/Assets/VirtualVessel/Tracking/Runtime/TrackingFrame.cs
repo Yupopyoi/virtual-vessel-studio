@@ -67,6 +67,16 @@ namespace VirtualVessel.Tracking
             return IsSeen(JointConfidence[(int)joint], ImagePositions[(int)joint]);
         }
 
+        /// <summary>
+        /// Whether an arm can be shown: its shoulder is seen, and its elbow or wrist. With the shoulder and the
+        /// wrist seen, MediaPipe's guess of an elbow out of the image is good enough to place the arm by,
+        /// and a camera that frames the upper body often cuts the elbow off while the hand is up.
+        /// </summary>
+        public bool IsArmSeen(BodyJoint shoulder, BodyJoint elbow, BodyJoint wrist)
+        {
+            return IsSeen(shoulder) && (IsSeen(elbow) || IsSeen(wrist));
+        }
+
         /// <summary>Whether <paramref name="joint"/> is inside the camera image, seen or hidden there.</summary>
         public bool IsInImage(BodyJoint joint)
         {

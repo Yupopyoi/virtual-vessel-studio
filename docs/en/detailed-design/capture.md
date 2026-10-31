@@ -18,7 +18,7 @@ These are out of scope and handled by later designs:
 - Producing the final video and its preview (Video module, system design 10.5, 10.6)
 - GameCapture audio (designed together with the Audio module, system design 12.16)
 - The Capture setup screen and live screen controls (designed with each screen's specification, system design 14.41)
-- Where settings are stored (decided with the Project / Profile design)
+- Where settings are stored (the project's capture profile, project data detailed design)
 
 Related system design sections:
 
@@ -332,7 +332,7 @@ public sealed class CaptureSettings
 }
 ```
 
-- The values are saved in `capture-settings.json`, read at startup, and passed when `CaptureService` is created. The file is kept in the settings folder (the same as the UI's `ui-settings.json`) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used. It moves into Project / Profile once they exist (chapter 17).
+- The values are saved as the project's capture profile, `Profiles/Capture/<ProfileId>.json` in the Data Root, in the format of `capture-settings.json` (project data detailed design 6). They are read at startup and passed when `CaptureService` is created, with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used. Until the refactoring after step 7 it was `capture-settings.json` in the settings folder; the first project took a copy of it (project data detailed design 8).
 - `CaptureService` compares each source's chosen device, flips, cursor, and whether it was started (not `Stopped`) every frame (`CaptureSettingsSnapshot`, pure functions), and saves 0.5 seconds after the last change. At shutdown, anything unsaved is saved with the values from before stopping.
 - Sources that were started are started again at the next start. GameCapture opens only when a device is chosen (6.3).
 - The sub monitor's cursor is switched through `IPointerOption` (implemented by SubScreenCaptureSource). Changing it while capturing reopens the native session.
@@ -450,9 +450,10 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 |---|---|
 | How the native DLL is handled | Decided: the C++ sources are kept in Git and the DLL is not. It is built locally with `tools/native/build-capture.ps1`, and the CI workflow `Native plugins` builds and tests it (development workflow 18.1.1). Putting it into the distributed application is handled by the main build |
 | GameCapture audio (library: NAudio, Unity's Microphone, native WASAPI) | With the Audio module design. Using NAudio needs approval as a new dependency |
-| Where capture settings are stored | Decided: `capture-settings.json` until Project / Profile exist (chapter 10). Moved in the refactoring after step 7 (the avatar's motion) (user's decision, 2026-10-22) |
+| Where capture settings are stored | Done (2026-10-27): the project's capture profile, `Profiles/Capture/<ProfileId>.json`, in the format of `capture-settings.json` (project data detailed design 6) |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
+| Taking a game on the same PC without a capture board | Not a requirement yet, but the user wants it (2026-10-31). When added: window capture as a new `IVideoCaptureSource`, and its sound as a new source in Audio (`audio.md` 17). |
 | Sharing directly on the GPU | Decided from the measured upload times |
 | Capture setup screen and live screen controls | Decided: the capture Cards on the setup screen (`docs/en/ui/screens/setup.md`); the live screen has no capture controls |
 

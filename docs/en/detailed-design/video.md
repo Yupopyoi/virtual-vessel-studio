@@ -50,7 +50,7 @@ flowchart LR
     ScreenCam --> RT
     RT --> Preview
     Preview --> UI["UI: StreamPreview"]
-    RT --> Encoder["Encoder, recording (later)"]
+    RT --> Encoder["Readback and encoder, recording (recording detailed design)"]
 ```
 
 ---
@@ -141,7 +141,7 @@ public sealed class VideoSettings
 }
 ```
 
-- Not saved (decided with the stream settings design; chapter 17).
+- The resolution comes from the project's streaming profile (`width`, `height`) at startup (recording detailed design 10). The other values are not saved.
 - The resolution need not be 16:9. The preview and the placement editor follow the aspect ratio of `Size`.
 
 ### 6.2 Stream Render Target
@@ -219,7 +219,7 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 
 ## 10. Configuration
 
-`VideoSettings` (6.1) is passed when `VideoService` is created. Where it is saved and a screen to change it come later.
+`VideoSettings` (6.1) is passed when `VideoService` is created. Its resolution comes from the streaming profile (recording detailed design 10). A screen to change it comes later.
 
 ---
 
@@ -280,6 +280,7 @@ Assets/VirtualVessel/Video/
 │  ├─ IStreamOutput.cs              IStreamOutput, IStreamScreenLayer, VideoSize
 │  ├─ VideoSettings.cs
 │  ├─ VideoService.cs
+│  ├─ Recording/                    Recording (recording detailed design 16)
 │  ├─ StreamPreviewSource.cs
 │  ├─ StreamFrameMeter.cs
 │  └─ ScreenLayerMath.cs
@@ -288,7 +289,7 @@ Assets/VirtualVessel/Video/
    └─ PlayMode/
 ```
 
-References: Core, Diagnostics, UI (`IStreamPreviewSource`), URP.
+References: Core, Diagnostics, ProjectData (saving the streaming profile), UI (`IStreamPreviewSource`, `IRecordingService`), URP.
 
 ---
 
@@ -296,8 +297,8 @@ References: Core, Diagnostics, UI (`IStreamPreviewSource`), URP.
 
 | Item | Planned handling |
 |---|---|
-| Encoder, recording, streaming | With each design |
-| A screen to change and save the resolution and frame rate | With the stream settings design |
+| Streaming | With its design (the encoder and recording: recording detailed design) |
+| A screen to change the resolution and frame rate | With the stream settings design |
 | The avatar layer | With the avatar design |
 | MSAA, HDR | After measuring |
 | Choosing front or back of the avatar per video | When it is asked for (7.2) |

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using VirtualVessel.Audio;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
@@ -9,6 +10,8 @@ using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
+using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -28,6 +31,21 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The capture sources (Capture); null says capture is unavailable.</summary>
         public ICaptureSources Captures { get; set; }
+
+        /// <summary>The sound sources (Audio); null says audio is unavailable.</summary>
+        public IAudioService Audio { get; set; }
+
+        /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
+        public ISystemSettings SystemSettings { get; set; }
+
+        /// <summary>Recording the stream (Video); null says recording is unavailable.</summary>
+        public IRecordingService Recording { get; set; }
+
+        /// <summary>Streaming (Streaming); null says streaming is unavailable.</summary>
+        public IStreamingService Streaming { get; set; }
+
+        /// <summary>Showing files and folders in Explorer; null leaves out "Open folder".</summary>
+        public IFileExplorer Explorer { get; set; }
 
         /// <summary>Tracking (Tracking); null says it is unavailable.</summary>
         public ITrackingSource Tracking { get; set; }

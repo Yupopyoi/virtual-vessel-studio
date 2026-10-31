@@ -702,7 +702,8 @@ A development tool that writes the real UI's screens to PNG for the visual revie
   "reducedMotion": "system",
   "fontSet": "NotoSans",
   "developerMode": false,
-  "lastScreen": "live"
+  "lastScreen": "live",
+  "lastSetupPage": "video"
 }
 ```
 
@@ -716,6 +717,7 @@ A development tool that writes the real UI's screens to PNG for the visual revie
 | `fontSet` | `NotoSans` | |
 | `developerMode` | `false` | |
 | `lastScreen` | `live` | |
+| `lastSetupPage` | none (the first page) | The page last opened on the settings screen (`video`, `audio`, `avatar`, `output`, `app`) |
 
 - ProjectData's `ConfigFileStore` reads and writes the file (8.3).
 - Unknown values (such as a palette name that does not exist) are treated as the default, and the file keeps its value until overwritten.
@@ -725,6 +727,7 @@ A development tool that writes the real UI's screens to PNG for the visual revie
   - `background`: `dark`, `light`. `reducedMotion`: `system`, `on`, `off`.
   - `uiScale`: only the steps in the table. Allowing any value would let an extreme value make the screen unusable.
   - `lastScreen`: one of the screens (`ScreenHost`, implementation step 7-2).
+  - `lastSetupPage`: one of the pages; any other value opens the first page (`SetupScreen.PageOf`, a pure function).
 - When there is no file, `language` is chosen from the OS language and stored in the settings (`Localizer.ChooseInitialLocale`).
 
 ### 8.2 FrameLayout

@@ -360,6 +360,9 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 /* Layer list (components.md 3.20) */
 .layers { display: grid; gap: 2px; min-width: 250px; max-width: 320px; }
+/* Mixer (components.md 3.25): shared columns; the device column takes what is left. */
+.mixer-row { display: grid; grid-template-columns: 90px minmax(100px, 1fr) 90px 44px 44px 70px; gap: 8px; align-items: center; min-height: 40px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.mixer-row.head { min-height: 24px; color: var(--text-3); font-size: 11px; }
 /* Table (components.md 3.24): S padding on both sides of every cell, so columns are 16px apart. */
 .table-scroll { overflow-x: auto; max-width: 100%; }
 .table { border-collapse: collapse; font-size: 13px; }
@@ -803,6 +806,14 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
           </div>
         </div>
         <div class="cell">
+          <span class="cap" data-i18n="c.mixer">ミキサー</span>
+          <div>
+            <div class="mixer-row head"><span data-i18n="m.source">音の元</span><span data-i18n="m.device">デバイス</span><span data-i18n="m.gain">音量</span><span data-i18n="m.hear">聞く</span><span data-i18n="m.mute">ミュート</span><span data-i18n="m.level">レベル</span></div>
+            <div class="mixer-row"><span data-i18n="m.mic">マイク</span><select class="select" aria-label="Mic device"><option>USB Audio Interface</option></select><input type="range" aria-label="Volume"><button class="toggle" role="switch" aria-checked="false" aria-label="Hear"></button><button class="toggle" role="switch" aria-checked="false" aria-label="Mute"></button><div class="progress"><i></i></div></div>
+            <div class="mixer-row"><span data-i18n="m.game">ゲームの音声</span><select class="select" disabled aria-label="Game device"><option>MiraBox Capture</option></select><input type="range" aria-label="Volume"><button class="toggle" role="switch" aria-checked="true" aria-label="Hear"></button><button class="toggle" role="switch" aria-checked="false" aria-label="Mute"></button><div class="progress"><i></i></div></div>
+          </div>
+        </div>
+        <div class="cell">
           <span class="cap" data-i18n="c.table">表</span>
           <div class="table-scroll"><table class="table">
             <thead><tr><th data-i18n="t.name">名前</th><th class="end" data-i18n="t.current">現在</th><th class="end" data-i18n="t.max">最大</th><th class="end" data-i18n="t.count">件数</th></tr></thead>
@@ -854,7 +865,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",
     "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
     "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
-    "c.table": "Table", "t.name": "Name", "t.current": "Current", "t.max": "Max", "t.count": "Count", "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
+    "c.mixer": "Mixer", "m.source": "Source", "m.device": "Device", "m.gain": "Volume", "m.hear": "Hear", "m.mute": "Mute", "m.level": "Level", "m.mic": "Microphone", "m.game": "Game audio", "c.table": "Table", "t.name": "Name", "t.current": "Current", "t.max": "Max", "t.count": "Count", "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
     "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
     "c.fold": "Collapsible card", "c.fold1": "Capture (game screen)", "c.fold2": "App settings", "c.fold3": "Capture", "c.capturing": "Capturing",

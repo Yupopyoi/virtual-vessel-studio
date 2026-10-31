@@ -20,6 +20,10 @@
     border-color: var(--vv-color-border);
     background-color: var(--vv-color-bg);
     color: var(--vv-color-text);
+
+    /* Unity's default caret is dark and cannot be seen on these fields (the user's report, 2026-10-31). */
+    --unity-cursor-color: var(--vv-color-text);
+    --unity-selection-color: var(--vv-color-accent-line);
 }
 
 .vv-root .vv-field__input:hover > .unity-base-text-field__input {
@@ -52,12 +56,6 @@
 .vv-root .vv-field--error .vv-field__input > .unity-base-text-field__input {
     border-width: 2px;
     border-color: var(--vv-color-error);
-}
-
-.vv-field__hint {
-    margin-top: 4px;
-    color: var(--vv-color-text-2);
-    white-space: normal;
 }
 
 .vv-field__error {

@@ -34,6 +34,7 @@ namespace VirtualVessel.Avatar
         private readonly ILog _log;
         private readonly ITrackingSource _tracking;
         private readonly ObservableValue<FaceTuning> _faceTuning;
+        private readonly ObservableValue<FingerTuning> _fingerTuning;
         private readonly ObservableValue<IReadOnlyList<AvatarEntry>> _avatars = new ObservableValue<IReadOnlyList<AvatarEntry>>(Array.Empty<AvatarEntry>());
         private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
         private readonly ObservableValue<AvatarState> _state = new ObservableValue<AvatarState>(AvatarState.None);
@@ -81,6 +82,7 @@ namespace VirtualVessel.Avatar
             FaceTuning tuning = Normalized(_settings.Face);
             _faceTuning = new ObservableValue<FaceTuning>(tuning);
             _mapping = ExpressionMapping.For(tuning);
+            _fingerTuning = new ObservableValue<FingerTuning>(VirtualVessel.Avatar.FingerTuning.Normalized(_settings.Fingers));
             _importer = new AvatarImporter(store, loader, systemClock, log);
             _applyTimer = metrics?.Timer("Avatar", "Apply");
             _loadTimer = metrics?.Timer("Avatar", "Load");
@@ -101,6 +103,8 @@ namespace VirtualVessel.Avatar
 
         public IReadOnlyObservable<FaceTuning> FaceTuning => _faceTuning;
 
+        public IReadOnlyObservable<FingerTuning> FingerTuning => _fingerTuning;
+
         public FaceTarget Face => _controller?.Face;
 
         public BodyTarget Body => _controller?.Body;
@@ -111,10 +115,10 @@ namespace VirtualVessel.Avatar
         /// <summary>What drives the avatar on the stream, or null; for tests.</summary>
         internal AvatarController Controller => _controller;
 
-        /// <summary>Creates the store of avatar-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<AvatarSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>Creates the store of avatar-settings.json in <paramref name="directory"/>, the project's folder (project data detailed design 6).</summary>
+        public static ConfigFileStore<AvatarSettings> CreateStore(string directory, ISystemClock clock)
         {
-            return new ConfigFileStore<AvatarSettings>(configDirectory, AvatarSettings.FileName, AvatarSettings.SchemaVersion, () => new AvatarSettings(), clock);
+            return new ConfigFileStore<AvatarSettings>(directory, AvatarSettings.FileName, AvatarSettings.SchemaVersion, () => new AvatarSettings(), clock);
         }
 
         /// <summary>
@@ -291,7 +295,7 @@ namespace VirtualVessel.Avatar
                 Place(model, _placement());
                 IAvatarModel old = _model;
                 _model = model;
-                _controller = new AvatarController(model, _mapping);
+                _controller = new AvatarController(model, _mapping) { FingerTuning = _fingerTuning.Value };
                 model = null;
                 old?.Dispose();
                 SetCurrent(avatarId);
@@ -358,6 +362,25 @@ namespace VirtualVessel.Avatar
 
             _settings = _settings.Clone();
             _settings.Face = next.Clone();
+            _saves?.Changed(_settings.Clone());
+        }
+
+        public void SetFingerTuning(FingerTuning tuning)
+        {
+            FingerTuning next = VirtualVessel.Avatar.FingerTuning.Normalized(tuning);
+            if (next.Equals(_fingerTuning.Value))
+            {
+                return;
+            }
+
+            _fingerTuning.Value = next;
+            if (_controller != null)
+            {
+                _controller.FingerTuning = next;
+            }
+
+            _settings = _settings.Clone();
+            _settings.Fingers = next;
             _saves?.Changed(_settings.Clone());
         }
 

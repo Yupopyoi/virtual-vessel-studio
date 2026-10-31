@@ -22,7 +22,7 @@ namespace VirtualVessel.Tracking
     /// developers' recordings (tracking detailed design 12), it hands raw observations to
     /// <see cref="Observed"/> and can replay a recording in place of the provider. Main thread only.
     /// </remarks>
-    public sealed class TrackingService : IApplicationService, ITrackingSource
+    public sealed partial class TrackingService : IApplicationService, ITrackingSource
     {
         public const string ServiceName = "Tracking";
 
@@ -40,6 +40,8 @@ namespace VirtualVessel.Tracking
         private readonly ObservableValue<TrackingProblem> _problem = new ObservableValue<TrackingProblem>(TrackingProblem.None);
         private readonly ObservableValue<TrackingOptions> _options;
         private readonly PerfTimer _latency;
+        private readonly PerfCounter _outliers;
+        private long _outliersCounted;
         private TrackingSettings _settings;
         private bool _wanted;
         private EventRate _rate;
@@ -64,6 +66,7 @@ namespace VirtualVessel.Tracking
             _log = log;
             _options = new ObservableValue<TrackingOptions>(_settings.GetOptions());
             _latency = metrics?.Timer("Tracking", "Latency");
+            _outliers = metrics?.Counter("Tracking", "Outliers");
             ChooseCorrections();
         }
 
@@ -101,10 +104,13 @@ namespace VirtualVessel.Tracking
         /// <summary>The provider observations come from now: the replay while one runs.</summary>
         private ITrackingProvider Active => _replay ?? _provider;
 
-        /// <summary>Creates the store of tracking-settings.json in the settings folder.</summary>
-        public static ConfigFileStore<TrackingSettings> CreateStore(string configDirectory, ISystemClock clock)
+        /// <summary>
+        /// Creates the store of the tracking settings in <paramref name="directory"/>: the project's tracking
+        /// profile (project data detailed design 6), or tracking-settings.json when no file name is given.
+        /// </summary>
+        public static ConfigFileStore<TrackingSettings> CreateStore(string directory, ISystemClock clock, string fileName = TrackingSettings.FileName)
         {
-            return new ConfigFileStore<TrackingSettings>(configDirectory, TrackingSettings.FileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock, TrackingSettings.Migrations);
+            return new ConfigFileStore<TrackingSettings>(directory, fileName, TrackingSettings.SchemaVersion, () => new TrackingSettings(), clock, TrackingSettings.Migrations);
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
@@ -175,121 +181,25 @@ namespace VirtualVessel.Tracking
             }
         }
 
-        /// <summary>
-        /// Replays <paramref name="replay"/> in place of the camera and the provider, starting tracking
-        /// for it if it was off; a replay already running is replaced. Starting tracking for a replay is
-        /// not saved (tracking detailed design 12.4).
-        /// </summary>
-        internal void BeginReplay(ITrackingProvider replay)
+        public void SetOptions(TrackingOptions options)
         {
-            if (replay == null)
-            {
-                throw new ArgumentNullException(nameof(replay));
-            }
-
-            if (_replay == null)
-            {
-                _wantedBeforeReplay = _wanted;
-                if (_wanted)
-                {
-                    StopProvider();
-                }
-            }
-            else
-            {
-                StopReplayProvider();
-            }
-
-            _replay = replay;
-            ChooseCorrections();
-            _wanted = true;
-            _processor.Reset();
-            _replay.Start(_options.Value);
-            _log?.Information("Tracking replays a recording.");
-            Refresh();
-        }
-
-        /// <summary>Ends the replay and goes back to the state before it: the camera and the provider if tracking was on.</summary>
-        internal void EndReplay()
-        {
-            if (_replay == null)
+            PoseModel before = _options.Value.PoseModel;
+            if (!_options.Set(options) || !_wanted)
             {
                 return;
             }
 
-            StopReplayProvider();
-            _wanted = false;
-            _processor.Reset();
-            _log?.Information("Tracking stopped replaying.");
-            if (_wantedBeforeReplay)
+            if (options.PoseModel != before && _replay == null && _provider != null)
             {
-                Start();
-            }
-            else
-            {
-                Refresh();
+                // The model is loaded when the provider starts; the camera keeps running.
+                _provider.Stop();
+                _processor.Reset();
+                _provider.Start(options);
+                _log?.Information($"Tracking restarts with the {options.PoseModel} Pose model.");
+                return;
             }
 
-            ReplayEnded?.Invoke();
-        }
-
-        public void SetOptions(TrackingOptions options)
-        {
-            if (_options.Set(options) && _wanted)
-            {
-                Active?.SetOptions(options);
-            }
-        }
-
-        /// <summary>
-        /// The state and problem to show, from the camera, the provider, and whether anyone is seen
-        /// (tracking detailed design 7.1, 11). Pure.
-        /// </summary>
-        internal static (TrackingState State, TrackingProblem Problem) Describe(
-            bool wanted,
-            bool hasProvider,
-            bool needsCamera,
-            CaptureState cameraState,
-            CaptureProblem cameraProblem,
-            TrackingState providerState,
-            bool personSeen)
-        {
-            if (!wanted)
-            {
-                return (TrackingState.Stopped, TrackingProblem.None);
-            }
-
-            if (!hasProvider)
-            {
-                return (TrackingState.Error, TrackingProblem.StartFailed);
-            }
-
-            if (needsCamera)
-            {
-                switch (cameraState)
-                {
-                    case CaptureState.Stopped when cameraProblem == CaptureProblem.DeviceNotChosen:
-                        return (TrackingState.Unavailable, TrackingProblem.CameraNotChosen);
-                    case CaptureState.Unavailable:
-                        return (TrackingState.Unavailable, TrackingProblem.CameraNotFound);
-                    case CaptureState.Error:
-                        return (TrackingState.Error, cameraProblem == CaptureProblem.DeviceInUse ? TrackingProblem.CameraInUse : TrackingProblem.StartFailed);
-                    case CaptureState.Stopped:
-                    case CaptureState.Starting:
-                    case CaptureState.Ready:
-                        return (TrackingState.Starting, TrackingProblem.None);
-                }
-            }
-
-            switch (providerState)
-            {
-                case TrackingState.Error:
-                    return (TrackingState.Error, TrackingProblem.StartFailed);
-                case TrackingState.Running:
-                    return (TrackingState.Running, personSeen ? TrackingProblem.None : TrackingProblem.NoPerson);
-                default:
-                    return (TrackingState.Starting, TrackingProblem.None);
-            }
+            Active?.SetOptions(options);
         }
 
         /// <summary>The newest part time of an observation: how old the image behind it is. Pure.</summary>
@@ -333,6 +243,7 @@ namespace VirtualVessel.Tracking
                 }
 
                 _processor.Process(observation, _now, active.Supported, options.Regions, options.Smoothing, _current);
+                CountOutliers();
                 if (observed)
                 {
                     NoteObservation(Newest(_raw));
@@ -361,19 +272,22 @@ namespace VirtualVessel.Tracking
             }
         }
 
+        /// <summary>Adds the values the processor dropped as outliers since the last frame to the Diagnostics table (tracking detailed design 11).</summary>
+        private void CountOutliers()
+        {
+            long dropped = _processor.Outliers;
+            if (dropped > _outliersCounted)
+            {
+                _outliers?.Add(dropped - _outliersCounted);
+                _outliersCounted = dropped;
+            }
+        }
+
         private void StopProvider()
         {
             _provider?.Stop();
             _camera?.Stop();
             _processor.Reset();
-        }
-
-        private void StopReplayProvider()
-        {
-            _replay?.Stop();
-            _replay?.Dispose();
-            _replay = null;
-            ChooseCorrections();
         }
 
         /// <summary>The corrections that suit the active provider's observations.</summary>
@@ -385,7 +299,7 @@ namespace VirtualVessel.Tracking
         private void Refresh()
         {
             bool personSeen = _current.Body.IsUsable || _current.Face.IsUsable || _current.LeftHand.IsUsable || _current.RightHand.IsUsable;
-            (TrackingState state, TrackingProblem problem) = Describe(
+            (TrackingState state, TrackingProblem problem) = TrackingStatusRules.Describe(
                 _wanted,
                 Active != null,
                 _camera != null && _replay == null,

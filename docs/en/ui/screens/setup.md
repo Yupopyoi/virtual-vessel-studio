@@ -4,26 +4,28 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the tracking Card, the avatar Card, the face tuning Card (chapter 9), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the audio Card (chapter 11), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
 
 ## 2. Layout
 
-Cards stacked from the top:
+The Cards are divided into pages by subject, switched by Tabs at the top of the screen (`components.md` 3.8). With more Cards, a subject had become hard to find, so they are no longer one column (user decision, 2026-10-31).
 
-1. Capture (game screen)
-2. Capture (sub monitor)
-3. Tracking (chapter 4)
-4. Avatar (chapter 5)
-5. Face tuning (chapter 9; only when avatars are available)
-6. App settings
-7. Credits and licenses (chapter 8)
+| Page | Key | Cards |
+|---|---|---|
+| Video | `setup.page.video` | Capture (game screen, sub monitor) |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available.") |
+| Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
+| Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
+| App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
 
+- The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
+- All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Every Card is collapsible (`components.md` 3.10). So that the screen does not grow long as settings are added, all Cards are closed when the screen is built. Whether a Card is open is not saved; each start begins with them closed.
-- The state (Status Indicator) sits at the right end of the Card's title band, so it shows while the Card is closed. The explanation of a problem comes first in the body.
+- Cards do not collapse. With pages, closing them to keep the screen short is no longer needed.
+- The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
 
@@ -35,6 +37,7 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
 | Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
+| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Left out when audio is not available |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 | Flip left and right | Toggle | Corrects the video's orientation |
 | Flip top and bottom | Toggle | Corrects the video's orientation |
@@ -56,8 +59,11 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 | Load | Description (monospace, Text 2) | Every second: "App 60 fps · Tracking 30/s · CPU 12% · GPU 8%". CPU is this application's share of all cores; GPU is the share of a frame the GPU spent on this application's work (Unity's FrameTimingManager; "—" where unknown). System-wide GPU usage cannot be read from Unity and is not shown |
 | Track | Toggle | On starts tracking (opening the camera), off stops it. Whether it was on is saved and restored at the next start |
 | Mirror | Toggle | On by default. Flips the camera image and points left to right, like a mirror. The avatar follows the same setting (Tracking detailed design chapter 10) |
+| What moves | Segmented (Upper body, Full body (soon)) | The upper body. Full body cannot be chosen yet; it is shown in the disabled color so users know it is coming (Tracking detailed design 6.5, `components.md` 3.18). Description: "For streaming seated. Full body is coming later." Japanese: 上半身, 全身（準備中） |
+| Parts tracked | Toggles "Face", "Body", "Hands", one under another | All on by default. A part turned off is not inferred, which lowers the load, and does not move (Tracking detailed design 6.5). "Hands" covers both hands and the fingers. Description: "Turning off parts you do not use lowers the load. A part turned off does not move." One under another so they fit a row's control (at most 260px) in every language. A change applies at once and is saved |
 | Body movement | Segmented (3D, 2D) | 3D by default. 2D moves the avatar only by the movement seen from the front, without the body's depth (Tracking detailed design 8.6). Description: "2D leaves out moving toward and away from the camera and moves the avatar only as seen from the front. The arms point more steadily." A change applies at once and is saved |
 | Movement speed | Slider (1 to 10, steps of 1) | The smoothing level (Tracking detailed design 8.2). Description: "Higher follows your movement faster; lower keeps the avatar steadier." 5 by default (on 2026-10-24 the levels moved two steps and then four more, making a level steady within about 300 ms lag the new 5). A change applies at once and is saved |
+| Body detection | Segmented (Light, Standard) | The Pose model (Tracking detailed design chapter 10), Standard by default. Description: "Light uses less of the computer but tracks the body more roughly. A change takes a few seconds to get ready again." A change while tracking restarts it with the new model, and is saved. Heavy ("Precise") is not offered: on the user's camera it tracked worse than standard (2026-10-26) |
 | Camera | Dropdown | The devices found, with "Choose a camera" first. The camera is not opened until one is chosen |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 
@@ -157,7 +163,7 @@ Lists the software and assets in use from the SBOM shipped with the application 
 - Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.
 - Paths written in the SBOM are read only inside that folder (paths with `..`, absolute paths, and `\` are not read). The SBOM ships with the application, so no trust boundary is crossed, but even an edited SBOM cannot make the screen read other files.
 
-## 9. Face Tuning Card
+## 9. Face and Finger Tuning Card
 
 Tunes, part by part and while watching the avatar, how strongly the user's face shows on the avatar's (Avatar detailed design 7.4). The tuning is the user's and stays when the avatar changes.
 
@@ -170,7 +176,8 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Light brightness | Slider (10 to 150%, steps of 5%), under the zoom | The brightness of the stage's light (Stage detailed design 7.1). 100% is the default. Caption: "This also changes the light on the stream, and is saved." Lowered when the face is washed out (user's request, 2026-10-21). Beside the picture, so it is changed while watching the face (user's decision, 2026-10-21). Left out without Stage |
 | Winks | Toggle | Whether one eye may close alone. Description: "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head." Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
-| Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% and turns winks off |
+| Finger bend, thumb bend | Slider (50–200%, in 10% steps) | How strongly the fingers bend (avatar detailed design 7.5). 100% is the default. Caption: "Raise these if the fingers do not bend far enough, and lower them if they bend too far. An open hand stays open at any value." The hands are seen with the picture's height and zoom |
+| Reset everything | Button (Secondary) "Reset" | Puts every part and the fingers back to 100% and turns winks off |
 
 - The video is on the left and the sliders on the right, so the avatar stays in view whichever slider moves. On a narrow window the sliders wrap below the video.
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.
@@ -178,3 +185,139 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
 - The light's brightness reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3). "Reset" puts back only the face tuning, not the light.
 - The crop is made by placing the whole stream enlarged inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).
+
+## 10. Recording Card
+
+Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recording detailed design 18.2.
+
+| Row | Content |
+|---|---|
+| Folder | On the right, "Change…" (Windows' folder screen) and "Open" (Explorer). The folder's path is under the description, where it wraps (`components.md` 3.9) |
+| Quality | Segmented: Standard, High. The bitrates (6 Mbps, 12 Mbps) are in the description |
+| Format | Segmented: AV1, H.264. The description says AV1 is recommended and when to choose H.264. Without an AV1 encoder on the GPU, AV1 cannot be chosen and the description says why (recording detailed design 18.2) |
+| Free space | Free space on the folder's drive, read again every 10 seconds while the Card is shown |
+| Video | Size, frame rate, and container (1920×1080, 30 fps, MP4); fixed for now |
+
+- Changes are used from the next recording; a recording in progress keeps the settings it started with.
+- Recording is started and stopped on the live screen (`live.md`).
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.recording.title` | 録画 | Recording |
+| `setup.recording.unavailable` | 録画は使えません。 | Recording is not available. |
+| `setup.recording.folder` | 保存先 | Folder |
+| `setup.recording.folder.description` | 録画したファイルを保存するフォルダーです。次の録画から使われます。 | Where recordings are saved. Used from the next recording. |
+| `setup.recording.folder.pick` | 変更… | Change… |
+| `setup.recording.folder.pick-title` | 録画の保存先を選んでください | Choose where to save recordings |
+| `setup.recording.folder.open` | 開く | Open |
+| `setup.recording.quality` | 画質 | Quality |
+| `setup.recording.quality.description` | 標準は6 Mbps、高画質は12 Mbpsです。高画質はきれいですが、ファイルが約2倍の大きさになります。 | Standard is 6 Mbps and High 12 Mbps. High looks better, and its files are about twice as large. |
+| `setup.recording.quality.standard` | 標準 | Standard |
+| `setup.recording.quality.high` | 高画質 | High |
+| `setup.recording.codec` | 形式 | Format |
+| `setup.recording.codec.description` | AV1がおすすめです。同じ画質でファイルが小さくなります。古い編集ソフトやスマートフォンで開けないときは、H.264を選んでください。 | AV1 is recommended: smaller files at the same quality. Choose H.264 if an older editor or phone cannot open the files. |
+| `setup.recording.codec.no-av1` | このPCのGPUはAV1に対応していないため、H.264で録画します。 | This PC's GPU does not support AV1, so recordings use H.264. |
+| `setup.recording.codec.av1` | AV1 | AV1 |
+| `setup.recording.codec.h264` | H.264 | H.264 |
+| `setup.recording.free` | 空き容量 | Free space |
+| `setup.recording.free.value` | {size} GB | {size} GB |
+| `setup.recording.free.unknown` | わかりません | Unknown |
+| `setup.recording.format` | 映像 | Video |
+| `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |
+
+## 11. Audio Card
+
+Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio) and the monitor, in shared columns. Another source adds only a row. Details in audio detailed design 18.
+
+| Row | Content |
+|---|---|
+| Source | The name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
+| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
+| Volume | Slider, -60 to +12 dB |
+| Hear | Toggle; not on the monitor's row |
+| Mute | Toggle |
+| Level | Level Meter, -60 to 0 dB |
+
+Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Under the table, the notes and the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
+
+- When the Card is narrower than 760 px, the column headings hide, rows wrap, and each control carries its name.
+- Devices are listed again every 5 seconds while the Card is shown.
+- The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.audio.title` | 音声 | Audio |
+| `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
+| `setup.audio.microphone` | マイク | Microphone |
+| `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.source` | 音の元 | Source |
+| `setup.audio.device` | デバイス | Device |
+| `setup.capture.audio` | 音声 | Audio |
+| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
+| `setup.audio.device.none` | なし | None |
+| `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.gain` | 音量 | Volume |
+| `setup.audio.mute` | ミュート | Mute |
+| `setup.audio.level` | レベル | Level |
+| `setup.audio.state.off` | オフ | Off |
+| `setup.audio.state.starting` | 開始中 | Starting |
+| `setup.audio.state.running` | 動作中 | Running |
+| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.failed` | 使えません | Unavailable |
+| `setup.audio.state.muted` | ミュート中 | Muted |
+| `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
+| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有をやめてください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
+| `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
+| `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
+| `setup.audio.monitored` | 聞く | Hear |
+| `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
+| `setup.audio.monitor` | モニター | Monitor |
+| `setup.audio.monitor.device` | 出力先 | Output |
+| `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
+| `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |
+
+## 12. The Streaming Card
+
+`IStreamingService` (Streaming) is shown directly (`StreamingCard`). The rows and their behavior are in the streaming detailed design 18.2. The stream key's value is never shown, and the dialog that registers it uses a masked field. While streaming no row can change, and the Card says why.
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.streaming.title` | 配信 | Streaming |
+| `setup.streaming.unavailable` | 配信は使えません。 | Streaming is not available. |
+| `setup.streaming.locked` | 配信中は変更できません。 | These cannot change while streaming. |
+| `setup.streaming.destination` | 配信先 | Destination |
+| `setup.streaming.destination.youtube` | YouTube | YouTube |
+| `setup.streaming.destination.custom` | 他のサーバー | Other server |
+| `setup.streaming.url` | サーバーのURL | Server URL |
+| `setup.streaming.url.description` | YouTubeは既定のままで使えます。rtmp:// か rtmps:// で始まるURLです。 | YouTube works with the default. The URL starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.placeholder` | rtmps://example.com/live | rtmps://example.com/live |
+| `setup.streaming.url.invalid` | rtmp:// か rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。使えるなら rtmps:// にしてください。 | rtmp:// is not encrypted, and neither is the stream key sent over it. Use rtmps:// if you can. |
+| `setup.streaming.key` | ストリームキー | Stream key |
+| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。プロジェクトのファイルには入らず、他のPCでは登録し直します。 | Kept in Windows Credential Manager. It is not in project files, and is registered again on another PC. |
+| `setup.streaming.key.registered` | 登録済み | Registered |
+| `setup.streaming.key.not-registered` | 未登録 | Not registered |
+| `setup.streaming.key.register` | 登録… | Register… |
+| `setup.streaming.key.remove` | 削除 | Remove |
+| `setup.streaming.key.dialog.title` | ストリームキーの登録 | Register the stream key |
+| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを貼り付けてください。登録した後は表示されません。 | Paste the stream key from YouTube Studio. It is not shown again once registered. |
+| `setup.streaming.key.dialog.field` | ストリームキー | Stream key |
+| `setup.streaming.key.dialog.confirm` | 登録 | Register |
+| `setup.streaming.key.failed` | 登録できませんでした。もう一度試してください。 | It could not be registered. Please try again. |
+| `setup.streaming.key.remove.title` | ストリームキーを削除しますか？ | Remove the stream key? |
+| `setup.streaming.key.remove.body` | 配信するには、もう一度登録が必要です。 | You will need to register it again to stream. |
+| `setup.streaming.key.remove.confirm` | 削除 | Remove |
+| `setup.streaming.codec` | 形式 | Format |
+| `setup.streaming.codec.description` | AV1がおすすめです。同じビットレートできれいに映ります。うまく配信できないときは、H.264を選んでください。 | AV1 is recommended: it looks better at the same bitrate. Choose H.264 if the stream does not work. |
+| `setup.streaming.codec.no-av1` | このPCのGPUか配信先がAV1に対応していないため、H.264で配信します。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
+| `setup.streaming.codec.av1` | AV1 | AV1 |
+| `setup.streaming.codec.h264` | H.264 | H.264 |
+| `setup.streaming.bitrate` | 映像のビットレート | Video bitrate |
+| `setup.streaming.bitrate.description` | 1080p 30 fpsなら6 Mbpsがおすすめです。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
+| `setup.streaming.test` | 接続テスト | Connection test |
+| `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
+| `setup.streaming.test.run` | テスト | Test |
+| `setup.streaming.test.ok` | 接続できました。 | Connected. |

@@ -76,7 +76,7 @@ Static Service Locatorや、全Serviceを保持して任意に取得できるGlo
 | `IMonotonicClock` | Interface | 単調増加する高分解能時刻 |
 | `ISystemClock` | Interface | 壁時計（UTC） |
 | `IMainThreadDispatcher` | Interface | 任意のThreadからMain Threadへ処理を渡す |
-| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装 |
+| `StopwatchMonotonicClock` / `UtcSystemClock` | Class | Clockの実装。Windowsでは、単調な時計はQueryPerformanceCounterを直接読む。ネイティブのPluginは音声と映像の時刻をQPCの値で扱い、Unityの`Stopwatch`は同じ速さで別の0から数えるためである（録画詳細設計8.1） |
 | `MainThreadDispatcher` | Class | Queueによる`IMainThreadDispatcher`の実装。Main Threadの所有者が毎Frame`Drain`を呼ぶ |
 | `IFrameLoop` / `FrameLoop` | Interface / Class | 毎Frame、Main Threadで呼ぶ処理の登録と呼び出し（5.5） |
 
@@ -260,6 +260,8 @@ Requiredとするのは、それなしでは診断も復旧もできないServic
 
 ### 7.1 起動
 
+ビルドしたアプリは、同時に1つだけ起動する（Unityの`forceSingleInstance`）。2つ起動すると、カメラ、マイク、キャプチャー機器を取り合い、同じ設定とログへ書き込み、同じストリームキーで二重に配信するおそれがあるためである。
+
 ```mermaid
 sequenceDiagram
     participant Unity
@@ -297,7 +299,7 @@ sequenceDiagram
 
 終了処理全体にTimeoutを設け、超過した場合は残りの処理を中断して終了する。Timeoutが発生したServiceは記録する。
 
-Editor上でPlay Modeを終了した場合、Unityは`Application.wantsToQuit`を発生させず、非同期処理の完了も待たない。そのため`OnApplicationQuit`で同じ手順を同期的に実行する。このとき各Serviceの`ShutdownAsync`はMain Thread上で同期的に待機され、終了Timeoutの範囲で打ち切られる。
+Editor上でPlay Modeを終了した場合、Unityは`Application.wantsToQuit`を発生させず、非同期処理の完了も待たない。そのため`OnApplicationQuit`で同じ手順を同期的に実行する。このとき各Serviceの`ShutdownAsync`はMain Thread上で同期的に待機され、終了Timeoutの範囲で打ち切られる。Play Mode中にScriptが再コンパイルされたときも、再読み込みの直前（`AssemblyReloadEvents.beforeAssemblyReload`）に同じ手順を実行する。再読み込みは終了を通らず、止めないとネイティブのThreadが扱えなくなったまま動き続けるためである（音声がEditorを閉じるまで鳴り続けた、2026-10-31）。
 
 起動処理の途中で終了した場合、初期化中のServiceは`ShutdownAsync`を呼ばれずに`Dispose`される。
 
@@ -500,7 +502,7 @@ Assets/VirtualVessel/
 │  ├─ Runtime/                      VirtualVessel.Application
 │  │  ├─ ApplicationBootstrap.cs
 │  │  ├─ Hosting/ApplicationHost.cs, ApplicationServiceDescriptor.cs, ...
-│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs, ApplicationStartupOptions.cs
+│  │  ├─ Startup/ApplicationRuntime.cs, ApplicationComposition.cs (+ .Modules.cs), ApplicationCompositionContext.cs, ApplicationStartupOptions.cs
 │  │  ├─ Logging/ApplicationLog.cs
 │  │  ├─ Session/SessionInfo.cs, SessionMarker.cs
 │  │  └─ Build/BuildInfo.cs

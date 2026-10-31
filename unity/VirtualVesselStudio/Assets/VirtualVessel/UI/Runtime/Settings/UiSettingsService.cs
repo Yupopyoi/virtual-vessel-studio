@@ -56,6 +56,9 @@ namespace VirtualVessel.UI.Settings
 
         public ResolvedUiSettings Current { get; private set; }
 
+        /// <summary>The page last open on the settings screen, as saved; the screen checks it.</summary>
+        public string LastSetupPage => _stored.LastSetupPage;
+
         /// <summary>True while a change waits to be saved.</summary>
         public bool HasPendingSave => _debounce.Pending;
 
@@ -130,6 +133,11 @@ namespace VirtualVessel.UI.Settings
         public void SetLastScreen(string screen)
         {
             Change(settings => settings.LastScreen = screen);
+        }
+
+        public void SetLastSetupPage(string page)
+        {
+            Change(settings => settings.LastSetupPage = page);
         }
 
         /// <summary>Call once per frame: reports finished saves and starts a save when it is due.</summary>

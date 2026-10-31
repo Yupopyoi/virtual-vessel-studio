@@ -29,7 +29,30 @@ namespace VirtualVessel.Avatar
         /// <summary>A loosely closed hand, the rest when no hand is seen. Not to be written.</summary>
         public static readonly FingerPose Relaxed = CreateRelaxed();
 
-        public float[] Values { get; } = new float[FingerCount * Stride];
+        // After the fingers: where the thumb points, x, y, z, then how far it follows that.
+        private const int ThumbAt = FingerCount * Stride;
+        private const int AimAt = ThumbAt + 3;
+
+        public float[] Values { get; } = new float[AimAt + 1];
+
+        /// <summary>Where the whole thumb points, in the avatar root's space; blended over time, so not always of unit length.</summary>
+        public Vector3 ThumbDirection
+        {
+            get => new Vector3(Values[ThumbAt], Values[ThumbAt + 1], Values[ThumbAt + 2]);
+            set
+            {
+                Values[ThumbAt] = value.x;
+                Values[ThumbAt + 1] = value.y;
+                Values[ThumbAt + 2] = value.z;
+            }
+        }
+
+        /// <summary>How far the thumb's base follows that direction, in percent; 0 keeps the model's own direction.</summary>
+        public float ThumbAim
+        {
+            get => Values[AimAt];
+            set => Values[AimAt] = value;
+        }
 
         public float Bend(Finger finger, int joint)
         {

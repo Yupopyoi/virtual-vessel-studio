@@ -39,7 +39,7 @@ namespace VirtualVessel.Tracking.MediaPipe
 
         private readonly IVideoCaptureSource _camera;
         private readonly string _modelDirectory;
-        private readonly PoseModel _poseModel;
+        private PoseModel _poseModel = PoseModel.Full;
         private readonly IMonotonicClock _clock;
         private readonly ILog _log;
         private readonly MediaPipeCallbacks _callbacks;
@@ -71,11 +71,10 @@ namespace VirtualVessel.Tracking.MediaPipe
 
         /// <param name="modelDirectory">The folder with the model files (StreamingAssets/Tracking/MediaPipe).</param>
         /// <param name="faceSidesMirrored">Whether MediaPipe's left and right face values are the image's instead of the person's (checked with a camera).</param>
-        public MediaPipeTrackingProvider(IVideoCaptureSource camera, string modelDirectory, PoseModel poseModel, bool faceSidesMirrored, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+        public MediaPipeTrackingProvider(IVideoCaptureSource camera, string modelDirectory, bool faceSidesMirrored, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
         {
             _camera = camera ?? throw new ArgumentNullException(nameof(camera));
             _modelDirectory = modelDirectory ?? throw new ArgumentNullException(nameof(modelDirectory));
-            _poseModel = poseModel;
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _log = log;
             _face = new FaceResultReader(faceSidesMirrored);
@@ -107,6 +106,7 @@ namespace VirtualVessel.Tracking.MediaPipe
             _reader = new CameraFrameReader(OnImageRead);
             _lastFrame = -1;
             _reportedStuck = false;
+            _poseModel = options.PoseModel;
 
             // Reading the models and building the graphs takes seconds; not on the main thread (system design 15.7).
             string directory = _modelDirectory;

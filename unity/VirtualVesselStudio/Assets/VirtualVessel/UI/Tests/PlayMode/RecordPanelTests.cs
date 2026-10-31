@@ -1,0 +1,330 @@
+using System;
+using System.Collections;
+using System.IO;
+using System.Linq;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
+using UnityEngine.UIElements;
+using VirtualVessel.Core.State;
+using VirtualVessel.Core.Time;
+using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Screens;
+using Object = UnityEngine.Object;
+
+namespace VirtualVessel.UI.Tests
+{
+    /// <summary>Recording on the live and setup screens inside the real UI root (recording detailed design 18).</summary>
+    public sealed class RecordPanelTests
+    {
+        private string _directory;
+        private GameObject _host;
+        private UiRoot _root;
+        private FakeRecording _recording;
+        private FakeExplorer _explorer;
+
+        [UnitySetUp]
+        public IEnumerator SetUp()
+        {
+            _directory = Path.Combine(Path.GetTempPath(), "VirtualVesselTests", Guid.NewGuid().ToString("N"));
+            _recording = new FakeRecording();
+            _explorer = new FakeExplorer();
+            _host = new GameObject(nameof(RecordPanelTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Recording = _recording, Explorer = _explorer }));
+            yield return null;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            Object.Destroy(_host);
+            if (Directory.Exists(_directory))
+            {
+                Directory.Delete(_directory, recursive: true);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Record_StartsAtOnce_AndShowsTheElapsedTime()
+        {
+            RecordControl record = Open();
+            yield return null;
+            Assert.That(record.StartButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(record.StopButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(record.Chip.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(record.StartButton.DisplayedText, Is.EqualTo("● 録画"));
+
+            Submit(record.StartButton);
+            yield return null;
+
+            Assert.That(_recording.Started, Is.EqualTo(1), "Starting needs no confirmation.");
+            Assert.That(_root.Dialogs.Current, Is.Null);
+            _recording.Elapsed = TimeSpan.FromSeconds(3725);
+            yield return new WaitForSeconds(0.3f);
+            Assert.That(record.StartButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(record.StopButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That((record.Chip.Status, record.Chip.TextKey, record.Chip.Number), Is.EqualTo((StatusKind.Live, RecordStrings.Recording, "01:02:05")), "A filled dot and text, never color alone.");
+        }
+
+        [UnityTest]
+        public IEnumerator Stop_AsksFirst_AndCancelKeepsRecording()
+        {
+            RecordControl record = Open();
+            _recording.Start();
+            yield return null;
+
+            Submit(record.StopButton);
+            yield return null;
+            ConfirmDialog dialog = _root.Dialogs.Current;
+            Assert.That(dialog, Is.Not.Null, "Stopping is a Danger action behind a confirmation.");
+            Assert.That(_recording.Stopped, Is.EqualTo(0));
+            Submit(dialog.Cancel);
+            yield return null;
+            yield return null;
+            Assert.That(_recording.Stopped, Is.EqualTo(0));
+            Assert.That(_recording.State.Value, Is.EqualTo(RecordingState.Recording));
+
+            Submit(record.StopButton);
+            yield return null;
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+            yield return null;
+            Assert.That(_recording.Stopped, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator AfterStopping_TheFileIsShown_WithOpenFolder()
+        {
+            RecordControl record = Open();
+            _recording.Start();
+            yield return null;
+            Assert.That(record.Saved.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+
+            _recording.Finish("C:\\Videos\\VirtualVesselStudio_2026-10-27_22-30-05.mp4");
+            yield return null;
+
+            Assert.That(record.Saved.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(record.SavedText.text, Is.EqualTo("保存しました: VirtualVesselStudio_2026-10-27_22-30-05.mp4"));
+            Submit(record.OpenFolderButton);
+            yield return null;
+            Assert.That(_explorer.Shown, Is.EqualTo("C:\\Videos\\VirtualVesselStudio_2026-10-27_22-30-05.mp4"));
+        }
+
+        [UnityTest]
+        public IEnumerator WhileStarting_TheButtonSaysSo_AndDoesNotAnswer()
+        {
+            RecordControl record = Open();
+            _recording.SetState(RecordingState.Starting);
+            yield return null;
+
+            Assert.That(record.StartButton.enabledSelf, Is.False);
+            Assert.That(record.StartButton.TextKey, Is.EqualTo(RecordStrings.Starting));
+            Submit(record.StartButton);
+            yield return null;
+            Assert.That(_recording.Started, Is.EqualTo(0));
+        }
+
+        [UnityTest]
+        public IEnumerator AProblem_IsShownWithWhatToDo()
+        {
+            RecordControl record = Open();
+            _recording.Fail(RecordingProblem.DiskFull);
+            yield return null;
+
+            Assert.That((record.Chip.Status, record.Chip.TextKey), Is.EqualTo((StatusKind.Error, RecordStrings.Failed)));
+            Assert.That(record.Problem.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(record.Problem.text, Does.Contain("空き容量"));
+            Assert.That(record.StartButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "Recording can be tried again.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheSetupCard_ChoosesTheQuality_AndShowsTheFolderAndSpace()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            RecordingCard card = _root.Content.Q<RecordingCard>();
+            Assert.That(card, Is.Not.Null);
+            Assert.That(card.FolderText.text, Is.EqualTo("C:\\Videos\\Virtual Vessel Studio"));
+            Assert.That(card.FreeText.text, Is.EqualTo("12.5 GB"));
+            Assert.That(card.FormatText.text, Is.EqualTo("1920×1080・30 fps・MP4"));
+            Assert.That(card.Quality.value, Is.EqualTo(0));
+
+            card.Quality.value = 1;
+            Assert.That(_recording.Options.Value.Quality, Is.EqualTo(RecordingQuality.High));
+
+            Assert.That(card.Codec.value, Is.EqualTo((int)RecordingCodec.Av1), "AV1 first, as recommended.");
+            card.Codec.value = (int)RecordingCodec.H264;
+            Assert.That(_recording.Options.Value.Codec, Is.EqualTo(RecordingCodec.H264));
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecDescription));
+
+            // A GPU without an AV1 encoder: AV1 is shown but cannot be chosen, and the description says why.
+            _recording.SetOptions(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.High, RecordingCodec.H264, false, 1920, 1080, 30));
+            yield return null;
+            Assert.That(card.Codec.IsItemEnabled((int)RecordingCodec.Av1), Is.False);
+            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecNoAv1));
+
+            Submit(card.OpenButton);
+            yield return null;
+            Assert.That(_explorer.Shown, Is.EqualTo("C:\\Videos\\Virtual Vessel Studio"));
+        }
+
+        [UnityTest]
+        public IEnumerator TheSetupCard_KeepsItsControlsInside_LinedUp_AndReadable()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            RecordingCard recording = _root.Content.Q<RecordingCard>();
+            recording.Q<Card>().Expanded = true;
+            yield return null;
+            yield return null;
+
+            // The test window is narrow, so the controls wrap under the names; then as wide as the user's window.
+            CheckLayout(recording, wide: false);
+            recording.style.width = 900;
+            recording.style.flexShrink = 0;
+            yield return null;
+            yield return null;
+            CheckLayout(recording, wide: true);
+        }
+
+        /// <summary>
+        /// Measured on the real styles: nothing past the Card, the folder's buttons lined up with the other
+        /// rows' controls (at the right edge when wide, at the left under the names when narrow), and the
+        /// values in the text color, as readable as the rows' names.
+        /// </summary>
+        private static void CheckLayout(RecordingCard recording, bool wide)
+        {
+            Card card = recording.Q<Card>();
+            float right = card.contentContainer.worldBound.xMax;
+            foreach (VisualElement control in new VisualElement[] { recording.Quality, recording.Codec, recording.PickButton, recording.OpenButton, recording.FreeText, recording.FormatText, recording.FolderText })
+            {
+                Assert.That(control.worldBound.xMax, Is.LessThanOrEqualTo(right + 0.5f), $"{control.GetType().Name} reaches past the Card (wide: {wide}).");
+            }
+
+            // Compared by the rows' control boxes; a label's own box is inset by its padding.
+            Rect buttons = recording.OpenButton.parent.parent.worldBound;
+            Rect free = recording.FreeText.parent.worldBound;
+            Rect quality = recording.Quality.parent.worldBound;
+            if (wide)
+            {
+                Assert.That(buttons.xMax, Is.EqualTo(free.xMax).Within(1f), "The folder's buttons end where the other values do.");
+                Assert.That(quality.xMax, Is.EqualTo(free.xMax).Within(1f));
+            }
+            else
+            {
+                Assert.That(buttons.xMin, Is.EqualTo(free.xMin).Within(1f), "Wrapped, the folder's buttons start where the other values do.");
+            }
+
+            var rows = recording.Query<SettingRow>().ToList();
+            Assert.That(recording.FolderText.parent, Is.SameAs(rows[0].TextArea), "The path reads under the row's name.");
+            Color name = rows[0].Q<Label>(className: SettingRow.UssClass + "__name").resolvedStyle.color;
+            foreach (Label value in new[] { recording.FolderText, recording.FreeText, recording.FormatText })
+            {
+                Assert.That(value.resolvedStyle.color, Is.EqualTo(name), $"{value.text} is not in the text color.");
+            }
+        }
+
+        [Test]
+        public void ViewOf_PairsEveryStateWithWhatItShows()
+        {
+            Assert.That(RecordControl.ViewOf(RecordingState.Idle, RecordingProblem.None).ShowStart, Is.True);
+            Assert.That(RecordControl.ViewOf(RecordingState.Idle, RecordingProblem.None).Chip, Is.Null);
+            Assert.That(RecordControl.ViewOf(RecordingState.Stopping, RecordingProblem.None).StartKey, Is.EqualTo(RecordStrings.Finishing));
+            Assert.That(RecordControl.ViewOf(RecordingState.Recording, RecordingProblem.None).ShowStop, Is.True);
+            Assert.That(RecordControl.ViewOf(RecordingState.Recording, RecordingProblem.AudioUnavailable).ProblemKey, Is.EqualTo(RecordStrings.AudioUnavailable));
+            Assert.That(RecordControl.ViewOf(RecordingState.Failed, RecordingProblem.EncoderFailed).ProblemKey, Is.EqualTo(RecordStrings.EncoderFailed));
+            Assert.That(RecordControl.FormatElapsed(TimeSpan.FromSeconds(59.9)), Is.EqualTo("00:00:59"));
+            Assert.That(RecordControl.FormatElapsed(TimeSpan.FromHours(12)), Is.EqualTo("12:00:00"));
+            Assert.That(RecordingCard.Gigabytes(1024L * 1024 * 1024 * 3 / 2), Is.EqualTo("1.5"));
+        }
+
+        private RecordControl Open()
+        {
+            _root.Shell.Open("live");
+            return _root.Content.Q<LiveScreen>().Record;
+        }
+
+        private static void Submit(VisualElement target)
+        {
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
+        private sealed class FakeRecording : IRecordingService
+        {
+            private readonly ObservableValue<RecordingState> _state = new ObservableValue<RecordingState>(RecordingState.Idle);
+            private readonly ObservableValue<RecordingProblem> _problem = new ObservableValue<RecordingProblem>(RecordingProblem.None);
+            private readonly ObservableValue<RecordingOptions> _options = new ObservableValue<RecordingOptions>(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.Standard, RecordingCodec.Av1, true, 1920, 1080, 30));
+
+            public int Started { get; private set; }
+
+            public int Stopped { get; private set; }
+
+            public IReadOnlyObservable<RecordingState> State => _state;
+
+            public IReadOnlyObservable<RecordingProblem> Problem => _problem;
+
+            public TimeSpan Elapsed { get; set; }
+
+            public string LastFile { get; private set; }
+
+            public IReadOnlyObservable<RecordingOptions> Options => _options;
+
+            public void SetOptions(RecordingOptions options)
+            {
+                _options.Set(options);
+            }
+
+            public long? FreeBytes()
+            {
+                return 1024L * 1024 * 1024 * 25 / 2;
+            }
+
+            public void Start()
+            {
+                Started++;
+                _state.Set(RecordingState.Recording);
+            }
+
+            public void Stop()
+            {
+                Stopped++;
+            }
+
+            public void SetState(RecordingState state)
+            {
+                _state.Set(state);
+            }
+
+            public void Finish(string file)
+            {
+                LastFile = file;
+                _state.Set(RecordingState.Idle);
+            }
+
+            public void Fail(RecordingProblem problem)
+            {
+                _problem.Set(problem);
+                _state.Set(RecordingState.Failed);
+            }
+        }
+
+        private sealed class FakeExplorer : IFileExplorer
+        {
+            public string Shown { get; private set; }
+
+            public void Show(string path)
+            {
+                Shown = path;
+            }
+        }
+    }
+}

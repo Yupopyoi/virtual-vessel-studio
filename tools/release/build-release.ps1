@@ -8,7 +8,7 @@ in GitHub's hosted CI yet: by the Release workflow's build job on the self-hoste
 hand from a checkout of the tag. In order:
 
 1. Checks the working copy: no uncommitted changes, and the project version is -Version.
-2. Builds the native plugins and runs their tests (tools/native), and puts the pinned MediaPipe
+2. Builds the native plugins (capture, encode, audio) and runs their tests (tools/native), and puts the pinned MediaPipe
    plugin and models in place (tools/deps).
 3. Runs the Unity EditMode and PlayMode tests (tools/unity/run-tests.ps1), unless -SkipTests.
 4. Builds the Windows player with the build identifier v<version>+<commit>.
@@ -67,6 +67,9 @@ if ($Upload)
 
 # 2–3. Native plugins, the pinned MediaPipe plugin and models, and tests.
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-capture.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-encode.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-audio.ps1'))
+Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\native\build-stream.ps1'))
 Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $repository 'tools\deps\fetch-mediapipe.ps1'))
 if (-not $SkipTests)
 {
@@ -132,7 +135,8 @@ $zip = Join-Path $releaseRoot $zipName
 Compress-Archive -Path $stage -DestinationPath $zip
 $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
 $sums = Join-Path $releaseRoot 'SHA256SUMS.txt'
-"$hash  $zipName" | Set-Content -Encoding ascii $sums
+# LF line ends, so `sha256sum -c` reads the file on any system; with CRLF it looked for the name with a carriage return.
+[System.IO.File]::WriteAllText($sums, "$hash  $zipName`n", [System.Text.Encoding]::ASCII)
 "Built $zipName ($buildId), SHA-256 $hash."
 
 # 8. The draft Release.

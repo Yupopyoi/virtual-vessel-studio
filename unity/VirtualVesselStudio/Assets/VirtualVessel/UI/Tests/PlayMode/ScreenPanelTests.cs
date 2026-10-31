@@ -84,23 +84,17 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator ATextField_TakesEnglishOnly_AndSaysSo()
+        public IEnumerator ATextField_TakesJapanese()
         {
-            // Japanese input left the caret short of each committed word (the user's video, 2026-10-25).
             var input = new TextInput();
             _scope.Add(input);
             var changes = new List<string>();
             input.RegisterValueChangedCallback(evt => changes.Add(evt.newValue));
             yield return null;
-            TextField field = input.Q<TextField>();
-            input.SetValueWithoutNotify("記録");
-            field.value = "記録 v2";
-            field.value = "記録 v2です";
-            Assert.That(input.value, Is.EqualTo("記録 v2"), "What was there stays; Japanese typed in is dropped.");
-            Assert.That(changes, Is.EqualTo(new[] { "記録 v2" }), "A dropped edit is no change.");
-            Assert.That(field.textSelection.cursorIndex, Is.EqualTo(5));
-            Label hint = input.Q<Label>(className: "vv-field__hint");
-            Assert.That(hint.text, Does.Contain(CommonStrings.EnglishOnly), "The field says it takes English only (the key, with this test's empty table).");
+            input.Q<TextField>().value = "記録です";
+
+            Assert.That(input.value, Is.EqualTo("記録です"));
+            Assert.That(changes, Is.EqualTo(new[] { "記録です" }));
         }
 
         [UnityTest]
@@ -431,6 +425,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             _root.Settings.SetReducedMotion(ReducedMotionMode.On);
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AppPage;
             yield return null;
             yield return null;
             var card = _root.Shell.Host.GetScreen("setup").Q<AppSettingsCard>();

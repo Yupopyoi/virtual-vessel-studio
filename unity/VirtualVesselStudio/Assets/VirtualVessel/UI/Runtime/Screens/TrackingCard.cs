@@ -11,39 +11,6 @@ using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.Screens
 {
-    /// <summary>String table keys of the tracking Card (docs/&lt;lang&gt;/ui/screens/setup.md).</summary>
-    [StringKeys]
-    public static class TrackingStrings
-    {
-        public const string Title = "setup.tracking.title";
-        public const string Unavailable = "setup.tracking.unavailable";
-        public const string Track = "setup.tracking.track";
-        public const string Mirror = "setup.tracking.mirror";
-        public const string Depth = "setup.tracking.depth";
-        public const string DepthDescription = "setup.tracking.depth.description";
-        public const string Depth3D = "setup.tracking.depth.3d";
-        public const string Depth2D = "setup.tracking.depth.2d";
-        public const string Speed = "setup.tracking.speed";
-        public const string SpeedDescription = "setup.tracking.speed.description";
-        public const string Load = "setup.tracking.load";
-        public const string Camera = "setup.tracking.camera";
-        public const string Face = "setup.tracking.part.face";
-        public const string Body = "setup.tracking.part.body";
-        public const string LeftHand = "setup.tracking.part.lefthand";
-        public const string RightHand = "setup.tracking.part.righthand";
-        public const string Stopped = "setup.tracking.state.stopped";
-        public const string Starting = "setup.tracking.state.starting";
-        public const string Running = "setup.tracking.state.running";
-        public const string NoPerson = "setup.tracking.state.noperson";
-        public const string Waiting = "setup.tracking.state.waiting";
-        public const string Failed = "setup.tracking.state.failed";
-        public const string ProblemChoose = "setup.tracking.problem.choose";
-        public const string ProblemNotFound = "setup.tracking.problem.notfound";
-        public const string ProblemInUse = "setup.tracking.problem.inuse";
-        public const string ProblemFailed = "setup.tracking.problem.failed";
-        public const string ProblemNoPerson = "setup.tracking.problem.noperson";
-    }
-
     /// <summary>
     /// Tracking on the setup screen (docs/&lt;lang&gt;/ui/screens/setup.md 4): turning it on and off, the
     /// tracking camera, and the camera image with the tracked points to check it works. Shows the
@@ -54,6 +21,7 @@ namespace VirtualVessel.UI.Screens
         public const string UssClass = "vv-tracking-card";
         public const string PartsClass = UssClass + "__parts";
         public const string LoadClass = UssClass + "__load";
+        public const string TogglesClass = UssClass + "__toggles";
 
         /// <summary>How often the load line is sampled: often enough to follow, slow enough to read.</summary>
         public const long LoadIntervalMs = 1000;
@@ -129,6 +97,29 @@ namespace VirtualVessel.UI.Screens
             MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
             card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
 
+            // Full body is shown so users know it is coming, and cannot be chosen yet (tracking detailed design 6.5).
+            Range = Ui.Segmented(TrackingStrings.RangeUpper, TrackingStrings.RangeFull);
+            Range.SetItemEnabled(1, false);
+            SettingRow range = Ui.SettingRow(TrackingStrings.Range, TrackingStrings.RangeDescription);
+            range.Add(Range);
+            card.Add(range);
+
+            // A part turned off is not inferred, which lowers the load (tracking detailed design 6.5).
+            FaceToggle = Ui.Toggle(TrackingStrings.Face);
+            BodyToggle = Ui.Toggle(TrackingStrings.Body);
+            HandsToggle = Ui.Toggle(TrackingStrings.Hands);
+            var parts = new VisualElement();
+            parts.AddToClassList(TogglesClass);
+            foreach (SwitchToggle toggle in new[] { FaceToggle, BodyToggle, HandsToggle })
+            {
+                toggle.RegisterValueChangedCallback(_ => _tracking.SetOptions(_tracking.Options.Value.WithRegions(RegionsOf(FaceToggle.value, BodyToggle.value, HandsToggle.value))));
+                parts.Add(toggle);
+            }
+
+            SettingRow partsRow = Ui.SettingRow(TrackingStrings.Parts, TrackingStrings.PartsDescription);
+            partsRow.Add(parts);
+            card.Add(partsRow);
+
             // The camera sees depth poorly; 2D keeps only what it sees well (tracking detailed design 8.6).
             Depth = Ui.Segmented(TrackingStrings.Depth3D, TrackingStrings.Depth2D);
             Depth.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(evt.newValue == 1 ? BodyDepth.Flat : BodyDepth.Tracked)));
@@ -143,6 +134,12 @@ namespace VirtualVessel.UI.Screens
             SettingRow speed = Ui.SettingRow(TrackingStrings.Speed, TrackingStrings.SpeedDescription);
             speed.Add(Speed);
             card.Add(speed);
+
+            Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull);
+            Model.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithPoseModel((PoseModel)evt.newValue)));
+            SettingRow model = Ui.SettingRow(TrackingStrings.Model, TrackingStrings.ModelDescription);
+            model.Add(Model);
+            card.Add(model);
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
@@ -170,6 +167,19 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The smoothing level, 1 (steadiest) to 10 (fastest).</summary>
         public ValueSlider Speed { get; }
+
+        /// <summary>What moves: the upper body (0); full body (1) is coming soon and cannot be chosen.</summary>
+        public Segmented Range { get; }
+
+        public SwitchToggle FaceToggle { get; }
+
+        public SwitchToggle BodyToggle { get; }
+
+        /// <summary>Both hands and their fingers.</summary>
+        public SwitchToggle HandsToggle { get; }
+
+        /// <summary>The Pose model by <see cref="PoseModel"/>: light (0) or standard (1).</summary>
+        public Segmented Model { get; }
 
         /// <summary>The load line as shown, for tests.</summary>
         public string LoadText => _load.text;
@@ -222,6 +232,14 @@ namespace VirtualVessel.UI.Screens
         {
             string gpu = double.IsNaN(load.GpuPercent) ? "—" : $"{load.GpuPercent:0}%";
             return ($"{load.FramesPerSecond:0}", $"{trackedPerSecond:0}", $"{load.CpuPercent:0}%", gpu);
+        }
+
+        /// <summary>The parts tracked for the switches of the face, the body, and both hands. Pure.</summary>
+        public static TrackingRegions RegionsOf(bool face, bool body, bool hands)
+        {
+            return (face ? TrackingRegions.Face : TrackingRegions.None)
+                | (body ? TrackingRegions.Body : TrackingRegions.None)
+                | (hands ? TrackingRegions.Hands : TrackingRegions.None);
         }
 
         private static string Part(string name, TrackedPart part)
@@ -287,6 +305,11 @@ namespace VirtualVessel.UI.Screens
             MirrorToggle.SetValueWithoutNotify(mirror);
             Speed.SetValueWithoutNotify(options.Smoothing);
             Depth.SetValueWithoutNotify(options.BodyDepth == BodyDepth.Flat ? 1 : 0);
+            Range.SetValueWithoutNotify(0);
+            FaceToggle.SetValueWithoutNotify((options.Regions & TrackingRegions.Face) != 0);
+            BodyToggle.SetValueWithoutNotify((options.Regions & TrackingRegions.Body) != 0);
+            HandsToggle.SetValueWithoutNotify((options.Regions & TrackingRegions.Hands) != 0);
+            Model.SetValueWithoutNotify((int)options.PoseModel);
 
             // The image and the points over it flip together; the caption inside is flipped back so it reads.
             Preview.style.scale = new Scale(new UnityEngine.Vector3(mirror ? -1f : 1f, 1f, 1f));

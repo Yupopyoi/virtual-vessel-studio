@@ -43,6 +43,7 @@ namespace VirtualVessel.UI.Tests
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
             _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, Lighting = _lighting }));
             _root.Shell.Open("setup");
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
             yield return null;
         }
 
@@ -77,6 +78,31 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_avatars.Imported, Is.EqualTo(new[] { "C:\\models\\a.vrm" }));
             Assert.That(card.Choice.value, Is.EqualTo("a"), "The first avatar is put into use.");
             Assert.That(card.License.Query<Label>(className: AvatarCard.LicenseLineClass).ToList().Select(l => l.text), Does.Contain("Author A"));
+        }
+
+        [UnityTest]
+        public IEnumerator FingerTuning_SlidersTuneIt_AndResetBringsTheDefaultsBack()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            yield return null;
+            Assert.That((card.Fingers.value, card.Thumb.value), Is.EqualTo((100f, 100f)));
+
+            card.Fingers.value = 150f;
+            card.Thumb.value = 70f;
+            Assert.That(_avatars.FingerTuning.Value.Bend, Is.EqualTo(1.5f));
+            Assert.That(_avatars.FingerTuning.Value.Thumb, Is.EqualTo(0.7f).Within(0.001f));
+
+            _avatars.SetFingerTuning(new FingerTuning { Bend = 1.2f });
+            Assert.That(card.Fingers.value, Is.EqualTo(120f).Within(0.01f), "The slider follows the service.");
+
+            using (NavigationSubmitEvent submit = NavigationSubmitEvent.GetPooled())
+            {
+                submit.target = card.ResetButton;
+                card.ResetButton.SendEvent(submit);
+            }
+
+            yield return null;
+            Assert.That(_avatars.FingerTuning.Value, Is.EqualTo(new FingerTuning()));
         }
 
         [UnityTest]
@@ -359,6 +385,11 @@ namespace VirtualVessel.UI.Tests
                 Assert.That(options.Filters.Single().Extensions, Is.EqualTo(new[] { ".vrm" }));
                 return Task.FromResult(Path);
             }
+
+            public Task<string> PickFolderAsync(string title)
+            {
+                return Task.FromResult<string>(null);
+            }
         }
 
         private sealed class FakeLighting : IStageLighting
@@ -396,6 +427,8 @@ namespace VirtualVessel.UI.Tests
 
             private readonly ObservableValue<FaceTuning> _tuning = new ObservableValue<FaceTuning>(new FaceTuning());
 
+            private readonly ObservableValue<FingerTuning> _fingerTuning = new ObservableValue<FingerTuning>(new FingerTuning());
+
             public IReadOnlyObservable<FaceTuning> FaceTuning => _tuning;
 
             public FaceTarget Face { get; set; }
@@ -405,6 +438,13 @@ namespace VirtualVessel.UI.Tests
             public void SetFaceTuning(FaceTuning tuning)
             {
                 _tuning.Value = tuning;
+            }
+
+            public IReadOnlyObservable<FingerTuning> FingerTuning => _fingerTuning;
+
+            public void SetFingerTuning(FingerTuning tuning)
+            {
+                _fingerTuning.Value = tuning;
             }
 
             public void Add(string id, string name)

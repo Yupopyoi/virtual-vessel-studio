@@ -8,7 +8,7 @@
       "type": "application",
       "bom-ref": "virtual-vessel-studio",
       "name": "Virtual Vessel Studio",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "licenses": [
         {
           "license": {
@@ -128,7 +128,7 @@
             }
           ],
           "scope": "required",
-          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full/heavy, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe.",
+          "description": "face_landmarker_v2_with_blendshapes, pose_landmarker_lite/full, hand_landmarker, from the plugin package, with SHA-256 pinned in tools/deps/mediapipe.json. Copied to StreamingAssets/Tracking/MediaPipe.",
           "properties": [
             {
               "name": "virtual-vessel-studio:license-file",
@@ -818,7 +818,7 @@
         }
       ],
       "scope": "required",
-      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLL. Windows system libraries (d3d11, dxgi, user32) are only linked against and not distributed."
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine) are only linked against and not distributed."
     },
     {
       "type": "application",
@@ -840,6 +840,22 @@
     },
     {
       "type": "application",
+      "bom-ref": "tool:ffmpeg",
+      "supplier": {
+        "name": "FFmpeg"
+      },
+      "name": "FFmpeg (ffmpeg, ffprobe)",
+      "version": "any, optional",
+      "licenses": [
+        {
+          "expression": "LGPL-2.1-or-later OR GPL-2.0-or-later"
+        }
+      ],
+      "scope": "excluded",
+      "description": "Developer tools, used only when they are on the developer's PATH: the recording PlayMode test (RecordingPlayTests) reads a recorded file's frames and duration with ffprobe, and the streaming plugin's native tests use ffmpeg in listen mode as a local RTMP server to receive a stream and read it back. Not required, not in the repository, and not distributed."
+    },
+    {
+      "type": "application",
       "bom-ref": "tool:python",
       "supplier": {
         "name": "Python Software Foundation"
@@ -858,12 +874,12 @@
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/checkout@v4",
+      "bom-ref": "github-action:actions/checkout@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/checkout",
-      "version": "v4",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -872,17 +888,17 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/checkout@v4",
+      "purl": "pkg:github/actions/checkout@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/setup-python@v5",
+      "bom-ref": "github-action:actions/setup-python@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/setup-python",
-      "version": "v5",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -891,17 +907,17 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/setup-python@v5",
+      "purl": "pkg:github/actions/setup-python@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     },
     {
       "type": "application",
-      "bom-ref": "github-action:actions/upload-artifact@v4",
+      "bom-ref": "github-action:actions/upload-artifact@v7",
       "supplier": {
         "name": "GitHub"
       },
       "name": "actions/upload-artifact",
-      "version": "v4",
+      "version": "v7",
       "licenses": [
         {
           "license": {
@@ -910,7 +926,7 @@
         }
       ],
       "scope": "excluded",
-      "purl": "pkg:github/actions/upload-artifact@v4",
+      "purl": "pkg:github/actions/upload-artifact@v7",
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     }
   ]
