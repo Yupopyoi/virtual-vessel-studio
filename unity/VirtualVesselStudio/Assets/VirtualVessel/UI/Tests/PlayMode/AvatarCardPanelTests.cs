@@ -81,6 +81,31 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator FingerTuning_SlidersTuneIt_AndResetBringsTheDefaultsBack()
+        {
+            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
+            yield return null;
+            Assert.That((card.Fingers.value, card.Thumb.value), Is.EqualTo((100f, 100f)));
+
+            card.Fingers.value = 150f;
+            card.Thumb.value = 70f;
+            Assert.That(_avatars.FingerTuning.Value.Bend, Is.EqualTo(1.5f));
+            Assert.That(_avatars.FingerTuning.Value.Thumb, Is.EqualTo(0.7f).Within(0.001f));
+
+            _avatars.SetFingerTuning(new FingerTuning { Bend = 1.2f });
+            Assert.That(card.Fingers.value, Is.EqualTo(120f).Within(0.01f), "The slider follows the service.");
+
+            using (NavigationSubmitEvent submit = NavigationSubmitEvent.GetPooled())
+            {
+                submit.target = card.ResetButton;
+                card.ResetButton.SendEvent(submit);
+            }
+
+            yield return null;
+            Assert.That(_avatars.FingerTuning.Value, Is.EqualTo(new FingerTuning()));
+        }
+
+        [UnityTest]
         public IEnumerator FaceTuning_SlidersTuneEachPart_FollowChanges_AndShowTheAvatarsMovement()
         {
             FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
@@ -402,6 +427,8 @@ namespace VirtualVessel.UI.Tests
 
             private readonly ObservableValue<FaceTuning> _tuning = new ObservableValue<FaceTuning>(new FaceTuning());
 
+            private readonly ObservableValue<FingerTuning> _fingerTuning = new ObservableValue<FingerTuning>(new FingerTuning());
+
             public IReadOnlyObservable<FaceTuning> FaceTuning => _tuning;
 
             public FaceTarget Face { get; set; }
@@ -411,6 +438,13 @@ namespace VirtualVessel.UI.Tests
             public void SetFaceTuning(FaceTuning tuning)
             {
                 _tuning.Value = tuning;
+            }
+
+            public IReadOnlyObservable<FingerTuning> FingerTuning => _fingerTuning;
+
+            public void SetFingerTuning(FingerTuning tuning)
+            {
+                _fingerTuning.Value = tuning;
             }
 
             public void Add(string id, string name)

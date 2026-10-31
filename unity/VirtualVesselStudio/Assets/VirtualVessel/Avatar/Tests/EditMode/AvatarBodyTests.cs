@@ -84,6 +84,7 @@ namespace VirtualVessel.Avatar.Tests
         {
             BodyPose body = Body(Vector3.left, Vector3.left, Vector3.right, Vector3.right);
             body.JointConfidence[(int)BodyJoint.RightElbow] = 0.2f;
+            body.JointConfidence[(int)BodyJoint.RightWrist] = 0.2f;
 
             BodyTarget target = Retarget(body);
 
@@ -93,6 +94,21 @@ namespace VirtualVessel.Avatar.Tests
 
             body.Status = TrackingStatus.Lost;
             Assert.That(Retarget(body).TorsoSeen, Is.False);
+        }
+
+        [Test]
+        public void AnElbowOutOfTheImage_IsGuessed_WhileTheWristIsSeen([Values(false, true)] bool mirror)
+        {
+            // The camera frames the upper body and cuts the elbow off while the hand is up.
+            BodyPose body = Body(Vector3.down, Vector3.up, Vector3.down, Vector3.up);
+            body.ImagePositions[(int)BodyJoint.RightElbow] = new Vector2(0.8f, 1.1f);
+            body.ImagePositions[(int)BodyJoint.LeftElbow] = new Vector2(0.2f, 1.1f);
+
+            BodyTarget target = Retarget(body, mirror);
+
+            Assert.That((target.RightArm.Seen, target.RightArm.ForearmSeen), Is.EqualTo((true, true)));
+            Assert.That((target.LeftArm.Seen, target.LeftArm.ForearmSeen), Is.EqualTo((true, true)));
+            Assert.That(Quaternion.Angle(target[UpperBodyBone.RightLowerArm], target[UpperBodyBone.RightUpperArm]), Is.GreaterThan(90f), "The arm bends at the guessed elbow, up to the hand.");
         }
 
         [Test]
@@ -107,7 +123,7 @@ namespace VirtualVessel.Avatar.Tests
 
             body.ImagePositions[(int)BodyJoint.RightElbow] = new Vector2(1.1f, 0.6f);
             target = Retarget(body);
-            Assert.That(target.RightArm.Seen, Is.False, "An elbow beside the image does not move the arm.");
+            Assert.That(target.RightArm.Seen, Is.False, "An elbow beside the image, without the wrist, does not move the arm.");
             AssertSame(target[UpperBodyBone.RightUpperArm], AvatarRestPose.UpperArm(false, AvatarRestPose.DefaultArmDownDegrees));
             Assert.That(target.LeftArm.Seen, Is.True);
         }
@@ -124,6 +140,8 @@ namespace VirtualVessel.Avatar.Tests
             AssertSame(motion.Current[UpperBodyBone.RightUpperArm], Quaternion.identity);
 
             body.JointConfidence[(int)BodyJoint.RightElbow] = 0.1f;
+
+            body.JointConfidence[(int)BodyJoint.RightWrist] = 0.1f;
             Observe(motion, body, 1.4, 1.4);
             Observe(motion, body, 1.7, 1.7);
             Assert.That(motion.RightArmPresence.Arm, Is.EqualTo(1f), "Held for 0.5 s.");
@@ -140,6 +158,8 @@ namespace VirtualVessel.Avatar.Tests
             Assert.That(motion.LeftArmPresence.Arm, Is.EqualTo(1f), "The other arm is its own.");
 
             body.JointConfidence[(int)BodyJoint.RightElbow] = 0.9f;
+
+            body.JointConfidence[(int)BodyJoint.RightWrist] = 0.9f;
             Observe(motion, body, 3.1, 3.1);
             Assert.That(motion.RightArmPresence.Arm, Is.EqualTo(0.5f).Within(0.05f), "Back over 0.2 s.");
         }

@@ -58,6 +58,13 @@ namespace VirtualVessel.Avatar
         public FingerPose RightFingers => _hands.RightFingers;
 
         /// <summary>How the tracked face turns into expressions; changed as the user tunes the face.</summary>
+        /// <summary>The user's finger strength.</summary>
+        public FingerTuning FingerTuning
+        {
+            get => _hands.Tuning;
+            set => _hands.Tuning = value;
+        }
+
         public ExpressionMapping Mapping
         {
             get => _face.Mapping;

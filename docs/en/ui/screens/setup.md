@@ -163,7 +163,7 @@ Lists the software and assets in use from the SBOM shipped with the application 
 - Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.
 - Paths written in the SBOM are read only inside that folder (paths with `..`, absolute paths, and `\` are not read). The SBOM ships with the application, so no trust boundary is crossed, but even an edited SBOM cannot make the screen read other files.
 
-## 9. Face Tuning Card
+## 9. Face and Finger Tuning Card
 
 Tunes, part by part and while watching the avatar, how strongly the user's face shows on the avatar's (Avatar detailed design 7.4). The tuning is the user's and stays when the avatar changes.
 
@@ -176,7 +176,8 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Light brightness | Slider (10 to 150%, steps of 5%), under the zoom | The brightness of the stage's light (Stage detailed design 7.1). 100% is the default. Caption: "This also changes the light on the stream, and is saved." Lowered when the face is washed out (user's request, 2026-10-21). Beside the picture, so it is changed while watching the face (user's decision, 2026-10-21). Left out without Stage |
 | Winks | Toggle | Whether one eye may close alone. Description: "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head." Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
-| Reset everything | Button (Secondary) "Reset" | Puts every part back to 100% and turns winks off |
+| Finger bend, thumb bend | Slider (50–200%, in 10% steps) | How strongly the fingers bend (avatar detailed design 7.5). 100% is the default. Caption: "Raise these if the fingers do not bend far enough, and lower them if they bend too far. An open hand stays open at any value." The hands are seen with the picture's height and zoom |
+| Reset everything | Button (Secondary) "Reset" | Puts every part and the fingers back to 100% and turns winks off |
 
 - The video is on the left and the sliders on the right, so the avatar stays in view whichever slider moves. On a narrow window the sliders wrap below the video.
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.

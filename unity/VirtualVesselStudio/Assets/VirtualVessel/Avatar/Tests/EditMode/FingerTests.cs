@@ -32,6 +32,181 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public void Arc_SharesTheTotalBend_SoAHookAndItsOppositeMatch()
+        {
+            (float hookBase, float hookMiddle) = FingerRetargeting.Arc(26f, 48f);
+            (float bentBase, float bentMiddle) = FingerRetargeting.Arc(48f, 26f);
+
+            Assert.That((hookBase, hookMiddle), Is.EqualTo((bentBase, bentMiddle)));
+            Assert.That(hookBase + hookMiddle, Is.EqualTo(74f).Within(0.01f));
+            Assert.That(FingerRetargeting.Arc(0f, 0f), Is.EqualTo((0f, 0f)), "An open hand.");
+            (float fistBase, float fistMiddle) = FingerRetargeting.Arc(FingerRetargeting.MaxBaseBend, FingerRetargeting.MaxMiddleBend);
+            Assert.That(fistBase, Is.EqualTo(FingerRetargeting.MaxBaseBend).Within(0.01f), "A fist.");
+            Assert.That(fistMiddle, Is.EqualTo(FingerRetargeting.MaxMiddleBend).Within(0.01f));
+        }
+
+        [Test]
+        public void ThumbDirection_IsInRootSpace_AndMirrored()
+        {
+            Assert.That(Vector3.Distance(FingerRetargeting.ThumbDirection(new Vector3(2f, -1f, 2f), false), new Vector3(2f, -1f, 2f) / 3f), Is.LessThan(0.001f));
+            Assert.That(Vector3.Distance(FingerRetargeting.ThumbDirection(new Vector3(2f, -1f, 2f), true), new Vector3(-2f, -1f, 2f) / 3f), Is.LessThan(0.001f));
+        }
+
+        [Test]
+        public void TheThumb_PointsThatWay_WhateverTheHandShownDoes()
+        {
+            FingerRest rest = FingerRest.Of(null, ArmSide.Right);
+            var rotations = new Quaternion[FingerPose.FingerCount * FingerPose.JointCount];
+            Vector3 down = new Vector3(0.6f, -0.8f, 0f);
+            var pose = new FingerPose { ThumbDirection = down, ThumbAim = 100f };
+            Quaternion hand = Quaternion.Euler(20f, 40f, -30f);
+
+            FingerRetargeting.Rotations(rest, hand, pose, rotations);
+            Assert.That(Vector3.Angle(rotations[0] * rest.Direction(Finger.Thumb, 0), down), Is.LessThan(0.1f));
+
+            pose.ThumbAim = 0f;
+            FingerRetargeting.Rotations(rest, hand, pose, rotations);
+            Assert.That(Quaternion.Angle(rotations[0], hand), Is.LessThan(0.1f), "Without aim the thumb keeps the model's direction.");
+        }
+        [Test]
+        public void AnUntuckedThumb_FollowsTheHand_AndAHandNotSeenDoesNot()
+        {
+            var pose = new FingerPose();
+            HandPose open = Hand(bends: 0f, middleBends: 0f, endBends: 0f, spread: 0f, thumbOpen: 45f, thumbBends: 0f);
+
+            FingerRetargeting.TryMeasure(open, left: false, pose);
+
+            Assert.That(pose.ThumbAim, Is.EqualTo(100f));
+            Assert.That(FingerPose.Relaxed.ThumbAim, Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void HiddenFingers_FollowTheNearestSeen_AndNoneSeenKeepTheirOwn()
+        {
+            var pose = new FingerPose();
+            pose.SetBend(Finger.Index, 1, 10f);
+            pose.SetBend(Finger.Middle, 1, 20f);
+            pose.SetBend(Finger.Ring, 1, 30f);
+            pose.SetBend(Finger.Little, 1, 40f);
+
+            FingerRetargeting.FollowSeenFingers(0b0111, pose);
+            Assert.That(pose.Bend(Finger.Index, 1), Is.EqualTo(40f));
+            Assert.That(pose.Bend(Finger.Ring, 1), Is.EqualTo(40f));
+
+            pose.SetBend(Finger.Index, 1, 10f);
+            pose.SetBend(Finger.Middle, 1, 20f);
+            FingerRetargeting.FollowSeenFingers(0b0010, pose);
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(40f), "The nearer of the two, toward the little finger on a tie.");
+
+            pose.SetBend(Finger.Middle, 1, 20f);
+            FingerRetargeting.FollowSeenFingers(0b1111, pose);
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(20f));
+        }
+
+        [Test]
+        public void HiddenFingers_AreThoseBehindOthers_InAHandSeenEdgeOn()
+        {
+            HandPose hand = EdgeOnHand(new[] { 0.2f, 0.4f, 0.6f, 0.8f });
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0b0111), "The little finger is the nearest, and hides the rest.");
+
+            hand = EdgeOnHand(new[] { 0.8f, 0.6f, 0.4f, 0.2f });
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0b1110));
+        }
+
+        [Test]
+        public void HiddenFingers_NeedAHandSeenEdgeOn()
+        {
+            HandPose hand = EdgeOnHand(new[] { 0.2f, 0.4f, 0.6f, 0.8f });
+            hand[HandJoint.IndexMcp] = new Vector3(0.05f, 0.1f, 0f);
+            hand[HandJoint.LittleMcp] = new Vector3(-0.05f, 0.1f, 0f);
+
+            Assert.That(FingerRetargeting.HiddenFingers(hand), Is.EqualTo(0), "A hand facing the camera shows its fingers; one folded behind the palm is folded.");
+        }
+
+        private static HandPose EdgeOnHand(float[] depths)
+        {
+            var hand = new HandPose();
+            hand.ImagePositions[(int)HandJoint.Wrist] = new Vector2(0.5f, 0.5f);
+            hand.ImagePositions[(int)HandJoint.MiddleMcp] = new Vector2(0.5f, 0.4f);
+            hand[HandJoint.Wrist] = Vector3.zero;
+            hand[HandJoint.IndexMcp] = new Vector3(0f, 0.1f, depths[0] * 0.1f);
+            hand[HandJoint.LittleMcp] = new Vector3(0f, 0.1f, depths[3] * 0.1f);
+            for (int finger = 0; finger < 4; finger++)
+            {
+                int first = (int)HandJoint.IndexMcp + (finger * 4);
+                for (int joint = 1; joint < 4; joint++)
+                {
+                    hand.ImagePositions[first + joint] = new Vector2(0.5f, 0.38f - (joint * 0.02f));
+                    hand.Positions[first + joint] = new Vector3(0f, 0.1f + (joint * 0.02f), depths[finger]);
+                }
+            }
+
+            return hand;
+        }
+
+        [Test]
+        public void Tuning_OfOneIsTheSameAsNone()
+        {
+            HandPose hand = Hand(bends: 50f, middleBends: 50f, endBends: 5f, spread: 5f, thumbOpen: 10f, thumbBends: 50f);
+            var plain = new FingerPose();
+            var tuned = new FingerPose();
+
+            FingerRetargeting.TryMeasure(hand, left: false, plain);
+            FingerRetargeting.TryMeasure(hand, left: false, tuned, new FingerTuning());
+
+            for (Finger finger = Finger.Thumb; finger <= Finger.Little; finger++)
+            {
+                for (int joint = 0; joint < FingerPose.JointCount; joint++)
+                {
+                    Assert.That(tuned.Bend(finger, joint), Is.EqualTo(plain.Bend(finger, joint)), $"{finger} {joint}");
+                }
+            }
+        }
+
+        [Test]
+        public void Tuning_ScalesTheBend_WithinTheLimits()
+        {
+            HandPose hand = Hand(bends: 30f, middleBends: 50f, endBends: 5f, spread: 0f, thumbOpen: 10f, thumbBends: 40f);
+            var plain = new FingerPose();
+            var strong = new FingerPose();
+            var weak = new FingerPose();
+            FingerRetargeting.TryMeasure(hand, left: false, plain);
+            FingerRetargeting.TryMeasure(hand, left: false, strong, new FingerTuning { Bend = 1.5f, Thumb = 1.5f });
+            FingerRetargeting.TryMeasure(hand, left: false, weak, new FingerTuning { Bend = 0.5f, Thumb = 0.5f });
+
+            Assert.That(strong.Bend(Finger.Middle, 0), Is.EqualTo(plain.Bend(Finger.Middle, 0) * 1.5f).Within(0.01f));
+            Assert.That(strong.Bend(Finger.Middle, 1), Is.EqualTo(plain.Bend(Finger.Middle, 1) * 1.5f).Within(0.01f));
+            Assert.That(weak.Bend(Finger.Middle, 1), Is.EqualTo(plain.Bend(Finger.Middle, 1) * 0.5f).Within(0.01f));
+            Assert.That(strong.Bend(Finger.Thumb, 2), Is.EqualTo(plain.Bend(Finger.Thumb, 2) * 1.5f).Within(0.01f));
+
+            FingerRetargeting.TryMeasure(Hand(bends: 80f, middleBends: 120f, endBends: 60f, spread: 0f, thumbOpen: 10f, thumbBends: 50f), left: false, strong, new FingerTuning { Bend = 2f });
+            Assert.That(strong.Bend(Finger.Middle, 0), Is.LessThanOrEqualTo(FingerRetargeting.MaxBaseBend));
+            Assert.That(strong.Bend(Finger.Middle, 1), Is.LessThanOrEqualTo(FingerRetargeting.MaxMiddleBend));
+        }
+
+        [Test]
+        public void Tuning_KeepsAnOpenHandOpen()
+        {
+            HandPose hand = Hand(bends: 0f, middleBends: 0f, endBends: 0f, spread: 0f, thumbOpen: 45f, thumbBends: 0f);
+            var pose = new FingerPose();
+
+            FingerRetargeting.TryMeasure(hand, left: false, pose, new FingerTuning { Bend = 2f, Thumb = 2f });
+
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(0f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(0f).Within(Tolerance));
+            Assert.That(pose.Bend(Finger.Thumb, 1), Is.EqualTo(0f).Within(Tolerance));
+        }
+
+        [Test]
+        public void Tuning_FromAFile_IsKeptInRange()
+        {
+            Assert.That(FingerTuning.Normalized(null), Is.EqualTo(new FingerTuning()));
+            Assert.That(FingerTuning.Normalized(new FingerTuning { Bend = 9f, Thumb = float.NaN }), Is.EqualTo(new FingerTuning { Bend = FingerTuning.Max, Thumb = 1f }));
+            Assert.That(new FingerTuning().WithBend(0f).Bend, Is.EqualTo(FingerTuning.Min));
+            Assert.That(new FingerTuning { Bend = 1.5f }.WithThumb(0.7f).Bend, Is.EqualTo(1.5f));
+        }
+
+        [Test]
         public void ABentHand_IsShownBentFurtherThanRead_WithinTheLimits()
         {
             // The tracked hand reads its bends small; past what an open hand reads, they are scaled up.
@@ -40,8 +215,8 @@ namespace VirtualVessel.Avatar.Tests
             var pose = new FingerPose();
             FingerRetargeting.TryMeasure(hand, left: false, pose);
 
-            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain).Within(Tolerance * 2f), "Into the palm at the base.");
-            float middle = FingerRetargeting.ShownMiddle(Finger.Middle, 50f);
+            (float shownBase, float middle) = FingerRetargeting.Arc((50f - FingerRetargeting.OpenBend) * FingerRetargeting.BaseGain, FingerRetargeting.ShownMiddle(Finger.Middle, 50f));
+            Assert.That(pose.Bend(Finger.Middle, 0), Is.EqualTo(shownBase).Within(Tolerance * 2f), "Into the palm at the base.");
             Assert.That(pose.Bend(Finger.Middle, 1), Is.EqualTo(middle).Within(Tolerance * 2f));
             Assert.That(pose.Bend(Finger.Middle, 2), Is.EqualTo(middle * FingerRetargeting.EndShare).Within(Tolerance * 2f), "The end joint goes with the middle one, whatever it reads.");
             Assert.That(pose.Bend(Finger.Thumb, 0), Is.EqualTo(0f), "A thumb standing out of the fist does not fold.");
