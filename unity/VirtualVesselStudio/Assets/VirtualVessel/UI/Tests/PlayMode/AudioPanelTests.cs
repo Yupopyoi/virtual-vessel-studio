@@ -57,7 +57,7 @@ namespace VirtualVessel.UI.Tests
             AudioCard card = OpenCard();
             yield return null;
             Assert.That(card.Groups.Count, Is.EqualTo(2));
-            AudioCard.SourceGroup game = card.Groups[1];
+            AudioSourceRow game = card.Groups[1];
             Assert.That(game.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "mic", "board" }), "None first, then the devices.");
             Assert.That(game.Devices.value, Is.EqualTo(string.Empty));
 
@@ -86,7 +86,7 @@ namespace VirtualVessel.UI.Tests
             VisualElement label = card.Q(className: AudioCard.CellLabelClass);
             Assert.That(columns.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
             Assert.That(label.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
-            AudioCard.SourceGroup game = card.Groups[1];
+            AudioSourceRow game = card.Groups[1];
             Assert.That(game.Mute.worldBound.y, Is.EqualTo(game.Meter.worldBound.y).Within(24f), "One row per source.");
             CheckInside(card);
 
@@ -178,7 +178,7 @@ namespace VirtualVessel.UI.Tests
         public IEnumerator AProblem_SaysWhatToDo_AndDeniedAccessOpensWindowsSettings()
         {
             AudioCard card = OpenCard();
-            AudioCard.SourceGroup microphone = card.Groups[0];
+            AudioSourceRow microphone = card.Groups[0];
             _audio.Microphone.Report(AudioSourceState.Running, AudioProblem.None);
             yield return null;
             Assert.That((microphone.Status.Status, microphone.Status.TextKey), Is.EqualTo((StatusKind.Success, AudioStrings.Running)));
@@ -263,7 +263,7 @@ namespace VirtualVessel.UI.Tests
         {
             float right = card.Q<Card>().contentContainer.worldBound.xMax;
             Assert.That(card.Delay.worldBound.xMax, Is.LessThanOrEqualTo(right + 0.5f), "The delay slider reaches past the Card.");
-            foreach (AudioCard.SourceGroup group in card.Groups)
+            foreach (AudioSourceRow group in card.Groups)
             {
                 foreach (VisualElement element in new VisualElement[] { group.Devices, group.Gain, group.Mute, group.Meter, group.Problem, group.PrivacyButton, group.Status })
                 {

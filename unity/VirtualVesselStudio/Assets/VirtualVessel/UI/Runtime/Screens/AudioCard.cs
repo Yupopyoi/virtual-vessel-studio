@@ -83,7 +83,7 @@ namespace VirtualVessel.UI.Screens
         public const float NarrowWidth = 760f;
 
         private readonly IAudioService _audio;
-        private readonly List<SourceGroup> _groups = new List<SourceGroup>();
+        private readonly List<AudioSourceRow> _groups = new List<AudioSourceRow>();
 
         /// <param name="gameDeviceOnCapture">The game capture Card chooses the game audio's device, so this one only shows it.</param>
         public AudioCard(IAudioService audio, ISystemSettings systemSettings, bool gameDeviceOnCapture = false)
@@ -92,15 +92,15 @@ namespace VirtualVessel.UI.Screens
             AddToClassList(UssClass);
             Card card = Ui.Card(AudioStrings.Title);
             Add(card);
-            card.Add(Columns());
+            card.Add(AudioMixerRow.Columns());
             foreach (IAudioSource source in audio.Sources)
             {
-                var group = new SourceGroup(source, systemSettings, gameDeviceOnCapture && source.Role == AudioSourceRole.GameAudio);
+                var group = new AudioSourceRow(source, systemSettings, gameDeviceOnCapture && source.Role == AudioSourceRole.GameAudio);
                 _groups.Add(group);
                 card.Add(group.Root);
             }
 
-            Monitor = new MonitorGroup(audio.Monitor);
+            Monitor = new AudioMonitorRow(audio.Monitor);
             card.Add(Monitor.Root);
             card.Add(Ui.Text(AudioStrings.MonitoredDescription, NoteClass, "vv-text-caption"));
             card.Add(Ui.Text(AudioStrings.HeadphonesNote, NoteClass, "vv-text-caption"));
@@ -122,13 +122,13 @@ namespace VirtualVessel.UI.Screens
         }
 
         /// <summary>What the user hears.</summary>
-        public MonitorGroup Monitor { get; }
+        public AudioMonitorRow Monitor { get; }
 
         /// <summary>How much later recording and streaming get the sound, in ms.</summary>
         public ValueSlider Delay { get; }
 
         /// <summary>The groups in the order of the sources: the microphone, then the game audio.</summary>
-        public IReadOnlyList<SourceGroup> Groups => _groups;
+        public IReadOnlyList<AudioSourceRow> Groups => _groups;
 
         /// <summary>Whether a Card this wide wraps its rows. Pure.</summary>
         public static bool IsNarrow(float width)
@@ -177,58 +177,6 @@ namespace VirtualVessel.UI.Screens
             return choices;
         }
 
-        private static VisualElement Columns()
-        {
-            var columns = new VisualElement();
-            columns.AddToClassList(ColumnsClass);
-            AddHeading(columns, AudioStrings.Source, NameColumn);
-            AddHeading(columns, AudioStrings.Device, DeviceColumn);
-            AddHeading(columns, AudioStrings.Gain, GainColumn);
-            AddHeading(columns, AudioStrings.Monitored, ToggleColumn);
-            AddHeading(columns, AudioStrings.Mute, ToggleColumn);
-            AddHeading(columns, AudioStrings.Level, LevelColumn);
-            return columns;
-        }
-
-        private static void AddHeading(VisualElement columns, string key, string column)
-        {
-            VisualElement cell = Ui.Text(key, CellClass, column, "vv-text-caption");
-            columns.Add(cell);
-        }
-
-        private static VisualElement Row(VisualElement name)
-        {
-            var row = new VisualElement();
-            row.AddToClassList(RowClass);
-            var cell = new VisualElement();
-            cell.AddToClassList(CellClass);
-            cell.AddToClassList(NameColumn);
-            cell.Add(name);
-            row.Add(cell);
-            return row;
-        }
-
-        // The name in a cell shows only while the columns' headings are gone (NarrowClass).
-        private static void AddCell(VisualElement row, string key, VisualElement control, string column)
-        {
-            var cell = new VisualElement();
-            cell.AddToClassList(CellClass);
-            cell.AddToClassList(column);
-            cell.Add(Ui.Text(key, CellLabelClass, "vv-text-caption"));
-            cell.Add(control);
-            row.Add(cell);
-        }
-
-        // The monitor is not sent anywhere: a blank, so its later columns stay under their headings.
-        private static void AddEmptyCell(VisualElement row, string column)
-        {
-            var cell = new VisualElement();
-            cell.AddToClassList(CellClass);
-            cell.AddToClassList(column);
-            cell.AddToClassList(EmptyCellClass);
-            row.Add(cell);
-        }
-
         private IDisposable Attach(UiServices services)
         {
             _audio.RefreshDevices();
@@ -247,7 +195,7 @@ namespace VirtualVessel.UI.Screens
                 subscriptions.Add(new DisposeAction(() => services.Localizer.LocaleChanged -= relabel));
             }
 
-            foreach (SourceGroup group in _groups)
+            foreach (AudioSourceRow group in _groups)
             {
                 subscriptions.Add(group.Attach());
             }
@@ -261,222 +209,12 @@ namespace VirtualVessel.UI.Screens
         private void ShowDevices(UiServices services)
         {
             string missing = services?.Localizer?.Get(AudioStrings.MissingDevice) ?? AudioStrings.MissingDevice;
-            foreach (SourceGroup group in _groups)
+            foreach (AudioSourceRow group in _groups)
             {
                 group.ShowDevices(_audio.InputDevices.Value, missing);
             }
 
             Monitor.ShowDevices(_audio.OutputDevices.Value, missing);
-        }
-
-        /// <summary>What the user hears: where it plays, how loud, and its level.</summary>
-        public sealed class MonitorGroup
-        {
-            private readonly IAudioMonitor _monitor;
-            private readonly KeyedText _problemText;
-
-            public MonitorGroup(IAudioMonitor monitor)
-            {
-                _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
-                Root = new VisualElement();
-                Root.AddToClassList(GroupClass);
-
-                var heading = new VisualElement();
-                heading.AddToClassList(HeadingClass);
-                heading.Add(Ui.Text(AudioStrings.Monitor, "vv-text-body"));
-                Status = Ui.Chip(StatusKind.Idle, AudioStrings.Off);
-                heading.Add(Status);
-                VisualElement row = Row(heading);
-                Root.Add(row);
-
-                Problem = new Label();
-                Problem.AddToClassList(ProblemClass);
-                Problem.AddToClassList("vv-text-body");
-                _problemText = new KeyedText(Problem, text =>
-                {
-                    Problem.text = text;
-                    Problem.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
-                });
-                Root.Add(Problem);
-
-                Devices = Ui.Select(null);
-                Devices.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithDevice(evt.newValue)));
-                AddCell(row, AudioStrings.MonitorDevice, Devices, DeviceColumn);
-
-                Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
-                Gain.Step = 1f;
-                Gain.Signed = true;
-                Gain.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithGain(evt.newValue)));
-                AddCell(row, AudioStrings.Gain, Gain, GainColumn);
-
-                AddEmptyCell(row, ToggleColumn);
-                Mute = new SwitchToggle();
-                Mute.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithMuted(evt.newValue)));
-                AddCell(row, AudioStrings.Mute, Mute, ToggleColumn);
-
-                Meter = new LevelMeter();
-                AddCell(row, AudioStrings.Level, Meter, LevelColumn);
-                Show();
-            }
-
-            public VisualElement Root { get; }
-
-            public StatusChip Status { get; }
-
-            public Label Problem { get; }
-
-            public SelectField Devices { get; }
-
-            public ValueSlider Gain { get; }
-
-            public SwitchToggle Mute { get; }
-
-            public LevelMeter Meter { get; }
-
-            internal IDisposable Attach()
-            {
-                IVisualElementScheduledItem level = Root.schedule.Execute(() => Meter.Level = LevelOf(_monitor.PeakDb)).Every(LevelMeter.DefaultIntervalMs * 3);
-                return new DisposeAll(new List<IDisposable>
-                {
-                    new DisposeAction(level.Pause),
-                    _monitor.State.Subscribe(_ => Show()),
-                    _monitor.Problem.Subscribe(_ => Show()),
-                    _monitor.Options.Subscribe(_ => Show()),
-                });
-            }
-
-            internal void ShowDevices(IReadOnlyList<AudioDevice> devices, string missingText)
-            {
-                Devices.SetChoices(Choices(devices, _monitor.Options.Value.DeviceId, missingText));
-                Devices.SetValueWithoutNotify(_monitor.Options.Value.DeviceId ?? string.Empty);
-            }
-
-            private void Show()
-            {
-                AudioMonitorOptions options = _monitor.Options.Value;
-                (StatusKind kind, string stateKey, string problemKey) = Describe(_monitor.State.Value, _monitor.Problem.Value, options.Muted);
-                Status.Status = kind;
-                Status.TextKey = stateKey;
-                _problemText.Key = problemKey;
-                Devices.SetValueWithoutNotify(options.DeviceId ?? string.Empty);
-                Gain.SetValueWithoutNotify(options.GainDb);
-                Mute.SetValueWithoutNotify(options.Muted);
-            }
-        }
-
-        /// <summary>One source's rows.</summary>
-        public sealed class SourceGroup
-        {
-            private readonly IAudioSource _source;
-            private readonly KeyedText _problemText;
-
-            public SourceGroup(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere)
-            {
-                _source = source;
-                Root = new VisualElement();
-                Root.AddToClassList(GroupClass);
-
-                var heading = new VisualElement();
-                heading.AddToClassList(HeadingClass);
-                heading.Add(Ui.Text(source.Role == AudioSourceRole.Microphone ? AudioStrings.Microphone : AudioStrings.GameAudio, "vv-text-body"));
-                Status = Ui.Chip(StatusKind.Idle, AudioStrings.Off);
-                heading.Add(Status);
-                VisualElement row = Row(heading);
-                Root.Add(row);
-
-                Problem = new Label();
-                Problem.AddToClassList(ProblemClass);
-                Problem.AddToClassList("vv-text-body");
-                _problemText = new KeyedText(Problem, text =>
-                {
-                    Problem.text = text;
-                    Problem.style.display = string.IsNullOrEmpty(text) ? DisplayStyle.None : DisplayStyle.Flex;
-                });
-                Root.Add(Problem);
-
-                // Only when Windows denies access: the one problem the user fixes in Windows' own settings.
-                PrivacyButton = Ui.Button(AudioStrings.OpenPrivacy).Bind(new UiCommand(() => systemSettings?.OpenMicrophonePrivacy()));
-                PrivacyButton.AddToClassList(PrivacyClass);
-                Root.Add(PrivacyButton);
-
-                // Disabled, not left out, so the row still says which device the sound comes from.
-                Devices = Ui.Select(null);
-                Devices.SetEnabled(!deviceElsewhere);
-                Devices.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithDevice(evt.newValue)));
-                AddCell(row, AudioStrings.Device, Devices, DeviceColumn);
-
-                Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
-                Gain.Step = 1f;
-                Gain.Signed = true;
-                Gain.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithGain(evt.newValue)));
-                AddCell(row, AudioStrings.Gain, Gain, GainColumn);
-
-                Monitored = new SwitchToggle();
-                Monitored.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMonitored(evt.newValue)));
-                AddCell(row, AudioStrings.Monitored, Monitored, ToggleColumn);
-
-                Mute = new SwitchToggle();
-                Mute.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMuted(evt.newValue)));
-                AddCell(row, AudioStrings.Mute, Mute, ToggleColumn);
-
-                Meter = new LevelMeter();
-                AddCell(row, AudioStrings.Level, Meter, LevelColumn);
-                Show();
-            }
-
-            public VisualElement Root { get; }
-
-            public StatusChip Status { get; }
-
-            public Label Problem { get; }
-
-            /// <summary>The problem's explanation as shown, for tests.</summary>
-            public string ProblemKey => _problemText.Key;
-
-            public ActionButton PrivacyButton { get; }
-
-            public SelectField Devices { get; }
-
-            public ValueSlider Gain { get; }
-
-            public SwitchToggle Mute { get; }
-
-            /// <summary>Whether the user hears this source.</summary>
-            public SwitchToggle Monitored { get; }
-
-            public LevelMeter Meter { get; }
-
-            internal IDisposable Attach()
-            {
-                IVisualElementScheduledItem level = Root.schedule.Execute(() => Meter.Level = LevelOf(_source.PeakDb)).Every(LevelMeter.DefaultIntervalMs * 3);
-                return new DisposeAll(new List<IDisposable>
-                {
-                    new DisposeAction(level.Pause),
-                    _source.State.Subscribe(_ => Show()),
-                    _source.Problem.Subscribe(_ => Show()),
-                    _source.Options.Subscribe(_ => Show()),
-                });
-            }
-
-            internal void ShowDevices(IReadOnlyList<AudioDevice> devices, string missingText)
-            {
-                Devices.SetChoices(Choices(devices, _source.Options.Value.DeviceId, missingText));
-                Devices.SetValueWithoutNotify(_source.Options.Value.DeviceId ?? string.Empty);
-            }
-
-            private void Show()
-            {
-                AudioSourceOptions options = _source.Options.Value;
-                (StatusKind kind, string stateKey, string problemKey) = Describe(_source.State.Value, _source.Problem.Value, options.Muted);
-                Status.Status = kind;
-                Status.TextKey = stateKey;
-                _problemText.Key = problemKey;
-                PrivacyButton.style.display = problemKey == AudioStrings.ProblemAccessDenied ? DisplayStyle.Flex : DisplayStyle.None;
-                Devices.SetValueWithoutNotify(options.DeviceId ?? string.Empty);
-                Gain.SetValueWithoutNotify(options.GainDb);
-                Mute.SetValueWithoutNotify(options.Muted);
-                Monitored.SetValueWithoutNotify(options.Monitored);
-            }
         }
     }
 }
