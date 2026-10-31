@@ -152,7 +152,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -170,7 +171,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-The completed system design is placed at `docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`.
+The completed system design is placed, one file per chapter, in `docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`. `system-design.md` beside each directory is the table of contents. Chapter and section numbers are referenced by other documents and do not change.
 
 This document is placed at `docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`.
 
@@ -580,7 +581,7 @@ Do not change any code yet.
 Please check the following:
 
 - CLAUDE.md
-- docs/en/architecture/system-design.md
+- the relevant chapters of docs/en/architecture/system-design/
 - related existing code
 - GameCapture benchmark / prototype
 - SubScreenCapture benchmark / prototype

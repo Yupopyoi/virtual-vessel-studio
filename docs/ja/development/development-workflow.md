@@ -154,7 +154,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -172,7 +173,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-`docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`には、完成した方式設計書を配置する。
+`docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`には、完成した方式設計書を章ごとに配置する。同じ場所の`system-design.md`が目次である。章番号と節番号は他の文書から参照されるため、変更しない。
 
 本書は、`docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`として配置する。
 
@@ -586,7 +587,7 @@ Capture Moduleの実装を開始します。
 以下を確認してください。
 
 - CLAUDE.md
-- docs/ja/architecture/system-design.md
+- docs/ja/architecture/system-design/ の関係する章
 - 関係する既存コード
 - GameCaptureのBenchmark / Prototype
 - SubScreenCaptureのBenchmark / Prototype
