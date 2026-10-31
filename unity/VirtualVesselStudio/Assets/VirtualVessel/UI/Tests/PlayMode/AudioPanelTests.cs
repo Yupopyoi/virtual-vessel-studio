@@ -74,6 +74,38 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_audio.StreamDelay.Value, Is.EqualTo(TimeSpan.FromMilliseconds(200)));
         }
 
+        [UnityTest]
+        public IEnumerator TheColumns_MakeWayForTheControlsOwnNames_WhenTheCardIsNarrow()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            card.style.width = 1000;
+            yield return null;
+            yield return null;
+            VisualElement columns = card.Q(className: AudioCard.ColumnsClass);
+            VisualElement label = card.Q(className: AudioCard.CellLabelClass);
+            Assert.That(columns.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(label.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            AudioCard.SourceGroup game = card.Groups[1];
+            Assert.That(game.Mute.worldBound.y, Is.EqualTo(game.Meter.worldBound.y).Within(24f), "One row per source.");
+            CheckInside(card);
+
+            card.style.width = 400;
+            yield return null;
+            yield return null;
+            Assert.That(columns.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(label.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            CheckInside(card);
+        }
+
+        [Test]
+        public void TheDevice_IsOnlyShown_WhenTheGameCaptureCardChoosesIt()
+        {
+            var card = new AudioCard(_audio, _settings, gameDeviceOnCapture: true);
+            Assert.That(card.Groups[0].Devices.enabledSelf, Is.True, "The microphone's device is chosen here.");
+            Assert.That(card.Groups[1].Devices.enabledSelf, Is.False);
+        }
+
         [Test]
         public void Find_MatchesTheVideoDevicesName_InsideTheAudioDevicesName()
         {

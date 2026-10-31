@@ -19,9 +19,8 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.audio.unavailable";
         public const string Microphone = "setup.audio.microphone";
         public const string GameAudio = "setup.audio.game";
+        public const string Source = "setup.audio.source";
         public const string Device = "setup.audio.device";
-        public const string MicrophoneDescription = "setup.audio.device.microphone";
-        public const string GameAudioDescription = "setup.audio.device.game";
         public const string NoDevice = "setup.audio.device.none";
         public const string MissingDevice = "setup.audio.device.missing";
         public const string Gain = "setup.audio.gain";
@@ -40,11 +39,10 @@ namespace VirtualVessel.UI.Screens
         public const string OpenPrivacy = "setup.audio.open-privacy";
         public const string Monitored = "setup.audio.monitored";
         public const string MonitoredDescription = "setup.audio.monitored.description";
+        public const string HeadphonesNote = "setup.audio.monitor.headphones";
+        public const string GameDeviceNote = "setup.audio.game-device";
         public const string Monitor = "setup.audio.monitor";
         public const string MonitorDevice = "setup.audio.monitor.device";
-        public const string MonitorDeviceDescription = "setup.audio.monitor.device.description";
-        public const string MonitorGain = "setup.audio.monitor.gain";
-        public const string MonitorMute = "setup.audio.monitor.mute";
         public const string Delay = "setup.audio.delay";
         public const string DelayDescription = "setup.audio.delay.description";
         public const string LiveMicrophone = "live.audio.microphone";
@@ -54,14 +52,26 @@ namespace VirtualVessel.UI.Screens
     }
 
     /// <summary>
-    /// The audio sources on the setup screen (audio detailed design 18; setup.md 11): for the microphone and
-    /// the game audio, the device, the gain, mute, and the level, with the source's state in the group's
-    /// heading and what to do when it has a problem.
+    /// The audio on the setup screen as a mixer (audio detailed design 18; setup.md 11): a row per source, then
+    /// what the user hears, in columns, so another source adds a row and not a block of rows. A row shows
+    /// the source's state, and what to do when it has a problem.
     /// </summary>
     public sealed class AudioCard : VisualElement
     {
         public const string UssClass = "vv-audio-card";
+        public const string NarrowClass = UssClass + "--narrow";
         public const string GroupClass = UssClass + "__group";
+        public const string ColumnsClass = UssClass + "__columns";
+        public const string RowClass = UssClass + "__row";
+        public const string CellClass = UssClass + "__cell";
+        public const string CellLabelClass = CellClass + "-label";
+        public const string NameColumn = CellClass + "--name";
+        public const string DeviceColumn = CellClass + "--device";
+        public const string GainColumn = CellClass + "--gain";
+        public const string ToggleColumn = CellClass + "--toggle";
+        public const string LevelColumn = CellClass + "--level";
+        public const string EmptyCellClass = CellClass + "--empty";
+        public const string NoteClass = UssClass + "__note";
         public const string HeadingClass = UssClass + "__heading";
         public const string ProblemClass = UssClass + "__problem";
         public const string PrivacyClass = UssClass + "__privacy";
@@ -69,24 +79,35 @@ namespace VirtualVessel.UI.Screens
         /// <summary>How often devices are listed again while the Card is shown, so a plugged-in one appears.</summary>
         public const long DeviceIntervalMs = 5000;
 
+        /// <summary>Below this width, in px, the columns do not fit: a row wraps and each control is named.</summary>
+        public const float NarrowWidth = 760f;
+
         private readonly IAudioService _audio;
         private readonly List<SourceGroup> _groups = new List<SourceGroup>();
 
-        public AudioCard(IAudioService audio, ISystemSettings systemSettings)
+        /// <param name="gameDeviceOnCapture">The game capture Card chooses the game audio's device, so this one only shows it.</param>
+        public AudioCard(IAudioService audio, ISystemSettings systemSettings, bool gameDeviceOnCapture = false)
         {
             _audio = audio ?? throw new ArgumentNullException(nameof(audio));
             AddToClassList(UssClass);
             Card card = Ui.Card(AudioStrings.Title);
             Add(card);
+            card.Add(Columns());
             foreach (IAudioSource source in audio.Sources)
             {
-                var group = new SourceGroup(source, systemSettings);
+                var group = new SourceGroup(source, systemSettings, gameDeviceOnCapture && source.Role == AudioSourceRole.GameAudio);
                 _groups.Add(group);
                 card.Add(group.Root);
             }
 
             Monitor = new MonitorGroup(audio.Monitor);
             card.Add(Monitor.Root);
+            card.Add(Ui.Text(AudioStrings.MonitoredDescription, NoteClass, "vv-text-caption"));
+            card.Add(Ui.Text(AudioStrings.HeadphonesNote, NoteClass, "vv-text-caption"));
+            if (gameDeviceOnCapture)
+            {
+                card.Add(Ui.Text(AudioStrings.GameDeviceNote, NoteClass, "vv-text-caption"));
+            }
 
             // Recording and streaming get the sound later, to meet the avatar's motion (audio detailed design 8.5).
             Delay = Ui.Slider(null, 0, AudioSettings.MaxStreamDelayMs, "ms");
@@ -96,6 +117,7 @@ namespace VirtualVessel.UI.Screens
             delay.Add(Delay);
             card.Add(delay);
 
+            RegisterCallback<GeometryChangedEvent>(evt => EnableInClassList(NarrowClass, IsNarrow(evt.newRect.width)));
             PanelLifetime.WhileAttached(this, Attach);
         }
 
@@ -107,6 +129,12 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The groups in the order of the sources: the microphone, then the game audio.</summary>
         public IReadOnlyList<SourceGroup> Groups => _groups;
+
+        /// <summary>Whether a Card this wide wraps its rows. Pure.</summary>
+        public static bool IsNarrow(float width)
+        {
+            return width < NarrowWidth;
+        }
 
         /// <summary>A level in dBFS on the meter, from -60 dB (empty) to 0 dB (full). Pure.</summary>
         public static float LevelOf(float peakDb)
@@ -147,6 +175,58 @@ namespace VirtualVessel.UI.Screens
             }
 
             return choices;
+        }
+
+        private static VisualElement Columns()
+        {
+            var columns = new VisualElement();
+            columns.AddToClassList(ColumnsClass);
+            AddHeading(columns, AudioStrings.Source, NameColumn);
+            AddHeading(columns, AudioStrings.Device, DeviceColumn);
+            AddHeading(columns, AudioStrings.Gain, GainColumn);
+            AddHeading(columns, AudioStrings.Monitored, ToggleColumn);
+            AddHeading(columns, AudioStrings.Mute, ToggleColumn);
+            AddHeading(columns, AudioStrings.Level, LevelColumn);
+            return columns;
+        }
+
+        private static void AddHeading(VisualElement columns, string key, string column)
+        {
+            VisualElement cell = Ui.Text(key, CellClass, column, "vv-text-caption");
+            columns.Add(cell);
+        }
+
+        private static VisualElement Row(VisualElement name)
+        {
+            var row = new VisualElement();
+            row.AddToClassList(RowClass);
+            var cell = new VisualElement();
+            cell.AddToClassList(CellClass);
+            cell.AddToClassList(NameColumn);
+            cell.Add(name);
+            row.Add(cell);
+            return row;
+        }
+
+        // The name in a cell shows only while the columns' headings are gone (NarrowClass).
+        private static void AddCell(VisualElement row, string key, VisualElement control, string column)
+        {
+            var cell = new VisualElement();
+            cell.AddToClassList(CellClass);
+            cell.AddToClassList(column);
+            cell.Add(Ui.Text(key, CellLabelClass, "vv-text-caption"));
+            cell.Add(control);
+            row.Add(cell);
+        }
+
+        // The monitor is not sent anywhere: a blank, so its later columns stay under their headings.
+        private static void AddEmptyCell(VisualElement row, string column)
+        {
+            var cell = new VisualElement();
+            cell.AddToClassList(CellClass);
+            cell.AddToClassList(column);
+            cell.AddToClassList(EmptyCellClass);
+            row.Add(cell);
         }
 
         private IDisposable Attach(UiServices services)
@@ -206,7 +286,8 @@ namespace VirtualVessel.UI.Screens
                 heading.Add(Ui.Text(AudioStrings.Monitor, "vv-text-body"));
                 Status = Ui.Chip(StatusKind.Idle, AudioStrings.Off);
                 heading.Add(Status);
-                Root.Add(heading);
+                VisualElement row = Row(heading);
+                Root.Add(row);
 
                 Problem = new Label();
                 Problem.AddToClassList(ProblemClass);
@@ -220,28 +301,21 @@ namespace VirtualVessel.UI.Screens
 
                 Devices = Ui.Select(null);
                 Devices.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithDevice(evt.newValue)));
-                SettingRow device = Ui.SettingRow(AudioStrings.MonitorDevice, AudioStrings.MonitorDeviceDescription);
-                device.Add(Devices);
-                Root.Add(device);
+                AddCell(row, AudioStrings.MonitorDevice, Devices, DeviceColumn);
 
                 Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
                 Gain.Step = 1f;
                 Gain.Signed = true;
                 Gain.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithGain(evt.newValue)));
-                SettingRow gain = Ui.SettingRow(AudioStrings.MonitorGain);
-                gain.Add(Gain);
-                Root.Add(gain);
+                AddCell(row, AudioStrings.Gain, Gain, GainColumn);
 
+                AddEmptyCell(row, ToggleColumn);
                 Mute = new SwitchToggle();
                 Mute.RegisterValueChangedCallback(evt => _monitor.SetOptions(_monitor.Options.Value.WithMuted(evt.newValue)));
-                SettingRow mute = Ui.SettingRow(AudioStrings.MonitorMute);
-                mute.Add(Mute);
-                Root.Add(mute);
+                AddCell(row, AudioStrings.Mute, Mute, ToggleColumn);
 
                 Meter = new LevelMeter();
-                SettingRow level = Ui.SettingRow(AudioStrings.Level);
-                level.Add(Meter);
-                Root.Add(level);
+                AddCell(row, AudioStrings.Level, Meter, LevelColumn);
                 Show();
             }
 
@@ -296,7 +370,7 @@ namespace VirtualVessel.UI.Screens
             private readonly IAudioSource _source;
             private readonly KeyedText _problemText;
 
-            public SourceGroup(IAudioSource source, ISystemSettings systemSettings)
+            public SourceGroup(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere)
             {
                 _source = source;
                 Root = new VisualElement();
@@ -307,7 +381,8 @@ namespace VirtualVessel.UI.Screens
                 heading.Add(Ui.Text(source.Role == AudioSourceRole.Microphone ? AudioStrings.Microphone : AudioStrings.GameAudio, "vv-text-body"));
                 Status = Ui.Chip(StatusKind.Idle, AudioStrings.Off);
                 heading.Add(Status);
-                Root.Add(heading);
+                VisualElement row = Row(heading);
+                Root.Add(row);
 
                 Problem = new Label();
                 Problem.AddToClassList(ProblemClass);
@@ -324,36 +399,28 @@ namespace VirtualVessel.UI.Screens
                 PrivacyButton.AddToClassList(PrivacyClass);
                 Root.Add(PrivacyButton);
 
+                // Disabled, not left out, so the row still says which device the sound comes from.
                 Devices = Ui.Select(null);
+                Devices.SetEnabled(!deviceElsewhere);
                 Devices.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithDevice(evt.newValue)));
-                SettingRow device = Ui.SettingRow(AudioStrings.Device, source.Role == AudioSourceRole.Microphone ? AudioStrings.MicrophoneDescription : AudioStrings.GameAudioDescription);
-                device.Add(Devices);
-                Root.Add(device);
+                AddCell(row, AudioStrings.Device, Devices, DeviceColumn);
 
                 Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
                 Gain.Step = 1f;
                 Gain.Signed = true;
                 Gain.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithGain(evt.newValue)));
-                SettingRow gain = Ui.SettingRow(AudioStrings.Gain);
-                gain.Add(Gain);
-                Root.Add(gain);
-
-                Mute = new SwitchToggle();
-                Mute.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMuted(evt.newValue)));
-                SettingRow mute = Ui.SettingRow(AudioStrings.Mute);
-                mute.Add(Mute);
-                Root.Add(mute);
+                AddCell(row, AudioStrings.Gain, Gain, GainColumn);
 
                 Monitored = new SwitchToggle();
                 Monitored.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMonitored(evt.newValue)));
-                SettingRow monitored = Ui.SettingRow(AudioStrings.Monitored, AudioStrings.MonitoredDescription);
-                monitored.Add(Monitored);
-                Root.Add(monitored);
+                AddCell(row, AudioStrings.Monitored, Monitored, ToggleColumn);
+
+                Mute = new SwitchToggle();
+                Mute.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMuted(evt.newValue)));
+                AddCell(row, AudioStrings.Mute, Mute, ToggleColumn);
 
                 Meter = new LevelMeter();
-                SettingRow level = Ui.SettingRow(AudioStrings.Level);
-                level.Add(Meter);
-                Root.Add(level);
+                AddCell(row, AudioStrings.Level, Meter, LevelColumn);
                 Show();
             }
 

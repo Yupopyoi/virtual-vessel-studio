@@ -84,7 +84,7 @@ namespace VirtualVessel.UI.Screens
 
             if (services.Audio != null)
             {
-                audio.Add(new AudioCard(services.Audio, services.SystemSettings));
+                audio.Add(new AudioCard(services.Audio, services.SystemSettings, video.Q<GameAudioRow>() != null));
             }
             else
             {
