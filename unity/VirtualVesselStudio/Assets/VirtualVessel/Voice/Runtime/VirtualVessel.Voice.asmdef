@@ -1,0 +1,17 @@
+{
+    "name": "VirtualVessel.Voice",
+    "rootNamespace": "VirtualVessel.Voice",
+    "references": [
+        "VirtualVessel.Core",
+        "Unity.InferenceEngine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
