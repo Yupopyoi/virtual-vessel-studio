@@ -40,7 +40,8 @@ namespace VirtualVessel.Voice.Tests
                 Assert.Ignore($"{generator} is missing.");
             }
 
-            float[] input = ReadWav(Path.Combine(WorkFolder, "data", "source", "000.wav"));
+            string inputPath = Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(WorkFolder, "data", "source", "000.wav");
+            float[] input = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(inputPath), out int inputRate), inputRate, RvcStream.DeviceRate);
             var shape = new RvcStreamShape(100, blockFrames, 2, 1, HeadGuard, TailGuard, blockFrames + 3 + HeadGuard + TailGuard + 24, 32);
             using var stream = new RvcStream(
                 ModelLoader.Load(Path.Combine(models, "hubert_16000.sentis")),
