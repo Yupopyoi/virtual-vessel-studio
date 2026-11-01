@@ -231,6 +231,15 @@ feature/… fix/… docs/…    feature/…             back to develop
 
 - An urgent fix starts from `main` as `hotfix/<name>`, is released through a pull request into `main`, and is then brought back into `develop` (a pull request from `main` into `develop`).
 
+### Tracking integration branch
+
+Tracking, avatar motion, and hand work is gathered on `feature/tracking` (the user's decision, 2026-10-31). This work changes in many small steps, so it stays apart from `develop` until it settles.
+
+- Work branches start from `feature/tracking`, and their pull requests target `feature/tracking`
+- Work on other modules uses `develop` as before
+- The user decides when `feature/tracking` goes into `develop`
+- When `feature/tracking` is behind `develop`, confirm whether to bring `develop` in before starting work
+
 ## 6.2 Branch Naming
 
 | Type | Prefix | Example |
