@@ -476,17 +476,16 @@ In the development environment, for each component,
 
 are made explicit, and excessive dependence on each developer's global Python environment is avoided.
 
-For normal users, a portable runtime package or standalone executable generated from the development environment by the build pipeline is provided, in which
+On normal users' PCs, the environment is built at activation from the following information verified in development (13.4).
 
-- runtime package version
+- environment version
 - Python runtime version
 - dependency versions
 - external OSS version / commit
 - adapter version
-- build ID
 - package hash
 
-and so on can be identified.
+A built environment can identify these versions.
 
 Normal users are not required to install or operate Python itself, venv, pip, etc.
 

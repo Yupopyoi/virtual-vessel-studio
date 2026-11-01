@@ -474,7 +474,7 @@ End users must not be required to:
 - resolve Python dependencies,
 - understand Python environment structure.
 
-Production distribution should use build-generated runtime packages.
+Production distribution should use build-generated runtime packages, except where the architecture builds a component on the user's PC. Voice Lab's training environment is built at activation from a manifest and lock with pinned hashes, without user involvement (system design 13.4).
 
 Conceptually:
 

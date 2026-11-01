@@ -153,3 +153,18 @@ It includes at least the following. The wording is reviewed by a legal professio
 - The external components fetched, their licenses, and required notices (the license table above, including VCTK's attribution)
 - That an internet connection is needed and large files are fetched, and from where
 - That training audio is processed on the user's PC and not sent outside
+
+## 2026-11-01 How the training environment is made (system design 13.4)
+
+The user's decision: instead of distributing a Runtime Package built by the project, the environment is built on the user's PC from uv and a lock at activation.
+
+Compared:
+
+| | Distributing a Runtime Package | Building on the user's PC (adopted) |
+|---|---|---|
+| Reproducibility | High | Kept by pinned hashes |
+| Redistributing PyTorch and CUDA | Needed | Not needed |
+| What the project hosts | Packages of several GB | Information and copies only |
+| When a source disappears | Not affected | New users are affected |
+
+Countermeasures for disappearing sources are in Voice Lab detailed design 8.1. Limiting training to NVIDIA GPUs, silence as the default on conversion failure, and putting SQLite off were approved at the same time.

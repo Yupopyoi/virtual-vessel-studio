@@ -193,6 +193,8 @@ classDiagram
     IVoiceConverter <|.. FutureVoiceConverter
 ```
 
+GPU work can only be issued from the main thread, so the actual interface separates issuing and collecting (Voice detailed design chapter 5).
+
 ### Rationale
 
 Even if RVC is suitable now, higher-quality or lower-latency voice conversion approaches may become available in the future.
@@ -395,7 +397,7 @@ Also, when voice conversion fails, passing through the original voice, if the us
 
 Therefore, failures of the voice conversion function are isolated from the entire system.
 
-Because automatically using pass-through and muting have different privacy implications, this is configurable by the user.
+Because automatically using pass-through and muting have different privacy implications, this is configurable by the user. The default is mute (the user's approval, 2026-11-01).
 
 ---
 

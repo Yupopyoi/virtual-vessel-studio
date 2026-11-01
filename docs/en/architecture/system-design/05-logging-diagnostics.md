@@ -346,9 +346,9 @@ When an external process starts, the following are recorded as needed:
 - source version / commit
 - adapter version
 - execution mode (portable runtime / developer venv)
-- runtime package version / build ID
+- environment version
 - Python version
-- runtime package path / venv path
+- environment path / venv path
 - process ID
 - start time
 - port

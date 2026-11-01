@@ -484,17 +484,16 @@ Pythonを利用するExternal Componentについては、**開発環境**と**�
 
 を明示し、開発者ごとのGlobal Python Environmentへ過度に依存しない。
 
-通常利用者向けには、開発環境からBuild Pipelineによって生成した、
+通常利用者のPCには、アクティベーションのときに、開発環境で検証した次の情報から環境を構築する（13.4）。
 
-- Runtime Package Version
+- 環境のVersion
 - Python Runtime Version
 - Dependency Version
 - External OSS Version / Commit
 - Adapter Version
-- Build Id
 - Package Hash
 
-等を識別可能なPortable Runtime PackageまたはStandalone Executableを提供する。
+構築した環境は、これらのVersionを識別できる。
 
 通常利用者にPython本体、venv、pip等の導入・操作を要求しない。
 

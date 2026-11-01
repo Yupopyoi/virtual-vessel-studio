@@ -350,9 +350,9 @@ External Process起動時には、必要に応じて以下を記録する。
 - Source Version / Commit
 - Adapter Version
 - Execution Mode（Portable Runtime / Developer venv）
-- Runtime Package Version / Build Id
+- 環境のVersion
 - Python Version
-- Runtime Package Path / venv Path
+- 環境のPath / venv Path
 - Process ID
 - 起動時刻
 - Port

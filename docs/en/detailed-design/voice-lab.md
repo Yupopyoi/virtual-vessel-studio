@@ -149,7 +149,14 @@ Done
 
 The sizes are measured on the prototype's environment and fall when dependencies are narrowed down.
 
-Things come from their sources. Only the project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
+Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
+
+So that new users are not stopped when a source changes or disappears:
+
+- Copies of the MIT and Apache-2.0 models and of RVC's source sit on the same GitHub Releases. When a source lacks them, the copy is used, and both are checked against the same hash. Notices stay with the copies.
+- PyPI packages, PyTorch, and CUDA have no copies. They are unlikely to disappear, and the latter are not redistributed.
+- GitHub Actions periodically checks that every source is reachable and its hash matches.
+- The list of sources is bundled with the application, so fixing it takes an application update. If PyTorch's source removes an old version, new activation stops until that update. Streaming and built environments are not affected.
 
 Progress says things like "Preparing the environment", with no words such as Python or pip in ordinary screens (system design 4.27).
 
@@ -289,8 +296,8 @@ Open issues:
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
 - The agreement screen's wording, reviewed by a legal professional before release.
 
-**Decisions for the user:**
+Approved by the user (2026-11-01):
 
-1. **How the environment is made.** System design 13.4 distributes a Runtime Package built by the project. This document builds on the user's PC from uv and a lock. That fits the activation decision and avoids redistributing PyTorch and CUDA libraries, but depends on sources not changing or disappearing. Once approved, system design 13.4, 13.6, 13.7, 4.1, and 4.19 are updated.
-2. **GPUs other than NVIDIA.** This document limits training to NVIDIA GPUs. Using a voice (conversion) is expected to work on others, but that has not been tried.
-3. **Putting SQLite off** (6.3). A temporary deviation from system design 13.12.
+1. The environment is built on the user's PC from uv and a lock. System design 13.4, 13.6, 13.7, 13.8, and chapter 4 were updated.
+2. Training is limited to NVIDIA GPUs. Using a voice is expected to work on others, but that has not been tried.
+3. SQLite is put off until the comparison screen (6.3), as noted in system design 13.12.

@@ -177,7 +177,7 @@ Voice Lab writes the activation state, and Voice only reads it.
 | The work fell behind | Drops old blocks | Nothing; counted in diagnostics |
 | A voice's hash differs | Not loaded | The voice's files are damaged |
 
-**The default on failure is `Mute`.** System design 9.13 makes it the user's setting. For someone streaming with a changed voice, their real voice going out cannot be undone, so by default it does not. It is implemented by leaving the stage on and writing nothing, which gives silence.
+**The default on failure is `Mute` (the user's approval, 2026-11-01).** System design 9.13 makes it the user's setting. For someone streaming with a changed voice, their real voice going out cannot be undone, so by default it does not. It is implemented by leaving the stage on and writing nothing, which gives silence.
 
 ## 13. Logging and Diagnostics
 
