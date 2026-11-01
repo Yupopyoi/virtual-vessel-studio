@@ -78,4 +78,58 @@ Speechbrain ECAPA speaker similarity to the target voice, and pitch correlation 
 
 ### How to try it
 
-Models and speech are outside the repository. Put the `.sentis` files (`hubert_16000`, `rmvpe_32`, `gen_b10`) in `VoiceModels/Prototype` in the Data Root, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. The Editor must restart after the plugin is updated.
+Models and speech are outside the repository. Put the `.sentis` files (`hubert_16000`, `rmvpe_32`, `gen_b10`, and the speaker's `gen_b10.spk`) in `VoiceModels/Prototype` in the Data Root, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. The Editor must restart after the plugin is updated.
+
+## 2026-11-01 Activation and the training environment (system design chapter 13)
+
+The user's decision: the feature for making voices does not work until the user activates it, and activation builds the training environment. An internet connection may be assumed.
+
+This way PyTorch, CUDA, and the models come to the user's PC from their sources instead of inside the application. The download stays small, and NVIDIA's proprietary libraries are not redistributed.
+
+## 2026-11-01 License check
+
+This is not a legal review. It records what the sources said on this date.
+
+| Component | License | Evidence | Action |
+|---|---|---|---|
+| RVC (code) | MIT | The repository's LICENSE | Keep the notice |
+| Pretrained models, `rmvpe.pt`, HuBERT | MIT | Shown on `lj1995/VoiceConversionWebUI`; its README is empty, with nothing per file | Keep the notice |
+| The pretraining data (VCTK) | CC BY 4.0 | RVC's README and VCTK's release notes | Credit VCTK |
+| ContentVec | MIT | The repository's LICENSE | Keep the notice |
+| RMVPE (code) | Apache-2.0 | The repository's LICENSE | Keep the notice |
+| VoxCPM2 | Apache-2.0 | The repository and model card | See the conditions below |
+| `praat-parselmouth` | GPLv3 | Package metadata | **Undecided** |
+| `soxr`, `FreeSimpleGUI` | LGPL | Package metadata | FreeSimpleGUI is left out; soxr stays replaceable |
+| NVIDIA libraries | Proprietary | Package metadata | Not redistributed; fetched to the user's PC |
+
+**VoxCPM2's model card forbids impersonation, fraud, and disinformation, and asks that AI-generated content be labeled.** The voice feature's UI and terms will reflect this.
+
+RVC imports `praat-parselmouth`, but only the `pm` pitch method uses it, and this prototype uses `rmvpe`. CLAUDE.md chapter 35 requires the user's approval for GPL, so the user decides whether it stays. The proposal is to leave it out of the training environment.
+
+The licenses of `kaldiio`, `llvmlite`, `torchcodec`, and `gradio` could not be read from package metadata. They are checked when the training environment's dependencies are fixed.
+
+## 2026-11-01 Making a voice's `.sentis` without the Editor
+
+Converting ONNX to `.sentis` exists only in the Unity Editor, so a distributed application cannot do it. Voices share a model structure, so the question was whether only the weights can be swapped.
+
+### Method
+
+Inference Engine's `Constant.array` is `internal`, and the public API cannot change it. So the weight bytes inside the `.sentis` file are written directly.
+
+1. Developers make a template `.sentis` from the pretrained model in the Editor
+2. From the template and one voice, a table gives each weight's place in the file (`tools/voice/weight_manifest.py build`)
+3. On the user's PC after training, the trained weights are written at those places (`apply`). This needs only Python and takes 1.3 s
+
+### Results
+
+**For a voice not used to make the table, the Editor's file and Python's are identical by SHA-256.** All 352 weights were placed. Converting with the result in Unity gives speaker similarity 0.888 and pitch correlation 0.995, the same as a voice from the Editor, and 199 blocks ran at real time with none dropped.
+
+### Findings
+
+- With a fixed speaker, the conditioning weights are folded into constants on import and cannot be swapped. **The speaker vector becomes a model input**, kept apart in a `.spk` file
+- `emb_rel_k` is stored transposed and padded to the window, so a new window length needs a new table
+- A weight of a few bytes also matches elsewhere by chance, so building the table also checks that the Editor's file holds the value there
+
+### Caution
+
+The `.sentis` format is not a published specification. After updating `com.unity.ai.inference`, make the template and table again and repeat this comparison.
