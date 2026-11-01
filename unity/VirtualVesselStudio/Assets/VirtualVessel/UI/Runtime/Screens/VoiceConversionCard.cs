@@ -16,6 +16,7 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
+        public const string StateNoMicrophone = "diagnostics.voice.state.no-microphone";
         public const string StateUnavailable = "diagnostics.voice.state.unavailable";
         public const string StateFailed = "diagnostics.voice.state.failed";
     }
@@ -56,12 +57,13 @@ namespace VirtualVessel.UI.Screens
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
 
-            var state = new Label();
+            // Without a text color of their own, labels in a Card fall back to a dark one.
+            Label state = QuietText.Of(new Label());
             state.AddToClassList("vv-text-body");
             _stateText = new KeyedText(state, value => state.text = value);
             card.Add(state);
 
-            _stats = new Label();
+            _stats = QuietText.Of(new Label());
             _stats.AddToClassList("vv-text-mono");
             card.Add(_stats);
 
@@ -78,6 +80,8 @@ namespace VirtualVessel.UI.Screens
                     return VoiceConversionStrings.StateLoading;
                 case VoiceConversionState.Running:
                     return VoiceConversionStrings.StateRunning;
+                case VoiceConversionState.NoMicrophone:
+                    return VoiceConversionStrings.StateNoMicrophone;
                 case VoiceConversionState.Unavailable:
                     return VoiceConversionStrings.StateUnavailable;
                 case VoiceConversionState.Failed:

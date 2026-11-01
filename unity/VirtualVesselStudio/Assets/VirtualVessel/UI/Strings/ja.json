@@ -192,6 +192,7 @@
         "diagnostics.voice.state.off": "止まっています",
         "diagnostics.voice.state.loading": "モデルを読み込んでいます",
         "diagnostics.voice.state.running": "変換しています",
+        "diagnostics.voice.state.no-microphone": "マイクの音が届いていません。設定の音声でマイクを選んでください",
         "diagnostics.voice.state.unavailable": "モデルかマイクがありません",
         "diagnostics.voice.state.failed": "止まりました。ログを確認してください",
         "diagnostics.recordings.title": "トラッキングの記録",

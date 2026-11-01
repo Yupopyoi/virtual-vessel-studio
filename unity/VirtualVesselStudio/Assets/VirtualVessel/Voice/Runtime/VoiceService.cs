@@ -73,6 +73,8 @@ namespace VirtualVessel.Voice
 
         public VoiceConversionStats Stats => _stats;
 
+        private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone;
+
         /// <summary>What stopped the conversion, for tests and diagnostics.</summary>
         public Exception Failure { get; private set; }
 
@@ -87,6 +89,12 @@ namespace VirtualVessel.Voice
                     _stream.Semitones = value;
                 }
             }
+        }
+
+        /// <summary>What to show while on: running only when there is a voice to convert. Pure.</summary>
+        public static VoiceConversionState AttachedState(bool capturing)
+        {
+            return capturing ? VoiceConversionState.Running : VoiceConversionState.NoMicrophone;
         }
 
         /// <summary>Samples to leave out so that no more than <paramref name="maxBlocks"/> wait. Pure.</summary>
@@ -201,11 +209,12 @@ namespace VirtualVessel.Voice
                 FinishLoading();
             }
 
-            if (_state.Value != VoiceConversionState.Running)
+            if (!IsAttached)
             {
                 return;
             }
 
+            _state.Set(AttachedState(_stage.IsCapturing));
             try
             {
                 Pump();
@@ -266,12 +275,12 @@ namespace VirtualVessel.Voice
             _waitingSamples = 0;
             _primed = false;
             _stage.SetEnabled(true);
-            _state.Set(VoiceConversionState.Running);
+            _state.Set(AttachedState(_stage.IsCapturing));
         }
 
         private void Stop()
         {
-            if (_state.Value == VoiceConversionState.Running)
+            if (IsAttached)
             {
                 _stage.SetEnabled(false);
             }

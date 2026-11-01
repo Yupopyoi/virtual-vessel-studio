@@ -8,6 +8,9 @@ namespace VirtualVessel.UI.Voice
         Loading,
         Running,
 
+        /// <summary>Turned on, but the microphone gives nothing to convert, such as with no device chosen.</summary>
+        NoMicrophone,
+
         /// <summary>No models in the folder, or no microphone.</summary>
         Unavailable,
         Failed,

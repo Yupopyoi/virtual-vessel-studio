@@ -192,6 +192,7 @@
         "diagnostics.voice.state.off": "Off",
         "diagnostics.voice.state.loading": "Loading the models",
         "diagnostics.voice.state.running": "Converting",
+        "diagnostics.voice.state.no-microphone": "No sound from the microphone. Choose one under Audio in Setup",
         "diagnostics.voice.state.unavailable": "The models or the microphone are missing",
         "diagnostics.voice.state.failed": "It stopped. See the log",
         "diagnostics.recordings.title": "Tracking recordings",

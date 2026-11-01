@@ -37,6 +37,14 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(stereo, Is.EqualTo(new[] { 0.25f, 0.25f, -0.5f, -0.5f }));
         }
 
+        [TestCase(true, VoiceConversionState.Running)]
+        [TestCase(false, VoiceConversionState.NoMicrophone)]
+        public void AttachedState_SaysRunningOnlyWithAVoice(bool capturing, VoiceConversionState expected)
+        {
+            Assert.That(VoiceService.AttachedState(capturing), Is.EqualTo(expected));
+        }
+
+        [TestCase(VoiceConversionState.NoMicrophone, VoiceConversionStrings.StateNoMicrophone)]
         [TestCase(VoiceConversionState.Off, VoiceConversionStrings.StateOff)]
         [TestCase(VoiceConversionState.Running, VoiceConversionStrings.StateRunning)]
         [TestCase(VoiceConversionState.Failed, VoiceConversionStrings.StateFailed)]

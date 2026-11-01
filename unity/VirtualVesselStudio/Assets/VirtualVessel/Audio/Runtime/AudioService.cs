@@ -314,6 +314,8 @@ namespace VirtualVessel.Audio
 
             public bool IsAvailable => Engine != null && Microphone != null;
 
+            public bool IsCapturing => IsAvailable && Microphone.State.Value == AudioSourceState.Running;
+
             private IAudioStageEngine Engine => _service._engine as IAudioStageEngine;
 
             private Source Microphone => _service._sources.Find(source => source.Role == AudioSourceRole.Microphone);

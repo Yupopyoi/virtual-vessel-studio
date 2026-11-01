@@ -251,6 +251,9 @@ namespace VirtualVessel.Audio
         /// <summary>False with no microphone source, or an engine without stages.</summary>
         bool IsAvailable { get; }
 
+        /// <summary>Whether the microphone is delivering audio; false with no device chosen.</summary>
+        bool IsCapturing { get; }
+
         void SetEnabled(bool enabled);
 
         /// <summary>Interleaved stereo frames waiting since the last read; returns how many.</summary>
