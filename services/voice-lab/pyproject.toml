@@ -1,0 +1,31 @@
+[project]
+name = "voice-lab-rvc"
+version = "0.0.1"
+requires-python = "==3.12.*"
+dependencies = [
+  "torch==2.7.1+cu118",
+  "torchaudio==2.7.1+cu118",
+  "numpy==1.26.4",
+  "scipy==1.17.1",
+  "librosa==0.10.2.post1",
+  "soundfile==0.14.0",
+  "av==15.1.0",
+  "ffmpeg-python==0.2.0",
+  "matplotlib==3.11.2",
+  "tensorboard==2.21.0",
+  "transformers==4.49.0",
+  "onnx==1.23.2",
+  "setuptools<81",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu118" }
+torchaudio = { index = "pytorch-cu118" }
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
