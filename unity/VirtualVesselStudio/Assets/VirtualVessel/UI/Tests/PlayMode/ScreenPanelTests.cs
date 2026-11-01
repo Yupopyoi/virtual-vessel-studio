@@ -178,7 +178,7 @@ namespace VirtualVessel.UI.Tests
 
             shell.Items[2].Focus();
             Key(shell.Items[2], KeyCode.DownArrow);
-            Assert.That(shell.Items[0].focusController.focusedElement, Is.SameAs(shell.Items[2]), "The hidden Diagnostics item is skipped.");
+            Assert.That(shell.Items[0].focusController.focusedElement, Is.SameAs(shell.QuitItem), "The hidden Diagnostics item is skipped.");
         }
 
         private AppShell Shell()

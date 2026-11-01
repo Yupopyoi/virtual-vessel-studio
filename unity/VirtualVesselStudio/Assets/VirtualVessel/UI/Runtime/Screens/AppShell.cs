@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Icons;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -14,6 +15,7 @@ namespace VirtualVessel.UI.Screens
     {
         public const string UssClass = "vv-shell";
         public const string NavClass = UssClass + "__nav";
+        public const string QuitClass = UssClass + "__quit";
         public const string VersionClass = UssClass + "__version";
 
         private readonly IReadOnlyList<ScreenDefinition> _screens;
@@ -43,6 +45,14 @@ namespace VirtualVessel.UI.Screens
                 Navigation.Add(item);
             }
 
+            // Not a screen: it stays out of Items and never shows as selected.
+            QuitItem = Ui.NavItem(IconName.Quit, QuitConfirmation.ItemText);
+            QuitItem.TooltipKey = QuitConfirmation.ItemTooltip;
+            QuitItem.AddToClassList(QuitClass);
+            QuitItem.clicked += () => QuitRequested?.Invoke();
+            QuitItem.RegisterCallback<NavigationMoveEvent>(OnItemNavigationMove);
+            Navigation.Add(QuitItem);
+
             if (!string.IsNullOrEmpty(version))
             {
                 // A version number reads the same in every language.
@@ -61,12 +71,18 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Raised after a screen opens, by the user or by code.</summary>
         public event Action<string> Opened;
 
+        /// <summary>Raised when the user chooses to quit; the owner asks for confirmation.</summary>
+        public event Action QuitRequested;
+
         public VisualElement Navigation { get; }
 
         public ScreenHost Host { get; }
 
         /// <summary>The navigation items, in the order of the screens.</summary>
         public IReadOnlyList<NavItem> Items => _items;
+
+        /// <summary>Under the screens' items, at the bottom of the navigation.</summary>
+        public NavItem QuitItem { get; }
 
         /// <summary>Null when no version was given.</summary>
         public Label Version { get; }
@@ -134,6 +150,7 @@ namespace VirtualVessel.UI.Screens
                 }
             }
 
+            visible.Add(QuitItem);
             int index = ScreenNavigation.Step(visible.IndexOf(evt.currentTarget as NavItem), step, visible.Count);
             if (index >= 0)
             {

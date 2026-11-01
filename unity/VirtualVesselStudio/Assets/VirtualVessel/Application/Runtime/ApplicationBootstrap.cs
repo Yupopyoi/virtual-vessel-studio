@@ -81,6 +81,11 @@ namespace VirtualVessel.Application
                 _mainCamera);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
+            if (_uiRoot != null)
+            {
+                _uiRoot.QuitConfirmed += Quit;
+            }
+
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
 #endif
@@ -119,6 +124,11 @@ namespace VirtualVessel.Application
         private void OnDestroy()
         {
             UnityEngine.Application.wantsToQuit -= OnWantsToQuit;
+            if (_uiRoot != null)
+            {
+                _uiRoot.QuitConfirmed -= Quit;
+            }
+
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
 #endif
