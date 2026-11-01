@@ -234,6 +234,59 @@ namespace
         return peak;
     }
 
+    // With a stage on, capture waits for the stage, the mix hears only what the stage writes, and bursts
+    // of many blocks are played evenly without drift corrections.
+    void Stage()
+    {
+        Mixer mixer(Frequency);
+        int id = -1;
+        Check(mixer.Add(&id), "a source is added");
+        mixer.SetSend(id, 1, 0.0f);
+        mixer.SetStage(id, true);
+
+        size_t phase = 0;
+        std::vector<float> loud = Tone(0.5f, BlockFrames, phase);
+        mixer.Write(id, loud.data(), BlockFrames);
+        std::vector<float> read(static_cast<size_t>(BlockFrames) * 2 * Channels);
+        Check(mixer.ReadStage(id, read.data(), BlockFrames * 2) == BlockFrames, "capture reaches the stage");
+
+        const int BurstBlocks = 10;
+        std::vector<float> out(static_cast<size_t>(BlockFrames) * Channels);
+        uint64_t mixed = 0;
+        for (int burst = 0; burst < 100; burst++)
+        {
+            std::vector<float> quiet = Tone(0.25f, static_cast<size_t>(BurstBlocks) * BlockFrames, phase);
+            mixer.WriteStage(id, quiet.data(), static_cast<size_t>(BurstBlocks) * BlockFrames);
+            for (int block = 0; block < BurstBlocks; block++)
+            {
+                mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+                mixed++;
+                size_t got = mixer.ReadMonitor(out.data(), BlockFrames);
+                if (burst > 0)
+                {
+                    Check(std::abs(Peak(out.data(), static_cast<int>(got), Channels) - 0.25f) < 0.01f, "the stage's audio plays, not the capture");
+                }
+            }
+        }
+
+        SourceCounters counters = mixer.TakeCounters(id);
+        Check(counters.underruns == 0, "bursts do not run dry");
+        Check(counters.driftCorrections == 0, "a burst's swing is not taken for drift");
+
+        mixer.SetStage(id, false);
+        for (int i = 0; i < 20; i++)
+        {
+            std::vector<float> tone = Tone(0.5f, BlockFrames, phase);
+            mixer.Write(id, tone.data(), BlockFrames);
+            mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+            mixed++;
+            mixer.ReadMonitor(out.data(), BlockFrames);
+        }
+
+        Check(std::abs(Peak(out.data(), BlockFrames, Channels) - 0.5f) < 0.01f, "off again, the capture plays directly");
+        Check(mixer.ReadStage(id, read.data(), BlockFrames) == 0, "nothing waits for a stage that is off");
+    }
+
     void MonitorBus()
     {
         Mixer mixer(Frequency);
@@ -476,6 +529,7 @@ int main()
     Step("drift", [] { Drift(1.001, "a device 0.1% fast"); Drift(0.999, "a device 0.1% slow"); });
     Step("running dry", RunningDry);
     Step("tap timing", TapTiming);
+    Step("stage", Stage);
     Step("monitor bus", MonitorBus);
     Step("fill", Fill);
     Step("ramps", Ramps);

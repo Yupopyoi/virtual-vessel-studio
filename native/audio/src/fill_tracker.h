@@ -25,8 +25,9 @@ namespace vv::audio
     class FillTracker
     {
     public:
-        // What to do for a block of `wanted` frames with `available` waiting.
-        FillStep Next(size_t available, int wanted)
+        // What to do for a block of `wanted` frames with `available` waiting. Without `follow` the fill
+        // is not corrected: a source that arrives in bursts swings by a burst, which is not drift.
+        FillStep Next(size_t available, int wanted, bool follow = true)
         {
             FillStep step;
             if (!_primed)
@@ -56,7 +57,7 @@ namespace vv::audio
             }
 
             step.take = wanted;
-            if (_blocks > SettleBlocks)
+            if (follow && _blocks > SettleBlocks)
             {
                 if (_average > _target + DriftTolerance && available > static_cast<size_t>(wanted))
                 {

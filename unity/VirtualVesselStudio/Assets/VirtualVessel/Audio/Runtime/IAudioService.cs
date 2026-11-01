@@ -242,6 +242,24 @@ namespace VirtualVessel.Audio
         public bool IsValid => Context != IntPtr.Zero && Read != IntPtr.Zero;
     }
 
+    /// <summary>
+    /// A processing stage on the microphone, such as voice conversion (audio detailed design 8.3). The
+    /// stage works on its own schedule, so a slow one can never hold up the mix.
+    /// </summary>
+    public interface IAudioStage
+    {
+        /// <summary>False with no microphone source, or an engine without stages.</summary>
+        bool IsAvailable { get; }
+
+        void SetEnabled(bool enabled);
+
+        /// <summary>Interleaved stereo frames waiting since the last read; returns how many.</summary>
+        int Read(float[] frames, int capacity);
+
+        /// <summary>Interleaved stereo frames for the mix, in place of what was captured.</summary>
+        void Write(float[] frames, int count);
+    }
+
     /// <summary>The sources, the devices, and the stream bus (audio detailed design 5).</summary>
     public interface IAudioService
     {

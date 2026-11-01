@@ -37,8 +37,10 @@ namespace vv::audio
             if (!slot.used)
             {
                 slot.input = std::make_unique<FrameRing>(InputFrames);
+                slot.stageInput = std::make_unique<FrameRing>(InputFrames);
                 slot.gain = 1.0f;
                 slot.muted = false;
+                slot.stage = false;
                 slot.send = 1.0f;
                 slot.monitorSend = 0.0f;
                 slot.overruns = 0;
@@ -72,6 +74,41 @@ namespace vv::audio
     }
 
     void Mixer::Write(int id, const float* frames, size_t count)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        Slot& slot = _slots[id];
+        FrameRing& target = slot.stage.load() ? *slot.stageInput : *slot.input;
+        size_t written = target.Write(frames, count);
+        if (written < count)
+        {
+            slot.overruns += static_cast<int64_t>(count - written);
+        }
+    }
+
+    void Mixer::SetStage(int id, bool enabled)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        // The stage stops writing before it turns off, and starts a block after it turns on, so the
+        // input ring keeps a single writer. What waited for the stage is not played late.
+        Slot& slot = _slots[id];
+        slot.stage = enabled;
+        slot.stageInput->Read(nullptr, slot.stageInput->Available());
+    }
+
+    size_t Mixer::ReadStage(int id, float* frames, size_t capacity)
+    {
+        return Used(id) ? _slots[id].stageInput->Read(frames, capacity) : 0;
+    }
+
+    void Mixer::WriteStage(int id, const float* frames, size_t count)
     {
         if (!Used(id))
         {
@@ -131,7 +168,7 @@ namespace vv::audio
 
     bool Mixer::ReadSource(Slot& slot)
     {
-        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames);
+        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames, !slot.stage.load());
         if (step.ranDry)
         {
             // What is left is let go, and the source waits to fill up again, so it does not stutter.

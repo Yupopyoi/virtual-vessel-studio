@@ -74,6 +74,17 @@ namespace VirtualVessel.Audio
         AudioStreamTap StreamingTap { get; }
     }
 
+    /// <summary>An engine that can put a processing stage on a source (audio detailed design 8.3).</summary>
+    public interface IAudioStageEngine
+    {
+        void SetStage(int source, bool enabled);
+
+        /// <summary>Stereo frames; returns how many were read.</summary>
+        int ReadStage(int source, float[] frames, int capacity);
+
+        void WriteStage(int source, float[] frames, int count);
+    }
+
     /// <summary>The audio engine could not start (audio detailed design 12).</summary>
     public sealed class AudioEngineException : Exception
     {
@@ -87,10 +98,10 @@ namespace VirtualVessel.Audio
     /// <c>VirtualVessel.Audio.Native</c> (native/audio/include/vv_audio.h): WASAPI capture, the mix, and the
     /// stream tap, on threads of its own. Calls come from the main thread.
     /// </summary>
-    public sealed class NativeAudioEngine : IAudioEngine
+    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 4;
+        private const int ApiVersion = 5;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -174,6 +185,21 @@ namespace VirtualVessel.Audio
         public void SetDevice(int source, string deviceId)
         {
             vv_audio_set_device(_engine, source, deviceId);
+        }
+
+        public void SetStage(int source, bool enabled)
+        {
+            vv_audio_set_stage(_engine, source, enabled ? 1 : 0);
+        }
+
+        public int ReadStage(int source, float[] frames, int capacity)
+        {
+            return vv_audio_stage_read(_engine, source, frames, capacity, out int read) == Ok ? read : 0;
+        }
+
+        public void WriteStage(int source, float[] frames, int count)
+        {
+            vv_audio_stage_write(_engine, source, frames, count);
         }
 
         public void SetGain(int source, float gainDb, bool muted)
@@ -319,6 +345,15 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_api_version();
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_set_stage(IntPtr engine, int source, int enabled);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_stage_read(IntPtr engine, int source, [Out] float[] frames, int capacity, out int read);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_stage_write(IntPtr engine, int source, [In] float[] frames, int count);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_list_inputs([Out] Device[] devices, int capacity, out int count);

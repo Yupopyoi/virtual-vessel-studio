@@ -361,6 +361,49 @@ extern "C"
         }
     }
 
+    int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        engine->mixer.SetStage(source, enabled != 0);
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        if (frames == nullptr || capacity < 0 || read == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *read = static_cast<int32_t>(engine->mixer.ReadStage(source, frames, static_cast<size_t>(capacity)));
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        if (frames == nullptr || count < 0)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        engine->mixer.WriteStage(source, frames, static_cast<size_t>(count));
+        return VV_AUDIO_OK;
+    }
+
     int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted)
     {
         if (engine == nullptr || !engine->mixer.Used(source))

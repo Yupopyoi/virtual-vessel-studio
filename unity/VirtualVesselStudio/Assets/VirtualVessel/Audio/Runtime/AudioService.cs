@@ -78,6 +78,9 @@ namespace VirtualVessel.Audio
 
         public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
 
+        /// <summary>The stage on the microphone; ask after this service has started.</summary>
+        public IAudioStage MicrophoneStage => new MicrophoneStageAccess(this);
+
         public static ConfigFileStore<AudioSettings> CreateStore(string directory, ISystemClock clock, string fileName = AudioSettings.FileName)
         {
             return new ConfigFileStore<AudioSettings>(directory, fileName, AudioSettings.SchemaVersion, () => new AudioSettings(), clock, AudioSettings.Migrations);
@@ -298,6 +301,43 @@ namespace VirtualVessel.Audio
             }
 
             return next;
+        }
+
+        private sealed class MicrophoneStageAccess : IAudioStage
+        {
+            private readonly AudioService _service;
+
+            public MicrophoneStageAccess(AudioService service)
+            {
+                _service = service;
+            }
+
+            public bool IsAvailable => Engine != null && Microphone != null;
+
+            private IAudioStageEngine Engine => _service._engine as IAudioStageEngine;
+
+            private Source Microphone => _service._sources.Find(source => source.Role == AudioSourceRole.Microphone);
+
+            public void SetEnabled(bool enabled)
+            {
+                if (IsAvailable)
+                {
+                    Engine.SetStage(Microphone.Engine, enabled);
+                }
+            }
+
+            public int Read(float[] frames, int capacity)
+            {
+                return IsAvailable ? Engine.ReadStage(Microphone.Engine, frames, capacity) : 0;
+            }
+
+            public void Write(float[] frames, int count)
+            {
+                if (IsAvailable)
+                {
+                    Engine.WriteStage(Microphone.Engine, frames, count);
+                }
+            }
         }
 
         private sealed class MonitorOutput : IAudioMonitor

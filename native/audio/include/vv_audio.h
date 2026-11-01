@@ -24,7 +24,8 @@ extern "C"
 // 2: the stream bus can be delayed (vv_audio_set_stream_delay).
 // 3: the monitor bus and its output device.
 // 4: each reader of the stream bus has its own tap (VV_AUDIO_READER_*).
-#define VV_AUDIO_API_VERSION 4
+// 5: a processing stage on a source (vv_audio_set_stage).
+#define VV_AUDIO_API_VERSION 5
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -109,6 +110,13 @@ VV_AUDIO_API int32_t vv_audio_remove_source(vv_audio_engine* engine, int32_t sou
 VV_AUDIO_API int32_t vv_audio_set_device(vv_audio_engine* engine, int32_t source, const wchar_t* device_id);
 
 // Gain in dB (-60 to +12); muted silences the source but keeps its level meter.
+// A processing stage on a source (audio detailed design 8.3): while on, what the device captures waits for
+// vv_audio_stage_read, and vv_audio_stage_write supplies what the mix hears. Reads and writes are in stereo
+// frames, from one thread, without blocking. Stop writing before turning it off.
+VV_AUDIO_API int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled);
+VV_AUDIO_API int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read);
+VV_AUDIO_API int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count);
+
 VV_AUDIO_API int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted);
 
 // How much of the source reaches a bus, in dB; -inf for none. A source reaches the monitor only when asked to.

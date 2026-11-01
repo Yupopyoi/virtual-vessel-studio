@@ -42,6 +42,12 @@ namespace vv::audio
         // The writer side of a source's input: the capture thread, or a test.
         void Write(int id, const float* frames, size_t count);
 
+        // A processing stage on a source (audio detailed design 8.3). While it is on, capture goes to the
+        // stage's ring instead of the mix, and what the stage writes takes its place.
+        void SetStage(int id, bool enabled);
+        size_t ReadStage(int id, float* frames, size_t capacity);
+        void WriteStage(int id, const float* frames, size_t count);
+
         void SetGain(int id, float gainDb, bool muted);
         void SetSend(int id, int bus, float sendDb);
 
@@ -94,6 +100,8 @@ namespace vv::audio
         {
             bool used = false;
             std::unique_ptr<FrameRing> input;
+            std::unique_ptr<FrameRing> stageInput;
+            std::atomic<bool> stage{ false };
             std::atomic<float> gain{ 1.0f };
             std::atomic<bool> muted{ false };
             std::atomic<float> send{ 1.0f };
