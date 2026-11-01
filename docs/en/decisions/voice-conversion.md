@@ -179,3 +179,14 @@ Compared:
 | When a source disappears | Not affected | New users are affected |
 
 Countermeasures for disappearing sources are in Voice Lab detailed design 8.1. Limiting training to NVIDIA GPUs, silence as the default on conversion failure, and putting SQLite off were approved at the same time.
+
+## 2026-11-01 Verifying the minimal training environment
+
+The same steps as distribution: an environment built into an empty folder with uv alone, then a voice made from start to end.
+
+- Dependencies fell from 136 packages to 66. `praat-parselmouth`, `gradio`, and `kaldiio` are not among them.
+- In place of `praat-parselmouth`, an empty `parselmouth.py` raises an error if used. RVC itself is unchanged. Preprocessing, RMVPE, HuBERT, and training (150 epochs) all ran to the end without calling it.
+- The voice exported from this environment, written into the template by the table, is identical by SHA-256 to the Editor's conversion.
+- Unity's real-time test ran 199 blocks with none dropped, at 86 ms per block.
+- Speaker similarity is 0.869, a little under the earlier environment's 0.888. Pitch correlation is the same at 0.994. Whether that is training's randomness or dependency versions has not been separated, and it has not been checked by listening.
+- The dependency definition is in `services/voice-lab/`.

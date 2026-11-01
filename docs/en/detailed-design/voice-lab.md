@@ -130,7 +130,7 @@ Training Run states are as in system design 13.15.
 
 ```text
 Open Voice Lab
-  ↓ Explain: what it does, size (about 12 GB, about 28 GB with VoxCPM2), time, an NVIDIA GPU is needed
+  ↓ Explain: what it does, size (about 8 GB, with VoxCPM2 needing more), time, an NVIDIA GPU is needed
 Show the terms (8.2) → agree
   ↓
 Check the PC: GPU, driver, free space, connection
@@ -147,7 +147,9 @@ Verify: actually run preprocessing and one epoch of training on short audio
 Done
 ```
 
-The sizes are measured on the prototype's environment and fall when dependencies are narrowed down.
+Measured (2026-11-01, the development PC with an RTX 4070): about an hour to fetch and unpack. About 7 GB for the environment and training models, and about 1 GB for the runtime's shared models and the template, about 8 GB in all. uv's cache adds about 6 GB, so about 14 GB is needed during the build. The cache is removed afterwards. How the time divides, such as between the connection and file scanning, has not been measured. VoxCPM2's environment has not been narrowed down.
+
+Because it takes long, the explanation screen gives an estimate and says it can resume after an interruption.
 
 Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
 
@@ -185,7 +187,7 @@ Second stage (designing an ideal voice):
 Describe the voice → make candidates with VoxCPM2 → choose → make training audio → train → listen → register
 ```
 
-The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 8 minutes.
+The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 10 minutes.
 
 ### 8.4 Registration (making a `.sentis` without the Editor)
 
@@ -276,7 +278,7 @@ Assets/VirtualVessel/VoiceLab/Runtime/
 services/voice-lab/
 ├─ pyproject.toml, uv.lock
 ├─ train.py, export_voice.py, generate.py
-├─ parselmouth.py   An empty module that only satisfies the import (chapter 17)
+├─ parselmouth.py   An empty module that only satisfies the import (decision record)
 └─ tests/
 ```
 
@@ -291,8 +293,8 @@ Stages:
 
 Open issues:
 
-- How to leave out `praat-parselmouth`. RVC imports it, so the idea is an empty module on the adapter's path, with RVC itself unchanged. Whether this works has not been tried.
-- The smallest set of dependencies for training. Today's environment has 136 packages, including the web UI's. Licenses are checked after narrowing it down.
+- Narrowing down VoxCPM2's dependencies. `kaldiio` must be left out (decision record).
+- Checking on a truly new PC. The development PC already has drivers and so on.
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
 - The agreement screen's wording, reviewed by a legal professional before release.
 
