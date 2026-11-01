@@ -25,7 +25,7 @@ namespace VirtualVessel.Voice.Tests
         private static float Semitones => float.Parse(Environment.GetEnvironmentVariable("VV_VOICE_SEMITONES") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
 
         [TestCase("b10", 10, BackendType.GPUCompute)]
-        [TestCase("b5", 5, BackendType.GPUCompute)]
+        [TestCase("b10_patched", 10, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int blockFrames, BackendType backend)
         {
             if (string.IsNullOrEmpty(WorkFolder))
@@ -46,6 +46,7 @@ namespace VirtualVessel.Voice.Tests
                 ModelLoader.Load(Path.Combine(models, "hubert_16000.sentis")),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),
                 ModelLoader.Load(generator),
+                VoiceService.ReadSpeaker(Path.Combine(models, "gen_b10.spk")),
                 shape,
                 backend,
                 Semitones);

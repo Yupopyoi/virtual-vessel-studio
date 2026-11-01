@@ -44,6 +44,7 @@ namespace VirtualVessel.Voice
 
         private IDisposable _tick;
         private Task<Model[]> _loading;
+        private float[] _speaker;
         private RvcStream _stream;
         private float[] _stereo;
         private float[] _waiting;
@@ -168,6 +169,20 @@ namespace VirtualVessel.Voice
             _stream = null;
         }
 
+        /// <summary>The voice's speaker vector: 256 little-endian floats, beside its generator.</summary>
+        public static float[] ReadSpeaker(string path)
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            var speaker = new float[bytes.Length / sizeof(float)];
+            Buffer.BlockCopy(bytes, 0, speaker, 0, speaker.Length * sizeof(float));
+            return speaker;
+        }
+
+        private static string SpeakerPath(string folder)
+        {
+            return Path.Combine(folder, "gen_b10.spk");
+        }
+
         private static string[] ModelPaths(string folder)
         {
             return new[]
@@ -190,7 +205,7 @@ namespace VirtualVessel.Voice
 
         private void BeginLoading()
         {
-            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder), File.Exists))
+            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder), File.Exists) || !File.Exists(SpeakerPath(_folder)))
             {
                 _log?.Warning($"Voice conversion is unavailable: stage {_stage.IsAvailable}, model folder '{_folder}'.");
                 _state.Set(VoiceConversionState.Unavailable);
@@ -199,7 +214,12 @@ namespace VirtualVessel.Voice
 
             _state.Set(VoiceConversionState.Loading);
             string[] paths = ModelPaths(_folder);
-            _loading = Task.Run(() => Array.ConvertAll(paths, ModelLoader.Load));
+            string speaker = SpeakerPath(_folder);
+            _loading = Task.Run(() =>
+            {
+                _speaker = ReadSpeaker(speaker);
+                return Array.ConvertAll(paths, ModelLoader.Load);
+            });
         }
 
         private void Tick()
@@ -235,7 +255,7 @@ namespace VirtualVessel.Voice
             try
             {
                 Model[] models = loading.GetAwaiter().GetResult();
-                _stream = new RvcStream(models[0], models[1], models[2], s_shape, BackendType.GPUCompute, _semitones);
+                _stream = new RvcStream(models[0], models[1], models[2], _speaker, s_shape, BackendType.GPUCompute, _semitones);
                 _stereo = new float[RvcStream.DeviceRate * ChannelCount];
                 _waiting = new float[RvcStream.DeviceRate];
                 _block = new float[_stream.BlockSamples];

@@ -82,6 +82,7 @@ namespace VirtualVessel.Voice.Rvc
         private const int SamplesPerFrame40k = GeneratorRate / 100;
         private const int PhoneChannels = 768;
         private const int LatentChannels = 192;
+        private const int SpeakerChannels = 256;
         private const float VoicedThreshold = 0.03f;
         private const int NoiseLoopFrames = 1024;
 
@@ -110,6 +111,7 @@ namespace VirtualVessel.Voice.Rvc
         private readonly Tensor<int> _coarseTensor;
         private readonly Tensor<float> _pitchfTensor;
         private readonly Tensor<float> _noiseTensor;
+        private readonly Tensor<float> _speakerTensor;
         private NativeArray<float> _audioData;
         private NativeArray<float> _melData;
         private NativeArray<float> _phoneData;
@@ -148,7 +150,7 @@ namespace VirtualVessel.Voice.Rvc
         private bool _hasTail;
         private bool _disposed;
 
-        public RvcStream(Model features, Model pitch, Model generator, RvcStreamShape shape, BackendType backend, float semitones)
+        public RvcStream(Model features, Model pitch, Model generator, float[] speaker, RvcStreamShape shape, BackendType backend, float semitones)
         {
             _shape = shape;
             _semitones = semitones;
@@ -178,6 +180,7 @@ namespace VirtualVessel.Voice.Rvc
             _noiseLoop = new float[LatentChannels * NoiseLoopFrames];
             FillGaussian(_noiseLoop, new System.Random(1234));
             _noiseData = new NativeArray<float>(LatentChannels * shape.NoiseFrames, Allocator.Persistent);
+            _speakerTensor = new Tensor<float>(new TensorShape(1, SpeakerChannels, 1), speaker);
             _noiseTensor = new Tensor<float>(new TensorShape(1, LatentChannels, shape.NoiseFrames));
 
             _history48k = new float[2 * _reach48k + shape.BlockFrames * SamplesPerFrame48k];
@@ -336,6 +339,7 @@ namespace VirtualVessel.Voice.Rvc
             _coarseTensor.Dispose();
             _pitchfTensor.Dispose();
             _noiseTensor.Dispose();
+            _speakerTensor.Dispose();
             _audioData.Dispose();
             _melData.Dispose();
             _phoneData.Dispose();
@@ -413,6 +417,7 @@ namespace VirtualVessel.Voice.Rvc
             _generator.SetInput("pitch", _coarseTensor);
             _generator.SetInput("pitchf", _pitchfTensor);
             _generator.SetInput("rnd", _noiseTensor);
+            _generator.SetInput("spk", _speakerTensor);
             _generator.Schedule();
             _generatorOutput = _generator.PeekOutput() as Tensor<float>;
             _generatorOutput.ReadbackRequest();
