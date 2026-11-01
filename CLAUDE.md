@@ -29,12 +29,16 @@ Changes must preserve the architecture, module boundaries, runtime requirements,
 
 Before making a substantial change, read the relevant project documentation.
 
-The primary architecture document is:
+The primary architecture document is split into one file per chapter. Each `system-design.md` is its table of contents:
 
 ```text
 docs/ja/architecture/system-design.md
 docs/en/architecture/system-design.md
+docs/ja/architecture/system-design/
+docs/en/architecture/system-design/
 ```
+
+Chapter and section numbers are referenced from other documents and code comments. Do not renumber them.
 
 The development workflow is:
 
