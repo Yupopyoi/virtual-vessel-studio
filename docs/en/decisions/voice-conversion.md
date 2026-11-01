@@ -133,3 +133,23 @@ Inference Engine's `Constant.array` is `internal`, and the public API cannot cha
 ### Caution
 
 The `.sentis` format is not a published specification. After updating `com.unity.ai.inference`, make the template and table again and repeat this comparison.
+
+## 2026-11-01 Showing the terms of use and disclaimers (requirement)
+
+The user's decision: the feature for making voices must always be able to show the information its terms of use need, and its disclaimers. Voice's detailed design treats this as a requirement.
+
+- **Shown before activation.** The content is shown and agreed to before building the training environment starts. The version agreed to and the time are saved
+- **Readable at any time afterwards.** The application has a place showing the same content, reached from Credits and licenses in Setup
+- **In Japanese and English.** It lives in string tables or bundled documents, not in code
+- **Agreement is asked again when the content changes.** The terms carry a version
+
+It includes at least the following. The wording is reviewed by a legal professional before release.
+
+- Prohibited uses: impersonation, fraud, and disinformation (VoxCPM2's model card), and using another person's voice without permission
+- The request to label AI-generated content (likewise)
+- Training only on your own voice, or a voice you hold the rights to
+- That responsibility for a voice made and its use lies with the user
+- No warranty and limited liability, including those of Apache-2.0 and MIT
+- The external components fetched, their licenses, and required notices (the license table above, including VCTK's attribution)
+- That an internet connection is needed and large files are fetched, and from where
+- That training audio is processed on the user's PC and not sent outside
