@@ -106,7 +106,18 @@ This is not a legal review. It records what the sources said on this date.
 
 RVC imports `praat-parselmouth`, but only the `pm` pitch method uses it, and this prototype uses `rmvpe`. CLAUDE.md chapter 35 requires the user's approval for GPL, and the user decided to leave it out. How to avoid the import without changing RVC itself is checked when the training environment is built. If RVC itself would have to change, the user's approval is obtained under CLAUDE.md 3.5.
 
-The licenses of `kaldiio`, `llvmlite`, `torchcodec`, and `gradio` could not be read from package metadata. They are checked when the training environment's dependencies are fixed.
+The four unconfirmed packages were checked (2026-11-01).
+
+| Package | License | Environment | Action |
+|---|---|---|---|
+| `kaldiio` | **NTT's evaluation license; not open source** | VoxCPM2 only, through `funasr` | **Left out** |
+| `llvmlite` | BSD-2-Clause, Apache-2.0 WITH LLVM-exception | RVC, through `librosa` | Keep the notice |
+| `torchcodec` | BSD-3-Clause | VoxCPM2 only | Keep the notice; FFmpeg's handling unconfirmed |
+| `gradio` | Apache-2.0 | None (left out of the minimal environment) | Not needed |
+
+`kaldiio`'s license limits use to internal evaluation and forbids distribution to third parties. It is treated as unusable even when fetched to the user's PC. `voxcpm` lists `funasr` as a dependency, but the package's code does not import it, and `funasr`'s `load_utils` is what imports `kaldiio`. Installing `voxcpm` without dependencies and locking only what is needed should avoid it, but that has not been tried. It is checked before the second stage, which uses VoxCPM2.
+
+All license texts were searched for words such as `non-commercial`. The hits in `numpy`, `scipy`, `torch`, and `pillow` are general clauses for bundled parts, not limits on use. VoxCPM2's environment is checked again once its dependencies are narrowed down.
 
 ## 2026-11-01 Making a voice's `.sentis` without the Editor
 

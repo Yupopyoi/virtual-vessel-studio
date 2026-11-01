@@ -106,7 +106,18 @@ Speechbrain ECAPAの話者類似度（変換先の声との）と、入力との
 
 `praat-parselmouth`はRVCが読み込むが、使うのは音高推定の`pm`だけで、この試作の`rmvpe`では使わない。CLAUDE.md 35章によりGPLは利用者の承認が必要で、利用者は外すことを決めた。RVC本体を書き換えずに読み込みを避ける方法は、学習環境を作るときに確かめる。RVC本体の変更が必要になった場合は、CLAUDE.md 3.5に従って利用者の承認を得る。
 
-`kaldiio`、`llvmlite`、`torchcodec`、`gradio`はパッケージ情報からライセンスを読み取れなかった。学習環境の依存を確定するときに確認する。
+未確認だった4つのパッケージを確認した（2026-11-01）。
+
+| パッケージ | ライセンス | 入る環境 | 対応 |
+|---|---|---|---|
+| `kaldiio` | **NTTの評価用使用許諾。オープンソースではない** | VoxCPM2のみ（`funasr`経由） | **入れない** |
+| `llvmlite` | BSD-2-Clause、Apache-2.0 WITH LLVM-exception | RVC（`librosa`経由） | 表記を残す |
+| `torchcodec` | BSD-3-Clause | VoxCPM2のみ | 表記を残す。FFmpegの扱いは未確認 |
+| `gradio` | Apache-2.0 | なし（最小の環境から外した） | 不要 |
+
+`kaldiio`の許諾は、社内での評価に用途を限り、第三者への配布を禁じている。利用者のPCへ取得する形でも使えないものとして扱う。`voxcpm`は`funasr`を依存に挙げるが、パッケージのコードは`funasr`を読み込まず、`funasr`の中の`load_utils`が`kaldiio`を読み込む。`voxcpm`を依存なしで入れて、必要なものだけをlockに書けば避けられる見込みだが、未検証である。VoxCPM2を使う第2段階の前に確かめる。
+
+ライセンスの全文を`non-commercial`などの語で調べた。`numpy`、`scipy`、`torch`、`pillow`の該当は、同梱の部品の一般的な条文であり、利用の制限ではない。VoxCPM2の環境は、最小の依存へ絞ったあとに改めて確認する。
 
 ## 2026-11-01 Editorなしで声の`.sentis`を作る
 
