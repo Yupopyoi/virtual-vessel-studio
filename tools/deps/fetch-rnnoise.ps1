@@ -9,7 +9,8 @@ checking both hashes. tools/native/build-audio.ps1 runs this; the result is kept
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$manifest = Get-Content -Raw (Join-Path $PSScriptRoot 'rnnoise.json') | ConvertFrom-Json
+$manifest = Get-Content -Raw (Join-Path $PSScriptRoot '....
+ativeudionnoise.json') | ConvertFrom-Json
 $target = Join-Path $root 'native\audio\third_party\rnnoise'
 $cache = Join-Path $root 'build\deps\rnnoise'
 $stamp = Join-Path $target '.fetched'

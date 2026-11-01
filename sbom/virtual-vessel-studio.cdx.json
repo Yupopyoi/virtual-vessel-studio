@@ -855,7 +855,7 @@
         }
       ],
       "scope": "required",
-      "description": "Noise removal in the audio plugin, with its model data. Not in Git: tools/deps/fetch-rnnoise.ps1 fetches it at this commit, with the hashes in tools/deps/rnnoise.json.",
+      "description": "Noise removal in the audio plugin, with its model data. Not in Git: tools/deps/fetch-rnnoise.ps1 fetches it at this commit, with the hashes in native/audio/rnnoise.json.",
       "properties": [
         {
           "name": "virtual-vessel-studio:license-file",
