@@ -21,6 +21,9 @@ namespace VirtualVessel.Voice
     {
         public const string ServiceName = "Voice";
 
+        /// <summary>The prototype's folder under the Data Root's VoiceModels.</summary>
+        public const string PrototypeFolder = "Prototype";
+
         private const int ChannelCount = 2;
         private const int WarmupBlocks = 3;
 

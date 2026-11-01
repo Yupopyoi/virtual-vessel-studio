@@ -78,4 +78,4 @@ Speechbrain ECAPA speaker similarity to the target voice, and pitch correlation 
 
 ### How to try it
 
-Models and speech are outside the repository. Start with `VV_VOICE_MODELS` naming the folder of `.sentis` files, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. The Editor must restart after the plugin is updated.
+Models and speech are outside the repository. Put the `.sentis` files (`hubert_16000`, `rmvpe_32`, `gen_b10`) in `VoiceModels/Prototype` in the Data Root, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. The Editor must restart after the plugin is updated.

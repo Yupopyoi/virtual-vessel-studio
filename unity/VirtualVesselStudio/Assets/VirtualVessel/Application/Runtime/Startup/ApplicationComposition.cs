@@ -124,15 +124,15 @@ namespace VirtualVessel.Application.Startup
                     new[] { LoggingService.ServiceName }));
             }
 
-            // The voice conversion prototype, a stage on the microphone. Its models are not in the
-            // repository; VV_VOICE_MODELS names their folder, and without it the Card says so.
+            // The voice conversion prototype, a stage on the microphone. Its models stay outside the
+            // repository, in the Data Root; without them the Card says so.
             VoiceService voice = null;
             if (context.FrameLoop != null && project != null)
             {
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VoiceService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, System.Environment.GetEnvironmentVariable("VV_VOICE_MODELS"), logging.Provider.GetLog("Voice", "Conversion")),
+                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion")),
                     new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 
