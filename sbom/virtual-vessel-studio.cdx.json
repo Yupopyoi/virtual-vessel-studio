@@ -395,6 +395,44 @@
     },
     {
       "type": "library",
+      "bom-ref": "unity-package:com.unity.ai.inference",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.ai.inference",
+      "version": "2.6.1",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Terms of Service",
+            "url": "https://unity.com/legal/terms-of-service"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Unity Inference Engine (formerly Sentis); runs the voice conversion models on the GPU in the Unity runtime."
+    },
+    {
+      "type": "library",
+      "bom-ref": "unity-package:com.unity.dt.app-ui",
+      "supplier": {
+        "name": "Unity Technologies"
+      },
+      "name": "com.unity.dt.app-ui",
+      "version": "2.1.13",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unity Companion License",
+            "url": "https://unity.com/legal/licenses/unity-companion-license"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "A dependency of com.unity.ai.inference."
+    },
+    {
+      "type": "library",
       "bom-ref": "unity-package:com.unity.nuget.newtonsoft-json",
       "supplier": {
         "name": "Unity Technologies"
