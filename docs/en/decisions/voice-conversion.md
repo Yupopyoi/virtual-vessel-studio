@@ -78,7 +78,7 @@ Speechbrain ECAPA speaker similarity to the target voice, and pitch correlation 
 
 ### How to try it
 
-Models and speech are outside the repository. Put the `.sentis` files (`hubert_16000`, `rmvpe_32`, `gen_b10`, and the speaker's `gen_b10.spk`) in `VoiceModels/Prototype` in the Data Root, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. The Editor must restart after the plugin is updated.
+Models and speech are outside the repository. Put the `.sentis` files (`hubert_16000`, `rmvpe_32`, `gen_b10`, and the speaker's `gen_b10.spk`) in `VoiceModels/Prototype` in the Data Root, and turn it on under Voice conversion (prototype) on the Diagnostics screen in Developer Mode. Play a WAV file converts a WAV at real time in the microphone's place, with no speaking. It needs Hear on the microphone's row and a monitor device, and it also reaches streams and recordings. The Editor must restart after the plugin is updated.
 
 ## 2026-11-01 Activation and the training environment (system design chapter 13)
 

@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Voice;
 
@@ -16,6 +17,11 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
+        public const string PlayFile = "diagnostics.voice.play-file";
+        public const string StopFile = "diagnostics.voice.stop-file";
+        public const string FileFilter = "diagnostics.voice.file-filter";
+        public const string FileUnreadable = "diagnostics.voice.file-unreadable";
+        public const string StatePlayingFile = "diagnostics.voice.state.playing-file";
         public const string StateNoMicrophone = "diagnostics.voice.state.no-microphone";
         public const string StateUnavailable = "diagnostics.voice.state.unavailable";
         public const string StateFailed = "diagnostics.voice.state.failed";
@@ -36,12 +42,16 @@ namespace VirtualVessel.UI.Screens
         private readonly KeyedText _stateText;
         private readonly Label _stats;
         private readonly SwitchToggle _toggle;
+        private readonly IFileDialog _files;
+        private readonly ActionButton _stopFile;
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
 
-        public VoiceConversionCard(IVoiceConversion voice)
+        /// <param name="files">Picks a WAV file to convert; null leaves that out.</param>
+        public VoiceConversionCard(IVoiceConversion voice, IFileDialog files = null)
         {
             _voice = voice ?? throw new ArgumentNullException(nameof(voice));
+            _files = files;
             AddToClassList(UssClass);
             Card card = Ui.Card(VoiceConversionStrings.Title);
             Add(card);
@@ -56,6 +66,16 @@ namespace VirtualVessel.UI.Screens
             semitones.SetValueWithoutNotify(_voice.Semitones);
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
+
+            if (files != null)
+            {
+                ActionButton playFile = Ui.Button(VoiceConversionStrings.PlayFile);
+                playFile.clicked += OnPlayFile;
+                card.Add(playFile);
+                _stopFile = Ui.Button(VoiceConversionStrings.StopFile);
+                _stopFile.clicked += _voice.StopFile;
+                card.Add(_stopFile);
+            }
 
             // Without a text color of their own, labels in a Card fall back to a dark one.
             Label state = QuietText.Of(new Label());
@@ -80,6 +100,8 @@ namespace VirtualVessel.UI.Screens
                     return VoiceConversionStrings.StateLoading;
                 case VoiceConversionState.Running:
                     return VoiceConversionStrings.StateRunning;
+                case VoiceConversionState.PlayingFile:
+                    return VoiceConversionStrings.StatePlayingFile;
                 case VoiceConversionState.NoMicrophone:
                     return VoiceConversionStrings.StateNoMicrophone;
                 case VoiceConversionState.Unavailable:
@@ -99,8 +121,28 @@ namespace VirtualVessel.UI.Screens
 
         private void OnAttached()
         {
-            _stateSubscription = _voice.State.Subscribe(state => _stateText.Key = StateKey(state));
+            _stateSubscription = _voice.State.Subscribe(OnState);
             _refresh = schedule.Execute(() => _stats.text = FormatStats(_voice.Stats)).Every(RefreshMs);
+        }
+
+        private void OnState(VoiceConversionState state)
+        {
+            _stateText.Key = StateKey(state);
+            _toggle.SetValueWithoutNotify(state != VoiceConversionState.Off && state != VoiceConversionState.Failed && state != VoiceConversionState.Unavailable);
+            _stopFile?.SetEnabled(state == VoiceConversionState.PlayingFile);
+        }
+
+        private async void OnPlayFile()
+        {
+            var localizer = UiServices.Find(this)?.Localizer;
+            string path = await _files.OpenAsync(new FileDialogOptions
+            {
+                Filters = new[] { new FileFilter(localizer?.Get(VoiceConversionStrings.FileFilter) ?? "WAV", new[] { ".wav" }) },
+            });
+            if (path != null && !await _voice.PlayFileAsync(path))
+            {
+                _stateText.Key = VoiceConversionStrings.FileUnreadable;
+            }
         }
 
         private void OnDetached()

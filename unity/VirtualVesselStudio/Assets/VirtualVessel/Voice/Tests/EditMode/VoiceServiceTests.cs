@@ -44,6 +44,7 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(VoiceService.AttachedState(capturing), Is.EqualTo(expected));
         }
 
+        [TestCase(VoiceConversionState.PlayingFile, VoiceConversionStrings.StatePlayingFile)]
         [TestCase(VoiceConversionState.NoMicrophone, VoiceConversionStrings.StateNoMicrophone)]
         [TestCase(VoiceConversionState.Off, VoiceConversionStrings.StateOff)]
         [TestCase(VoiceConversionState.Running, VoiceConversionStrings.StateRunning)]

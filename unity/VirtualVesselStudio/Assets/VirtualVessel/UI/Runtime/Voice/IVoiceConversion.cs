@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using VirtualVessel.Core.State;
 
 namespace VirtualVessel.UI.Voice
@@ -10,6 +11,9 @@ namespace VirtualVessel.UI.Voice
 
         /// <summary>Turned on, but the microphone gives nothing to convert, such as with no device chosen.</summary>
         NoMicrophone,
+
+        /// <summary>A WAV file takes the microphone's place, to judge a voice without speaking.</summary>
+        PlayingFile,
 
         /// <summary>No models in the folder, or no microphone.</summary>
         Unavailable,
@@ -52,5 +56,11 @@ namespace VirtualVessel.UI.Voice
         VoiceConversionStats Stats { get; }
 
         void SetEnabled(bool enabled);
+
+        /// <summary>Turns on and converts this WAV file in the microphone's place, once, at real time. False when it cannot be read.</summary>
+        Task<bool> PlayFileAsync(string path);
+
+        /// <summary>Stops a WAV file; the microphone comes back.</summary>
+        void StopFile();
     }
 }

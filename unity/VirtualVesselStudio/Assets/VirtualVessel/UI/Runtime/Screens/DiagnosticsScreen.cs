@@ -6,6 +6,7 @@ using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.UI.Screens
@@ -47,7 +48,7 @@ namespace VirtualVessel.UI.Screens
         /// <param name="tracking">Tracking, to know whether recording can start, and to compare with the avatar; null leaves the skeleton out.</param>
         /// <param name="avatars">The avatars, whose upper body the skeleton Card compares with tracking.</param>
         /// <param name="camera">The tracking camera, shown beside the skeleton with the face covered.</param>
-        public DiagnosticsScreen(IPerformanceMetrics metrics, ITrackingRecordings recordings = null, ITrackingSource tracking = null, IAvatarService avatars = null, IVideoCaptureSource camera = null, IVoiceConversion voice = null)
+        public DiagnosticsScreen(IPerformanceMetrics metrics, ITrackingRecordings recordings = null, ITrackingSource tracking = null, IAvatarService avatars = null, IVideoCaptureSource camera = null, IVoiceConversion voice = null, IFileDialog files = null)
         {
             _metrics = metrics;
             AddToClassList(UssClass);
@@ -72,7 +73,7 @@ namespace VirtualVessel.UI.Screens
 
             if (voice != null)
             {
-                Add(new VoiceConversionCard(voice));
+                Add(new VoiceConversionCard(voice, files));
             }
 
             if (recordings != null)

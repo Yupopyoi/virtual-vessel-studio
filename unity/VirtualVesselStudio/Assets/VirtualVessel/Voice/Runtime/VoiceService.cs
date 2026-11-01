@@ -58,6 +58,9 @@ namespace VirtualVessel.Voice
         private long _blocks;
         private long _dropped;
         private VoiceConversionStats _stats;
+        private float[] _file;
+        private int _fileRead;
+        private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
 
         /// <param name="folder">Holds the .sentis models; null or missing leaves the conversion unavailable.</param>
         public VoiceService(IAudioStage stage, IFrameLoop frameLoop, string folder, ILog log)
@@ -74,7 +77,7 @@ namespace VirtualVessel.Voice
 
         public VoiceConversionStats Stats => _stats;
 
-        private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone;
+        private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone || _state.Value == VoiceConversionState.PlayingFile;
 
         /// <summary>What stopped the conversion, for tests and diagnostics.</summary>
         public Exception Failure { get; private set; }
@@ -134,6 +137,7 @@ namespace VirtualVessel.Voice
             _wanted = enabled;
             if (!enabled)
             {
+                _file = null;
                 Stop();
                 _state.Set(VoiceConversionState.Off);
                 ReleaseTick();
@@ -150,6 +154,31 @@ namespace VirtualVessel.Voice
             {
                 BeginLoading();
             }
+        }
+
+        public async Task<bool> PlayFileAsync(string path)
+        {
+            float[] samples;
+            try
+            {
+                samples = await Task.Run(() => ReadFile(path));
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+            {
+                _log?.Warning($"This WAV file cannot be read: {exception.Message}");
+                return false;
+            }
+
+            _file = samples;
+            _fileRead = 0;
+            _fileClock.Reset();
+            SetEnabled(true);
+            return true;
+        }
+
+        public void StopFile()
+        {
+            _file = null;
         }
 
         public Task ShutdownAsync(CancellationToken cancellationToken)
@@ -203,6 +232,14 @@ namespace VirtualVessel.Voice
             }
         }
 
+        // A second of silence at the end carries the last block through, whatever its length.
+        private static float[] ReadFile(string path)
+        {
+            float[] samples = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(path), out int rate), rate, RvcStream.DeviceRate);
+            Array.Resize(ref samples, samples.Length + RvcStream.DeviceRate);
+            return samples;
+        }
+
         private void BeginLoading()
         {
             if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder), File.Exists) || !File.Exists(SpeakerPath(_folder)))
@@ -234,7 +271,7 @@ namespace VirtualVessel.Voice
                 return;
             }
 
-            _state.Set(AttachedState(_stage.IsCapturing));
+            _state.Set(_file != null ? VoiceConversionState.PlayingFile : AttachedState(_stage.IsCapturing));
             try
             {
                 Pump();
@@ -336,8 +373,30 @@ namespace VirtualVessel.Voice
         {
             int room = _waiting.Length - _waitingSamples;
             int read = _stage.Read(_stereo, Math.Min(room, _stereo.Length / ChannelCount));
+            if (_file != null)
+            {
+                // What the microphone captured is dropped, so it does not arrive late after the file.
+                CollectFile(room);
+                return;
+            }
+
             ToMono(new ReadOnlySpan<float>(_stereo, 0, read * ChannelCount), new Span<float>(_waiting, _waitingSamples, read));
             _waitingSamples += read;
+        }
+
+        // At real time, like a microphone, so that it can be heard as it will sound on a stream.
+        private void CollectFile(int room)
+        {
+            _fileClock.Start();
+            long due = _fileClock.ElapsedMilliseconds * RvcStream.DeviceRate / 1000;
+            int take = (int)Math.Min(room, Math.Min(due - _fileRead, _file.Length - _fileRead));
+            Array.Copy(_file, _fileRead, _waiting, _waitingSamples, take);
+            _fileRead += take;
+            _waitingSamples += take;
+            if (_fileRead == _file.Length)
+            {
+                _file = null;
+            }
         }
 
         private void Consume(int samples)
