@@ -142,6 +142,8 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - The stage's work (for RVC, Inference Engine on the GPU) runs on its own schedule in Unity; the engine only copies blocks in and out, so a slow stage never stalls the mix: if its output is late, the engine plays silence for that source and counts it.
 - Removing a stage connects the source straight through again, without reopening the device (system design 9.3, 9.8).
 
+The prototype's results are in the [decision record](../decisions/voice-conversion.md). `vv_audio_set_stage` turns a source's capture to the stage, and `vv_audio_stage_read` and `vv_audio_stage_write` move the audio.
+
 ### 8.4 Aligning Sources in Time
 
 - Each source's latency is the sum of its stages' latencies (0 for gain and mute). The mix delays every other source to the largest one, so a converted voice and the game's audio stay together.
