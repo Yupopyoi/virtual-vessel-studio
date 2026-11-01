@@ -190,3 +190,35 @@ The same steps as distribution: an environment built into an empty folder with u
 - Unity's real-time test ran 199 blocks with none dropped, at 86 ms per block.
 - Speaker similarity is 0.869, a little under the earlier environment's 0.888. Pitch correlation is the same at 0.994. Whether that is training's randomness or dependency versions has not been separated, and it has not been checked by listening.
 - The dependency definition is in `services/voice-lab/`.
+
+## 2026-11-01 The wobble on held notes
+
+The user's report: speech is fine, but a long held note goes wrong.
+
+Level and upper-band variation were measured on held notes in a real recording (lower is steadier).
+
+| Method | Level | Timbre |
+|---|---|---|
+| Upstream RVC, offline | 0.126 | 0.197 |
+| Upstream RVC, realtime (default, 2.5 s history) | 0.251 | 0.418 |
+| Upstream RVC, realtime (5.36 s history) | 0.143 | 0.377 |
+| Unity (1 s window) | 0.231 | 0.417 |
+| **Unity (5.4 s window, adopted)** | **0.126** | **0.356** |
+
+Pitch is steady; the level and timbre wander. Upstream's realtime code wanders the same way, so this is the nature of running on short context, not an implementation error. In speech the sound keeps changing, which hides it.
+
+A longer history steadies upstream too, matching the earlier prototype's note of 5.36 s. Lengthening only HuBERT gives 0.207, so the generator needs the long context as well. Timbre improves less, and a gap to offline remains.
+
+The cost in Unity: waiting, a block's work goes from 51 ms to 72 ms, but at real time issuing lines up with frames, so it stays at 85 ms, with no blocks dropped and no added delay.
+
+Not shown to help: a continuous sine phase (measured in Unity). The comparisons in a home-made Python simulation (averaging features over time, index, fixed noise, and others) did not match the real thing and are not firm conclusions. Upstream's code should have been the reference from the start.
+
+Upstream's measurements replayed old CUDA graphs, which ignored changed conditions. They were redone with `run_cuda_graph` bypassed.
+
+## 2026-11-01 Noise removal (RNNoise)
+
+Approved by the user (2026-11-01). It is built into the audio plugin and runs in the processing stage before conversion, for both the microphone and WAV files. It is BSD-3-Clause, and `tools/deps/fetch-rnnoise.ps1` fetches it at a fixed commit with hashes.
+
+Measured: 3.2 ms median and 9.3 ms at most per block, on the main thread. Speech level changes by -0.5 dB. Synthetic clicks in pauses fall by about 70 dB.
+
+These are synthetic clicks. Real keyboards, and sounds during speech, have not been tried, nor has the effect on converted quality been measured.

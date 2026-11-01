@@ -126,7 +126,7 @@ stateDiagram-v2
 
 ```text
 Microphone → Audio → IAudioStage.Read → gather (100 ms)
-  → Start: to 16 kHz, mel, HuBERT and RMVPE to the GPU
+  → Start: noise removal (RNNoise), to 16 kHz, mel, HuBERT and RMVPE to the GPU
   → Advance: read each as it completes; the data lasts only the frame it completed
   → the generator to the GPU
   → Advance: read, to 48 kHz, crossfade
@@ -155,7 +155,7 @@ The Voice Profile, and these values in Developer Mode. Fixed values come from `s
 | Value | Default | Meaning |
 |---|---|---|
 | Block | 100 ms | Shorter lowers latency, but the work may not keep up |
-| Window | 1 s | What HuBERT and the generator see |
+| Window | 5.4 s | What HuBERT and the generator see. Shorter makes held notes wander (decision record) |
 | Crossfade | 20 ms | |
 | Tail guard | 30 ms | Less lowers latency and raises the ripple at joins |
 
@@ -202,7 +202,7 @@ Without models, as in CI, the benchmarks are ignored.
 | Measure | Standard | Measured (RTX 4070, Editor) |
 |---|---|---|
 | Input to output | 200 ms (system design 15.4) | **About 270 ms, not met** |
-| One block's work | Shorter than a block | 85 ms |
+| One block's work | Shorter than a block | 87 ms |
 | Cost of a frame issuing work | To be lowered | 13 to 17 ms |
 | Dropped blocks | 0 | 0 in 199 |
 
