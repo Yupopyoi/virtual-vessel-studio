@@ -12,7 +12,7 @@ System design 9.5 runs RVC on Unity Inference Engine, with 200 ms as the standar
 
 - RTX 4070, the Unity 6000.6.4f1 Editor (Mono), `com.unity.ai.inference` 2.6.1, GPUCompute
 - The input is 12 s of a male voice made with VoxCPM2 (median fundamental 115 Hz). The target is RVC v2 (40 kHz, 150 epochs, no index) trained on 441 s of a female voice made with VoxCPM2. Transposed by +13
-- **A real microphone, the monitor output, and listening have not been tried.** Quality was compared in numbers
+- The numbers are measured on recorded speech. The user listened with a real microphone and monitor (2026-11-01, including the model with the speaker as an input): "mostly good", "no problem for now". Latency remains to be improved
 
 ### What changed from VCBM
 
@@ -98,13 +98,13 @@ This is not a legal review. It records what the sources said on this date.
 | ContentVec | MIT | The repository's LICENSE | Keep the notice |
 | RMVPE (code) | Apache-2.0 | The repository's LICENSE | Keep the notice |
 | VoxCPM2 | Apache-2.0 | The repository and model card | See the conditions below |
-| `praat-parselmouth` | GPLv3 | Package metadata | **Undecided** |
+| `praat-parselmouth` | GPLv3 | Package metadata | Left out of the training environment (the user's decision, 2026-11-01) |
 | `soxr`, `FreeSimpleGUI` | LGPL | Package metadata | FreeSimpleGUI is left out; soxr stays replaceable |
 | NVIDIA libraries | Proprietary | Package metadata | Not redistributed; fetched to the user's PC |
 
 **VoxCPM2's model card forbids impersonation, fraud, and disinformation, and asks that AI-generated content be labeled.** The voice feature's UI and terms will reflect this.
 
-RVC imports `praat-parselmouth`, but only the `pm` pitch method uses it, and this prototype uses `rmvpe`. CLAUDE.md chapter 35 requires the user's approval for GPL, so the user decides whether it stays. The proposal is to leave it out of the training environment.
+RVC imports `praat-parselmouth`, but only the `pm` pitch method uses it, and this prototype uses `rmvpe`. CLAUDE.md chapter 35 requires the user's approval for GPL, and the user decided to leave it out. How to avoid the import without changing RVC itself is checked when the training environment is built. If RVC itself would have to change, the user's approval is obtained under CLAUDE.md 3.5.
 
 The licenses of `kaldiio`, `llvmlite`, `torchcodec`, and `gradio` could not be read from package metadata. They are checked when the training environment's dependencies are fixed.
 
