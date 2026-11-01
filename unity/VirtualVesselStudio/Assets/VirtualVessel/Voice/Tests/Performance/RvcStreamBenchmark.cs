@@ -25,7 +25,7 @@ namespace VirtualVessel.Voice.Tests
         private static float Semitones => float.Parse(Environment.GetEnvironmentVariable("VV_VOICE_SEMITONES") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
 
         [TestCase("b10", 10, BackendType.GPUCompute)]
-        [TestCase("b10_patched", 10, BackendType.GPUCompute)]
+        [TestCase("w540", 10, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int blockFrames, BackendType backend)
         {
             if (string.IsNullOrEmpty(WorkFolder))
@@ -42,9 +42,9 @@ namespace VirtualVessel.Voice.Tests
 
             string inputPath = Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(WorkFolder, "data", "source", "000.wav");
             float[] input = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(inputPath), out int inputRate), inputRate, RvcStream.DeviceRate);
-            var shape = new RvcStreamShape(100, blockFrames, 2, 1, HeadGuard, TailGuard, blockFrames + 3 + HeadGuard + TailGuard + 24, 32);
+            var shape = new RvcStreamShape(variant == "w540" ? 540 : 100, blockFrames, 2, 1, HeadGuard, TailGuard, blockFrames + 3 + HeadGuard + TailGuard + 24, 32);
             using var stream = new RvcStream(
-                ModelLoader.Load(Path.Combine(models, "hubert_16000.sentis")),
+                ModelLoader.Load(Path.Combine(models, variant == "w540" ? "hubert_86400.sentis" : "hubert_16000.sentis")),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),
                 ModelLoader.Load(generator),
                 VoiceService.ReadSpeaker(Path.Combine(models, "gen_b10.spk")),
