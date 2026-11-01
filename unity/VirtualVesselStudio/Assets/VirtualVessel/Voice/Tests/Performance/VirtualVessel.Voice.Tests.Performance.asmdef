@@ -6,11 +6,12 @@
         "VirtualVessel.Core",
         "Unity.InferenceEngine",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "VirtualVessel.Audio",
+        "VirtualVessel.UI",
+        "VirtualVessel.Diagnostics"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,

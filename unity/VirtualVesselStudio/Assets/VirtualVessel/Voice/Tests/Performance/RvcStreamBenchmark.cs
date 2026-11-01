@@ -78,13 +78,13 @@ namespace VirtualVessel.Voice.Tests
             Debug.Log(report);
         }
 
-        private static void AppendStage(StringBuilder report, string name, IEnumerable<double> values)
+        internal static void AppendStage(StringBuilder report, string name, IEnumerable<double> values)
         {
             double[] sorted = values.OrderBy(v => v).ToArray();
             report.AppendLine($"{name,-10} p50 {sorted[sorted.Length / 2],7:F1}  p95 {sorted[sorted.Length * 95 / 100],7:F1}  p99 {sorted[sorted.Length * 99 / 100],7:F1}  max {sorted[^1],7:F1} ms");
         }
 
-        private static float[] ReadWav(string path)
+        internal static float[] ReadWav(string path)
         {
             using var reader = new BinaryReader(File.OpenRead(path));
             reader.ReadBytes(12);
@@ -123,7 +123,7 @@ namespace VirtualVessel.Voice.Tests
             }
         }
 
-        private static void WriteWav(string path, float[] samples)
+        internal static void WriteWav(string path, float[] samples)
         {
             using var writer = new BinaryWriter(File.Create(path));
             writer.Write(Encoding.ASCII.GetBytes("RIFF"));

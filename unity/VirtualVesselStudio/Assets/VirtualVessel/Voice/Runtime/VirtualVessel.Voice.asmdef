@@ -2,7 +2,10 @@
     "name": "VirtualVessel.Voice",
     "rootNamespace": "VirtualVessel.Voice",
     "references": [
+        "VirtualVessel.Audio",
         "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.UI",
         "Unity.InferenceEngine"
     ],
     "includePlatforms": [],
