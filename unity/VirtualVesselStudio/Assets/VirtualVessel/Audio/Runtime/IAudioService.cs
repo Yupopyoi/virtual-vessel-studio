@@ -256,6 +256,12 @@ namespace VirtualVessel.Audio
 
         void SetEnabled(bool enabled);
 
+        /// <summary>
+        /// Removes noise from mono audio in place, keeping its state between calls. A whole number of
+        /// 480-sample frames, from one thread (audio detailed design 8.3).
+        /// </summary>
+        void Denoise(float[] samples, int count);
+
         /// <summary>Interleaved stereo frames waiting since the last read; returns how many.</summary>
         int Read(float[] frames, int capacity);
 

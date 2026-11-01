@@ -83,6 +83,8 @@ namespace VirtualVessel.Audio
         int ReadStage(int source, float[] frames, int capacity);
 
         void WriteStage(int source, float[] frames, int count);
+
+        void Denoise(float[] samples, int count);
     }
 
     /// <summary>The audio engine could not start (audio detailed design 12).</summary>
@@ -101,7 +103,7 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 5;
+        private const int ApiVersion = 6;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -200,6 +202,11 @@ namespace VirtualVessel.Audio
         public void WriteStage(int source, float[] frames, int count)
         {
             vv_audio_stage_write(_engine, source, frames, count);
+        }
+
+        public void Denoise(float[] samples, int count)
+        {
+            vv_audio_denoise(_engine, samples, count);
         }
 
         public void SetGain(int source, float gainDb, bool muted)
@@ -345,6 +352,9 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_api_version();
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_denoise(IntPtr engine, [In, Out] float[] samples, int count);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_set_stage(IntPtr engine, int source, int enabled);

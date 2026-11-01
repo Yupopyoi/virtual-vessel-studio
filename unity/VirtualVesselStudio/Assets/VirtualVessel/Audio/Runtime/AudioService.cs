@@ -328,6 +328,11 @@ namespace VirtualVessel.Audio
                 }
             }
 
+            public void Denoise(float[] samples, int count)
+            {
+                Engine?.Denoise(samples, count);
+            }
+
             public int Read(float[] frames, int capacity)
             {
                 return IsAvailable ? Engine.ReadStage(Microphone.Engine, frames, capacity) : 0;

@@ -17,6 +17,8 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
+        public const string Denoise = "diagnostics.voice.denoise";
+        public const string Loading = "diagnostics.voice.loading";
         public const string PlayFile = "diagnostics.voice.play-file";
         public const string StopFile = "diagnostics.voice.stop-file";
         public const string FileFilter = "diagnostics.voice.file-filter";
@@ -34,6 +36,7 @@ namespace VirtualVessel.UI.Screens
     public sealed class VoiceConversionCard : VisualElement
     {
         public const string UssClass = "vv-voice-card";
+        public const string TextClass = UssClass + "__text";
 
         private const long RefreshMs = 500;
         private const float SemitoneRange = 24f;
@@ -44,6 +47,8 @@ namespace VirtualVessel.UI.Screens
         private readonly SwitchToggle _toggle;
         private readonly IFileDialog _files;
         private readonly ActionButton _stopFile;
+        private readonly ProgressMeter _progress;
+        private readonly Label _file;
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
 
@@ -67,6 +72,11 @@ namespace VirtualVessel.UI.Screens
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
 
+            SwitchToggle denoise = Ui.Toggle(VoiceConversionStrings.Denoise);
+            denoise.SetValueWithoutNotify(_voice.Denoise);
+            denoise.RegisterValueChangedCallback(evt => _voice.Denoise = evt.newValue);
+            card.Add(denoise);
+
             if (files != null)
             {
                 ActionButton playFile = Ui.Button(VoiceConversionStrings.PlayFile);
@@ -77,13 +87,20 @@ namespace VirtualVessel.UI.Screens
                 card.Add(_stopFile);
             }
 
-            // Without a text color of their own, labels in a Card fall back to a dark one.
-            Label state = QuietText.Of(new Label());
+            _progress = Ui.Progress(VoiceConversionStrings.Loading);
+            _progress.style.display = DisplayStyle.None;
+            card.Add(_progress);
+
+            _file = Text();
+            _file.AddToClassList("vv-text-mono");
+            card.Add(_file);
+
+            Label state = Text();
             state.AddToClassList("vv-text-body");
             _stateText = new KeyedText(state, value => state.text = value);
             card.Add(state);
 
-            _stats = QuietText.Of(new Label());
+            _stats = Text();
             _stats.AddToClassList("vv-text-mono");
             card.Add(_stats);
 
@@ -113,6 +130,12 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        /// <summary>The playing file and its place; empty when none is. Pure.</summary>
+        public static string FormatFile(string name, float position, float length)
+        {
+            return name == null ? string.Empty : string.Format(CultureInfo.InvariantCulture, "{0}  {1:F0} / {2:F0} s", name, position, length);
+        }
+
         /// <summary>Numbers read the same in every language, so this needs no string table. Pure.</summary>
         public static string FormatStats(VoiceConversionStats stats)
         {
@@ -122,12 +145,29 @@ namespace VirtualVessel.UI.Screens
         private void OnAttached()
         {
             _stateSubscription = _voice.State.Subscribe(OnState);
-            _refresh = schedule.Execute(() => _stats.text = FormatStats(_voice.Stats)).Every(RefreshMs);
+            _refresh = schedule.Execute(Refresh).Every(RefreshMs);
+        }
+
+        // A Label takes the panel's default dark text unless a class gives it a color.
+        private static Label Text()
+        {
+            Label label = QuietText.Of(new Label());
+            label.AddToClassList(TextClass);
+            return label;
+        }
+
+        private void Refresh()
+        {
+            _stats.text = FormatStats(_voice.Stats);
+            _progress.Progress = _voice.LoadProgress;
+            (float position, float length) = _voice.FileTime;
+            _file.text = FormatFile(_voice.FileName, position, length);
         }
 
         private void OnState(VoiceConversionState state)
         {
             _stateText.Key = StateKey(state);
+            _progress.style.display = state == VoiceConversionState.Loading ? DisplayStyle.Flex : DisplayStyle.None;
             _toggle.SetValueWithoutNotify(state != VoiceConversionState.Off && state != VoiceConversionState.Failed && state != VoiceConversionState.Unavailable);
             _stopFile?.SetEnabled(state == VoiceConversionState.PlayingFile);
         }

@@ -37,6 +37,13 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(stereo, Is.EqualTo(new[] { 0.25f, 0.25f, -0.5f, -0.5f }));
         }
 
+        [Test]
+        public void FormatFile_ShowsThePlace_OrNothing()
+        {
+            Assert.That(VoiceConversionCard.FormatFile("a.wav", 3f, 60f), Is.EqualTo("a.wav  3 / 60 s"));
+            Assert.That(VoiceConversionCard.FormatFile(null, 0f, 0f), Is.Empty);
+        }
+
         [TestCase(true, VoiceConversionState.Running)]
         [TestCase(false, VoiceConversionState.NoMicrophone)]
         public void AttachedState_SaysRunningOnlyWithAVoice(bool capturing, VoiceConversionState expected)

@@ -3,6 +3,7 @@
 
 #include "vv_audio.h"
 
+#include "denoiser.h"
 #include "device_source.h"
 #include "dsp.h"
 #include "mixer.h"
@@ -287,6 +288,34 @@ namespace
         Check(mixer.ReadStage(id, read.data(), BlockFrames) == 0, "nothing waits for a stage that is off");
     }
 
+    double Rms(const std::vector<float>& samples, size_t first)
+    {
+        double sum = 0.0;
+        for (size_t i = first; i < samples.size(); i++)
+        {
+            sum += samples[i] * samples[i];
+        }
+
+        return std::sqrt(sum / static_cast<double>(samples.size() - first));
+    }
+
+    // Steady noise, the kind RNNoise learns to take out, falls by far once it has settled.
+    void Denoise()
+    {
+        Denoiser denoiser;
+        std::vector<float> noise(static_cast<size_t>(48000) * 2);
+        unsigned int state = 12345;
+        for (float& sample : noise)
+        {
+            state = state * 1103515245u + 12345u;
+            sample = (static_cast<float>((state >> 16) & 0x7fff) / 16384.0f - 1.0f) * 0.05f;
+        }
+
+        double before = Rms(noise, 48000);
+        Check(denoiser.Process(noise.data(), static_cast<int>(noise.size())), "the denoiser runs");
+        Check(Rms(noise, 48000) < before * 0.25, "steady noise falls by more than 12 dB");
+    }
+
     void MonitorBus()
     {
         Mixer mixer(Frequency);
@@ -530,6 +559,7 @@ int main()
     Step("running dry", RunningDry);
     Step("tap timing", TapTiming);
     Step("stage", Stage);
+    Step("denoise", Denoise);
     Step("monitor bus", MonitorBus);
     Step("fill", Fill);
     Step("ramps", Ramps);

@@ -192,6 +192,8 @@
         "diagnostics.voice.state.off": "Off",
         "diagnostics.voice.state.loading": "Loading the models",
         "diagnostics.voice.state.running": "Converting",
+        "diagnostics.voice.denoise": "Reduce noise",
+        "diagnostics.voice.loading": "Loading the models",
         "diagnostics.voice.play-file": "Play a WAV file",
         "diagnostics.voice.stop-file": "Stop",
         "diagnostics.voice.file-filter": "WAV files",

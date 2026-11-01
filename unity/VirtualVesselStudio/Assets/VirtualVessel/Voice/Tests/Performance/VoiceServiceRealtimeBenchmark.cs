@@ -135,6 +135,10 @@ namespace VirtualVessel.Voice.Tests
 
             public bool IsCapturing => true;
 
+            public void Denoise(float[] samples, int count)
+            {
+            }
+
             public List<float> Output { get; } = new List<float>();
 
             /// <summary>How long past each block's last input it was written, in ms.</summary>

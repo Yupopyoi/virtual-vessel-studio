@@ -38,6 +38,17 @@
     color: var(--vv-color-text-2);
 }
 
+/* The voice conversion prototype's Card. */
+.vv-diagnostics > .vv-voice-card {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-voice-card__text {
+    margin-top: var(--vv-space-xs);
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
 /* The skeleton comparison: tracked bones solid, the avatar's dashed (UI foundation detailed design 7.7). */
 .vv-diagnostics > .vv-skeleton {
     margin-top: var(--vv-space-m);

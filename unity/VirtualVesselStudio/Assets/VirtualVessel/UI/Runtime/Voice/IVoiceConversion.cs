@@ -53,6 +53,18 @@ namespace VirtualVessel.UI.Voice
 
         float Semitones { get; set; }
 
+        /// <summary>Removes noise such as key presses before the voice is converted.</summary>
+        bool Denoise { get; set; }
+
+        /// <summary>How far the models have loaded, from 0 to 1.</summary>
+        float LoadProgress { get; }
+
+        /// <summary>The WAV file playing, without its folder; null when none is.</summary>
+        string FileName { get; }
+
+        /// <summary>The WAV file's place and length in seconds; both 0 when none is playing.</summary>
+        (float Position, float Length) FileTime { get; }
+
         VoiceConversionStats Stats { get; }
 
         void SetEnabled(bool enabled);

@@ -25,7 +25,8 @@ extern "C"
 // 3: the monitor bus and its output device.
 // 4: each reader of the stream bus has its own tap (VV_AUDIO_READER_*).
 // 5: a processing stage on a source (vv_audio_set_stage).
-#define VV_AUDIO_API_VERSION 5
+// 6: noise removal for a stage (vv_audio_denoise).
+#define VV_AUDIO_API_VERSION 6
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -113,6 +114,11 @@ VV_AUDIO_API int32_t vv_audio_set_device(vv_audio_engine* engine, int32_t source
 // A processing stage on a source (audio detailed design 8.3): while on, what the device captures waits for
 // vv_audio_stage_read, and vv_audio_stage_write supplies what the mix hears. Reads and writes are in stereo
 // frames, from one thread, without blocking. Stop writing before turning it off.
+// Removes noise from mono audio in place with RNNoise, keeping its state between calls. count is a multiple
+// of VV_AUDIO_DENOISE_FRAMES, from one thread.
+#define VV_AUDIO_DENOISE_FRAMES 480
+VV_AUDIO_API int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, int32_t count);
+
 VV_AUDIO_API int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled);
 VV_AUDIO_API int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read);
 VV_AUDIO_API int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count);

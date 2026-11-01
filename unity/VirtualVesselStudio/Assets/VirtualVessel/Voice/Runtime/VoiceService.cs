@@ -26,6 +26,7 @@ namespace VirtualVessel.Voice
 
         private const int ChannelCount = 2;
         private const int WarmupBlocks = 3;
+        private const int ModelCount = 3;
 
         // The stage's output comes in bursts, so the first one is put back by this much silence, which
         // every later burst inherits, to let a late burst arrive before the mix runs dry.
@@ -61,6 +62,9 @@ namespace VirtualVessel.Voice
         private long _dropped;
         private VoiceConversionStats _stats;
         private float[] _file;
+        private string _fileName;
+        private int _loadedModels;
+        private bool _denoise;
         private int _fileRead;
         private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
 
@@ -80,6 +84,19 @@ namespace VirtualVessel.Voice
         public VoiceConversionStats Stats => _stats;
 
         private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone || _state.Value == VoiceConversionState.PlayingFile;
+
+        public bool Denoise
+        {
+            get => _denoise;
+            set => _denoise = value;
+        }
+
+        // The last step, warming up, is counted as much as a model: it takes as long.
+        public float LoadProgress => _loadedModels / (ModelCount + 1f);
+
+        public string FileName => _file == null ? null : _fileName;
+
+        public (float Position, float Length) FileTime => _file == null ? (0f, 0f) : (_fileRead / (float)RvcStream.DeviceRate, (_file.Length - RvcStream.DeviceRate) / (float)RvcStream.DeviceRate);
 
         /// <summary>What stopped the conversion, for tests and diagnostics.</summary>
         public Exception Failure { get; private set; }
@@ -172,6 +189,7 @@ namespace VirtualVessel.Voice
             }
 
             _file = samples;
+            _fileName = Path.GetFileName(path);
             _fileRead = 0;
             _fileClock.Reset();
             SetEnabled(true);
@@ -251,14 +269,22 @@ namespace VirtualVessel.Voice
                 return;
             }
 
+            _loadedModels = 0;
             _state.Set(VoiceConversionState.Loading);
             string[] paths = ModelPaths(_folder);
             string speaker = SpeakerPath(_folder);
             _loading = Task.Run(() =>
             {
                 _speaker = ReadSpeaker(speaker);
-                return Array.ConvertAll(paths, ModelLoader.Load);
+                return Array.ConvertAll(paths, LoadModel);
             });
+        }
+
+        private Model LoadModel(string path)
+        {
+            Model model = ModelLoader.Load(path);
+            Interlocked.Increment(ref _loadedModels);
+            return model;
         }
 
         private void Tick()
@@ -363,6 +389,12 @@ namespace VirtualVessel.Voice
                 {
                     Consume(drop);
                     _dropped += drop / block;
+                }
+
+                // The block is a whole number of the denoiser's 10 ms frames, so nothing waits for it.
+                if (_denoise)
+                {
+                    _stage.Denoise(_waiting, block);
                 }
 
                 _startedAt = System.Diagnostics.Stopwatch.GetTimestamp();

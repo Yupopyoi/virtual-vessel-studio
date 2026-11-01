@@ -4,6 +4,7 @@
 
 #include "device_output.h"
 #include "device_source.h"
+#include "denoiser.h"
 #include "mixer.h"
 
 #include <windows.h>
@@ -79,6 +80,7 @@ struct vv_audio_engine
     int64_t frequency;
     DeviceOutput monitor;
     TapReader readers[MaxReaders];
+    vv::audio::Denoiser denoiser;
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
     std::atomic<bool> stop{ false };
@@ -359,6 +361,16 @@ extern "C"
         {
             return VV_AUDIO_OUT_OF_MEMORY;
         }
+    }
+
+    int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, int32_t count)
+    {
+        if (engine == nullptr || samples == nullptr || count < 0 || count % VV_AUDIO_DENOISE_FRAMES != 0)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        return engine->denoiser.Process(samples, count) ? VV_AUDIO_OK : VV_AUDIO_OUT_OF_MEMORY;
     }
 
     int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled)

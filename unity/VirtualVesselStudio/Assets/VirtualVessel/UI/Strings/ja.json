@@ -192,6 +192,8 @@
         "diagnostics.voice.state.off": "止まっています",
         "diagnostics.voice.state.loading": "モデルを読み込んでいます",
         "diagnostics.voice.state.running": "変換しています",
+        "diagnostics.voice.denoise": "ノイズを抑える",
+        "diagnostics.voice.loading": "モデルを読み込んでいます",
         "diagnostics.voice.play-file": "WAVファイルを流す",
         "diagnostics.voice.stop-file": "止める",
         "diagnostics.voice.file-filter": "WAVファイル",

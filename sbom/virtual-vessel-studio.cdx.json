@@ -841,6 +841,30 @@
     },
     {
       "type": "library",
+      "bom-ref": "native:rnnoise",
+      "supplier": {
+        "name": "Xiph.Org Foundation"
+      },
+      "name": "RNNoise",
+      "version": "70f1d256acd4b34a572f999a05c87bf00b67730d",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Noise removal in the audio plugin, with its model data. Not in Git: tools/deps/fetch-rnnoise.ps1 fetches it at this commit, with the hashes in tools/deps/rnnoise.json.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/RNNoise-COPYING.txt"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "bom-ref": "msvc-runtime",
       "supplier": {
         "name": "Microsoft"
