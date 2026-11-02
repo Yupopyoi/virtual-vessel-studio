@@ -35,9 +35,9 @@ namespace VirtualVessel.Voice
         // More waiting than this and the oldest is left out: being late would last for the whole stream.
         private const int MaxWaitingBlocks = 2;
 
-        // A window of 5.4 s: with 1 s, a held note's level and timbre wander as what the models see changes,
-        // and speech only hides it. The cost is the work, not the delay (decision record on voice conversion).
-        private static readonly RvcStreamShape s_shape = new RvcStreamShape(540, 10, 2, 1, 2, 3, 42, 32);
+        // A window of 1 s. A 5.4 s window steadied held notes in a benchmark, but with the stream video,
+        // tracking, and the avatar sharing the GPU it fell behind and the voice broke up (decision record).
+        private static readonly RvcStreamShape s_shape = new RvcStreamShape(100, 10, 2, 1, 2, 3, 42, 32);
 
         private readonly IAudioStage _stage;
         private readonly IFrameLoop _frameLoop;
@@ -229,16 +229,16 @@ namespace VirtualVessel.Voice
 
         private static string SpeakerPath(string folder)
         {
-            return Path.Combine(folder, "gen_w540.spk");
+            return Path.Combine(folder, "gen_b10.spk");
         }
 
         private static string[] ModelPaths(string folder)
         {
             return new[]
             {
-                Path.Combine(folder, "hubert_86400.sentis"),
+                Path.Combine(folder, "hubert_16000.sentis"),
                 Path.Combine(folder, "rmvpe_32.sentis"),
-                Path.Combine(folder, "gen_w540.sentis"),
+                Path.Combine(folder, "gen_b10.sentis"),
             };
         }
 
