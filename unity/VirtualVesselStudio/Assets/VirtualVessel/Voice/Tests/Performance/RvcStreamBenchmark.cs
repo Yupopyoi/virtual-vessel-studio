@@ -28,13 +28,18 @@ namespace VirtualVessel.Voice.Tests
         [TestCase("w540", 540, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int windowFrames, BackendType backend)
         {
+            Convert(variant, windowFrames, backend, HeadGuard, VoiceService.Crossfade, TailGuard, VoiceService.GeneratorFile(windowFrames));
+        }
+
+        private static void Convert(string variant, int windowFrames, BackendType backend, int headGuard, int crossfade, int tailGuard, string generatorFile)
+        {
             if (string.IsNullOrEmpty(WorkFolder))
             {
                 Assert.Ignore("VV_VOICE_WORK is not set.");
             }
 
             string models = Path.Combine(WorkFolder, "sentis");
-            string generator = Path.Combine(models, VoiceService.GeneratorFile(windowFrames));
+            string generator = Path.Combine(models, generatorFile);
             if (!File.Exists(generator))
             {
                 Assert.Ignore($"{generator} is missing.");
@@ -42,7 +47,7 @@ namespace VirtualVessel.Voice.Tests
 
             string inputPath = Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(WorkFolder, "data", "source", "000.wav");
             float[] input = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(inputPath), out int inputRate), inputRate, RvcStream.DeviceRate);
-            var shape = new RvcStreamShape(windowFrames, 10, 2, 1, HeadGuard, TailGuard, 10 + 3 + HeadGuard + TailGuard + 24, 32);
+            var shape = new RvcStreamShape(windowFrames, 10, crossfade, 1, headGuard, tailGuard, 10 + crossfade + 1 + headGuard + tailGuard + 24, 32);
             using var stream = new RvcStream(
                 ModelLoader.Load(Path.Combine(models, VoiceService.FeaturesFile(windowFrames))),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),

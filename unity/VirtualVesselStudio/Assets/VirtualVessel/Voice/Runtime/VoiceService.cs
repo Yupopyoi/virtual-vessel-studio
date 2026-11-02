@@ -309,9 +309,14 @@ namespace VirtualVessel.Voice
             };
         }
 
+        /// <summary>The crossfade at each join, in 10 ms frames; the generators are exported for it.</summary>
+        public const int Crossfade = 5;
+
         private static RvcStreamShape Shape(int windowFrames)
         {
-            return new RvcStreamShape(windowFrames, 10, 2, 1, 2, 3, 42, 32);
+            // A 50 ms crossfade: with 20 ms the joins changed the sound every block, heard on held notes as a
+            // wobble in pitch (decision record, 2026-11-03).
+            return new RvcStreamShape(windowFrames, 10, Crossfade, 1, 2, 3, 10 + Crossfade + 1 + 2 + 3 + 24, 32);
         }
 
         // A load in progress still needs the frames to finish on the main thread.
