@@ -203,7 +203,7 @@ Level and upper-band variation were measured on held notes in a real recording (
 | Upstream RVC, realtime (default, 2.5 s history) | 0.251 | 0.418 |
 | Upstream RVC, realtime (5.36 s history) | 0.143 | 0.377 |
 | Unity (1 s window) | 0.231 | 0.417 |
-| **Unity (5.4 s window, adopted)** | **0.126** | **0.356** |
+| Unity (5.4 s window; later withdrawn, next section) | 0.126 | 0.356 |
 
 Pitch is steady; the level and timbre wander. Upstream's realtime code wanders the same way, so this is the nature of running on short context, not an implementation error. In speech the sound keeps changing, which hides it.
 
@@ -222,3 +222,25 @@ Approved by the user (2026-11-01). It is built into the audio plugin and runs in
 Measured: 3.2 ms median and 9.3 ms at most per block, on the main thread. Speech level changes by -0.5 dB. Synthetic clicks in pauses fall by about 70 dB.
 
 These are synthetic clicks. Real keyboards, and sounds during speech, have not been tried, nor has the effect on converted quality been measured.
+
+## 2026-11-02 Correcting the 5.4 s window, and overlapping two stages
+
+The earlier record's "5.4 s window adopted" was wrong. The user heard the voice break up during speech, and held notes no better. The totals at the application's exit had about 1608 microphone underruns in 3 minutes, against 1 to 8 in earlier runs with 1 s. The benchmark had measured an Editor with no stream video, tracking, or avatar, and missed the contention for the GPU. The window went back to 1 s.
+
+The benchmark was rebuilt: frames vary from 20 to 36 ms (the application's logged values), another model runs on the GPU every frame, and underruns are counted by the mix's rules (play once 20 ms waits, take 10 ms at a time, drop the rest and wait when it runs dry). With it, 20 s gave 119 underruns with 1 s, 120 with 2.5 s, and 140 with 5.4 s, reproducing the problem.
+
+The cause was how the work moved. A block's three steps (HuBERT and RMVPE, the generator, collecting) ran one after the other, each waiting for a frame boundary, so long frames made a block take more than 100 ms. GPU use was 47%, leaving room (checked by the user).
+
+The next block's HuBERT and RMVPE now run while this block's generator does.
+
+| Window | Before | After |
+|---|---|---|
+| 1 s | 119 underruns, 26 dropped | 1 underrun, 0 dropped |
+| 2.5 s | 120, 26 | 0, 0 |
+| 5.4 s | 140, 36 | 0, 0 |
+
+Under this load a block takes 115 to 122 ms, so the delay is expected to be about 0.3 s. The load seems heavier than the real application's, as even 1 s breaks up more than it did there.
+
+The window is chosen on the Diagnostics Card from 1, 2.5, and 5.4 s, and which sounds right waits for the user. The totals at exit include each block's time (`Voice/BlockWork`) and blocks left out (`Voice/DroppedBlocks`).
+
+From now on, improvements are judged by underruns in the application's totals and by the user's listening, never by benchmark numbers alone.

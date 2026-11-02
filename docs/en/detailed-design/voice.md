@@ -155,7 +155,7 @@ The Voice Profile, and these values in Developer Mode. Fixed values come from `s
 | Value | Default | Meaning |
 |---|---|---|
 | Block | 100 ms | Shorter lowers latency, but the work may not keep up |
-| Window | 5.4 s | What HuBERT and the generator see. Shorter makes held notes wander (decision record) |
+| Window | 1 s (2.5 s and 5.4 s can be chosen) | What HuBERT and the generator see. Longer steadies held notes and uses more GPU (decision record) |
 | Crossfade | 20 ms | |
 | Tail guard | 30 ms | Less lowers latency and raises the ripple at joins |
 
