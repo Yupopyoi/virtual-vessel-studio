@@ -288,3 +288,17 @@ A shorter block needs work per block that does not grow with the window, for exa
 The user's remark (2026-11-02): this feature needs a high-end PC, and users must be told (Voice Lab detailed design chapter 1 and 8.1).
 
 The user's listening (2026-11-03): a 10 ms tail guard added no sounds at the joins, but the delay did not feel shorter, and held notes wavered more than with 30 ms. The default stays 30 ms.
+
+## 2026-11-03 Measuring where the delay comes from
+
+The user agreed to remove the 10 ms tail guard choice (2026-11-03): it did little, and held notes wavered.
+
+The real application can now measure the delay's parts. The totals at exit show `Voice/Delay.*`: CaptureDevice, StageInput, Waiting, Work, Algorithm, StageOutput, Monitor, OutputBuffer, OutputDevice, and Total, from the microphone to the monitor (audio detailed design 8.3). The hardware's own delay (USB, Bluetooth, the converters) is not included.
+
+Candidates noticed while reading the code:
+
+- The monitor output fills the device's buffer (about 30 ms) at every wake, so that much wait is always there.
+- The stage's output arrives 100 ms at a time, so on average it waits about 50 ms for the mix. That cannot be avoided while working in blocks.
+- The stage's output is not corrected for drift (`follow` is false). If the microphone's clock runs faster than the mix's, the wait may grow slowly.
+
+The measured values decide what to cut.

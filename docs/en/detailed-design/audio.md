@@ -141,6 +141,7 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - A managed stage declares its latency and block size. The engine gives it a ring buffer of its source's input and takes its output from another, both 48 kHz float.
 - The stage's work (for RVC, Inference Engine on the GPU) runs on its own schedule in Unity; the engine only copies blocks in and out, so a slow stage never stalls the mix: if its output is late, the engine plays silence for that source and counts it.
 - Removing a stage connects the source straight through again, without reopening the device (system design 9.3, 9.8).
+- `vv_audio_get_stage_delay` (API 7) reports how long a stage's audio waits between the microphone and the monitor. For the rings (the stage's input and output, the monitor) and the output device's buffer it keeps the average fill, a moving average over about half a second; by Little's law the average fill is the average wait there. The devices' own latency is what Windows reports (`GetStreamLatency`). USB, Bluetooth, and the converters are not included.
 
 ### 8.4 Aligning Sources in Time
 
