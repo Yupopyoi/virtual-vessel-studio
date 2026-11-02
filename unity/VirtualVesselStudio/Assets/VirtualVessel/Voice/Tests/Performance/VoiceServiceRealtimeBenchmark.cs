@@ -27,11 +27,8 @@ namespace VirtualVessel.Voice.Tests
         private const double MaxFrameMs = 36.0;
         private const int Seconds = 20;
 
-        // Window and tail guard, in 10 ms frames.
-        private static readonly int[][] Setups = { new[] { 100, 3 }, new[] { 100, 1 }, new[] { 540, 3 }, new[] { 540, 1 } };
-
         [UnityTest]
-        public IEnumerator Runs_AtRealTime_UnderLoad([ValueSource(nameof(Setups))] int[] setup)
+        public IEnumerator Runs_AtRealTime_UnderLoad([Values(100, 250, 540)] int windowFrames)
         {
             string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
             if (string.IsNullOrEmpty(work))
@@ -39,11 +36,10 @@ namespace VirtualVessel.Voice.Tests
                 Assert.Ignore("VV_VOICE_WORK is not set.");
             }
 
-            int windowFrames = setup[0];
             string folder = Path.Combine(work, "sentis");
-            if (!File.Exists(Path.Combine(folder, VoiceService.GeneratorFile(windowFrames, setup[1]))))
+            if (!File.Exists(Path.Combine(folder, VoiceService.GeneratorFile(windowFrames))))
             {
-                Assert.Ignore($"No models for {string.Join("/", setup)}.");
+                Assert.Ignore($"No models for a window of {windowFrames} frames.");
             }
 
             float[] speech = WavFile.Read(File.ReadAllBytes(Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(work, "data", "source", "000.wav")), out int rate);
@@ -52,7 +48,6 @@ namespace VirtualVessel.Voice.Tests
             var loop = new ManualFrameLoop();
             using var service = new VoiceService(stage, loop, folder, null);
             service.WindowFrames = windowFrames;
-            service.TailGuardFrames = setup[1];
             service.Semitones = 9f;
             service.InitializeAsync(CancellationToken.None).Wait();
             service.SetEnabled(true);
@@ -98,7 +93,7 @@ namespace VirtualVessel.Voice.Tests
             }
 
             service.SetEnabled(false);
-            var report = new StringBuilder($"Under load, window {windowFrames * 10} ms, tail {setup[1] * 10} ms, delay {(10 + 2 + 1 + setup[1]) * 10 + 1} ms + work: {seen} blocks, {service.Stats.Dropped} dropped, {stage.Underruns} underruns\n");
+            var report = new StringBuilder($"Under load, window {windowFrames * 10} ms: {seen} blocks, {service.Stats.Dropped} dropped, {stage.Underruns} underruns\n");
             RvcStreamBenchmark.AppendStage(report, "voice in a frame", frameMs);
             RvcStreamBenchmark.AppendStage(report, "block work", workMs.Skip(3));
             RvcStreamBenchmark.AppendStage(report, "main prepare", timings.Skip(3).Select(t => t.Prepare));
@@ -110,7 +105,7 @@ namespace VirtualVessel.Voice.Tests
             RvcStreamBenchmark.AppendStage(report, "wait pitch", timings.Skip(3).Select(t => t.PitchWait));
             RvcStreamBenchmark.AppendStage(report, "wait generator", timings.Skip(3).Select(t => t.GeneratorWait));
             File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
-            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{string.Join("_", setup)}.wav"), stage.Output.ToArray());
+            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{windowFrames}.wav"), stage.Output.ToArray());
             Assert.That(seen, Is.GreaterThan(Seconds * 5));
         }
 
