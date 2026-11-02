@@ -69,8 +69,12 @@ namespace VirtualVessel.Voice.Rvc
     /// <summary>
     /// Real-time RVC v2: one 48 kHz mono block in, one out, on Unity Inference Engine. It runs the way
     /// upstream's realtime path does (window for the features, a short RMVPE window with cached pitch,
-    /// only the window's tail through the flow and decoder, then an in-phase crossfade). The prototype
-    /// runs each model to completion on the calling thread.
+    /// only the window's tail through the flow and decoder, then an in-phase crossfade).
+    /// <para>
+    /// Two stages overlap: the next block's HuBERT and RMVPE run while this block's generator does. Run
+    /// one after the other, each step waited for a frame and a block took longer than a block under load.
+    /// A block's delay is the same either way.
+    /// </para>
     /// </summary>
     public sealed class RvcStream : IDisposable
     {
@@ -92,13 +96,6 @@ namespace VirtualVessel.Voice.Rvc
         // Upstream drops RMVPE's first frames and its last one, which lean on padded audio.
         private const int PitchHeadSkipped = 3;
         private const int PitchTailSkipped = 1;
-
-        private enum Step
-        {
-            Idle,
-            Models,
-            Generator,
-        }
 
         private readonly RvcStreamShape _shape;
         private readonly Worker _features;
@@ -136,8 +133,12 @@ namespace VirtualVessel.Voice.Rvc
         private readonly int _reach48k;
         private readonly int _reach40k;
 
-        private Step _step;
+        private bool _inputBusy;
+        private bool _pending;
+        private bool _generatorBusy;
         private long _waitStart;
+        private long _generatorWaitStart;
+        private RvcTimings _blockTimings;
         private bool _featuresRead;
         private bool _pitchRead;
         private RvcTimings _timings;
@@ -193,8 +194,11 @@ namespace VirtualVessel.Voice.Rvc
 
         public int BlockSamples => _shape.BlockFrames * SamplesPerFrame48k;
 
-        /// <summary>True from <see cref="Start"/> until <see cref="Advance"/> gives the block back.</summary>
-        public bool IsBusy => _step != Step.Idle;
+        /// <summary>True while a block is on its way.</summary>
+        public bool IsBusy => _inputBusy || _pending || _generatorBusy;
+
+        /// <summary>True when the next block can start, which may be while the last is in the generator.</summary>
+        public bool CanStart => !_inputBusy && !_pending;
 
         /// <summary>The last block's times.</summary>
         public RvcTimings Timings
@@ -232,12 +236,12 @@ namespace VirtualVessel.Voice.Rvc
                 throw new ArgumentException($"A block is {BlockSamples} samples.");
             }
 
-            if (IsBusy)
+            if (!CanStart)
             {
-                throw new InvalidOperationException("The last block is not finished.");
+                throw new InvalidOperationException("The last block has not left the first stage.");
             }
 
-            Timings = default;
+            _timings = default;
             long start = Stopwatch.GetTimestamp();
             PushAudio(input);
 
@@ -270,7 +274,7 @@ namespace VirtualVessel.Voice.Rvc
             _waitStart = start;
             _featuresRead = false;
             _pitchRead = false;
-            _step = Step.Models;
+            _inputBusy = true;
         }
 
         /// <summary>
@@ -279,7 +283,7 @@ namespace VirtualVessel.Voice.Rvc
         /// </summary>
         public bool Advance(Span<float> output, bool wait)
         {
-            if (_step == Step.Models)
+            if (_inputBusy)
             {
                 // Each is read as soon as it is done: a finished request's data lasts only that frame,
                 // so waiting for the slower model loses the faster one's.
@@ -295,30 +299,39 @@ namespace VirtualVessel.Voice.Rvc
 
                 if (_featuresRead && _pitchRead)
                 {
-                    RunGenerator();
+                    _inputBusy = false;
+                    _pending = true;
                 }
-
-                return false;
             }
 
-            if (_step == Step.Generator)
+            bool done = false;
+            if (_generatorBusy && (wait || _generatorOutput.IsReadbackRequestDone()))
             {
-                if (!wait && !_generatorOutput.IsReadbackRequestDone())
-                {
-                    return false;
-                }
-
                 FinishGenerator(output);
-                return true;
+                done = true;
             }
 
-            throw new InvalidOperationException("No block is on its way.");
+            // The generator takes the next block as soon as it is free; its inputs were filled by the
+            // first stage, which can then start the block after.
+            if (_pending && !_generatorBusy)
+            {
+                RunGenerator();
+                if (wait && !done)
+                {
+                    FinishGenerator(output);
+                    done = true;
+                }
+            }
+
+            return done;
         }
 
         /// <summary>Forgets a block on its way, such as when the conversion turns off.</summary>
         public void Abandon()
         {
-            _step = Step.Idle;
+            _inputBusy = false;
+            _pending = false;
+            _generatorBusy = false;
             _hasTail = false;
         }
 
@@ -421,22 +434,25 @@ namespace VirtualVessel.Voice.Rvc
             _generator.Schedule();
             _generatorOutput = _generator.PeekOutput() as Tensor<float>;
             _generatorOutput.ReadbackRequest();
-            _timings.Generator = Since(ref start);
-            _waitStart = start;
-            _step = Step.Generator;
+            _blockTimings = _timings;
+            _blockTimings.Generator = Since(ref start);
+            _generatorWaitStart = start;
+            _pending = false;
+            _generatorBusy = true;
         }
 
         private void FinishGenerator(Span<float> output)
         {
             long start = Stopwatch.GetTimestamp();
-            _timings.GeneratorWait = (start - _waitStart) * 1000.0 / Stopwatch.Frequency;
+            _blockTimings.GeneratorWait = (start - _generatorWaitStart) * 1000.0 / Stopwatch.Frequency;
             using (Tensor<float> audio = _generatorOutput.ReadbackAndClone())
             {
                 Finish(audio.AsReadOnlySpan(), output);
             }
 
-            _timings.Finish = Since(ref start);
-            _step = Step.Idle;
+            _blockTimings.Finish = Since(ref start);
+            Timings = _blockTimings;
+            _generatorBusy = false;
         }
 
         private void CopyNoise()

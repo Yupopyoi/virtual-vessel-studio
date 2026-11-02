@@ -7,6 +7,7 @@ using VirtualVessel.Audio;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.UI.Voice;
 using VirtualVessel.Voice.Rvc;
 
@@ -35,9 +36,11 @@ namespace VirtualVessel.Voice
         // More waiting than this and the oldest is left out: being late would last for the whole stream.
         private const int MaxWaitingBlocks = 2;
 
-        // A window of 1 s. A 5.4 s window steadied held notes in a benchmark, but with the stream video,
-        // tracking, and the avatar sharing the GPU it fell behind and the voice broke up (decision record).
-        private static readonly RvcStreamShape s_shape = new RvcStreamShape(100, 10, 2, 1, 2, 3, 42, 32);
+        /// <summary>
+        /// The windows models exist for, in 10 ms frames. Longer steadies held notes and costs more GPU time
+        /// (decision record on voice conversion); which one keeps up depends on the PC.
+        /// </summary>
+        public static readonly int[] Windows = { 100, 250, 540 };
 
         private readonly IAudioStage _stage;
         private readonly IFrameLoop _frameLoop;
@@ -56,8 +59,13 @@ namespace VirtualVessel.Voice
         private int _waitingSamples;
         private bool _primed;
         private bool _wanted;
+        private readonly PerfTimer _workTimer;
+        private readonly PerfTimer _issueTimer;
+        private readonly PerfCounter _droppedCounter;
         private float _semitones;
-        private long _startedAt;
+        private int _windowFrames = 100;
+        // When each block on its way started; two can be on their way at once.
+        private readonly System.Collections.Generic.Queue<long> _startedAt = new System.Collections.Generic.Queue<long>(4);
         private long _blocks;
         private long _dropped;
         private VoiceConversionStats _stats;
@@ -69,8 +77,12 @@ namespace VirtualVessel.Voice
         private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
 
         /// <param name="folder">Holds the .sentis models; null or missing leaves the conversion unavailable.</param>
-        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, string folder, ILog log)
+        /// <param name="metrics">Optional; each block's work and the blocks left out, for the totals at exit.</param>
+        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, string folder, ILog log, IPerformanceMetrics metrics = null)
         {
+            _workTimer = metrics?.Timer("Voice", "BlockWork");
+            _issueTimer = metrics?.Timer("Voice", "BlockIssue");
+            _droppedCounter = metrics?.Counter("Voice", "DroppedBlocks");
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _folder = folder;
@@ -84,6 +96,48 @@ namespace VirtualVessel.Voice
         public VoiceConversionStats Stats => _stats;
 
         private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone || _state.Value == VoiceConversionState.PlayingFile;
+
+        /// <summary>The window in 10 ms frames, one of <see cref="Windows"/>. A change reloads the models.</summary>
+        public int WindowFrames
+        {
+            get => _windowFrames;
+            set
+            {
+                if (Array.IndexOf(Windows, value) < 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value));
+                }
+
+                if (value == _windowFrames)
+                {
+                    return;
+                }
+
+                _windowFrames = value;
+                bool wanted = _wanted;
+                SetEnabled(false);
+                _stream?.Dispose();
+                _stream = null;
+                if (wanted)
+                {
+                    SetEnabled(true);
+                }
+            }
+        }
+
+        System.Collections.Generic.IReadOnlyList<int> IVoiceConversion.Windows => Windows;
+
+        /// <summary>The generator's file for a window. Pure.</summary>
+        public static string GeneratorFile(int windowFrames)
+        {
+            return $"gen_w{windowFrames}.sentis";
+        }
+
+        /// <summary>HuBERT's file for a window, named by its 16 kHz samples. Pure.</summary>
+        public static string FeaturesFile(int windowFrames)
+        {
+            return $"hubert_{windowFrames * 160}.sentis";
+        }
 
         public bool Denoise
         {
@@ -227,19 +281,24 @@ namespace VirtualVessel.Voice
             return speaker;
         }
 
-        private static string SpeakerPath(string folder)
+        private static string SpeakerPath(string folder, int windowFrames)
         {
-            return Path.Combine(folder, "gen_b10.spk");
+            return Path.Combine(folder, Path.ChangeExtension(GeneratorFile(windowFrames), ".spk"));
         }
 
-        private static string[] ModelPaths(string folder)
+        private static string[] ModelPaths(string folder, int windowFrames)
         {
             return new[]
             {
-                Path.Combine(folder, "hubert_16000.sentis"),
+                Path.Combine(folder, FeaturesFile(windowFrames)),
                 Path.Combine(folder, "rmvpe_32.sentis"),
-                Path.Combine(folder, "gen_b10.sentis"),
+                Path.Combine(folder, GeneratorFile(windowFrames)),
             };
+        }
+
+        private static RvcStreamShape Shape(int windowFrames)
+        {
+            return new RvcStreamShape(windowFrames, 10, 2, 1, 2, 3, 42, 32);
         }
 
         // A load in progress still needs the frames to finish on the main thread.
@@ -262,7 +321,7 @@ namespace VirtualVessel.Voice
 
         private void BeginLoading()
         {
-            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder), File.Exists) || !File.Exists(SpeakerPath(_folder)))
+            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, _windowFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, _windowFrames)))
             {
                 _log?.Warning($"Voice conversion is unavailable: stage {_stage.IsAvailable}, model folder '{_folder}'.");
                 _state.Set(VoiceConversionState.Unavailable);
@@ -271,8 +330,8 @@ namespace VirtualVessel.Voice
 
             _loadedModels = 0;
             _state.Set(VoiceConversionState.Loading);
-            string[] paths = ModelPaths(_folder);
-            string speaker = SpeakerPath(_folder);
+            string[] paths = ModelPaths(_folder, _windowFrames);
+            string speaker = SpeakerPath(_folder, _windowFrames);
             _loading = Task.Run(() =>
             {
                 _speaker = ReadSpeaker(speaker);
@@ -320,7 +379,7 @@ namespace VirtualVessel.Voice
             try
             {
                 Model[] models = loading.GetAwaiter().GetResult();
-                _stream = new RvcStream(models[0], models[1], models[2], _speaker, s_shape, BackendType.GPUCompute, _semitones);
+                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(_windowFrames), BackendType.GPUCompute, _semitones);
                 _stereo = new float[RvcStream.DeviceRate * ChannelCount];
                 _waiting = new float[RvcStream.DeviceRate];
                 _block = new float[_stream.BlockSamples];
@@ -359,6 +418,7 @@ namespace VirtualVessel.Voice
         {
             _waitingSamples = 0;
             _primed = false;
+            _startedAt.Clear();
             _stage.SetEnabled(true);
             _state.Set(AttachedState(_stage.IsCapturing));
         }
@@ -376,19 +436,20 @@ namespace VirtualVessel.Voice
         private void Pump()
         {
             Collect();
-            if (_stream.IsBusy && _stream.Advance(_block, false))
+            if (_stream.Advance(_block, false))
             {
                 Deliver();
             }
 
             int block = _stream.BlockSamples;
-            if (!_stream.IsBusy && _waitingSamples >= block)
+            if (_stream.CanStart && _waitingSamples >= block)
             {
                 int drop = SamplesToDrop(_waitingSamples, block, MaxWaitingBlocks);
                 if (drop > 0)
                 {
                     Consume(drop);
                     _dropped += drop / block;
+                    _droppedCounter?.Add(drop / block);
                 }
 
                 // The block is a whole number of the denoiser's 10 ms frames, so nothing waits for it.
@@ -397,7 +458,7 @@ namespace VirtualVessel.Voice
                     _stage.Denoise(_waiting, block);
                 }
 
-                _startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                _startedAt.Enqueue(System.Diagnostics.Stopwatch.GetTimestamp());
                 _stream.Start(new ReadOnlySpan<float>(_waiting, 0, block));
                 Consume(block);
             }
@@ -451,7 +512,10 @@ namespace VirtualVessel.Voice
 
             _stage.Write(_output, _block.Length);
             _blocks++;
-            double work = (System.Diagnostics.Stopwatch.GetTimestamp() - _startedAt) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            long started = _startedAt.Count > 0 ? _startedAt.Dequeue() : System.Diagnostics.Stopwatch.GetTimestamp();
+            double work = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            _workTimer?.Record(TimeSpan.FromMilliseconds(work));
+            _issueTimer?.Record(TimeSpan.FromMilliseconds(_stream.Timings.Issue));
             _stats = new VoiceConversionStats(_stream.BlockSamples / 48.0, work, _stream.Timings.Issue, _blocks, _dropped);
         }
     }

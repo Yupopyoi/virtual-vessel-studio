@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using NUnit.Framework;
+using Unity.InferenceEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Audio;
 using VirtualVessel.Core.Lifecycle;
@@ -16,16 +17,18 @@ using VirtualVessel.Voice.Rvc;
 namespace VirtualVessel.Voice.Tests
 {
     /// <summary>
-    /// The real service and models with speech fed at real time and frames at 60 Hz, as in the application,
-    /// to see what a frame loses to the conversion and how late the audio comes back.
+    /// The real service and models with speech fed at real time, under the load of the application: frames
+    /// of 20 to 36 ms, as the application logged, and another model on the GPU every frame. It counts what
+    /// the mix would count as running dry, which an idle Editor never showed.
     /// </summary>
     public sealed class VoiceServiceRealtimeBenchmark
     {
-        private const double FrameMs = 1000.0 / 60.0;
-        private const int Frames = 60 * 20;
+        private const double MinFrameMs = 20.0;
+        private const double MaxFrameMs = 36.0;
+        private const int Seconds = 20;
 
         [UnityTest]
-        public IEnumerator Runs_AtRealTime_On60HzFrames()
+        public IEnumerator Runs_AtRealTime_UnderLoad([Values(100, 250, 540)] int windowFrames)
         {
             string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
             if (string.IsNullOrEmpty(work))
@@ -33,40 +36,52 @@ namespace VirtualVessel.Voice.Tests
                 Assert.Ignore("VV_VOICE_WORK is not set.");
             }
 
-            float[] speech = RvcStreamBenchmark.ReadWav(Path.Combine(work, "data", "source", "000.wav"));
+            string folder = Path.Combine(work, "sentis");
+            if (!File.Exists(Path.Combine(folder, VoiceService.GeneratorFile(windowFrames))))
+            {
+                Assert.Ignore($"No models for a window of {windowFrames} frames.");
+            }
+
+            float[] speech = WavFile.Read(File.ReadAllBytes(Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(work, "data", "source", "000.wav")), out int rate);
+            speech = WavFile.ToRate(speech, rate, RvcStream.DeviceRate);
             var stage = new WavStage(speech);
             var loop = new ManualFrameLoop();
-            using var service = new VoiceService(stage, loop, Path.Combine(work, "sentis"), null);
-            service.Semitones = 13f;
+            using var service = new VoiceService(stage, loop, folder, null);
+            service.WindowFrames = windowFrames;
+            service.Semitones = 9f;
             service.InitializeAsync(CancellationToken.None).Wait();
             service.SetEnabled(true);
-
             while (service.State.Value == VoiceConversionState.Loading)
             {
                 loop.Tick();
                 yield return null;
             }
 
-            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Running));
+            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Running), service.Failure?.ToString());
+
+            // Other GPU work every frame, standing in for the stream video, tracking, and the avatar.
+            using var load = new Worker(ModelLoader.Load(Path.Combine(folder, "hubert_16000.sentis")), BackendType.GPUCompute);
+            using var loadInput = new Tensor<float>(new TensorShape(1, 16000));
+            var random = new System.Random(7);
             stage.Start();
-            var frameMs = new List<double>(Frames);
+            var frameMs = new List<double>();
             var workMs = new List<double>();
             var clock = Stopwatch.StartNew();
             long seen = 0;
-            for (int frame = 0; frame < Frames; frame++)
+            while (clock.Elapsed.TotalSeconds < Seconds)
             {
-                double before = clock.Elapsed.TotalMilliseconds;
+                double frameStart = clock.Elapsed.TotalMilliseconds;
+                load.Schedule(loadInput);
                 loop.Tick();
-                double spent = clock.Elapsed.TotalMilliseconds - before;
-                frameMs.Add(spent);
+                frameMs.Add(clock.Elapsed.TotalMilliseconds - frameStart);
                 if (service.Stats.Blocks != seen)
                 {
                     seen = service.Stats.Blocks;
                     workMs.Add(service.Stats.WorkMs);
                 }
 
-                double due = (frame + 1) * FrameMs;
-                double left = due - clock.Elapsed.TotalMilliseconds;
+                double length = MinFrameMs + random.NextDouble() * (MaxFrameMs - MinFrameMs);
+                double left = frameStart + length - clock.Elapsed.TotalMilliseconds;
                 if (left > 1.0)
                 {
                     Thread.Sleep((int)left);
@@ -75,16 +90,13 @@ namespace VirtualVessel.Voice.Tests
                 yield return null;
             }
 
-            Assert.That(service.Failure, Is.Null, service.Failure?.ToString());
-            Assert.That(seen, Is.GreaterThan(0), $"No block came back. State {service.State.Value}, busy frames {frameMs.Count}.");
             service.SetEnabled(false);
-            var report = new StringBuilder($"Real time at 60 Hz: {seen} blocks, {service.Stats.Dropped} dropped\n");
-            RvcStreamBenchmark.AppendStage(report, "frame cost", frameMs);
+            var report = new StringBuilder($"Under load, window {windowFrames * 10} ms: {seen} blocks, {service.Stats.Dropped} dropped, {stage.Underruns} underruns\n");
+            RvcStreamBenchmark.AppendStage(report, "voice in a frame", frameMs);
             RvcStreamBenchmark.AppendStage(report, "block work", workMs.Skip(3));
-            RvcStreamBenchmark.AppendStage(report, "behind", stage.Behind.Skip(3));
             File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
-            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", "unity_realtime.wav"), stage.Output.ToArray());
-            Assert.That(seen, Is.GreaterThan(150));
+            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{windowFrames}.wav"), stage.Output.ToArray());
+            Assert.That(seen, Is.GreaterThan(Seconds * 5));
         }
 
         private sealed class ManualFrameLoop : IFrameLoop
@@ -118,13 +130,19 @@ namespace VirtualVessel.Voice.Tests
             }
         }
 
-        // Stands in for the microphone at real time, and for the mix: it records what comes back.
+        // Stands in for the microphone at real time, and for the mix, with its rules: it starts playing
+        // once 20 ms waits, takes 10 ms at a time, and when it runs dry it drops the rest and waits again.
         private sealed class WavStage : IAudioStage
         {
+            private const int Prime = 960;
+            private const int MixBlock = 480;
+
             private readonly float[] _speech;
             private readonly Stopwatch _clock = new Stopwatch();
             private long _position;
             private long _written;
+            private long _played;
+            private long _playStart = -1;
 
             public WavStage(float[] speech)
             {
@@ -135,14 +153,9 @@ namespace VirtualVessel.Voice.Tests
 
             public bool IsCapturing => true;
 
-            public void Denoise(float[] samples, int count)
-            {
-            }
+            public long Underruns { get; private set; }
 
             public List<float> Output { get; } = new List<float>();
-
-            /// <summary>How long past each block's last input it was written, in ms.</summary>
-            public List<double> Behind { get; } = new List<double>();
 
             public void Start()
             {
@@ -153,8 +166,13 @@ namespace VirtualVessel.Voice.Tests
             {
             }
 
+            public void Denoise(float[] samples, int count)
+            {
+            }
+
             public int Read(float[] frames, int capacity)
             {
+                Play();
                 long due = _clock.ElapsedMilliseconds * RvcStream.DeviceRate / 1000;
                 int count = (int)Math.Min(capacity, due - _position);
                 for (int i = 0; i < count; i++)
@@ -170,13 +188,42 @@ namespace VirtualVessel.Voice.Tests
 
             public void Write(float[] frames, int count)
             {
+                Play();
                 for (int i = 0; i < count; i++)
                 {
                     Output.Add(frames[i * 2]);
                 }
 
                 _written += count;
-                Behind.Add(_clock.Elapsed.TotalMilliseconds - _written * 1000.0 / RvcStream.DeviceRate);
+                Play();
+            }
+
+            private long Now => _clock.ElapsedTicks * RvcStream.DeviceRate / Stopwatch.Frequency;
+
+            private void Play()
+            {
+                if (_playStart < 0)
+                {
+                    if (_written - _played >= Prime)
+                    {
+                        _playStart = Now;
+                    }
+
+                    return;
+                }
+
+                long blocks = (Now - _playStart) / MixBlock;
+                long due = _played + blocks * MixBlock;
+                if (due > _written)
+                {
+                    Underruns++;
+                    _played = _written;
+                    _playStart = -1;
+                    return;
+                }
+
+                _played = due;
+                _playStart += blocks * MixBlock;
             }
         }
     }

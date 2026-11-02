@@ -132,7 +132,7 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VoiceService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion")),
+                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion"), metrics),
                     new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 

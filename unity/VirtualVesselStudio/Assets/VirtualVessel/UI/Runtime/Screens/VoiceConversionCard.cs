@@ -17,6 +17,10 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
+        public const string Window = "diagnostics.voice.window";
+        public const string Window100 = "diagnostics.voice.window.100";
+        public const string Window250 = "diagnostics.voice.window.250";
+        public const string Window540 = "diagnostics.voice.window.540";
         public const string Denoise = "diagnostics.voice.denoise";
         public const string Loading = "diagnostics.voice.loading";
         public const string PlayFile = "diagnostics.voice.play-file";
@@ -71,6 +75,13 @@ namespace VirtualVessel.UI.Screens
             semitones.SetValueWithoutNotify(_voice.Semitones);
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
+
+            card.Add(Text(VoiceConversionStrings.Window));
+            Segmented window = Ui.Segmented(VoiceConversionStrings.Window100, VoiceConversionStrings.Window250, VoiceConversionStrings.Window540);
+            int[] windows = { 100, 250, 540 };
+            window.SetValueWithoutNotify(Math.Max(0, Array.IndexOf(windows, _voice.WindowFrames)));
+            window.RegisterValueChangedCallback(evt => _voice.WindowFrames = windows[evt.newValue]);
+            card.Add(window);
 
             SwitchToggle denoise = Ui.Toggle(VoiceConversionStrings.Denoise);
             denoise.SetValueWithoutNotify(_voice.Denoise);
@@ -153,6 +164,12 @@ namespace VirtualVessel.UI.Screens
         {
             Label label = QuietText.Of(new Label());
             label.AddToClassList(TextClass);
+            return label;
+        }
+
+        private static Label Text(string key)
+        {
+            Label label = Ui.Text(key, TextClass);
             return label;
         }
 
