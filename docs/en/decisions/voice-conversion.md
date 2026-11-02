@@ -286,3 +286,5 @@ A 10 ms tail guard lowers the delay by 20 ms without more underruns. The Diagnos
 A shorter block needs work per block that does not grow with the window, for example reusing HuBERT's earlier output. That is not done now.
 
 The user's remark (2026-11-02): this feature needs a high-end PC, and users must be told (Voice Lab detailed design chapter 1 and 8.1).
+
+The user's listening (2026-11-03): a 10 ms tail guard added no sounds at the joins, but the delay did not feel shorter, and held notes wavered more than with 30 ms. The default stays 30 ms.
