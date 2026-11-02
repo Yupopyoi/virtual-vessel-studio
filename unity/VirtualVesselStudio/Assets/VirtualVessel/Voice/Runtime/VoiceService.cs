@@ -64,7 +64,7 @@ namespace VirtualVessel.Voice
         private readonly PerfTimer _issueTimer;
         private readonly PerfCounter _droppedCounter;
         private readonly PerfTimer[] _stageTimers;
-        private readonly PerfGauge[] _delayGauges;
+        private readonly PerfTimer[] _delayTimers;
         private readonly double[] _delayParts = new double[DelayParts.Length];
         private readonly IPerformanceMetrics _metrics;
         private double _lastWorkMs;
@@ -91,7 +91,8 @@ namespace VirtualVessel.Voice
             _droppedCounter = metrics?.Counter("Voice", "DroppedBlocks");
             _stageTimers = new[] { "Prepare", "Features", "Pitch", "Generator", "Finish" }.Select(name => metrics?.Timer("Voice", "Issue." + name)).ToArray();
             _metrics = metrics;
-            _delayGauges = DelayParts.Select(name => metrics?.Gauge("Voice", "Delay." + name, "ms")).ToArray();
+            // Timers, not gauges: they are durations, and the totals at exit list timers.
+            _delayTimers = DelayParts.Select(name => metrics?.Timer("Voice", "Delay." + name)).ToArray();
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _folder = folder;
@@ -487,7 +488,7 @@ namespace VirtualVessel.Voice
         }
 
         // What waits here stays until the next frame, so one sample a frame is its average. Only while the
-        // totals record gauges, so the call to the engine costs nothing otherwise.
+        // totals record timers, so the call to the engine costs nothing otherwise.
         private void RecordDelay()
         {
             if (_metrics == null || !_metrics.IsDetailedEnabled || _file != null)
@@ -498,7 +499,7 @@ namespace VirtualVessel.Voice
             DelayMs(_stage.Delay, _waitingSamples, _lastWorkMs, _stream.AlgorithmDelaySamples, _delayParts);
             for (int i = 0; i < _delayParts.Length; i++)
             {
-                _delayGauges[i].Set(_delayParts[i]);
+                _delayTimers[i].Record(TimeSpan.FromMilliseconds(_delayParts[i]));
             }
         }
 
