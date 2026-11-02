@@ -244,3 +244,21 @@ Under this load a block takes 115 to 122 ms, so the delay is expected to be abou
 The window is chosen on the Diagnostics Card from 1, 2.5, and 5.4 s, and which sounds right waits for the user. The totals at exit include each block's time (`Voice/BlockWork`) and blocks left out (`Voice/DroppedBlocks`).
 
 From now on, improvements are judged by underruns in the application's totals and by the user's listening, never by benchmark numbers alone.
+
+## 2026-11-02 One trip to the GPU
+
+After overlapping the two stages, the user's application still took 150 ms per block on average, with 74 ms on the main thread, and the 5.4 s window's delay was noticeable. Split by stage under the load benchmark, the main thread took about 20 ms per block, and most of the time was spent waiting for GPU results. HuBERT's and RMVPE's results came back to be prepared on the CPU, then the generator went out and came back: two trips, each waiting for a frame boundary.
+
+That preparation moved into the generator's model: doubling HuBERT's output to 100 Hz, and turning RMVPE's output into pitch. The CPU keeps the pitch of earlier blocks, and the GPU works out and returns only the 28 newest frames. A frame sends all three models and only the last comes back.
+
+Short unvoiced gaps now hold the last pitch instead of interpolating, which would need later values and does not suit doing it all on the GPU at once. The held-note scores show no loss.
+
+| Window | Two trips | One trip |
+|---|---|---|
+| 1 s | 114 ms | 66 ms |
+| 2.5 s | 115 ms | 70 ms |
+| 5.4 s | 122 ms | 86 ms |
+
+Medians under the load benchmark, with no blocks dropped. The generator's shape changed, so the template and table were remade, and a voice not used to make them is identical by SHA-256 to the Editor's conversion. Inference Engine's Clip needs both bounds, so one-sided `clamp` is not used.
+
+Listening by the user is still to come.
