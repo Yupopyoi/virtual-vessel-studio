@@ -328,3 +328,25 @@ The user's decisions (2026-11-03):
 - "Better before" compared with the previous run of the same processing. With the same processing, held notes sound different from run to run.
 - Moving the monitor to the PC's earphone jack partway through did not change how the delay felt.
 - Cutting about 50 ms would hardly be felt, so work on the delay stops here, and sound quality comes first.
+
+## 2026-11-03 Held notes: a 50 ms crossfade
+
+The user found the pitch wobbling on held notes very unpleasant. Following the user's suggestion, the measure is whether the output's pitch is exactly an octave above the input's (+12 semitones).
+
+The user's recording (about 2 minutes) was converted and compared. `pitch_track.py` finds the pitch with pYIN. `join_profile.py` folds the spectral change by its position within the block and averages it. Both are in `voice-work`.
+
+| | Distance from input + an octave on held notes | Output wobble | Join score (1.00 is no change) | Added delay |
+|---|---|---|---|---|
+| Input | — | 10.7 cents | — | — |
+| Offline | 8.8 cents | 10.8 cents | 1.01 | — |
+| 20 ms crossfade (until now) | 9.9 cents | 12.4 cents | 1.06 | 0 |
+| 100 ms of earlier context | — | — | 1.07 | 0 |
+| 60 ms tail guard | — | — | 1.05 | +30 ms |
+| 50 ms crossfade | 10.3 cents | 11.4 cents | 1.01 | +30 ms |
+
+- On average the pitch itself followed the input an octave up almost exactly. The input itself wavers by about 11 cents on held notes.
+- The joins caused the wobble. With a 20 ms crossfade, the sound changed just after each join every 100 ms, a 10 Hz wobble.
+- More earlier context for the generator changed nothing, and a longer tail guard helped little.
+- With a 50 ms crossfade, the join score matched offline, and the output's wobble came closer to the input's. The delay grows by 30 ms (the algorithm's delay goes from 61 to 91 ms).
+
+The user put sound quality first (2026-11-03), so 50 ms is adopted. The generators return 21 frames instead of 18, so they were exported again. The template for swapping weights must be made again as well. The user has not listened yet.
