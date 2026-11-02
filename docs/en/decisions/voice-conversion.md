@@ -302,3 +302,24 @@ Candidates noticed while reading the code:
 - The stage's output is not corrected for drift (`follow` is false). If the microphone's clock runs faster than the mix's, the wait may grow slowly.
 
 The measured values decide what to cut.
+
+### Measured (2026-11-03, 5.4 s window, the user's PC)
+
+| Part | Average |
+|---|---|
+| Input device (as Windows reports) | 0 ms |
+| Until the stage reads | 19 ms |
+| Until 100 ms has gathered | 50 ms |
+| GPU work | 80 ms |
+| The algorithm | 61 ms |
+| After the stage, until the mix | 100 ms |
+| From the mix to the monitor output | 15 ms |
+| Output device buffer | 25 ms |
+| Output device (as Windows reports) | 0 ms |
+| Total | 350 ms |
+
+The hardware adds its own delay to this total: the USB camera's microphone, and the display's speakers over HDMI. Windows reported 0 for the devices.
+
+The wait after the stage is about 30 ms longer than the 70 ms expected from half a block plus the mix's 20 ms. Nothing corrects that wait (`follow` is false), so whatever each early block adds seems to stay.
+
+The user's impression: held notes with the 5.4 s window were better before, and the delay feels about the same.
