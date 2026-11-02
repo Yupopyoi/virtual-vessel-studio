@@ -157,7 +157,7 @@ The Voice Profile, and these values in Developer Mode. Fixed values come from `s
 | Block | 100 ms | Shorter lowers latency, but the work may not keep up |
 | Window | 1 s (2.5 s and 5.4 s can be chosen) | What HuBERT and the generator see. Longer steadies held notes and uses more GPU (decision record) |
 | Crossfade | 20 ms | |
-| Tail guard | 30 ms | Less lowers latency and raises the ripple at joins |
+| Tail guard | 30 ms (10 ms can be chosen) | Less lowers latency and raises the ripple at joins (decision record) |
 
 Changing the block or window requires rebuilding from the template (Voice Lab detailed design 8.4).
 
@@ -208,8 +208,8 @@ Without models, as in CI, the benchmarks are ignored.
 
 The order for lowering latency:
 
-1. Reduce the tail guard and burst margin, checking by listening
-2. Overlap blocks, for a 50 ms block
+1. Reduce the tail guard and burst margin, checking by listening. A 10 ms tail guard can now be chosen
+2. Make a block's work not grow with the window (for example, reuse HuBERT's earlier output). A 50 ms block can follow. Only overlapping blocks left the GPU behind (decision record)
 3. Reduce issuing RMVPE's unrolled GRU, whose many layers take half of the issuing time
 
 ## 16. Directory / Namespace Structure

@@ -7,6 +7,7 @@ Lets users make and register their ideal voice (system design chapter 13), by op
 - The feature for making voices does not work until the user activates it (the user's decision, 2026-11-01).
 - Activation builds the training environment. An internet connection is assumed.
 - The information the terms of use need, and the disclaimers, can always be shown (the user's decision, 2026-11-01).
+- Voice conversion needs a high-end PC (a fast GPU with ample memory). Users are always told, before activation and on the download page (the user's remark, 2026-11-02). The required values are not yet decided (chapter 17).
 
 Out of scope: real-time conversion ([Voice detailed design](voice.md)), and starting and watching processes ([External Services detailed design](external-services.md)).
 
@@ -130,7 +131,7 @@ Training Run states are as in system design 13.15.
 
 ```text
 Open Voice Lab
-  ↓ Explain: what it does, size (about 8 GB, with VoxCPM2 needing more), time, an NVIDIA GPU is needed
+  ↓ Explain: what it does, size (about 8 GB, with VoxCPM2 needing more), time, an NVIDIA GPU is needed, the high hardware requirements
 Show the terms (8.2) → agree
   ↓
 Check the PC: GPU, driver, free space, connection
@@ -297,6 +298,7 @@ Open issues:
 - Checking on a truly new PC. The development PC already has drivers and so on.
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
 - The agreement screen's wording, reviewed by a legal professional before release.
+- The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
 
 Approved by the user (2026-11-01):
 

@@ -262,3 +262,27 @@ Short unvoiced gaps now hold the last pitch instead of interpolating, which woul
 Medians under the load benchmark, with no blocks dropped. The generator's shape changed, so the template and table were remade, and a voice not used to make them is identical by SHA-256 to the Editor's conversion. Inference Engine's Clip needs both bounds, so one-sided `clamp` is not used.
 
 Listening by the user is still to come.
+
+## 2026-11-03 The 50 ms block is set aside, and the tail guard can be chosen
+
+The user still noticed the delay with a 1 s window. With approval to use more GPU memory, two things were tried:
+
+1. A 50 ms block, with three blocks on the GPU at once (each lane with its own Workers and tensors).
+2. A tail guard of 10 ms instead of 30 ms.
+
+| Window | Block | Tail guard | Delay (without the work) | One block's work (median) | Dropped | Underruns (20 s) |
+|---|---|---|---|---|---|---|
+| 1 s | 100 ms | 30 ms | 161 ms | 65 ms | 0 | 0 |
+| 1 s | 100 ms | 10 ms | 141 ms | 64 ms | 0 | 1 |
+| 1 s | 50 ms | 30 ms | 111 ms | 180 ms | 68 | 155 |
+| 5.4 s | 100 ms | 30 ms | 161 ms | 86 ms | 0 | 1 |
+| 5.4 s | 100 ms | 10 ms | 141 ms | 86 ms | 0 | 0 |
+| 5.4 s | 50 ms | 30 ms | 111 ms | 244 ms | 153 | 209 |
+
+These are the load benchmark's values. The 50 ms block does not work. Every block runs HuBERT and the generator over the whole window, so halving the block doubles the GPU's work per second. One block takes about 60 ms of GPU even with no other load, longer than 50 ms. Lanes only queue the work inside the GPU, and the waits pile up. The limit is the GPU's speed, not its memory. The lane implementation was taken out again.
+
+A 10 ms tail guard lowers the delay by 20 ms without more underruns. The Diagnostics Card chooses 30 or 10 ms. Whether the joins ripple audibly waits for the user's listening.
+
+A shorter block needs work per block that does not grow with the window, for example reusing HuBERT's earlier output. That is not done now.
+
+The user's remark (2026-11-02): this feature needs a high-end PC, and users must be told (Voice Lab detailed design chapter 1 and 8.1).
