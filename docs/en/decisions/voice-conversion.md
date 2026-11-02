@@ -323,3 +323,8 @@ The hardware adds its own delay to this total: the USB camera's microphone, and 
 The wait after the stage is about 30 ms longer than the 70 ms expected from half a block plus the mix's 20 ms. Nothing corrects that wait (`follow` is false), so whatever each early block adds seems to stay.
 
 The user's impression: held notes with the 5.4 s window were better before, and the delay feels about the same.
+
+The user's decisions (2026-11-03):
+- "Better before" compared with the previous run of the same processing. With the same processing, held notes sound different from run to run.
+- Moving the monitor to the PC's earphone jack partway through did not change how the delay felt.
+- Cutting about 50 ms would hardly be felt, so work on the delay stops here, and sound quality comes first.
