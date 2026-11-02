@@ -101,6 +101,21 @@ namespace vv::audio
         Slot& slot = _slots[id];
         slot.stage = enabled;
         slot.stageInput->Read(nullptr, slot.stageInput->Available());
+        slot.stageInputWait = 0.0f;
+        slot.stageOutputWait = 0.0f;
+    }
+
+    StageDelay Mixer::GetStageDelay(int id) const
+    {
+        StageDelay delay;
+        if (Used(id))
+        {
+            delay.stageInput = _slots[id].stageInputWait.load();
+            delay.stageOutput = _slots[id].stageOutputWait.load();
+        }
+
+        delay.monitor = _monitorWait.load();
+        return delay;
     }
 
     size_t Mixer::ReadStage(int id, float* frames, size_t capacity)
@@ -201,6 +216,21 @@ namespace vv::audio
     {
         std::fill(_block.begin(), _block.end(), 0.0f);
         std::fill(_monitorBlock.begin(), _monitorBlock.end(), 0.0f);
+
+        // Sampled before this block moves anything, when a stage's output is at its fullest and the monitor at
+        // its emptiest, so half a block corrects each. Other threads fill and empty the rings out of step with
+        // the mix, so every 10 ms is a fair sample of the time between.
+        constexpr float HalfBlock = BlockFrames / 2.0f;
+        _monitorWait = Smooth(_monitorWait.load(), static_cast<float>(_monitor.Available()) + HalfBlock);
+        for (Slot& slot : _slots)
+        {
+            if (slot.used && slot.stage.load())
+            {
+                slot.stageInputWait = Smooth(slot.stageInputWait.load(), static_cast<float>(slot.stageInput->Available()));
+                slot.stageOutputWait = Smooth(slot.stageOutputWait.load(), static_cast<float>(slot.input->Available()) - HalfBlock);
+            }
+        }
+
         for (Slot& slot : _slots)
         {
             if (!slot.used || !ReadSource(slot))

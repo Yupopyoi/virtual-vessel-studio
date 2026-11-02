@@ -416,6 +416,23 @@ extern "C"
         return VV_AUDIO_OK;
     }
 
+    int32_t vv_audio_get_stage_delay(vv_audio_engine* engine, int32_t source, vv_audio_stage_delay* delay)
+    {
+        if (engine == nullptr || delay == nullptr || !engine->mixer.Used(source) || !engine->sources[source])
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        vv::audio::StageDelay rings = engine->mixer.GetStageDelay(source);
+        delay->capture_device = static_cast<float>(engine->sources[source]->DeviceLatency());
+        delay->stage_input = rings.stageInput;
+        delay->stage_output = rings.stageOutput;
+        delay->monitor = rings.monitor;
+        delay->output_buffer = engine->monitor.BufferWait();
+        delay->output_device = static_cast<float>(engine->monitor.DeviceLatency());
+        return VV_AUDIO_OK;
+    }
+
     int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted)
     {
         if (engine == nullptr || !engine->mixer.Used(source))

@@ -26,7 +26,8 @@ extern "C"
 // 4: each reader of the stream bus has its own tap (VV_AUDIO_READER_*).
 // 5: a processing stage on a source (vv_audio_set_stage).
 // 6: noise removal for a stage (vv_audio_denoise).
-#define VV_AUDIO_API_VERSION 6
+// 7: where a stage's frames wait (vv_audio_get_stage_delay).
+#define VV_AUDIO_API_VERSION 7
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -83,6 +84,19 @@ typedef struct vv_audio_monitor_status
     int64_t drift_corrections;  // Samples dropped or repeated to follow the device's clock.
 } vv_audio_monitor_status;
 
+// Where a staged source's frames wait between the microphone and the monitor, in frames at 48 kHz. The rings
+// and the output buffer are averages over about the last half second; the devices are what Windows reports.
+// The hardware's own delay (USB, Bluetooth, the converters) is not known here.
+typedef struct vv_audio_stage_delay
+{
+    float capture_device;   // The input device, before its packets arrive.
+    float stage_input;      // Captured, waiting for the stage to read it.
+    float stage_output;     // Written by the stage, waiting for the mix.
+    float monitor;          // Mixed, waiting for the monitor output.
+    float output_buffer;    // In the output device's buffer.
+    float output_device;    // The output device, after its buffer.
+} vv_audio_stage_delay;
+
 // The stream bus for the encoder: plain values, so the encoder needs no link to this DLL.
 typedef struct vv_audio_stream_tap
 {
@@ -122,6 +136,7 @@ VV_AUDIO_API int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, i
 VV_AUDIO_API int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled);
 VV_AUDIO_API int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read);
 VV_AUDIO_API int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count);
+VV_AUDIO_API int32_t vv_audio_get_stage_delay(vv_audio_engine* engine, int32_t source, vv_audio_stage_delay* delay);
 
 VV_AUDIO_API int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted);
 

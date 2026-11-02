@@ -270,6 +270,12 @@ namespace
             }
         }
 
+        // A burst of 100 ms played evenly waits 50 ms on average; the average swings with the bursts.
+        StageDelay delay = mixer.GetStageDelay(id);
+        Check(std::abs(delay.stageOutput - BurstBlocks * BlockFrames / 2.0f) < 300.0f, "a burst waits half its length for the mix");
+        Check(delay.stageInput == 0.0f, "nothing waits for a stage that reads");
+        Check(std::abs(delay.monitor - BlockFrames / 2.0f) < 1.0f, "the monitor read at once waits half a block");
+
         SourceCounters counters = mixer.TakeCounters(id);
         Check(counters.underruns == 0, "bursts do not run dry");
         Check(counters.driftCorrections == 0, "a burst's swing is not taken for drift");

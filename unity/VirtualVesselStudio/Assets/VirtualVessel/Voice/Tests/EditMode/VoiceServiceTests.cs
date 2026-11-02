@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using VirtualVessel.Audio;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Voice;
 
@@ -13,6 +14,17 @@ namespace VirtualVessel.Voice.Tests
         public void SamplesToDrop_KeepsTheWaitBounded(int waiting, int block, int maxBlocks, int expected)
         {
             Assert.That(VoiceService.SamplesToDrop(waiting, block, maxBlocks), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void DelayMs_AddsEveryPlaceTheAudioWaits()
+        {
+            var outside = new AudioStageDelay(10, 5, 50, 5, 25, 15);
+            var parts = new double[VoiceService.DelayParts.Length];
+
+            VoiceService.DelayMs(outside, 2400, 70, 2928, parts);
+
+            Assert.That(parts, Is.EqualTo(new double[] { 10, 5, 50, 70, 61, 50, 5, 25, 15, 291 }).Within(1e-9));
         }
 
         [Test]

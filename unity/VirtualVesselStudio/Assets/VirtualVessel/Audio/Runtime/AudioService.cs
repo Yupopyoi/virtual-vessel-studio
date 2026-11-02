@@ -345,6 +345,8 @@ namespace VirtualVessel.Audio
                     Engine.WriteStage(Microphone.Engine, frames, count);
                 }
             }
+
+            public AudioStageDelay Delay => IsAvailable ? Engine.GetStageDelay(Microphone.Engine) : default;
         }
 
         private sealed class MonitorOutput : IAudioMonitor

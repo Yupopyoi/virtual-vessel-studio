@@ -16,6 +16,12 @@
 
 namespace vv::audio
 {
+    // A REFERENCE_TIME (100 ns units) in frames at a rate. Pure.
+    inline int32_t ReferenceTimeToFrames(REFERENCE_TIME time, int rate)
+    {
+        return static_cast<int32_t>(time * rate / 10000000);
+    }
+
     // Opens the endpoint in shared mode with event wakes on `events`. Every result is checked: without an
     // audio service (a server), calls can succeed and still give nothing.
     HRESULT OpenSharedClient(const std::wstring& deviceId, REFERENCE_TIME bufferDuration, HANDLE events, Microsoft::WRL::ComPtr<IAudioClient>& client);

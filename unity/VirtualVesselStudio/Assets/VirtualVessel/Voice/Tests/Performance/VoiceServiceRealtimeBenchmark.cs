@@ -180,6 +180,8 @@ namespace VirtualVessel.Voice.Tests
             {
             }
 
+            public AudioStageDelay Delay => default;
+
             public int Read(float[] frames, int capacity)
             {
                 Play();

@@ -29,6 +29,15 @@ namespace vv::audio
         float peak = 0.0f; // Linear; the highest since the last TakeCounters.
     };
 
+    // How long a staged source's frames wait in the mix's rings, in frames (audio detailed design 8.3). Each
+    // is the average fill, sampled every block, so by Little's law it is the average wait there.
+    struct StageDelay
+    {
+        float stageInput = 0.0f;  // Captured, waiting for the stage to read it.
+        float stageOutput = 0.0f; // Written by the stage, waiting for the mix.
+        float monitor = 0.0f;     // Mixed, waiting for the monitor output.
+    };
+
     class Mixer
     {
     public:
@@ -47,6 +56,13 @@ namespace vv::audio
         void SetStage(int id, bool enabled);
         size_t ReadStage(int id, float* frames, size_t capacity);
         void WriteStage(int id, const float* frames, size_t count);
+        StageDelay GetStageDelay(int id) const;
+
+        // One step of the moving average the delays keep, about half a second long. Pure.
+        static float Smooth(float average, float value)
+        {
+            return average + (value - average) * 0.02f;
+        }
 
         void SetGain(int id, float gainDb, bool muted);
         void SetSend(int id, int bus, float sendDb);
@@ -110,6 +126,8 @@ namespace vv::audio
             std::atomic<int64_t> underruns{ 0 };
             std::atomic<int64_t> driftCorrections{ 0 };
             std::atomic<float> peak{ 0.0f };
+            std::atomic<float> stageInputWait{ 0.0f };
+            std::atomic<float> stageOutputWait{ 0.0f };
 
             // Mix thread only.
             FillTracker fill;
@@ -138,6 +156,7 @@ namespace vv::audio
         std::atomic<bool> _monitorMuted{ false };
         float _appliedMonitorGain = 1.0f;
         std::atomic<float> _monitorPeak{ 0.0f };
+        std::atomic<float> _monitorWait{ 0.0f };
 
         // The stream bus: overwritten in a circle, so with no reader it simply keeps the last seconds.
         std::vector<float> _bus;

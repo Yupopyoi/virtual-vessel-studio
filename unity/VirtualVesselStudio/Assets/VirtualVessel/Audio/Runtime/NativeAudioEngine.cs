@@ -85,6 +85,8 @@ namespace VirtualVessel.Audio
         void WriteStage(int source, float[] frames, int count);
 
         void Denoise(float[] samples, int count);
+
+        AudioStageDelay GetStageDelay(int source);
     }
 
     /// <summary>The audio engine could not start (audio detailed design 12).</summary>
@@ -103,7 +105,7 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 6;
+        private const int ApiVersion = 7;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -207,6 +209,17 @@ namespace VirtualVessel.Audio
         public void Denoise(float[] samples, int count)
         {
             vv_audio_denoise(_engine, samples, count);
+        }
+
+        public AudioStageDelay GetStageDelay(int source)
+        {
+            if (vv_audio_get_stage_delay(_engine, source, out StageDelay delay) != Ok)
+            {
+                return default;
+            }
+
+            const double MsPerFrame = 1000.0 / 48000.0;
+            return new AudioStageDelay(delay.CaptureDevice * MsPerFrame, delay.StageInput * MsPerFrame, delay.StageOutput * MsPerFrame, delay.Monitor * MsPerFrame, delay.OutputBuffer * MsPerFrame, delay.OutputDevice * MsPerFrame);
         }
 
         public void SetGain(int source, float gainDb, bool muted)
@@ -342,6 +355,18 @@ namespace VirtualVessel.Audio
             public long DriftCorrections;
         }
 
+        // vv_audio_stage_delay, in frames.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct StageDelay
+        {
+            public float CaptureDevice;
+            public float StageInput;
+            public float StageOutput;
+            public float Monitor;
+            public float OutputBuffer;
+            public float OutputDevice;
+        }
+
         // vv_audio_stream_tap.
         [StructLayout(LayoutKind.Sequential)]
         private struct Tap
@@ -364,6 +389,9 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_stage_write(IntPtr engine, int source, [In] float[] frames, int count);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_get_stage_delay(IntPtr engine, int source, out StageDelay delay);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_list_inputs([Out] Device[] devices, int capacity, out int count);

@@ -64,6 +64,10 @@ namespace VirtualVessel.Voice
         private readonly PerfTimer _issueTimer;
         private readonly PerfCounter _droppedCounter;
         private readonly PerfTimer[] _stageTimers;
+        private readonly PerfGauge[] _delayGauges;
+        private readonly double[] _delayParts = new double[DelayParts.Length];
+        private readonly IPerformanceMetrics _metrics;
+        private double _lastWorkMs;
         private float _semitones;
         private int _windowFrames = 100;
         // When each block on its way started; two can be on their way at once.
@@ -86,6 +90,8 @@ namespace VirtualVessel.Voice
             _issueTimer = metrics?.Timer("Voice", "BlockIssue");
             _droppedCounter = metrics?.Counter("Voice", "DroppedBlocks");
             _stageTimers = new[] { "Prepare", "Features", "Pitch", "Generator", "Finish" }.Select(name => metrics?.Timer("Voice", "Issue." + name)).ToArray();
+            _metrics = metrics;
+            _delayGauges = DelayParts.Select(name => metrics?.Gauge("Voice", "Delay." + name, "ms")).ToArray();
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _folder = folder;
@@ -439,6 +445,35 @@ namespace VirtualVessel.Voice
             _stream?.Abandon();
         }
 
+        /// <summary>The parts of the delay from the microphone to the monitor, in the order of DelayMs.</summary>
+        public static readonly string[] DelayParts = { "CaptureDevice", "StageInput", "Waiting", "Work", "Algorithm", "StageOutput", "Monitor", "OutputBuffer", "OutputDevice", "Total" };
+
+        /// <summary>
+        /// The delay's parts in milliseconds into <paramref name="parts"/>, in the order of DelayParts, ending
+        /// with their sum. Each queue's part is its average fill, which by Little's law is the average wait in it.
+        /// Pure apart from writing the caller's buffer, which is reused every frame to avoid garbage.
+        /// </summary>
+        public static void DelayMs(AudioStageDelay outside, int waitingSamples, double workMs, int algorithmSamples, Span<double> parts)
+        {
+            const double MsPerSample = 1000.0 / RvcStream.DeviceRate;
+            parts[0] = outside.CaptureDeviceMs;
+            parts[1] = outside.StageInputMs;
+            parts[2] = waitingSamples * MsPerSample;
+            parts[3] = workMs;
+            parts[4] = algorithmSamples * MsPerSample;
+            parts[5] = outside.StageOutputMs;
+            parts[6] = outside.MonitorMs;
+            parts[7] = outside.OutputBufferMs;
+            parts[8] = outside.OutputDeviceMs;
+            double total = 0.0;
+            for (int i = 0; i < 9; i++)
+            {
+                total += parts[i];
+            }
+
+            parts[9] = total;
+        }
+
         private void Pump()
         {
             Collect();
@@ -447,6 +482,28 @@ namespace VirtualVessel.Voice
                 Deliver();
             }
 
+            StartBlock();
+            RecordDelay();
+        }
+
+        // What waits here stays until the next frame, so one sample a frame is its average. Only while the
+        // totals record gauges, so the call to the engine costs nothing otherwise.
+        private void RecordDelay()
+        {
+            if (_metrics == null || !_metrics.IsDetailedEnabled || _file != null)
+            {
+                return;
+            }
+
+            DelayMs(_stage.Delay, _waitingSamples, _lastWorkMs, _stream.AlgorithmDelaySamples, _delayParts);
+            for (int i = 0; i < _delayParts.Length; i++)
+            {
+                _delayGauges[i].Set(_delayParts[i]);
+            }
+        }
+
+        private void StartBlock()
+        {
             int block = _stream.BlockSamples;
             if (_stream.CanStart && _waitingSamples >= block)
             {
@@ -521,6 +578,7 @@ namespace VirtualVessel.Voice
             long started = _startedAt.Count > 0 ? _startedAt.Dequeue() : System.Diagnostics.Stopwatch.GetTimestamp();
             double work = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             _workTimer?.Record(TimeSpan.FromMilliseconds(work));
+            _lastWorkMs = work;
             RvcTimings timings = _stream.Timings;
             _issueTimer?.Record(TimeSpan.FromMilliseconds(timings.Issue));
             double[] stages = { timings.Prepare, timings.Features, timings.Pitch, timings.Generator, timings.Finish };
