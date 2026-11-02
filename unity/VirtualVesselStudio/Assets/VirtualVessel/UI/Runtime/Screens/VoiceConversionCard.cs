@@ -21,6 +21,9 @@ namespace VirtualVessel.UI.Screens
         public const string Window100 = "diagnostics.voice.window.100";
         public const string Window250 = "diagnostics.voice.window.250";
         public const string Window540 = "diagnostics.voice.window.540";
+        public const string Tail = "diagnostics.voice.tail";
+        public const string Tail30 = "diagnostics.voice.tail.30";
+        public const string Tail10 = "diagnostics.voice.tail.10";
         public const string Denoise = "diagnostics.voice.denoise";
         public const string Loading = "diagnostics.voice.loading";
         public const string PlayFile = "diagnostics.voice.play-file";
@@ -82,6 +85,12 @@ namespace VirtualVessel.UI.Screens
             window.SetValueWithoutNotify(Math.Max(0, Array.IndexOf(windows, _voice.WindowFrames)));
             window.RegisterValueChangedCallback(evt => _voice.WindowFrames = windows[evt.newValue]);
             card.Add(window);
+
+            card.Add(Text(VoiceConversionStrings.Tail));
+            Segmented tailChoice = Ui.Segmented(VoiceConversionStrings.Tail30, VoiceConversionStrings.Tail10);
+            tailChoice.SetValueWithoutNotify(_voice.TailGuardFrames == 1 ? 1 : 0);
+            tailChoice.RegisterValueChangedCallback(evt => _voice.TailGuardFrames = evt.newValue == 1 ? 1 : 3);
+            card.Add(tailChoice);
 
             SwitchToggle denoise = Ui.Toggle(VoiceConversionStrings.Denoise);
             denoise.SetValueWithoutNotify(_voice.Denoise);

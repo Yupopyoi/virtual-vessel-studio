@@ -61,6 +61,9 @@ namespace VirtualVessel.UI.Voice
 
         System.Collections.Generic.IReadOnlyList<int> Windows { get; }
 
+        /// <summary>Frames decoded past the end and dropped, 3 or 1. Fewer waits less and may dip at joins.</summary>
+        int TailGuardFrames { get; set; }
+
         /// <summary>Removes noise such as key presses before the voice is converted.</summary>
         bool Denoise { get; set; }
 

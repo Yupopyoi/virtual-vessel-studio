@@ -66,6 +66,7 @@ namespace VirtualVessel.Voice
         private readonly PerfTimer[] _stageTimers;
         private float _semitones;
         private int _windowFrames = 100;
+        private int _tailGuardFrames = 3;
         // When each block on its way started; two can be on their way at once.
         private readonly System.Collections.Generic.Queue<long> _startedAt = new System.Collections.Generic.Queue<long>(4);
         private long _blocks;
@@ -111,29 +112,44 @@ namespace VirtualVessel.Voice
                     throw new ArgumentOutOfRangeException(nameof(value));
                 }
 
-                if (value == _windowFrames)
-                {
-                    return;
-                }
+                Reload(ref _windowFrames, value);
+            }
+        }
 
-                _windowFrames = value;
-                bool wanted = _wanted;
-                SetEnabled(false);
-                _stream?.Dispose();
-                _stream = null;
-                if (wanted)
-                {
-                    SetEnabled(true);
-                }
+        private void Reload(ref int field, int value)
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            bool wanted = _wanted;
+            SetEnabled(false);
+            _stream?.Dispose();
+            _stream = null;
+            if (wanted)
+            {
+                SetEnabled(true);
             }
         }
 
         System.Collections.Generic.IReadOnlyList<int> IVoiceConversion.Windows => Windows;
 
-        /// <summary>The generator's file for a window. Pure.</summary>
-        public static string GeneratorFile(int windowFrames)
+        /// <summary>
+        /// Frames decoded past the end and thrown away: 3, or 1 to cut 20 ms of delay at the cost of a larger
+        /// dip at the joins. A change reloads the models.
+        /// </summary>
+        public int TailGuardFrames
         {
-            return $"fused_w{windowFrames}.sentis";
+            get => _tailGuardFrames;
+            set => Reload(ref _tailGuardFrames, value == 1 ? 1 : 3);
+        }
+
+        /// <summary>The generator's file for a window and tail guard. Pure.</summary>
+        public static string GeneratorFile(int windowFrames, int tailGuardFrames = 3)
+        {
+            return tailGuardFrames == 3 ? $"fused_w{windowFrames}.sentis" : $"fused_w{windowFrames}_t{tailGuardFrames}.sentis";
         }
 
         /// <summary>HuBERT's file for a window, named by its 16 kHz samples. Pure.</summary>
@@ -287,24 +303,24 @@ namespace VirtualVessel.Voice
             return speaker;
         }
 
-        private static string SpeakerPath(string folder, int windowFrames)
+        private static string SpeakerPath(string folder, int windowFrames, int tailGuardFrames)
         {
-            return Path.Combine(folder, Path.ChangeExtension(GeneratorFile(windowFrames), ".spk"));
+            return Path.Combine(folder, Path.ChangeExtension(GeneratorFile(windowFrames, tailGuardFrames), ".spk"));
         }
 
-        private static string[] ModelPaths(string folder, int windowFrames)
+        private static string[] ModelPaths(string folder, int windowFrames, int tailGuardFrames)
         {
             return new[]
             {
                 Path.Combine(folder, FeaturesFile(windowFrames)),
                 Path.Combine(folder, "rmvpe_32.sentis"),
-                Path.Combine(folder, GeneratorFile(windowFrames)),
+                Path.Combine(folder, GeneratorFile(windowFrames, tailGuardFrames)),
             };
         }
 
-        private static RvcStreamShape Shape(int windowFrames)
+        private static RvcStreamShape Shape(int windowFrames, int tailGuardFrames)
         {
-            return new RvcStreamShape(windowFrames, 10, 2, 1, 2, 3, 42, 32);
+            return new RvcStreamShape(windowFrames, 10, 2, 1, 2, tailGuardFrames, 10 + 2 + 1 + 2 + tailGuardFrames + 24, 32);
         }
 
         // A load in progress still needs the frames to finish on the main thread.
@@ -327,7 +343,7 @@ namespace VirtualVessel.Voice
 
         private void BeginLoading()
         {
-            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, _windowFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, _windowFrames)))
+            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, _windowFrames, _tailGuardFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, _windowFrames, _tailGuardFrames)))
             {
                 _log?.Warning($"Voice conversion is unavailable: stage {_stage.IsAvailable}, model folder '{_folder}'.");
                 _state.Set(VoiceConversionState.Unavailable);
@@ -336,8 +352,8 @@ namespace VirtualVessel.Voice
 
             _loadedModels = 0;
             _state.Set(VoiceConversionState.Loading);
-            string[] paths = ModelPaths(_folder, _windowFrames);
-            string speaker = SpeakerPath(_folder, _windowFrames);
+            string[] paths = ModelPaths(_folder, _windowFrames, _tailGuardFrames);
+            string speaker = SpeakerPath(_folder, _windowFrames, _tailGuardFrames);
             _loading = Task.Run(() =>
             {
                 _speaker = ReadSpeaker(speaker);
@@ -385,7 +401,7 @@ namespace VirtualVessel.Voice
             try
             {
                 Model[] models = loading.GetAwaiter().GetResult();
-                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(_windowFrames), BackendType.GPUCompute, _semitones);
+                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(_windowFrames, _tailGuardFrames), BackendType.GPUCompute, _semitones);
                 _stereo = new float[RvcStream.DeviceRate * ChannelCount];
                 _waiting = new float[RvcStream.DeviceRate];
                 _block = new float[_stream.BlockSamples];
