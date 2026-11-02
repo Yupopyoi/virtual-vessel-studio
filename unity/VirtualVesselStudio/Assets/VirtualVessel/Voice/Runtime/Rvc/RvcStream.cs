@@ -71,9 +71,9 @@ namespace VirtualVessel.Voice.Rvc
     /// upstream's realtime path does (window for the features, a short RMVPE window with cached pitch,
     /// only the window's tail through the flow and decoder, then an in-phase crossfade).
     /// <para>
-    /// Two stages overlap: the next block's HuBERT and RMVPE run while this block's generator does. Run
-    /// one after the other, each step waited for a frame and a block took longer than a block under load.
-    /// A block's delay is the same either way.
+    /// A block makes one trip to the GPU: the generator takes HuBERT's and RMVPE's outputs on the GPU and
+    /// turns them into its inputs itself, and only its audio and the pitch it used come back. Each trip
+    /// waits for a frame, and two trips made a block take longer than a block under load.
     /// </para>
     /// </summary>
     public sealed class RvcStream : IDisposable
@@ -83,19 +83,16 @@ namespace VirtualVessel.Voice.Rvc
         private const int GeneratorRate = 40000;
         private const int SamplesPerFrame16k = RvcDsp.HopSamples;
         private const int SamplesPerFrame48k = DeviceRate / 100;
-        private const int SamplesPerFrame40k = GeneratorRate / 100;
-        private const int PhoneChannels = 768;
         private const int LatentChannels = 192;
         private const int SpeakerChannels = 256;
-        private const float VoicedThreshold = 0.03f;
         private const int NoiseLoopFrames = 1024;
 
         // 512 samples of reflected padding reach back this many hops from the window's end.
         private const int ReflectedFrames = 4;
 
-        // Upstream drops RMVPE's first frames and its last one, which lean on padded audio.
-        private const int PitchHeadSkipped = 3;
-        private const int PitchTailSkipped = 1;
+        // The pitch frames the generator decodes from RMVPE each block; upstream drops RMVPE's first three and
+        // its last, which lean on padded audio.
+        private const int FreshPitchFrames = 28;
 
         private readonly RvcStreamShape _shape;
         private readonly Worker _features;
@@ -104,16 +101,15 @@ namespace VirtualVessel.Voice.Rvc
 
         private readonly Tensor<float> _audioTensor;
         private readonly Tensor<float> _melTensor;
-        private readonly Tensor<float> _phoneTensor;
-        private readonly Tensor<int> _coarseTensor;
-        private readonly Tensor<float> _pitchfTensor;
+        private readonly Tensor<float> _historyTensor;
+        private readonly Tensor<float> _lastTensor;
+        private readonly Tensor<float> _factorTensor;
         private readonly Tensor<float> _noiseTensor;
         private readonly Tensor<float> _speakerTensor;
         private NativeArray<float> _audioData;
         private NativeArray<float> _melData;
-        private NativeArray<float> _phoneData;
-        private NativeArray<int> _coarseData;
-        private NativeArray<float> _pitchfData;
+        private NativeArray<float> _historyData;
+        private NativeArray<float> _scalarData;
         private NativeArray<float> _noiseData;
 
         private readonly float[] _noiseLoop;
@@ -125,7 +121,6 @@ namespace VirtualVessel.Voice.Rvc
         private readonly float[] _up = RvcDsp.ResampleKernels(5, 6);
         private readonly float[] _real = new float[RvcDsp.FftSize];
         private readonly float[] _imaginary = new float[RvcDsp.FftSize];
-        private readonly float[] _frameF0;
         private readonly float[] _cachedF0;
         private readonly float[] _decoded48k;
         private readonly float[] _previousTail;
@@ -133,18 +128,14 @@ namespace VirtualVessel.Voice.Rvc
         private readonly int _reach48k;
         private readonly int _reach40k;
 
-        private bool _inputBusy;
-        private bool _pending;
-        private bool _generatorBusy;
-        private long _waitStart;
-        private long _generatorWaitStart;
-        private RvcTimings _blockTimings;
-        private bool _featuresRead;
+        private bool _busy;
+        private bool _audioRead;
         private bool _pitchRead;
+        private long _waitStart;
         private RvcTimings _timings;
-        private Tensor<float> _featuresOutput;
-        private Tensor<float> _pitchOutput;
-        private Tensor<float> _generatorOutput;
+        private RvcTimings _blockTimings;
+        private Tensor<float> _audioOutput;
+        private Tensor<float> _f0Output;
         private int _noiseFrame;
         private float _semitones;
         private float _lastF0;
@@ -160,21 +151,20 @@ namespace VirtualVessel.Voice.Rvc
             _generator = new Worker(generator, backend);
 
             int windowSamples = shape.WindowFrames * SamplesPerFrame16k;
-            int phoneValues = shape.WindowFrames * PhoneChannels;
+            int historyFrames = shape.WindowFrames - FreshPitchFrames;
             _pitchSamples = (shape.PitchFrames - 1) * SamplesPerFrame16k;
             _reach48k = RvcDsp.ResampleReach(3, 1);
             _reach40k = RvcDsp.ResampleReach(5, 6);
 
             _audioData = new NativeArray<float>(windowSamples, Allocator.Persistent);
             _melData = new NativeArray<float>(RvcDsp.MelBins * shape.PitchFrames, Allocator.Persistent);
-            _phoneData = new NativeArray<float>(phoneValues, Allocator.Persistent);
-            _coarseData = new NativeArray<int>(shape.WindowFrames, Allocator.Persistent);
-            _pitchfData = new NativeArray<float>(shape.WindowFrames, Allocator.Persistent);
+            _historyData = new NativeArray<float>(historyFrames, Allocator.Persistent);
+            _scalarData = new NativeArray<float>(1, Allocator.Persistent);
             _audioTensor = new Tensor<float>(new TensorShape(1, windowSamples));
             _melTensor = new Tensor<float>(new TensorShape(1, RvcDsp.MelBins, shape.PitchFrames));
-            _phoneTensor = new Tensor<float>(new TensorShape(1, shape.WindowFrames, PhoneChannels));
-            _coarseTensor = new Tensor<int>(new TensorShape(1, shape.WindowFrames));
-            _pitchfTensor = new Tensor<float>(new TensorShape(1, shape.WindowFrames));
+            _historyTensor = new Tensor<float>(new TensorShape(1, historyFrames));
+            _lastTensor = new Tensor<float>(new TensorShape(1));
+            _factorTensor = new Tensor<float>(new TensorShape(1));
 
             // Noise tied to time, sliding with the window, so the two windows meeting at a crossfade
             // give the same moment the same noise. A loop is enough: nothing can hear it repeat.
@@ -186,7 +176,6 @@ namespace VirtualVessel.Voice.Rvc
 
             _history48k = new float[2 * _reach48k + shape.BlockFrames * SamplesPerFrame48k];
             _window16k = new float[windowSamples];
-            _frameF0 = new float[shape.PitchFrames];
             _cachedF0 = new float[shape.WindowFrames];
             _decoded48k = new float[shape.DecodedFrames * SamplesPerFrame48k];
             _previousTail = new float[shape.CrossfadeFrames * SamplesPerFrame48k];
@@ -195,17 +184,13 @@ namespace VirtualVessel.Voice.Rvc
         public int BlockSamples => _shape.BlockFrames * SamplesPerFrame48k;
 
         /// <summary>True while a block is on its way.</summary>
-        public bool IsBusy => _inputBusy || _pending || _generatorBusy;
+        public bool IsBusy => _busy;
 
-        /// <summary>True when the next block can start, which may be while the last is in the generator.</summary>
-        public bool CanStart => !_inputBusy && !_pending;
+        /// <summary>True when the next block can start.</summary>
+        public bool CanStart => !_busy;
 
-        /// <summary>The last block's times.</summary>
-        public RvcTimings Timings
-        {
-            get => _timings;
-            private set => _timings = value;
-        }
+        /// <summary>The last finished block's times.</summary>
+        public RvcTimings Timings => _blockTimings;
 
         /// <summary>Semitones applied to the voice's pitch, from the next block.</summary>
         public float Semitones
@@ -228,7 +213,7 @@ namespace VirtualVessel.Voice.Rvc
             return Timings;
         }
 
-        /// <summary>Takes a block and sends it to the GPU; then call <see cref="Advance"/> each frame.</summary>
+        /// <summary>Takes a block and sends all of its work to the GPU; then call <see cref="Advance"/> each frame.</summary>
         public void Start(ReadOnlySpan<float> input)
         {
             if (input.Length != BlockSamples)
@@ -236,9 +221,9 @@ namespace VirtualVessel.Voice.Rvc
                 throw new ArgumentException($"A block is {BlockSamples} samples.");
             }
 
-            if (!CanStart)
+            if (_busy)
             {
-                throw new InvalidOperationException("The last block has not left the first stage.");
+                throw new InvalidOperationException("The last block is not finished.");
             }
 
             _timings = default;
@@ -257,81 +242,82 @@ namespace VirtualVessel.Voice.Rvc
                 _real,
                 _imaginary);
             _audioData.CopyFrom(_window16k);
+
+            // The window moved on a block; the generator decodes the newest frames' pitch itself.
+            int shift = _shape.BlockFrames;
+            Array.Copy(_cachedF0, shift, _cachedF0, 0, _cachedF0.Length - shift);
+            NativeArray<float>.Copy(_cachedF0, 0, _historyData, 0, _historyData.Length);
             _timings.Prepare = Since(ref start);
 
             _audioTensor.dataOnBackend.Upload(_audioData, _audioData.Length);
             _features.Schedule(_audioTensor);
-            _featuresOutput = _features.PeekOutput() as Tensor<float>;
-            _featuresOutput.ReadbackRequest();
             _timings.Features = Since(ref start);
 
             _melTensor.dataOnBackend.Upload(_melData, _melData.Length);
             _pitch.Schedule(_melTensor);
-            _pitchOutput = _pitch.PeekOutput() as Tensor<float>;
-            _pitchOutput.ReadbackRequest();
             _timings.Pitch = Since(ref start);
 
+            _historyTensor.dataOnBackend.Upload(_historyData, _historyData.Length);
+            Upload(_lastTensor, _lastF0);
+            Upload(_factorTensor, MathF.Pow(2f, _semitones / 12f));
+            CopyNoise();
+            _noiseTensor.dataOnBackend.Upload(_noiseData, _noiseData.Length);
+            _generator.SetInput("feats", _features.PeekOutput());
+            _generator.SetInput("salience", _pitch.PeekOutput());
+            _generator.SetInput("history", _historyTensor);
+            _generator.SetInput("last", _lastTensor);
+            _generator.SetInput("factor", _factorTensor);
+            _generator.SetInput("rnd", _noiseTensor);
+            _generator.SetInput("spk", _speakerTensor);
+            _generator.Schedule();
+            _audioOutput = _generator.PeekOutput("audio") as Tensor<float>;
+            _f0Output = _generator.PeekOutput("f0new") as Tensor<float>;
+            _audioOutput.ReadbackRequest();
+            _f0Output.ReadbackRequest();
+            _timings.Generator = Since(ref start);
+
             _waitStart = start;
-            _featuresRead = false;
+            _audioRead = false;
             _pitchRead = false;
-            _inputBusy = true;
+            _busy = true;
         }
 
         /// <summary>
-        /// Moves the block along as far as the GPU has got. True once <paramref name="output"/> holds it.
+        /// Takes back what the GPU has finished. True once <paramref name="output"/> holds the block.
         /// With <paramref name="wait"/> it stalls for the GPU; without it nothing here waits.
         /// </summary>
         public bool Advance(Span<float> output, bool wait)
         {
-            if (_inputBusy)
+            if (!_busy)
             {
-                // Each is read as soon as it is done: a finished request's data lasts only that frame,
-                // so waiting for the slower model loses the faster one's.
-                if (!_featuresRead && (wait || _featuresOutput.IsReadbackRequestDone()))
-                {
-                    ReadFeatures();
-                }
-
-                if (!_pitchRead && (wait || _pitchOutput.IsReadbackRequestDone()))
-                {
-                    ReadPitch();
-                }
-
-                if (_featuresRead && _pitchRead)
-                {
-                    _inputBusy = false;
-                    _pending = true;
-                }
+                return false;
             }
 
-            bool done = false;
-            if (_generatorBusy && (wait || _generatorOutput.IsReadbackRequestDone()))
+            // Each is read as soon as it is done: a finished request's data lasts only that frame.
+            if (!_pitchRead && (wait || _f0Output.IsReadbackRequestDone()))
             {
-                FinishGenerator(output);
-                done = true;
+                ReadPitch();
             }
 
-            // The generator takes the next block as soon as it is free; its inputs were filled by the
-            // first stage, which can then start the block after.
-            if (_pending && !_generatorBusy)
+            if (!_audioRead && (wait || _audioOutput.IsReadbackRequestDone()))
             {
-                RunGenerator();
-                if (wait && !done)
-                {
-                    FinishGenerator(output);
-                    done = true;
-                }
+                ReadAudio(output);
             }
 
-            return done;
+            if (!_audioRead || !_pitchRead)
+            {
+                return false;
+            }
+
+            _blockTimings = _timings;
+            _busy = false;
+            return true;
         }
 
         /// <summary>Forgets a block on its way, such as when the conversion turns off.</summary>
         public void Abandon()
         {
-            _inputBusy = false;
-            _pending = false;
-            _generatorBusy = false;
+            _busy = false;
             _hasTail = false;
         }
 
@@ -348,16 +334,15 @@ namespace VirtualVessel.Voice.Rvc
             _generator.Dispose();
             _audioTensor.Dispose();
             _melTensor.Dispose();
-            _phoneTensor.Dispose();
-            _coarseTensor.Dispose();
-            _pitchfTensor.Dispose();
+            _historyTensor.Dispose();
+            _lastTensor.Dispose();
+            _factorTensor.Dispose();
             _noiseTensor.Dispose();
             _speakerTensor.Dispose();
             _audioData.Dispose();
             _melData.Dispose();
-            _phoneData.Dispose();
-            _coarseData.Dispose();
-            _pitchfData.Dispose();
+            _historyData.Dispose();
+            _scalarData.Dispose();
             _noiseData.Dispose();
         }
 
@@ -378,6 +363,12 @@ namespace VirtualVessel.Voice.Rvc
             }
         }
 
+        private void Upload(Tensor<float> tensor, float value)
+        {
+            _scalarData[0] = value;
+            tensor.dataOnBackend.Upload(_scalarData, 1);
+        }
+
         private void PushAudio(ReadOnlySpan<float> input)
         {
             int block = input.Length;
@@ -392,67 +383,36 @@ namespace VirtualVessel.Voice.Rvc
             RvcDsp.Resample(_history48k, _reach48k, 3, 1, _down, new Span<float>(_window16k, _window16k.Length - fresh, fresh));
         }
 
-        private void ReadFeatures()
-        {
-            long start = Stopwatch.GetTimestamp();
-            _timings.FeaturesWait = (start - _waitStart) * 1000.0 / Stopwatch.Frequency;
-            using (Tensor<float> features = _featuresOutput.ReadbackAndClone())
-            {
-                RvcDsp.DoubleFrames(features.AsReadOnlySpan(), features.shape[1], PhoneChannels, _phoneData.AsSpan(), _shape.WindowFrames);
-            }
-
-            _timings.Features += Since(ref start);
-            _featuresRead = true;
-        }
-
+        // The pitch the generator used for the newest frames becomes the history of the next block.
         private void ReadPitch()
         {
             long start = Stopwatch.GetTimestamp();
             _timings.PitchWait = (start - _waitStart) * 1000.0 / Stopwatch.Frequency;
-            using (Tensor<float> salience = _pitchOutput.ReadbackAndClone())
+            using (Tensor<float> f0 = _f0Output.ReadbackAndClone())
             {
-                ApplyPitch(salience.AsReadOnlySpan());
+                ReadOnlySpan<float> fresh = f0.AsReadOnlySpan();
+                fresh.CopyTo(new Span<float>(_cachedF0, _cachedF0.Length - FreshPitchFrames, FreshPitchFrames));
+                if (fresh[FreshPitchFrames - 1] > 0f)
+                {
+                    _lastF0 = fresh[FreshPitchFrames - 1];
+                }
             }
 
             _timings.Pitch += Since(ref start);
             _pitchRead = true;
         }
 
-        private void RunGenerator()
+        private void ReadAudio(Span<float> output)
         {
             long start = Stopwatch.GetTimestamp();
-            _phoneTensor.dataOnBackend.Upload(_phoneData, _phoneData.Length);
-            _coarseTensor.dataOnBackend.Upload(_coarseData, _coarseData.Length);
-            _pitchfTensor.dataOnBackend.Upload(_pitchfData, _pitchfData.Length);
-            CopyNoise();
-            _noiseTensor.dataOnBackend.Upload(_noiseData, _noiseData.Length);
-            _generator.SetInput("phone", _phoneTensor);
-            _generator.SetInput("pitch", _coarseTensor);
-            _generator.SetInput("pitchf", _pitchfTensor);
-            _generator.SetInput("rnd", _noiseTensor);
-            _generator.SetInput("spk", _speakerTensor);
-            _generator.Schedule();
-            _generatorOutput = _generator.PeekOutput() as Tensor<float>;
-            _generatorOutput.ReadbackRequest();
-            _blockTimings = _timings;
-            _blockTimings.Generator = Since(ref start);
-            _generatorWaitStart = start;
-            _pending = false;
-            _generatorBusy = true;
-        }
-
-        private void FinishGenerator(Span<float> output)
-        {
-            long start = Stopwatch.GetTimestamp();
-            _blockTimings.GeneratorWait = (start - _generatorWaitStart) * 1000.0 / Stopwatch.Frequency;
-            using (Tensor<float> audio = _generatorOutput.ReadbackAndClone())
+            _timings.GeneratorWait = (start - _waitStart) * 1000.0 / Stopwatch.Frequency;
+            using (Tensor<float> audio = _audioOutput.ReadbackAndClone())
             {
                 Finish(audio.AsReadOnlySpan(), output);
             }
 
-            _blockTimings.Finish = Since(ref start);
-            Timings = _blockTimings;
-            _generatorBusy = false;
+            _timings.Finish = Since(ref start);
+            _audioRead = true;
         }
 
         private void CopyNoise()
@@ -466,28 +426,6 @@ namespace VirtualVessel.Voice.Rvc
                 {
                     data[channel * _shape.NoiseFrames + t] = _noiseLoop[row + (_noiseFrame + t) % NoiseLoopFrames];
                 }
-            }
-        }
-
-        private void ApplyPitch(ReadOnlySpan<float> salience)
-        {
-            RvcDsp.DecodeF0(salience, _shape.PitchFrames, VoicedThreshold, _frameF0);
-            RvcDsp.FillUnvoiced(_frameF0, _lastF0);
-
-            int shift = _shape.BlockFrames;
-            Array.Copy(_cachedF0, shift, _cachedF0, 0, _cachedF0.Length - shift);
-            int fresh = _shape.PitchFrames - PitchHeadSkipped - PitchTailSkipped;
-            Array.Copy(_frameF0, PitchHeadSkipped, _cachedF0, _cachedF0.Length - fresh, fresh);
-            if (_frameF0[_shape.PitchFrames - 1] > 0f)
-            {
-                _lastF0 = _frameF0[_shape.PitchFrames - 1];
-            }
-
-            for (int i = 0; i < _cachedF0.Length; i++)
-            {
-                float shifted = RvcDsp.Transpose(_cachedF0[i], _semitones);
-                _pitchfData[i] = shifted;
-                _coarseData[i] = RvcDsp.CoarsePitch(shifted);
             }
         }
 

@@ -66,6 +66,7 @@ namespace VirtualVessel.Voice.Tests
             stage.Start();
             var frameMs = new List<double>();
             var workMs = new List<double>();
+            var timings = new List<RvcTimings>();
             var clock = Stopwatch.StartNew();
             long seen = 0;
             while (clock.Elapsed.TotalSeconds < Seconds)
@@ -78,6 +79,7 @@ namespace VirtualVessel.Voice.Tests
                 {
                     seen = service.Stats.Blocks;
                     workMs.Add(service.Stats.WorkMs);
+                    timings.Add(service.LastTimings);
                 }
 
                 double length = MinFrameMs + random.NextDouble() * (MaxFrameMs - MinFrameMs);
@@ -94,6 +96,14 @@ namespace VirtualVessel.Voice.Tests
             var report = new StringBuilder($"Under load, window {windowFrames * 10} ms: {seen} blocks, {service.Stats.Dropped} dropped, {stage.Underruns} underruns\n");
             RvcStreamBenchmark.AppendStage(report, "voice in a frame", frameMs);
             RvcStreamBenchmark.AppendStage(report, "block work", workMs.Skip(3));
+            RvcStreamBenchmark.AppendStage(report, "main prepare", timings.Skip(3).Select(t => t.Prepare));
+            RvcStreamBenchmark.AppendStage(report, "main features", timings.Skip(3).Select(t => t.Features));
+            RvcStreamBenchmark.AppendStage(report, "main pitch", timings.Skip(3).Select(t => t.Pitch));
+            RvcStreamBenchmark.AppendStage(report, "main generator", timings.Skip(3).Select(t => t.Generator));
+            RvcStreamBenchmark.AppendStage(report, "main finish", timings.Skip(3).Select(t => t.Finish));
+            RvcStreamBenchmark.AppendStage(report, "wait features", timings.Skip(3).Select(t => t.FeaturesWait));
+            RvcStreamBenchmark.AppendStage(report, "wait pitch", timings.Skip(3).Select(t => t.PitchWait));
+            RvcStreamBenchmark.AppendStage(report, "wait generator", timings.Skip(3).Select(t => t.GeneratorWait));
             File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
             RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{windowFrames}.wav"), stage.Output.ToArray());
             Assert.That(seen, Is.GreaterThan(Seconds * 5));

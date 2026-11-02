@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,6 +63,7 @@ namespace VirtualVessel.Voice
         private readonly PerfTimer _workTimer;
         private readonly PerfTimer _issueTimer;
         private readonly PerfCounter _droppedCounter;
+        private readonly PerfTimer[] _stageTimers;
         private float _semitones;
         private int _windowFrames = 100;
         // When each block on its way started; two can be on their way at once.
@@ -83,6 +85,7 @@ namespace VirtualVessel.Voice
             _workTimer = metrics?.Timer("Voice", "BlockWork");
             _issueTimer = metrics?.Timer("Voice", "BlockIssue");
             _droppedCounter = metrics?.Counter("Voice", "DroppedBlocks");
+            _stageTimers = new[] { "Prepare", "Features", "Pitch", "Generator", "Finish" }.Select(name => metrics?.Timer("Voice", "Issue." + name)).ToArray();
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _folder = folder;
@@ -130,7 +133,7 @@ namespace VirtualVessel.Voice
         /// <summary>The generator's file for a window. Pure.</summary>
         public static string GeneratorFile(int windowFrames)
         {
-            return $"gen_w{windowFrames}.sentis";
+            return $"fused_w{windowFrames}.sentis";
         }
 
         /// <summary>HuBERT's file for a window, named by its 16 kHz samples. Pure.</summary>
@@ -151,6 +154,9 @@ namespace VirtualVessel.Voice
         public string FileName => _file == null ? null : _fileName;
 
         public (float Position, float Length) FileTime => _file == null ? (0f, 0f) : (_fileRead / (float)RvcStream.DeviceRate, (_file.Length - RvcStream.DeviceRate) / (float)RvcStream.DeviceRate);
+
+        /// <summary>The last block's times on the main thread, for diagnostics.</summary>
+        public RvcTimings LastTimings { get; private set; }
 
         /// <summary>What stopped the conversion, for tests and diagnostics.</summary>
         public Exception Failure { get; private set; }
@@ -515,7 +521,15 @@ namespace VirtualVessel.Voice
             long started = _startedAt.Count > 0 ? _startedAt.Dequeue() : System.Diagnostics.Stopwatch.GetTimestamp();
             double work = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             _workTimer?.Record(TimeSpan.FromMilliseconds(work));
-            _issueTimer?.Record(TimeSpan.FromMilliseconds(_stream.Timings.Issue));
+            RvcTimings timings = _stream.Timings;
+            _issueTimer?.Record(TimeSpan.FromMilliseconds(timings.Issue));
+            double[] stages = { timings.Prepare, timings.Features, timings.Pitch, timings.Generator, timings.Finish };
+            for (int i = 0; i < stages.Length; i++)
+            {
+                _stageTimers[i]?.Record(TimeSpan.FromMilliseconds(stages[i]));
+            }
+
+            LastTimings = timings;
             _stats = new VoiceConversionStats(_stream.BlockSamples / 48.0, work, _stream.Timings.Issue, _blocks, _dropped);
         }
     }

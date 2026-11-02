@@ -24,9 +24,9 @@ namespace VirtualVessel.Voice.Tests
 
         private static float Semitones => float.Parse(Environment.GetEnvironmentVariable("VV_VOICE_SEMITONES") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
 
-        [TestCase("b10", 10, BackendType.GPUCompute)]
-        [TestCase("w540", 10, BackendType.GPUCompute)]
-        public void Convert_ReportsStageTimes(string variant, int blockFrames, BackendType backend)
+        [TestCase("w100", 100, BackendType.GPUCompute)]
+        [TestCase("w540", 540, BackendType.GPUCompute)]
+        public void Convert_ReportsStageTimes(string variant, int windowFrames, BackendType backend)
         {
             if (string.IsNullOrEmpty(WorkFolder))
             {
@@ -34,7 +34,7 @@ namespace VirtualVessel.Voice.Tests
             }
 
             string models = Path.Combine(WorkFolder, "sentis");
-            string generator = Path.Combine(models, $"gen_{variant}.sentis");
+            string generator = Path.Combine(models, VoiceService.GeneratorFile(windowFrames));
             if (!File.Exists(generator))
             {
                 Assert.Ignore($"{generator} is missing.");
@@ -42,12 +42,12 @@ namespace VirtualVessel.Voice.Tests
 
             string inputPath = Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(WorkFolder, "data", "source", "000.wav");
             float[] input = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(inputPath), out int inputRate), inputRate, RvcStream.DeviceRate);
-            var shape = new RvcStreamShape(variant == "w540" ? 540 : 100, blockFrames, 2, 1, HeadGuard, TailGuard, blockFrames + 3 + HeadGuard + TailGuard + 24, 32);
+            var shape = new RvcStreamShape(windowFrames, 10, 2, 1, HeadGuard, TailGuard, 10 + 3 + HeadGuard + TailGuard + 24, 32);
             using var stream = new RvcStream(
-                ModelLoader.Load(Path.Combine(models, variant == "w540" ? "hubert_86400.sentis" : "hubert_16000.sentis")),
+                ModelLoader.Load(Path.Combine(models, VoiceService.FeaturesFile(windowFrames))),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),
                 ModelLoader.Load(generator),
-                VoiceService.ReadSpeaker(Path.Combine(models, "gen_b10.spk")),
+                VoiceService.ReadSpeaker(Path.ChangeExtension(generator, ".spk")),
                 shape,
                 backend,
                 Semitones);
