@@ -344,7 +344,7 @@ A Status Chip of its state at the right end of the title (Running ✓, Loading �
 Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read the notes on use" Button. The terms and notes of the voice features can always be shown (Voice Lab detailed design chapter 1).
 
 - Names say what comes first, not a use such as "singing" (Voice detailed design chapter 17).
-- When the PC does not meet the requirements: "Voice conversion cannot be used on this PC" and the GPU needed at the top of the Card, and every row disabled (13.4).
+- With no usable GPU: "Voice conversion cannot be used on this PC" and why at the top of the Card, and every row disabled (13.4).
 - With no voice: "No voice yet" and "Open Voice Lab" at the top of the Card, and the other rows disabled.
 - When it stopped: at the top of the Card, what happened, what the stream gets, and what to do.
 
@@ -374,7 +374,7 @@ When the details match neither, it shows Custom. Custom cannot be picked by itse
 
 ### 13.4 PCs Without Enough GPU
 
-A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). On a PC that does not meet the requirements, voice conversion cannot be turned on, and the Card says why and which GPU is needed. Lighter GPU is for PCs that meet them, when the GPU is shared with the stream video and the rest. The required values and how to check them are not decided yet (Voice detailed design chapter 17).
+A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering). Lighter GPU is for sharing the GPU with the stream video and the rest.
 
 There is no Expected delay row. With the overlap fixed at 50 ms, both choices are about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
 
@@ -395,7 +395,7 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.no-voice` | 声がまだありません | No voice yet |
 | `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
 | `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
-| `setup.voice.no-gpu.description` | 声の変換には、{0}以上のグラフィックボードが必要です。 | It needs a graphics card of at least {0}. |
+| `setup.voice.no-gpu.description` | 声の変換には、グラフィックボード（GPU）が必要です。このPCでは使えるGPUが見つかりませんでした。 | It needs a graphics card (GPU), and none that it can use was found on this PC. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
 | `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
 | `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |

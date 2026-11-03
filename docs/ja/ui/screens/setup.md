@@ -346,7 +346,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
 
 - 名前は用途（「歌唱」など）でなく、何を優先するかで付ける（Voice詳細設計17章）。
-- PCが要件を満たさないとき：Cardの先頭に「このPCでは声の変換を使えません」と必要なGPUを出し、すべての行を無効にする（13.4）。
+- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.4）。
 - 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
 - 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
 
@@ -376,7 +376,7 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 
 ### 13.4 GPUが足りないPC
 
-GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。要件を満たさないPCでは声の変換をオンにできず、その理由と必要なGPUを示す。「GPUを軽く」は、要件を満たすPCで、配信の映像などとGPUを分け合うときのためのものである。要件の値と判定の方法は未定（Voice詳細設計17章）。
+GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。ただ、どのGPUから使えるかは分からないので、使えるGPUがないときだけオンにできなくする（利用者の決定、2026-11-03）。GPUで計算できないとき（Compute Shaderが使えない、ソフトウェアで描画している）を「ない」とみなす。「GPUを軽く」は、配信の映像などとGPUを分け合うときのためのものである。
 
 「遅れの目安」の行は置かない。重ねを50 msに固定したので、どちらを選んでも約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
 
@@ -397,7 +397,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.no-voice` | 声がまだありません | No voice yet |
 | `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
 | `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
-| `setup.voice.no-gpu.description` | 声の変換には、{0}以上のグラフィックボードが必要です。 | It needs a graphics card of at least {0}. |
+| `setup.voice.no-gpu.description` | 声の変換には、グラフィックボード（GPU）が必要です。このPCでは使えるGPUが見つかりませんでした。 | It needs a graphics card (GPU), and none that it can use was found on this PC. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
 | `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
 | `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
