@@ -408,3 +408,22 @@ The fix: the blend is held for 100 ms after the last voiced frame, then lets go 
 With the built plugin, every second of the recording's notes keeps the input's level. More noise stays only in the short gaps between syllables, right after the voice; in real pauses it is removed as before. A hold that also let go when the level fell (by 6, 10, or 15 dB) gave the same results, so it was not taken.
 
 The application's benchmark under load does not pass through noise removal, so the 10 to 15 dB fall of the converted third note (above) is the conversion's own, where the input turns rough. It is not solved by this. The user has not listened yet.
+
+## 2026-11-03 The vowel changed partway through long held notes
+
+The user heard the vowel change partway through a long held note. In the recording's second note (a held "i"), the input's second formant stayed at about 2,600 Hz. With the 5.4 s window, the converted voice's fell from about 3,100 to about 1,450 Hz after about 3 s (nearer "u" or "o"); with the 1 s window, almost at once.
+
+HuBERT causes it: when its whole input is one held vowel, it reads another vowel. Upstream's offline conversion of the held "i" alone went wrong the same way, from the start. It is not the first layer's GroupNorm (fixing its statistics changed nothing). With 1 s of anything else before the vowel (speech, another speaker's speech, or noise), the vowel stayed right for all 7 s; 0.5 s was not enough. In streaming, the vowel changes when what came before the note leaves the window.
+
+The fix: 1 s of fixed noise (standard deviation 0.01, seed 0) goes before every HuBERT window, and its 50 feature frames are dropped. It is built into the exported HuBERT model, so the model's input and output, and the rest of the conversion, stay as they were. The delay does not change.
+
+The level was chosen for speech not to get worse. Distance from upstream's offline conversion of the whole file (timbre, MFCC; lower is closer), for the user's held notes and speech (+9 semitones):
+
+| Window | Held notes: none / noise 0.05 / noise 0.01 | Speech: none / noise 0.05 / noise 0.01 |
+|---|---|---|
+| 1 s | 109.5 / 58.2 / 54.8 | 40.4 / 42.5 / 41.2 |
+| 5.4 s | 57.8 / 48.0 / 54.3 | 32.9 / 34.8 / 33.5 |
+| Realtime 2.5 s | 82.3 / 58.0 / 65.4 | 37.5 / 36.3 / 37.5 |
+| Realtime 5.4 s | 57.4 / 48.0 / 55.0 | 32.7 / 36.1 / 34.0 |
+
+Noise at 0.05 made speech 5 to 10% worse, so 0.01 is used: speech differs by 2 to 4%, about as much as runs of the same setting differ. Held notes with the 1 s window come to half the distance; with the 5.4 s window they gain little. Another speaker's speech as the anchor came out better for both in HuBERT's features, but needs a recording that may be distributed; not decided. Processing time per block grew by about 2 ms. The user has not listened yet.
