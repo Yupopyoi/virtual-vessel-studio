@@ -365,3 +365,9 @@ The fix: while the input is voiced (periodic within a voice's pitch range and lo
 | Original blended back | Same as the input throughout | -29.1 dB | -1.1 dB |
 
 While voiced, noise under the voice stays too. The user has not listened yet.
+
+## 2026-11-03 Templates made again for the 50 ms overlap
+
+With the 50 ms overlap the generator returns 21 frames instead of 18. The template for writing trained weights, and its placement table, were made again for the 1 s, 2.5 s, and 5.4 s windows. For all three, the `.sentis` made by writing a voice unused in the template had the same SHA-256 as the one the Editor made from that voice. All 352 weights were placed.
+
+A template is needed for each generator shape (window and returned frames). Offering both a 20 ms and a 50 ms overlap needs a template for each.

@@ -98,8 +98,15 @@ A project setting (system design 6.3).
 | `voiceModelId` | The chosen voice; none when not chosen |
 | `semitones` | Pitch, from -24 to 24 |
 | `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12) |
+| `priority` | `Responsive`, `Smooth`, or `Custom`; `Smooth` by default (being designed; setup screen 13.3) |
+| `windowFrames` | The window: 100, 250, or 540 (being designed) |
+| `crossfadeFrames` | The overlap at joins: 2 or 5 (being designed) |
+| `denoise` | Noise removal (being designed) |
+| `monitorVoice` | What the user hears: `Converted` or `Original` (being designed; setup screen 13.5) |
 
 The setting is kept even when its voice cannot be found (CLAUDE.md chapter 25).
+
+The items being designed are added, with a higher `schemaVersion`, after the user has reviewed the settings screen's mock-up. The window's GPU load differs from PC to PC, so whether these belong to the PC rather than the Project is also to be decided (chapter 17). Choosing between a 20 ms and a 50 ms overlap needs both generators for every voice.
 
 ## 7. State and Lifecycle
 
@@ -240,6 +247,7 @@ Stages:
 Open issues:
 
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
-- How the settings are shown (the user's request, 2026-11-03). A simple choice by what comes first (for example, quick response or smoothness), with the detailed settings such as the window kept. No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing.
+- How the settings are shown (the user's request, 2026-11-03). A simple choice by what comes first (for example, quick response or smoothness), with the detailed settings such as the window kept. No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing. The screen is designed in setup screen chapter 13 (the mock-up waits for the user's review).
+- Whether settings such as the window are kept with the Project or the PC. The GPU load differs from PC to PC.
 - Slow GPUs. There is no required performance yet, and only the RTX 4070 has been measured.
 - GPU contention with the stream video has not been measured.
