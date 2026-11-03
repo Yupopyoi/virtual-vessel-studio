@@ -510,3 +510,24 @@ The aim: to check that each step of a system where users create the voice they l
 The edited timbre survives training and conversion. The user's verdict: passable. That conversion was upstream's whole-file one, not the real-time one; upstream's hides the window's problems, so designed voices are judged through the real-time path (Voice Lab detailed design 8.3.4).
 
 Learned: timbre (the envelope, how old it sounds, breathiness) comes from the trained model; intonation, pace, and articulation come from the speaker. Setting the shift from the input's median pitch absorbed the different pitches of each piece of speech.
+
+## 2026-11-03 Narrowing VoxCPM2's dependencies, and one environment
+
+Before implementing Voice Lab, the two untested points were checked (Voice Lab detailed design chapter 17).
+
+**Licenses**: the `voxcpm` 2.0.3 package is Apache-2.0, and so is the model (`openbmb/VoxCPM2` on Hugging Face, revision `32279effe8c1`). The model card forbids impersonation, fraud, and disinformation and asks that AI-generated content be labeled (the terms already recorded).
+
+**Narrowed dependencies**: `voxcpm` was installed without dependencies, plus only what its inference code imports (torch, torchaudio, transformers, tokenizers, huggingface_hub, safetensors, einops, pydantic, numpy, librosa, soundfile, tqdm).
+
+- 153 packages became 65. `funasr`, `kaldiio` (NTT's evaluation license), `modelscope`, `datasets`, `gradio`, and `torchcodec` are not installed.
+- Speech made with the same reference and seed matched the original environment sample for sample.
+- The only license note left is `soxr` (LGPL, already accepted in a replaceable form). A search of the full license texts found nothing beyond the general clauses of bundled parts in `numpy`, `scipy`, and `torch`.
+- Training (`voxcpm/training`) and the denoiser (`zipenhancer`, ModelScope) are not used, so their dependencies stay out, and so does text normalization for `normalize=True` (`wetext`, `inflect`).
+
+**The same environment as RVC**: VoxCPM2 also ran on the training environment's versions (Python 3.12, torch 2.7.1+cu118, numpy 1.26.4, transformers 4.49.0, librosa 0.10.2) with `voxcpm`, `einops`, and `pydantic` added.
+
+- The waveform differs under the same seed (other versions change the generation's path). The voice is the same: speaker similarity 0.988, median pitch 326 Hz and 327 Hz.
+- A candidate can be remade from its seed only within the same versions, so the environment's version is kept with each candidate's conditions.
+- Whether RVC training still runs as before in this environment is not yet checked (only `einops`, `pydantic`, and `voxcpm` are added; RVC's pinned versions do not change).
+
+One environment would mean one build and one copy of torch and CUDA (several GB).
