@@ -3,6 +3,7 @@
 
 #include "vv_audio.h"
 
+#include "audio_file.h"
 #include "denoiser.h"
 #include "device_source.h"
 #include "dsp.h"
@@ -11,10 +12,14 @@
 #include <windows.h>
 
 #include <audioclient.h>
+#include <mferror.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -428,6 +433,88 @@ namespace
         Check(problem == VV_AUDIO_PROBLEM_ACCESS_DENIED, "microphone access denied by Windows");
     }
 
+    // A file through Media Foundation: a 16-bit stereo WAV at 44.1 kHz, its channels opposite in sign but for
+    // an offset, so the mono mix is the offset alone and the file's rate is kept.
+    void AudioFiles()
+    {
+        float pair[] = { 0.5f, -0.25f, 0.0f, 1.0f };
+        std::vector<float> mono = ToMono(pair, 2, 2);
+        Check(mono.size() == 2 && mono[0] == 0.125f && mono[1] == 0.5f, "channels are averaged");
+
+        constexpr int Rate = 44100;
+        constexpr int Frames = Rate / 2;
+        std::vector<int16_t> pcm(Frames * 2);
+        for (int i = 0; i < Frames; i++)
+        {
+            int16_t tone = static_cast<int16_t>(8000.0f * std::sin(static_cast<float>(i) * 2.0f * 3.14159265f * 440.0f / Rate));
+            pcm[i * 2] = static_cast<int16_t>(tone + 3277);
+            pcm[(i * 2) + 1] = static_cast<int16_t>(-tone + 3277);
+        }
+
+        const uint32_t dataBytes = static_cast<uint32_t>(pcm.size() * sizeof(int16_t));
+        std::vector<char> wav(44 + dataBytes);
+        auto put32 = [&](size_t at, uint32_t v) { std::memcpy(&wav[at], &v, 4); };
+        auto put16 = [&](size_t at, uint16_t v) { std::memcpy(&wav[at], &v, 2); };
+        std::memcpy(&wav[0], "RIFF", 4);
+        put32(4, 36 + dataBytes);
+        std::memcpy(&wav[8], "WAVEfmt ", 8);
+        put32(16, 16);
+        put16(20, 1);
+        put16(22, 2);
+        put32(24, Rate);
+        put32(28, Rate * 4);
+        put16(32, 4);
+        put16(34, 16);
+        std::memcpy(&wav[36], "data", 4);
+        put32(40, dataBytes);
+        std::memcpy(&wav[44], pcm.data(), dataBytes);
+
+        wchar_t folder[MAX_PATH];
+        GetTempPathW(MAX_PATH, folder);
+        std::wstring path = std::wstring(folder) + L"vv_audio_tests.wav";
+        HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        DWORD written = 0;
+        bool saved = file != INVALID_HANDLE_VALUE && WriteFile(file, wav.data(), static_cast<DWORD>(wav.size()), &written, nullptr) && written == wav.size();
+        if (file != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(file);
+        }
+
+        Check(saved, "the test file is written");
+        vv_audio_clip* clip = nullptr;
+        int32_t rate = 0;
+        int64_t count = 0;
+        int32_t error = 0;
+        int32_t result = vv_audio_decode_file(path.c_str(), &clip, &rate, &count, &error);
+        if (result != VV_AUDIO_OK && error == static_cast<int32_t>(NoMediaFoundation))
+        {
+            // Windows N editions have no Media Foundation unless its pack is installed.
+            std::printf("SKIP files: no Media Foundation\n");
+        }
+        else
+        {
+            Check(result == VV_AUDIO_OK, "a WAV file is decoded");
+            Check(rate == Rate, "at its own rate");
+            Check(count == Frames, "every frame");
+            std::vector<float> samples(static_cast<size_t>(count));
+            Check(vv_audio_clip_read(clip, samples.data(), count) == VV_AUDIO_OK, "the samples are read");
+            float worst = 0.0f;
+            for (float s : samples)
+            {
+                worst = std::max(worst, std::fabs(s - (3277.0f / 32768.0f)));
+            }
+
+            Check(worst < 0.001f, "the channels are mixed to mono");
+        }
+
+        vv_audio_clip_free(clip);
+        DeleteFileW(path.c_str());
+
+        clip = nullptr;
+        result = vv_audio_decode_file(L"C:\\no such folder\\none.m4a", &clip, &rate, &count, &error);
+        Check(result == VV_AUDIO_UNREADABLE && clip == nullptr && error != 0, "a missing file is unreadable");
+    }
+
     // Where each export starts in the DLL, so a crash's offset can be placed in a function.
     void PrintExports()
     {
@@ -592,6 +679,7 @@ int main()
     Step("fill", Fill);
     Step("ramps", Ramps);
     Step("problems", Problems);
+    Step("audio files", AudioFiles);
     Step("the engine on this PC", EngineOnThisPc);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;

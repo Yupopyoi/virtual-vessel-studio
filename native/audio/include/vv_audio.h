@@ -27,13 +27,16 @@ extern "C"
 // 5: a processing stage on a source (vv_audio_set_stage).
 // 6: noise removal for a stage (vv_audio_denoise).
 // 7: where a stage's frames wait (vv_audio_get_stage_delay).
-#define VV_AUDIO_API_VERSION 7
+// 8: audio files (vv_audio_decode_file).
+#define VV_AUDIO_API_VERSION 8
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
 #define VV_AUDIO_OUT_OF_MEMORY (-2)
 #define VV_AUDIO_SYSTEM_ERROR (-3)
 #define VV_AUDIO_NOT_FOUND (-4)
+#define VV_AUDIO_UNREADABLE (-5)  // The file is missing, or Windows cannot decode it.
+#define VV_AUDIO_TOO_LONG (-6)    // The file is longer than VV_AUDIO_MAX_FILE_SECONDS.
 
 #define VV_AUDIO_SAMPLE_RATE 48000
 #define VV_AUDIO_MAX_SOURCES 16
@@ -55,6 +58,7 @@ extern "C"
 #define VV_AUDIO_PROBLEM_FAILED 3          // Any other failure; last_error has the HRESULT.
 
 typedef struct vv_audio_engine vv_audio_engine;
+typedef struct vv_audio_clip vv_audio_clip;
 
 typedef struct vv_audio_device
 {
@@ -169,6 +173,14 @@ VV_AUDIO_API int32_t vv_audio_get_monitor_status(vv_audio_engine* engine, vv_aud
 #define VV_AUDIO_READER_RECORDING 0
 #define VV_AUDIO_READER_STREAMING 1
 VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap);
+
+// Decodes a whole audio file with Windows' Media Foundation (WAV, M4A/AAC, MP3, and others) to mono float
+// samples at the file's own rate. Needs no engine, from any thread. error gets the failing HRESULT, or 0.
+// Read the clip's `count` samples with vv_audio_clip_read, then free it.
+#define VV_AUDIO_MAX_FILE_SECONDS 600
+VV_AUDIO_API int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+VV_AUDIO_API int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+VV_AUDIO_API void vv_audio_clip_free(vv_audio_clip* clip);
 
 #ifdef __cplusplus
 }

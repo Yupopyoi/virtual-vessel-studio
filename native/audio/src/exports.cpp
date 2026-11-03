@@ -2,6 +2,7 @@
 
 #include "vv_audio.h"
 
+#include "audio_file.h"
 #include "device_output.h"
 #include "device_source.h"
 #include "denoiser.h"
@@ -68,6 +69,11 @@ namespace
         int reader = 0;
     };
 }
+
+struct vv_audio_clip
+{
+    vv::audio::DecodedFile decoded;
+};
 
 struct vv_audio_engine
 {
@@ -550,6 +556,54 @@ extern "C"
 
         engine->mixer.SetStreamDelay((static_cast<int64_t>(delay_ms) * engine->frequency) / 1000);
         return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error)
+    {
+        if (path == nullptr || clip == nullptr || rate == nullptr || count == nullptr || error == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *clip = nullptr;
+        *rate = 0;
+        *count = 0;
+        *error = 0;
+        auto created = new (std::nothrow) vv_audio_clip();
+        if (created == nullptr)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+
+        HRESULT hr = vv::audio::DecodeFile(path, created->decoded);
+        if (FAILED(hr))
+        {
+            delete created;
+            *error = static_cast<int32_t>(hr);
+            return hr == vv::audio::FileTooLong ? VV_AUDIO_TOO_LONG : hr == E_OUTOFMEMORY ? VV_AUDIO_OUT_OF_MEMORY : VV_AUDIO_UNREADABLE;
+        }
+
+        *clip = created;
+        *rate = created->decoded.rate;
+        *count = static_cast<int64_t>(created->decoded.samples.size());
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity)
+    {
+        if (clip == nullptr || capacity < 0 || (samples == nullptr && capacity > 0))
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        const std::vector<float>& decoded = clip->decoded.samples;
+        std::copy_n(decoded.begin(), std::min(static_cast<size_t>(capacity), decoded.size()), samples);
+        return VV_AUDIO_OK;
+    }
+
+    void vv_audio_clip_free(vv_audio_clip* clip)
+    {
+        delete clip;
     }
 
     int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap)

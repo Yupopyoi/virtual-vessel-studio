@@ -1,4 +1,4 @@
-# The audio native plugin (audio detailed design): WASAPI capture, the mix, and the stream tap.
+# The audio native plugin (audio detailed design): WASAPI capture, the mix, the stream tap, and audio files.
 # Built with tools/native/build-audio.ps1.
 
 cmake_minimum_required(VERSION 3.21)
@@ -38,15 +38,18 @@ add_library(vv_audio_core STATIC
     src/denoiser.cpp
     src/device_loop.cpp
     src/device_output.cpp
-    src/device_source.cpp)
+    src/device_source.cpp
+    src/audio_file.cpp)
 target_include_directories(vv_audio_core PUBLIC include src)
 target_compile_definitions(vv_audio_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(vv_audio_core PUBLIC /W4 /WX /permissive- /utf-8 /external:anglebrackets /external:W0)
-target_link_libraries(vv_audio_core PUBLIC ole32 avrt PRIVATE rnnoise)
+target_link_libraries(vv_audio_core PUBLIC ole32 avrt mfplat mfreadwrite mfuuid PRIVATE rnnoise)
 
 add_library(VirtualVessel.Audio.Native SHARED src/exports.cpp)
 target_compile_definitions(VirtualVessel.Audio.Native PRIVATE VV_AUDIO_EXPORTS)
-target_link_libraries(VirtualVessel.Audio.Native PRIVATE vv_audio_core)
+target_link_libraries(VirtualVessel.Audio.Native PRIVATE vv_audio_core delayimp)
+# Media Foundation reads audio files only; delay-loaded, the engine starts on Windows without it (N editions).
+target_link_options(VirtualVessel.Audio.Native PRIVATE /DELAYLOAD:mfplat.dll /DELAYLOAD:mfreadwrite.dll)
 
 enable_testing()
 add_executable(vv_audio_tests tests/audio_tests.cpp)
