@@ -354,7 +354,6 @@ Open issues:
 - The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
 - The flow of designing a voice (8.3): how well the brightness and breathiness knobs work, the range of the age ratio, and the training-speech vowel hypothesis. "Passable" above was judged on upstream's conversion, not yet on real-time conversion.
 - Matching the conversion's pitch automatically: the registered voice's format for its median pitch, and how Voice uses it (the Voice detailed design's part).
-- System design 14.14 to 14.17 (Voice Lab's UI) list working steps with seeds, style_instruction, and a hard gate, which do not match 8.3's flow (timbre knobs, trying with your voice). They are to be fixed with the user's review, including what the normal screens show.
 
 Approved by the user (2026-11-01):
 
