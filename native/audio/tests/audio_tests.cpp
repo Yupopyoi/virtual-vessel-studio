@@ -344,9 +344,62 @@ namespace
         Check(Rms(note, 48000 * 6) > held * 0.7, "a held note keeps its level after 6 s");
 
         Check(Denoiser::Periodicity(noise.data(), 1920) < 0.6f, "noise is not periodic");
-        Check(Denoiser::NextVoiceWeight(0.0f, 0.9f, 0.1f) > 0.4f, "a voice blends the original back quickly");
-        Check(Denoiser::NextVoiceWeight(1.0f, 0.1f, 0.1f) > 0.2f, "and lets it go over a few frames");
-        Check(Denoiser::NextVoiceWeight(0.0f, 0.9f, 0.0001f) == 0.0f, "a quiet periodic hum is not a voice");
+        Denoiser::VoiceGate gate = Denoiser::NextVoiceGate({}, 0.9f, 0.1f);
+        Check(gate.Weight > 0.4f, "a voice blends the original back quickly");
+        Check(Denoiser::NextVoiceGate({}, 0.9f, 0.0001f).Weight == 0.0f, "a quiet periodic hum is not a voice");
+
+        gate = { 1.0f, 0 };
+        gate = Denoiser::NextVoiceGate(gate, 0.9f, 0.1f);
+        for (int frame = 0; frame < 10; frame++)
+        {
+            gate = Denoiser::NextVoiceGate(gate, 0.1f, 0.1f);
+        }
+
+        Check(gate.Weight == 1.0f, "a voice is held for 100 ms after its last voiced frame");
+        for (int frame = 0; frame < 3; frame++)
+        {
+            gate = Denoiser::NextVoiceGate(gate, 0.1f, 0.1f);
+        }
+
+        Check(gate.Weight < 0.05f, "and then let go within a few frames");
+
+        // A held note with 30 ms of breath noise at the same level in the middle, as when a sung note turns rough.
+        Denoiser rough;
+        std::vector<float> roughNote(static_cast<size_t>(48000) * 4);
+        uint32_t breath = 7u;
+        for (size_t i = 0; i < roughNote.size(); i++)
+        {
+            float t = static_cast<float>(i) / 48000.0f;
+            if (i >= 96000 && i < 96000 + 1440)
+            {
+                breath = breath * 1103515245u + 12345u;
+                roughNote[i] = (static_cast<float>((breath >> 16) & 0x7fff) / 16384.0f - 1.0f) * 0.4f;
+                continue;
+            }
+
+            for (int h = 1; h <= 8; h++)
+            {
+                roughNote[i] += 0.3f / static_cast<float>(h) * std::sin(2.0f * 3.14159265f * 150.0f * static_cast<float>(h) * t);
+            }
+        }
+
+        std::vector<float> roughOriginal = roughNote;
+        rough.Process(roughNote.data(), static_cast<int>(roughNote.size()));
+        double lowest = 1.0;
+        for (size_t at = 48000; at + 960 <= roughNote.size(); at += 480)
+        {
+            double out = 0.0;
+            double in = 0.0;
+            for (size_t i = at; i < at + 960; i++)
+            {
+                out += static_cast<double>(roughNote[i]) * roughNote[i];
+                in += static_cast<double>(roughOriginal[i - Denoiser::DelaySamples]) * roughOriginal[i - Denoiser::DelaySamples];
+            }
+
+            lowest = std::min(lowest, std::sqrt(out / in));
+        }
+
+        Check(lowest > 0.7, "a rough moment inside a note does not cut a gap into it");
     }
 
     void MonitorBus()

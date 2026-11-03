@@ -27,9 +27,18 @@ namespace vv::audio
         // pitch, 60 to 800 Hz, at a quarter of the 48 kHz rate. count is at least 1920 (40 ms). Pure.
         static float Periodicity(const float* samples, size_t count);
 
-        // How much of the original to blend back after a frame: up quickly when a voice starts, down slowly
-        // so a note's end is not cut. Pure.
-        static float NextVoiceWeight(float weight, float periodicity, float rms);
+        // How much of the original to blend back, and for how many more frames to keep it after the voice was
+        // last heard.
+        struct VoiceGate
+        {
+            float Weight = 0.0f;
+            int Hold = 0;
+        };
+
+        // The gate after a frame: up quickly when a voice starts, and held for 100 ms after the last voiced
+        // frame before it lets go. Inside a sung note, single frames lose their periodicity (a rough patch, a
+        // pitch swing); without the hold, each one cut a gap of 10 to 56 dB into the note. Pure.
+        static VoiceGate NextVoiceGate(VoiceGate gate, float periodicity, float rms);
 
         // RNNoise's output lags its input by this much (measured), so the original is delayed to meet it.
         static constexpr int DelaySamples = 960;
@@ -40,6 +49,6 @@ namespace vv::audio
 
         DenoiseState* _state = nullptr;
         float _original[DelaySamples + AnalysisSamples] = {};
-        float _voiceWeight = 0.0f;
+        VoiceGate _voice;
     };
 }

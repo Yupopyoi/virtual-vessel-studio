@@ -20,6 +20,7 @@ namespace vv::audio
 
         constexpr float VoicedPeriodicity = 0.6f;
         constexpr float VoicedRms = 0.003f; // About -50 dBFS
+        constexpr int HoldFrames = 10; // 100 ms
     }
 
     float Denoiser::Periodicity(const float* samples, size_t count)
@@ -66,11 +67,13 @@ namespace vv::audio
         return best;
     }
 
-    float Denoiser::NextVoiceWeight(float weight, float periodicity, float rms)
+    Denoiser::VoiceGate Denoiser::NextVoiceGate(VoiceGate gate, float periodicity, float rms)
     {
-        float target = periodicity > VoicedPeriodicity && rms > VoicedRms ? 1.0f : 0.0f;
-        float speed = target > weight ? 0.5f : 0.7f;
-        return weight + (target - weight) * speed;
+        bool voiced = periodicity > VoicedPeriodicity && rms > VoicedRms;
+        int hold = voiced ? HoldFrames : std::max(0, gate.Hold - 1);
+        float target = voiced || gate.Hold > 0 ? 1.0f : 0.0f;
+        float speed = target > gate.Weight ? 0.5f : 0.7f;
+        return { gate.Weight + (target - gate.Weight) * speed, hold };
     }
 
     Denoiser::~Denoiser()
@@ -114,11 +117,11 @@ namespace vv::audio
             }
 
             float rms = static_cast<float>(std::sqrt(sum / FrameSize));
-            _voiceWeight = NextVoiceWeight(_voiceWeight, Periodicity(_original, AnalysisSamples), rms);
+            _voice = NextVoiceGate(_voice, Periodicity(_original, AnalysisSamples), rms);
             for (int i = 0; i < FrameSize; i++)
             {
                 float cleaned = frame[i] / Scale;
-                samples[at + i] = cleaned + (aligned[i] - cleaned) * _voiceWeight;
+                samples[at + i] = cleaned + (aligned[i] - cleaned) * _voice.Weight;
             }
         }
 
