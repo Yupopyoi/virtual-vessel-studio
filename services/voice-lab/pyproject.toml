@@ -16,10 +16,36 @@ dependencies = [
   "transformers==4.49.0",
   "onnx==1.23.2",
   "setuptools<81",
+  # Voice design (Voice Lab detailed design 8.3): VoxCPM2 for candidates and training speech, WORLD for timbre.
+  "voxcpm==2.0.3",
+  "einops==0.8.2",
+  "pydantic==2.14.2",
+  "pyworld==0.3.5",
 ]
+
+[dependency-groups]
+dev = ["pytest==8.4.2"]
 
 [tool.uv]
 package = false
+
+# voxcpm declares training, denoising, and UI packages its inference never imports; funasr among them pulls in
+# kaldiio, whose license allows evaluation only. Only what inference imports is kept (decision record, 2026-11-03).
+[[tool.uv.dependency-metadata]]
+name = "voxcpm"
+version = "2.0.3"
+requires-dist = [
+  "torch>=2.5.0",
+  "torchaudio>=2.5.0",
+  "transformers>=4.36.2",
+  "einops",
+  "huggingface-hub",
+  "pydantic",
+  "tqdm",
+  "soundfile",
+  "librosa",
+  "safetensors",
+]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu118" }
@@ -29,3 +55,6 @@ torchaudio = { index = "pytorch-cu118" }
 name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"
 explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -51,7 +51,7 @@ Python側：
 
 | ファイル | 役割 |
 |---|---|
-| `services/voice-lab/train.py` | 前処理、特徴量、学習をまとめて実行し、進捗をJSON Linesで出す |
+| `services/voice-lab/train.py` | 前処理、特徴量、学習をまとめて実行し、進捗をJSON Linesで出す（8.5） |
 | `services/voice-lab/export_voice.py` | 学習結果をひな形へ書き込む（8.4） |
 | `services/voice-lab/generate.py` | VoxCPM2で音声を作る：土台の候補、学習用の音声（8.3） |
 | `services/voice-lab/timbre.py` | WORLDで声色を変える（8.3.2）。試聴と学習用の音声の両方に同じ値を使う |
@@ -262,6 +262,40 @@ VoiceModels/<VoiceModelId>/へ置く
 - パッケージを更新したら、作り直してSHA-256の比較をやり直す。
 - アプリの更新で形式が変わる場合に備え、学習の成果物（`.pth`）を残す。残っていれば登録をやり直せる。
 
+### 8.5 Python側の入出力
+
+Unityは、`services/voice-lab`の各スクリプトを、ExternalServicesの`IExternalProcessRunner`で1回ずつ実行する（方式設計4.4）。環境は1つで、RVCの学習とVoxCPM2の生成の両方に使う（決定記録、2026-11-03）。
+
+```text
+python -I <スクリプト>.py <操作> <依頼のJSONファイル>
+```
+
+- `-I`ではスクリプトのフォルダーが読み込み先に入らないので、各スクリプトが自分のフォルダー（`voicelab`パッケージの場所）を加える。
+- 依頼はJSONファイルで渡す。パスや文章をコマンドラインに並べないので、空白や日本語の引用の問題が起きない。
+- 進み具合と結果は、標準出力にJSON Linesで1行ずつ出す。標準エラーはログで、Training Runのフォルダーへ保存する（13章）。ライブラリが標準出力へ書く文字（VoxCPM2の読み込みの表示、RVCのログ）も、処理の間は標準エラーへ回す。
+- 終了コード：0は成功、1は失敗（直前に`error`の行を出す）、2は依頼の誤り。
+- 取り消しは、Runnerがプロセスごと止める。出力は一時ファイルに書いてから名前を変えるので、途中で止めても作りかけのファイルは残らない。
+
+| 行の`type` | 中身 |
+|---|---|
+| `progress` | `stage`（段階の名前）、`done`、`total` |
+| `result` | 操作ごとの結果（下の表） |
+| `error` | `code`（`bad_request`、`out_of_memory`、`missing_file`、`failed`）と、開発者向けの`message` |
+
+| スクリプトと操作 | 依頼の主な項目 | 結果 |
+|---|---|---|
+| `generate.py candidates` | 雰囲気（つまみの値と文章）、個数、最初の乱数、モデルの場所、出力先 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
+| `generate.py speech` | 手本の音声、乱数の始まり、モデルの場所、出力先 | 学習用の音声の一覧と合計の長さ |
+| `timbre.py preview` | 元の音声、声色の値、出力先 | 加工した音声、声の高さの中央値 |
+| `timbre.py batch` | 元の音声のフォルダー、声色の値、出力先 | 加工した音声の一覧 |
+| `train.py run` | RVCの場所、学習用の音声のフォルダー、作業フォルダー、エポック数 | 学習した重み（`.pth`） |
+| `export_voice.py run` | 重み、ひな形と配置表、RVCの場所、学習用の音声（声の高さの中央値を求める）、出力先 | 声の`.sentis`、`.spk`、声の情報（`voice.json`：声の高さの中央値ほか） |
+
+- 声色の値は、高さ（半音）、年齢、明るさ、息っぽさの段階（-6〜+6、0は変えない）とする。年齢の1段は響きの2.5%、明るさの1段は1 kHzを境に1オクターブあたり1.5 dBの傾き、息っぽさの1段は非周期成分の指数を2^(1/5)倍にする。年齢の+4（響き×1.10）は実験で確かめた。明るさと息っぽさの効きは未検証である（17章）。
+- 学習用の音声の文は、本システムが用意する（`voicelab/corpus.py`）。5つの母音、伸ばした音、高めの声になりやすい文を含める（8.3.3の未検証の仮説）。
+- RVCの学習の進み具合は、RVCのログの`====>`で始まる行から読む。ログの文言は言語で変わるが、この形は変わらない。
+- RVCの学習は、RVCのフォルダーの`logs/vvs-lab-<番号>`に途中のファイルを作る（RVCは変更しない）。重みを作業フォルダーへ写したあと、そのフォルダーを消す。失敗したときも消す（RVCのログは標準エラーに写してあるので、診断には困らない）。取り消しでプロセスごと止めたときは消せないので、次の学習の始めに、前の`vvs-lab-`で始まるフォルダーと重みを消す。学習は一度に1つだけ動く。
+
 ## 9. Threadと非同期
 
 インストールと学習は別のProcessで動く。Unityの側はメインスレッドを止めず、進捗を受け取って`IMainThreadDispatcher`でUIへ渡す。すべて`CancellationToken`で止められる。
@@ -331,8 +365,9 @@ Assets/VirtualVessel/VoiceLab/Runtime/
 
 services/voice-lab/
 ├─ pyproject.toml、uv.lock
-├─ train.py、export_voice.py、generate.py、timbre.py
-├─ parselmouth.py   読み込みだけを満たす空のモジュール（決定記録）
+├─ train.py、export_voice.py、generate.py、timbre.py   入口（8.5）
+├─ voicelab/      共通の処理：入出力、指示文、声色、声の高さ、文、生成器の書き出し、重みの書き込み
+├─ stubs/parselmouth.py   読み込みだけを満たす空のモジュール（決定記録）。RVCの`train`パッケージを隠さないよう、入口のスクリプトとは別のフォルダーに置く
 └─ tests/
 ```
 
