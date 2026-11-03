@@ -340,13 +340,13 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 声 | Select | Voice Labで作った声 |
 | 声の高さ | Slider | -24〜+24半音 |
 | 優先すること | Segmented | GPUを軽く、なめらかさ、カスタム（13.3） |
-| 遅れの目安 | 数値 | 話してから変換した声が聞こえるまで。機器の遅れは含まない（13.4） |
 | 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.5） |
 | 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
 
 Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
 
 - 名前は用途（「歌唱」など）でなく、何を優先するかで付ける（Voice詳細設計17章）。
+- PCが要件を満たさないとき：Cardの先頭に「このPCでは声の変換を使えません」と必要なGPUを出し、すべての行を無効にする（13.4）。
 - 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
 - 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
 
@@ -374,9 +374,11 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 
 詳細を変えて、どの組み合わせとも違うときは「カスタム」になる。「カスタム」は自分では選べず、詳細を変えると選ばれる。中身の値は、利用者が声で確かめてから決める（Voice詳細設計17章）。
 
-### 13.4 遅れの目安
+### 13.4 GPUが足りないPC
 
-実測の内訳（決定記録、2026-11-03）から求める：処理を除く300 ms（重ね50 msのとき）と、窓ごとの処理（1秒77 ms、2.5秒79 ms、5.4秒82 ms）の和。どちらも約0.38秒で、2つの違いはGPUの負担と、伸ばした声の安定である。
+GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。要件を満たさないPCでは声の変換をオンにできず、その理由と必要なGPUを示す。「GPUを軽く」は、要件を満たすPCで、配信の映像などとGPUを分け合うときのためのものである。要件の値と判定の方法は未定（Voice詳細設計17章）。
+
+「遅れの目安」の行は置かない。重ねを50 msに固定したので、どちらを選んでも約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
 
 ### 13.5 自分に聞こえる声
 
@@ -394,6 +396,8 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 | `setup.voice.state.failed` | 止まりました | Stopped |
 | `setup.voice.no-voice` | 声がまだありません | No voice yet |
 | `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
+| `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.description` | 声の変換には、{0}以上のグラフィックボードが必要です。 | It needs a graphics card of at least {0}. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
 | `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
 | `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
@@ -411,9 +415,6 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 | `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
 | `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
 | `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
-| `setup.voice.delay` | 遅れの目安 | Expected delay |
-| `setup.voice.delay.description` | 話してから、変換した声が聞こえるまでの時間です。機器の遅れは含みません。 | From speaking until the converted voice is heard. The devices' own delay is not included. |
-| `setup.voice.delay.value` | 約{0}秒 | about {0} s |
 | `setup.voice.hear` | 自分に聞こえる声 | What you hear |
 | `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
 | `setup.voice.hear.converted` | 変換した声 | Converted |

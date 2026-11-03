@@ -338,13 +338,13 @@ A Status Chip of its state at the right end of the title (Running ✓, Loading �
 | Voice | Select | The voices made in Voice Lab |
 | Pitch | Slider | -24 to +24 semitones |
 | What comes first | Segmented | Lighter GPU, Smoothness, Custom (13.3) |
-| Expected delay | Number | From speaking until the converted voice is heard; the devices' own delay is not included (13.4) |
 | What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.5) |
 | If conversion stops | Segmented | Silence (default), My own (Voice detailed design chapter 12) |
 
 Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read the notes on use" Button. The terms and notes of the voice features can always be shown (Voice Lab detailed design chapter 1).
 
 - Names say what comes first, not a use such as "singing" (Voice detailed design chapter 17).
+- When the PC does not meet the requirements: "Voice conversion cannot be used on this PC" and the GPU needed at the top of the Card, and every row disabled (13.4).
 - With no voice: "No voice yet" and "Open Voice Lab" at the top of the Card, and the other rows disabled.
 - When it stopped: at the top of the Card, what happened, what the stream gets, and what to do.
 
@@ -372,9 +372,11 @@ The name is "Lighter GPU" (user decision, 2026-11-03). For people who do not kno
 
 When the details match neither, it shows Custom. Custom cannot be picked by itself; changing a detail picks it. The values wait until the user has tried them by voice (Voice detailed design chapter 17).
 
-### 13.4 Expected Delay
+### 13.4 PCs Without Enough GPU
 
-From the measured parts (decision record, 2026-11-03): 300 ms apart from the work (with the 50 ms overlap), plus the work for each window (77 ms for 1 s, 79 ms for 2.5 s, 82 ms for 5.4 s). Both are about 0.38 s; the two differ in GPU load and in how steady held notes are.
+A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). On a PC that does not meet the requirements, voice conversion cannot be turned on, and the Card says why and which GPU is needed. Lighter GPU is for PCs that meet them, when the GPU is shared with the stream video and the rest. The required values and how to check them are not decided yet (Voice detailed design chapter 17).
+
+There is no Expected delay row. With the overlap fixed at 50 ms, both choices are about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
 
 ### 13.5 What You Hear
 
@@ -392,6 +394,8 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.state.failed` | 止まりました | Stopped |
 | `setup.voice.no-voice` | 声がまだありません | No voice yet |
 | `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
+| `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.description` | 声の変換には、{0}以上のグラフィックボードが必要です。 | It needs a graphics card of at least {0}. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
 | `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
 | `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
@@ -409,9 +413,6 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
 | `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
 | `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
-| `setup.voice.delay` | 遅れの目安 | Expected delay |
-| `setup.voice.delay.description` | 話してから、変換した声が聞こえるまでの時間です。機器の遅れは含みません。 | From speaking until the converted voice is heard. The devices' own delay is not included. |
-| `setup.voice.delay.value` | 約{0}秒 | about {0} s |
 | `setup.voice.hear` | 自分に聞こえる声 | What you hear |
 | `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
 | `setup.voice.hear.converted` | 変換した声 | Converted |
