@@ -270,8 +270,9 @@ Unity runs each script in `services/voice-lab` once, through ExternalServices' `
 python -I <script>.py <operation> <request JSON file>
 ```
 
+- Under `-I` the script's folder is not on the path, so each script adds its own folder (where the `voicelab` package is).
 - The request is a JSON file, so paths and text are not laid out on the command line and spaces and Japanese quoting cause no trouble.
-- Progress and results go to standard output as JSON Lines, one per line. Standard error is the log, saved in the Training Run's folder (chapter 13).
+- Progress and results go to standard output as JSON Lines, one per line. Standard error is the log, saved in the Training Run's folder (chapter 13). What libraries print to standard output (VoxCPM2's loading messages, RVC's log) goes to standard error while an operation runs.
 - Exit codes: 0 success, 1 failure (after an `error` line), 2 a bad request.
 - Cancelling stops the process, by the runner. Outputs are written to temporary files and then renamed, so a stopped run leaves no half-made files.
 
@@ -288,12 +289,12 @@ python -I <script>.py <operation> <request JSON file>
 | `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
 | `timbre.py batch` | The source folder, timbre values, output folder | The edited files |
 | `train.py run` | RVC's location, the training speech folder, a work folder, epochs | The trained weights (`.pth`) |
-| `export_voice.py run` | The weights, the template and its table, RVC's location, output folder | The voice's `.sentis`, `.spk`, and its information (`voice.json`: the median pitch and more) |
+| `export_voice.py run` | The weights, the template and its table, RVC's location, the training speech (for the median pitch), output folder | The voice's `.sentis`, `.spk`, and its information (`voice.json`: the median pitch and more) |
 
 - Timbre values are steps of pitch (semitones), age, brightness, and breathiness (-6 to +6, 0 for no change). One age step is 2.5% on the formants, one brightness step a slope of 1.5 dB per octave about 1 kHz, and one breathiness step multiplies the aperiodicity's exponent by 2^(1/5). Age +4 (formants ×1.10) was tried in the experiment; how well brightness and breathiness work is not yet tried (chapter 17).
 - The texts for training speech are this system's own (`voicelab/corpus.py`), with all five vowels, held sounds, and lines that tend to a higher voice (8.3.3's untested hypothesis).
 - RVC training's progress is read from the lines of its log that start with `====>`. The wording changes with the language; that form does not.
-- RVC training makes its working files in `logs/<name>` under RVC's folder (RVC is not changed). After the weights are copied to the work folder, that folder is removed.
+- RVC training makes its working files in `logs/vvs-lab-<id>` under RVC's folder (RVC is not changed). After the weights are copied to the work folder, that folder is removed, and also on failure (RVC's log is copied to standard error, so diagnosis does not need it). Cancelling stops the process before it can, so the next training first removes earlier folders and weights named `vvs-lab-`. Only one training runs at a time.
 
 ## 9. Threading and Async
 
@@ -366,7 +367,7 @@ services/voice-lab/
 ├─ pyproject.toml, uv.lock
 ├─ train.py, export_voice.py, generate.py, timbre.py   Entry points (8.5)
 ├─ voicelab/      Shared code: I/O, instructions, timbre, pitch, texts, generator export, weight writing
-├─ parselmouth.py   An empty module that only satisfies the import (decision record)
+├─ stubs/parselmouth.py   An empty module that only satisfies the import (decision record), in a folder apart from the entry scripts so they do not hide RVC's "train" package
 └─ tests/
 ```
 
