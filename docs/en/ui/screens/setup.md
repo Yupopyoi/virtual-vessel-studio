@@ -337,13 +337,11 @@ A Status Chip of its state at the right end of the title (Running ✓, Loading �
 | Convert my voice | Toggle | Off, the user's own voice goes to the stream and recordings |
 | Voice | Select | The voices made in Voice Lab |
 | Pitch | Slider | -24 to +24 semitones |
-| What comes first | Segmented | Lighter GPU, Smoothness, Custom (13.3) |
 | What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.5) |
 | If conversion stops | Segmented | Silence (default), My own (Voice detailed design chapter 12) |
 
 Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read the notes on use" Button. The terms and notes of the voice features can always be shown (Voice Lab detailed design chapter 1).
 
-- Names say what comes first, not a use such as "singing" (Voice detailed design chapter 17).
 - With no usable GPU: "Voice conversion cannot be used on this PC" and why at the top of the Card, and every row disabled (13.4).
 - With no voice: "No voice yet" and "Open Voice Lab" at the top of the Card, and the other rows disabled.
 - When it stopped: at the top of the Card, what happened, what the stream gets, and what to do.
@@ -354,29 +352,28 @@ A collapsible Card (`components.md` 3.10), starting closed (chapter 2), so that 
 
 | Row | Part | Content |
 |---|---|---|
-| Length it looks at | Segmented | 1 s, 2.5 s, 5.4 s (the window) |
+| Length it looks at | Segmented | 1 s (default), 2.5 s, 5.4 s (the window) |
 | Noise removal | Toggle | |
 
 A "Back to recommended" Button below.
 
-### 13.3 What Comes First and the Details
+### 13.3 The Recommended Values
 
-| What comes first | Length it looks at | Noise removal |
-|---|---|---|
-| Lighter GPU | 1 s | On |
-| Smoothness (recommended) | 5.4 s | On |
+| Length it looks at | Noise removal |
+|---|---|
+| 1 s | On |
+
+Back to recommended returns to these.
+
+There is no simple choice by what comes first (Lighter GPU, Smoothness) (user decision, 2026-11-03). Listening, the user found the 1 s window sounded best, and 1 s is also the lightest on the GPU, so no combination has a reason to be chosen (Voice detailed design chapter 17). 2.5 s and 5.4 s stay in the details.
 
 The overlap at joins is 50 ms only, not a choice (user decision, 2026-11-03). A choice would need two generators and two templates for every voice.
 
-The name is "Lighter GPU" (user decision, 2026-11-03). For people who do not know the word GPU, the description says "graphics card" and when to choose it (when the stream video stutters).
-
-When the details match neither, it shows Custom. Custom cannot be picked by itself; changing a detail picks it. The values wait until the user has tried them by voice (Voice detailed design chapter 17).
-
 ### 13.4 PCs Without Enough GPU
 
-A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering). Lighter GPU is for sharing the GPU with the stream video and the rest.
+A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering).
 
-There is no Expected delay row. With the overlap fixed at 50 ms, both choices are about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
+There is no Expected delay row. With the overlap fixed at 50 ms, every length is about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
 
 ### 13.5 What You Hear
 
@@ -406,13 +403,6 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.voice.description` | Voice Labで作った声から選びます。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.pitch` | 声の高さ | Pitch |
 | `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
-| `setup.voice.priority` | 優先すること | What comes first |
-| `setup.voice.priority.light` | GPUを軽く | Lighter GPU |
-| `setup.voice.priority.smooth` | なめらかさ | Smoothness |
-| `setup.voice.priority.custom` | カスタム | Custom |
-| `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
-| `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
-| `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
 | `setup.voice.hear` | 自分に聞こえる声 | What you hear |
 | `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
 | `setup.voice.hear.converted` | 変換した声 | Converted |
@@ -425,8 +415,7 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
 | `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
 | `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
-| `setup.voice.details.window.description` | 長いほど、伸ばした声が安定します。GPUを多く使います。 | Longer steadies held notes, and uses more of the GPU. |
+| `setup.voice.details.window.description` | 1秒がおすすめです。長くすると、GPUを多く使い、変換を始めてしばらくは声が小さくなります。 | 1 s is recommended. Longer uses more of the GPU, and the voice is quiet for a while after conversion starts. |
 | `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
 | `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
-| `setup.voice.details.note` | ここを変えると、「優先すること」は「カスタム」になります。 | Changing these makes What comes first Custom. |
 | `setup.voice.details.reset` | おすすめに戻す | Back to recommended |

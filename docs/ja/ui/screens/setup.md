@@ -339,13 +339,11 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
 | 声 | Select | Voice Labで作った声 |
 | 声の高さ | Slider | -24〜+24半音 |
-| 優先すること | Segmented | GPUを軽く、なめらかさ、カスタム（13.3） |
 | 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.5） |
 | 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
 
 Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
 
-- 名前は用途（「歌唱」など）でなく、何を優先するかで付ける（Voice詳細設計17章）。
 - 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.4）。
 - 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
 - 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
@@ -356,29 +354,28 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 一度に見る長さ | Segmented | 1秒、2.5秒、5.4秒（窓） |
+| 一度に見る長さ | Segmented | 1秒（既定）、2.5秒、5.4秒（窓） |
 | ノイズ除去 | Toggle | |
 
 下に「おすすめに戻す」のButton。
 
-### 13.3 優先することと詳細の関係
+### 13.3 おすすめの値
 
-| 優先すること | 一度に見る長さ | ノイズ除去 |
-|---|---|---|
-| GPUを軽く | 1秒 | オン |
-| なめらかさ（おすすめ） | 5.4秒 | オン |
+| 一度に見る長さ | ノイズ除去 |
+|---|---|
+| 1秒 | オン |
+
+「おすすめに戻す」はこの値に戻す。
+
+何を優先するかで選ぶ簡単な設定（GPUを軽く、なめらかさ）は置かない（利用者の決定、2026-11-03）。利用者が聞き比べると窓1秒が一番よく聞こえ、1秒はGPUも一番軽い。選ぶ理由のある組み合わせがないためである（Voice詳細設計17章）。2.5秒と5.4秒は詳細に残す。
 
 つなぎ目の重ねは50 msだけとし、選べるようにしない（利用者の決定、2026-11-03）。選べるようにすると、声ごとに生成器とひな形が2組要る。
 
-名前は「GPUを軽く」とする（利用者の決定、2026-11-03）。GPUという言葉が伝わらない人のために、説明に「グラフィックボード」と、選ぶ場面（配信の映像がカクつくとき）を書く。
-
-詳細を変えて、どの組み合わせとも違うときは「カスタム」になる。「カスタム」は自分では選べず、詳細を変えると選ばれる。中身の値は、利用者が声で確かめてから決める（Voice詳細設計17章）。
-
 ### 13.4 GPUが足りないPC
 
-GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。ただ、どのGPUから使えるかは分からないので、使えるGPUがないときだけオンにできなくする（利用者の決定、2026-11-03）。GPUで計算できないとき（Compute Shaderが使えない、ソフトウェアで描画している）を「ない」とみなす。「GPUを軽く」は、配信の映像などとGPUを分け合うときのためのものである。
+GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。ただ、どのGPUから使えるかは分からないので、使えるGPUがないときだけオンにできなくする（利用者の決定、2026-11-03）。GPUで計算できないとき（Compute Shaderが使えない、ソフトウェアで描画している）を「ない」とみなす。
 
-「遅れの目安」の行は置かない。重ねを50 msに固定したので、どちらを選んでも約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
+「遅れの目安」の行は置かない。重ねを50 msに固定したので、どの長さでも約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
 
 ### 13.5 自分に聞こえる声
 
@@ -408,13 +405,6 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.voice.description` | Voice Labで作った声から選びます。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.pitch` | 声の高さ | Pitch |
 | `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
-| `setup.voice.priority` | 優先すること | What comes first |
-| `setup.voice.priority.light` | GPUを軽く | Lighter GPU |
-| `setup.voice.priority.smooth` | なめらかさ | Smoothness |
-| `setup.voice.priority.custom` | カスタム | Custom |
-| `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
-| `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
-| `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
 | `setup.voice.hear` | 自分に聞こえる声 | What you hear |
 | `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
 | `setup.voice.hear.converted` | 変換した声 | Converted |
@@ -427,8 +417,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
 | `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
 | `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
-| `setup.voice.details.window.description` | 長いほど、伸ばした声が安定します。GPUを多く使います。 | Longer steadies held notes, and uses more of the GPU. |
+| `setup.voice.details.window.description` | 1秒がおすすめです。長くすると、GPUを多く使い、変換を始めてしばらくは声が小さくなります。 | 1 s is recommended. Longer uses more of the GPU, and the voice is quiet for a while after conversion starts. |
 | `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
 | `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
-| `setup.voice.details.note` | ここを変えると、「優先すること」は「カスタム」になります。 | Changing these makes What comes first Custom. |
 | `setup.voice.details.reset` | おすすめに戻す | Back to recommended |

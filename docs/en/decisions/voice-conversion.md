@@ -476,3 +476,9 @@ Upstream's index (each frame blended with its 8 nearest training features, weigh
 | 1.0 | 51 / 100 / 81% | 66 / 88 / 74% |
 
 The index pulls a frame toward the nearest training features, so a frame HuBERT misread is pulled toward the wrong vowel: it does not help "u". It helps "a" and "i" with the 5.4 s window. It would need the generator exported again with the search and about 31 MB more per voice, so it was not adopted. This was judged on the features, not on converted voice.
+
+## 2026-11-03 The 1 s window, and no presets
+
+With the user's own speech before the window, the user listened and heard the 1 s window as the best of 1 s, 2.5 s, and 5.4 s. It agrees with the measurements: the 1 s window kept "a", "i", and "e" right, where the 5.4 s window turned "e" toward "i" (above). It is also the lightest on the GPU (a block about 74 ms against 101 ms) and has no quiet start.
+
+So the simple choice by what comes first (Lighter GPU, Smoothness with 5.4 s) is dropped (user decision): no combination has a reason to be chosen. The window stays in the details, 1 s by default (setup screen 13.3).
