@@ -143,10 +143,13 @@ namespace VirtualVessel.Voice
             return $"fused_w{windowFrames}.sentis";
         }
 
-        /// <summary>HuBERT's file for a window, named by its 16 kHz samples. Pure.</summary>
+        /// <summary>
+        /// HuBERT's file for a window, named by the window's 16 kHz samples. It takes the speech anchor before
+        /// the window and returns the window's frames only (SpeechAnchor). Pure.
+        /// </summary>
         public static string FeaturesFile(int windowFrames)
         {
-            return $"hubert_{windowFrames * 160}.sentis";
+            return $"hubert_{windowFrames * 160}_anchored.sentis";
         }
 
         public bool Denoise

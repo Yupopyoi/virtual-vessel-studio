@@ -125,6 +125,42 @@ namespace VirtualVessel.Voice.Rvc
             }
         }
 
+        /// <summary>
+        /// How much the sound changes over a [mel, frame] picture's frames <paramref name="first"/> to
+        /// <paramref name="first"/> + <paramref name="steps"/>: the mean over the steps of the RMS over mel
+        /// rows of each step. A held note changes little and speech much. Pure.
+        /// </summary>
+        public static float MelChange(ReadOnlySpan<float> mel, int frames, int first, int steps)
+        {
+            double total = 0.0;
+            for (int step = 0; step < steps; step++)
+            {
+                double sum = 0.0;
+                for (int row = 0; row < MelBins; row++)
+                {
+                    int at = row * frames + first + step;
+                    float change = mel[at + 1] - mel[at];
+                    sum += change * change;
+                }
+
+                total += Math.Sqrt(sum / MelBins);
+            }
+
+            return (float)(total / steps);
+        }
+
+        /// <summary>The root mean square of the samples. Pure.</summary>
+        public static float Rms(ReadOnlySpan<float> samples)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < samples.Length; i++)
+            {
+                sum += samples[i] * samples[i];
+            }
+
+            return (float)Math.Sqrt(sum / Math.Max(1, samples.Length));
+        }
+
         /// <summary>Hz for each frame of RMVPE's salience, [frame, bin]; 0 for an unvoiced frame.</summary>
         public static void DecodeF0(ReadOnlySpan<float> salience, int frames, float threshold, Span<float> f0)
         {

@@ -115,6 +115,8 @@ namespace VirtualVessel.Voice.Rvc
         private readonly float[] _noiseLoop;
         private readonly float[] _history48k;
         private readonly float[] _window16k;
+        private readonly float[] _leaving16k;
+        private readonly SpeechAnchor _anchor;
         private readonly float[] _hann = RvcDsp.HannWindow(RvcDsp.FftSize);
         private readonly float[] _melBasis = RvcDsp.MelBasis();
         private readonly float[] _down = RvcDsp.ResampleKernels(3, 1);
@@ -156,11 +158,11 @@ namespace VirtualVessel.Voice.Rvc
             _reach48k = RvcDsp.ResampleReach(3, 1);
             _reach40k = RvcDsp.ResampleReach(5, 6);
 
-            _audioData = new NativeArray<float>(windowSamples, Allocator.Persistent);
+            _audioData = new NativeArray<float>(SpeechAnchor.Samples + windowSamples, Allocator.Persistent);
             _melData = new NativeArray<float>(RvcDsp.MelBins * shape.PitchFrames, Allocator.Persistent);
             _historyData = new NativeArray<float>(historyFrames, Allocator.Persistent);
             _scalarData = new NativeArray<float>(1, Allocator.Persistent);
-            _audioTensor = new Tensor<float>(new TensorShape(1, windowSamples));
+            _audioTensor = new Tensor<float>(new TensorShape(1, SpeechAnchor.Samples + windowSamples));
             _melTensor = new Tensor<float>(new TensorShape(1, RvcDsp.MelBins, shape.PitchFrames));
             _historyTensor = new Tensor<float>(new TensorShape(1, historyFrames));
             _lastTensor = new Tensor<float>(new TensorShape(1));
@@ -176,6 +178,8 @@ namespace VirtualVessel.Voice.Rvc
 
             _history48k = new float[2 * _reach48k + shape.BlockFrames * SamplesPerFrame48k];
             _window16k = new float[windowSamples];
+            _leaving16k = new float[shape.BlockFrames * SamplesPerFrame16k];
+            _anchor = new SpeechAnchor(shape.WindowFrames / shape.BlockFrames);
             _cachedF0 = new float[shape.WindowFrames];
             _decoded48k = new float[shape.DecodedFrames * SamplesPerFrame48k];
             _previousTail = new float[shape.CrossfadeFrames * SamplesPerFrame48k];
@@ -241,7 +245,16 @@ namespace VirtualVessel.Voice.Rvc
                 _melData.AsSpan(),
                 _real,
                 _imaginary);
-            _audioData.CopyFrom(_window16k);
+
+            // HuBERT gets the anchor, then the window (SpeechAnchor). The verdict on the new block uses the
+            // last frames not leaning on reflected padding, 40 ms behind the block's end.
+            int fresh = _shape.BlockFrames * SamplesPerFrame16k;
+            float change = RvcDsp.MelChange(_melData.AsSpan(), _shape.PitchFrames, _shape.PitchFrames - 1 - _shape.BlockFrames - ReflectedFrames, _shape.BlockFrames);
+            float rms = RvcDsp.Rms(new ReadOnlySpan<float>(_window16k, _window16k.Length - fresh, fresh));
+            _anchor.Advance(_leaving16k, SpeechAnchor.IsSpeech(change, rms));
+            Span<float> audio = _audioData.AsSpan();
+            _anchor.Anchor.CopyTo(audio);
+            _window16k.AsSpan().CopyTo(audio.Slice(SpeechAnchor.Samples));
 
             // The window moved on a block; the generator decodes the newest frames' pitch itself.
             int shift = _shape.BlockFrames;
@@ -377,6 +390,7 @@ namespace VirtualVessel.Voice.Rvc
             input.CopyTo(new Span<float>(_history48k, kept, block));
 
             int fresh = _shape.BlockFrames * SamplesPerFrame16k;
+            Array.Copy(_window16k, 0, _leaving16k, 0, fresh);
             Array.Copy(_window16k, fresh, _window16k, 0, _window16k.Length - fresh);
 
             // An integer ratio, so each block starts on the same phase of the 16 kHz grid.
