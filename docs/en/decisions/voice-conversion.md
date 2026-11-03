@@ -463,3 +463,16 @@ Tried: the user's last three finished held notes (0.7 s each, collected automati
 | "u", held notes only, 5.4 s | 100% | 57% |
 
 A block took 15 to 20 ms more (HuBERT's input 3.1 s longer). Not clearly better and costly, so it was not adopted; the change is kept outside the repository as a patch. Late in the "u" note, where the user's voice turns rough, every streaming variant drifted toward "a".
+
+## 2026-11-03 RVC's index tried for held vowels, not adopted
+
+Upstream's index (each frame blended with its 8 nearest training features, weighted by 1/distance²) was built from the voice's training features (10,173 frames, about 3.4 minutes) and tried on the window features, with the user's speech as the anchor. Share of moments where the features were judged the right vowel (alternating input):
+
+| Index rate | 1 s window: a / i / u | 5.4 s window: a / i / u |
+|---|---|---|
+| None (now) | 100 / 100 / 95% | 90 / 54 / 72% |
+| 0.5 | 100 / 100 / 92% | 97 / 81 / 76% |
+| 0.75 | 100 / 100 / 83% | 100 / 85 / 74% |
+| 1.0 | 51 / 100 / 81% | 66 / 88 / 74% |
+
+The index pulls a frame toward the nearest training features, so a frame HuBERT misread is pulled toward the wrong vowel: it does not help "u". It helps "a" and "i" with the 5.4 s window. It would need the generator exported again with the search and about 31 MB more per voice, so it was not adopted. This was judged on the features, not on converted voice.
