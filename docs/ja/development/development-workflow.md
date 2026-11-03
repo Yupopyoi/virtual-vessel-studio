@@ -154,7 +154,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -172,7 +173,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-`docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`には、完成した方式設計書を配置する。
+`docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`には、完成した方式設計書を章ごとに配置する。同じ場所の`system-design.md`が目次である。章番号と節番号は他の文書から参照されるため、変更しない。
 
 本書は、`docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`として配置する。
 
@@ -231,6 +232,15 @@ feature/… fix/… docs/…    feature/…             developへ戻す
 ```
 
 - 緊急の修正は`main`から`hotfix/<name>`を作り、`main`へのPull RequestでReleaseしたうえで、`develop`へも戻す（`main`から`develop`へのPull Request）。
+
+### トラッキングの統合Branch
+
+トラッキング、アバターの動き、手の作業は、`feature/tracking`に集める（利用者の決定、2026-10-31）。細かい調整が続くため、落ち着くまで`develop`から分けておくためである。
+
+- 作業Branchは`feature/tracking`から作り、Pull Requestの宛先も`feature/tracking`とする
+- 他のModuleの作業はこれまでどおり`develop`を使う
+- `feature/tracking`を`develop`へ入れる時期は利用者が決める
+- `feature/tracking`が`develop`より遅れているときは、作業を始める前に`develop`を取り込むかを確認する
 
 ## 6.2 Branch命名
 
@@ -586,7 +596,7 @@ Capture Moduleの実装を開始します。
 以下を確認してください。
 
 - CLAUDE.md
-- docs/ja/architecture/system-design.md
+- docs/ja/architecture/system-design/ の関係する章
 - 関係する既存コード
 - GameCaptureのBenchmark / Prototype
 - SubScreenCaptureのBenchmark / Prototype

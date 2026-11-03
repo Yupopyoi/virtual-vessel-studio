@@ -7,8 +7,11 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Core.Time;
+using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Notifications;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.Theme;
 using Object = UnityEngine.Object;
 
@@ -229,6 +232,64 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             Assert.Throws<InvalidOperationException>(() => _root.Build(Context()));
+        }
+
+        [UnityTest]
+        public IEnumerator QuitItem_AsksFirst_AndCancelKeepsTheApplication()
+        {
+            _root.Build(Context());
+            int quits = 0;
+            _root.QuitConfirmed += () => quits++;
+            yield return null;
+
+            Submit(_root.Shell.QuitItem);
+            Submit(_root.Shell.QuitItem);
+            yield return null;
+            yield return null;
+            Assert.That(_root.Dialogs.IsOpen, Is.True);
+            Assert.That(quits, Is.Zero);
+            Submit(_root.Dialogs.Current.Cancel);
+            yield return null;
+            Assert.That(_root.Dialogs.IsOpen, Is.False, "A second press does not queue a second dialog.");
+            Assert.That(quits, Is.Zero);
+
+            Submit(_root.Shell.QuitItem);
+            yield return null;
+            yield return null;
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+            Assert.That(quits, Is.EqualTo(1), "It can be asked again after Cancel.");
+
+            Submit(_root.Shell.QuitItem);
+            yield return null;
+            Assert.That(_root.Dialogs.IsOpen, Is.False, "Nothing more is asked once quitting.");
+        }
+
+        [UnityTest]
+        public IEnumerator QuitItem_WhileStreaming_SaysTheStreamEnds()
+        {
+            var streaming = new StreamPanelTests.FakeStreaming();
+            streaming.SetState(StreamingState.Live);
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, systemPrefersReducedMotion: false, screens: new ScreenServices { Streaming = streaming }));
+            yield return null;
+
+            Submit(_root.Shell.QuitItem);
+            yield return null;
+            yield return null;
+            ConfirmDialog dialog = _root.Dialogs.Current;
+            Assert.That(dialog.Confirm.ClassListContains("vv-button--danger"), Is.True);
+            Assert.That(dialog.focusController.focusedElement, Is.SameAs(dialog.Cancel));
+            Submit(dialog.Cancel);
+            yield return null;
+        }
+
+        private static void Submit(VisualElement element)
+        {
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = element;
+                element.SendEvent(evt);
+            }
         }
 
         private UiRootContext Context()

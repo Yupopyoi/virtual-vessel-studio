@@ -152,7 +152,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -170,7 +171,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-The completed system design is placed at `docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`.
+The completed system design is placed, one file per chapter, in `docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`. `system-design.md` beside each directory is the table of contents. Chapter and section numbers are referenced by other documents and do not change.
 
 This document is placed at `docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`.
 
@@ -229,6 +230,15 @@ feature/… fix/… docs/…    feature/…             back to develop
 ```
 
 - An urgent fix starts from `main` as `hotfix/<name>`, is released through a pull request into `main`, and is then brought back into `develop` (a pull request from `main` into `develop`).
+
+### Tracking integration branch
+
+Tracking, avatar motion, and hand work is gathered on `feature/tracking` (the user's decision, 2026-10-31). This work changes in many small steps, so it stays apart from `develop` until it settles.
+
+- Work branches start from `feature/tracking`, and their pull requests target `feature/tracking`
+- Work on other modules uses `develop` as before
+- The user decides when `feature/tracking` goes into `develop`
+- When `feature/tracking` is behind `develop`, confirm whether to bring `develop` in before starting work
 
 ## 6.2 Branch Naming
 
@@ -580,7 +590,7 @@ Do not change any code yet.
 Please check the following:
 
 - CLAUDE.md
-- docs/en/architecture/system-design.md
+- the relevant chapters of docs/en/architecture/system-design/
 - related existing code
 - GameCapture benchmark / prototype
 - SubScreenCapture benchmark / prototype

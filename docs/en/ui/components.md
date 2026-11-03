@@ -155,6 +155,7 @@ For each component, the following states are defined:
 - Selected: background Tint, text Text, a 3px Accent Line at the left edge.
 - Each item has a tooltip describing the screen's role.
 - Operated with Tab and Enter. The Up and Down keys also move between items.
+- **Quit** sits at the bottom, above the version. It is not a screen, so it never shows as selected. Pressing it opens a confirmation dialog (3.11). The confirm button is normally Primary; while streaming or recording, the body says what ends and the dialog is Danger (Cancel gets focus).
 
 ### 3.17 Preview
 
@@ -234,6 +235,23 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - A problem's explanation appears under its row, only when there is one.
 - An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.
 - Without enough width, the column headings hide, rows wrap, and each control carries its name.
+
+### 3.26 Step Indicator
+
+- Shows where the user is in work split into steps (for example, Voice Lab's flow for making a voice, system design 14.13).
+- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a radius-round frame. Steps sit in a row and wrap when narrow.
+- The current step: Accent Line frame, Tint background, Primary behind the number. Finished steps: the success color behind the number. Steps not reached: Text 2.
+- Finished steps can be pressed to go back. The current step carries `aria-current="step"`. Color is not the only cue: the current step also differs in frame and background.
+- Buttons that move on name the step they lead to (for example, "STEP 2: Shape the timbre").
+
+### 3.27 Candidate Tile
+
+- A frame for comparing several candidates and choosing one (for example, Voice Lab's STEP 1, system design 14.14). At least 200px wide, as many per row as fit.
+- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked").
+- In the middle: numbers (pitch and pitch range, monospace) and the range drawn as a band on a shared scale. Every candidate uses the same scale so they compare.
+- At the bottom: a Pick this voice button (Secondary).
+- The chosen candidate has an Accent Line frame and a Tint background.
+- A sort control (Segmented, 3.18) may sit above.
 
 ---
 

@@ -297,6 +297,8 @@ sequenceDiagram
 4. Session Markerを削除する（正常終了の記録）。
 5. 状態を`Stopped`とし、改めて`Application.Quit()`を呼ぶ。
 
+画面の「終了」項目は、確認のあと`Application.Quit()`を呼び、同じ経路を通る。配信と録画もこの中で閉じる。
+
 終了処理全体にTimeoutを設け、超過した場合は残りの処理を中断して終了する。Timeoutが発生したServiceは記録する。
 
 Editor上でPlay Modeを終了した場合、Unityは`Application.wantsToQuit`を発生させず、非同期処理の完了も待たない。そのため`OnApplicationQuit`で同じ手順を同期的に実行する。このとき各Serviceの`ShutdownAsync`はMain Thread上で同期的に待機され、終了Timeoutの範囲で打ち切られる。Play Mode中にScriptが再コンパイルされたときも、再読み込みの直前（`AssemblyReloadEvents.beforeAssemblyReload`）に同じ手順を実行する。再読み込みは終了を通らず、止めないとネイティブのThreadが扱えなくなったまま動き続けるためである（音声がEditorを閉じるまで鳴り続けた、2026-10-31）。

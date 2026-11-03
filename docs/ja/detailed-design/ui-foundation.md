@@ -130,7 +130,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | 共通Component | VisualElement | `components.md`の各部品（6章） |
 | `MediaFrame` / `FrameCanvas` | VisualElement | 配置編集と切り抜き（9章） |
 | `FrameLayout` / `FrameEditMath` | Struct / Static Class（Core） | 配置データと編集の計算 |
-| `AppShell` | VisualElement | ナビゲーションと画面の領域、版の表示（7.7） |
+| `AppShell` | VisualElement | ナビゲーションと画面の領域、終了の項目、版の表示（7.7） |
 | `ScreenHost` | VisualElement | 画面の切り替え（7.7） |
 | `ScreenDefinition` / `IScreen` | Class / Interface | 画面の登録内容と、表示・非表示の通知（7.7） |
 | `DeveloperModeService` | Class | Developer Modeの切り替えと関連機能への反映 |

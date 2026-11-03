@@ -297,6 +297,8 @@ sequenceDiagram
 4. Delete the session marker (recording a normal exit).
 5. Set the state to `Stopped` and call `Application.Quit()` again.
 
+The Quit item in the UI calls `Application.Quit()` after its confirmation and takes the same path. Streams and recordings are closed here too.
+
 A timeout is set for the whole shutdown; if exceeded, the remaining processing is abandoned and the application exits. Services that timed out are recorded.
 
 When Play Mode is exited in the Editor, Unity does not raise `Application.wantsToQuit` and does not wait for asynchronous work. Therefore, the same sequence runs synchronously in `OnApplicationQuit`. Each service's `ShutdownAsync` is then waited for synchronously on the main thread and cut off within the shutdown timeout. When scripts are recompiled during Play Mode, the same sequence runs just before the reload (`AssemblyReloadEvents.beforeAssemblyReload`): a reload does not go through quitting, and if nothing stops them, native threads keep running with no way left to reach them (the sound went on until the Editor was closed, 2026-10-31).

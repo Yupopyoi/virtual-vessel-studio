@@ -130,7 +130,7 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | Shared components | VisualElement | The parts in `components.md` (Chapter 6) |
 | `MediaFrame` / `FrameCanvas` | VisualElement | Placement editing and cropping (Chapter 9) |
 | `FrameLayout` / `FrameEditMath` | Struct / static class (Core) | Placement data and editing math |
-| `AppShell` | VisualElement | Navigation, screen area, and version (7.7) |
+| `AppShell` | VisualElement | Navigation, screen area, Quit item, and version (7.7) |
 | `ScreenHost` | VisualElement | Screen switching (7.7) |
 | `ScreenDefinition` / `IScreen` | Class / Interface | What a screen registers, and shown/hidden notifications (7.7) |
 | `DeveloperModeService` | Class | Switches Developer Mode and propagates it to related functions |
