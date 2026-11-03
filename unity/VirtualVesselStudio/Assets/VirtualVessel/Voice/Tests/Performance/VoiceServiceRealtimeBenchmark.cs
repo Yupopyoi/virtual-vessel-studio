@@ -25,7 +25,7 @@ namespace VirtualVessel.Voice.Tests
     {
         private const double MinFrameMs = 20.0;
         private const double MaxFrameMs = 36.0;
-        private const int Seconds = 20;
+        private const int MinSeconds = 20;
 
         [UnityTest]
         public IEnumerator Runs_AtRealTime_UnderLoad([Values(100, 250, 540)] int windowFrames)
@@ -44,6 +44,8 @@ namespace VirtualVessel.Voice.Tests
 
             float[] speech = WavFile.Read(File.ReadAllBytes(Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(work, "data", "source", "000.wav")), out int rate);
             speech = WavFile.ToRate(speech, rate, RvcStream.DeviceRate);
+            // A long input, such as a recording of held notes, plays through once.
+            int seconds = Math.Max(MinSeconds, speech.Length / RvcStream.DeviceRate + 2);
             var stage = new WavStage(speech);
             var loop = new ManualFrameLoop();
             using var service = new VoiceService(stage, loop, folder, null);
@@ -69,7 +71,7 @@ namespace VirtualVessel.Voice.Tests
             var timings = new List<RvcTimings>();
             var clock = Stopwatch.StartNew();
             long seen = 0;
-            while (clock.Elapsed.TotalSeconds < Seconds)
+            while (clock.Elapsed.TotalSeconds < seconds)
             {
                 double frameStart = clock.Elapsed.TotalMilliseconds;
                 load.Schedule(loadInput);
@@ -106,7 +108,7 @@ namespace VirtualVessel.Voice.Tests
             RvcStreamBenchmark.AppendStage(report, "wait generator", timings.Skip(3).Select(t => t.GeneratorWait));
             File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
             RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{windowFrames}.wav"), stage.Output.ToArray());
-            Assert.That(seen, Is.GreaterThan(Seconds * 5));
+            Assert.That(seen, Is.GreaterThan(seconds * 5));
         }
 
         private sealed class ManualFrameLoop : IFrameLoop
