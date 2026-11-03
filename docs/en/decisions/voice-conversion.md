@@ -482,3 +482,12 @@ The index pulls a frame toward the nearest training features, so a frame HuBERT 
 With the user's own speech before the window, the user listened and heard the 1 s window as the best of 1 s, 2.5 s, and 5.4 s. It agrees with the measurements: the 1 s window kept "a", "i", and "e" right, where the 5.4 s window turned "e" toward "i" (above). It is also the lightest on the GPU (a block about 74 ms against 101 ms) and has no quiet start.
 
 So the simple choice by what comes first (Lighter GPU, Smoothness with 5.4 s) is dropped (user decision): no combination has a reason to be chosen. The window stays in the details, 1 s by default (setup screen 13.3).
+
+## 2026-11-03 The window fixed at 1 s; what is accepted
+
+The user tried it in the application and found it passable. Hearing no difference with 2.5 s or 5.4 s, the user dropped them: the window is 1 s only and is no longer a setting (user decision). With the window gone from the settings, noise removal is the only detailed setting left, so the setup screen has one voice conversion Card (setup screen 13).
+
+Accepted for now (user decision):
+- Right after conversion starts, until the user has spoken an unbroken second, there is no speech anchor (quiet noise stands in), so a vowel held at once may drift. It is only at the start.
+- A held "u" still drifts toward "a" partly, more where the voice turns rough (above).
+- About 0.35 to 0.38 s of delay.

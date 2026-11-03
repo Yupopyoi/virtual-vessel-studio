@@ -328,7 +328,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 
 `IVoiceConversion`（Voice）を表示する（`VoiceCard`）。音声のページで、音声のCardの下に置く。マイクに掛ける処理なので、マイクと同じページにする。画面案：https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R（利用者の確認待ち）
 
-普段は簡単な設定だけで使え、細かい設定も残す（利用者の要望、2026-11-03）。そのため2つのCardに分ける。
+普段は簡単な設定だけで使えるようにする（利用者の要望、2026-11-03）。窓を1秒に固定してから、細かい設定はノイズ除去だけになったので、Cardは1つにする（13.2）。
 
 ### 13.1 声の変換のCard
 
@@ -339,49 +339,33 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
 | 声 | Select | Voice Labで作った声 |
 | 声の高さ | Slider | -24〜+24半音 |
-| 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.5） |
+| ノイズ除去 | Toggle | 既定はオン |
+| 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.4） |
 | 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
 
 Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
 
-- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.4）。
+- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.3）。
 - 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
 - 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
 
-### 13.2 声の変換の詳細のCard
+### 13.2 固定した値
 
-折りたためるCard（`components.md` 3.10）で、閉じて始める（2章）。簡単な設定だけで済む人には、細かい設定を見せないためである。
-
-| 行 | 部品 | 内容 |
-|---|---|---|
-| 一度に見る長さ | Segmented | 1秒（既定）、2.5秒、5.4秒（窓） |
-| ノイズ除去 | Toggle | |
-
-下に「おすすめに戻す」のButton。
-
-### 13.3 おすすめの値
-
-| 一度に見る長さ | ノイズ除去 |
-|---|---|
-| 1秒 | オン |
-
-「おすすめに戻す」はこの値に戻す。
-
-何を優先するかで選ぶ簡単な設定（GPUを軽く、なめらかさ）は置かない（利用者の決定、2026-11-03）。利用者が聞き比べると窓1秒が一番よく聞こえ、1秒はGPUも一番軽い。選ぶ理由のある組み合わせがないためである（Voice詳細設計17章）。2.5秒と5.4秒は詳細に残す。
+窓（HuBERTと生成器が一度に見る長さ）は1秒に固定し、選べるようにしない（利用者の決定、2026-11-03）。窓の前に利用者の話し声を置いてからは、2.5秒と5.4秒を聞いても違いが分からず、1秒はGPUも一番軽い（Voice詳細設計17章）。何を優先するかで選ぶ簡単な設定（GPUを軽く、なめらかさ）も、選ぶ理由のある組み合わせがないので置かない。
 
 つなぎ目の重ねは50 msだけとし、選べるようにしない（利用者の決定、2026-11-03）。選べるようにすると、声ごとに生成器とひな形が2組要る。
 
-### 13.4 GPUが足りないPC
+### 13.3 GPUが足りないPC
 
 GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。ただ、どのGPUから使えるかは分からないので、使えるGPUがないときだけオンにできなくする（利用者の決定、2026-11-03）。GPUで計算できないとき（Compute Shaderが使えない、ソフトウェアで描画している）を「ない」とみなす。
 
-「遅れの目安」の行は置かない。重ねを50 msに固定したので、どの長さでも約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
+「遅れの目安」の行は置かない。窓と重ねを固定したので、遅れは常に約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
 
-### 13.5 自分に聞こえる声
+### 13.4 自分に聞こえる声
 
 変換した声は約0.38秒遅れて聞こえるので、歌うときはリズムを取りにくい（Voice詳細設計17章）。「元の声」では、モニターにはマイクの音をそのまま送り、配信と録画には変換した声を送る。Audioの処理の段の変更が要るので、別の段階で作る（Audio詳細設計8.3）。
 
-### 13.6 文字列
+### 13.5 文字列
 
 | Key | 日本語 | English |
 |---|---|---|
@@ -415,9 +399,5 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.failure.pass` | 元の声 | My own |
 | `setup.voice.gpu` | 声の変換は、GPUを多く使います。 | Voice conversion uses a lot of the GPU. |
 | `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
-| `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
-| `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
-| `setup.voice.details.window.description` | 1秒がおすすめです。長くすると、GPUを多く使い、変換を始めてしばらくは声が小さくなります。 | 1 s is recommended. Longer uses more of the GPU, and the voice is quiet for a while after conversion starts. |
-| `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
-| `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
-| `setup.voice.details.reset` | おすすめに戻す | Back to recommended |
+| `setup.voice.denoise` | ノイズ除去 | Noise removal |
+| `setup.voice.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |

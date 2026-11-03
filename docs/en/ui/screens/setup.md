@@ -322,11 +322,11 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
 
-## 13. The Voice Conversion Cards (being designed)
+## 13. The Voice Conversion Card (being designed)
 
 Shows `IVoiceConversion` (Voice) (`VoiceCard`). It goes on the Audio page, under the Audio Card: it is processing on the microphone, so it sits on the microphone's page. Mock-up: https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R (waiting for the user's review)
 
-It should be usable with simple settings alone, keeping the detailed ones (the user's request, 2026-11-03), so it is two Cards.
+It should be usable with simple settings alone (the user's request, 2026-11-03). With the window fixed at 1 s, noise removal is the only detailed setting left, so it is one Card (13.2).
 
 ### 13.1 The Voice Conversion Card
 
@@ -337,49 +337,33 @@ A Status Chip of its state at the right end of the title (Running ✓, Loading �
 | Convert my voice | Toggle | Off, the user's own voice goes to the stream and recordings |
 | Voice | Select | The voices made in Voice Lab |
 | Pitch | Slider | -24 to +24 semitones |
-| What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.5) |
+| Noise removal | Toggle | On by default |
+| What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.4) |
 | If conversion stops | Segmented | Silence (default), My own (Voice detailed design chapter 12) |
 
 Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read the notes on use" Button. The terms and notes of the voice features can always be shown (Voice Lab detailed design chapter 1).
 
-- With no usable GPU: "Voice conversion cannot be used on this PC" and why at the top of the Card, and every row disabled (13.4).
+- With no usable GPU: "Voice conversion cannot be used on this PC" and why at the top of the Card, and every row disabled (13.3).
 - With no voice: "No voice yet" and "Open Voice Lab" at the top of the Card, and the other rows disabled.
 - When it stopped: at the top of the Card, what happened, what the stream gets, and what to do.
 
-### 13.2 The Voice Conversion Details Card
+### 13.2 Fixed Values
 
-A collapsible Card (`components.md` 3.10), starting closed (chapter 2), so that people who need only the simple settings do not see the detailed ones.
-
-| Row | Part | Content |
-|---|---|---|
-| Length it looks at | Segmented | 1 s (default), 2.5 s, 5.4 s (the window) |
-| Noise removal | Toggle | |
-
-A "Back to recommended" Button below.
-
-### 13.3 The Recommended Values
-
-| Length it looks at | Noise removal |
-|---|---|
-| 1 s | On |
-
-Back to recommended returns to these.
-
-There is no simple choice by what comes first (Lighter GPU, Smoothness) (user decision, 2026-11-03). Listening, the user found the 1 s window sounded best, and 1 s is also the lightest on the GPU, so no combination has a reason to be chosen (Voice detailed design chapter 17). 2.5 s and 5.4 s stay in the details.
+The window (how much HuBERT and the generator see at once) is fixed at 1 s and is not a choice (user decision, 2026-11-03). With the user's speech before the window, the user heard no difference with 2.5 s or 5.4 s, and 1 s is the lightest on the GPU (Voice detailed design chapter 17). There is no simple choice by what comes first (Lighter GPU, Smoothness) either: no combination has a reason to be chosen.
 
 The overlap at joins is 50 ms only, not a choice (user decision, 2026-11-03). A choice would need two generators and two templates for every voice.
 
-### 13.4 PCs Without Enough GPU
+### 13.3 PCs Without Enough GPU
 
 A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering).
 
-There is no Expected delay row. With the overlap fixed at 50 ms, every length is about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
+There is no Expected delay row. With the window and the overlap fixed, the delay is always about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
 
-### 13.5 What You Hear
+### 13.4 What You Hear
 
 The converted voice is heard about 0.38 s late, which makes rhythm hard when singing (Voice detailed design chapter 17). With My own, the monitor gets the microphone as it is, and the stream and recordings get the converted voice. It needs a change to Audio's processing stage, so it comes in a separate step (audio detailed design 8.3).
 
-### 13.6 Strings
+### 13.5 Strings
 
 | Key | 日本語 | English |
 |---|---|---|
@@ -413,9 +397,5 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.failure.pass` | 元の声 | My own |
 | `setup.voice.gpu` | 声の変換は、GPUを多く使います。 | Voice conversion uses a lot of the GPU. |
 | `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
-| `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
-| `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
-| `setup.voice.details.window.description` | 1秒がおすすめです。長くすると、GPUを多く使い、変換を始めてしばらくは声が小さくなります。 | 1 s is recommended. Longer uses more of the GPU, and the voice is quiet for a while after conversion starts. |
-| `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
-| `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
-| `setup.voice.details.reset` | おすすめに戻す | Back to recommended |
+| `setup.voice.denoise` | ノイズ除去 | Noise removal |
+| `setup.voice.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |

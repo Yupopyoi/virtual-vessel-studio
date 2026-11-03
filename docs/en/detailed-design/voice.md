@@ -108,12 +108,10 @@ The GPU load differs from PC to PC, so these belong to the PC, not the Project (
 | Item | Meaning |
 |---|---|
 | `schemaVersion` | Format version |
-| `priority` | `LighterGpu`, `Smooth`, or `Custom`; `Smooth` by default (setup screen 13.3) |
-| `windowFrames` | The window: 100, 250, or 540 |
 | `denoise` | Noise removal |
-| `monitorVoice` | What the user hears: `Converted` or `Original` (setup screen 13.5) |
+| `monitorVoice` | What the user hears: `Converted` or `Original` (setup screen 13.4) |
 
-The overlap at joins is fixed at 50 ms and is not a setting (user decision, 2026-11-03).
+The window is fixed at 1 s and the overlap at joins at 50 ms; neither is a setting (user decision, 2026-11-03).
 
 ## 7. State and Lifecycle
 
@@ -169,7 +167,7 @@ The Voice Profile, and these values in Developer Mode. Fixed values come from `s
 | Value | Default | Meaning |
 |---|---|---|
 | Block | 100 ms | Shorter lowers latency, but the work may not keep up |
-| Window | 1 s (2.5 s and 5.4 s can be chosen) | What HuBERT and the generator see. With the user's speech before the window, the user heard 1 s as the best. Longer uses more GPU (decision record, 2026-11-03) |
+| Window | 1 s (fixed) | What HuBERT and the generator see. With the user's speech before the window, the user heard no difference with 2.5 s or 5.4 s. Longer uses more GPU (decision record, 2026-11-03) |
 | Crossfade | 50 ms | With 20 ms, the sound changed at every join, heard on held notes as a wobble (decision record, 2026-11-03) |
 | Tail guard | 30 ms | Less lowers latency and raises the ripple at joins (decision record) |
 
@@ -255,5 +253,5 @@ Open issues:
 
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
 - How the settings are shown (the user's request, 2026-11-03). Simple to use, with the detailed settings such as the window kept. There is no choice by what comes first (Lighter GPU, Smoothness): the 1 s window was the best in sound and on the GPU (user decision, 2026-11-03). No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing. The screen is designed in setup screen chapter 13 (the mock-up waits for the user's review).
-- Slow GPUs. Voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03; setup screen 13.4). There is no minimum GPU. There is no required performance yet, and only the RTX 4070 has been measured.
+- Slow GPUs. Voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03; setup screen 13.3). There is no minimum GPU. There is no required performance yet, and only the RTX 4070 has been measured.
 - GPU contention with the stream video has not been measured.
