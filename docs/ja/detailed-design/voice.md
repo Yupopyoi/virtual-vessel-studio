@@ -140,7 +140,7 @@ stateDiagram-v2
 
 ```text
 マイク → Audio → IAudioStage.Read → 貯める（100 ms）
-  → Start：ノイズ除去（RNNoise。声のある間は元の音を戻す）、16 kHzへ、メル、HuBERTとRMVPEをGPUへ
+  → Start：ノイズ除去（RNNoise。声のある間は元の音を戻す）、16 kHzへ、メル、HuBERT（窓の前に利用者の直近の話し声1秒）とRMVPEをGPUへ
   → Advance：完了したものから読む。読み出しは完了したフレームでしか読めない
   → 生成器をGPUへ
   → Advance：読む、48 kHzへ、クロスフェード

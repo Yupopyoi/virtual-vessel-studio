@@ -427,3 +427,23 @@ The level was chosen for speech not to get worse. Distance from upstream's offli
 | Realtime 5.4 s | 57.4 / 48.0 / 55.0 | 32.7 / 36.1 / 34.0 |
 
 Noise at 0.05 made speech 5 to 10% worse, so 0.01 is used: speech differs by 2 to 4%, about as much as runs of the same setting differ. Held notes with the 1 s window come to half the distance; with the 5.4 s window they gain little. Another speaker's speech as the anchor came out better for both in HuBERT's features, but needs a recording that may be distributed; not decided. Processing time per block grew by about 2 ms. The user has not listened yet.
+
+## 2026-11-03 The user's own speech before the HuBERT window, in place of noise
+
+The user suggested putting what they said before the window instead of noise. It is adopted (option A: the same way for every window).
+
+The anchor is the latest unbroken second of speech that has left the window. A 100 ms block counts as speech when RMVPE's log mel changes by more than 0.32 on average per frame (on the user's recordings, held notes 0.22 to 0.29, speech 0.35 to 0.67) and it is louder than -40 dBFS. Taken from inside the window, the same audio twice made speech worse; pieces joined across breaks did too. Until there is such a second, quiet noise (0.01) stands in. The anchor is kept only in memory and never saved.
+
+HuBERT is exported to take the anchor and the window and to return the window's frames only (`hubert_<samples>_anchored.sentis`), so the generator is unchanged. The delay does not change; a block takes about 2 ms more.
+
+Measured on the user's speech and held notes alternating (three of each, +9 semitones; distance from upstream's offline conversion of the whole file, lower is closer):
+
+| Window | Held notes: none / noise / own speech | Speech: none / noise / own speech |
+|---|---|---|
+| 1 s | 102.3 / 57.8 / 66.3 | 36.3 / 37.8 / 35.9 |
+| 5.4 s | 72.0 / 54.7 / 56.1 | 32.9 / 32.7 / 32.9 |
+| Realtime 1 s | 101.5 / 57.5 / 66.4 | 36.5 / 38.4 / 36.8 |
+| Realtime 2.5 s | 97.1 / 65.6 / 61.2 | 33.9 / 34.1 / 34.1 |
+| Realtime 5.4 s | 72.5 / 53.7 / 55.7 | 32.6 / 33.0 / 33.2 |
+
+With the user's own speech, speech stays where it was without an anchor for every window; noise made it worse with the 1 s window. Held notes improve with both; with the 1 s window noise keeps them a little better. In HuBERT's features alone, own speech had looked clearly better with the 5.4 s window; in the converted voice it came out about the same as noise. The user has not listened yet.
