@@ -240,5 +240,6 @@ Stages:
 Open issues:
 
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
+- How the settings are shown (the user's request, 2026-11-03). A simple choice by what comes first (for example, quick response or smoothness), with the detailed settings such as the window kept. No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing.
 - Slow GPUs. There is no required performance yet, and only the RTX 4070 has been measured.
 - GPU contention with the stream video has not been measured.
