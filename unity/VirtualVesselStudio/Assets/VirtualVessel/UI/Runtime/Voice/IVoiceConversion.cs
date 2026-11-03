@@ -53,14 +53,6 @@ namespace VirtualVessel.UI.Voice
 
         float Semitones { get; set; }
 
-        /// <summary>
-        /// How much the models see, in 10 ms frames, one of <see cref="Windows"/>. Longer steadies held notes
-        /// and costs more GPU time. A change reloads the models.
-        /// </summary>
-        int WindowFrames { get; set; }
-
-        System.Collections.Generic.IReadOnlyList<int> Windows { get; }
-
         /// <summary>Removes noise such as key presses before the voice is converted.</summary>
         bool Denoise { get; set; }
 

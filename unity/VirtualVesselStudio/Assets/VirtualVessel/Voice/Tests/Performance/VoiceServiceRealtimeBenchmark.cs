@@ -28,8 +28,9 @@ namespace VirtualVessel.Voice.Tests
         private const int MinSeconds = 20;
 
         [UnityTest]
-        public IEnumerator Runs_AtRealTime_UnderLoad([Values(100, 250, 540)] int windowFrames)
+        public IEnumerator Runs_AtRealTime_UnderLoad()
         {
+            const int windowFrames = VoiceService.WindowFrames;
             string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
             if (string.IsNullOrEmpty(work))
             {
@@ -49,7 +50,6 @@ namespace VirtualVessel.Voice.Tests
             var stage = new WavStage(speech);
             var loop = new ManualFrameLoop();
             using var service = new VoiceService(stage, loop, folder, null);
-            service.WindowFrames = windowFrames;
             service.Semitones = 9f;
             service.InitializeAsync(CancellationToken.None).Wait();
             service.SetEnabled(true);

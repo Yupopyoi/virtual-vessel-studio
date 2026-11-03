@@ -38,10 +38,10 @@ namespace VirtualVessel.Voice
         private const int MaxWaitingBlocks = 2;
 
         /// <summary>
-        /// The windows models exist for, in 10 ms frames. Longer steadies held notes and costs more GPU time
-        /// (decision record on voice conversion); which one keeps up depends on the PC.
+        /// The window the models see, in 10 ms frames: 1 s only. With the user's speech before it, the user heard
+        /// no gain from 2.5 s or 5.4 s, and 1 s is the lightest (decision record, 2026-11-03).
         /// </summary>
-        public static readonly int[] Windows = { 100, 250, 540 };
+        public const int WindowFrames = 100;
 
         private readonly IAudioStage _stage;
         private readonly IFrameLoop _frameLoop;
@@ -69,7 +69,6 @@ namespace VirtualVessel.Voice
         private readonly IPerformanceMetrics _metrics;
         private double _lastWorkMs;
         private float _semitones;
-        private int _windowFrames = 100;
         // When each block on its way started; two can be on their way at once.
         private readonly System.Collections.Generic.Queue<long> _startedAt = new System.Collections.Generic.Queue<long>(4);
         private long _blocks;
@@ -106,36 +105,6 @@ namespace VirtualVessel.Voice
         public VoiceConversionStats Stats => _stats;
 
         private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone || _state.Value == VoiceConversionState.PlayingFile;
-
-        /// <summary>The window in 10 ms frames, one of <see cref="Windows"/>. A change reloads the models.</summary>
-        public int WindowFrames
-        {
-            get => _windowFrames;
-            set
-            {
-                if (Array.IndexOf(Windows, value) < 0)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(value));
-                }
-
-                if (value == _windowFrames)
-                {
-                    return;
-                }
-
-                _windowFrames = value;
-                bool wanted = _wanted;
-                SetEnabled(false);
-                _stream?.Dispose();
-                _stream = null;
-                if (wanted)
-                {
-                    SetEnabled(true);
-                }
-            }
-        }
-
-        System.Collections.Generic.IReadOnlyList<int> IVoiceConversion.Windows => Windows;
 
         /// <summary>The generator's file for a window. Pure.</summary>
         public static string GeneratorFile(int windowFrames)
@@ -348,7 +317,7 @@ namespace VirtualVessel.Voice
 
         private void BeginLoading()
         {
-            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, _windowFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, _windowFrames)))
+            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, WindowFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, WindowFrames)))
             {
                 _log?.Warning($"Voice conversion is unavailable: stage {_stage.IsAvailable}, model folder '{_folder}'.");
                 _state.Set(VoiceConversionState.Unavailable);
@@ -357,8 +326,8 @@ namespace VirtualVessel.Voice
 
             _loadedModels = 0;
             _state.Set(VoiceConversionState.Loading);
-            string[] paths = ModelPaths(_folder, _windowFrames);
-            string speaker = SpeakerPath(_folder, _windowFrames);
+            string[] paths = ModelPaths(_folder, WindowFrames);
+            string speaker = SpeakerPath(_folder, WindowFrames);
             _loading = Task.Run(() =>
             {
                 _speaker = ReadSpeaker(speaker);
@@ -406,7 +375,7 @@ namespace VirtualVessel.Voice
             try
             {
                 Model[] models = loading.GetAwaiter().GetResult();
-                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(_windowFrames), BackendType.GPUCompute, _semitones);
+                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(WindowFrames), BackendType.GPUCompute, _semitones);
                 _stereo = new float[RvcStream.DeviceRate * ChannelCount];
                 _waiting = new float[RvcStream.DeviceRate];
                 _block = new float[_stream.BlockSamples];

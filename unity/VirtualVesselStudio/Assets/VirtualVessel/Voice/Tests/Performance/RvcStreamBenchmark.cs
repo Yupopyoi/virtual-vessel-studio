@@ -24,8 +24,7 @@ namespace VirtualVessel.Voice.Tests
 
         private static float Semitones => float.Parse(Environment.GetEnvironmentVariable("VV_VOICE_SEMITONES") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
 
-        [TestCase("w100", 100, BackendType.GPUCompute)]
-        [TestCase("w540", 540, BackendType.GPUCompute)]
+        [TestCase("w100", VoiceService.WindowFrames, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int windowFrames, BackendType backend)
         {
             Convert(variant, windowFrames, backend, HeadGuard, VoiceService.Crossfade, TailGuard, VoiceService.GeneratorFile(windowFrames));
