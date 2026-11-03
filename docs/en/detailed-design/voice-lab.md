@@ -51,7 +51,7 @@ On the Python side:
 
 | File | Role |
 |---|---|
-| `services/voice-lab/train.py` | Runs preprocessing, features, and training, with progress as JSON Lines |
+| `services/voice-lab/train.py` | Runs preprocessing, features, and training, with progress as JSON Lines (8.5) |
 | `services/voice-lab/export_voice.py` | Writes a training result into the template (8.4) |
 | `services/voice-lab/generate.py` | Makes speech with VoxCPM2: base candidates and training speech (8.3) |
 | `services/voice-lab/timbre.py` | Changes the timbre with WORLD (8.3.2), with the same values for previews and for training speech |
@@ -262,6 +262,39 @@ Place in VoiceModels/<VoiceModelId>/
 - After updating that package, they are remade and the SHA-256 comparison is repeated.
 - The training output (`.pth`) is kept in case an application update changes the format. With it, registration can be redone.
 
+### 8.5 The Python Side's Inputs and Outputs
+
+Unity runs each script in `services/voice-lab` once, through ExternalServices' `IExternalProcessRunner` (system design 4.4). There is one environment, used for both RVC training and VoxCPM2 generation (decision record, 2026-11-03).
+
+```text
+python -I <script>.py <operation> <request JSON file>
+```
+
+- The request is a JSON file, so paths and text are not laid out on the command line and spaces and Japanese quoting cause no trouble.
+- Progress and results go to standard output as JSON Lines, one per line. Standard error is the log, saved in the Training Run's folder (chapter 13).
+- Exit codes: 0 success, 1 failure (after an `error` line), 2 a bad request.
+- Cancelling stops the process, by the runner. Outputs are written to temporary files and then renamed, so a stopped run leaves no half-made files.
+
+| Line `type` | Contents |
+|---|---|
+| `progress` | `stage` (the step's name), `done`, `total` |
+| `result` | Each operation's result (table below) |
+| `error` | `code` (`bad_request`, `out_of_memory`, `missing_file`, `failed`) and a `message` for developers |
+
+| Script and operation | Main request items | Result |
+|---|---|---|
+| `generate.py candidates` | The mood (slider values and words), count, first seed, model location, output folder | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py speech` | The reference audio, first seed, model location, output folder | The training speech files and their total length |
+| `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
+| `timbre.py batch` | The source folder, timbre values, output folder | The edited files |
+| `train.py run` | RVC's location, the training speech folder, a work folder, epochs | The trained weights (`.pth`) |
+| `export_voice.py run` | The weights, the template and its table, RVC's location, output folder | The voice's `.sentis`, `.spk`, and its information (`voice.json`: the median pitch and more) |
+
+- Timbre values are steps of pitch (semitones), age, brightness, and breathiness (-6 to +6, 0 for no change). One age step is 2.5% on the formants, one brightness step a slope of 1.5 dB per octave about 1 kHz, and one breathiness step multiplies the aperiodicity's exponent by 2^(1/5). Age +4 (formants ×1.10) was tried in the experiment; how well brightness and breathiness work is not yet tried (chapter 17).
+- The texts for training speech are this system's own (`voicelab/corpus.py`), with all five vowels, held sounds, and lines that tend to a higher voice (8.3.3's untested hypothesis).
+- RVC training's progress is read from the lines of its log that start with `====>`. The wording changes with the language; that form does not.
+- RVC training makes its working files in `logs/<name>` under RVC's folder (RVC is not changed). After the weights are copied to the work folder, that folder is removed.
+
 ## 9. Threading and Async
 
 Installation and training run in separate processes. Unity does not block the main thread, and passes progress to the UI through `IMainThreadDispatcher`. Everything stops with a `CancellationToken`.
@@ -331,7 +364,8 @@ Assets/VirtualVessel/VoiceLab/Runtime/
 
 services/voice-lab/
 ├─ pyproject.toml, uv.lock
-├─ train.py, export_voice.py, generate.py, timbre.py
+├─ train.py, export_voice.py, generate.py, timbre.py   Entry points (8.5)
+├─ voicelab/      Shared code: I/O, instructions, timbre, pitch, texts, generator export, weight writing
 ├─ parselmouth.py   An empty module that only satisfies the import (decision record)
 └─ tests/
 ```
