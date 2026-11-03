@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards do not collapse. With pages, closing them to keep the screen short is no longer needed.
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -337,7 +337,7 @@ A Status Chip of its state at the right end of the title (Running ✓, Loading �
 | Convert my voice | Toggle | Off, the user's own voice goes to the stream and recordings |
 | Voice | Select | The voices made in Voice Lab |
 | Pitch | Slider | -24 to +24 semitones |
-| What comes first | Segmented | Quick response, Smoothness, Custom (13.3) |
+| What comes first | Segmented | Lighter GPU, Smoothness, Custom (13.3) |
 | Expected delay | Number | From speaking until the converted voice is heard; the devices' own delay is not included (13.4) |
 | What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.5) |
 | If conversion stops | Segmented | Silence (default), My own (Voice detailed design chapter 12) |
@@ -350,28 +350,31 @@ Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read t
 
 ### 13.2 The Voice Conversion Details Card
 
-A collapsible Card (`components.md` 3.10), starting closed. It is an exception to chapter 2's "Cards do not collapse", so that people who need only the simple settings do not see the detailed ones (waiting for the user's review).
+A collapsible Card (`components.md` 3.10), starting closed (chapter 2), so that people who need only the simple settings do not see the detailed ones.
 
 | Row | Part | Content |
 |---|---|---|
 | Length it looks at | Segmented | 1 s, 2.5 s, 5.4 s (the window) |
-| Overlap at joins | Segmented | 20 ms, 50 ms |
 | Noise removal | Toggle | |
 
 A "Back to recommended" Button below.
 
 ### 13.3 What Comes First and the Details
 
-| What comes first | Length it looks at | Overlap at joins | Noise removal |
-|---|---|---|---|
-| Quick response | 1 s | 20 ms | On |
-| Smoothness (recommended) | 5.4 s | 50 ms | On |
+| What comes first | Length it looks at | Noise removal |
+|---|---|---|
+| Lighter GPU | 1 s | On |
+| Smoothness (recommended) | 5.4 s | On |
+
+The overlap at joins is 50 ms only, not a choice (user decision, 2026-11-03). A choice would need two generators and two templates for every voice.
+
+The name is "Lighter GPU" (user decision, 2026-11-03). For people who do not know the word GPU, the description says "graphics card" and when to choose it (when the stream video stutters).
 
 When the details match neither, it shows Custom. Custom cannot be picked by itself; changing a detail picks it. The values wait until the user has tried them by voice (Voice detailed design chapter 17).
 
 ### 13.4 Expected Delay
 
-From the measured parts (decision record, 2026-11-03): 270 ms apart from the work, the work for each window (77 ms for 1 s, 79 ms for 2.5 s, 82 ms for 5.4 s), and 30 ms more with a 50 ms overlap. About 0.35 s for Quick response and 0.38 s for Smoothness. The gap is small; the two differ mainly in GPU load and in how steady held notes are.
+From the measured parts (decision record, 2026-11-03): 300 ms apart from the work (with the 50 ms overlap), plus the work for each window (77 ms for 1 s, 79 ms for 2.5 s, 82 ms for 5.4 s). Both are about 0.38 s; the two differ in GPU load and in how steady held notes are.
 
 ### 13.5 What You Hear
 
@@ -400,10 +403,10 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.pitch` | 声の高さ | Pitch |
 | `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.priority` | 優先すること | What comes first |
-| `setup.voice.priority.fast` | 反応の速さ | Quick response |
+| `setup.voice.priority.light` | GPUを軽く | Lighter GPU |
 | `setup.voice.priority.smooth` | なめらかさ | Smoothness |
 | `setup.voice.priority.custom` | カスタム | Custom |
-| `setup.voice.priority.fast.description` | 声が届くまでの時間を短くします。GPUの負担も軽くなります。 | Shortens the time until your voice arrives, and is lighter on the GPU. |
+| `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
 | `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
 | `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
 | `setup.voice.delay` | 遅れの目安 | Expected delay |
@@ -422,8 +425,6 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
 | `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
 | `setup.voice.details.window.description` | 長いほど、伸ばした声が安定します。GPUを多く使います。 | Longer steadies held notes, and uses more of the GPU. |
-| `setup.voice.details.crossfade` | つなぎ目の重ね | Overlap at joins |
-| `setup.voice.details.crossfade.description` | 長いほど、伸ばした声の揺れが減ります。50 msにすると30 ms遅れます。 | Longer makes held notes waver less. 50 ms adds 30 ms of delay. |
 | `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
 | `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
 | `setup.voice.details.note` | ここを変えると、「優先すること」は「カスタム」になります。 | Changing these makes What comes first Custom. |

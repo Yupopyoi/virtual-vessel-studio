@@ -24,7 +24,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 - 最後に開いたページを`ui-settings.json`の`lastSetupPage`に保存し、次はそのページを開く（UI基盤詳細設計8.1）。知らない値のときは先頭のページを開く。
 - ページはすべて作っておき、開いているページだけを表示する。ページを切り替えても、Cardの状態は失われない。
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
-- Cardは折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。
+- Cardは基本的に折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。あまり使わない設定のCard（細かい設定など）は、どのページでも、折りたためるCard（`components.md` 3.10）にして閉じて始めてよい（利用者の決定、2026-11-03）。
 - 状態（Status Indicator）は、Cardのタイトル部分の右端に置く。問題の説明は本文の先頭に置く。
 
 ## 3. 映像の取り込みのCard
@@ -339,7 +339,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
 | 声 | Select | Voice Labで作った声 |
 | 声の高さ | Slider | -24〜+24半音 |
-| 優先すること | Segmented | 反応の速さ、なめらかさ、カスタム（13.3） |
+| 優先すること | Segmented | GPUを軽く、なめらかさ、カスタム（13.3） |
 | 遅れの目安 | 数値 | 話してから変換した声が聞こえるまで。機器の遅れは含まない（13.4） |
 | 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.5） |
 | 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
@@ -352,28 +352,31 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 
 ### 13.2 声の変換の詳細のCard
 
-折りたためるCard（`components.md` 3.10）で、閉じて始める。2章の「Cardは折りたたまない」の例外とする。簡単な設定だけで済む人には、細かい設定を見せないためである（利用者の確認待ち）。
+折りたためるCard（`components.md` 3.10）で、閉じて始める（2章）。簡単な設定だけで済む人には、細かい設定を見せないためである。
 
 | 行 | 部品 | 内容 |
 |---|---|---|
 | 一度に見る長さ | Segmented | 1秒、2.5秒、5.4秒（窓） |
-| つなぎ目の重ね | Segmented | 20 ms、50 ms |
 | ノイズ除去 | Toggle | |
 
 下に「おすすめに戻す」のButton。
 
 ### 13.3 優先することと詳細の関係
 
-| 優先すること | 一度に見る長さ | つなぎ目の重ね | ノイズ除去 |
-|---|---|---|---|
-| 反応の速さ | 1秒 | 20 ms | オン |
-| なめらかさ（おすすめ） | 5.4秒 | 50 ms | オン |
+| 優先すること | 一度に見る長さ | ノイズ除去 |
+|---|---|---|
+| GPUを軽く | 1秒 | オン |
+| なめらかさ（おすすめ） | 5.4秒 | オン |
+
+つなぎ目の重ねは50 msだけとし、選べるようにしない（利用者の決定、2026-11-03）。選べるようにすると、声ごとに生成器とひな形が2組要る。
+
+名前は「GPUを軽く」とする（利用者の決定、2026-11-03）。GPUという言葉が伝わらない人のために、説明に「グラフィックボード」と、選ぶ場面（配信の映像がカクつくとき）を書く。
 
 詳細を変えて、どの組み合わせとも違うときは「カスタム」になる。「カスタム」は自分では選べず、詳細を変えると選ばれる。中身の値は、利用者が声で確かめてから決める（Voice詳細設計17章）。
 
 ### 13.4 遅れの目安
 
-実測の内訳（決定記録、2026-11-03）から求める：処理を除く270 ms、窓ごとの処理（1秒77 ms、2.5秒79 ms、5.4秒82 ms）、重ねが50 msなら30 msを足す。反応の速さで約0.35秒、なめらかさで約0.38秒。差は小さく、2つの主な違いはGPUの負担と、伸ばした声の安定である。
+実測の内訳（決定記録、2026-11-03）から求める：処理を除く300 ms（重ね50 msのとき）と、窓ごとの処理（1秒77 ms、2.5秒79 ms、5.4秒82 ms）の和。どちらも約0.38秒で、2つの違いはGPUの負担と、伸ばした声の安定である。
 
 ### 13.5 自分に聞こえる声
 
@@ -402,10 +405,10 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 | `setup.voice.pitch` | 声の高さ | Pitch |
 | `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.priority` | 優先すること | What comes first |
-| `setup.voice.priority.fast` | 反応の速さ | Quick response |
+| `setup.voice.priority.light` | GPUを軽く | Lighter GPU |
 | `setup.voice.priority.smooth` | なめらかさ | Smoothness |
 | `setup.voice.priority.custom` | カスタム | Custom |
-| `setup.voice.priority.fast.description` | 声が届くまでの時間を短くします。GPUの負担も軽くなります。 | Shortens the time until your voice arrives, and is lighter on the GPU. |
+| `setup.voice.priority.light.description` | GPU（グラフィックボード）の負担を減らします。配信の映像がカクつくときに選んでください。長く伸ばした声は少し揺れやすくなります。 | Eases the load on the GPU (graphics card). Choose it when the stream video stutters. Long held notes may waver a little more. |
 | `setup.voice.priority.smooth.description` | 長く伸ばした声が安定します。GPUを多く使います。 | Steadies long held notes. Uses more of the GPU. |
 | `setup.voice.priority.custom.description` | 「声の変換の詳細」で個別に変えています。 | Set one by one in Voice conversion details. |
 | `setup.voice.delay` | 遅れの目安 | Expected delay |
@@ -424,8 +427,6 @@ Cardの下に「声の変換は、GPUを多く使います。」の一文と、�
 | `setup.voice.details.title` | 声の変換の詳細 | Voice conversion details |
 | `setup.voice.details.window` | 一度に見る長さ | Length it looks at |
 | `setup.voice.details.window.description` | 長いほど、伸ばした声が安定します。GPUを多く使います。 | Longer steadies held notes, and uses more of the GPU. |
-| `setup.voice.details.crossfade` | つなぎ目の重ね | Overlap at joins |
-| `setup.voice.details.crossfade.description` | 長いほど、伸ばした声の揺れが減ります。50 msにすると30 ms遅れます。 | Longer makes held notes waver less. 50 ms adds 30 ms of delay. |
 | `setup.voice.details.denoise` | ノイズ除去 | Noise removal |
 | `setup.voice.details.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
 | `setup.voice.details.note` | ここを変えると、「優先すること」は「カスタム」になります。 | Changing these makes What comes first Custom. |
