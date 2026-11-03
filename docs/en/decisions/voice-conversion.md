@@ -389,3 +389,22 @@ Then through the application's conversion (the benchmark under load, +9 semitone
 - The first and second notes came out at about the input's level to the end. Pitch wobble (the distance from the 300 ms median) was 9.0 cents out for 8.5 cents in (5.4 s window): the conversion adds none.
 - Late in the third note (28 to 31 s) the output was 10 to 15 dB quieter than the input, whatever the window. There the input voice turns rough, with a part at half the pitch (about 75 Hz). The converted pitch stayed right.
 - With the 5.4 s window, the first 2 s or so after starting are quiet, while most of the window is still silence.
+
+## 2026-11-03 Short gaps inside sung notes, from noise removal
+
+In the third note of the same recording, noise removal alone still cut short gaps: in 10 ms steps, single moments fell by 10 to 56 dB (late in the note, the second's level fell by 2.5 to 3.9 dB). Each gap is shorter than 100 ms, so the comparison above, in 100 ms blocks against a 12 dB fall, did not catch them. They are heard as the note breaking up.
+
+The cause: where the voice turns rough, single frames lose their periodicity, and the blend of the original let go within a few frames at each one.
+
+The fix: the blend is held for 100 ms after the last voiced frame, then lets go as before. Measured by simulation on the recording, and on speech with noise added (-40 dBFS):
+
+| Hold | Worst 100 ms inside notes | Noise in pauses (all) | Noise in pauses longer than 300 ms |
+|---|---|---|---|
+| None (before) | -59.0 dB | -30.1 dB | -46.7 dB |
+| 50 ms | -2.0 dB | -15.8 dB | -46.7 dB |
+| 100 ms (adopted) | 0.0 dB | -12.8 dB | -46.7 dB |
+| 200 ms | 0.0 dB | -8.7 dB | -46.7 dB |
+
+With the built plugin, every second of the recording's notes keeps the input's level. More noise stays only in the short gaps between syllables, right after the voice; in real pauses it is removed as before. A hold that also let go when the level fell (by 6, 10, or 15 dB) gave the same results, so it was not taken.
+
+The application's benchmark under load does not pass through noise removal, so the 10 to 15 dB fall of the converted third note (above) is the conversion's own, where the input turns rough. It is not solved by this. The user has not listened yet.
