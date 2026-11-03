@@ -350,3 +350,18 @@ The user's recording (about 2 minutes) was converted and compared. `pitch_track.
 - With a 50 ms crossfade, the join score matched offline, and the output's wobble came closer to the input's. The delay grows by 30 ms (the algorithm's delay goes from 61 to 91 ms).
 
 The user put sound quality first (2026-11-03), so 50 ms is adopted. The generators return 21 frames instead of 18, so they were exported again. The template for swapping weights must be made again as well. The user has not listened yet.
+
+## 2026-11-03 Long held notes vanished in noise removal
+
+The user tried it in the application (5.4 s window, noise removal on). On long notes, the output went silent while the user kept singing. In the recording, the output faded and then vanished.
+
+RNNoise caused it: it takes a steady sound for noise. A held part of the user's voice, stretched to 15 s, fell to -15 dB in the first second, -48 dB in the second, and -75 dB by the fourth.
+
+The fix: while the input is voiced (periodic within a voice's pitch range and louder than -50 dBFS), the original is blended back over RNNoise's output. RNNoise's output lags its input by 20 ms (measured), so the original is delayed by the same amount to line up. When the voice stops, the blend lets go within a few frames. Key and mouse clicks are not periodic, so between words they are still removed.
+
+| | Held note | Noise in pauses | Speech level |
+|---|---|---|---|
+| RNNoise alone | -48 dB after 2 s | -30.1 dB | -2.1 dB |
+| Original blended back | Same as the input throughout | -29.1 dB | -1.1 dB |
+
+While voiced, noise under the voice stays too. The user has not listened yet.

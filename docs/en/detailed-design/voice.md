@@ -126,7 +126,7 @@ stateDiagram-v2
 
 ```text
 Microphone → Audio → IAudioStage.Read → gather (100 ms)
-  → Start: noise removal (RNNoise), to 16 kHz, mel, HuBERT and RMVPE to the GPU
+  → Start: noise removal (RNNoise; the original is blended back while voiced), to 16 kHz, mel, HuBERT and RMVPE to the GPU
   → Advance: read each as it completes; the data lasts only the frame it completed
   → the generator to the GPU
   → Advance: read, to 48 kHz, crossfade
