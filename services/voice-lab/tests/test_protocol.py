@@ -68,6 +68,18 @@ def test_a_failure_exits_one_after_an_error_line(tmp_path):
     assert lines[-1] == {"type": "error", "code": "failed", "message": "RuntimeError: boom"}
 
 
+def test_prints_inside_an_operation_go_to_the_log(tmp_path, capsys):
+    def chatty(request, reporter):
+        print("Loading model...")
+        reporter.result(ok=True)
+
+    code, lines = run(tmp_path, {"chatty": chatty}, "chatty", {})
+
+    assert code == protocol.EXIT_OK
+    assert lines == [{"type": "result", "ok": True}]
+    assert "Loading model..." in capsys.readouterr().err
+
+
 def test_an_atomic_path_appears_only_when_finished(tmp_path):
     target = tmp_path / "out" / "voice.wav"
     with pytest.raises(RuntimeError):

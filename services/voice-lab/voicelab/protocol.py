@@ -7,7 +7,7 @@ import os
 import sys
 import tempfile
 import traceback
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -48,6 +48,7 @@ class Reporter:
     """Writes progress and results to standard output, one flushed line each, so Unity sees them at once."""
 
     def __init__(self, stream=None):
+        # Taken now, before main() points sys.stdout at the log.
         self._stream = stream or sys.stdout
 
     def progress(self, stage, done, total):
@@ -91,7 +92,10 @@ def main(operations, argv=None, stdout=None):
             request = json.load(file)
         if not isinstance(request, dict):
             raise BadRequest("The request must be a JSON object.")
-        operations[argv[0]](request, reporter)
+        # Libraries print to standard output (VoxCPM2's loading messages, RVC's logs); that is the log, and
+        # standard output is kept for the JSON Lines alone.
+        with redirect_stdout(sys.stderr):
+            operations[argv[0]](request, reporter)
         return EXIT_OK
     except Exception as exception:  # Every failure becomes an error line; the traceback goes to the log.
         code = error_code(exception)

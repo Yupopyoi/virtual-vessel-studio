@@ -6,6 +6,9 @@ batch:   {"source": folder, "timbre": {...}, "output": folder} -> every WAV in t
 import os
 import sys
 
+# Run with python -I, which leaves this folder off the path: the voicelab package beside it is added by hand.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import soundfile as sf
 
 from voicelab import pitch, protocol
