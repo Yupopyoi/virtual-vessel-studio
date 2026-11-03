@@ -447,3 +447,19 @@ Measured on the user's speech and held notes alternating (three of each, +9 semi
 | Realtime 5.4 s | 72.5 / 53.7 / 55.7 | 32.6 / 33.0 / 33.2 |
 
 With the user's own speech, speech stays where it was without an anchor for every window; noise made it worse with the 1 s window. Held notes improve with both; with the 1 s window noise keeps them a little better. In HuBERT's features alone, own speech had looked clearly better with the 5.4 s window; in the converted voice it came out about the same as noise. The user has not listened yet.
+
+## 2026-11-03 "u" still drifts toward "a"; held notes as the anchor tried and not adopted
+
+The user heard "a" and "i" pass, but a held "u" drift toward "a". In the recording the third note is "u" and the fourth "e". Judged by HuBERT on the converted voice (which follows the vowel more than the speaker; each second against the input's four vowels), upstream's offline conversion of the whole file got every second right. With the user's own speech as the anchor, "u" was right for 38 to 75% of seconds (alternating input), and with the 5.4 s window "e" turned toward "i". So it is still the window, not the voice model.
+
+HuBERT judges a vowel against what is around it. Upstream with "u" alone was right; 1 to 12 s of speech before it pulled it toward "a", and noise did too. With 0.7 s of each of the user's held "a" and "i" before it, "u" was right throughout. Recording the five vowels for the anchor was set aside: the user does not want to ask anything of users.
+
+Tried: the user's last three finished held notes (0.7 s each, collected automatically) and their latest second of speech as a 3.1 s anchor. In HuBERT's features it looked better; in the converted voice it was mixed:
+
+| Right seconds | Own speech (adopted) | Held notes and speech |
+|---|---|---|
+| "u", alternating input, 1 s / 2.5 s / 5.4 s | 75 / 38 / 38% | 88 / 88 / 62% |
+| "i" and "e", held notes only, 1 s | 100 / 100% | 70 / 60% |
+| "u", held notes only, 5.4 s | 100% | 57% |
+
+A block took 15 to 20 ms more (HuBERT's input 3.1 s longer). Not clearly better and costly, so it was not adopted; the change is kept outside the repository as a patch. Late in the "u" note, where the user's voice turns rough, every streaming variant drifted toward "a".
