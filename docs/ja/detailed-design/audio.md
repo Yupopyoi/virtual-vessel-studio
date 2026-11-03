@@ -111,6 +111,21 @@ typedef struct vv_audio_stream_tap
 - マネージドのコードは`vv_audio_get_stream_tap`でこれを受け取り、素朴な値としてエンコーダーへ渡す。Videoは音声のDLLにリンクしない。録画と配信は、バス上の位置を別々に持つ読み出し口をそれぞれ使う（`VV_AUDIO_READER_*`、API version 3）。
 - 読むのは一度に1つ（録画。配信は、エンコードした同じ音声を共有する）。
 
+### 5.4 音声ファイルの読み込み
+
+```c
+// 音声ファイル全体をMedia Foundationでデコードし、ファイルのままのレートのモノラルfloatにする。
+int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+void vv_audio_clip_free(vv_audio_clip* clip);
+```
+
+- M4A（AAC）、MP3、WAVなど、Windowsがデコードできる形式を読む（API version 8）。デコーダーはWindowsのものを使い、プラグインはコーデックを持たない（方式設計：Windows標準の機能を基本とする）。
+- エンジンは要らず、どのスレッドからでも呼べる。マネージドでは静的な`AudioFile.ReadMono`を、メインスレッドの外から呼ぶ。読めないときは`InvalidDataException`、プラグインがないか古いときは`AudioEngineException`。
+- 長さは`VV_AUDIO_MAX_FILE_SECONDS`（600秒）まで。誤って長いファイルを選んでも、メモリーを使い切らないためである。
+- Media Foundationは遅延読み込みにする。Media FoundationのないWindows（NエディションでMedia Feature Packがないとき）でもエンジンは動き、ファイルの読み込みだけが`VV_AUDIO_UNREADABLE`になる。
+- 今の使い道は、診断画面の声の変換（試作）の「音声ファイルを流す」（スマートフォンで録ったM4Aなど）。WAVはそこではVoiceの`WavFile`が読み、プラグインを通さない。後でBGMとSEのファイルの再生（4章の`AudioSourceInput`）にも使う。
+
 ## 6. Data Model
 
 - 内部の形式：48kHz、32bit float、ステレオ。モノラルの音の元は両方のチャンネルに写す。
@@ -209,8 +224,8 @@ typedef struct vv_audio_stream_tap
 
 | 種類 | 対象 |
 |---|---|
-| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ、モニターのバス（別の送りと音量、遅らせないこと） |
-| EditMode | 偽のエンジンでの`AudioService`：Profileからの音の元、足し引き、機器の消失と復帰、設定と移行 |
+| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ、モニターのバス（別の送りと音量、遅らせないこと）。音声ファイル：書き出したWAVのレートとモノラルへの混ぜ合わせ、ないファイル |
+| EditMode | 偽のエンジンでの`AudioService`：Profileからの音の元、足し引き、機器の消失と復帰、設定と移行。`AudioFile`（プラグインがなければ飛ばす） |
 | 実機（手動） | 実際のマイクとキャプチャーボード：レベル、抜き差し、録画の同期（録画詳細設計14章） |
 
 ## 15. 性能
@@ -222,12 +237,12 @@ typedef struct vv_audio_stream_tap
 ## 16. Folder / Namespace
 
 ```text
-native/audio/include/vv_audio.h        公開のC API（version 4：読み手ごとのタップ）
+native/audio/include/vv_audio.h        公開のC API（version 8：音声ファイル）
 native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、fill_tracker（2つの時計の間の溜まり）、
                                        dsp（音量、リミッター）、device_loop（機器のスレッド、WASAPIの共有モード）、device_source（取り込み）、
-                                       device_output（モニターの再生）、exports（エンジンと混ぜ合わせのスレッド）
+                                       device_output（モニターの再生）、audio_file（Media Foundationでのファイルの読み込み）、exports（エンジンと混ぜ合わせのスレッド）
 native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
-Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）
+Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）、AudioFile
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip（ライブ画面）
 ```

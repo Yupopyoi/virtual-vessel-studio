@@ -371,3 +371,21 @@ While voiced, noise under the voice stays too. The user has not listened yet.
 With the 50 ms overlap the generator returns 21 frames instead of 18. The template for writing trained weights, and its placement table, were made again for the 1 s, 2.5 s, and 5.4 s windows. For all three, the `.sentis` made by writing a voice unused in the template had the same SHA-256 as the one the Editor made from that voice. All 352 weights were placed.
 
 A template is needed for each generator shape (window and returned frames). Offering both a 20 ms and a 50 ms overlap needs a template for each.
+
+## 2026-11-03 Checked with the user's recordings
+
+The user recorded their voice on a phone (M4A, 48 kHz, mono): long held notes (three, of about 9 s, 11 s, and 9 s; 39 s in all) and two clips of bright speech (5 s and 7 s). M4A can now be read (audio detailed design 5.4), so these play straight from the Diagnostics screen too.
+
+Through noise removal alone, the level of each 100 ms was compared with the input's (where the input is louder than -34 dBFS):
+
+| | Held notes | Speech |
+|---|---|---|
+| Noise removal before the fix | 50 of 330 blocks fall by 12 dB or more, from 26.5 s in the third note | 2 of 65 |
+| Noise removal after the fix | No falls | The same 2 (no change) |
+
+Then through the application's conversion (the benchmark under load, +9 semitones):
+
+- No block ran short and nothing broke off, with the 1 s, 2.5 s, and 5.4 s windows.
+- The first and second notes came out at about the input's level to the end. Pitch wobble (the distance from the 300 ms median) was 9.0 cents out for 8.5 cents in (5.4 s window): the conversion adds none.
+- Late in the third note (28 to 31 s) the output was 10 to 15 dB quieter than the input, whatever the window. There the input voice turns rough, with a part at half the pitch (about 75 Hz). The converted pitch stayed right.
+- With the 5.4 s window, the first 2 s or so after starting are quiet, while most of the window is still silence.
