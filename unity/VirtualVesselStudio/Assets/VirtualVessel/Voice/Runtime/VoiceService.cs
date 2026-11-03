@@ -249,9 +249,9 @@ namespace VirtualVessel.Voice
             {
                 samples = await Task.Run(() => ReadFile(path));
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is AudioEngineException)
             {
-                _log?.Warning($"This WAV file cannot be read: {exception.Message}");
+                _log?.Warning($"This audio file cannot be read: {exception.Message}");
                 return false;
             }
 
@@ -262,6 +262,8 @@ namespace VirtualVessel.Voice
             SetEnabled(true);
             return true;
         }
+
+        public System.Collections.Generic.IReadOnlyList<string> FileExtensions => AudioFile.Extensions;
 
         public void StopFile()
         {
@@ -329,10 +331,14 @@ namespace VirtualVessel.Voice
             }
         }
 
-        // A second of silence at the end carries the last block through, whatever its length.
+        // A second of silence at the end carries the last block through, whatever its length. WAV is read here,
+        // without the audio plugin; other formats, such as M4A from a phone, go through Windows' decoders.
         private static float[] ReadFile(string path)
         {
-            float[] samples = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(path), out int rate), rate, RvcStream.DeviceRate);
+            float[] decoded = string.Equals(Path.GetExtension(path), ".wav", StringComparison.OrdinalIgnoreCase)
+                ? WavFile.Read(File.ReadAllBytes(path), out int rate)
+                : AudioFile.ReadMono(path, out rate);
+            float[] samples = WavFile.ToRate(decoded, rate, RvcStream.DeviceRate);
             Array.Resize(ref samples, samples.Length + RvcStream.DeviceRate);
             return samples;
         }

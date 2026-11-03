@@ -56,7 +56,7 @@ namespace VirtualVessel.UI.Screens
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
 
-        /// <param name="files">Picks a WAV file to convert; null leaves that out.</param>
+        /// <param name="files">Picks an audio file to convert; null leaves that out.</param>
         public VoiceConversionCard(IVoiceConversion voice, IFileDialog files = null)
         {
             _voice = voice ?? throw new ArgumentNullException(nameof(voice));
@@ -194,7 +194,7 @@ namespace VirtualVessel.UI.Screens
             var localizer = UiServices.Find(this)?.Localizer;
             string path = await _files.OpenAsync(new FileDialogOptions
             {
-                Filters = new[] { new FileFilter(localizer?.Get(VoiceConversionStrings.FileFilter) ?? "WAV", new[] { ".wav" }) },
+                Filters = new[] { new FileFilter(localizer?.Get(VoiceConversionStrings.FileFilter) ?? "Audio", _voice.FileExtensions) },
             });
             if (path != null && !await _voice.PlayFileAsync(path))
             {

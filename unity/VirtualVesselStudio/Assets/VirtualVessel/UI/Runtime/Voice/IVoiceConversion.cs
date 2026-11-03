@@ -12,7 +12,7 @@ namespace VirtualVessel.UI.Voice
         /// <summary>Turned on, but the microphone gives nothing to convert, such as with no device chosen.</summary>
         NoMicrophone,
 
-        /// <summary>A WAV file takes the microphone's place, to judge a voice without speaking.</summary>
+        /// <summary>An audio file takes the microphone's place, to judge a voice without speaking.</summary>
         PlayingFile,
 
         /// <summary>No models in the folder, or no microphone.</summary>
@@ -67,20 +67,23 @@ namespace VirtualVessel.UI.Voice
         /// <summary>How far the models have loaded, from 0 to 1.</summary>
         float LoadProgress { get; }
 
-        /// <summary>The WAV file playing, without its folder; null when none is.</summary>
+        /// <summary>The audio file playing, without its folder; null when none is.</summary>
         string FileName { get; }
 
-        /// <summary>The WAV file's place and length in seconds; both 0 when none is playing.</summary>
+        /// <summary>The audio file's place and length in seconds; both 0 when none is playing.</summary>
         (float Position, float Length) FileTime { get; }
 
         VoiceConversionStats Stats { get; }
 
         void SetEnabled(bool enabled);
 
-        /// <summary>Turns on and converts this WAV file in the microphone's place, once, at real time. False when it cannot be read.</summary>
+        /// <summary>Turns on and converts this audio file in the microphone's place, once, at real time. False when it cannot be read.</summary>
         Task<bool> PlayFileAsync(string path);
 
-        /// <summary>Stops a WAV file; the microphone comes back.</summary>
+        /// <summary>The audio files PlayFileAsync reads, by extension.</summary>
+        System.Collections.Generic.IReadOnlyList<string> FileExtensions { get; }
+
+        /// <summary>Stops an audio file; the microphone comes back.</summary>
         void StopFile();
     }
 }
