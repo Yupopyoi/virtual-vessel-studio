@@ -209,6 +209,8 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 - The mood is set with sliders (youth, pitch, brightness, softness, breathiness, energy, cuteness, intonation, pace, naturalness) and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder`.
 - The same instruction gives very different voices with different seeds (268 Hz and 406 Hz). Sliders alone do not reach the ideal, so several candidates (about six) are made at a time, with More to add more.
+- Candidates can be compared by numbers as well as by ear (the user's request, 2026-11-03): pitch (the median) and its range (5 to 95%) in Hz, with the range drawn on a shared scale, and sorting by pitch.
+- The screen numbers its steps STEP 1 to STEP 5, and the buttons that move on name the step they lead to (the user's request, 2026-11-03).
 - Words that move the voice use only the chosen base as the reference. Using generated voices as references, one after another, makes the voice hoarse.
 - Bases made from samples of real people's voices are not offered (the user's judgment, 2026-11-03; there is no voice free of rights issues to use).
 
