@@ -28,6 +28,7 @@ using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
+using VirtualVessel.Voice;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -121,6 +122,18 @@ namespace VirtualVessel.Application.Startup
                     ServiceCriticality.Optional,
                     () => audio = CreateAudio(context, project.Value, metrics, logging.Provider.GetLog("Audio", "Sources")),
                     new[] { LoggingService.ServiceName }));
+            }
+
+            // The voice conversion prototype, a stage on the microphone. Its models stay outside the
+            // repository, in the Data Root; without them the Card says so.
+            VoiceService voice = null;
+            if (context.FrameLoop != null && project != null)
+            {
+                descriptors.Add(new ApplicationServiceDescriptor(
+                    VoiceService.ServiceName,
+                    ServiceCriticality.Optional,
+                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion"), metrics),
+                    new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 
             // Video renders the stream with the persistent scene's Main Camera (video detailed design
@@ -274,6 +287,7 @@ namespace VirtualVessel.Application.Startup
                                 FrameSources = stage?.Screens,
                                 Captures = capture,
                                 Audio = audio,
+                                Voice = voice,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
                                 Streaming = streamingService,

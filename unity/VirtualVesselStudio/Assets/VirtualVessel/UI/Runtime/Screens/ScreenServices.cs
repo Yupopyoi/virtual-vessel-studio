@@ -12,6 +12,7 @@ using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -34,6 +35,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The sound sources (Audio); null says audio is unavailable.</summary>
         public IAudioService Audio { get; set; }
+
+        /// <summary>The voice conversion prototype, for the Diagnostics screen; null leaves its Card out.</summary>
+        public IVoiceConversion Voice { get; set; }
 
         /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
         public ISystemSettings SystemSettings { get; set; }

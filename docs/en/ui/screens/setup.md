@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the audio Card (chapter 11), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the audio Card (chapter 11), the voice conversion Cards (chapter 13, being designed), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
@@ -16,7 +16,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | Page | Key | Cards |
 |---|---|---|
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
-| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available.") |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), voice conversion (chapter 13, being designed) |
 | Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
 | Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards do not collapse. With pages, closing them to keep the screen short is no longer needed.
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -321,3 +321,81 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
+
+## 13. The Voice Conversion Card (being designed)
+
+Shows `IVoiceConversion` (Voice) (`VoiceCard`). It goes on the Audio page, under the Audio Card: it is processing on the microphone, so it sits on the microphone's page. Mock-up: https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R (waiting for the user's review)
+
+It should be usable with simple settings alone (the user's request, 2026-11-03). With the window fixed at 1 s, noise removal is the only detailed setting left, so it is one Card (13.2).
+
+### 13.1 The Voice Conversion Card
+
+A Status Chip of its state at the right end of the title (Running ✓, Loading ○, Off ○, Unavailable ×, Stopped ×).
+
+| Row | Part | Content |
+|---|---|---|
+| Convert my voice | Toggle | Off, the user's own voice goes to the stream and recordings |
+| Voice | Select | The voices made in Voice Lab |
+| Pitch | Slider | -24 to +24 semitones |
+| Noise removal | Toggle | On by default |
+| What you hear | Segmented | Converted, My own. When the microphone's Hear is on. The stream and recordings always get the converted voice (13.4) |
+| If conversion stops | Segmented | Silence (default), My own (Voice detailed design chapter 12) |
+
+Under the rows, the line "Voice conversion uses a lot of the GPU." and a "Read the notes on use" Button. The terms and notes of the voice features can always be shown (Voice Lab detailed design chapter 1).
+
+- With no usable GPU: "Voice conversion cannot be used on this PC" and why at the top of the Card, and every row disabled (13.3).
+- With no voice: "No voice yet" and "Open Voice Lab" at the top of the Card, and the other rows disabled.
+- When it stopped: at the top of the Card, what happened, what the stream gets, and what to do.
+
+### 13.2 Fixed Values
+
+The window (how much HuBERT and the generator see at once) is fixed at 1 s and is not a choice (user decision, 2026-11-03). With the user's speech before the window, the user heard no difference with 2.5 s or 5.4 s, and 1 s is the lightest on the GPU (Voice detailed design chapter 17). There is no simple choice by what comes first (Lighter GPU, Smoothness) either: no combination has a reason to be chosen.
+
+The overlap at joins is 50 ms only, not a choice (user decision, 2026-11-03). A choice would need two generators and two templates for every voice.
+
+### 13.3 PCs Without Enough GPU
+
+A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering).
+
+There is no Expected delay row. With the window and the overlap fixed, the delay is always about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
+
+### 13.4 What You Hear
+
+The converted voice is heard about 0.38 s late, which makes rhythm hard when singing (Voice detailed design chapter 17). With My own, the monitor gets the microphone as it is, and the stream and recordings get the converted voice. It needs a change to Audio's processing stage, so it comes in a separate step (audio detailed design 8.3).
+
+### 13.5 Strings
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.voice.title` | 声の変換 | Voice conversion |
+| `setup.voice.state.running` | 動作中 | Running |
+| `setup.voice.state.loading` | 準備中 | Loading |
+| `setup.voice.state.off` | オフ | Off |
+| `setup.voice.state.unavailable` | 使えません | Unavailable |
+| `setup.voice.state.failed` | 止まりました | Stopped |
+| `setup.voice.no-voice` | 声がまだありません | No voice yet |
+| `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
+| `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.description` | 声の変換には、グラフィックボード（GPU）が必要です。このPCでは使えるGPUが見つかりませんでした。 | It needs a graphics card (GPU), and none that it can use was found on this PC. |
+| `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
+| `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
+| `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.failed.pass` | 設定に従って、配信と録画には元の声を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.enabled` | 声を変換する | Convert my voice |
+| `setup.voice.enabled.description` | オフにすると、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
+| `setup.voice.voice` | 声 | Voice |
+| `setup.voice.voice.description` | Voice Labで作った声から選びます。 | Choose from the voices made in Voice Lab. |
+| `setup.voice.pitch` | 声の高さ | Pitch |
+| `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.hear` | 自分に聞こえる声 | What you hear |
+| `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
+| `setup.voice.hear.converted` | 変換した声 | Converted |
+| `setup.voice.hear.original` | 元の声 | My own |
+| `setup.voice.failure` | 変換できないとき | If conversion stops |
+| `setup.voice.failure.description` | 変換が止まったときに、配信と録画に流す音です。「無音」なら、元の声が配信に出ることはありません。 | What goes to the stream and recordings when conversion stops. With Silence, your own voice never goes out. |
+| `setup.voice.failure.mute` | 無音 | Silence |
+| `setup.voice.failure.pass` | 元の声 | My own |
+| `setup.voice.gpu` | 声の変換は、GPUを多く使います。 | Voice conversion uses a lot of the GPU. |
+| `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
+| `setup.voice.denoise` | ノイズ除去 | Noise removal |
+| `setup.voice.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |

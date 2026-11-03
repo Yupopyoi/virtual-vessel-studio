@@ -37,8 +37,10 @@ namespace vv::audio
             if (!slot.used)
             {
                 slot.input = std::make_unique<FrameRing>(InputFrames);
+                slot.stageInput = std::make_unique<FrameRing>(InputFrames);
                 slot.gain = 1.0f;
                 slot.muted = false;
+                slot.stage = false;
                 slot.send = 1.0f;
                 slot.monitorSend = 0.0f;
                 slot.overruns = 0;
@@ -72,6 +74,56 @@ namespace vv::audio
     }
 
     void Mixer::Write(int id, const float* frames, size_t count)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        Slot& slot = _slots[id];
+        FrameRing& target = slot.stage.load() ? *slot.stageInput : *slot.input;
+        size_t written = target.Write(frames, count);
+        if (written < count)
+        {
+            slot.overruns += static_cast<int64_t>(count - written);
+        }
+    }
+
+    void Mixer::SetStage(int id, bool enabled)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        // The stage stops writing before it turns off, and starts a block after it turns on, so the
+        // input ring keeps a single writer. What waited for the stage is not played late.
+        Slot& slot = _slots[id];
+        slot.stage = enabled;
+        slot.stageInput->Read(nullptr, slot.stageInput->Available());
+        slot.stageInputWait = 0.0f;
+        slot.stageOutputWait = 0.0f;
+    }
+
+    StageDelay Mixer::GetStageDelay(int id) const
+    {
+        StageDelay delay;
+        if (Used(id))
+        {
+            delay.stageInput = _slots[id].stageInputWait.load();
+            delay.stageOutput = _slots[id].stageOutputWait.load();
+        }
+
+        delay.monitor = _monitorWait.load();
+        return delay;
+    }
+
+    size_t Mixer::ReadStage(int id, float* frames, size_t capacity)
+    {
+        return Used(id) ? _slots[id].stageInput->Read(frames, capacity) : 0;
+    }
+
+    void Mixer::WriteStage(int id, const float* frames, size_t count)
     {
         if (!Used(id))
         {
@@ -131,7 +183,7 @@ namespace vv::audio
 
     bool Mixer::ReadSource(Slot& slot)
     {
-        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames);
+        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames, !slot.stage.load());
         if (step.ranDry)
         {
             // What is left is let go, and the source waits to fill up again, so it does not stutter.
@@ -164,6 +216,21 @@ namespace vv::audio
     {
         std::fill(_block.begin(), _block.end(), 0.0f);
         std::fill(_monitorBlock.begin(), _monitorBlock.end(), 0.0f);
+
+        // Sampled before this block moves anything, when a stage's output is at its fullest and the monitor at
+        // its emptiest, so half a block corrects each. Other threads fill and empty the rings out of step with
+        // the mix, so every 10 ms is a fair sample of the time between.
+        constexpr float HalfBlock = BlockFrames / 2.0f;
+        _monitorWait = Smooth(_monitorWait.load(), static_cast<float>(_monitor.Available()) + HalfBlock);
+        for (Slot& slot : _slots)
+        {
+            if (slot.used && slot.stage.load())
+            {
+                slot.stageInputWait = Smooth(slot.stageInputWait.load(), static_cast<float>(slot.stageInput->Available()));
+                slot.stageOutputWait = Smooth(slot.stageOutputWait.load(), static_cast<float>(slot.input->Available()) - HalfBlock);
+            }
+        }
+
         for (Slot& slot : _slots)
         {
             if (!slot.used || !ReadSource(slot))

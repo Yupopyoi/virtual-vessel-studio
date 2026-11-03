@@ -837,7 +837,7 @@ General users are not required, as part of normal use, to perform
 
 and so on.
 
-Required Python components are provided as built runtime packages, and the structure allows them to be obtained, verified, and registered from the application's setup function.
+Required Python components are obtained, verified, and built from the application's setup function at activation (13.4).
 
 ### Rationale
 

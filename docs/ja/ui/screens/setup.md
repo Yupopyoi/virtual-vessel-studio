@@ -4,7 +4,7 @@
 
 配信の前に、使う機器や設定を整える画面。使っているソフトウェアのクレジットも、ここで見られる。
 
-映像の取り込み（Capture）のCard、音声のCard（11章）、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、録画のCard（10章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
+映像の取り込み（Capture）のCard、音声のCard（11章）、声の変換のCard（13章、設計中）、トラッキングのCard、アバターのCard、表情の調整のCard（9章）、録画のCard（10章）、アプリの設定のCard（UI基盤詳細設計7.7）、クレジットのCard（8章）を置く。ほかの設定は、それぞれの機能を作るときに加える。
 
 - 画面の名前（ナビゲーションと見出し）は「設定」（英語 Settings）とする。機器の準備だけでなく、アプリの設定やクレジットも置くためである。
 - 画面の識別子（`setup`）、文字列のKey（`nav.setup`、`setup.*`）、文書の中の呼び方（セットアップ画面）は変えない。識別子は`ui-settings.json`の`lastScreen`に保存されているため、変えると前回の画面に戻れなくなる。
@@ -16,7 +16,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 | ページ | Key | Card |
 |---|---|---|
 | 映像 | `setup.page.video` | 映像の取り込み（ゲーム画面、サブモニター） |
-| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文） |
+| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、声の変換（13章、設計中） |
 | アバター | `setup.page.avatar` | アバター（5章）、トラッキング（4章）、表情の調整（9章。アバターを使えるときだけ） |
 | 配信・録画 | `setup.page.output` | 録画（10章。録画を使えないときは「録画は使えません。」の一文）、配信（12章）
 | アプリ | `setup.page.app` | アプリの設定、クレジットとライセンス（8章） |
@@ -24,7 +24,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 - 最後に開いたページを`ui-settings.json`の`lastSetupPage`に保存し、次はそのページを開く（UI基盤詳細設計8.1）。知らない値のときは先頭のページを開く。
 - ページはすべて作っておき、開いているページだけを表示する。ページを切り替えても、Cardの状態は失われない。
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
-- Cardは折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。
+- Cardは基本的に折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。あまり使わない設定のCard（細かい設定など）は、どのページでも、折りたためるCard（`components.md` 3.10）にして閉じて始めてよい（利用者の決定、2026-11-03）。
 - 状態（Status Indicator）は、Cardのタイトル部分の右端に置く。問題の説明は本文の先頭に置く。
 
 ## 3. 映像の取り込みのCard
@@ -323,3 +323,81 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
+
+## 13. 声の変換のCard（設計中）
+
+`IVoiceConversion`（Voice）を表示する（`VoiceCard`）。音声のページで、音声のCardの下に置く。マイクに掛ける処理なので、マイクと同じページにする。画面案：https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R（利用者の確認待ち）
+
+普段は簡単な設定だけで使えるようにする（利用者の要望、2026-11-03）。窓を1秒に固定してから、細かい設定はノイズ除去だけになったので、Cardは1つにする（13.2）。
+
+### 13.1 声の変換のCard
+
+タイトルの右端に状態のStatus Chip（動作中 ✓、準備中 ○、オフ ○、使えません ×、止まりました ×）。
+
+| 行 | 部品 | 内容 |
+|---|---|---|
+| 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
+| 声 | Select | Voice Labで作った声 |
+| 声の高さ | Slider | -24〜+24半音 |
+| ノイズ除去 | Toggle | 既定はオン |
+| 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.4） |
+| 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
+
+Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
+
+- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.3）。
+- 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
+- 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
+
+### 13.2 固定した値
+
+窓（HuBERTと生成器が一度に見る長さ）は1秒に固定し、選べるようにしない（利用者の決定、2026-11-03）。窓の前に利用者の話し声を置いてからは、2.5秒と5.4秒を聞いても違いが分からず、1秒はGPUも一番軽い（Voice詳細設計17章）。何を優先するかで選ぶ簡単な設定（GPUを軽く、なめらかさ）も、選ぶ理由のある組み合わせがないので置かない。
+
+つなぎ目の重ねは50 msだけとし、選べるようにしない（利用者の決定、2026-11-03）。選べるようにすると、声ごとに生成器とひな形が2組要る。
+
+### 13.3 GPUが足りないPC
+
+GPUが足りないPCでは、この機能を使うべきでない（利用者の指摘、2026-11-03）。ただ、どのGPUから使えるかは分からないので、使えるGPUがないときだけオンにできなくする（利用者の決定、2026-11-03）。GPUで計算できないとき（Compute Shaderが使えない、ソフトウェアで描画している）を「ない」とみなす。
+
+「遅れの目安」の行は置かない。窓と重ねを固定したので、遅れは常に約0.38秒で、選ぶ助けにならない（利用者の判断、2026-11-03）。
+
+### 13.4 自分に聞こえる声
+
+変換した声は約0.38秒遅れて聞こえるので、歌うときはリズムを取りにくい（Voice詳細設計17章）。「元の声」では、モニターにはマイクの音をそのまま送り、配信と録画には変換した声を送る。Audioの処理の段の変更が要るので、別の段階で作る（Audio詳細設計8.3）。
+
+### 13.5 文字列
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.voice.title` | 声の変換 | Voice conversion |
+| `setup.voice.state.running` | 動作中 | Running |
+| `setup.voice.state.loading` | 準備中 | Loading |
+| `setup.voice.state.off` | オフ | Off |
+| `setup.voice.state.unavailable` | 使えません | Unavailable |
+| `setup.voice.state.failed` | 止まりました | Stopped |
+| `setup.voice.no-voice` | 声がまだありません | No voice yet |
+| `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
+| `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.description` | 声の変換には、グラフィックボード（GPU）が必要です。このPCでは使えるGPUが見つかりませんでした。 | It needs a graphics card (GPU), and none that it can use was found on this PC. |
+| `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
+| `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
+| `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.failed.pass` | 設定に従って、配信と録画には元の声を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.enabled` | 声を変換する | Convert my voice |
+| `setup.voice.enabled.description` | オフにすると、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
+| `setup.voice.voice` | 声 | Voice |
+| `setup.voice.voice.description` | Voice Labで作った声から選びます。 | Choose from the voices made in Voice Lab. |
+| `setup.voice.pitch` | 声の高さ | Pitch |
+| `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.hear` | 自分に聞こえる声 | What you hear |
+| `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
+| `setup.voice.hear.converted` | 変換した声 | Converted |
+| `setup.voice.hear.original` | 元の声 | My own |
+| `setup.voice.failure` | 変換できないとき | If conversion stops |
+| `setup.voice.failure.description` | 変換が止まったときに、配信と録画に流す音です。「無音」なら、元の声が配信に出ることはありません。 | What goes to the stream and recordings when conversion stops. With Silence, your own voice never goes out. |
+| `setup.voice.failure.mute` | 無音 | Silence |
+| `setup.voice.failure.pass` | 元の声 | My own |
+| `setup.voice.gpu` | 声の変換は、GPUを多く使います。 | Voice conversion uses a lot of the GPU. |
+| `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
+| `setup.voice.denoise` | ノイズ除去 | Noise removal |
+| `setup.voice.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |

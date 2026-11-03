@@ -847,7 +847,7 @@ Log Fileが無制限に増加しないようにする。
 
 等を通常利用手順として要求しない。
 
-必要なPython ComponentはBuild済みRuntime Packageとして提供し、Application側のSetup機能から取得・検証・登録できる構成とする。
+必要なPython Componentは、アクティベーションのときにApplication側のSetup機能から取得・検証・構築する（13.4）。
 
 ### 採用理由
 

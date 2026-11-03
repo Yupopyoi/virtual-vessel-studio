@@ -242,6 +242,72 @@ namespace VirtualVessel.Audio
         public bool IsValid => Context != IntPtr.Zero && Read != IntPtr.Zero;
     }
 
+    /// <summary>
+    /// Where a stage's audio waits between the microphone and the monitor, in milliseconds (vv_audio_stage_delay).
+    /// The rings and the output buffer are averages over about the last half second; the devices are what
+    /// Windows reports. The hardware's own delay (USB, Bluetooth, the converters) is not included.
+    /// </summary>
+    public readonly struct AudioStageDelay
+    {
+        public AudioStageDelay(double captureDeviceMs, double stageInputMs, double stageOutputMs, double monitorMs, double outputBufferMs, double outputDeviceMs)
+        {
+            CaptureDeviceMs = captureDeviceMs;
+            StageInputMs = stageInputMs;
+            StageOutputMs = stageOutputMs;
+            MonitorMs = monitorMs;
+            OutputBufferMs = outputBufferMs;
+            OutputDeviceMs = outputDeviceMs;
+        }
+
+        /// <summary>The input device, before its packets arrive.</summary>
+        public double CaptureDeviceMs { get; }
+
+        /// <summary>Captured, waiting for the stage to read it.</summary>
+        public double StageInputMs { get; }
+
+        /// <summary>Written by the stage, waiting for the mix.</summary>
+        public double StageOutputMs { get; }
+
+        /// <summary>Mixed, waiting for the monitor output.</summary>
+        public double MonitorMs { get; }
+
+        /// <summary>In the output device's buffer.</summary>
+        public double OutputBufferMs { get; }
+
+        /// <summary>The output device, after its buffer.</summary>
+        public double OutputDeviceMs { get; }
+    }
+
+    /// <summary>
+    /// A processing stage on the microphone, such as voice conversion (audio detailed design 8.3). The
+    /// stage works on its own schedule, so a slow one can never hold up the mix.
+    /// </summary>
+    public interface IAudioStage
+    {
+        /// <summary>False with no microphone source, or an engine without stages.</summary>
+        bool IsAvailable { get; }
+
+        /// <summary>Whether the microphone is delivering audio; false with no device chosen.</summary>
+        bool IsCapturing { get; }
+
+        void SetEnabled(bool enabled);
+
+        /// <summary>
+        /// Removes noise from mono audio in place, keeping its state between calls. A whole number of
+        /// 480-sample frames, from one thread (audio detailed design 8.3).
+        /// </summary>
+        void Denoise(float[] samples, int count);
+
+        /// <summary>Interleaved stereo frames waiting since the last read; returns how many.</summary>
+        int Read(float[] frames, int capacity);
+
+        /// <summary>Interleaved stereo frames for the mix, in place of what was captured.</summary>
+        void Write(float[] frames, int count);
+
+        /// <summary>Where the audio waits outside the stage; zeros when unknown.</summary>
+        AudioStageDelay Delay { get; }
+    }
+
     /// <summary>The sources, the devices, and the stream bus (audio detailed design 5).</summary>
     public interface IAudioService
     {

@@ -3,6 +3,8 @@
 
 #include "vv_audio.h"
 
+#include "audio_file.h"
+#include "denoiser.h"
 #include "device_source.h"
 #include "dsp.h"
 #include "mixer.h"
@@ -10,10 +12,14 @@
 #include <windows.h>
 
 #include <audioclient.h>
+#include <mferror.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -234,6 +240,168 @@ namespace
         return peak;
     }
 
+    // With a stage on, capture waits for the stage, the mix hears only what the stage writes, and bursts
+    // of many blocks are played evenly without drift corrections.
+    void Stage()
+    {
+        Mixer mixer(Frequency);
+        int id = -1;
+        Check(mixer.Add(&id), "a source is added");
+        mixer.SetSend(id, 1, 0.0f);
+        mixer.SetStage(id, true);
+
+        size_t phase = 0;
+        std::vector<float> loud = Tone(0.5f, BlockFrames, phase);
+        mixer.Write(id, loud.data(), BlockFrames);
+        std::vector<float> read(static_cast<size_t>(BlockFrames) * 2 * Channels);
+        Check(mixer.ReadStage(id, read.data(), BlockFrames * 2) == BlockFrames, "capture reaches the stage");
+
+        const int BurstBlocks = 10;
+        std::vector<float> out(static_cast<size_t>(BlockFrames) * Channels);
+        uint64_t mixed = 0;
+        for (int burst = 0; burst < 100; burst++)
+        {
+            std::vector<float> quiet = Tone(0.25f, static_cast<size_t>(BurstBlocks) * BlockFrames, phase);
+            mixer.WriteStage(id, quiet.data(), static_cast<size_t>(BurstBlocks) * BlockFrames);
+            for (int block = 0; block < BurstBlocks; block++)
+            {
+                mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+                mixed++;
+                size_t got = mixer.ReadMonitor(out.data(), BlockFrames);
+                if (burst > 0)
+                {
+                    Check(std::abs(Peak(out.data(), static_cast<int>(got), Channels) - 0.25f) < 0.01f, "the stage's audio plays, not the capture");
+                }
+            }
+        }
+
+        // A burst of 100 ms played evenly waits 50 ms on average; the average swings with the bursts.
+        StageDelay delay = mixer.GetStageDelay(id);
+        Check(std::abs(delay.stageOutput - BurstBlocks * BlockFrames / 2.0f) < 300.0f, "a burst waits half its length for the mix");
+        Check(delay.stageInput == 0.0f, "nothing waits for a stage that reads");
+        Check(std::abs(delay.monitor - BlockFrames / 2.0f) < 1.0f, "the monitor read at once waits half a block");
+
+        SourceCounters counters = mixer.TakeCounters(id);
+        Check(counters.underruns == 0, "bursts do not run dry");
+        Check(counters.driftCorrections == 0, "a burst's swing is not taken for drift");
+
+        mixer.SetStage(id, false);
+        for (int i = 0; i < 20; i++)
+        {
+            std::vector<float> tone = Tone(0.5f, BlockFrames, phase);
+            mixer.Write(id, tone.data(), BlockFrames);
+            mixer.MixBlock(static_cast<int64_t>(mixed * BlockFrames));
+            mixed++;
+            mixer.ReadMonitor(out.data(), BlockFrames);
+        }
+
+        Check(std::abs(Peak(out.data(), BlockFrames, Channels) - 0.5f) < 0.01f, "off again, the capture plays directly");
+        Check(mixer.ReadStage(id, read.data(), BlockFrames) == 0, "nothing waits for a stage that is off");
+    }
+
+    double Rms(const std::vector<float>& samples, size_t first)
+    {
+        double sum = 0.0;
+        for (size_t i = first; i < samples.size(); i++)
+        {
+            sum += samples[i] * samples[i];
+        }
+
+        return std::sqrt(sum / static_cast<double>(samples.size() - first));
+    }
+
+    // Steady noise, the kind RNNoise learns to take out, falls by far once it has settled.
+    void Denoise()
+    {
+        Denoiser denoiser;
+        std::vector<float> noise(static_cast<size_t>(48000) * 2);
+        unsigned int state = 12345;
+        for (float& sample : noise)
+        {
+            state = state * 1103515245u + 12345u;
+            sample = (static_cast<float>((state >> 16) & 0x7fff) / 16384.0f - 1.0f) * 0.05f;
+        }
+
+        double before = Rms(noise, 48000);
+        Check(denoiser.Process(noise.data(), static_cast<int>(noise.size())), "the denoiser runs");
+        Check(Rms(noise, 48000) < before * 0.25, "steady noise falls by more than 12 dB");
+
+        // A held note: harmonics of 150 Hz for 8 s. RNNoise alone silenced one like it within two seconds.
+        Denoiser voice;
+        std::vector<float> note(static_cast<size_t>(48000) * 8);
+        for (size_t i = 0; i < note.size(); i++)
+        {
+            float t = static_cast<float>(i) / 48000.0f;
+            for (int h = 1; h <= 8; h++)
+            {
+                note[i] += 0.3f / static_cast<float>(h) * std::sin(2.0f * 3.14159265f * 150.0f * static_cast<float>(h) * t);
+            }
+        }
+
+        Check(Denoiser::Periodicity(note.data(), 1920) > 0.9f, "a note is periodic");
+        double held = Rms(note, 48000 * 6);
+        voice.Process(note.data(), static_cast<int>(note.size()));
+        Check(Rms(note, 48000 * 6) > held * 0.7, "a held note keeps its level after 6 s");
+
+        Check(Denoiser::Periodicity(noise.data(), 1920) < 0.6f, "noise is not periodic");
+        Denoiser::VoiceGate gate = Denoiser::NextVoiceGate({}, 0.9f, 0.1f);
+        Check(gate.Weight > 0.4f, "a voice blends the original back quickly");
+        Check(Denoiser::NextVoiceGate({}, 0.9f, 0.0001f).Weight == 0.0f, "a quiet periodic hum is not a voice");
+
+        gate = { 1.0f, 0 };
+        gate = Denoiser::NextVoiceGate(gate, 0.9f, 0.1f);
+        for (int frame = 0; frame < 10; frame++)
+        {
+            gate = Denoiser::NextVoiceGate(gate, 0.1f, 0.1f);
+        }
+
+        Check(gate.Weight == 1.0f, "a voice is held for 100 ms after its last voiced frame");
+        for (int frame = 0; frame < 3; frame++)
+        {
+            gate = Denoiser::NextVoiceGate(gate, 0.1f, 0.1f);
+        }
+
+        Check(gate.Weight < 0.05f, "and then let go within a few frames");
+
+        // A held note with 30 ms of breath noise at the same level in the middle, as when a sung note turns rough.
+        Denoiser rough;
+        std::vector<float> roughNote(static_cast<size_t>(48000) * 4);
+        uint32_t breath = 7u;
+        for (size_t i = 0; i < roughNote.size(); i++)
+        {
+            float t = static_cast<float>(i) / 48000.0f;
+            if (i >= 96000 && i < 96000 + 1440)
+            {
+                breath = breath * 1103515245u + 12345u;
+                roughNote[i] = (static_cast<float>((breath >> 16) & 0x7fff) / 16384.0f - 1.0f) * 0.4f;
+                continue;
+            }
+
+            for (int h = 1; h <= 8; h++)
+            {
+                roughNote[i] += 0.3f / static_cast<float>(h) * std::sin(2.0f * 3.14159265f * 150.0f * static_cast<float>(h) * t);
+            }
+        }
+
+        std::vector<float> roughOriginal = roughNote;
+        rough.Process(roughNote.data(), static_cast<int>(roughNote.size()));
+        double lowest = 1.0;
+        for (size_t at = 48000; at + 960 <= roughNote.size(); at += 480)
+        {
+            double out = 0.0;
+            double in = 0.0;
+            for (size_t i = at; i < at + 960; i++)
+            {
+                out += static_cast<double>(roughNote[i]) * roughNote[i];
+                in += static_cast<double>(roughOriginal[i - Denoiser::DelaySamples]) * roughOriginal[i - Denoiser::DelaySamples];
+            }
+
+            lowest = std::min(lowest, std::sqrt(out / in));
+        }
+
+        Check(lowest > 0.7, "a rough moment inside a note does not cut a gap into it");
+    }
+
     void MonitorBus()
     {
         Mixer mixer(Frequency);
@@ -316,6 +484,88 @@ namespace
         Check(state == VV_AUDIO_SOURCE_ERROR && problem == VV_AUDIO_PROBLEM_IN_USE, "a device in exclusive use");
         DeviceLoop::Classify(E_ACCESSDENIED, state, problem);
         Check(problem == VV_AUDIO_PROBLEM_ACCESS_DENIED, "microphone access denied by Windows");
+    }
+
+    // A file through Media Foundation: a 16-bit stereo WAV at 44.1 kHz, its channels opposite in sign but for
+    // an offset, so the mono mix is the offset alone and the file's rate is kept.
+    void AudioFiles()
+    {
+        float pair[] = { 0.5f, -0.25f, 0.0f, 1.0f };
+        std::vector<float> mono = ToMono(pair, 2, 2);
+        Check(mono.size() == 2 && mono[0] == 0.125f && mono[1] == 0.5f, "channels are averaged");
+
+        constexpr int Rate = 44100;
+        constexpr int Frames = Rate / 2;
+        std::vector<int16_t> pcm(Frames * 2);
+        for (int i = 0; i < Frames; i++)
+        {
+            int16_t tone = static_cast<int16_t>(8000.0f * std::sin(static_cast<float>(i) * 2.0f * 3.14159265f * 440.0f / Rate));
+            pcm[i * 2] = static_cast<int16_t>(tone + 3277);
+            pcm[(i * 2) + 1] = static_cast<int16_t>(-tone + 3277);
+        }
+
+        const uint32_t dataBytes = static_cast<uint32_t>(pcm.size() * sizeof(int16_t));
+        std::vector<char> wav(44 + dataBytes);
+        auto put32 = [&](size_t at, uint32_t v) { std::memcpy(&wav[at], &v, 4); };
+        auto put16 = [&](size_t at, uint16_t v) { std::memcpy(&wav[at], &v, 2); };
+        std::memcpy(&wav[0], "RIFF", 4);
+        put32(4, 36 + dataBytes);
+        std::memcpy(&wav[8], "WAVEfmt ", 8);
+        put32(16, 16);
+        put16(20, 1);
+        put16(22, 2);
+        put32(24, Rate);
+        put32(28, Rate * 4);
+        put16(32, 4);
+        put16(34, 16);
+        std::memcpy(&wav[36], "data", 4);
+        put32(40, dataBytes);
+        std::memcpy(&wav[44], pcm.data(), dataBytes);
+
+        wchar_t folder[MAX_PATH];
+        GetTempPathW(MAX_PATH, folder);
+        std::wstring path = std::wstring(folder) + L"vv_audio_tests.wav";
+        HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        DWORD written = 0;
+        bool saved = file != INVALID_HANDLE_VALUE && WriteFile(file, wav.data(), static_cast<DWORD>(wav.size()), &written, nullptr) && written == wav.size();
+        if (file != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(file);
+        }
+
+        Check(saved, "the test file is written");
+        vv_audio_clip* clip = nullptr;
+        int32_t rate = 0;
+        int64_t count = 0;
+        int32_t error = 0;
+        int32_t result = vv_audio_decode_file(path.c_str(), &clip, &rate, &count, &error);
+        if (result != VV_AUDIO_OK && error == static_cast<int32_t>(NoMediaFoundation))
+        {
+            // Windows N editions have no Media Foundation unless its pack is installed.
+            std::printf("SKIP files: no Media Foundation\n");
+        }
+        else
+        {
+            Check(result == VV_AUDIO_OK, "a WAV file is decoded");
+            Check(rate == Rate, "at its own rate");
+            Check(count == Frames, "every frame");
+            std::vector<float> samples(static_cast<size_t>(count));
+            Check(vv_audio_clip_read(clip, samples.data(), count) == VV_AUDIO_OK, "the samples are read");
+            float worst = 0.0f;
+            for (float s : samples)
+            {
+                worst = std::max(worst, std::fabs(s - (3277.0f / 32768.0f)));
+            }
+
+            Check(worst < 0.001f, "the channels are mixed to mono");
+        }
+
+        vv_audio_clip_free(clip);
+        DeleteFileW(path.c_str());
+
+        clip = nullptr;
+        result = vv_audio_decode_file(L"C:\\no such folder\\none.m4a", &clip, &rate, &count, &error);
+        Check(result == VV_AUDIO_UNREADABLE && clip == nullptr && error != 0, "a missing file is unreadable");
     }
 
     // Where each export starts in the DLL, so a crash's offset can be placed in a function.
@@ -476,10 +726,13 @@ int main()
     Step("drift", [] { Drift(1.001, "a device 0.1% fast"); Drift(0.999, "a device 0.1% slow"); });
     Step("running dry", RunningDry);
     Step("tap timing", TapTiming);
+    Step("stage", Stage);
+    Step("denoise", Denoise);
     Step("monitor bus", MonitorBus);
     Step("fill", Fill);
     Step("ramps", Ramps);
     Step("problems", Problems);
+    Step("audio files", AudioFiles);
     Step("the engine on this PC", EngineOnThisPc);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;

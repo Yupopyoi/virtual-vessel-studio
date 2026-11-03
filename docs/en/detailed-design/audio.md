@@ -111,6 +111,21 @@ typedef struct vv_audio_stream_tap
 - Managed code gets it from `vv_audio_get_stream_tap` and passes it to the encoder as plain values; Video never links to the audio DLL. Recording and streaming each have a tap with its own place on the bus (`VV_AUDIO_READER_*`, API version 3).
 - One reader at a time (recording; streaming shares the same encoded audio).
 
+### 5.4 Reading Audio Files
+
+```c
+// Decodes a whole audio file with Media Foundation to mono floats at the file's own rate.
+int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+void vv_audio_clip_free(vv_audio_clip* clip);
+```
+
+- It reads M4A (AAC), MP3, WAV, and the other formats Windows can decode (API version 8). Windows' own decoders do the work, so the plugin carries no codec (system design: Windows' built-in features first).
+- It needs no engine and may be called from any thread. Managed code calls the static `AudioFile.ReadMono` off the main thread; it throws `InvalidDataException` for a file it cannot read and `AudioEngineException` when the plugin is missing or older.
+- Files are read up to `VV_AUDIO_MAX_FILE_SECONDS` (600 s), so a long file chosen by mistake cannot use up the memory.
+- Media Foundation is delay-loaded. On Windows without it (an N edition without the Media Feature Pack) the engine still runs, and only reading a file gives `VV_AUDIO_UNREADABLE`.
+- For now it serves Play an audio file in voice conversion (prototype) on the Diagnostics screen, such as an M4A recorded on a phone. There, WAV is read by Voice's `WavFile`, without the plugin. Later it also serves playing BGM and sound effect files (`AudioSourceInput` in chapter 4).
+
 ## 6. Data Models
 
 - Format inside: 48 kHz, 32-bit float, stereo. A mono source is copied to both channels.
@@ -141,6 +156,9 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - A managed stage declares its latency and block size. The engine gives it a ring buffer of its source's input and takes its output from another, both 48 kHz float.
 - The stage's work (for RVC, Inference Engine on the GPU) runs on its own schedule in Unity; the engine only copies blocks in and out, so a slow stage never stalls the mix: if its output is late, the engine plays silence for that source and counts it.
 - Removing a stage connects the source straight through again, without reopening the device (system design 9.3, 9.8).
+- `vv_audio_get_stage_delay` (API 7) reports how long a stage's audio waits between the microphone and the monitor. For the rings (the stage's input and output, the monitor) and the output device's buffer it keeps the average fill, a moving average over about half a second; by Little's law the average fill is the average wait there. The devices' own latency is what Windows reports (`GetStreamLatency`). USB, Bluetooth, and the converters are not included.
+
+The prototype's results are in the [decision record](../decisions/voice-conversion.md). `vv_audio_set_stage` turns a source's capture to the stage, and `vv_audio_stage_read` and `vv_audio_stage_write` move the audio.
 
 ### 8.4 Aligning Sources in Time
 
@@ -208,8 +226,8 @@ Settings only (10). No audio is stored by this module; recordings are written by
 
 | Kind | Target |
 |---|---|
-| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others |
-| EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration |
+| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others. Audio files: a written WAV's rate and mono mix, and a missing file |
+| EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration. `AudioFile` (skipped without the plugin) |
 | Hardware (manual) | A real microphone and capture board: levels, unplugging, the recording's sync (recording detailed design 14) |
 
 ## 15. Performance
@@ -221,12 +239,12 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 4: a tap per reader)
+native/audio/include/vv_audio.h        The C API (version 8: audio files)
 native/audio/src/                      mixer (the mix, the buses, the tap; no threads or devices), frame_ring, fill_tracker (a ring between two clocks),
                                        dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
-                                       device_output (the monitor's playback), exports (the engine and its mix thread)
+                                       device_output (the monitor's playback), audio_file (reading files with Media Foundation), exports (the engine and its mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
-Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine)
+Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine), AudioFile
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard (setup screen), AudioStrip (live screen)
 ```

@@ -26,9 +26,9 @@
 
 等を意識させない。
 
-Pythonを利用するComponentは、通常利用者向けにはBuild済みのPortable Runtime PackageまたはStandalone Executableとして配布することを基本とする。
+Pythonを利用するComponentは、通常利用者のPCへ、アクティベーションのときに構築する（13.4）。
 
-Unityアプリケーション側から必要な処理を要求した場合に、インストール済みのRuntime Packageを確認し、必要な外部サービスまたは外部プロセスを自動的に準備・起動して利用可能な状態にする。
+Unityアプリケーション側から必要な処理を要求した場合に、構築済みの環境を確認し、必要な外部サービスまたは外部プロセスを自動的に準備・起動して利用可能な状態にする。
 
 開発者は同一SourceとDependency Definition / Lockを用いて、Native Python + venv環境から各Componentを直接実行・Test可能とする。
 
@@ -638,10 +638,10 @@ Pythonを利用するExternal Service / Processは、13章で管理される実�
 
 OSのGlobal Pythonや、Shellで現在Activateされている環境へ依存しない。
 
-通常利用者向けの配布環境では、Runtime Packageの`manifest.json`が示すLauncher / Executableを起動する（13.6、13.7参照）。
+通常利用者の環境では、`manifest.json`が示す実行ファイルを起動する（13.6、13.7参照）。
 
 ```text
-External/<Component>/<RuntimePackageVersion>/manifest.json
+External/VoiceLab/<ComponentsVersion>/manifest.json
         ↓
 Launcher / Executable
 ```
@@ -678,15 +678,15 @@ External Service Managerは、基本的に**インストール済みComponentの
 - External OSS / Source Version管理
 - Dependency Definition / Lock管理
 - 開発者向けvenv構築手順
-- Runtime Package Build情報管理
-- Runtime Package取得
+- Manifestの管理
+- 環境の取得
 - Package Hash / Integrity確認
-- Runtime Package展開・登録
+- 環境の構築・登録
 - Update
 - Rollback
 - Capability / Dependency Verification
 
-通常利用者向けSetupでは、Sourceからvenvを構築することを基本とはせず、Build済みRuntime Packageを導入する。
+通常利用者向けSetupでは、Hashを固定したManifestとLockから環境を構築する。
 
 External Service ManagerからComponentが見つからない場合は、Setup機能へ処理を誘導する。
 
@@ -881,7 +881,7 @@ Cancellationの意味をServiceごとに明確にする。
 
 - Port番号
 - PID
-- Runtime Package Path / Developer venv Path
+- 環境のPath / Developer venv Path
 - Python Command
 - Health Endpoint
 
@@ -1056,9 +1056,9 @@ Applicationが異常終了した場合、外部Serviceだけが残る可能性�
 
 - External Component Manifest確認
 - Version選択
-- Build済みRuntime Package取得
+- 環境の取得
 - Package Hash / Integrity確認
-- Runtime Package展開・登録
+- 環境の構築・登録
 - 必要なModel / Asset取得
 - Capability / Environment Verification
 - Service起動Test
@@ -1152,7 +1152,7 @@ Process起動、Port管理、Health Check、Service固有API、Version管理等�
 12. Port競合時に他Applicationを勝手に終了しない。
 13. 自分が起動したProcessと再利用Processを区別する。
 14. 所有していないProcessを勝手に停止しない。
-15. PythonはApplicationが管理する実行環境（配布時はRuntime Package、開発時は開発用venv）を明示して実行する。
+15. PythonはApplicationが管理する実行環境（利用者のPCでは構築した環境、開発時は開発用venv）を明示して実行する。
 16. External Componentの取得・更新とService Lifecycleを分離する。
 17. Service VersionとAdapter Versionの互換性を確認する。
 18. Process存在とService Healthを区別する。

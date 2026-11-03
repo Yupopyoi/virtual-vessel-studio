@@ -149,49 +149,38 @@ RVC、VoxCPM2等の外部OSSについては、原則として本体ソースコ�
 
 ---
 
-## 13.4 外部OSS・Runtime Package取得方式
+## 13.4 外部OSS・学習環境の取得方式
 
-RVC、VoxCPM2等のPythonを利用するExternal Componentについて、通常利用者へGit操作、Python導入、venv作成、pip操作等の手動セットアップを要求しない。
+声を作る機能は、利用者がアクティベーションするまで動かない。アクティベーションのときに、利用者のPCへ学習環境を構築する。インターネット接続を前提とする（利用者の決定、2026-11-01）。
+
+RVC、VoxCPM2等のPythonを利用するExternal Componentについて、通常利用者へGit操作、Python導入、venv作成、pip操作等の手動セットアップを要求しない。構築はアプリが自動で行う。
 
 開発時にはExternal OSSのSourceを取得し、固定したVersion / CommitおよびDependency Definition / Lockを用いて検証する。
 
-通常利用者向けには、これらのSourceと依存環境からBuild Pipelineによって生成した**Component Runtime Package**を配布することを基本とする。
+通常利用者のPCでは、開発時に検証したものと同じものを、Hashを固定したManifestとLockから取得する。
 
-Component Runtime PackageにはComponentの特性に応じて、
-
-- 実行用Python Runtime
-- Python Dependency
-- 本システム側Service / Adapter実装
-- 実行に必要なExternal OSS Code
-- Launcher / Executable
-- Runtime Package Manifest
-
-等を含める。
-
-Model Weight、Dataset、Training Artifact等の大容量DataはRuntime Packageそのものと分離して管理可能とし、必要に応じて別途取得・登録する。
+- Pythonの実行環境
+- Python Dependency（Lockのとおり）
+- External OSS Code（固定のCommit）
+- Model Weight
+- 本システムのAdapter実装（アプリに同梱）
 
 通常利用者向けの導入フローは概念的に以下とする。
 
 ```text
-Voice Lab初回起動
+Voice Labを開く
         ↓
-必要コンポーネント確認
+説明と利用規約の表示・同意
+        ↓
+PCの条件確認（GPU、空き容量、接続）
         ↓
 Component Manifest確認
         ↓
-未導入Runtime Package検出
+取得（再開可能、Hash確認）
         ↓
-Runtime Package取得
+Application管理領域へ構築
         ↓
-Package Hash / Integrity確認
-        ↓
-Application管理領域へ展開
-        ↓
-Capability / Environment確認
-        ↓
-Service起動確認
-        ↓
-Health Check
+短い学習を実際に動かして確認
         ↓
 Voice Lab利用可能
 ```
@@ -206,21 +195,17 @@ pip install ...
 
 等を手動実行することを通常の利用手順とはしない。
 
+取得元が消えた場合に備え、ライセンス上許されるModel WeightとExternal OSS Codeは本プロジェクトのGitHub Releaseにも控えを置き、配布元に無いときはそこから同じHashで取得する。取得先が生きていることは定期的なCIで確かめる。
+
 ### 採用理由
 
 本システムの目的はVTuber統合環境（Virtual Vessel Studio）を提供することであり、一般利用者へGitやPython環境構築の知識を要求することは望ましくない。
 
-また、利用者環境でSourceからDependencyを毎回構築すると、
+環境をBuildして配布する方式は再現性に優れるが、PyTorchとCUDA関連Libraryの再配布が必要になる。声を作らない利用者には不要な容量でもある。アクティベーションのときに配布元から取得すれば、アプリの配布物を小さく保ち、それらを再配布せずに済む。
 
-- Python Version
-- PyTorch Version
-- CUDA関連Library
-- Package Resolution
-- External OSS Version
+利用者の環境ごとの差異は、Python Version、Dependency、External OSS CommitをすべてHashで固定することで抑える。
 
-等の差異が発生しやすく、不具合の再現性が低下する。
-
-動作確認済みのRuntime Packageを配布単位とすることで、通常利用者のSetup負担を減らしつつ、開発・Test時に確認した環境との差異を抑える。
+配布元の変更や削除の影響は受けるが、登録済みの声での配信と、構築済みの環境には影響しない。Hashが合わないものは使わないので、改ざんされたものを動かすこともない。
 
 ---
 
@@ -238,7 +223,7 @@ pip install ...
 
 外部コンポーネントの対応情報は、Manifest等によって管理する。
 
-概念例：
+概念例（`RuntimePackageVersion`等の項目は、環境のVersionと読み替える）：
 
 ```text
 External Components Manifest
@@ -339,45 +324,27 @@ Dependencyは`pyproject.toml`、requirements系File、Lock File等の明示的�
 
 通常利用者にはPython本体やvenvを要求しない。
 
-Build Pipelineで生成したPortable Runtime PackageまたはStandalone ExecutableをApplication管理領域へ配置し、Unity ApplicationはそのLauncher / Executableを明示的に起動する。
+アクティベーションのときに、アプリがuvを使ってApplication管理領域へ環境を構築する。uvはHashを確かめて取得し、Python本体もuvが用意する。Unity Applicationは構築された環境の実行ファイルを明示的に起動する。
 
 概念的には以下の構成を想定する。
 
 ```text
 External/
-├─ RVC/
-│  └─ <RuntimePackageVersion>/
-│     ├─ runtime/
-│     ├─ component/
-│     └─ manifest.json
-│
-├─ VoxCPM2/
-│  └─ <RuntimePackageVersion>/
-│     ├─ runtime/
-│     ├─ component/
-│     └─ manifest.json
-│
-└─ VoiceAnalysis/
-   └─ <RuntimePackageVersion>/
-      ├─ runtime/
-      ├─ component/
+└─ VoiceLab/
+   └─ <ComponentsVersion>/
+      ├─ uv.exe
+      ├─ python/
+      ├─ venv/
+      ├─ rvc/
+      ├─ models/
       └─ manifest.json
 ```
-
-`runtime/`はComponentの方式に応じて、
-
-- 埋め込み用Python Runtime
-- 必要なPython Package
-- Native Library
-- その他実行時Dependency
-
-等を含む。
 
 通常利用者がvenvをActivateしたり、`pip install`を実行したりする構成とはしない。
 
 ### 開発環境と配布環境の対応
 
-開発用venvと配布用Runtime Packageは別物とするが、可能な限り同一の、
+開発用venvと利用者のPCの環境は別物とするが、同一の、
 
 - Source Version / Commit
 - Python Version
@@ -394,11 +361,11 @@ Source + Dependency Lock
           ↓
    Developer venv
           ↓
-      Test / Build
+         Test
           ↓
- Runtime Package
+   Manifest / Lock
           ↓
-      End User
+ 利用者のPCで構築
 ```
 
 という関係を維持する。
@@ -420,9 +387,14 @@ RVC、VoxCPM2、Voice Analysisでは、それぞれ要求するPython、PyTorch�
 
 ## 13.7 Python Component Build・配布方式
 
-Python Componentは、開発用Sourceから通常利用者向けRuntime Packageを生成可能なBuild Pipelineを持つ。
+本プロジェクトが配布するのは、環境そのものではなく、環境を作るための情報である。
 
-概念的なBuild Flowを以下とする。
+- Component Manifest：取得するもの、Version、Hash
+- Dependency Lock
+- Adapter / Service Code
+- Runtime用のひな形とモデル（`.sentis`）
+
+これらは、開発用Sourceから次の流れで作る。
 
 ```text
 Source
@@ -433,116 +405,65 @@ Dependency Definition / Lock
         ↓
 Developer venv
         ↓
-Build / Unit Test / Integration Test
+Unit Test / Integration Test
         ↓
-Runtime Package生成
-        ↓
-Package起動Test
+構築Test（空の環境でManifestから構築する）
         ↓
 Health Check / Compatibility Test
-        ↓
-Hash生成
         ↓
 Manifest更新
         ↓
 Release Artifact
 ```
 
-### 軽量Component
-
-依存関係が比較的単純なService / Toolについては、PyInstaller等を用いたStandalone Bundleを採用可能とする。
-
-基本的には展開Directoryを持つ方式を優先し、単一Executable化を必須としない。
-
-### 重量級Component
-
-PyTorch、CUDA関連Library、多数のDynamic Import等を含むVoxCPM2やRVC Training等については、Python RuntimeとDependencyをComponent単位でまとめたPortable Runtime方式を採用可能とする。
-
-Pythonを完全に単一Executableへ押し込むことをArchitecture上の必須要件とはしない。
-
-### Build Toolの選択
-
-具体的なBuild ToolはComponentごとの特性を考慮して詳細設計で決定する。
-
-候補例：
-
-- PyInstaller
-- CPython Embedded Distributionを利用したPortable Runtime
-- その他Standalone / Portable Packaging方式
-
 方式設計として固定するのは特定Toolではなく、
 
 1. 通常利用者へPython Installationを要求しない
-2. Build成果物単位でVersionを識別できる
+2. 環境のVersionを識別できる
 3. Source / Dependencyとの対応を追跡できる
 4. Component単位で更新・Rollbackできる
-5. DiagnosticsからRuntime Versionを確認できる
+5. DiagnosticsからVersionを確認できる
 
-ことである。
+ことである。具体的なToolは詳細設計で決定する（Voice Lab詳細設計）。
 
 ### Model / Datasetとの分離
 
-Model Weight、Dataset、Training Artifact等はRuntime Packageと分離して管理する。
-
-Runtime Package更新のたびに大容量ModelやDatasetを再配布する構成を避ける。
+Dataset、Training Artifact等は環境と分離して管理する。環境を作り直しても、作った声と学習用の音声は残る。
 
 ### 採用理由
 
-軽量ServiceとPyTorch / CUDAを含む重量級Componentでは、適したPackaging方式が異なる。
-
-すべてを同じ形式へ強制するのではなく、利用者から見た実行方式とVersion管理方式を統一しつつ、Component内部のPackaging方法には適切な選択肢を残す。
+環境そのものの配布をやめても、Hashを固定した情報を配布すれば、Sourceとの対応と再現性は保てる。
 
 ---
 
 ## 13.8 External Component更新方式
 
-インストール済みExternal Componentを更新する場合、既存Runtime Packageへ直接上書きしないことを基本とする。
-
-例えば、
+環境を更新する場合、既存の環境へ直接上書きしない。アプリの更新で新しいManifestが届いたら、別のDirectoryへ新しい環境を構築する。
 
 ```text
-RVC/
-├─ RuntimePackageA/
-│  ├─ runtime/
-│  ├─ component/
-│  └─ manifest.json
-│
-└─ RuntimePackageB/
-   ├─ runtime/
-   ├─ component/
-   └─ manifest.json
+External/VoiceLab/
+├─ <ComponentsVersionA>/
+└─ <ComponentsVersionB>/
 ```
-
-のように、新Versionを別Directoryへ展開する。
 
 更新時には概念的に以下を行う。
 
-1. 新Runtime Package情報を取得する
-2. PackageをDownloadする
-3. Hash / Integrityを確認する
-4. 新Version用Directoryへ展開する
-5. Capability / Environmentを確認する
-6. Service起動確認を行う
-7. Health Checkを行う
-8. Adapter / API互換性を確認する
-9. 利用Versionを切り替える
+1. 新しいManifestを確認する
+2. 取得し、Hashを確認する
+3. 新Version用Directoryへ構築する
+4. 短い学習を実際に動かして確認する
+5. 利用Versionを切り替える
+6. 古い環境を削除する
 
-問題が発生した場合は、旧Runtime Packageへ戻せる構成とする。
+問題が発生した場合は、旧環境へ戻せる構成とする。
 
-開発者向けのSource / venv更新は、通常利用者向けRuntime Package更新とは別の開発作業として扱う。
+開発者向けのSource / venv更新は、通常利用者向けの更新とは別の開発作業として扱う。
 
 ### 採用理由
 
 既存環境へ直接Updateを適用すると、更新失敗時にそれまで動作していたVoice Labまで利用不能になる可能性がある。
 
-Runtime PackageをVersion単位で分離することで、
-
-- Update失敗の隔離
-- Rollback
-- A/B比較
-- Compatibility Test
-
-を行いやすくする。
+環境をVersion単位で分離することで、Update失敗の隔離とRollbackを行いやすくする。
 
 ---
 
@@ -643,6 +564,8 @@ Datasetを独立管理することで、
 学習履歴管理には**SQLiteを採用する**。
 
 学習1回を1つの`Training Run`として管理する。
+
+最初の版はSQLiteを使わず、`run.json`で管理する。比較の画面を作るときにSQLiteを導入する（利用者の承認、2026-11-01）。
 
 SQLiteには少なくとも以下を保存する。
 
@@ -945,6 +868,8 @@ Voice Labから明示的に**Runtime用モデルとして登録**する。
 - 推奨Pitch等の設定
 - Runtime管理領域へのコピー
 
+Unity Inference Engine用の変換はUnity Editorにしかないので、配布したアプリでは、開発者が作ったひな形へ学習した重みを書き込む（Voice Lab詳細設計8.4）。
+
 概念的には以下の流れとする。
 
 ```text
@@ -1045,9 +970,9 @@ Developer Diagnosticsでは、必要に応じて以下を確認可能とする�
 - 外部OSS Version / Commit
 - Adapter Version
 - Execution Mode（Portable Runtime / Developer venv）
-- Runtime Package Version / Build Id
+- 環境のVersion
 - Python Version
-- Runtime Package Path / venv Path
+- 環境のPath / venv Path
 - PyTorch Version
 - CUDA Version
 - Package Version
@@ -1134,14 +1059,14 @@ VoiceLab/
 4. 一般利用者へPython Installation、venv作成・Activation、pip操作を要求しない。
 5. 外部OSSは本システムが対応確認したVersion / Commitを使用する。
 6. 開発者向けにはExternal Componentごと、かつVersionごとにNative Python + venvで検証可能な環境を用意する。
-7. 通常利用者向けにはBuild済みRuntime PackageまたはStandalone Executableを提供する。
-8. 開発用venvと配布用Runtime Packageは、可能な限り同一のSource Version、Python Version、Dependency Definition / Lockを基準とする。
-9. Runtime PackageはComponent単位・Version単位で管理する。
-10. External Component更新時には既存Runtime Packageへ直接上書きしない。
-11. 更新失敗時には旧Runtime Packageへ戻せる構成とする。
-12. Model Weight、Dataset、Training Artifact等の大容量DataはRuntime Packageと分離する。
+7. 通常利用者向けには、Hashを固定したManifestとLockから、アクティベーションのときに環境を構築する。
+8. 開発用venvと利用者のPCの環境は、同一のSource Version、Python Version、Dependency Definition / Lockを基準とする。
+9. 環境はVersion単位で管理する。
+10. External Component更新時には既存の環境へ直接上書きしない。
+11. 更新失敗時には旧環境へ戻せる構成とする。
+12. Dataset、Training Artifact等のDataは環境と分離する。
 13. 利用者向けUIにはPython、venv、Port、Process等の内部構造を必要以上に露出しない。
-14. 開発者向けにはExternal OSS、Runtime Package、Python、Dependency、Process、Log等を十分に確認可能とする。
+14. 開発者向けにはExternal OSS、環境、Python、Dependency、Process、Log等を十分に確認可能とする。
 15. 学習履歴は外部OSS側ではなくSQLiteで管理する。
 16. 大容量成果物はDBへ格納せず、File System上で管理する。
 17. 学習環境と配信Runtimeを明確に分離する。

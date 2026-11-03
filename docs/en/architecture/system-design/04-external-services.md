@@ -26,9 +26,9 @@ However, normal users are not made aware of
 
 and similar matters.
 
-Components that use Python are, as a rule, distributed to normal users as built portable runtime packages or standalone executables.
+Components that use Python are built on normal users' PCs at activation (13.4).
 
-When the Unity application requests a required operation, it checks the installed runtime package and automatically prepares and starts the required external service or external process so that it can be used.
+When the Unity application requests a required operation, it checks the built environment and automatically prepares and starts the required external service or external process so that it can be used.
 
 Developers can run and test each component directly from a native Python + venv environment using the same source and dependency definition / lock.
 
@@ -628,10 +628,10 @@ External services / processes that use Python are started by explicitly specifyi
 
 They do not depend on the OS global Python or the environment currently activated in the shell.
 
-In the distribution environment for normal users, the launcher / executable indicated by the runtime package's `manifest.json` is started (see 13.6 and 13.7).
+In normal users' environments, the executable indicated by `manifest.json` is started (see 13.6 and 13.7).
 
 ```text
-External/<Component>/<RuntimePackageVersion>/manifest.json
+External/VoiceLab/<ComponentsVersion>/manifest.json
         ↓
 Launcher / Executable
 ```
@@ -668,15 +668,15 @@ The following are the responsibilities of external component management in Chapt
 - external OSS / source version management
 - dependency definition / lock management
 - developer venv setup procedures
-- runtime package build information management
-- obtaining runtime packages
+- manifest management
+- obtaining the environment
 - package hash / integrity verification
-- extracting and registering runtime packages
+- building and registering the environment
 - update
 - rollback
 - capability / dependency verification
 
-Setup for normal users does not, as a rule, build a venv from source but installs a built runtime package.
+Setup for normal users builds the environment from a manifest and lock with pinned hashes.
 
 If the External Service Manager cannot find a component, it guides processing to the setup function.
 
@@ -869,7 +869,7 @@ The normal UI, as a rule, does not display
 
 - port numbers
 - PIDs
-- runtime package paths / developer venv paths
+- environment paths / developer venv paths
 - Python commands
 - health endpoints
 
@@ -1042,9 +1042,9 @@ Setup for normal users mainly performs:
 
 - checking the external component manifest
 - version selection
-- obtaining built runtime packages
+- obtaining the environment
 - package hash / integrity verification
-- extracting and registering runtime packages
+- building and registering the environment
 - obtaining required models / assets
 - capability / environment verification
 - service startup test
@@ -1138,7 +1138,7 @@ This system adopts the following basic principles for external service managemen
 12. Do not terminate other applications without permission on port conflicts.
 13. Distinguish processes started by the application from reused processes.
 14. Do not stop processes that are not owned without permission.
-15. Run Python by explicitly specifying the execution environment managed by the application (the runtime package in distribution, the development venv in development).
+15. Run Python by explicitly specifying the execution environment managed by the application (the built environment on a user's PC, the development venv in development).
 16. Separate obtaining / updating external components from the service lifecycle.
 17. Verify compatibility between service versions and adapter versions.
 18. Distinguish process existence from service health.

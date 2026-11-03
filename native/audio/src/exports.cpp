@@ -2,8 +2,10 @@
 
 #include "vv_audio.h"
 
+#include "audio_file.h"
 #include "device_output.h"
 #include "device_source.h"
+#include "denoiser.h"
 #include "mixer.h"
 
 #include <windows.h>
@@ -68,6 +70,11 @@ namespace
     };
 }
 
+struct vv_audio_clip
+{
+    vv::audio::DecodedFile decoded;
+};
+
 struct vv_audio_engine
 {
     explicit vv_audio_engine(int64_t frequency)
@@ -79,6 +86,7 @@ struct vv_audio_engine
     int64_t frequency;
     DeviceOutput monitor;
     TapReader readers[MaxReaders];
+    vv::audio::Denoiser denoiser;
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
     std::atomic<bool> stop{ false };
@@ -361,6 +369,76 @@ extern "C"
         }
     }
 
+    int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, int32_t count)
+    {
+        if (engine == nullptr || samples == nullptr || count < 0 || count % VV_AUDIO_DENOISE_FRAMES != 0)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        return engine->denoiser.Process(samples, count) ? VV_AUDIO_OK : VV_AUDIO_OUT_OF_MEMORY;
+    }
+
+    int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        engine->mixer.SetStage(source, enabled != 0);
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        if (frames == nullptr || capacity < 0 || read == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *read = static_cast<int32_t>(engine->mixer.ReadStage(source, frames, static_cast<size_t>(capacity)));
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count)
+    {
+        if (engine == nullptr || !engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        if (frames == nullptr || count < 0)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        engine->mixer.WriteStage(source, frames, static_cast<size_t>(count));
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_get_stage_delay(vv_audio_engine* engine, int32_t source, vv_audio_stage_delay* delay)
+    {
+        if (engine == nullptr || delay == nullptr || !engine->mixer.Used(source) || !engine->sources[source])
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        vv::audio::StageDelay rings = engine->mixer.GetStageDelay(source);
+        delay->capture_device = static_cast<float>(engine->sources[source]->DeviceLatency());
+        delay->stage_input = rings.stageInput;
+        delay->stage_output = rings.stageOutput;
+        delay->monitor = rings.monitor;
+        delay->output_buffer = engine->monitor.BufferWait();
+        delay->output_device = static_cast<float>(engine->monitor.DeviceLatency());
+        return VV_AUDIO_OK;
+    }
+
     int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted)
     {
         if (engine == nullptr || !engine->mixer.Used(source))
@@ -478,6 +556,54 @@ extern "C"
 
         engine->mixer.SetStreamDelay((static_cast<int64_t>(delay_ms) * engine->frequency) / 1000);
         return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error)
+    {
+        if (path == nullptr || clip == nullptr || rate == nullptr || count == nullptr || error == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *clip = nullptr;
+        *rate = 0;
+        *count = 0;
+        *error = 0;
+        auto created = new (std::nothrow) vv_audio_clip();
+        if (created == nullptr)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+
+        HRESULT hr = vv::audio::DecodeFile(path, created->decoded);
+        if (FAILED(hr))
+        {
+            delete created;
+            *error = static_cast<int32_t>(hr);
+            return hr == vv::audio::FileTooLong ? VV_AUDIO_TOO_LONG : hr == E_OUTOFMEMORY ? VV_AUDIO_OUT_OF_MEMORY : VV_AUDIO_UNREADABLE;
+        }
+
+        *clip = created;
+        *rate = created->decoded.rate;
+        *count = static_cast<int64_t>(created->decoded.samples.size());
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity)
+    {
+        if (clip == nullptr || capacity < 0 || (samples == nullptr && capacity > 0))
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        const std::vector<float>& decoded = clip->decoded.samples;
+        std::copy_n(decoded.begin(), std::min(static_cast<size_t>(capacity), decoded.size()), samples);
+        return VV_AUDIO_OK;
+    }
+
+    void vv_audio_clip_free(vv_audio_clip* clip)
+    {
+        delete clip;
     }
 
     int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap)

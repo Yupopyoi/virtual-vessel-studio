@@ -345,6 +345,24 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .notice span { color: var(--text-2); font-size: 13px; }
 
 .progress { height: 8px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.step { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface-2); border-radius: var(--radius-pill); padding: 6px 14px 6px 6px; color: var(--text-2); font: inherit; font-weight: 500; font-size: 13px; cursor: pointer; }
+.step .n { height: 24px; padding: 0 10px; border-radius: var(--radius-pill); display: grid; place-items: center; background: var(--surface-3); font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+.step[aria-current="step"] { color: var(--text); border-color: var(--accent-line); background: var(--tint); }
+.step[aria-current="step"] .n { background: var(--accent-1); color: var(--on-accent); }
+.step.done .n { color: var(--success); background: var(--chip-ok); }
+.tile { display: grid; gap: 10px; padding: 12px; border-radius: var(--radius-m); border: 1px solid var(--border); background: var(--surface); max-width: 260px; }
+.tile.picked { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line); background: var(--tint); }
+.tile-head { display: flex; align-items: center; gap: 10px; }
+.tile-head b { margin-right: auto; }
+.tile .stats { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 0; font-size: 12px; }
+.tile .stats dt { color: var(--text-3); }
+.tile .stats dd { margin: 0; }
+.span { position: relative; height: 14px; }
+.span::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--surface-3); }
+.span .band { position: absolute; top: 4px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--accent-1) 45%, var(--surface-3)); }
+.span .mid { position: absolute; top: 1px; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: var(--accent-1); }
+.scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }
 .progress i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); }
 
 .scrim-sample { background: var(--scrim); padding: var(--space-l); border-radius: var(--radius-m); }
@@ -801,6 +819,24 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
           </div>
         </div>
         <div class="cell">
+          <span class="cap" data-i18n="c.steps">段階の表示と候補のタイル</span>
+          <ol class="steps" aria-label="Steps">
+            <li><button class="step done"><span class="n">STEP 1</span><span data-i18n="c.step1">土台を選ぶ</span></button></li>
+            <li><button class="step" aria-current="step"><span class="n">STEP 2</span><span data-i18n="c.step2">声色を寄せる</span></button></li>
+            <li><button class="step"><span class="n">STEP 3</span><span data-i18n="c.step3">作る</span></button></li>
+          </ol>
+          <div class="tile picked">
+            <div class="tile-head">
+              <button class="icon-btn" aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button>
+              <b data-i18n="c.cand">候補 2</b>
+              <span class="chip ok"><span class="dot"></span><span data-i18n="c.picked">選択中</span></span>
+            </div>
+            <dl class="stats"><dt data-i18n="c.cpitch">声の高さ</dt><dd class="num">268 Hz</dd><dt data-i18n="c.crange">高さの幅</dt><dd class="num">203–338 Hz</dd></dl>
+            <div><div class="span" aria-hidden="true"><span class="band" style="left:9.6%;width:33.8%"></span><span class="mid" style="left:21.5%"></span></div><div class="scale" aria-hidden="true"><span>150</span><span>400</span><span>700 Hz</span></div></div>
+            <button class="btn btn-secondary" data-i18n="c.pick">この声を選ぶ</button>
+          </div>
+        </div>
+        <div class="cell">
           <span class="cap" data-i18n="c.layers">重なり順の一覧</span>
           <div class="layers" role="list">
             <span class="hint" data-i18n="c.lhint">上が手前</span>
@@ -871,6 +907,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.err": "Camera not found", "c.errd": "Check the USB connection, then try again.", "c.progress": "RVC training · epoch 120 / 300",
     "c.dialog": "Confirmation dialog", "c.dtitle": "End the stream?", "c.dbody": "Viewers will stop receiving the stream. Recording can keep going.", "c.cancel": "Cancel",
     "c.mixer": "Mixer", "m.source": "Source", "m.device": "Device", "m.gain": "Volume", "m.hear": "Hear", "m.mute": "Mute", "m.level": "Level", "m.mic": "Microphone", "m.game": "Game audio", "c.table": "Table", "t.name": "Name", "t.current": "Current", "t.max": "Max", "t.count": "Count", "c.layers": "Layer list", "c.lhint": "Top is in front", "c.lcam": "Camera", "c.lgame": "Game screen", "c.ldesk": "Second monitor", "c.locked": "Locked", "c.hidden": "Hidden",
+    "c.steps": "Step indicator and candidate tile", "c.step1": "Pick a base", "c.step2": "Shape the timbre", "c.step3": "Make it", "c.cand": "Candidate 2", "c.picked": "Picked", "c.cpitch": "Pitch", "c.crange": "Range", "c.pick": "Pick this voice",
     "c.menu": "Right-click menu", "c.mflip": "Flip horizontally", "c.mlock": "Lock", "c.mfit": "Fit to screen", "c.mreset": "Reset crop",
     "c.tooltip": "Tooltip", "c.tipdemo": "Hover here",
     "c.fold": "Collapsible card", "c.fold1": "Capture (game screen)", "c.fold2": "App settings", "c.fold3": "Capture", "c.capturing": "Capturing",

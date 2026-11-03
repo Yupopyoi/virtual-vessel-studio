@@ -24,13 +24,19 @@ extern "C"
 // 2: the stream bus can be delayed (vv_audio_set_stream_delay).
 // 3: the monitor bus and its output device.
 // 4: each reader of the stream bus has its own tap (VV_AUDIO_READER_*).
-#define VV_AUDIO_API_VERSION 4
+// 5: a processing stage on a source (vv_audio_set_stage).
+// 6: noise removal for a stage (vv_audio_denoise).
+// 7: where a stage's frames wait (vv_audio_get_stage_delay).
+// 8: audio files (vv_audio_decode_file).
+#define VV_AUDIO_API_VERSION 8
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
 #define VV_AUDIO_OUT_OF_MEMORY (-2)
 #define VV_AUDIO_SYSTEM_ERROR (-3)
 #define VV_AUDIO_NOT_FOUND (-4)
+#define VV_AUDIO_UNREADABLE (-5)  // The file is missing, or Windows cannot decode it.
+#define VV_AUDIO_TOO_LONG (-6)    // The file is longer than VV_AUDIO_MAX_FILE_SECONDS.
 
 #define VV_AUDIO_SAMPLE_RATE 48000
 #define VV_AUDIO_MAX_SOURCES 16
@@ -52,6 +58,7 @@ extern "C"
 #define VV_AUDIO_PROBLEM_FAILED 3          // Any other failure; last_error has the HRESULT.
 
 typedef struct vv_audio_engine vv_audio_engine;
+typedef struct vv_audio_clip vv_audio_clip;
 
 typedef struct vv_audio_device
 {
@@ -81,6 +88,19 @@ typedef struct vv_audio_monitor_status
     int64_t drift_corrections;  // Samples dropped or repeated to follow the device's clock.
 } vv_audio_monitor_status;
 
+// Where a staged source's frames wait between the microphone and the monitor, in frames at 48 kHz. The rings
+// and the output buffer are averages over about the last half second; the devices are what Windows reports.
+// The hardware's own delay (USB, Bluetooth, the converters) is not known here.
+typedef struct vv_audio_stage_delay
+{
+    float capture_device;   // The input device, before its packets arrive.
+    float stage_input;      // Captured, waiting for the stage to read it.
+    float stage_output;     // Written by the stage, waiting for the mix.
+    float monitor;          // Mixed, waiting for the monitor output.
+    float output_buffer;    // In the output device's buffer.
+    float output_device;    // The output device, after its buffer.
+} vv_audio_stage_delay;
+
 // The stream bus for the encoder: plain values, so the encoder needs no link to this DLL.
 typedef struct vv_audio_stream_tap
 {
@@ -109,6 +129,19 @@ VV_AUDIO_API int32_t vv_audio_remove_source(vv_audio_engine* engine, int32_t sou
 VV_AUDIO_API int32_t vv_audio_set_device(vv_audio_engine* engine, int32_t source, const wchar_t* device_id);
 
 // Gain in dB (-60 to +12); muted silences the source but keeps its level meter.
+// A processing stage on a source (audio detailed design 8.3): while on, what the device captures waits for
+// vv_audio_stage_read, and vv_audio_stage_write supplies what the mix hears. Reads and writes are in stereo
+// frames, from one thread, without blocking. Stop writing before turning it off.
+// Removes noise from mono audio in place with RNNoise, keeping its state between calls. count is a multiple
+// of VV_AUDIO_DENOISE_FRAMES, from one thread.
+#define VV_AUDIO_DENOISE_FRAMES 480
+VV_AUDIO_API int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, int32_t count);
+
+VV_AUDIO_API int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled);
+VV_AUDIO_API int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read);
+VV_AUDIO_API int32_t vv_audio_stage_write(vv_audio_engine* engine, int32_t source, const float* frames, int32_t count);
+VV_AUDIO_API int32_t vv_audio_get_stage_delay(vv_audio_engine* engine, int32_t source, vv_audio_stage_delay* delay);
+
 VV_AUDIO_API int32_t vv_audio_set_gain(vv_audio_engine* engine, int32_t source, float gain_db, int32_t muted);
 
 // How much of the source reaches a bus, in dB; -inf for none. A source reaches the monitor only when asked to.
@@ -140,6 +173,14 @@ VV_AUDIO_API int32_t vv_audio_get_monitor_status(vv_audio_engine* engine, vv_aud
 #define VV_AUDIO_READER_RECORDING 0
 #define VV_AUDIO_READER_STREAMING 1
 VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap);
+
+// Decodes a whole audio file with Windows' Media Foundation (WAV, M4A/AAC, MP3, and others) to mono float
+// samples at the file's own rate. Needs no engine, from any thread. error gets the failing HRESULT, or 0.
+// Read the clip's `count` samples with vv_audio_clip_read, then free it.
+#define VV_AUDIO_MAX_FILE_SECONDS 600
+VV_AUDIO_API int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+VV_AUDIO_API int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+VV_AUDIO_API void vv_audio_clip_free(vv_audio_clip* clip);
 
 #ifdef __cplusplus
 }
