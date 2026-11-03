@@ -320,6 +320,28 @@ namespace
         double before = Rms(noise, 48000);
         Check(denoiser.Process(noise.data(), static_cast<int>(noise.size())), "the denoiser runs");
         Check(Rms(noise, 48000) < before * 0.25, "steady noise falls by more than 12 dB");
+
+        // A held note: harmonics of 150 Hz for 8 s. RNNoise alone silenced one like it within two seconds.
+        Denoiser voice;
+        std::vector<float> note(static_cast<size_t>(48000) * 8);
+        for (size_t i = 0; i < note.size(); i++)
+        {
+            float t = static_cast<float>(i) / 48000.0f;
+            for (int h = 1; h <= 8; h++)
+            {
+                note[i] += 0.3f / static_cast<float>(h) * std::sin(2.0f * 3.14159265f * 150.0f * static_cast<float>(h) * t);
+            }
+        }
+
+        Check(Denoiser::Periodicity(note.data(), 1920) > 0.9f, "a note is periodic");
+        double held = Rms(note, 48000 * 6);
+        voice.Process(note.data(), static_cast<int>(note.size()));
+        Check(Rms(note, 48000 * 6) > held * 0.7, "a held note keeps its level after 6 s");
+
+        Check(Denoiser::Periodicity(noise.data(), 1920) < 0.6f, "noise is not periodic");
+        Check(Denoiser::NextVoiceWeight(0.0f, 0.9f, 0.1f) > 0.4f, "a voice blends the original back quickly");
+        Check(Denoiser::NextVoiceWeight(1.0f, 0.1f, 0.1f) > 0.2f, "and lets it go over a few frames");
+        Check(Denoiser::NextVoiceWeight(0.0f, 0.9f, 0.0001f) == 0.0f, "a quiet periodic hum is not a voice");
     }
 
     void MonitorBus()
