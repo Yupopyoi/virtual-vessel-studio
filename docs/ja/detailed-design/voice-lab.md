@@ -4,6 +4,8 @@
 
 利用者が、自分の理想の声を作って登録できるようにする（方式設計13章）。コマンドやPythonを見せず、アプリの中の操作で終える。
 
+目玉は、利用者が自分好みの声を作り出せることである（利用者の方針、2026-11-03）。一度の指定で理想に当てるのではなく、近い声を選び、少しずつ寄せ、自分の声で試して決められるようにする（8.3）。
+
 - 声を作る機能は、利用者がアクティベーションするまで動かない（利用者の決定、2026-11-01）。
 - アクティベーションのときに学習環境を構築する。インターネット接続を前提とする。
 - 利用規約に必要な情報と免責事項を必ず表示する（利用者の決定、2026-11-01）。
@@ -43,6 +45,7 @@
 | `TrainingManager` | Class | Training Runの状態 |
 | `RvcAdapter` | Class | Python側のAdapterとのやり取り |
 | `VoiceModelRegistrar` | Class | 学習結果を声として登録する |
+| `VoiceDesigner` | Class | 声を設計する流れ（8.3）：土台の候補、声色の試聴、学習用の音声 |
 
 Python側：
 
@@ -50,7 +53,8 @@ Python側：
 |---|---|
 | `services/voice-lab/train.py` | 前処理、特徴量、学習をまとめて実行し、進捗をJSON Linesで出す |
 | `services/voice-lab/export_voice.py` | 学習結果をひな形へ書き込む（8.4） |
-| `services/voice-lab/generate.py` | VoxCPM2で音声を作る（第2段階） |
+| `services/voice-lab/generate.py` | VoxCPM2で音声を作る：土台の候補、学習用の音声（8.3） |
+| `services/voice-lab/timbre.py` | WORLDで声色を変える（8.3.2）。試聴と学習用の音声の両方に同じ値を使う |
 
 ## 5. 公開API
 
@@ -64,8 +68,15 @@ public interface IVoiceLab
     Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
     Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
     Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+
+    // 声を設計する（8.3）
+    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
+    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
 }
 ```
+
+`TimbreSettings`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさの4つの数値で、どれも0（変えない）を既定とする。
 
 ## 6. Data Model
 
@@ -182,13 +193,52 @@ PCの確認：GPU、ドライバー、空き容量、接続
 音声ファイルを取り込む → 確認（長さ、無音、音割れ） → 学習 → 試聴 → 登録
 ```
 
-第2段階（理想の声を設計する）：
+第2段階（理想の声を設計する）。実験（決定記録、2026-11-03「声を設計する実験」）をもとにした流れ：
 
 ```text
-声の説明を書く → VoxCPM2で候補を作る → 選ぶ → 学習用の音声を作る → 学習 → 試聴 → 登録
+1. 土台を選ぶ     ：声の雰囲気をつまみと文章で指定 → 候補を何個も作る → 聞いて選ぶ
+2. 声色を寄せる   ：高さ、年齢、明るさ、息っぽさのつまみ → 土台の声を加工して、その場で試聴 → 繰り返す
+3. 作る           ：土台の声で学習用の音声を作る → 同じ加工をかける → 学習（1回）
+4. 自分の声で試す ：アプリのリアルタイムの変換で、自分の録音かマイクの声を変換して聞く
+5. 登録する       ：気に入らなければ2へ戻る
 ```
 
-既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。
+既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。3は1つの声で約20分（学習用の音声7.5分の生成に約7分、加工に約2分、学習に約11分。2026-11-03の実測）。
+
+#### 8.3.1 土台を選ぶ
+
+- 声の雰囲気は、つまみ（若さ、高さ、明るさ、柔らかさ、息っぽさ、元気さ、かわいさ、抑揚、速さ、自然さ）と自由な文章から、VoxCPM2への指示文を組み立てる。組み立て方はVCBMの`VoicePromptBuilder`を使う。
+- 同じ指示でも乱数で声が大きく変わる（同じ指示で268 Hzと406 Hz）。つまみだけでは理想に届かないので、1回に複数（6個程度）の候補を作り、「もっと作る」で増やせるようにする。
+- 言葉の指示で寄せる場合は、選んだ土台だけを手本にする。生成した声を手本にして重ねると、声が枯れていく。
+- 実在の人の声のサンプルから土台を作る方法はとらない（利用者の判断、2026-11-03。権利の問題がない声の当てがない）。
+
+#### 8.3.2 声色を寄せる
+
+- WORLD（pyworld、MIT。WORLD本体は修正BSD）で、土台の声を高さ、響き、息の成分に分けて動かす。同じ値なら同じ結果になり、試聴は数秒で終わる。
+- Praat（parselmouth）はGPLなので使わない。
+- つまみと実験の結果：
+
+| つまみ | 加工 | 結果 |
+|---|---|---|
+| 高さ | 高さを半音で動かす | +4半音でも同じ人に聞こえる |
+| 年齢 | 響きを周波数の方向に伸ばす | ×1.10は「同じ人と言えば同じ人」（利用者） |
+| 明るさ | 響きの傾き | 未検証 |
+| 息っぽさ | 声の部分の非周期成分 | 測った数値では違いが見えない。耳での確認が要る |
+
+- 抑揚と話す速さのつまみは置かない。変換の後の抑揚と速さは話す本人から来る（学習用の音声で変えても変換後に残らない）。抑揚を変換で大きくすると機械っぽくなる（利用者、2026-11-03）。
+- 加工した声色は、学習とリアルタイムでない変換を通っても残った（決定記録）。
+
+#### 8.3.3 作る
+
+- 学習用の音声は、選んだ土台を手本にしたVoxCPM2の声のコピーで作る（指示文は付けない）。そのあと8.3.2と同じ値で加工する。
+- 文の選び方：5つの母音のすべて、伸ばした母音、高めの声を含める。伸ばした「う」が「あ」に寄る問題（Voice詳細設計）は、学習用の音声の母音の不足も一因かもしれない。**未検証の仮説**である。
+- 土台の指示文、乱数、声色の値をTraining Runに残し、作り直せるようにする（6.3）。
+
+#### 8.3.4 自分の声で試す
+
+- アプリのリアルタイムの変換（Voice詳細設計の窓、つなぎ目の重ね、直前の声、ノイズ除去）で試す。ファイル全体を一度に変換する上流の変換は窓の問題を隠し、作った声を高く評価してしまう。伸ばした「う」と「え」は、上流の変換では正しく、リアルタイムでは崩れた。
+- 試す音声は、利用者の録音（WAV、M4A、MP3。Audio詳細設計5.4）か、マイクの声とする。
+- 変換の高さは自動で合わせる：声の登録のときに声の高さの中央値を残し、利用者の声の高さとの差から移す量を決める。Voice側の受け取り方はVoice詳細設計で決める（17章）。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）
 
@@ -274,11 +324,12 @@ Assets/VirtualVessel/VoiceLab/Runtime/
 ├─ Activation/   VoiceTerms、VoiceComponentInstaller、VoiceComponentManifest
 ├─ Dataset/      DatasetStore
 ├─ Training/     TrainingManager、RvcAdapter
-└─ Registration/ VoiceModelRegistrar
+├─ Registration/ VoiceModelRegistrar
+└─ Design/       VoiceDesigner
 
 services/voice-lab/
 ├─ pyproject.toml、uv.lock
-├─ train.py、export_voice.py、generate.py
+├─ train.py、export_voice.py、generate.py、timbre.py
 ├─ parselmouth.py   読み込みだけを満たす空のモジュール（決定記録）
 └─ tests/
 ```
@@ -299,6 +350,9 @@ services/voice-lab/
 - VoxCPM2の必要なGPUメモリーと、RVCの学習との切り替え。
 - 同意の画面の文面。公開前に法律の専門家の確認を受ける。
 - 声の変換に必要なGPUとメモリーの値。開発PCのほかでも測って決める。
+- 声を設計する流れ（8.3）：明るさと息っぽさのつまみの効き、年齢の倍率の範囲、学習用の音声の母音の仮説を確かめる。上の「及第点」は上流の変換での評価で、リアルタイムの変換では未確認である。
+- 変換の高さの自動合わせ：声の登録に高さの中央値を持たせる形式と、Voice側での使い方（Voice詳細設計の担当）。
+- 方式設計14.14〜14.17（Voice LabのUI）は、乱数、style_instruction、Hard Gateなどを並べた作業の区切りで、8.3の流れ（声色のつまみ、自分の声で試す）と合っていない。通常の画面で見せる項目も含め、利用者の確認のうえで直す。
 
 利用者が承認したこと（2026-11-01）：
 

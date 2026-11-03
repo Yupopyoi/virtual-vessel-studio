@@ -4,6 +4,8 @@
 
 Lets users make and register their ideal voice (system design chapter 13), by operating the application, with no commands or Python in view.
 
+The main point is that users can create the voice they like (the user's direction, 2026-11-03). Rather than hitting the ideal with one description, users pick a voice close to it, move it a little at a time, try it with their own voice, and decide (8.3).
+
 - The feature for making voices does not work until the user activates it (the user's decision, 2026-11-01).
 - Activation builds the training environment. An internet connection is assumed.
 - The information the terms of use need, and the disclaimers, can always be shown (the user's decision, 2026-11-01).
@@ -43,6 +45,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 | `TrainingManager` | Class | Training Run state |
 | `RvcAdapter` | Class | Talks to the Python adapter |
 | `VoiceModelRegistrar` | Class | Registers a training result as a voice |
+| `VoiceDesigner` | Class | The flow of designing a voice (8.3): base candidates, timbre previews, training speech |
 
 On the Python side:
 
@@ -50,7 +53,8 @@ On the Python side:
 |---|---|
 | `services/voice-lab/train.py` | Runs preprocessing, features, and training, with progress as JSON Lines |
 | `services/voice-lab/export_voice.py` | Writes a training result into the template (8.4) |
-| `services/voice-lab/generate.py` | Makes speech with VoxCPM2 (second stage) |
+| `services/voice-lab/generate.py` | Makes speech with VoxCPM2: base candidates and training speech (8.3) |
+| `services/voice-lab/timbre.py` | Changes the timbre with WORLD (8.3.2), with the same values for previews and for training speech |
 
 ## 5. Public API
 
@@ -64,8 +68,15 @@ public interface IVoiceLab
     Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
     Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
     Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+
+    // Designing a voice (8.3)
+    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
+    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
 }
 ```
+
+`TimbreSettings` holds four numbers, pitch (semitones), age (a formant ratio), brightness, and breathiness, each 0 (no change) by default.
 
 ## 6. Data Model
 
@@ -182,13 +193,52 @@ First stage (from your own audio):
 Import audio files → check (length, silence, clipping) → train → listen → register
 ```
 
-Second stage (designing an ideal voice):
+Second stage (designing an ideal voice), a flow based on the experiment (decision record, 2026-11-03 "The voice-design experiment"):
 
 ```text
-Describe the voice → make candidates with VoxCPM2 → choose → make training audio → train → listen → register
+1. Pick a base           : describe the mood with sliders and words → make many candidates → listen and pick
+2. Move the timbre       : pitch, age, brightness, and breathiness knobs → edit the base, preview at once → repeat
+3. Make it               : training speech in the base's voice → the same edit → train (once)
+4. Try it with your voice: convert your recording or the microphone through the application's real-time conversion
+5. Register              : if you don't like it, back to 2
 ```
 
-The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 10 minutes.
+The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 10 minutes. Step 3 takes about 20 minutes per voice (about 7 minutes to generate 7.5 minutes of training speech, about 2 to edit it, about 11 to train; measured 2026-11-03).
+
+#### 8.3.1 Picking a base
+
+- The mood is set with sliders (youth, pitch, brightness, softness, breathiness, energy, cuteness, intonation, pace, naturalness) and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder`.
+- The same instruction gives very different voices with different seeds (268 Hz and 406 Hz). Sliders alone do not reach the ideal, so several candidates (about six) are made at a time, with More to add more.
+- Words that move the voice use only the chosen base as the reference. Using generated voices as references, one after another, makes the voice hoarse.
+- Bases made from samples of real people's voices are not offered (the user's judgment, 2026-11-03; there is no voice free of rights issues to use).
+
+#### 8.3.2 Moving the timbre
+
+- WORLD (pyworld, MIT; WORLD itself modified BSD) splits the base into pitch, the spectral envelope, and the breath component, and moves each. The same values give the same result, and a preview takes seconds.
+- Praat (parselmouth) is GPL and is not used.
+- The knobs and what the experiment found:
+
+| Knob | Edit | Result |
+|---|---|---|
+| Pitch | Pitch in semitones | Still the same person at +4 semitones |
+| Age | The envelope stretched along frequency | ×1.10 is "the same person, if anything" (the user) |
+| Brightness | The envelope's slope | Not tried |
+| Breathiness | Aperiodicity of voiced parts | No difference in the measured numbers; needs listening |
+
+- There are no intonation or pace knobs. After conversion, intonation and pace come from the speaker (changing them in training speech does not survive conversion). Widening intonation during conversion sounds mechanical (the user, 2026-11-03).
+- The edited timbre survived training and a conversion that is not real-time (decision record).
+
+#### 8.3.3 Making it
+
+- Training speech is VoxCPM2 copying the chosen base (with no instruction), then edited with the same values as 8.3.2.
+- What to read: all five vowels, held vowels, and higher pitches. Held "u" drifting toward "a" (Voice detailed design) may partly come from too few vowels in the training speech. **This is an untested hypothesis.**
+- The base's instruction, seed, and timbre values are kept in the Training Run, so the voice can be made again (6.3).
+
+#### 8.3.4 Trying it with your voice
+
+- Trying goes through the application's real-time conversion (the window, the overlap at joins, the recent speech, and noise removal in the Voice detailed design). Upstream's conversion of a whole file at once hides the window's problems and overrates a voice: held "u" and "e" were right there and drifted in real time.
+- The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone.
+- The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is for the Voice detailed design (chapter 17).
 
 ### 8.4 Registration (making a `.sentis` without the Editor)
 
@@ -274,11 +324,12 @@ Assets/VirtualVessel/VoiceLab/Runtime/
 ├─ Activation/   VoiceTerms, VoiceComponentInstaller, VoiceComponentManifest
 ├─ Dataset/      DatasetStore
 ├─ Training/     TrainingManager, RvcAdapter
-└─ Registration/ VoiceModelRegistrar
+├─ Registration/ VoiceModelRegistrar
+└─ Design/       VoiceDesigner
 
 services/voice-lab/
 ├─ pyproject.toml, uv.lock
-├─ train.py, export_voice.py, generate.py
+├─ train.py, export_voice.py, generate.py, timbre.py
 ├─ parselmouth.py   An empty module that only satisfies the import (decision record)
 └─ tests/
 ```
@@ -299,6 +350,9 @@ Open issues:
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
 - The agreement screen's wording, reviewed by a legal professional before release.
 - The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
+- The flow of designing a voice (8.3): how well the brightness and breathiness knobs work, the range of the age ratio, and the training-speech vowel hypothesis. "Passable" above was judged on upstream's conversion, not yet on real-time conversion.
+- Matching the conversion's pitch automatically: the registered voice's format for its median pitch, and how Voice uses it (the Voice detailed design's part).
+- System design 14.14 to 14.17 (Voice Lab's UI) list working steps with seeds, style_instruction, and a hard gate, which do not match 8.3's flow (timbre knobs, trying with your voice). They are to be fixed with the user's review, including what the normal screens show.
 
 Approved by the user (2026-11-01):
 

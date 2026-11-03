@@ -491,3 +491,22 @@ Accepted for now (user decision):
 - Right after conversion starts, until the user has spoken an unbroken second, there is no speech anchor (quiet noise stands in), so a vowel held at once may drift. It is only at the start.
 - A held "u" still drifts toward "a" partly, more where the voice turns rough (above).
 - About 0.35 to 0.38 s of delay.
+
+## 2026-11-03 The voice-design experiment
+
+The aim: to check that each step of a system where users create the voice they like (Voice Lab detailed design 8.3) works. The scripts and audio are outside the repository (voice-work).
+
+1. The base: VCBM's slider instructions (`VoicePromptBuilder`) made six presets with two seeds each. The seed outweighs the sliders (268 Hz and 406 Hz from the same instruction); the user also remembered sliders falling short before. The user picked airy_soft (seed 101) and asked for higher, younger, more tongue-tied, and livelier.
+2. Moving it with words: instructions with the base as reference keep the voice (ECAPA speaker similarity 0.90 to 0.95; candidates reach a median of 0.64 with each other), but whether they work depends on the seed. Using generated voices as references, one after another, made the voice hoarse (the user's hearing; the harmonics-to-noise ratio fell from 22.5 dB to 15 to 21 dB). 25 diffusion steps are a little cleaner than 10.
+3. Making a voice from samples of real voices was dropped: there is no voice free of rights issues to use (the user's judgment).
+4. Editing the waveform: WORLD moved pitch, the spectral envelope, intonation, breath, and pace by numbers. The resynthesis loss is not noticeable (the user). +4 semitones with formants ×1.10 is "the same person, if anything". Intonation ×1.6 and ×2.0 sounds mechanical (the user).
+5. Training and conversion: 7.5 minutes of VoxCPM2 copying the base were made, and RVC was trained on them as they were, and on them edited to +4 semitones and formants ×1.10 (about 11 minutes each). Converting the user's speech, each came out close to its own training timbre and away from the other:
+
+| Trained on | Similarity to the unedited voice | Similarity to the edited voice |
+|---|---|---|
+| Unedited | 0.72 to 0.80 | 0.30 to 0.41 |
+| Edited | 0.32 to 0.46 | 0.70 to 0.80 |
+
+The edited timbre survives training and conversion. The user's verdict: passable. That conversion was upstream's whole-file one, not the real-time one; upstream's hides the window's problems, so designed voices are judged through the real-time path (Voice Lab detailed design 8.3.4).
+
+Learned: timbre (the envelope, how old it sounds, breathiness) comes from the trained model; intonation, pace, and articulation come from the speaker. Setting the shift from the input's median pitch absorbed the different pitches of each piece of speech.
