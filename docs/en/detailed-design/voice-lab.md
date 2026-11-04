@@ -20,7 +20,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 | Showing the terms and recording agreement | VoiceLab (`VoiceTerms`) |
 | Building, checking, and removing the training environment | VoiceLab (`VoiceComponentInstaller`) |
 | Managing training audio | VoiceLab (`DatasetStore`) |
-| Running training and its state | VoiceLab (`TrainingManager`, `RvcAdapter`) |
+| Running training and its state | VoiceLab (`VoiceDesigner`, `TrainingRunStore`, `PythonScripts`) |
 | Registering a voice | VoiceLab (`VoiceModelRegistrar`) |
 | Running processes | ExternalServices |
 | Using registered voices | Voice |
@@ -42,8 +42,9 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 | `VoiceComponentInstaller` | Class | Moves the build through its steps |
 | `VoiceComponentManifest` | Class | What to fetch, with versions and hashes |
 | `DatasetStore` | Class | Importing and checking training audio |
-| `TrainingManager` | Class | Training Run state |
-| `RvcAdapter` | Class | Talks to the Python adapter |
+| `TrainingRunStore` | Class | Training Run folders and `run.json` (6.3) |
+| `PythonScripts` | Class | Talks to the Python scripts (8.5); the only place that knows their names and protocol |
+| `VoiceLabEnvironment` | Class | Where the training environment is; a developer names it until activation exists (6.4) |
 | `VoiceModelRegistrar` | Class | Registers a training result as a voice |
 | `VoiceDesigner` | Class | The flow of designing a voice (8.3): base candidates, timbre previews, training speech |
 
@@ -115,6 +116,32 @@ Saved in `Config/voice-activation.json`.
 As in system design 13.14, kept in `VoiceLab/TrainingRuns/<RunId>/`, with state in `run.json`.
 
 **The first version does not use SQLite.** The list can be made by reading `run.json`. SQLite (system design 13.12) comes with the comparison screen.
+
+```text
+VoiceLab/
+├─ Designs/<start time>/        One session of designing a voice (8.3.1, 8.3.2)
+│  ├─ candidates/              The candidates' audio
+│  ├─ previews/                Timbre previews, one per candidate and timbre
+│  ├─ requests/, logs/         Requests to the scripts and their logs; the same operation again is numbered
+└─ TrainingRuns/<RunId>/        Building one voice (8.3.3)
+   ├─ run.json
+   ├─ requests/, logs/
+   ├─ speech/, speech-edited/   Training speech, and the same with the timbre edited
+   ├─ train/voice.pth           The trained weights
+   └─ output/                   voice.sentis, voice.spk, voice.json (what registration copies)
+```
+
+`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the timbre), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
+
+The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its measured share of the time (speech 39%, edit 6%, training 50%, export 5%).
+
+### 6.4 The Environment During Development
+
+Until activation (the sixth stage) exists, a developer names the training environment in a JSON file: `python` (the venv's `python.exe`), `scripts` (`services/voice-lab`), `rvc`, `voxCpmModel` (the folder at the pinned revision), and `template` and `manifest` (the 1 s window's template and table). Programs run only from inside the venv folder that holds `python.exe`.
+
+### 6.5 Registered Voices
+
+`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
 
 ## 7. State and Lifecycle
 
@@ -312,7 +339,7 @@ The only ordinary setting is training length (standard or longer). Detailed valu
 |---|---|
 | Training environment | `%LOCALAPPDATA%\VirtualVesselStudio\External\VoiceLab\<version>\` |
 | Agreement and state | `Config/voice-activation.json` |
-| Audio, Training Runs | `VoiceLab/` in the Data Root |
+| Voice design, Training Runs | `VoiceLab/` in the Data Root (6.3) |
 | Registered voices | `VoiceModels/` in the Data Root |
 
 The environment is large, so it stays out of the Data Root and out of backups. Removing it leaves registered voices working, and a screen offers to remove it.
@@ -340,7 +367,8 @@ Voice Lab's failures do not affect streaming (CLAUDE.md chapter 21).
 
 | Kind | Content |
 |---|---|
-| EditMode | Agreement decisions, `voice-components.json`, state changes, reading progress, hash checks |
+| EditMode | Reading script output, building requests, the environment file, reading and writing `run.json`, the build flow (with a fake process runner: success, failure, cancelling), registration. Later: agreement decisions, `voice-components.json`, hash checks |
+| EditMode (a developer's environment) | Only when `VV_VOICE_LAB_ENV` names an environment JSON: candidates and a timbre preview from the real scripts. With `VV_VOICE_LAB_BUILD=1`, a whole voice built and registered (about 20 minutes on an RTX 4070) |
 | Python | Adapter unit tests, applying the table |
 | Manual (heavy) | Activation on an empty PC, resuming, canceling |
 | When versions update | The SHA-256 comparison of the template and table |
@@ -358,8 +386,9 @@ Actual fetching and training do not run in CI. They run by hand on the self-host
 ```text
 Assets/VirtualVessel/VoiceLab/Runtime/
 ├─ Activation/   VoiceTerms, VoiceComponentInstaller, VoiceComponentManifest
-├─ Dataset/      DatasetStore
-├─ Training/     TrainingManager, RvcAdapter
+├─ Dataset/      DatasetStore (later)
+├─ Scripts/      VoiceLabEnvironment, PythonScripts, ScriptLine
+├─ Training/     TrainingRun, TrainingRunStore
 ├─ Registration/ VoiceModelRegistrar
 └─ Design/       VoiceDesigner
 

@@ -20,7 +20,7 @@
 | 規約の表示と同意の記録 | VoiceLab（`VoiceTerms`） |
 | 学習環境の構築、確認、削除 | VoiceLab（`VoiceComponentInstaller`） |
 | 学習用の音声の管理 | VoiceLab（`DatasetStore`） |
-| 学習の実行と状態 | VoiceLab（`TrainingManager`、`RvcAdapter`） |
+| 学習の実行と状態 | VoiceLab（`VoiceDesigner`、`TrainingRunStore`、`PythonScripts`） |
 | 声の登録 | VoiceLab（`VoiceModelRegistrar`） |
 | Processの実行 | ExternalServices |
 | 登録された声の利用 | Voice |
@@ -42,8 +42,9 @@
 | `VoiceComponentInstaller` | Class | 構築の手順を進める |
 | `VoiceComponentManifest` | Class | 取得するものの一覧、版、ハッシュ |
 | `DatasetStore` | Class | 学習用の音声の取り込みと確認 |
-| `TrainingManager` | Class | Training Runの状態 |
-| `RvcAdapter` | Class | Python側のAdapterとのやり取り |
+| `TrainingRunStore` | Class | Training Runのフォルダーと`run.json`（6.3） |
+| `PythonScripts` | Class | Python側のスクリプトとのやり取り（8.5）。スクリプトの名前と決まりごとを知るのはここだけ |
+| `VoiceLabEnvironment` | Class | 学習環境の場所。アクティベーションができるまでは開発者が指定する（6.4） |
 | `VoiceModelRegistrar` | Class | 学習結果を声として登録する |
 | `VoiceDesigner` | Class | 声を設計する流れ（8.3）：土台の候補、声色の試聴、学習用の音声 |
 
@@ -115,6 +116,32 @@ public interface IVoiceLab
 方式設計13.14のとおり`VoiceLab/TrainingRuns/<RunId>/`に置き、`run.json`に状態を持つ。
 
 **最初の版はSQLiteを使わない。** 一覧は`run.json`を読めば作れる。比較の画面を作るときに、方式設計13.12のSQLiteを足す。
+
+```text
+VoiceLab/
+├─ Designs/<開始時刻>/          声を設計する1回分（8.3.1、8.3.2）
+│  ├─ candidates/              候補の音声
+│  ├─ previews/                声色の試聴。候補と声色の値ごとに1つ
+│  ├─ requests/、logs/         スクリプトへの依頼とログ。同じ操作も通し番号で残す
+└─ TrainingRuns/<RunId>/        1つの声を作る（8.3.3）
+   ├─ run.json
+   ├─ requests/、logs/
+   ├─ speech/、speech-edited/   学習用の音声と、声色を加工したもの
+   ├─ train/voice.pth           学習した重み
+   └─ output/                   voice.sentis、voice.spk、voice.json（登録の元）
+```
+
+`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、声色）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
+
+声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
+
+### 6.4 開発中の環境の指定
+
+アクティベーション（6段階目）ができるまでは、開発者がJSONファイルで学習環境の場所を指定する：`python`（venvの`python.exe`）、`scripts`（`services/voice-lab`）、`rvc`、`voxCpmModel`（固定のrevisionのフォルダー）、`template`と`manifest`（窓1秒のひな形と配置表）。実行を許すのは、`python.exe`のあるvenvのフォルダーの中だけである。
+
+### 6.5 登録した声
+
+`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
 
 ## 7. 状態とライフサイクル
 
@@ -312,7 +339,7 @@ python -I <スクリプト>.py <操作> <依頼のJSONファイル>
 |---|---|
 | 学習環境 | `%LOCALAPPDATA%\VirtualVesselStudio\External\VoiceLab\<版>\` |
 | 同意と状態 | `Config/voice-activation.json` |
-| 音声、Training Run | Data Rootの`VoiceLab/` |
+| 声の設計、Training Run | Data Rootの`VoiceLab/`（6.3） |
 | 登録した声 | Data Rootの`VoiceModels/` |
 
 学習環境は大きいので、Data Rootに入れず、バックアップの対象にしない。削除しても、登録した声は動く。画面から削除できるようにする。
@@ -340,7 +367,8 @@ Voice Labの失敗は、配信に影響させない（CLAUDE.md 21章）。
 
 | 種類 | 内容 |
 |---|---|
-| EditMode | 規約の判定、`voice-components.json`、状態の変化、進捗の解釈、ハッシュの確認 |
+| EditMode | スクリプトの出力の読み取り、依頼の組み立て、環境の指定、`run.json`の読み書き、声を作る流れ（偽のプロセス実行で、成功、失敗、取り消し）、登録。後で：規約の判定、`voice-components.json`、ハッシュの確認 |
+| EditMode（開発者の環境） | `VV_VOICE_LAB_ENV`で環境のJSONを指定したときだけ、本物のスクリプトで候補と声色の試聴を作る。`VV_VOICE_LAB_BUILD=1`なら、声を1つ作って登録まで行う（RTX 4070で約20分） |
 | Python | Adapterの単体テスト、配置表の適用 |
 | 手動（重い） | 空のPCでのアクティベーション、再開、取り消し |
 | 版の更新時 | ひな形と配置表のSHA-256の比較 |
@@ -358,8 +386,9 @@ Voice Labの失敗は、配信に影響させない（CLAUDE.md 21章）。
 ```text
 Assets/VirtualVessel/VoiceLab/Runtime/
 ├─ Activation/   VoiceTerms、VoiceComponentInstaller、VoiceComponentManifest
-├─ Dataset/      DatasetStore
-├─ Training/     TrainingManager、RvcAdapter
+├─ Dataset/      DatasetStore（後で）
+├─ Scripts/      VoiceLabEnvironment、PythonScripts、ScriptLine
+├─ Training/     TrainingRun、TrainingRunStore
 ├─ Registration/ VoiceModelRegistrar
 └─ Design/       VoiceDesigner
 
