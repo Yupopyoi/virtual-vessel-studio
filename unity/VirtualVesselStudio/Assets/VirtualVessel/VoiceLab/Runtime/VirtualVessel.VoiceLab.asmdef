@@ -1,0 +1,19 @@
+{
+    "name": "VirtualVessel.VoiceLab",
+    "rootNamespace": "VirtualVessel.VoiceLab",
+    "references": [
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ExternalServices",
+        "VirtualVessel.ProjectData"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

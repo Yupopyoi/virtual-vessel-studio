@@ -1,0 +1,28 @@
+{
+    "name": "VirtualVessel.VoiceLab.Tests.EditMode",
+    "rootNamespace": "VirtualVessel.VoiceLab.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "VirtualVessel.Core",
+        "VirtualVessel.Diagnostics",
+        "VirtualVessel.ExternalServices",
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.VoiceLab"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
