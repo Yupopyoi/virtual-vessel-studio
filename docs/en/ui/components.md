@@ -239,7 +239,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 ### 3.26 Step Indicator
 
 - Shows where the user is in work split into steps (for example, Voice Lab's flow for making a voice, system design 14.13).
-- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a radius-round frame. Steps sit in a row and wrap when narrow.
+- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a frame with Radius Control corners (the number with Radius S). Steps sit in a row and wrap when narrow.
 - The current step: Accent Line frame, Tint background, Primary behind the number. Finished steps: the success color behind the number. Steps not reached: Text 2.
 - Finished steps can be pressed to go back. The current step carries `aria-current="step"`. Color is not the only cue: the current step also differs in frame and background.
 - Buttons that move on name the step they lead to (for example, "STEP 2: Shape the timbre").
