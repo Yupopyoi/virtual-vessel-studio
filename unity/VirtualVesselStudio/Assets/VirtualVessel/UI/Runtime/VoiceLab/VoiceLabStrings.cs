@@ -1,0 +1,100 @@
+using VirtualVessel.UI.Localization;
+
+namespace VirtualVessel.UI.VoiceLab
+{
+    /// <summary>
+    /// String table keys of the Voice Lab screen (system design 14.13 to 14.18). The mood sliders' keys are
+    /// built from <see cref="MoodSlider"/>: "lab.mood.&lt;key&gt;" with ".low" and ".high".
+    /// </summary>
+    [StringKeys]
+    public static class VoiceLabStrings
+    {
+        public const string StepBase = "lab.step.base";
+        public const string StepTimbre = "lab.step.timbre";
+        public const string StepBuild = "lab.step.build";
+        public const string StepTry = "lab.step.try";
+        public const string StepRegister = "lab.step.register";
+
+        public const string NotSetUpTitle = "lab.not-set-up.title";
+        public const string NotSetUpBody = "lab.not-set-up.body";
+        public const string Stop = "lab.stop";
+
+        public const string BaseLead = "lab.base.lead";
+        public const string Mood = "lab.base.mood";
+        public const string MoreMood = "lab.base.more-mood";
+        public const string Words = "lab.base.words";
+        public const string WordsHint = "lab.base.words-hint";
+        public const string Make = "lab.base.make";
+        public const string MakeNote = "lab.base.make-note";
+        public const string Making = "lab.base.making";
+        public const string Candidates = "lab.base.candidates";
+        public const string SortMade = "lab.base.sort.made";
+        public const string SortLow = "lab.base.sort.low";
+        public const string SortHigh = "lab.base.sort.high";
+        public const string SortTip = "lab.base.sort.tip";
+        public const string MakeMore = "lab.base.more";
+        public const string CandidatesNote = "lab.base.candidates-note";
+        public const string MakeFailed = "lab.base.failed";
+        public const string ToTimbre = "lab.base.next";
+
+        public const string TimbreLead = "lab.timbre.lead";
+        public const string Timbre = "lab.timbre.title";
+        public const string TimbrePitch = "lab.timbre.pitch";
+        public const string TimbrePitchTip = "lab.timbre.pitch.tip";
+        public const string TimbrePitchLow = "lab.timbre.pitch.low";
+        public const string TimbrePitchHigh = "lab.timbre.pitch.high";
+        public const string TimbreAge = "lab.timbre.age";
+        public const string TimbreAgeTip = "lab.timbre.age.tip";
+        public const string TimbreAgeLow = "lab.timbre.age.low";
+        public const string TimbreAgeHigh = "lab.timbre.age.high";
+        public const string TimbreBrightness = "lab.timbre.brightness";
+        public const string TimbreBrightnessTip = "lab.timbre.brightness.tip";
+        public const string TimbreBrightnessLow = "lab.timbre.brightness.low";
+        public const string TimbreBrightnessHigh = "lab.timbre.brightness.high";
+        public const string TimbreBreathiness = "lab.timbre.breathiness";
+        public const string TimbreBreathinessTip = "lab.timbre.breathiness.tip";
+        public const string TimbreBreathinessLow = "lab.timbre.breathiness.low";
+        public const string TimbreBreathinessHigh = "lab.timbre.breathiness.high";
+        public const string Compare = "lab.timbre.compare";
+        public const string ListenBase = "lab.timbre.listen-base";
+        public const string ListenShaped = "lab.timbre.listen-shaped";
+        public const string Shaping = "lab.timbre.shaping";
+        public const string PitchChange = "lab.timbre.pitch-change";
+        public const string FarTitle = "lab.timbre.far";
+        public const string FarBody = "lab.timbre.far-body";
+        public const string TimbreNote = "lab.timbre.note";
+        public const string Reset = "lab.timbre.reset";
+        public const string ShapeFailed = "lab.timbre.failed";
+        public const string ToBuild = "lab.timbre.next";
+
+        public const string BuildLead = "lab.build.lead";
+        public const string BuildNote = "lab.build.note";
+        public const string BuildPreparing = "lab.build.preparing";
+        public const string BuildLearning = "lab.build.learning";
+        public const string BuildFinishing = "lab.build.finishing";
+        public const string BuildStart = "lab.build.start";
+        public const string BuildStreaming = "lab.build.streaming";
+        public const string BuildStreamingBody = "lab.build.streaming-body";
+        public const string BuildFailed = "lab.build.failed";
+        public const string BuildOutOfMemory = "lab.build.out-of-memory";
+        public const string BuildCancelled = "lab.build.cancelled";
+
+        public const string TryLead = "lab.try.lead";
+        public const string TryLater = "lab.try.later";
+        public const string BackToTimbre = "lab.try.back";
+        public const string ToRegister = "lab.try.next";
+
+        public const string RegisterLead = "lab.register.lead";
+        public const string Register = "lab.register.title";
+        public const string VoiceName = "lab.register.name";
+        public const string VoiceNameHint = "lab.register.name-hint";
+        public const string NameRequired = "lab.register.name-required";
+        public const string SummaryBase = "lab.register.summary-base";
+        public const string SummaryTimbre = "lab.register.summary-timbre";
+        public const string RegisterNote = "lab.register.note";
+        public const string RegisterButton = "lab.register.button";
+        public const string Registered = "lab.register.done";
+        public const string RegisterFailed = "lab.register.failed";
+        public const string MakeAnother = "lab.register.again";
+    }
+}

@@ -30,3 +30,4 @@
 @import url("Components/screens.uss");
 @import url("Components/gallery.uss");
 @import url("Components/steps.uss");
+@import url("Components/voice-lab.uss");

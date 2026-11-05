@@ -1,0 +1,75 @@
+/* The Voice Lab screen (system design 14.13 to 14.18). */
+.vv-lab > *,
+.vv-lab__panel > * {
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-lab__lead,
+.vv-lab__note {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+}
+
+.vv-lab__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.vv-lab__actions > * {
+    margin: 0 var(--vv-space-s) var(--vv-space-xs) 0;
+}
+
+/* The tiles wrap; each keeps its own right and bottom margin (steps.uss). */
+.vv-lab__tiles {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.vv-lab__slider {
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-lab__ends {
+    flex-direction: row;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--vv-color-text-3);
+}
+
+.vv-lab__facts {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: var(--vv-space-s);
+    color: var(--vv-color-text);
+}
+
+.vv-lab__far {
+    margin: var(--vv-space-s) 0;
+}
+
+.vv-lab__busy {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-lab__busy > * {
+    margin-right: var(--vv-space-s);
+}
+
+.vv-lab__summary {
+    flex-direction: row;
+    margin: var(--vv-space-xs) 0;
+    color: var(--vv-color-text);
+}
+
+.vv-lab__summary > .vv-lab__note {
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.vv-lab__summary > .vv-text-body {
+    flex-shrink: 1;
+    white-space: normal;
+}
