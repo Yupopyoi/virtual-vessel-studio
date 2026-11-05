@@ -30,8 +30,10 @@ Out of scope: fetching and updating environments ([Voice Lab detailed design](vo
 |---|---|---|
 | `IExternalProcessRunner` | Interface | Runs a process that finishes once |
 | `ExternalProcessRunner` | Class | Implementation; manages the process tree with a Job Object |
-| `ExternalProcessRequest` | Class | Executable, arguments, environment, working folder, log location, timeout |
-| `ExternalProcessResult` | Class | Exit code, start and end times, whether canceled |
+| `ExternalProcessRequest` | Class | Executable, arguments, environment, the names of secret variables, working folder, log location, timeout, cancel grace |
+| `ExternalProcessResult` | Class | How it ended (`Completed`, `Failed`, `Cancelled`), exit code, whether it timed out, why it did not start, start and end times, the last lines of standard error |
+| `ProcessRules` | Static class | Decisions without side effects: quoting arguments, allowed locations, classifying the end, the environment as logged |
+| `JobObject` | Class (internal) | P/Invoke for Job Objects |
 | `IExternalServiceManager` | Interface | Manages long-running services (second stage) |
 | `ServiceDescriptor` | Class | The items of system design 4.6 |
 | `ServiceIdentityChecker` | Class | Checks that what answers on a port is genuine (second stage) |
@@ -89,9 +91,16 @@ Finish or cancellation
 Return the result
 ```
 
+- Starting uses `System.Diagnostics.Process`, and the process joins the job right after. Using it through P/Invoke from Unity's Mono was confirmed (2026-11-04, the tests in chapter 14).
+- A job is made per run, set to stop everything in it when its last handle closes (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`). If the application dies, Windows closes the handle and the children stop.
+- A child started between starting and joining the job would stay outside it. Python takes time to load and does not start children at once, so this does not happen in practice. Starting suspended (`CREATE_SUSPENDED`) is left until it is needed.
+- After the main process ends, what is left in the job is stopped before waiting for the output readers, because a leftover child holding the output pipe would keep them reading. Leftover children are part of the tree this application started.
+- Arguments are quoted so Windows' rules (`CommandLineToArgvW`, the C runtime, Python) read them back unchanged.
+- A run that cannot start (outside the allowed locations, a missing executable or folder, a failed start) returns a `Failed` result rather than an exception, with the reason in `Failure`.
+
 ### 8.2 Canceling
 
-First close standard input and wait for it to end. If it does not within a time, stop the whole job. Only processes it started are stopped (system design 4.13).
+First close standard input and wait the request's grace (`CancelGrace`, 5 s by default). If it has not ended, stop the whole job. Only processes it started are stopped (system design 4.13). A stopped run's exit code is `null`. A timeout stops the run the same way and is `Failed` with `TimedOut`.
 
 ### 8.3 Long-running services (second stage)
 
@@ -133,8 +142,8 @@ Turning this into meaningful messages is the adapter's job.
 
 | Kind | Content |
 |---|---|
-| EditMode | Checking requests, state changes |
-| Integration | With a small executable: reading output, exit codes, canceling, children stopping too |
+| EditMode | Checking requests, quoting arguments, allowed locations, classifying the end, hiding secrets (`ProcessRulesTests`) |
+| Integration (EditMode) | With Windows' `cmd.exe` and PowerShell: reading output, exit codes, environment and secrets, canceling stops children too, timeouts, leftover children not keeping a run open (`ExternalProcessRunnerTests`) |
 | Manual | Killing the application leaves no child process |
 
 ## 15. Performance Constraints
@@ -145,7 +154,7 @@ It does not run during a stream, and managing processes costs almost nothing.
 
 ```text
 Assets/VirtualVessel/ExternalServices/Runtime/
-├─ Process/    IExternalProcessRunner, ExternalProcessRunner, Job Object
+├─ Process/    IExternalProcessRunner, ExternalProcessRunner, ExternalProcessRequest, ExternalProcessResult, ProcessRules, JobObject
 ├─ Services/   IExternalServiceManager, ServiceDescriptor
 └─ Identity/   ServiceIdentityChecker
 ```
@@ -160,4 +169,4 @@ Stages:
 Open issues:
 
 - Whether VoxCPM2 is a long-running service or a one-time process. Its model takes long to load, which favors a service when making several candidates. System design 13.18 has a service.
-- Using .NET's `Process` and Job Objects from Unity's Mono needs a P/Invoke check.
+- That killing the application leaves no child process is not yet checked by hand (the job's setting and the cancellation tests in Unity are).
