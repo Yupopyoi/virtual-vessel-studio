@@ -81,9 +81,10 @@ namespace VirtualVessel.VoiceLab
             return new VoiceLabService(designer, runs, new VoiceModelRegistrar(voiceModelsFolder, runs, clock), log);
         }
 
-        public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
         {
-            IReadOnlyList<VoiceCandidate> made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words), count, null, cancellationToken)).ConfigureAwait(false);
+            VoiceCandidate reference = near != null ? Find(near) : null;
+            IReadOnlyList<VoiceCandidate> made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words), count, reference, null, cancellationToken)).ConfigureAwait(false);
             lock (_gate)
             {
                 foreach (VoiceCandidate candidate in made)

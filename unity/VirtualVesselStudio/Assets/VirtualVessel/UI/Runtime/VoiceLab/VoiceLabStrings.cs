@@ -33,6 +33,8 @@ namespace VirtualVessel.UI.VoiceLab
         public const string SortHigh = "lab.base.sort.high";
         public const string SortTip = "lab.base.sort.tip";
         public const string MakeMore = "lab.base.more";
+        public const string MakeNear = "lab.base.near";
+        public const string MakeNearTip = "lab.base.near.tip";
         public const string CandidatesNote = "lab.base.candidates-note";
         public const string MakeFailed = "lab.base.failed";
         public const string ToTimbre = "lab.base.next";

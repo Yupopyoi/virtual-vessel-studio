@@ -140,9 +140,12 @@ namespace VirtualVessel.UI.VoiceLab
     {
         VoiceLabAvailability Availability { get; }
 
-        /// <summary>Several candidates in the mood; each call makes new ones.</summary>
+        /// <summary>
+        /// Several candidates in the mood; each call makes new ones. With <paramref name="near"/>, they are made
+        /// near that candidate, to look around a voice the user picked (Voice Lab detailed design 8.3.1).
+        /// </summary>
         /// <exception cref="VoiceLabFailedException">The voices could not be made.</exception>
-        Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken);
+        Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);
 
         /// <exception cref="VoiceLabFailedException">The preview could not be made.</exception>
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);

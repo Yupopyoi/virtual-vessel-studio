@@ -116,13 +116,14 @@ namespace VirtualVessel.VoiceLab.Design
     /// <summary>One voice made from a description, to listen to and maybe build on.</summary>
     public sealed class VoiceCandidate
     {
-        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction)
+        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction, string reference = null)
         {
             Id = id;
             Seed = seed;
             File = file;
             Pitch = pitch;
             Instruction = instruction;
+            Reference = reference;
         }
 
         public string Id { get; }
@@ -135,6 +136,9 @@ namespace VirtualVessel.VoiceLab.Design
         public PitchSummary Pitch { get; }
 
         public string Instruction { get; }
+
+        /// <summary>The audio it was made near, or null.</summary>
+        public string Reference { get; }
     }
 
     /// <summary>A timbre preview: the edited sample of a candidate.</summary>

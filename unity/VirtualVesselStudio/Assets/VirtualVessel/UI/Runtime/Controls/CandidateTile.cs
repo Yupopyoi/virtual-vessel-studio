@@ -16,6 +16,9 @@ namespace VirtualVessel.UI.Controls
         public const string Play = "common.candidate.play";
         public const string Pitch = "common.candidate.pitch";
         public const string Range = "common.candidate.range";
+
+        /// <summary>"From candidate {n}": the candidate this one was made near.</summary>
+        public const string From = "common.candidate.from";
     }
 
     /// <summary>
@@ -33,7 +36,9 @@ namespace VirtualVessel.UI.Controls
 
         private readonly StatusChip _picked;
         private readonly Label _name;
+        private readonly Label _from;
         private readonly int _number;
+        private int _fromNumber;
 
         public CandidateTile(int number, int medianHz, int lowHz, int highHz)
         {
@@ -51,6 +56,10 @@ namespace VirtualVessel.UI.Controls
             head.Add(_name);
             head.Add(_picked);
             Add(head);
+            _from = new Label();
+            _from.AddToClassList(UssClass + "__from");
+            _from.style.display = DisplayStyle.None;
+            Add(_from);
 
             Add(Stat(CandidateTileStrings.Pitch, HzText(medianHz)));
             Add(Stat(CandidateTileStrings.Range, RangeText(lowHz, highHz)));
@@ -61,7 +70,7 @@ namespace VirtualVessel.UI.Controls
             Add(PickButton);
 
             Picked = false;
-            RegisterCallback<AttachToPanelEvent>(_ => _name.text = NameText(UiServices.Find(this)?.Localizer, _number));
+            RegisterCallback<AttachToPanelEvent>(_ => RefreshNames());
         }
 
         public IconButton PlayButton { get; }
@@ -75,6 +84,18 @@ namespace VirtualVessel.UI.Controls
             {
                 EnableInClassList(PickedClass, value);
                 _picked.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        /// <summary>The number of the candidate this one was made near; 0 for none.</summary>
+        public int FromNumber
+        {
+            get => _fromNumber;
+            set
+            {
+                _fromNumber = value;
+                _from.style.display = value > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                RefreshNames();
             }
         }
 
@@ -101,6 +122,14 @@ namespace VirtualVessel.UI.Controls
         {
             string n = number.ToString(CultureInfo.InvariantCulture);
             return localizer?.Get(CandidateTileStrings.Name, ("n", n)) ?? "#" + n;
+        }
+
+        private void RefreshNames()
+        {
+            ILocalizer localizer = UiServices.Find(this)?.Localizer;
+            _name.text = NameText(localizer, _number);
+            string from = _fromNumber.ToString(CultureInfo.InvariantCulture);
+            _from.text = _fromNumber > 0 ? localizer?.Get(CandidateTileStrings.From, ("n", from)) ?? "#" + from : string.Empty;
         }
 
         private static VisualElement Stat(string nameKey, string value)

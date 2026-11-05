@@ -45,7 +45,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 "{\"type\":\"result\",\"instruction\":\"calm\",\"candidates\":[{\"seed\":7,\"file\":\"a.wav\",\"medianHz\":268,\"lowHz\":203,\"highHz\":338},{\"seed\":8,\"file\":\"b.wav\"}]}",
             });
 
-            IReadOnlyList<VoiceCandidate> candidates = Designer(runner, 7).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, null, CancellationToken.None).Result;
+            IReadOnlyList<VoiceCandidate> candidates = Designer(runner, 7).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, null, null, CancellationToken.None).Result;
 
             Assert.That(candidates.Select(c => c.Id), Is.EqualTo(new[] { "candidate_7", "candidate_8" }));
             Assert.That(candidates[0].Pitch.MedianHz, Is.EqualTo(268));
@@ -60,14 +60,39 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceDesigner designer = Designer(runner, 100);
             var mood = new VoiceDescription(new Dictionary<string, float> { ["softness"] = 0.85f, ["energy"] = 2f }, "husky");
 
-            designer.MakeCandidatesAsync(mood, 6, null, CancellationToken.None).Wait();
-            designer.MakeCandidatesAsync(mood, 6, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
 
             ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
             Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 106 }));
             Assert.That(requests[0].Get<float>("mood.softness"), Is.EqualTo(0.85f).Within(1e-6));
             Assert.That(requests[0].Get<float>("mood.energy"), Is.EqualTo(1f), "Sliders are clamped to 0..1.");
             Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"));
+        }
+
+        [Test]
+        public void CandidatesNearAPickedOne_SendItAsTheReference_AndRememberIt()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"reference\":\"C:/d/candidate_7.wav\",\"candidates\":[{\"seed\":13,\"file\":\"c.wav\"}]}" });
+            VoiceDesigner designer = Designer(runner, 13);
+
+            VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, Candidate(), null, CancellationToken.None).Result.Single();
+
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
+            Assert.That(request.Get<string>("reference"), Is.EqualTo(Candidate().File));
+            Assert.That(made.Reference, Is.EqualTo("C:/d/candidate_7.wav"));
+            Assert.That(VoiceDesigner.Design(made, default).Reference, Is.EqualTo("C:/d/candidate_7.wav"), "Kept in run.json, to make the voice again.");
+        }
+
+        [Test]
+        public void CandidatesFromTheMoodAlone_HaveNoReference()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[{\"seed\":1,\"file\":\"a.wav\"}]}" });
+
+            VoiceCandidate made = Designer(runner, 1).MakeCandidatesAsync(new VoiceDescription(null, ""), 1, null, null, CancellationToken.None).Result.Single();
+
+            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3])).Get<string>("reference"), Is.Null);
+            Assert.That(made.Reference, Is.Null);
         }
 
         [Test]

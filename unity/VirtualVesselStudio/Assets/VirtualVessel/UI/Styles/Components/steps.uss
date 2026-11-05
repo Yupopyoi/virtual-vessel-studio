@@ -69,6 +69,12 @@
     margin-left: 8px;
 }
 
+.vv-tile__from {
+    margin: -4px 0 6px 0;
+    font-size: 11px;
+    color: var(--vv-color-text-3);
+}
+
 .vv-tile__stat {
     flex-direction: row;
     justify-content: space-between;

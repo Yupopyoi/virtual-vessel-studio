@@ -39,6 +39,12 @@ namespace VirtualVessel.VoiceLab.Training
         /// <summary>The candidate's audio, the reference the training speech copies.</summary>
         public string Candidate { get; set; }
 
+        /// <summary>
+        /// The audio the candidate was made near (Voice Lab detailed design 8.3.1), or null for a candidate made
+        /// from the instruction alone. Added later; older run.json files read it as null.
+        /// </summary>
+        public string Reference { get; set; }
+
         public TimbreValues Timbre { get; set; } = new TimbreValues();
     }
 

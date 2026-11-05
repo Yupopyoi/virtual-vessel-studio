@@ -21,11 +21,12 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabDraft _draft;
         private readonly IVoiceLabFlow _flow;
         private readonly Dictionary<MoodSlider, ValueSlider> _mood = new Dictionary<MoodSlider, ValueSlider>();
-        private readonly List<(int Number, VoiceLabCandidate Candidate)> _candidates = new List<(int, VoiceLabCandidate)>();
+        private readonly List<(int Number, int From, VoiceLabCandidate Candidate)> _candidates = new List<(int, int, VoiceLabCandidate)>();
         private readonly Dictionary<CandidateTile, VoiceLabCandidate> _shown = new Dictionary<CandidateTile, VoiceLabCandidate>();
         private readonly TextInput _words;
         private readonly ActionButton _make;
         private readonly ActionButton _makeMore;
+        private readonly ActionButton _makeNear;
         private readonly ActionButton _next;
         private readonly VisualElement _busy;
         private readonly StatusChip _failed;
@@ -64,7 +65,7 @@ namespace VirtualVessel.UI.VoiceLab
             mood.Add(_words);
 
             _make = Ui.Button(VoiceLabStrings.Make, ButtonVariant.Primary);
-            _make.clicked += () => Make(more: false);
+            _make.clicked += () => Make(MakeKind.New);
             mood.Add(VoiceLabScreen.Actions(_make, Ui.Text(VoiceLabStrings.MakeNote, VoiceLabScreen.NoteClass, "vv-text-body")));
             Add(mood);
 
@@ -90,8 +91,11 @@ namespace VirtualVessel.UI.VoiceLab
             _tiles.AddToClassList(TilesClass);
             _candidatesCard.Add(_tiles);
             _makeMore = Ui.Button(VoiceLabStrings.MakeMore);
-            _makeMore.clicked += () => Make(more: true);
-            _candidatesCard.Add(VoiceLabScreen.Actions(_makeMore, Ui.Text(VoiceLabStrings.CandidatesNote, VoiceLabScreen.NoteClass, "vv-text-body")));
+            _makeMore.clicked += () => Make(MakeKind.More);
+            _makeNear = Ui.Button(VoiceLabStrings.MakeNear);
+            _makeNear.TooltipKey = VoiceLabStrings.MakeNearTip;
+            _makeNear.clicked += () => Make(MakeKind.Near);
+            _candidatesCard.Add(VoiceLabScreen.Actions(_makeNear, _makeMore, Ui.Text(VoiceLabStrings.CandidatesNote, VoiceLabScreen.NoteClass, "vv-text-body")));
             Add(_candidatesCard);
 
             _next = Ui.Button(VoiceLabStrings.ToTimbre, ButtonVariant.Primary);
@@ -132,9 +136,25 @@ namespace VirtualVessel.UI.VoiceLab
             return slider;
         }
 
-        private async void Make(bool more)
+        private enum MakeKind
+        {
+            New,
+            More,
+            Near,
+        }
+
+        public ActionButton MakeNearButton => _makeNear;
+
+        private async void Make(MakeKind kind)
         {
             if (_making != null)
+            {
+                return;
+            }
+
+            VoiceLabCandidate near = kind == MakeKind.Near ? _draft.Candidate : null;
+            int nearNumber = kind == MakeKind.Near ? _draft.CandidateNumber : 0;
+            if (kind == MakeKind.Near && near == null)
             {
                 return;
             }
@@ -143,8 +163,8 @@ namespace VirtualVessel.UI.VoiceLab
             SetBusy(true);
             try
             {
-                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(Mood(), VoiceLabView.CandidatesPerRound, _making.Token);
-                if (!more)
+                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(Mood(), VoiceLabView.CandidatesPerRound, near, _making.Token);
+                if (kind == MakeKind.New)
                 {
                     // A new mood starts a new set: the earlier candidates were for another one.
                     _candidates.Clear();
@@ -158,7 +178,7 @@ namespace VirtualVessel.UI.VoiceLab
 
                 foreach (VoiceLabCandidate candidate in made)
                 {
-                    _candidates.Add((++_made, candidate));
+                    _candidates.Add((++_made, nearNumber, candidate));
                 }
             }
             catch (OperationCanceledException)
@@ -188,6 +208,7 @@ namespace VirtualVessel.UI.VoiceLab
             _busy.style.display = busy ? DisplayStyle.Flex : DisplayStyle.None;
             _make.SetEnabled(!busy);
             _makeMore.SetEnabled(!busy);
+            _makeNear.SetEnabled(!busy && _draft.Candidate != null);
         }
 
         private void ShowTiles()
@@ -204,10 +225,11 @@ namespace VirtualVessel.UI.VoiceLab
 
             foreach (int index in VoiceLabView.Order(medians, (CandidateOrder)_order.value))
             {
-                (int number, VoiceLabCandidate candidate) = _candidates[index];
+                (int number, int from, VoiceLabCandidate candidate) = _candidates[index];
                 var tile = new CandidateTile(number, candidate.MedianHz, candidate.LowHz, candidate.HighHz)
                 {
                     Picked = ReferenceEquals(candidate, _draft.Candidate),
+                    FromNumber = from,
                 };
                 tile.PlayButton.style.display = _player.Available ? DisplayStyle.Flex : DisplayStyle.None;
                 tile.PlayButton.clicked += () => Play(tile, candidate);
@@ -217,6 +239,7 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _next.SetEnabled(_draft.Candidate != null);
+            _makeNear.SetEnabled(_making == null && _draft.Candidate != null);
         }
 
         private async void Play(CandidateTile tile, VoiceLabCandidate candidate)
@@ -257,6 +280,7 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _next.SetEnabled(true);
+            _makeNear.SetEnabled(_making == null);
         }
     }
 }

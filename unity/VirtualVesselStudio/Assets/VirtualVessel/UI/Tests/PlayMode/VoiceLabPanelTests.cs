@@ -126,6 +126,29 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator CandidatesNearAPickedOne_AreAddedAndSayWhereTheyCameFrom()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Assert.That(baseStep.MakeNearButton.enabledSelf, Is.False, "Nothing is picked yet.");
+
+            CandidateTile third = baseStep.Tiles.ToList()[2];
+            Submit(third.PickButton);
+            yield return null;
+            Assert.That(baseStep.MakeNearButton.enabledSelf, Is.True);
+            Submit(baseStep.MakeNearButton);
+            yield return null;
+
+            Assert.That(_lab.Near.Last().Id, Is.EqualTo("c2"));
+            List<CandidateTile> tiles = baseStep.Tiles.ToList();
+            Assert.That(tiles.Count, Is.EqualTo(2 * VoiceLabView.CandidatesPerRound), "The new ones join the earlier ones.");
+            Assert.That(tiles.Skip(VoiceLabView.CandidatesPerRound).All(t => t.FromNumber == 3), Is.True);
+            Assert.That(tiles.Count(t => t.Picked), Is.EqualTo(1), "The picked one stays picked.");
+        }
+
+        [UnityTest]
         public IEnumerator ChangingTheTimbre_ClosesTheStepsAfterIt()
         {
             VoiceLabScreen screen = Screen();
@@ -211,6 +234,8 @@ namespace VirtualVessel.UI.Tests
 
             public List<VoiceLabMood> Moods { get; } = new List<VoiceLabMood>();
 
+            public List<VoiceLabCandidate> Near { get; } = new List<VoiceLabCandidate>();
+
             public List<(VoiceLabCandidate Candidate, VoiceLabTimbre Timbre)> Built { get; } = new List<(VoiceLabCandidate, VoiceLabTimbre)>();
 
             public List<(string RunId, string Name)> Registered { get; } = new List<(string, string)>();
@@ -219,9 +244,10 @@ namespace VirtualVessel.UI.Tests
 
             public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(VoiceLabBuildState.None, 0f);
 
-            public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken)
+            public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
             {
                 Moods.Add(mood);
+                Near.Add(near);
                 var made = new List<VoiceLabCandidate>();
                 for (int i = 0; i < count; i++, _made++)
                 {

@@ -65,9 +65,15 @@ namespace VirtualVessel.VoiceLab.Design
             _nextSeed = firstSeed;
         }
 
-        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
+        /// <param name="near">A candidate to make the new ones near, or null to make them from the description alone.</param>
+        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, VoiceCandidate near, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
         {
             ConfigDocument request = ConfigDocument.Create();
+            if (near != null)
+            {
+                request.Set("reference", near.File);
+            }
+
             description.WriteMood(request);
             request.Set("words", description.Words);
             request.Set("count", count);
@@ -139,10 +145,11 @@ namespace VirtualVessel.VoiceLab.Design
         public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result)
         {
             string instruction = result.Get<string>("instruction");
+            string reference = result.Get<string>("reference");
             var candidates = new List<VoiceCandidate>();
             foreach (CandidateFields item in result.Get("candidates", new List<CandidateFields>()))
             {
-                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction));
+                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference));
             }
 
             return candidates;
@@ -171,7 +178,7 @@ namespace VirtualVessel.VoiceLab.Design
         /// <summary>What run.json keeps of how the voice was made. Pure.</summary>
         public static RunDesign Design(VoiceCandidate candidate, TimbreSettings timbre)
         {
-            return new RunDesign { Instruction = candidate.Instruction, Seed = candidate.Seed, Candidate = candidate.File, Timbre = timbre.ToValues() };
+            return new RunDesign { Instruction = candidate.Instruction, Seed = candidate.Seed, Candidate = candidate.File, Reference = candidate.Reference, Timbre = timbre.ToValues() };
         }
 
         /// <summary>The request of the build's step <paramref name="step"/>. Pure.</summary>

@@ -32,7 +32,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(lab.Availability, Is.EqualTo(VoiceLabAvailability.NotSetUp));
             Assert.That(lab.BuildProgress.State, Is.EqualTo(VoiceLabBuildState.None));
             Assert.Throws<VoiceLabFailedException>(() => lab.Register("r", "x"));
-            Assert.That(() => lab.MakeCandidatesAsync(new VoiceLabMood(null, ""), 6, CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
+            Assert.That(() => lab.MakeCandidatesAsync(new VoiceLabMood(null, ""), 6, null, CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
         }
 
         [Test]

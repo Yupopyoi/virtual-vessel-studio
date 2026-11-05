@@ -1,7 +1,9 @@
 """Makes speech with VoxCPM2 (Voice Lab detailed design 8.3.1, 8.3.3, 8.5).
 
-candidates: {"mood": {slider: 0..1}, "words": str, "count": n, "firstSeed": n, "model": folder, "output": folder}
-            -> a voice per seed reading the same line, with its pitch, to compare by ear and by number.
+candidates: {"mood": {slider: 0..1}, "words": str, "count": n, "firstSeed": n, "model": folder, "output": folder,
+             "reference": wav (optional)}
+            -> a voice per seed reading the same line, with its pitch, to compare by ear and by number. With a
+               reference, the voices are made near it: new candidates around one the user picked (8.3.1).
 speech:     {"reference": wav, "firstSeed": n, "model": folder, "output": folder}
             -> training speech: the reference's voice reading this project's texts. Files already made are kept,
                so a stopped run continues.
@@ -54,6 +56,7 @@ def candidates(request, reporter):
     if not 1 <= count <= 24:
         raise protocol.BadRequest("'count' must be 1 to 24.")
     instruction = prompt.build(request.get("mood", {}), request.get("words", ""))
+    reference = reference_of(request)
     reporter.progress("load", 0, 1)
     model = _load(protocol.require(request, "model", str))
     rate = model.tts_model.sample_rate
@@ -62,12 +65,25 @@ def candidates(request, reporter):
         reporter.progress("candidates", i, count)
         seed = first + i
         _seeded(seed)
-        wav = model.generate(text=f"({instruction}){CANDIDATE_LINE}", cfg_value=CFG, inference_timesteps=STEPS, normalize=False)
+        wav = model.generate(text=f"({instruction}){CANDIDATE_LINE}", cfg_value=CFG, inference_timesteps=STEPS, normalize=False,
+                             **({"reference_wav_path": reference} if reference else {}))
         path = os.path.join(output, f"candidate_{seed}.wav")
         _save(path, wav, rate)
         made.append({"seed": seed, "file": path, **pitch.describe(np.asarray(wav, dtype=np.float32).reshape(-1), rate)})
     reporter.progress("candidates", count, count)
-    reporter.result(instruction=instruction, candidates=made, versions=_versions())
+    reporter.result(instruction=instruction, reference=reference, candidates=made, versions=_versions())
+
+
+def reference_of(request):
+    """The optional reference to make candidates near, checked before the model loads; None without one."""
+    reference = request.get("reference")
+    if reference is None or reference == "":
+        return None
+    if not isinstance(reference, str):
+        raise protocol.BadRequest("'reference' must be a path.")
+    if not os.path.isfile(reference):
+        raise FileNotFoundError(f"The reference {reference} does not exist.")
+    return reference
 
 
 def speech(request, reporter):
