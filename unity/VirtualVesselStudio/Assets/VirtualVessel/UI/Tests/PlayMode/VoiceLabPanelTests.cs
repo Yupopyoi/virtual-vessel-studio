@@ -10,7 +10,6 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
-using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
@@ -147,7 +146,7 @@ namespace VirtualVessel.UI.Tests
         public IEnumerator Building_WaitsWhileAStreamRuns()
         {
             Object.Destroy(_host);
-            var streaming = new FakeStreaming();
+            var streaming = new StreamPanelTests.FakeStreaming();
             streaming.SetState(StreamingState.Live);
             yield return Build(new ScreenServices { VoiceLab = _lab, Streaming = streaming });
 
@@ -262,48 +261,6 @@ namespace VirtualVessel.UI.Tests
             {
                 Played.Add(path);
                 return Task.FromResult(true);
-            }
-
-            public void Stop()
-            {
-            }
-        }
-
-        private sealed class FakeStreaming : IStreamingService
-        {
-            private readonly ObservableValue<StreamingState> _state = new ObservableValue<StreamingState>(StreamingState.Idle);
-
-            public IReadOnlyObservable<StreamingState> State => _state;
-
-            public IReadOnlyObservable<StreamingProblem> Problem { get; } = new ObservableValue<StreamingProblem>(default);
-
-            public TimeSpan Elapsed => TimeSpan.Zero;
-
-            public IReadOnlyObservable<StreamingOptions> Options { get; } = new ObservableValue<StreamingOptions>(default);
-
-            public StreamingStats Stats => default;
-
-            public void SetState(StreamingState state)
-            {
-                _state.Value = state;
-            }
-
-            public void SetOptions(StreamingOptions options)
-            {
-            }
-
-            public bool SetStreamKey(string key)
-            {
-                return true;
-            }
-
-            public Task<StreamingProblem> TestConnectionAsync()
-            {
-                return Task.FromResult(default(StreamingProblem));
-            }
-
-            public void Start()
-            {
             }
 
             public void Stop()

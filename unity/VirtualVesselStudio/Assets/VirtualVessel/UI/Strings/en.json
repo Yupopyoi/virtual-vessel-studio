@@ -70,7 +70,7 @@
         "common.step": "STEP {n}",
         "common.candidate.name": "Candidate {n}",
         "common.candidate.picked": "Picked",
-        "common.candidate.pick": "Pick this one",
+        "common.candidate.pick": "Pick this voice",
         "common.candidate.play": "Listen",
         "common.candidate.pitch": "Average pitch",
         "common.candidate.range": "Pitch range",

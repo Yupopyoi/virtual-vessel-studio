@@ -106,9 +106,16 @@ namespace VirtualVessel.VoiceLab
             Ensure();
             SetProgress(new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f));
             var progress = new Forward(p => SetProgress(new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction)));
-            TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
-            SetProgress(default);
-            return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
+            try
+            {
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
+                return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
+            }
+            finally
+            {
+                // Also when the build threw, so the screen never shows a build that is not running.
+                SetProgress(default);
+            }
         }
 
         public void Register(string runId, string name)

@@ -70,7 +70,7 @@
         "common.step": "STEP {n}",
         "common.candidate.name": "候補 {n}",
         "common.candidate.picked": "選択中",
-        "common.candidate.pick": "これにする",
+        "common.candidate.pick": "この声を選ぶ",
         "common.candidate.play": "聞く",
         "common.candidate.pitch": "平均の高さ",
         "common.candidate.range": "高さの範囲",
