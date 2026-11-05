@@ -36,7 +36,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 
 | Class | Kind | Role |
 |---|---|---|
-| `IVoiceLab` | Interface (UI) | For the UI: activation, audio, training, registration |
+| `IVoiceLab` | Interface (UI) | For the screen: candidates, timbre previews, building, registration (5); activation later |
 | `VoiceLabService` | Class | Application Service |
 | `VoiceTerms` | Class | The terms' version, where the text is, checking agreement |
 | `VoiceComponentInstaller` | Class | Moves the build through its steps |
@@ -59,25 +59,28 @@ On the Python side:
 
 ## 5. Public API
 
+`IVoiceLab` is declared in the UI module (`VirtualVessel.UI.VoiceLab`), so the screen depends on no Voice Lab class; `VoiceLabService` implements it. Its types are the screen's own: the request and result types of 8.5 stay inside Voice Lab.
+
 ```csharp
 public interface IVoiceLab
 {
-    IReadOnlyObservable<VoiceLabState> State { get; }
-    IReadOnlyObservable<InstallProgress> Install { get; }
-    VoiceTermsDocument Terms { get; }
-    Task ActivateAsync(VoiceTermsAgreement agreement, CancellationToken cancellationToken);
-    Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
-    Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+    VoiceLabAvailability Availability { get; }   // Ready, or NotSetUp without a training environment (6.4)
 
     // Designing a voice (8.3)
-    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
-    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken);
+    Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
+    void Register(string runId, string name);
 }
 ```
 
-`TimbreSettings` holds four numbers, pitch (semitones), age (a formant ratio), brightness, and breathiness, each 0 (no change) by default.
+- `VoiceLabMood` holds the sliders (0 to 1, by the keys of 8.3.1) and the words. `VoiceLabCandidate` holds the sample to play and its pitch: the median and the 5 to 95% range in Hz. The seed and the instruction stay inside Voice Lab and are never shown (system design 14.14).
+- `VoiceLabTimbre` holds four steps, pitch (semitones), age (a formant ratio), brightness, and breathiness, from -6 to +6, each 0 (no change) by default. Voice Lab clamps them on the way in.
+- A failure that the screen should tell the user about throws `VoiceLabFailedException`, whose message is for developers. Cancelling throws `OperationCanceledException`. A build reports failing and cancelling in `VoiceLabBuild.State` instead, with `OutOfMemory` for GPU memory.
+- None of the methods blocks the main thread.
+- `Register` copies files and is called off the main thread by the screen.
+- Activation and terms (8.1, 8.2) and importing one's own recordings (the first stage of 8.3) come with their stages (17).
 
 ## 6. Data Model
 

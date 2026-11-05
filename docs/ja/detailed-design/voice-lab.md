@@ -36,7 +36,7 @@
 
 | Class | 種類 | 役割 |
 |---|---|---|
-| `IVoiceLab` | Interface（UI） | UIが使う：アクティベーション、音声、学習、登録 |
+| `IVoiceLab` | Interface（UI） | 画面が使う：候補、声色の試聴、作成、登録（5）。アクティベーションは後で |
 | `VoiceLabService` | Class | Application Service |
 | `VoiceTerms` | Class | 規約の版、本文の場所、同意の確認 |
 | `VoiceComponentInstaller` | Class | 構築の手順を進める |
@@ -59,25 +59,28 @@ Python側：
 
 ## 5. 公開API
 
+`IVoiceLab`はUIのモジュール（`VirtualVessel.UI.VoiceLab`）で宣言し、`VoiceLabService`が実装する。画面はVoice Labのクラスに依存しない。型は画面のためのもので、8.5の要求と結果の型はVoice Labの中に留める。
+
 ```csharp
 public interface IVoiceLab
 {
-    IReadOnlyObservable<VoiceLabState> State { get; }
-    IReadOnlyObservable<InstallProgress> Install { get; }
-    VoiceTermsDocument Terms { get; }
-    Task ActivateAsync(VoiceTermsAgreement agreement, CancellationToken cancellationToken);
-    Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
-    Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+    VoiceLabAvailability Availability { get; }   // Ready、または学習の環境がないときNotSetUp（6.4）
 
     // 声を設計する（8.3）
-    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
-    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken);
+    Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
+    void Register(string runId, string name);
 }
 ```
 
-`TimbreSettings`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさの4つの数値で、どれも0（変えない）を既定とする。
+- `VoiceLabMood`はスライダー（0から1、8.3.1のキー）とことばを持つ。`VoiceLabCandidate`は再生用の音声と声の高さ（中央値と5〜95%の範囲、Hz）を持つ。seedと指示文はVoice Labの中に留め、表示しない（方式設計14.14）。
+- `VoiceLabTimbre`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさの4つの段階で、-6から+6、どれも0（変えない）を既定とする。範囲はVoice Lab側で丸める。
+- ユーザーに伝えるべき失敗は`VoiceLabFailedException`を投げる。メッセージは開発者向け。取り消しは`OperationCanceledException`を投げる。作成だけは、失敗と取り消しを`VoiceLabBuild.State`で返し、GPUのメモリー不足を`OutOfMemory`で示す。
+- どのメソッドもメインスレッドを止めない。
+- `Register`はファイルをコピーするので、画面はメインスレッドの外から呼ぶ。
+- アクティベーションと規約（8.1、8.2）、自分の録音の取り込み（8.3の第1段階）は、それぞれの段階（17）で加える。
 
 ## 6. Data Model
 
