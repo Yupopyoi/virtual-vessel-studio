@@ -28,6 +28,7 @@ using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
+using VirtualVessel.VoiceLab;
 using VirtualVessel.Voice;
 
 namespace VirtualVessel.Application.Startup
@@ -288,6 +289,8 @@ namespace VirtualVessel.Application.Startup
                                 Captures = capture,
                                 Audio = audio,
                                 Voice = voice,
+                                VoiceLab = VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")),
+                                AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
                                 Streaming = streamingService,

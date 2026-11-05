@@ -8,6 +8,7 @@
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ExternalServices",
         "VirtualVessel.ProjectData",
+        "VirtualVessel.UI",
         "VirtualVessel.VoiceLab"
     ],
     "includePlatforms": [

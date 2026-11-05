@@ -15,7 +15,8 @@
         "VirtualVessel.UI",
         "VirtualVessel.Streaming",
         "VirtualVessel.Video",
-        "VirtualVessel.Voice"
+        "VirtualVessel.Voice",
+        "VirtualVessel.VoiceLab"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
