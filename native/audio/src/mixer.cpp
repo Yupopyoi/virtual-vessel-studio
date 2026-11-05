@@ -265,6 +265,16 @@ namespace vv::audio
             }
         }
 
+        if (_previewPosition < _preview.size())
+        {
+            _previewPosition += AddPreview(_monitorBlock.data(), BlockFrames, Channels, _preview, _previewPosition);
+            _previewPlayed = static_cast<int64_t>(_previewPosition);
+            if (_previewPosition >= _preview.size())
+            {
+                StopPreview();
+            }
+        }
+
         _monitorLimiter = Limit(_monitorBlock.data(), BlockFrames, Channels, _monitorLimiter);
         float monitorGain = _monitorMuted.load() ? 0.0f : _monitorGain.load();
         ApplyRamp(_monitorBlock.data(), BlockFrames, Channels, _appliedMonitorGain, monitorGain);
@@ -356,6 +366,37 @@ namespace vv::audio
     {
         _monitorGain = DbToLinear(ClampGainDb(gainDb));
         _monitorMuted = muted;
+    }
+
+    void Mixer::PlayPreview(std::vector<float> samples)
+    {
+        _preview = std::move(samples);
+        _previewPosition = 0;
+        _previewPlayed = 0;
+        _previewLength = static_cast<int64_t>(_preview.size());
+    }
+
+    void Mixer::StopPreview()
+    {
+        _preview.clear();
+        _preview.shrink_to_fit();
+        _previewPosition = 0;
+        _previewPlayed = 0;
+        _previewLength = 0;
+    }
+
+    size_t Mixer::AddPreview(float* block, size_t frames, int channels, const std::vector<float>& preview, size_t position)
+    {
+        size_t take = position < preview.size() ? std::min(frames, preview.size() - position) : 0;
+        for (size_t i = 0; i < take; i++)
+        {
+            for (int c = 0; c < channels; c++)
+            {
+                block[(i * channels) + c] += preview[position + i];
+            }
+        }
+
+        return take;
     }
 
     float Mixer::TakeMonitorPeak()

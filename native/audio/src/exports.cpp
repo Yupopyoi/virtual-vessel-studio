@@ -606,6 +606,52 @@ extern "C"
         delete clip;
     }
 
+    int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate)
+    {
+        if (engine == nullptr || samples == nullptr || count <= 0 || rate <= 0 || count > static_cast<int64_t>(rate) * VV_AUDIO_MAX_FILE_SECONDS)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        try
+        {
+            // Resampled before taking the lock, so the mix waits only for the swap.
+            std::vector<float> resampled = vv::audio::ResampleLinear(samples, static_cast<size_t>(count), rate, vv::audio::SampleRate);
+            std::lock_guard<std::mutex> guard(engine->lock);
+            engine->mixer.PlayPreview(std::move(resampled));
+            return VV_AUDIO_OK;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+    }
+
+    int32_t vv_audio_preview_stop(vv_audio_engine* engine)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        std::lock_guard<std::mutex> guard(engine->lock);
+        engine->mixer.StopPreview();
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length)
+    {
+        if (engine == nullptr || played == nullptr || length == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        vv::audio::PreviewPosition position = engine->mixer.GetPreviewPosition();
+        *played = position.played;
+        *length = position.length;
+        return VV_AUDIO_OK;
+    }
+
     int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t reader, vv_audio_stream_tap* tap)
     {
         if (engine == nullptr || tap == nullptr || reader < 0 || reader >= MaxReaders)

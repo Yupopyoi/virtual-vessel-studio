@@ -568,6 +568,56 @@ namespace
         Check(result == VV_AUDIO_UNREADABLE && clip == nullptr && error != 0, "a missing file is unreadable");
     }
 
+    // A preview reaches the monitor only, plays to its end, and is replaced or stopped (audio detailed design 5.5).
+    void Preview()
+    {
+        Mixer mixer(Frequency);
+        uint64_t mixed = 0;
+        mixer.PlayPreview(std::vector<float>(BlockFrames * 2 + 100, 0.25f));
+        Check(mixer.GetPreviewPosition().length == BlockFrames * 2 + 100, "the preview's length");
+
+        std::vector<float> monitor(BlockFrames * Channels);
+        float heard = 0.0f;
+        for (int b = 0; b < 4; b++)
+        {
+            mixer.MixBlock(Mixer::FrameQpc(0, mixed * BlockFrames, Frequency));
+            mixed++;
+            size_t got = mixer.ReadMonitor(monitor.data(), BlockFrames);
+            for (size_t i = 0; i < got * Channels; i++)
+            {
+                heard = std::max(heard, monitor[i]);
+            }
+        }
+
+        Check(heard > 0.2f, "the preview is heard on the monitor");
+        Check(mixer.GetPreviewPosition().length == 0, "it stops at its end");
+        std::vector<float> stream(BlockFrames * Channels);
+        int64_t first = 0;
+        int32_t read = mixer.ReadStream(stream.data(), BlockFrames, Mixer::FrameQpc(0, mixed * BlockFrames, Frequency), &first, 0);
+        float onStream = 0.0f;
+        for (int32_t i = 0; i < read * Channels; i++)
+        {
+            onStream = std::max(onStream, std::fabs(stream[i]));
+        }
+
+        Check(onStream == 0.0f, "the preview never reaches the stream");
+
+        mixer.PlayPreview(std::vector<float>(SampleRate, 0.1f));
+        mixer.PlayPreview(std::vector<float>(100, 0.1f));
+        Check(mixer.GetPreviewPosition().length == 100, "playing replaces the preview");
+        mixer.StopPreview();
+        Check(mixer.GetPreviewPosition().length == 0, "stop ends it");
+
+        float block[8] = {};
+        std::vector<float> two = { 0.5f, -0.5f };
+        Check(Mixer::AddPreview(block, 4, 2, two, 1) == 1 && block[0] == -0.5f && block[1] == -0.5f && block[2] == 0.0f, "mono goes to every channel from the position");
+
+        float one[] = { 0.0f, 1.0f };
+        std::vector<float> up = ResampleLinear(one, 2, 24000, 48000);
+        Check(up.size() == 4 && up[1] == 0.5f, "resampling interpolates");
+        Check(ResampleLinear(one, 2, 48000, 48000).size() == 2, "the same rate is a copy");
+    }
+
     // Where each export starts in the DLL, so a crash's offset can be placed in a function.
     void PrintExports()
     {
@@ -733,6 +783,7 @@ int main()
     Step("ramps", Ramps);
     Step("problems", Problems);
     Step("audio files", AudioFiles);
+    Step("preview", Preview);
     Step("the engine on this PC", EngineOnThisPc);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;
