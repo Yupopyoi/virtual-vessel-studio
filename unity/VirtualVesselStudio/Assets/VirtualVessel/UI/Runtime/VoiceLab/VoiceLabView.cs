@@ -67,7 +67,12 @@ namespace VirtualVessel.UI.VoiceLab
         /// </summary>
         public const float SamePersonAge = 4f;
 
-        public const int CandidatesPerRound = 6;
+        /// <summary>How many candidates a round can make; six by default, fewer to try things quickly.</summary>
+        public static readonly IReadOnlyList<int> CandidateCounts = new[] { 1, 3, 6, 12 };
+
+        public const int DefaultCountIndex = 2;
+
+        public static int CandidatesPerRound => CandidateCounts[DefaultCountIndex];
 
         /// <summary>The main four, shown first (system design 14.14). The bands are prompt.py's.</summary>
         public static readonly IReadOnlyList<MoodSlider> MainMood = new[]
@@ -175,6 +180,18 @@ namespace VirtualVessel.UI.VoiceLab
                 default:
                     return null;
             }
+        }
+
+        /// <summary>The candidates' bar: its text, how full it is, and "2 / 6".</summary>
+        public static (string LabelKey, float Fraction, string Detail) MakingBar(VoiceLabMaking making)
+        {
+            if (making.Loading)
+            {
+                return (VoiceLabStrings.Loading, 0f, string.Empty);
+            }
+
+            float fraction = Math.Max(0f, Math.Min(1f, making.Done / (float)making.Total));
+            return (VoiceLabStrings.Making, fraction, string.Format(CultureInfo.InvariantCulture, "{0} / {1}", making.Done, making.Total));
         }
 
         /// <summary>"45%", for the progress bar's detail.</summary>

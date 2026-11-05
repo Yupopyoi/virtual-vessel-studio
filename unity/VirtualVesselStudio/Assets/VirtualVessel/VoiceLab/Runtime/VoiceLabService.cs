@@ -31,6 +31,7 @@ namespace VirtualVessel.VoiceLab
         private readonly ILog _log;
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         private VoiceLabBuildProgress _progress;
+        private VoiceLabMaking _making;
 
         private VoiceLabService(VoiceDesigner designer, TrainingRunStore runs, VoiceModelRegistrar registrar, ILog log)
         {
@@ -41,6 +42,17 @@ namespace VirtualVessel.VoiceLab
         }
 
         public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
+
+        public VoiceLabMaking CandidatesProgress
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _making;
+                }
+            }
+        }
 
         public VoiceLabBuildProgress BuildProgress
         {
@@ -84,7 +96,18 @@ namespace VirtualVessel.VoiceLab
         public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
         {
             VoiceCandidate reference = near != null ? Find(near) : null;
-            IReadOnlyList<VoiceCandidate> made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words), count, reference, null, cancellationToken)).ConfigureAwait(false);
+            SetMaking(default);
+            var progress = new Forward<ScriptProgress>(p => SetMaking(ToMaking(p)));
+            IReadOnlyList<VoiceCandidate> made;
+            try
+            {
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words), count, reference, progress, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                SetMaking(default);
+            }
+
             lock (_gate)
             {
                 foreach (VoiceCandidate candidate in made)
@@ -106,7 +129,7 @@ namespace VirtualVessel.VoiceLab
         {
             Ensure();
             SetProgress(new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f));
-            var progress = new Forward(p => SetProgress(new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction)));
+            var progress = new Forward<BuildProgress>(p => SetProgress(new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction)));
             try
             {
                 TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
@@ -132,6 +155,12 @@ namespace VirtualVessel.VoiceLab
             {
                 throw new VoiceLabFailedException($"Registering run {runId} failed: {exception.Message}", exception);
             }
+        }
+
+        /// <summary>A script's progress as the candidates' bar shows it: loading the model counts as no total. Pure.</summary>
+        public static VoiceLabMaking ToMaking(ScriptProgress progress)
+        {
+            return progress.Stage == "candidates" ? new VoiceLabMaking(progress.Done, progress.Total) : default;
         }
 
         /// <summary>A training state as the screen shows it. Pure.</summary>
@@ -218,16 +247,24 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
-        private sealed class Forward : IProgress<BuildProgress>
+        private void SetMaking(VoiceLabMaking making)
         {
-            private readonly Action<BuildProgress> _report;
+            lock (_gate)
+            {
+                _making = making;
+            }
+        }
 
-            public Forward(Action<BuildProgress> report)
+        private sealed class Forward<T> : IProgress<T>
+        {
+            private readonly Action<T> _report;
+
+            public Forward(Action<T> report)
             {
                 _report = report;
             }
 
-            public void Report(BuildProgress value)
+            public void Report(T value)
             {
                 _report(value);
             }

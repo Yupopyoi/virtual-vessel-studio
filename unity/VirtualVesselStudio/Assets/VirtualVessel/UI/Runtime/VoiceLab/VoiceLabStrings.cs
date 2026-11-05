@@ -27,6 +27,9 @@ namespace VirtualVessel.UI.VoiceLab
         public const string Make = "lab.base.make";
         public const string MakeNote = "lab.base.make-note";
         public const string Making = "lab.base.making";
+        public const string Loading = "lab.base.loading";
+        public const string Count = "lab.base.count";
+        public const string CountTip = "lab.base.count.tip";
         public const string Candidates = "lab.base.candidates";
         public const string SortMade = "lab.base.sort.made";
         public const string SortLow = "lab.base.sort.low";

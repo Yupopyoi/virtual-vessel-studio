@@ -149,6 +149,20 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator HowManyToMake_CanBeChosen_SixByDefault()
+        {
+            var baseStep = (VoiceLabBaseStep)Screen().Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            baseStep.Q<Segmented>().value = 0;
+            Submit(baseStep.MakeButton);
+            yield return null;
+
+            Assert.That(_lab.Counts, Is.EqualTo(new[] { 6, 1 }));
+            Assert.That(baseStep.Tiles.Count(), Is.EqualTo(1), "Making again replaces the candidates.");
+        }
+
+        [UnityTest]
         public IEnumerator ChangingTheTimbre_ClosesTheStepsAfterIt()
         {
             VoiceLabScreen screen = Screen();
@@ -244,10 +258,15 @@ namespace VirtualVessel.UI.Tests
 
             public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(VoiceLabBuildState.None, 0f);
 
+            public VoiceLabMaking CandidatesProgress => default;
+
+            public List<int> Counts { get; } = new List<int>();
+
             public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
             {
                 Moods.Add(mood);
                 Near.Add(near);
+                Counts.Add(count);
                 var made = new List<VoiceLabCandidate>();
                 for (int i = 0; i < count; i++, _made++)
                 {

@@ -29,6 +29,9 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ActionButton _makeNear;
         private readonly ActionButton _next;
         private readonly VisualElement _busy;
+        private readonly ProgressMeter _progress;
+        private readonly Segmented _count;
+        private IVisualElementScheduledItem _watch;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
         private readonly Segmented _order;
@@ -64,6 +67,13 @@ namespace VirtualVessel.UI.VoiceLab
             _words.MaxLength = 200;
             mood.Add(_words);
 
+            _count = Ui.Segmented(CountKeys());
+            _count.TooltipKey = VoiceLabStrings.CountTip;
+            _count.SetValueWithoutNotify(VoiceLabView.DefaultCountIndex);
+            var countRow = Ui.SettingRow(VoiceLabStrings.Count);
+            countRow.Add(_count);
+            mood.Add(countRow);
+
             _make = Ui.Button(VoiceLabStrings.Make, ButtonVariant.Primary);
             _make.clicked += () => Make(MakeKind.New);
             mood.Add(VoiceLabScreen.Actions(_make, Ui.Text(VoiceLabStrings.MakeNote, VoiceLabScreen.NoteClass, "vv-text-body")));
@@ -71,7 +81,8 @@ namespace VirtualVessel.UI.VoiceLab
 
             _busy = new VisualElement();
             _busy.AddToClassList(BusyClass);
-            _busy.Add(Ui.Text(VoiceLabStrings.Making, VoiceLabScreen.NoteClass, "vv-text-body"));
+            _progress = Ui.Progress(VoiceLabStrings.Loading);
+            _busy.Add(_progress);
             ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
             stop.clicked += () => _making?.Cancel();
             _busy.Add(stop);
@@ -163,7 +174,7 @@ namespace VirtualVessel.UI.VoiceLab
             SetBusy(true);
             try
             {
-                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(Mood(), VoiceLabView.CandidatesPerRound, near, _making.Token);
+                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(Mood(), VoiceLabView.CandidateCounts[_count.value], near, _making.Token);
                 if (kind == MakeKind.New)
                 {
                     // A new mood starts a new set: the earlier candidates were for another one.
@@ -206,9 +217,37 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _busy.style.display = busy ? DisplayStyle.Flex : DisplayStyle.None;
+            _watch?.Pause();
+            _watch = null;
+            if (busy)
+            {
+                ShowProgress();
+                _watch = schedule.Execute(ShowProgress).Every(300);
+            }
+
+            _count.SetEnabled(!busy);
             _make.SetEnabled(!busy);
             _makeMore.SetEnabled(!busy);
             _makeNear.SetEnabled(!busy && _draft.Candidate != null);
+        }
+
+        private static string[] CountKeys()
+        {
+            var keys = new string[VoiceLabView.CandidateCounts.Count];
+            for (int i = 0; i < keys.Length; i++)
+            {
+                keys[i] = VoiceLabStrings.Count + "." + VoiceLabView.CandidateCounts[i].ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return keys;
+        }
+
+        private void ShowProgress()
+        {
+            (string label, float fraction, string detail) = VoiceLabView.MakingBar(_lab.CandidatesProgress);
+            _progress.LabelKey = label;
+            _progress.Progress = fraction;
+            _progress.Detail = detail;
         }
 
         private void ShowTiles()

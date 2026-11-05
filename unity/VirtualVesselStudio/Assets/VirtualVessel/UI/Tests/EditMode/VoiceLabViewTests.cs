@@ -127,6 +127,16 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void CandidatesBar_SaysGettingReadyThenCounts()
+        {
+            Assert.That(VoiceLabView.MakingBar(default), Is.EqualTo((VoiceLabStrings.Loading, 0f, string.Empty)));
+            Assert.That(VoiceLabView.MakingBar(new VoiceLabMaking(2, 6)).LabelKey, Is.EqualTo(VoiceLabStrings.Making));
+            Assert.That(VoiceLabView.MakingBar(new VoiceLabMaking(2, 6)).Fraction, Is.EqualTo(1f / 3f).Within(1e-6f));
+            Assert.That(VoiceLabView.MakingBar(new VoiceLabMaking(2, 6)).Detail, Is.EqualTo("2 / 6"));
+            Assert.That(VoiceLabView.CandidateCounts[VoiceLabView.DefaultCountIndex], Is.EqualTo(6));
+        }
+
+        [Test]
         public void Names_AreTrimmed_AndBlankIsNone()
         {
             Assert.That(VoiceLabView.CleanName("  ふわり "), Is.EqualTo("ふわり"));

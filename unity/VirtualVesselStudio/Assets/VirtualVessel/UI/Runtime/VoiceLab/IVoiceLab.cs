@@ -113,6 +113,22 @@ namespace VirtualVessel.UI.VoiceLab
         public float Fraction { get; }
     }
 
+    /// <summary>How far making candidates is: <see cref="Done"/> of <see cref="Total"/>; a total of 0 while the voice model loads.</summary>
+    public readonly struct VoiceLabMaking
+    {
+        public VoiceLabMaking(int done, int total)
+        {
+            Done = done;
+            Total = total;
+        }
+
+        public int Done { get; }
+
+        public int Total { get; }
+
+        public bool Loading => Total <= 0;
+    }
+
     /// <summary>A finished build.</summary>
     public sealed class VoiceLabBuild
     {
@@ -146,6 +162,9 @@ namespace VirtualVessel.UI.VoiceLab
         /// </summary>
         /// <exception cref="VoiceLabFailedException">The voices could not be made.</exception>
         Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);
+
+        /// <summary>Where the running <see cref="MakeCandidatesAsync"/> is. Read it as often as needed.</summary>
+        VoiceLabMaking CandidatesProgress { get; }
 
         /// <exception cref="VoiceLabFailedException">The preview could not be made.</exception>
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
