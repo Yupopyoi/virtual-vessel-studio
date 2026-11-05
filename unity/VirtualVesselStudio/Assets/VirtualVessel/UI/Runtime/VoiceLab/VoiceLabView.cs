@@ -14,26 +14,48 @@ namespace VirtualVessel.UI.VoiceLab
         HighestFirst,
     }
 
-    /// <summary>A mood slider: the key the scripts know, its starting value, and its texts.</summary>
-    public readonly struct MoodSlider
+    /// <summary>
+    /// A mood item: the key the scripts know and its levels. The scripts' instruction changes only at
+    /// thresholds (services/voice-lab/voicelab/prompt.py), so the screen offers the levels, each sent as a
+    /// value inside its band, and names the one chosen. Moving the knob always changes the instruction.
+    /// </summary>
+    public sealed class MoodSlider
     {
-        public MoodSlider(string key, float start)
+        public MoodSlider(string key, int start, params float[] levels)
         {
             Key = key;
+            Levels = levels;
             Start = start;
         }
 
-        /// <summary>The slider's key in the request's "mood" object (Voice Lab detailed design 8.3.1).</summary>
+        /// <summary>The item's key in the request's "mood" object (Voice Lab detailed design 8.3.1).</summary>
         public string Key { get; }
 
-        /// <summary>0 to 1; the values VCBM's instructions were tuned with.</summary>
-        public float Start { get; }
+        /// <summary>The value sent for each level, low to high, each inside one band of the instruction.</summary>
+        public IReadOnlyList<float> Levels { get; }
+
+        /// <summary>The level that holds the value VCBM's instructions were tuned with.</summary>
+        public int Start { get; }
 
         public string NameKey => "lab.mood." + Key;
 
-        public string LowKey => NameKey + ".low";
+        /// <summary>The name of each level: "lab.mood.&lt;key&gt;.&lt;level&gt;", counted from 0.</summary>
+        public string[] LevelKeys()
+        {
+            var keys = new string[Levels.Count];
+            for (int i = 0; i < keys.Length; i++)
+            {
+                keys[i] = NameKey + "." + i.ToString(CultureInfo.InvariantCulture);
+            }
 
-        public string HighKey => NameKey + ".high";
+            return keys;
+        }
+
+        /// <summary>The value sent for <paramref name="level"/>, clamped to the levels. Pure.</summary>
+        public float ValueAt(int level)
+        {
+            return Levels[Math.Max(0, Math.Min(Levels.Count - 1, level))];
+        }
     }
 
     /// <summary>The Voice Lab screen's decisions, apart from the elements so they can be tested. All pure.</summary>
@@ -47,34 +69,25 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const int CandidatesPerRound = 6;
 
-        /// <summary>The main four, shown first (system design 14.14).</summary>
+        /// <summary>The main four, shown first (system design 14.14). The bands are prompt.py's.</summary>
         public static readonly IReadOnlyList<MoodSlider> MainMood = new[]
         {
-            new MoodSlider("youthful", 0.55f),
-            new MoodSlider("pitch", 0.55f),
-            new MoodSlider("brightness", 0.65f),
-            new MoodSlider("energy", 0.40f),
+            new MoodSlider("youthful", 1, 0.25f, 0.55f, 0.85f, 0.95f),      // <0.40, to 0.80, to 0.90, from 0.90
+            new MoodSlider("pitch", 1, 0.20f, 0.50f, 0.70f, 0.85f, 0.95f), // to 0.28, to 0.64, to 0.82, to 0.92, from 0.92
+            new MoodSlider("brightness", 1, 0.20f, 0.50f, 0.80f),          // to 0.32, to 0.68, from 0.68
+            new MoodSlider("energy", 1, 0.20f, 0.50f, 0.85f),              // to 0.30, to 0.72, from 0.72
         };
 
         /// <summary>The rest, under More detail.</summary>
         public static readonly IReadOnlyList<MoodSlider> MoreMood = new[]
         {
-            new MoodSlider("softness", 0.70f),
-            new MoodSlider("breathiness", 0.25f),
-            new MoodSlider("cuteness", 0.60f),
-            new MoodSlider("expressiveness", 0.55f),
-            new MoodSlider("speed", 0.50f),
-            new MoodSlider("naturalness", 0.90f),
+            new MoodSlider("softness", 2, 0.20f, 0.50f, 0.80f),            // to 0.32, to 0.68, from 0.68
+            new MoodSlider("breathiness", 0, 0.20f, 0.50f, 0.85f),         // to 0.30, to 0.72, from 0.72
+            new MoodSlider("cuteness", 1, 0.30f, 0.60f, 0.90f),            // <0.45, to 0.78, from 0.78
+            new MoodSlider("expressiveness", 1, 0.20f, 0.50f, 0.85f),      // to 0.30, to 0.72, from 0.72
+            new MoodSlider("speed", 1, 0.20f, 0.50f, 0.85f),               // to 0.30, to 0.72, from 0.72
+            new MoodSlider("naturalness", 2, 0.30f, 0.70f, 0.90f),         // <0.52, to 0.82, from 0.82
         };
-
-        /// <summary>
-        /// A slider's percent as the scripts take it, 0.01 to 1. Never 0: the scripts leave a sentence out at
-        /// exactly 0, which the left end of a slider does not mean.
-        /// </summary>
-        public static float MoodValue(float percent)
-        {
-            return Math.Max(0.01f, Math.Min(1f, percent / 100f));
-        }
 
         /// <summary>The candidates' indexes in <paramref name="order"/>; equal pitches keep the order made.</summary>
         public static int[] Order(IReadOnlyList<int> medianHz, CandidateOrder order)

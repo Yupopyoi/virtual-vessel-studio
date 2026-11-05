@@ -32,17 +32,36 @@ namespace VirtualVessel.UI.Tests
                 StringTable table = StringTable.Parse(File.ReadAllText(file, Encoding.UTF8));
                 foreach (MoodSlider slider in VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood))
                 {
-                    Assert.That(table.Strings.Keys, Does.Contain(slider.NameKey).And.Contain(slider.LowKey).And.Contain(slider.HighKey), file);
+                    Assert.That(table.Strings.Keys, Does.Contain(slider.NameKey), file);
+                    Assert.That(table.Strings.Keys, Is.SupersetOf(slider.LevelKeys()), file);
                 }
             }
         }
 
-        [TestCase(0f, 0.01f)]
-        [TestCase(55f, 0.55f)]
-        [TestCase(100f, 1f)]
-        public void MoodValue_NeverReachesZero_WhichWouldDropTheSentence(float percent, float value)
+        [Test]
+        public void MoodLevels_RiseInsideZeroToOne_AndStartOnOne()
         {
-            Assert.That(VoiceLabView.MoodValue(percent), Is.EqualTo(value).Within(0.0001f));
+            // 0 would drop the item's sentence from the instruction, which no level means.
+            foreach (MoodSlider slider in VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood))
+            {
+                Assert.That(slider.Levels, Is.Ordered.Ascending.And.All.InRange(0.01f, 1f), slider.Key);
+                Assert.That(slider.Levels.Distinct().Count(), Is.EqualTo(slider.Levels.Count), slider.Key);
+                Assert.That(slider.Start, Is.InRange(0, slider.Levels.Count - 1), slider.Key);
+            }
+
+            MoodSlider pitch = VoiceLabView.MainMood[1];
+            Assert.That(pitch.ValueAt(4), Is.EqualTo(0.95f));
+            Assert.That(pitch.ValueAt(9), Is.EqualTo(0.95f), "Clamped to the levels.");
+            Assert.That(pitch.LevelKeys()[0], Is.EqualTo("lab.mood.pitch.0"));
+        }
+
+        [TestCase(2f, 0f, 1f, 5, 2)]
+        [TestCase(2.4f, 0f, 1f, 5, 2)]
+        [TestCase(9f, 0f, 1f, 5, 4)]
+        [TestCase(-1f, 0f, 1f, 5, 0)]
+        public void SliderSteps_AreCountedFromTheLowEnd(float value, float low, float step, int count, int index)
+        {
+            Assert.That(VirtualVessel.UI.Controls.ValueSlider.StepIndex(value, low, step, count), Is.EqualTo(index));
         }
 
         [Test]

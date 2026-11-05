@@ -20,7 +20,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
         private readonly IVoiceLabFlow _flow;
-        private readonly Dictionary<string, ValueSlider> _mood = new Dictionary<string, ValueSlider>(StringComparer.Ordinal);
+        private readonly Dictionary<MoodSlider, ValueSlider> _mood = new Dictionary<MoodSlider, ValueSlider>();
         private readonly List<(int Number, VoiceLabCandidate Candidate)> _candidates = new List<(int, VoiceLabCandidate)>();
         private readonly Dictionary<CandidateTile, VoiceLabCandidate> _shown = new Dictionary<CandidateTile, VoiceLabCandidate>();
         private readonly TextInput _words;
@@ -111,9 +111,9 @@ namespace VirtualVessel.UI.VoiceLab
         public VoiceLabMood Mood()
         {
             var sliders = new Dictionary<string, float>(StringComparer.Ordinal);
-            foreach (KeyValuePair<string, ValueSlider> slider in _mood)
+            foreach (KeyValuePair<MoodSlider, ValueSlider> item in _mood)
             {
-                sliders[slider.Key] = VoiceLabView.MoodValue(slider.Value.value);
+                sliders[item.Key.Key] = item.Key.ValueAt((int)item.Value.value);
             }
 
             return new VoiceLabMood(sliders, _words.value?.Trim());
@@ -121,11 +121,15 @@ namespace VirtualVessel.UI.VoiceLab
 
         private VisualElement MoodRow(MoodSlider mood)
         {
-            ValueSlider slider = Ui.Slider(mood.NameKey, 0f, 100f);
+            // A knob that stops on the levels and names the one chosen, rather than a number from 0 to 100
+            // whose small moves change nothing.
+            ValueSlider slider = Ui.Slider(mood.NameKey, 0f, mood.Levels.Count - 1);
             slider.Step = 1f;
-            slider.SetValueWithoutNotify(mood.Start * 100f);
-            _mood.Add(mood.Key, slider);
-            return VoiceLabTimbreStep.WithEnds(slider, mood.LowKey, mood.HighKey);
+            slider.ValueKeys = mood.LevelKeys();
+            slider.SetValueWithoutNotify(mood.Start);
+            slider.AddToClassList(VoiceLabTimbreStep.SliderClass);
+            _mood.Add(mood, slider);
+            return slider;
         }
 
         private async void Make(bool more)
