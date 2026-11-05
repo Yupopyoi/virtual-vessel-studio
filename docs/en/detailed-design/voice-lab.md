@@ -67,9 +67,10 @@ public interface IVoiceLab
     VoiceLabAvailability Availability { get; }   // Ready, or NotSetUp without a training environment (6.4)
 
     // Designing a voice (8.3)
-    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near: null, or the candidate to make them near (8.3.1)
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
     void Register(string runId, string name);
 }

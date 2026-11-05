@@ -67,9 +67,10 @@ public interface IVoiceLab
     VoiceLabAvailability Availability { get; }   // Ready、または学習の環境がないときNotSetUp（6.4）
 
     // 声を設計する（8.3）
-    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
     void Register(string runId, string name);
 }
