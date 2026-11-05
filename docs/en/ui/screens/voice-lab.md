@@ -27,8 +27,9 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 
 ## 3. STEP 1 Pick a Base
 
-- The mood Card: the four main sliders (Youth, Pitch, Brightness, Energy), a collapsible Card "More detail" that starts closed (Softness, Breathiness, Cuteness, Intonation, Pace, Naturalness), and the words field (optional, up to 200 characters). Under each slider, what its two ends mean.
-- Sliders run from 0 to 100, starting at the values VCBM's instructions were tuned with. They are sent as 0.01 to 1: the scripts leave a sentence out at exactly 0, which the left end does not mean.
+- The mood Card: the four main sliders (Youth, Pitch, Brightness, Energy), a collapsible Card "More detail" that starts closed (Softness, Breathiness, Cuteness, Intonation, Pace, Naturalness), and the words field (optional, up to 200 characters)..
+- Each item is a slider that stops only on its levels and names the one chosen (for example Youth: Mature woman, Young adult, Young girl, Cartoon-like; Pitch has five). The instruction changes only at thresholds (`services/voice-lab/voicelab/prompt.py`), so a 0 to 100 scale moved without changing anything (the user's review, 2026-11-05). Each level is sent as a value inside its band, never 0, which would drop the sentence. Items start on the level of the values VCBM's instructions were tuned with.
+- The levels give no pitch in Hz. In a measurement with six seeds each, Pitch from Low to Raised gave the same medians (about 260 Hz) and High about 300 Hz, and a pitch in Hz written in the words had no effect (2026-11-05). The pitch in Hz is set in STEP 2.
 - Make candidates makes six. While they are being made, a line says so with Stop; the buttons are disabled.
 - Making candidates again replaces them; Make more adds six. Candidates are numbered in the order made.
 - The candidates Card: Candidate Tiles (`components.md` 3.27) with pitch and range in Hz, and a sort control (As made, Lowest first, Highest first). Without `IAudioPreview`, the tiles have no play button.

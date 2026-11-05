@@ -61,6 +61,7 @@ For each component, the following states are defined:
 - A 6px track. The part up to the value is Primary; the rest is Surface 3.
 - The thumb is an 18px circle (fill Knob, edge Primary). Knob is light on dark backgrounds and white-ish on light ones, so the thumb does not look heavy on light.
 - The current value is shown nearby as a number (Numeric or tabular digits) with its unit (for example `−12 dB`, `+4`).
+- A slider over a few choices in order, whose numbers would mean nothing, stops only on them and shows the chosen one's name instead of a number (for example Voice Lab's mood).
 
 ### 3.5 Level Meter
 
