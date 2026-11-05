@@ -33,6 +33,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - Make candidates makes six. While they are being made, a line says so with Stop; the buttons are disabled.
 - Making candidates again replaces them; Make more adds six. Candidates are numbered in the order made.
 - The candidates Card: Candidate Tiles (`components.md` 3.27) with pitch and range in Hz, and a sort control (As made, Lowest first, Highest first). Without `IAudioPreview`, the tiles have no play button.
+- Make candidates near this voice (enabled once a candidate is picked) adds six made with the picked one as the reference (Voice Lab detailed design 8.3.1). Their tiles say which candidate they came from ("From candidate 3"). The picked one stays picked.
 - STEP 2 opens once a candidate is picked.
 - When candidates could not be made, an error status chip says so (`lab.base.failed`).
 

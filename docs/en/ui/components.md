@@ -248,7 +248,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 ### 3.27 Candidate Tile
 
 - A frame for comparing several candidates and choosing one (for example, Voice Lab's STEP 1, system design 14.14). At least 200px wide, as many per row as fit.
-- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked").
+- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked"). A candidate made near another says so under its name in a caption ("From candidate 3").
 - In the middle: numbers (pitch and pitch range, monospace) and the range drawn as a band on a shared scale. Every candidate uses the same scale so they compare.
 - At the bottom: a Pick this voice button (Secondary).
 - The chosen candidate has an Accent Line frame and a Tint background.
