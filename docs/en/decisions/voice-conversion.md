@@ -531,3 +531,17 @@ Before implementing Voice Lab, the two untested points were checked (Voice Lab d
 - Whether RVC training still runs as before in this environment is not yet checked (only `einops`, `pydantic`, and `voxcpm` are added; RVC's pinned versions do not change).
 
 One environment would mean one build and one copy of torch and CUDA (several GB).
+
+## 2026-11-05 to 2026-11-06 Shaping the timbre: what moves a voice, and how far
+
+The aim: controls a user can understand and that really change the voice (Voice Lab detailed design 8.3.1, 8.3.2). Each test used the same seeds, or the same two voices (about 257 Hz and 321 Hz) edited with WORLD and matched in loudness to the voice resynthesized without an edit. The scripts and audio are outside the repository (voice-work).
+
+1. **The mood and pitch**: the instruction changes only at thresholds, so the mood sliders became named levels. With six seeds each, the pitch item from Low to Raised gave the same medians (about 260 Hz); High about 300 Hz; youth and pitch together about +60 Hz; youth Mature about -30 Hz. A pitch written in Hz in the words had no effect. Above about 370 Hz nothing came out. Levels combined toward Cartoon-like sometimes sounded strained (the user).
+2. **Candidates near a picked one** (VoxCPM2 with the picked voice as the reference): three chained rounds stayed natural (the user). The six of a round differ clearly. Keeping the same person is not needed in STEP 1 (the user).
+3. **Wide bands** (a band of 1.5 octaves raised or lowered by 6 or 12 dB): small differences (the user).
+4. **Harmonics by number and narrow bands**: the 2nd harmonic and up, and a third of an octave from 1.4 kHz up, moved as set; the differences were still small. Raising or lowering the 4th and 5th harmonics (about 1 to 1.3 kHz for this voice) sounded muffled or nasal.
+5. **Brightness**: the old knob, a slope about 1 kHz running on to 24 kHz, put 44% of the energy above 8 kHz at +3 (1.3% before) and was heard as hiss. Raising 2 to 5 kHz by 8 dB sounded brighter but slightly hoarse; raising the harmonics only, with the noise kept at its level, kept the brightness without the hoarseness (the user). Moving the resonances above 1 kHz up (a "smile") changed little.
+6. **Pitch and brightness**: +4 semitones sounded brighter than age +4. Pitch +4 alone, and with the brightness lift, were acceptable; pitch +4, age +4, and the brightness lift together sounded mechanical (the user).
+7. **Soft or pressed**: tilting every harmonic by its number sounded nasal on the soft side and harsh on the pressed side (the pressed side was dropped). Raising only the first harmonic sounded soft without the nasal sound, and lowering above 4 kHz took the edge off. Changing the breath with them added little. The mood's Softness in STEP 1 made softer candidates by ear. H1-H2, the usual measure of softness, disagreed with the ear on one candidate and is not used to judge.
+
+Decided (the user, 2026-11-06): brightness raises the harmonics of 2 to 5 kHz (8 dB at +6); softness (0 to +6) raises the first harmonic by up to 6 dB and lowers above 4 kHz by up to 3 dB; there is no pressed side. Whether brightness and softness survive training and conversion is being checked.
