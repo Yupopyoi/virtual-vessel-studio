@@ -137,6 +137,7 @@
         "lab.timbre.listen-base": "元の声",
         "lab.timbre.listen-shaped": "調整後",
         "lab.timbre.shaping": "調整した声を作っています…",
+        "lab.timbre.reshaping": "前の調整を取りやめて、作り直しています…",
         "lab.timbre.pitch-change": "声の高さ",
         "lab.timbre.far": "別の人の声に聞こえることがあります",
         "lab.timbre.far-body": "年齢を大きく動かすと、声らしさが変わります。聞き比べて確かめてください。",

@@ -137,6 +137,7 @@
         "lab.timbre.listen-base": "Original",
         "lab.timbre.listen-shaped": "Shaped",
         "lab.timbre.shaping": "Shaping the voice…",
+        "lab.timbre.reshaping": "Stopped the earlier one; shaping again…",
         "lab.timbre.pitch-change": "Pitch",
         "lab.timbre.far": "It may sound like someone else",
         "lab.timbre.far-body": "A large age change alters who the voice sounds like. Compare and check.",

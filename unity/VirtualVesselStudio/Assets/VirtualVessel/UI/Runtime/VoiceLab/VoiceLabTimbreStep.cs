@@ -33,8 +33,11 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ActionButton _listenBase;
         private readonly ActionButton _listenShaped;
         private readonly Label _shaping;
+        private readonly Label _reshaping;
         private readonly StatusChip _failed;
         private CancellationTokenSource _shapingSource;
+        private VoiceLabCandidate _shapingCandidate;
+        private VoiceLabTimbre _shapingTimbre;
         private VoiceLabCandidate _previewCandidate;
         private VoiceLabTimbre _previewTimbre;
         private VoiceLabPreview _preview;
@@ -81,7 +84,8 @@ namespace VirtualVessel.UI.VoiceLab
             _listenShaped = Ui.Button(VoiceLabStrings.ListenShaped);
             _listenShaped.clicked += ListenShaped;
             _shaping = Ui.Text(VoiceLabStrings.Shaping, VoiceLabScreen.NoteClass, "vv-text-body");
-            timbre.Add(VoiceLabScreen.Actions(Ui.Text(VoiceLabStrings.Compare, VoiceLabScreen.NoteClass, "vv-text-body"), _listenBase, _listenShaped, _shaping));
+            _reshaping = Ui.Text(VoiceLabStrings.Reshaping, VoiceLabScreen.NoteClass, "vv-text-body");
+            timbre.Add(VoiceLabScreen.Actions(Ui.Text(VoiceLabStrings.Compare, VoiceLabScreen.NoteClass, "vv-text-body"), _listenBase, _listenShaped, _shaping, _reshaping));
             _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.ShapeFailed);
             timbre.Add(_failed);
             Add(timbre);
@@ -96,7 +100,7 @@ namespace VirtualVessel.UI.VoiceLab
             bool canPlay = _player.Available;
             _listenBase.SetEnabled(canPlay);
             _listenShaped.SetEnabled(canPlay);
-            ShowShaping(false);
+            ShowShaping(null);
             _failed.style.display = DisplayStyle.None;
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
         }
@@ -181,10 +185,20 @@ namespace VirtualVessel.UI.VoiceLab
 
             if (_preview == null || !ReferenceEquals(_previewCandidate, candidate) || !_previewTimbre.Equals(timbre))
             {
+                if (_shapingSource != null && ReferenceEquals(_shapingCandidate, candidate) && _shapingTimbre.Equals(timbre))
+                {
+                    // Pressed again while the same voice is being made: let it finish; it plays when ready.
+                    return;
+                }
+
+                // Only a changed timbre stops the one being made, and the line says it was stopped.
+                bool restarting = _shapingSource != null;
                 _shapingSource?.Cancel();
                 var source = new CancellationTokenSource();
                 _shapingSource = source;
-                ShowShaping(true);
+                _shapingCandidate = candidate;
+                _shapingTimbre = timbre;
+                ShowShaping(restarting ? VoiceLabStrings.Reshaping : VoiceLabStrings.Shaping);
                 try
                 {
                     _preview = await _lab.PreviewAsync(candidate, timbre, source.Token);
@@ -206,7 +220,8 @@ namespace VirtualVessel.UI.VoiceLab
                     if (_shapingSource == source)
                     {
                         _shapingSource = null;
-                        ShowShaping(false);
+                        _shapingCandidate = null;
+                        ShowShaping(null);
                     }
 
                     source.Dispose();
@@ -216,9 +231,14 @@ namespace VirtualVessel.UI.VoiceLab
             _ = _player.PlayAsync(_preview.File, null);
         }
 
-        private void ShowShaping(bool shaping)
+        /// <summary>The line shown while the shaped voice is made, or null when none is being made.</summary>
+        public string ShapingKey { get; private set; }
+
+        private void ShowShaping(string key)
         {
-            _shaping.style.display = shaping ? DisplayStyle.Flex : DisplayStyle.None;
+            ShapingKey = key;
+            _shaping.style.display = key == VoiceLabStrings.Shaping ? DisplayStyle.Flex : DisplayStyle.None;
+            _reshaping.style.display = key == VoiceLabStrings.Reshaping ? DisplayStyle.Flex : DisplayStyle.None;
         }
     }
 }

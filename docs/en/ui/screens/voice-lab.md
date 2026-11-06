@@ -42,7 +42,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - The timbre Card: the base (its candidate name) and its pitch change in Hz ("268 Hz → 338 Hz"), then five sliders (Pitch, Age, Brightness, Softness, Breathiness; softness from 0 to +6, the others from -6 to +6) with their ends and a tooltip each.
 - When pitch, age, and brightness are all moved by 4 or more, a warning chip and a line say it may sound mechanical (`lab.timbre.mechanical`).
 - Beyond the age that still sounded like the same person (more than 4 steps either way), a warning chip and a line say it may sound like someone else.
-- Compare: Original plays the base; Shaped makes the preview (seconds) and plays it. The last preview is kept while nothing changes. While it is being made, a line says so.
+- Compare: Original plays the base; Shaped makes the preview (seconds) and plays it. The last preview is kept while nothing changes. While it is being made, a line says so. Pressing Shaped again with the same values keeps the one being made, which plays when ready. Only pressing it with changed values stops that one and starts again, and the line says the earlier one was stopped (`lab.timbre.reshaping`). A stopped one is not shown as a failure.
 - Reset sets the five back to 0. STEP 3: Make this voice moves on.
 - There are no intonation or pace sliders (system design 14.15).
 

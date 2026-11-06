@@ -68,6 +68,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ListenBase = "lab.timbre.listen-base";
         public const string ListenShaped = "lab.timbre.listen-shaped";
         public const string Shaping = "lab.timbre.shaping";
+        public const string Reshaping = "lab.timbre.reshaping";
         public const string PitchChange = "lab.timbre.pitch-change";
         public const string FarTitle = "lab.timbre.far";
         public const string FarBody = "lab.timbre.far-body";

@@ -126,6 +126,44 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator PressingShapedAgain_KeepsTheOneBeingMade_AndAChangedTimbreSaysItStartedOver()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            yield return null;
+            Submit(baseStep.NextButton);
+            yield return null;
+
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            ValueSlider pitch = timbre.Query<ValueSlider>().First();
+            ActionButton shaped = timbre.Query<ActionButton>().ToList().Single(b => b.TextKey == VoiceLabStrings.ListenShaped);
+            _lab.HoldPreviews = true;
+            pitch.value = 2f;
+            Submit(shaped);
+            Submit(shaped);
+            yield return null;
+            Assert.That(_lab.Previews.Count, Is.EqualTo(1), "Pressing again with the same timbre does not start over.");
+            Assert.That(timbre.ShapingKey, Is.EqualTo(VoiceLabStrings.Shaping));
+
+            pitch.value = 3f;
+            Submit(shaped);
+            yield return null;
+            Assert.That(_lab.Previews.Count, Is.EqualTo(2));
+            Assert.That(_lab.Previews[0].Source.Task.IsCanceled, Is.True);
+            Assert.That(timbre.ShapingKey, Is.EqualTo(VoiceLabStrings.Reshaping), "Stopping the earlier one is said.");
+            StatusChip failed = timbre.Query<StatusChip>().ToList().Single(c => c.TextKey == VoiceLabStrings.ShapeFailed);
+            Assert.That(failed.style.display.value, Is.EqualTo(DisplayStyle.None), "The stopped one is not a failure.");
+
+            _lab.Previews[1].Source.SetResult(new VoiceLabPreview("p3.wav", 300));
+            yield return null;
+            Assert.That(timbre.ShapingKey, Is.Null);
+            Assert.That(_preview.Played.Last(), Is.EqualTo("p3.wav"));
+        }
+
+        [UnityTest]
         public IEnumerator CandidatesNearAPickedOne_AreAddedAndSayWhereTheyCameFrom()
         {
             VoiceLabScreen screen = Screen();
@@ -276,9 +314,22 @@ namespace VirtualVessel.UI.Tests
                 return Task.FromResult<IReadOnlyList<VoiceLabCandidate>>(made);
             }
 
+            /// <summary>When set, previews wait until their source is completed, and cancelling cancels them.</summary>
+            public bool HoldPreviews { get; set; }
+
+            public List<(VoiceLabTimbre Timbre, TaskCompletionSource<VoiceLabPreview> Source)> Previews { get; } = new List<(VoiceLabTimbre, TaskCompletionSource<VoiceLabPreview>)>();
+
             public Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
             {
-                return Task.FromResult(new VoiceLabPreview("p.wav", candidate.MedianHz));
+                var source = new TaskCompletionSource<VoiceLabPreview>();
+                Previews.Add((timbre, source));
+                if (!HoldPreviews)
+                {
+                    source.SetResult(new VoiceLabPreview("p.wav", candidate.MedianHz));
+                }
+
+                cancellationToken.Register(() => source.TrySetCanceled());
+                return source.Task;
             }
 
             public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
