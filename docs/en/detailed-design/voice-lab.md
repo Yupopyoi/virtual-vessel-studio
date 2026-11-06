@@ -77,7 +77,7 @@ public interface IVoiceLab
 ```
 
 - `VoiceLabMood` holds the sliders (0 to 1, by the keys of 8.3.1) and the words. `VoiceLabCandidate` holds the sample to play and its pitch: the median and the 5 to 95% range in Hz. The seed and the instruction stay inside Voice Lab and are never shown (system design 14.14).
-- `VoiceLabTimbre` holds four steps, pitch (semitones), age (a formant ratio), brightness, and breathiness, from -6 to +6, each 0 (no change) by default. Voice Lab clamps them on the way in.
+- `VoiceLabTimbre` holds five steps, pitch (semitones), age (a formant ratio), brightness, breathiness from -6 to +6, and softness from 0 to +6, each 0 (no change) by default. `run.json` keeps all five; one without softness was made with 0. Voice Lab clamps them on the way in.
 - A failure that the screen should tell the user about throws `VoiceLabFailedException`, whose message is for developers. Cancelling throws `OperationCanceledException`. A build reports failing and cancelling in `VoiceLabBuild.State` instead, with `OutOfMemory` for GPU memory.
 - None of the methods blocks the main thread.
 - `Register` copies files and is called off the main thread by the screen.
@@ -257,10 +257,11 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 |---|---|---|
 | Pitch | Pitch in semitones | Still the same person at +4 semitones |
 | Age | The envelope stretched along frequency | ×1.10 is "the same person, if anything" (the user) |
-| Brightness | The harmonics of 2 to 5 kHz raised or lowered (8 dB at +6), the noise there kept at its level | Brighter without hoarseness; the old slope to 24 kHz was heard as hiss (decision record, 2026-11-06) |
-| Softness (0 to +6) | The first harmonic raised (up to 6 dB) and above 4 kHz lowered (up to 3 dB) | Soft without the nasal sound of tilting every harmonic; no pressed side, which sounded harsh |
+| Brightness | The harmonics of 2 to 5 kHz raised or lowered (16 dB at +6), the noise there kept at its level | Brighter without hoarseness; the old slope to 24 kHz was heard as hiss (decision record, 2026-11-06) |
+| Softness (0 to +6) | The first harmonic raised (up to 12 dB) and above 4 kHz lowered (up to 6 dB) | Soft without the nasal sound of tilting every harmonic; no pressed side, which sounded harsh |
 | Breathiness | Aperiodicity of voiced parts | No difference in the measured numbers; needs listening |
 
+- Brightness and softness are sized by what is heard after training and conversion: half these sizes was not heard, these were heard and natural, and one and a half times these muffled the voice (decision record, 2026-11-06).
 - Pitch, age, and brightness moved far together (all three at 4 or more) sound mechanical, so the screen warns of it (decision record, 2026-11-06).
 - There are no intonation or pace knobs. After conversion, intonation and pace come from the speaker (changing them in training speech does not survive conversion). Widening intonation during conversion sounds mechanical (the user, 2026-11-03).
 - The edited timbre survived training and a conversion that is not real-time (decision record).
