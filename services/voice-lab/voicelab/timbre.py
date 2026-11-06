@@ -2,6 +2,7 @@
 
 WORLD splits a voice into pitch, the spectral envelope, and aperiodicity; each knob moves one part, so the
 voice stays the same person. The same settings give the same result, for previews and for training speech.
+The sizes and bands come from listening tests (decision record, 2026-11-06 "Shaping the timbre").
 """
 from dataclasses import dataclass
 
@@ -10,25 +11,35 @@ import numpy as np
 FRAME_MS = 5.0
 STEP_LIMIT = 6
 AGE_STEP = 0.025          # Formant ratio per age step: +4 is x1.10, the edit the user heard as the same person.
-BRIGHT_DB_PER_OCTAVE = 1.5
-BRIGHT_PIVOT_HZ = 1000.0
 BREATH_STEPS_PER_DOUBLING = 5
+
+# Brightness raises or lowers 2-5 kHz, where a voice sounds bright; +8 dB was heard as brighter and natural.
+# The old slope about 1 kHz ran on to 24 kHz and was heard as hiss, so the band ends by 7 kHz.
+BRIGHT_DB_PER_STEP = 8.0 / 6.0
+BRIGHT_BAND_HZ = (1400.0, 2000.0, 5000.0, 7000.0)   # easing in, flat from, flat to, easing out by
+
+# Softness raises the first harmonic and takes the edge off above 4 kHz. Tilting every harmonic instead
+# sounded nasal, and the pressed side harsh, so there is only the soft side.
+SOFT_H1_DB_PER_STEP = 1.0
+SOFT_EDGE_DB_PER_STEP = -0.5
+SOFT_EDGE_HZ = (3000.0, 4000.0)                     # easing in, full from
 
 
 @dataclass(frozen=True)
 class TimbreSettings:
-    """Steps of -6 to +6; 0 changes nothing."""
+    """Steps of -6 to +6 (softness 0 to +6); 0 changes nothing."""
     pitch: float = 0.0
     age: float = 0.0
     brightness: float = 0.0
     breathiness: float = 0.0
+    softness: float = 0.0
 
     @staticmethod
     def from_request(values):
         """Settings from a request's object, each step clamped. Pure."""
-        def step(key):
-            return float(min(STEP_LIMIT, max(-STEP_LIMIT, float(values.get(key, 0.0)))))
-        return TimbreSettings(step("pitch"), step("age"), step("brightness"), step("breathiness"))
+        def step(key, low=-STEP_LIMIT):
+            return float(min(STEP_LIMIT, max(low, float(values.get(key, 0.0)))))
+        return TimbreSettings(step("pitch"), step("age"), step("brightness"), step("breathiness"), step("softness", 0.0))
 
     @property
     def unchanged(self):
@@ -45,12 +56,29 @@ def breath_exponent(breathiness):
     return 2.0 ** (-breathiness / BREATH_STEPS_PER_DOUBLING)
 
 
-def tilt_gains(bins, sample_rate, brightness):
-    """Power gains per envelope bin: a slope in dB per octave about the pivot; the lowest bin is held at 50 Hz
-    so the slope does not run away at 0 Hz. Pure."""
-    hz = np.maximum(np.linspace(0.0, sample_rate / 2.0, bins), 50.0)
-    db = BRIGHT_DB_PER_OCTAVE * brightness * np.log2(hz / BRIGHT_PIVOT_HZ)
-    return 10.0 ** (db / 10.0)
+def _ease(x, start, end):
+    """0 below start, 1 above end, a raised cosine between. Pure."""
+    t = np.clip((x - start) / (end - start), 0.0, 1.0)
+    return 0.5 - 0.5 * np.cos(np.pi * t)
+
+
+def brightness_db(hz, brightness):
+    """dB per bin: BRIGHT_DB_PER_STEP per step over 2-5 kHz, easing in and out in log-frequency. Pure."""
+    rise_from, flat_from, flat_to, fall_by = np.log2(BRIGHT_BAND_HZ)
+    x = np.log2(np.maximum(hz, 1.0))
+    weight = _ease(x, rise_from, flat_from) * (1.0 - _ease(x, flat_to, fall_by))
+    return BRIGHT_DB_PER_STEP * brightness * weight
+
+
+def softness_db(hz, f0, softness):
+    """dB per bin for every frame (frames x bins): the first harmonic raised, following each frame's pitch
+    (half a harmonic wide each side), and the highs above 4 kHz lowered. Unvoiced frames get the highs only. Pure."""
+    pitch = np.asarray(f0, dtype=float)[:, None]
+    distance = np.abs(hz[None, :] - pitch) / np.maximum(0.5 * pitch, 1e-9)
+    first = np.where((pitch > 0) & (distance < 1.0), 0.5 * (1.0 + np.cos(np.pi * np.minimum(distance, 1.0))), 0.0)
+    log_hz = np.log2(np.maximum(hz, 1.0))
+    edge = _ease(log_hz, *np.log2(SOFT_EDGE_HZ))[None, :]
+    return softness * (SOFT_H1_DB_PER_STEP * first + SOFT_EDGE_DB_PER_STEP * edge)
 
 
 def edit(f0, envelope, aperiodicity, sample_rate, settings):
@@ -58,17 +86,28 @@ def edit(f0, envelope, aperiodicity, sample_rate, settings):
     voiced = f0 > 0
     out_f0 = np.where(voiced, f0 * 2.0 ** (settings.pitch / 12.0), 0.0)
     bins = envelope.shape[1]
+    hz = np.linspace(0.0, sample_rate / 2.0, bins)
     ratio = formant_ratio(settings.age)
     out_env = envelope
     if ratio != 1.0:
         # A bin at frequency f takes the envelope from f / ratio, so the formants move up by the ratio.
         source = np.arange(bins) / ratio
         out_env = np.array([np.interp(source, np.arange(bins), frame) for frame in envelope])
+    gain_db = np.zeros_like(envelope)
     if settings.brightness:
-        out_env = out_env * tilt_gains(bins, sample_rate, settings.brightness)
+        gain_db = gain_db + brightness_db(hz, settings.brightness)[None, :]
+    if settings.softness:
+        gain_db = gain_db + softness_db(hz, out_f0, settings.softness)
     out_ap = aperiodicity.copy()
+    if gain_db.any():
+        out_env = out_env * 10.0 ** (gain_db / 10.0)
+        # Where the envelope was raised, the noise is kept at its level so only the harmonics grow: raising
+        # breath and noise with them was heard as hoarseness. WORLD mixes noise with power proportional to
+        # aperiodicity squared times the envelope, so aperiodicity is divided by the root of the power gain.
+        raised = 10.0 ** (-np.maximum(gain_db, 0.0) / 20.0)
+        out_ap[voiced] = np.clip(aperiodicity[voiced] * raised[voiced], 1e-12, 1.0)
     if settings.breathiness:
-        out_ap[voiced] = np.clip(aperiodicity[voiced], 1e-12, 1.0) ** breath_exponent(settings.breathiness)
+        out_ap[voiced] = np.clip(out_ap[voiced], 1e-12, 1.0) ** breath_exponent(settings.breathiness)
     return out_f0, out_env, out_ap
 
 
