@@ -43,7 +43,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - When pitch, age, and brightness are all moved by 4 or more, a warning chip and a line say it may sound mechanical (`lab.timbre.mechanical`).
 - Beyond the age that still sounded like the same person (more than 4 steps either way), a warning chip and a line say it may sound like someone else.
 - Compare: Original plays the base; Shaped makes the preview (seconds) and plays it. The last preview is kept while nothing changes. While it is being made, a line says so.
-- Reset sets the four back to 0. STEP 3: Make this voice moves on.
+- Reset sets the five back to 0. STEP 3: Make this voice moves on.
 - There are no intonation or pace sliders (system design 14.15).
 
 ## 5. STEP 3 Make It
