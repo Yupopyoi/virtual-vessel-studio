@@ -6,19 +6,20 @@ using VirtualVessel.VoiceLab.Training;
 namespace VirtualVessel.VoiceLab.Design
 {
     /// <summary>
-    /// How the timbre moves (Voice Lab detailed design 8.3.2): steps of -6 to +6, 0 changing nothing. The scripts
-    /// turn steps into edits, so previews and training speech use the same meaning.
+    /// How the timbre moves (Voice Lab detailed design 8.3.2): steps of -6 to +6 (softness 0 to +6), 0 changing
+    /// nothing. The scripts turn steps into edits, so previews and training speech use the same meaning.
     /// </summary>
     public readonly struct TimbreSettings : IEquatable<TimbreSettings>
     {
         public const float StepLimit = 6f;
 
-        public TimbreSettings(float pitch, float age, float brightness, float breathiness)
+        public TimbreSettings(float pitch, float age, float brightness, float breathiness, float softness = 0f)
         {
             Pitch = Clamp(pitch);
             Age = Clamp(age);
             Brightness = Clamp(brightness);
             Breathiness = Clamp(breathiness);
+            Softness = Math.Max(0f, Clamp(softness));
         }
 
         /// <summary>Semitones.</summary>
@@ -30,6 +31,9 @@ namespace VirtualVessel.VoiceLab.Design
 
         public float Breathiness { get; }
 
+        /// <summary>0 to +6: only the soft side exists (a pressed side sounded harsh).</summary>
+        public float Softness { get; }
+
         /// <summary>Writes the settings as the object at <paramref name="path"/> of a request.</summary>
         public void WriteTo(ConfigDocument document, string path)
         {
@@ -37,17 +41,18 @@ namespace VirtualVessel.VoiceLab.Design
             document.Set(path + ".age", Age);
             document.Set(path + ".brightness", Brightness);
             document.Set(path + ".breathiness", Breathiness);
+            document.Set(path + ".softness", Softness);
         }
 
         /// <summary>The settings as run.json keeps them. Pure.</summary>
         public TimbreValues ToValues()
         {
-            return new TimbreValues { Pitch = Pitch, Age = Age, Brightness = Brightness, Breathiness = Breathiness };
+            return new TimbreValues { Pitch = Pitch, Age = Age, Brightness = Brightness, Breathiness = Breathiness, Softness = Softness };
         }
 
         public bool Equals(TimbreSettings other)
         {
-            return Pitch == other.Pitch && Age == other.Age && Brightness == other.Brightness && Breathiness == other.Breathiness;
+            return Pitch == other.Pitch && Age == other.Age && Brightness == other.Brightness && Breathiness == other.Breathiness && Softness == other.Softness;
         }
 
         public override bool Equals(object obj)
@@ -57,7 +62,7 @@ namespace VirtualVessel.VoiceLab.Design
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Pitch, Age, Brightness, Breathiness);
+            return HashCode.Combine(Pitch, Age, Brightness, Breathiness, Softness);
         }
 
         private static float Clamp(float step)

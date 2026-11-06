@@ -190,7 +190,7 @@ namespace VirtualVessel.VoiceLab
         /// <summary>The screen's timbre as the designer takes it. Pure.</summary>
         public static TimbreSettings ToSettings(VoiceLabTimbre timbre)
         {
-            return new TimbreSettings(timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness);
+            return new TimbreSettings(timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
         }
 
         /// <summary>A candidate as the screen shows it. Pure.</summary>

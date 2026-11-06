@@ -171,8 +171,8 @@ namespace VirtualVessel.VoiceLab.Design
         /// <summary>A preview's file name, one per candidate and timbre, so trying a timbre again plays the same file. Pure.</summary>
         public static string PreviewName(string candidateId, TimbreSettings timbre)
         {
-            return string.Format(CultureInfo.InvariantCulture, "{0}_p{1:+0.#;-0.#;0}_a{2:+0.#;-0.#;0}_b{3:+0.#;-0.#;0}_r{4:+0.#;-0.#;0}.wav",
-                candidateId, timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness);
+            return string.Format(CultureInfo.InvariantCulture, "{0}_p{1:+0.#;-0.#;0}_a{2:+0.#;-0.#;0}_b{3:+0.#;-0.#;0}_r{4:+0.#;-0.#;0}_s{5:+0.#;-0.#;0}.wav",
+                candidateId, timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
         }
 
         /// <summary>What run.json keeps of how the voice was made. Pure.</summary>

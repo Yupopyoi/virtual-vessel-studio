@@ -90,10 +90,26 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabView.IsFar(new VoiceLabTimbre(6f, age, 6f, 6f)), Is.EqualTo(far));
         }
 
+        [TestCase(4f, 4f, 4f, true)]
+        [TestCase(-4f, 4f, -5f, true)]
+        [TestCase(4f, 4f, 3f, false)]
+        [TestCase(6f, 0f, 6f, false)]
+        public void PitchAgeAndBrightness_AllFar_SoundMechanical(float pitch, float age, float brightness, bool mechanical)
+        {
+            // Pitch +4, age +4, and the brightness lift together sounded mechanical; pitch +4 with brightness did not.
+            Assert.That(VoiceLabView.IsMechanical(new VoiceLabTimbre(pitch, age, brightness, 0f)), Is.EqualTo(mechanical));
+        }
+
+        [Test]
+        public void Softness_CountsAsAChange()
+        {
+            Assert.That(VoiceLabView.IsUnchanged(new VoiceLabTimbre(0f, 0f, 0f, 0f, 2f)), Is.False);
+        }
+
         [Test]
         public void TimbreSummary_NamesEachKnob()
         {
-            Assert.That(VoiceLabView.TimbreSummary(null, new VoiceLabTimbre(4f, 4f, 0f, -2f)), Is.EqualTo("lab.timbre.pitch +4 · lab.timbre.age +4 · lab.timbre.brightness 0 · lab.timbre.breathiness -2"));
+            Assert.That(VoiceLabView.TimbreSummary(null, new VoiceLabTimbre(4f, 4f, 0f, -2f, 3f)), Is.EqualTo("lab.timbre.pitch +4 · lab.timbre.age +4 · lab.timbre.brightness 0 · lab.timbre.softness +3 · lab.timbre.breathiness -2"));
         }
 
         [TestCase(VoiceLabBuildState.Preparing, VoiceLabStrings.BuildPreparing)]

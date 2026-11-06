@@ -140,15 +140,24 @@ namespace VirtualVessel.UI.VoiceLab
                 : string.Format(CultureInfo.InvariantCulture, "{0} Hz → {1} Hz", baseHz, moved);
         }
 
+        /// <summary>Pitch, age, and brightness each moved this far together sounded mechanical (decision record, 2026-11-06).</summary>
+        public const float MechanicalStep = 4f;
+
         /// <summary>Whether the timbre moved far enough that it may sound like someone else (system design 14.15).</summary>
         public static bool IsFar(VoiceLabTimbre timbre)
         {
             return Math.Abs(timbre.Age) > SamePersonAge;
         }
 
+        /// <summary>Whether pitch, age, and brightness all moved far, which sounded mechanical.</summary>
+        public static bool IsMechanical(VoiceLabTimbre timbre)
+        {
+            return Math.Abs(timbre.Pitch) >= MechanicalStep && Math.Abs(timbre.Age) >= MechanicalStep && Math.Abs(timbre.Brightness) >= MechanicalStep;
+        }
+
         public static bool IsUnchanged(VoiceLabTimbre timbre)
         {
-            return timbre.Pitch == 0f && timbre.Age == 0f && timbre.Brightness == 0f && timbre.Breathiness == 0f;
+            return timbre.Pitch == 0f && timbre.Age == 0f && timbre.Brightness == 0f && timbre.Breathiness == 0f && timbre.Softness == 0f;
         }
 
         /// <summary>"+4", "0", "-2": a step as the summary shows it.</summary>
@@ -162,7 +171,7 @@ namespace VirtualVessel.UI.VoiceLab
         public static string TimbreSummary(ILocalizer localizer, VoiceLabTimbre timbre)
         {
             string Part(string key, float step) => (localizer?.Get(key) ?? key) + " " + StepText(step);
-            return string.Join(" · ", Part(VoiceLabStrings.TimbrePitch, timbre.Pitch), Part(VoiceLabStrings.TimbreAge, timbre.Age), Part(VoiceLabStrings.TimbreBrightness, timbre.Brightness), Part(VoiceLabStrings.TimbreBreathiness, timbre.Breathiness));
+            return string.Join(" · ", Part(VoiceLabStrings.TimbrePitch, timbre.Pitch), Part(VoiceLabStrings.TimbreAge, timbre.Age), Part(VoiceLabStrings.TimbreBrightness, timbre.Brightness), Part(VoiceLabStrings.TimbreSoftness, timbre.Softness), Part(VoiceLabStrings.TimbreBreathiness, timbre.Breathiness));
         }
 
         /// <summary>The text of a build's stage, or null when no build runs.</summary>

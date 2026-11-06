@@ -25,6 +25,8 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ValueSlider _age;
         private readonly ValueSlider _brightness;
         private readonly ValueSlider _breathiness;
+        private readonly ValueSlider _softness;
+        private readonly VisualElement _mechanical;
         private readonly Label _base;
         private readonly Label _pitchChange;
         private readonly VisualElement _far;
@@ -59,6 +61,7 @@ namespace VirtualVessel.UI.VoiceLab
             _pitch = Knob(timbre, VoiceLabStrings.TimbrePitch, VoiceLabStrings.TimbrePitchTip, VoiceLabStrings.TimbrePitchLow, VoiceLabStrings.TimbrePitchHigh);
             _age = Knob(timbre, VoiceLabStrings.TimbreAge, VoiceLabStrings.TimbreAgeTip, VoiceLabStrings.TimbreAgeLow, VoiceLabStrings.TimbreAgeHigh);
             _brightness = Knob(timbre, VoiceLabStrings.TimbreBrightness, VoiceLabStrings.TimbreBrightnessTip, VoiceLabStrings.TimbreBrightnessLow, VoiceLabStrings.TimbreBrightnessHigh);
+            _softness = Knob(timbre, VoiceLabStrings.TimbreSoftness, VoiceLabStrings.TimbreSoftnessTip, VoiceLabStrings.TimbreSoftnessLow, VoiceLabStrings.TimbreSoftnessHigh, low: 0f);
             _breathiness = Knob(timbre, VoiceLabStrings.TimbreBreathiness, VoiceLabStrings.TimbreBreathinessTip, VoiceLabStrings.TimbreBreathinessLow, VoiceLabStrings.TimbreBreathinessHigh);
 
             _far = new VisualElement();
@@ -66,6 +69,12 @@ namespace VirtualVessel.UI.VoiceLab
             _far.Add(Ui.Chip(StatusKind.Warning, VoiceLabStrings.FarTitle));
             _far.Add(Ui.Text(VoiceLabStrings.FarBody, VoiceLabScreen.NoteClass, "vv-text-body"));
             timbre.Add(_far);
+
+            _mechanical = new VisualElement();
+            _mechanical.AddToClassList(FarClass);
+            _mechanical.Add(Ui.Chip(StatusKind.Warning, VoiceLabStrings.MechanicalTitle));
+            _mechanical.Add(Ui.Text(VoiceLabStrings.MechanicalBody, VoiceLabScreen.NoteClass, "vv-text-body"));
+            timbre.Add(_mechanical);
 
             _listenBase = Ui.Button(VoiceLabStrings.ListenBase);
             _listenBase.clicked += ListenBase;
@@ -94,7 +103,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton NextButton { get; }
 
-        public VoiceLabTimbre Timbre => new VoiceLabTimbre(_pitch.value, _age.value, _brightness.value, _breathiness.value);
+        public VoiceLabTimbre Timbre => new VoiceLabTimbre(_pitch.value, _age.value, _brightness.value, _breathiness.value, _softness.value);
 
         /// <summary>A slider with what its two ends mean written under them.</summary>
         public static VisualElement WithEnds(ValueSlider slider, string lowKey, string highKey)
@@ -117,11 +126,12 @@ namespace VirtualVessel.UI.VoiceLab
             _base.text = _draft.Candidate == null ? string.Empty : CandidateTile.NameText(localizer, _draft.CandidateNumber);
             _pitchChange.text = (localizer?.Get(VoiceLabStrings.PitchChange) ?? string.Empty) + "  " + VoiceLabView.PitchChangeText(_draft.Candidate?.MedianHz ?? 0, _pitch.value);
             _far.style.display = VoiceLabView.IsFar(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;
+            _mechanical.style.display = VoiceLabView.IsMechanical(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        private ValueSlider Knob(VisualElement parent, string nameKey, string tipKey, string lowKey, string highKey)
+        private ValueSlider Knob(VisualElement parent, string nameKey, string tipKey, string lowKey, string highKey, float low = -6f)
         {
-            ValueSlider slider = Ui.Slider(nameKey, -6f, 6f);
+            ValueSlider slider = Ui.Slider(nameKey, low, 6f);
             slider.Step = 1f;
             slider.Signed = true;
             slider.TooltipKey = tipKey;
@@ -140,7 +150,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void Reset()
         {
-            foreach (ValueSlider slider in new[] { _pitch, _age, _brightness, _breathiness })
+            foreach (ValueSlider slider in new[] { _pitch, _age, _brightness, _softness, _breathiness })
             {
                 slider.SetValueWithoutNotify(0f);
             }

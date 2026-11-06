@@ -159,12 +159,14 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             string folder = @"C:\runs\r1";
             ConfigDocument speech = VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment);
-            ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0), folder, _environment);
+            ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0, 2), folder, _environment);
             ConfigDocument train = VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment);
             ConfigDocument export = VoiceDesigner.StepRequest(3, Candidate(), default, folder, _environment);
 
             Assert.That(timbre.Get<string>("source"), Is.EqualTo(speech.Get<string>("output")));
             Assert.That(timbre.Get<float>("timbre.pitch"), Is.EqualTo(4f));
+            Assert.That(timbre.Get<float>("timbre.softness"), Is.EqualTo(2f));
+            Assert.That(VoiceDesigner.Design(Candidate(), new TimbreSettings(0, 0, 0, 0, 2)).Timbre.Softness, Is.EqualTo(2f), "Kept in run.json, to make the voice again.");
             Assert.That(train.Get<string>("data"), Is.EqualTo(timbre.Get<string>("output")));
             Assert.That(export.Get<string>("weights"), Is.EqualTo(Path.Combine(train.Get<string>("work"), "voice.pth")));
             Assert.That(export.Get<string>("speech"), Is.EqualTo(timbre.Get<string>("output")));
@@ -175,7 +177,10 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void PreviewName_IsTheSameForTheSameTimbre()
         {
-            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(4, -2.5f, 0, 0)), Is.EqualTo("candidate_7_p+4_a-2.5_b0_r0.wav"));
+            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(4, -2.5f, 0, 0)), Is.EqualTo("candidate_7_p+4_a-2.5_b0_r0_s0.wav"));
+            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(0, 0, 0, 0, 3)), Is.EqualTo("candidate_7_p0_a0_b0_r0_s+3.wav"));
+            Assert.That(new TimbreSettings(0, 0, 0, 0, -2).Softness, Is.EqualTo(0f), "There is no pressed side.");
+            Assert.That(new TimbreSettings(0, 0, 0, 0, 9).Softness, Is.EqualTo(6f));
             Assert.That(new TimbreSettings(9, 0, 0, 0).Pitch, Is.EqualTo(6f));
         }
 

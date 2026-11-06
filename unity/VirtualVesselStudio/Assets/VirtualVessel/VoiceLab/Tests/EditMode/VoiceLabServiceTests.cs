@@ -65,6 +65,7 @@ namespace VirtualVessel.VoiceLab.Tests
         public void Timbre_IsClampedOnTheWayIn()
         {
             Assert.That(VoiceLabService.ToSettings(new VoiceLabTimbre(9, -2, 0, 1)).Pitch, Is.EqualTo(6f));
+            Assert.That(VoiceLabService.ToSettings(new VoiceLabTimbre(0, 0, 0, 0, 4)).Softness, Is.EqualTo(4f));
         }
 
         private VoiceLabService Create()

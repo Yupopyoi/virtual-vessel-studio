@@ -56,6 +56,10 @@ namespace VirtualVessel.UI.VoiceLab
         public const string TimbreBrightnessTip = "lab.timbre.brightness.tip";
         public const string TimbreBrightnessLow = "lab.timbre.brightness.low";
         public const string TimbreBrightnessHigh = "lab.timbre.brightness.high";
+        public const string TimbreSoftness = "lab.timbre.softness";
+        public const string TimbreSoftnessTip = "lab.timbre.softness.tip";
+        public const string TimbreSoftnessLow = "lab.timbre.softness.low";
+        public const string TimbreSoftnessHigh = "lab.timbre.softness.high";
         public const string TimbreBreathiness = "lab.timbre.breathiness";
         public const string TimbreBreathinessTip = "lab.timbre.breathiness.tip";
         public const string TimbreBreathinessLow = "lab.timbre.breathiness.low";
@@ -67,6 +71,8 @@ namespace VirtualVessel.UI.VoiceLab
         public const string PitchChange = "lab.timbre.pitch-change";
         public const string FarTitle = "lab.timbre.far";
         public const string FarBody = "lab.timbre.far-body";
+        public const string MechanicalTitle = "lab.timbre.mechanical";
+        public const string MechanicalBody = "lab.timbre.mechanical-body";
         public const string TimbreNote = "lab.timbre.note";
         public const string Reset = "lab.timbre.reset";
         public const string ShapeFailed = "lab.timbre.failed";

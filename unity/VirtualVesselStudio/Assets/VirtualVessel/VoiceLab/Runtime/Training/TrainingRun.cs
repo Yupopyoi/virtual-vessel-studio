@@ -27,6 +27,9 @@ namespace VirtualVessel.VoiceLab.Training
         public float Brightness { get; set; }
 
         public float Breathiness { get; set; }
+
+        /// <summary>Added later; older run.json files read it as 0, which is what they were made with.</summary>
+        public float Softness { get; set; }
     }
 
     /// <summary>What a voice was made from, so it can be made again (Voice Lab detailed design 8.3.3).</summary>

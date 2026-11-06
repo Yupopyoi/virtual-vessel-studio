@@ -40,15 +40,16 @@ namespace VirtualVessel.UI.VoiceLab
         public string Words { get; }
     }
 
-    /// <summary>The timbre steps (Voice Lab detailed design 8.3.2), -6 to +6.</summary>
+    /// <summary>The timbre steps (Voice Lab detailed design 8.3.2), -6 to +6; softness 0 to +6.</summary>
     public readonly struct VoiceLabTimbre
     {
-        public VoiceLabTimbre(float pitch, float age, float brightness, float breathiness)
+        public VoiceLabTimbre(float pitch, float age, float brightness, float breathiness, float softness = 0f)
         {
             Pitch = pitch;
             Age = age;
             Brightness = brightness;
             Breathiness = breathiness;
+            Softness = softness;
         }
 
         public float Pitch { get; }
@@ -58,6 +59,8 @@ namespace VirtualVessel.UI.VoiceLab
         public float Brightness { get; }
 
         public float Breathiness { get; }
+
+        public float Softness { get; }
     }
 
     /// <summary>A candidate voice: its sample to play and its pitch to compare.</summary>
