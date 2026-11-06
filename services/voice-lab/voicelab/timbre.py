@@ -13,15 +13,17 @@ STEP_LIMIT = 6
 AGE_STEP = 0.025          # Formant ratio per age step: +4 is x1.10, the edit the user heard as the same person.
 BREATH_STEPS_PER_DOUBLING = 5
 
-# Brightness raises or lowers 2-5 kHz, where a voice sounds bright; +8 dB was heard as brighter and natural.
-# The old slope about 1 kHz ran on to 24 kHz and was heard as hiss, so the band ends by 7 kHz.
-BRIGHT_DB_PER_STEP = 8.0 / 6.0
+# Brightness raises or lowers 2-5 kHz, where a voice sounds bright. The old slope about 1 kHz ran on to 24 kHz
+# and was heard as hiss, so the band ends by 7 kHz. +6 is 16 dB: through training and conversion, 8 dB was not
+# heard, 16 dB was heard and natural, and 24 dB (with softness) muffled the voice (2026-11-06).
+BRIGHT_DB_PER_STEP = 16.0 / 6.0
 BRIGHT_BAND_HZ = (1400.0, 2000.0, 5000.0, 7000.0)   # easing in, flat from, flat to, easing out by
 
 # Softness raises the first harmonic and takes the edge off above 4 kHz. Tilting every harmonic instead
-# sounded nasal, and the pressed side harsh, so there is only the soft side.
-SOFT_H1_DB_PER_STEP = 1.0
-SOFT_EDGE_DB_PER_STEP = -0.5
+# sounded nasal, and the pressed side harsh, so there is only the soft side. +6 is 12 dB and -6 dB, sized like
+# brightness by what was heard after conversion.
+SOFT_H1_DB_PER_STEP = 2.0
+SOFT_EDGE_DB_PER_STEP = -1.0
 SOFT_EDGE_HZ = (3000.0, 4000.0)                     # easing in, full from
 
 
