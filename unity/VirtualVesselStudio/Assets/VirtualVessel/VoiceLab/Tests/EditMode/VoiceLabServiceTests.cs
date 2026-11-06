@@ -68,6 +68,14 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(VoiceLabService.ToSettings(new VoiceLabTimbre(0, 0, 0, 0, 4)).Softness, Is.EqualTo(4f));
         }
 
+        [Test]
+        public void StoppedScripts_AreCancels_NotFailures()
+        {
+            // A preview stopped for a newer one showed "could not make it" while the newer one was still being made.
+            Assert.That(VoiceLabService.ToScreen(new Scripts.ScriptFailedException("cancelled", "stopped")), Is.InstanceOf<OperationCanceledException>());
+            Assert.That(VoiceLabService.ToScreen(new Scripts.ScriptFailedException("failed", "broken")), Is.TypeOf<VoiceLabFailedException>());
+        }
+
         private VoiceLabService Create()
         {
             return VoiceLabService.Create(_folder, Path.Combine(_folder, "VoiceLab"), Path.Combine(_folder, "VoiceModels"), new FixedClock(), new NullLog());

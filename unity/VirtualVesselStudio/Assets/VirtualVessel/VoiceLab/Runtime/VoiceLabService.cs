@@ -214,8 +214,19 @@ namespace VirtualVessel.VoiceLab
             }
             catch (ScriptFailedException exception)
             {
-                throw new VoiceLabFailedException(exception.Message, exception);
+                throw ToScreen(exception);
             }
+        }
+
+        /// <summary>
+        /// What the screen is told of a script that did not finish. A stopped script is a cancel, not a failure:
+        /// the screen stops a preview when another is asked for, and must not show it as failed. Pure.
+        /// </summary>
+        public static Exception ToScreen(ScriptFailedException exception)
+        {
+            return exception.Code == "cancelled"
+                ? new OperationCanceledException(exception.Message, exception)
+                : new VoiceLabFailedException(exception.Message, exception);
         }
 
         private VoiceCandidate Find(VoiceLabCandidate candidate)
