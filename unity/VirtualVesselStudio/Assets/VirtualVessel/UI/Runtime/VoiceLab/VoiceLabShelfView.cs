@@ -32,14 +32,11 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly List<(VoiceLabExample Example, Label Words)> _exampleWords = new List<(VoiceLabExample, Label)>();
         private readonly VisualElement _samplesNotice;
         private readonly ActionButton _makeSamples;
-        private readonly VisualElement _samplesBusy;
-        private readonly ProgressMeter _samplesProgress;
+        private readonly VoiceLabMakingBar _samplesBusy;
         private readonly StatusChip _samplesFailed;
         private readonly Label _sentence;
         private readonly TextInput _words;
-        private IVisualElementScheduledItem _samplesWatch;
         private CancellationTokenSource _samplesMaking;
-        private IconButton _playing;
         private ILocalizer _localizer;
         private IReadOnlyList<string> _picked;
 
@@ -54,14 +51,7 @@ namespace VirtualVessel.UI.VoiceLab
             _samplesNotice.Add(Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body"));
             _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
             _makeSamples.clicked += MakeSamples;
-            _samplesBusy = new VisualElement();
-            _samplesBusy.AddToClassList(VoiceLabBaseStep.BusyClass);
-            _samplesProgress = Ui.Progress(VoiceLabStrings.Loading);
-            _samplesBusy.Add(_samplesProgress);
-            ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
-            stop.clicked += () => _samplesMaking?.Cancel();
-            _samplesBusy.Add(stop);
-            _samplesBusy.style.display = DisplayStyle.None;
+            _samplesBusy = new VoiceLabMakingBar(() => _lab.SamplesProgress, VoiceLabStrings.MakingSamples, () => _samplesMaking?.Cancel());
             _samplesFailed = Ui.Chip(StatusKind.Error, VoiceLabStrings.SamplesFailed);
             _samplesFailed.style.display = DisplayStyle.None;
             _samplesNotice.Add(VoiceLabScreen.Actions(_makeSamples));
@@ -186,35 +176,9 @@ namespace VirtualVessel.UI.VoiceLab
         {
             IconButton play = Ui.IconButton(IconName.Play).WithTooltip(VoiceLabStrings.PlaySample);
             play.userData = sampleName;
-            play.clicked += () => Play(play);
+            play.clicked += () => _player.Toggle(play, SampleFile(sampleName));
             _playButtons.Add(play);
             return play;
-        }
-
-        private async void Play(IconButton button)
-        {
-            if (_playing == button)
-            {
-                _player.Stop();
-                return;
-            }
-
-            string file = SampleFile((string)button.userData);
-            if (file == null)
-            {
-                return;
-            }
-
-            _playing = button;
-            button.IconName = IconName.Stop;
-            await _player.PlayAsync(file, () =>
-            {
-                button.IconName = IconName.Play;
-                if (_playing == button)
-                {
-                    _playing = null;
-                }
-            });
         }
 
         private string SampleFile(string name)
@@ -256,23 +220,8 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void SetSamplesBusy(bool busy)
         {
-            _samplesBusy.style.display = busy ? DisplayStyle.Flex : DisplayStyle.None;
             _makeSamples.SetEnabled(!busy);
-            _samplesWatch?.Pause();
-            _samplesWatch = null;
-            if (busy)
-            {
-                ShowSamplesProgress();
-                _samplesWatch = schedule.Execute(ShowSamplesProgress).Every(300);
-            }
-        }
-
-        private void ShowSamplesProgress()
-        {
-            (string label, float fraction, string detail) = VoiceLabView.MakingBar(_lab.SamplesProgress);
-            _samplesProgress.LabelKey = label == VoiceLabStrings.Making ? VoiceLabStrings.MakingSamples : label;
-            _samplesProgress.Progress = fraction;
-            _samplesProgress.Detail = detail;
+            _samplesBusy.SetRunning(busy);
         }
 
         /// <summary>

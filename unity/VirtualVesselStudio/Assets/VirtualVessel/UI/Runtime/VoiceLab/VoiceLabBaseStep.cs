@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
-using VirtualVessel.UI.Icons;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -14,7 +13,6 @@ namespace VirtualVessel.UI.VoiceLab
     public sealed class VoiceLabBaseStep : VisualElement
     {
         public const string TilesClass = VoiceLabScreen.UssClass + "__tiles";
-        public const string BusyClass = VoiceLabScreen.UssClass + "__busy";
 
         private readonly IVoiceLab _lab;
         private readonly VoiceLabPlayer _player;
@@ -27,17 +25,14 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ActionButton _makeMore;
         private readonly ActionButton _makeNear;
         private readonly ActionButton _next;
-        private readonly VisualElement _busy;
-        private readonly ProgressMeter _progress;
+        private readonly VoiceLabMakingBar _busy;
         private readonly Segmented _count;
         private readonly Label _instruction;
-        private IVisualElementScheduledItem _watch;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
         private readonly Segmented _order;
         private readonly VisualElement _tiles;
         private CancellationTokenSource _making;
-        private CandidateTile _playing;
         private int _made;
 
         public VoiceLabBaseStep(IVoiceLab lab, VoiceLabPlayer player, VoiceLabDraft draft, IVoiceLabFlow flow)
@@ -65,14 +60,7 @@ namespace VirtualVessel.UI.VoiceLab
             mood.Add(VoiceLabScreen.Actions(_make, Ui.Text(VoiceLabStrings.MakeNote, VoiceLabScreen.NoteClass, "vv-text-body")));
             Add(mood);
 
-            _busy = new VisualElement();
-            _busy.AddToClassList(BusyClass);
-            _progress = Ui.Progress(VoiceLabStrings.Loading);
-            _busy.Add(_progress);
-            ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
-            stop.clicked += () => _making?.Cancel();
-            _busy.Add(stop);
-            _busy.style.display = DisplayStyle.None;
+            _busy = new VoiceLabMakingBar(() => _lab.CandidatesProgress, VoiceLabStrings.Making, () => _making?.Cancel());
             Add(_busy);
 
             _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.MakeFailed);
@@ -196,14 +184,7 @@ namespace VirtualVessel.UI.VoiceLab
                 _failed.style.display = DisplayStyle.None;
             }
 
-            _busy.style.display = busy ? DisplayStyle.Flex : DisplayStyle.None;
-            _watch?.Pause();
-            _watch = null;
-            if (busy)
-            {
-                ShowProgress();
-                _watch = schedule.Execute(ShowProgress).Every(300);
-            }
+            _busy.SetRunning(busy);
 
             _count.SetEnabled(!busy);
             _make.SetEnabled(!busy);
@@ -222,13 +203,6 @@ namespace VirtualVessel.UI.VoiceLab
             return keys;
         }
 
-        private void ShowProgress()
-        {
-            (string label, float fraction, string detail) = VoiceLabView.MakingBar(_lab.CandidatesProgress);
-            _progress.LabelKey = label;
-            _progress.Progress = fraction;
-            _progress.Detail = detail;
-        }
 
         private void ShowTiles()
         {
@@ -251,7 +225,7 @@ namespace VirtualVessel.UI.VoiceLab
                     FromNumber = from,
                 };
                 tile.PlayButton.style.display = _player.Available ? DisplayStyle.Flex : DisplayStyle.None;
-                tile.PlayButton.clicked += () => Play(tile, candidate);
+                tile.PlayButton.clicked += () => _player.Toggle(tile.PlayButton, candidate.File);
                 tile.PickButton.clicked += () => Pick(number, candidate);
                 _tiles.Add(tile);
                 _shown.Add(tile, candidate);
@@ -259,26 +233,6 @@ namespace VirtualVessel.UI.VoiceLab
 
             _next.SetEnabled(_draft.Candidate != null);
             _makeNear.SetEnabled(_making == null && _draft.Candidate != null);
-        }
-
-        private async void Play(CandidateTile tile, VoiceLabCandidate candidate)
-        {
-            if (_playing == tile)
-            {
-                _player.Stop();
-                return;
-            }
-
-            _playing = tile;
-            tile.PlayButton.IconName = IconName.Stop;
-            await _player.PlayAsync(candidate.File, () =>
-            {
-                tile.PlayButton.IconName = IconName.Play;
-                if (_playing == tile)
-                {
-                    _playing = null;
-                }
-            });
         }
 
         private void Pick(int number, VoiceLabCandidate candidate)

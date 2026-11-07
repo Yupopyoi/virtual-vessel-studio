@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
 
@@ -49,6 +50,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _owner;
         private Action _finished;
         private IVisualElementScheduledItem _watch;
+        private IconButton _button;
 
         public VoiceLabPlayer(IAudioPreview audio, VisualElement owner)
         {
@@ -84,6 +86,35 @@ namespace VirtualVessel.UI.VoiceLab
 
             _watch = _owner.schedule.Execute(Watch).Every(WatchMs);
             return true;
+        }
+
+        /// <summary>
+        /// Plays <paramref name="file"/> from a play button, which shows Stop while it plays; pressing the
+        /// playing button again stops it. A null file does nothing.
+        /// </summary>
+        public async void Toggle(IconButton button, string file)
+        {
+            if (_button == button)
+            {
+                Stop();
+                return;
+            }
+
+            if (file == null)
+            {
+                return;
+            }
+
+            _button = button;
+            button.IconName = IconName.Stop;
+            await PlayAsync(file, () =>
+            {
+                button.IconName = IconName.Play;
+                if (_button == button)
+                {
+                    _button = null;
+                }
+            });
         }
 
         public void Stop()
