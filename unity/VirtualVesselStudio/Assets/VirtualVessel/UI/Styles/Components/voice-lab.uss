@@ -149,3 +149,9 @@
     border-bottom-width: 1px;
     border-color: var(--vv-color-border);
 }
+
+/* A voice's name: the row's main text, so it reads first (the user's review, 2026-11-07). */
+.vv-lab__name {
+    color: var(--vv-color-text);
+    -unity-font-style: bold;
+}

@@ -17,6 +17,7 @@ namespace VirtualVessel.UI.VoiceLab
     public sealed class VoiceLabLibraryView : VisualElement
     {
         public const string RowClass = VoiceLabScreen.UssClass + "__row";
+        public const string NameClass = VoiceLabScreen.UssClass + "__name";
 
         private readonly IVoiceLabLibrary _library;
         private readonly VoiceLabPlayer _player;
@@ -114,6 +115,7 @@ namespace VirtualVessel.UI.VoiceLab
             row.Add(Play(voice.BaseFile));
             var name = new Label(voice.Name);
             name.AddToClassList("vv-text-body");
+            name.AddToClassList(NameClass);
             row.Add(QuietText.Of(name));
             row.Add(Note(voice.MedianHz > 0 ? CandidateTile.HzText(voice.MedianHz) : "—"));
             row.Add(Note(DateText(voice.RegisteredAt)));
