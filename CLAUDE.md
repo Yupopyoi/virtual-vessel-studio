@@ -1105,6 +1105,8 @@ Do not turn recoverable errors into application crashes when a module can safely
 
 Always consider resource cleanup after failure.
 
+Operations that create, read, update, or delete records (CRUD) follow system design 6.31: they return `CrudResult` / `CrudResult<T>` and only report a failure; the caller decides how to handle it (show, log, retry, recover). Exceptions in CRUD are for bugs only.
+
 ---
 
 # 22. Testing Rules

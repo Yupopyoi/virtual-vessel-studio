@@ -920,3 +920,33 @@ This system adopts the following basic principles for project, configuration, an
 16. Separate the cache from persistent data.
 17. Project changes during streaming use each module's safe change method.
 18. When changing the Data Root, switch only after confirming the consistency of existing data.
+
+---
+
+## 6.31 Reading and Writing Records (CRUD)
+
+Operations that create, read, update, and delete records (CRUD) follow the same rules in every module (the user's decision, 2026-11-07).
+
+They cover the parts that keep records (repositories) and the faces that hand them to screens and others. The work itself, such as making a voice or capturing video, is not covered.
+
+1. Results come in one type. Every operation returns `CrudResult` (`CrudResult<T>` when it returns a value): whether it succeeded, the kind of failure, and an explanation for developers.
+2. The kinds of failure:
+
+| Kind | Meaning |
+|---|---|
+| `NotFound` | The record is not there |
+| `Invalid` | It breaks a rule (an empty or too long name, and so on) |
+| `Busy` | Not now (being made, in use, and so on) |
+| `StorageFailed` | It could not be read or written (files, permissions, and so on) |
+
+3. The CRUD side only reports a failure. It turns the exceptions it meets into the result and returns it; it does not log, retry, show anything, or decide how to recover.
+4. The caller handles it. A screen shows the user a line for the kind of failure and logs the explanation; another part handles it by its own rules.
+5. Exceptions are for bugs only. Misuse such as passing null still throws.
+6. Deleting a record that is not there succeeds: it is gone either way.
+7. How records are stored (JSON files, SQLite, and so on) stays behind the repositories. Changing it changes neither the callers nor these rules.
+
+`CrudResult` is in ProjectData, so every module can use it.
+
+### Rationale
+
+How to handle a failure depends on the caller: a screen tells the user, and a build ends as failed. Deciding it on the CRUD side would not fit each caller. One shape of result lets every caller handle failures the same way, and changing how records are stored does not spread.
