@@ -65,9 +65,13 @@ On the Python side:
 public interface IVoiceLab
 {
     VoiceLabAvailability Availability { get; }   // Ready, or NotSetUp without a training environment (6.4)
+    VoiceLabShelf Shelf { get; }                 // STEP 1's words and examples (8.3.1); null when not set up
+    string SampleFile(string language, string name);           // A sample's file, or null before it is made
+    Task MakeSamplesAsync(CancellationToken cancellationToken);  // Makes the samples on this PC (8.3.1)
+    VoiceLabMaking SamplesProgress { get; }
 
     // Designing a voice (8.3)
-    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near: null, or the candidate to make them near (8.3.1)
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near: null, or the candidate to make them near (8.3.1)
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
@@ -76,7 +80,7 @@ public interface IVoiceLab
 }
 ```
 
-- `VoiceLabMood` holds the sliders (0 to 1, by the keys of 8.3.1) and the words. `VoiceLabCandidate` holds the sample to play and its pitch: the median and the 5 to 95% range in Hz. The seed and the instruction stay inside Voice Lab and are never shown (system design 14.14).
+- `VoiceLabRequest` holds the shelf's word ids and the user's own words. `VoiceLabShelf` holds the shelf's groups, words (each with its slot and whether it is the slot's default), and examples, and decides what pressing a word does. `VoiceLabCandidate` holds the sample to play, its pitch (the median and the 5 to 95% range in Hz), and the instruction it was made from, shown folded (system design 14.14). The seed stays inside Voice Lab.
 - `VoiceLabTimbre` holds five steps, pitch (semitones), age (a formant ratio), brightness, breathiness from -6 to +6, and softness from 0 to +6, each 0 (no change) by default. `run.json` keeps all five; one without softness was made with 0. Voice Lab clamps them on the way in.
 - A failure that the screen should tell the user about throws `VoiceLabFailedException`, whose message is for developers. Cancelling throws `OperationCanceledException`. A build reports failing and cancelling in `VoiceLabBuild.State` instead, with `OutOfMemory` for GPU memory.
 - None of the methods blocks the main thread.
@@ -123,6 +127,7 @@ As in system design 13.14, kept in `VoiceLab/TrainingRuns/<RunId>/`, with state 
 
 ```text
 VoiceLab/
+├─ Samples/<language>/          STEP 1's samples, made on this PC (8.3.1)
 ├─ Designs/<start time>/        One session of designing a voice (8.3.1, 8.3.2)
 │  ├─ candidates/              The candidates' audio
 │  ├─ previews/                Timbre previews, one per candidate and timbre
@@ -238,7 +243,9 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 #### 8.3.1 Picking a base
 
-- The mood is set with a voice (female or male), named levels (youth, pitch, softness, breathiness, energy, cuteness, intonation, pace, naturalness), and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder` (`voicelab/prompt.py`). VCBM's sentences are written for a female voice; a male voice swaps the person and the pronouns, and the user's words are left as written. Only levels heard apart in a blind test are offered, and brightness keeps its default sentence and is set in STEP 2 (decision record, 2026-11-07).
+- The voice is asked for with words from a shelf (`voicelab/shelf.json`, read by the scripts and by Unity) and free words. Each word fills one slot of the instruction (person, pitch, resonance, breath, character, energy, intonation, pace); a slot takes one word, so opposite words share a slot, and a slot with none takes its default. An empty pick gives the instruction VCBM's `VoicePromptBuilder` was tuned with. The sentences are VCBM's, or were heard apart in a blind test; brightness is not on the shelf and is set in STEP 2. VCBM's sentences are written for a female voice; the male word swaps the person and the pronouns, and the user's words are left as written (decision record, 2026-11-07).
+- The screen starts from examples (a set of words with a seed), offers each word with a sample of the base (no words) with only that word added, made with one seed, and reads the request back as one sentence in the screen's language from each word's phrase. Samples are made on the user's PC when Voice Lab is set up (`generate.py samples`, into `Samples/<language>/`); until activation exists the screen offers to make them. They are made in Japanese for now: the same seed in English gave a voice of another pitch, so each language needs its own seeds.
+- The user's words are sent inside the instruction, which is sent in brackets before the line read aloud. The scripts remove brackets, line breaks, controls, and invisible or direction-changing characters, and keep 200 characters, so the words cannot end the instruction and be read aloud. Imitating a real person is not something code can stop; the terms (8.2) cover it.
 - The same instruction gives very different voices with different seeds (268 Hz and 406 Hz). Sliders alone do not reach the ideal, so several candidates (about six) are made at a time, with More to add more.
 - STEP 1 only finds a base close to the ideal; STEP 2 shapes it (the user's decision, 2026-11-05). Make candidates near this voice makes six with the picked candidate as VoxCPM2's reference and the same instruction, to look around a voice that is close. Picking one of them and going again uses it as the next reference. In a measurement three rounds of this stayed natural to the ear; the six of a round differ clearly, so they are compared and picked, not fine-tuned (2026-11-05). Keeping the same person is not needed here: training clones the base afterwards.
 - The mood items' levels and words move a voice's pitch little (the combination of youth and pitch about +60 Hz, writing Hz no effect; 2026-11-05). The pitch in Hz is set in STEP 2.
@@ -320,7 +327,8 @@ python -I <script>.py <operation> <request JSON file>
 
 | Script and operation | Main request items | Result |
 |---|---|---|
-| `generate.py candidates` | The mood (slider values and words), the voice (`female` or `male`, `female` if left out), count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py candidates` | The shelf's word ids and the user's words, count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py samples` | The languages, model location, output folder | Each example with its seed, the base (no words), and each word added to the base alone, with one seed; files already made are kept |
 | `generate.py speech` | The reference audio, first seed, model location, output folder | The training speech files and their total length |
 | `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
 | `timbre.py batch` | The source folder, timbre values, output folder | The edited files |

@@ -64,10 +64,14 @@ Python側：
 ```csharp
 public interface IVoiceLab
 {
+    VoiceLabShelf Shelf { get; }                 // STEP 1の言葉と例（8.3.1）。準備がないときはnull
+    string SampleFile(string language, string name);           // 見本のファイル。まだ作っていなければnull
+    Task MakeSamplesAsync(CancellationToken cancellationToken);  // このPCで見本を作る（8.3.1）
+    VoiceLabMaking SamplesProgress { get; }
     VoiceLabAvailability Availability { get; }   // Ready、または学習の環境がないときNotSetUp（6.4）
 
     // 声を設計する（8.3）
-    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
@@ -76,7 +80,7 @@ public interface IVoiceLab
 }
 ```
 
-- `VoiceLabMood`はスライダー（0から1、8.3.1のキー）とことばを持つ。`VoiceLabCandidate`は再生用の音声と声の高さ（中央値と5〜95%の範囲、Hz）を持つ。seedと指示文はVoice Labの中に留め、表示しない（方式設計14.14）。
+- `VoiceLabRequest`は棚の言葉のIDと、ユーザーの文章を持つ。`VoiceLabShelf`は棚のグループ、言葉（それぞれの枠と、枠の既定か）、例を持ち、言葉を押したときの変化を決める。`VoiceLabCandidate`は再生用の音声、声の高さ（中央値と5〜95%の範囲、Hz）、作ったときの指示文を持つ。指示文は折りたたんで見せる（方式設計14.14）。seedはVoice Labの中に留める。
 - `VoiceLabTimbre`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさ（-6から+6）と、やわらかさ（0から+6）の5つの段階で、どれも0（変えない）を既定とする。`run.json`は5つとも残す。やわらかさのない`run.json`は0で作ったものである。範囲はVoice Lab側で丸める。
 - ユーザーに伝えるべき失敗は`VoiceLabFailedException`を投げる。メッセージは開発者向け。取り消しは`OperationCanceledException`を投げる。作成だけは、失敗と取り消しを`VoiceLabBuild.State`で返し、GPUのメモリー不足を`OutOfMemory`で示す。
 - どのメソッドもメインスレッドを止めない。
@@ -123,6 +127,7 @@ public interface IVoiceLab
 
 ```text
 VoiceLab/
+├─ Samples/<言語>/              STEP 1の見本。このPCで作る（8.3.1）
 ├─ Designs/<開始時刻>/          声を設計する1回分（8.3.1、8.3.2）
 │  ├─ candidates/              候補の音声
 │  ├─ previews/                声色の試聴。候補と声色の値ごとに1つ
@@ -238,7 +243,9 @@ PCの確認：GPU、ドライバー、空き容量、接続
 
 #### 8.3.1 土台を選ぶ
 
-- 声の雰囲気は、声のタイプ（女性、男性）、名前の付いた段階（若さ、高さ、柔らかさ、息っぽさ、元気さ、かわいさ、抑揚、速さ、自然さ）、自由な文章から、VoxCPM2への指示文を組み立てる。組み立て方はVCBMの`VoicePromptBuilder`を使う（`voicelab/prompt.py`）。VCBMの文は女性の声として書かれている。男性は人物と代名詞を入れ替え、ユーザーの文章はそのままにする。伏せた聞き比べで聞き分けられた段階だけを出す。明るさは既定の文のままにし、STEP 2で決める（決定記録、2026-11-07）。
+- 声は、棚の言葉（`voicelab/shelf.json`。スクリプトとUnityの両方が読む）と自由な文章で頼む。言葉はそれぞれ指示文の1つの枠（人物、高さ、響き、息、人柄、元気さ、抑揚、速さ）を埋める。1つの枠には1つの言葉だけが入るので、反対の言葉は同じ枠に置く。言葉のない枠は既定の文になる。何も選ばないと、VCBMの`VoicePromptBuilder`を調整したときの指示文になる。文はVCBMのものか、伏せた聞き比べで聞き分けられたもの。明るさは棚に置かず、STEP 2で決める。VCBMの文は女性の声として書かれている。男性の言葉は人物と代名詞を入れ替え、ユーザーの文章はそのままにする（決定記録、2026-11-07）。
+- 画面は例（言葉の組と乱数）から始める。言葉ごとに、基準（言葉なし）にその言葉だけを足した見本を1つの乱数で作って聞かせる。頼む声は、言葉ごとの断片から画面の言語の1文で読み返す。見本はVoice Labの準備のときにユーザーのPCで作る（`generate.py samples`、`Samples/<言語>/`）。アクティベーションができるまでは、画面から作れるようにする。今は日本語だけで作る。同じ乱数でも英語では高さの違う声になったので、言語ごとに乱数を選ぶ必要がある。
+- ユーザーの文章は指示文の中に入れ、指示文は読み上げる文の前に括弧で囲んで送る。スクリプトは括弧、改行、制御文字、見えない文字と向きを変える文字を取り除き、200文字までにする。文章が指示文を閉じて読み上げられることはない。実在の人をまねることはコードでは止められないので、規約（8.2）で扱う。
 - 同じ指示でも乱数で声が大きく変わる（同じ指示で268 Hzと406 Hz）。つまみだけでは理想に届かないので、1回に複数（6個程度）の候補を作り、「もっと作る」で増やせるようにする。
 - STEP 1は理想に近い土台を見つけるだけで、寄せるのはSTEP 2で行う（ユーザーの決定、2026-11-05）。「この声に近い候補を作る」は、選んだ候補をVoxCPM2の手本にし、同じ指示で6個作る。近い声のまわりを探すためである。その中から選んでもう一度押すと、それが次の手本になる。測った範囲では3回つないでも聞いて自然だった。1回の6個ははっきり違うので、細かく寄せるのではなく、聞き比べて選ぶ使い方になる（2026-11-05）。ここでは同じ人の声を保つ必要はない。土台はあとで学習によりクローンする。
 - 雰囲気の段階やことばは、声の高さをあまり動かさない（若さと高さの組み合わせで約＋60 Hz、Hzを書いても効かない。2026-11-05）。Hzの高さはSTEP 2で決める。
@@ -320,7 +327,8 @@ python -I <スクリプト>.py <操作> <依頼のJSONファイル>
 
 | スクリプトと操作 | 依頼の主な項目 | 結果 |
 |---|---|---|
-| `generate.py candidates` | 雰囲気（つまみの値と文章）、声のタイプ（`female`か`male`。省くと`female`）、個数、最初の乱数、モデルの場所、出力先、任意で近くに作る手本 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
+| `generate.py candidates` | 棚の言葉のIDとユーザーの文章、個数、最初の乱数、モデルの場所、出力先、任意で近くに作る手本 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
+| `generate.py samples` | 言語、モデルの場所、出力先 | 例ごとの音声（例の乱数）、基準（言葉なし）、基準に言葉を1つだけ足したもの（1つの乱数）。作ったファイルは残す |
 | `generate.py speech` | 手本の音声、乱数の始まり、モデルの場所、出力先 | 学習用の音声の一覧と合計の長さ |
 | `timbre.py preview` | 元の音声、声色の値、出力先 | 加工した音声、声の高さの中央値 |
 | `timbre.py batch` | 元の音声のフォルダー、声色の値、出力先 | 加工した音声の一覧 |

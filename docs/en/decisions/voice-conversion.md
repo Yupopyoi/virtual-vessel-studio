@@ -573,3 +573,11 @@ Heard: pairs played as A and B with the levels hidden, the user saying which was
 Measured: the male instruction gave 109 to 137 Hz on three seeds of four (229 Hz on one), and the user heard natural male voices. The neutral one gave two male and two female voices, not a neutral one. Above Natural, pitch stayed about 280 to 300 Hz.
 
 Decided (the user, 2026-11-07): a voice choice, female or male, swaps the instruction's person and pronouns (no neutral choice). Energy has six levels, pitch four (Low, Lowish, Natural, Raised; higher is STEP 2's knob), youth three (Mature, Young, Cartoon-like). Brightness is not chosen in STEP 1 and keeps its default sentence; STEP 2's knob does it. Only levels heard apart are offered.
+
+## 2026-11-07 Words on a shelf instead of levels
+
+The named levels (Mature, Young, Cartoon-like) were vague to the user, who asked to see the words that go into the instruction instead, chosen from candidates or typed, with care for security.
+
+Decided (the user, 2026-11-07): STEP 1 offers a shelf of words to pick several from, shown in the screen's language with the English instruction readable. To make it clear: each word has a sample of the base with only that word added; the screen starts from examples with samples; the request is read back as one sentence; and the lead says words only give a direction. Samples are made on the user's PC when Voice Lab is set up, from the list of words and seeds in the repository, not shipped as audio. The examples' seeds are placeholders for now (the highest median of four seeds), to be replaced.
+
+Measured: the same seed read in Japanese and in English gave voices up to 136 Hz apart (examples, 2026-11-07), so samples are made per language with their own seeds; Japanese first.

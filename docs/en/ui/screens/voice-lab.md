@@ -27,15 +27,20 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 
 ## 3. STEP 1 Pick a Base
 
-- The mood Card: the voice (Female, Male), the three main items (Youth, Pitch, Energy), a collapsible Card "More detail" that starts closed (Softness, Breathiness, Cuteness, Intonation, Pace, Naturalness), and the words field (optional, up to 200 characters)..
-- Each item is a setting row with a Segmented control (`components.md` 3.18) naming every level, chosen with one press (Youth: Mature, Young, Cartoon-like; Pitch: Low, Lowish, Natural, Raised; Energy: Sleepy, Gentle, Moderate, Upbeat, Lively, Bubbly). The instruction changes only at thresholds (`services/voice-lab/voicelab/prompt.py`), so a 0 to 100 scale moved without changing anything (the user's review, 2026-11-05), and a slider stopping on three to five levels was hard to move (the same, 2026-11-07). Level names carry no gender, since some users want a male voice (the same); the voice is chosen on its own. Only levels heard apart in a blind test are offered, and Brightness is not an item here: its words were heard the wrong way round, and STEP 2 sets it (decision record, 2026-11-07). Each level is sent as a value inside its band, never 0, which would drop the sentence. Items start on the level of the values VCBM's instructions were tuned with.
-- The levels give no pitch in Hz. In a measurement with six seeds each, Pitch from Low to Raised gave the same medians (about 260 Hz) and High about 300 Hz, and a pitch in Hz written in the words had no effect (2026-11-05). The pitch in Hz is set in STEP 2.
-- Candidates per round: 1, 3, 6 (default), or 12. Fewer is for trying things quickly (the user's request, 2026-11-05). Make candidates makes that many. While they are being made, a progress bar says Getting ready while the voice model loads, then Making candidates with "2 / 6", read every 0.3 s, with Stop; the buttons are disabled.
+The user starts from an example, moves it with words, and picks a candidate by ear (the user's decision, 2026-11-07). The lead says that words only give a direction: the same words sound different in each candidate.
+
+- Samples: until they are made, a line says so with Make the samples, a progress bar (Making the samples, "12 / 27"), and Stop; play buttons appear only where a sample exists (Voice Lab detailed design 8.3.1).
+- Start from an example: one row per example, with play, its name (pressing it puts its words on the shelf), and its words.
+- Move it with words: one setting row per group (`lab.group.*`), saying Pick one or Pick any, with its words as buttons, each with a play button for the sample of that word alone. A picked word is filled (Primary), so the state shows by shape and weight as well as color. Voice, Person, Pitch, and Energy are shown; Voice quality, Character, and Delivery are folded under More detail. A word replaces the one in its slot; pressing a picked word takes it off, except in a group that takes one word.
+- The voice you ask for: the picked words read back as one sentence (`lab.ask.*` and each word's phrase), with the user's words after it.
+- Add words: optional, up to 200 characters; a line says brackets, line breaks, and invisible characters are removed and imitating a real person is not allowed.
+- Candidates per round: 1, 3, 6 (default), or 12, and Make candidates. While they are being made, a progress bar says Getting ready while the voice model loads, then Making candidates with "2 / 6", read every 0.3 s, with Stop; the buttons are disabled.
 - Making candidates again replaces them; Make more adds as many again. Candidates are numbered in the order made.
-- The candidates Card: Candidate Tiles (`components.md` 3.27) with pitch and range in Hz, and a sort control (As made, Lowest first, Highest first). Without `IAudioPreview`, the tiles have no play button.
+- The candidates Card: Candidate Tiles (`components.md` 3.27) with pitch and range in Hz, and a sort control (As made, Lowest first, Highest first). Without `IAudioPreview`, the tiles have no play button. Under them, a folded Card shows the English instruction the last candidates were made from.
 - Make candidates near this voice (enabled once a candidate is picked) adds six made with the picked one as the reference (Voice Lab detailed design 8.3.1). Their tiles say which candidate they came from ("From candidate 3"). The picked one stays picked.
 - STEP 2 opens once a candidate is picked.
-- When candidates could not be made, an error status chip says so (`lab.base.failed`).
+- When candidates or samples could not be made, an error status chip says so (`lab.base.failed`, `lab.base.samples-failed`).
+- Words give no pitch in Hz. In a measurement with six seeds each, pitch levels from Low to Raised gave the same medians (about 260 Hz), and a pitch in Hz written in the words had no effect (2026-11-05). The pitch in Hz is set in STEP 2.
 
 ## 4. STEP 2 Shape the Timbre
 
