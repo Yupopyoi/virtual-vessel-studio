@@ -581,3 +581,19 @@ The named levels (Mature, Young, Cartoon-like) were vague to the user, who asked
 Decided (the user, 2026-11-07): STEP 1 offers a shelf of words to pick several from, shown in the screen's language with the English instruction readable. To make it clear: each word has a sample of the base with only that word added; the screen starts from examples with samples; the request is read back as one sentence; and the lead says words only give a direction. Samples are made on the user's PC when Voice Lab is set up, from the list of words and seeds in the repository, not shipped as audio. The examples' seeds are placeholders for now (the highest median of four seeds), to be replaced.
 
 Measured: the same seed read in Japanese and in English gave voices up to 136 Hz apart (examples, 2026-11-07), so samples are made per language with their own seeds; Japanese first.
+
+## 2026-11-08 The user's own words work in Japanese too
+
+The words field is appended to the English instruction as written, and its placeholder is Japanese, so whether Japanese words work was measured: the empty shelf with four seeds, then the same meaning added in Japanese and in English.
+
+| Words | Median pitch | Intonation range | 2 to 5 kHz share |
+|---|---|---|---|
+| None | 260 Hz | 159 Hz | 3.8% |
+| 低く落ち着いた声 | 263 Hz | 142 Hz | 3.1% |
+| a low, calm voice | 271 Hz | 139 Hz | 3.8% |
+| 明るく元気な声 | 283 Hz | 174 Hz | 4.3% |
+| a bright, cheerful voice | 276 Hz | 170 Hz | 5.1% |
+
+Japanese and English moved the voice alike: neither lowered the pitch (words do not set pitch, as before), and both made the bright one a little higher and livelier. The effects are small next to the seed's.
+
+Decided (the user, 2026-11-08): the words field takes Japanese as it is; no translation.
