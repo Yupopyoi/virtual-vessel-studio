@@ -547,3 +547,29 @@ The aim: controls a user can understand and that really change the voice (Voice 
 8. **Through training and conversion**: the same training speech (VoxCPM2 copying one base) was trained as it was and with brightness and softness, and the user's recordings were converted with upstream's offline conversion to the same pitch. At 8 dB of brightness and 6 dB of softness the numbers changed (2 to 5 kHz three times the unedited voice's share, the first harmonic about 6 dB stronger) but the user heard no difference. At twice those sizes the difference was heard and not bad; at three times the voice was muffled (the share above 4 kHz fell from 0.8% to 0.1%).
 
 Decided (the user, 2026-11-06): brightness raises the harmonics of 2 to 5 kHz (16 dB at +6); softness (0 to +6) raises the first harmonic by up to 12 dB and lowers above 4 kHz by up to 6 dB; there is no pressed side. Pitch, age, and brightness all moved by 4 or more are warned of. Small timbre edits that are heard before training can vanish after conversion, so a knob is judged by listening after conversion.
+
+## 2026-11-07 The mood's levels and the voice, by a blind test
+
+STEP 1's mood items moved from sliders to named level buttons, and the user asked for about six levels per item and no gender in the names. The instruction (VCBM's sentences) was written for a female voice throughout.
+
+Made: VoxCPM2 candidates with the same seeds, only the instruction changed. Six levels each for youth, pitch, brightness, and energy (VCBM's sentences kept, new ones filling the gaps and the ends), three seeds each; and the default instruction with its person and pronouns made female, male, or neutral, four seeds each.
+
+Heard: pairs played as A and B with the levels hidden, the user saying which was lower, brighter, more energetic, or younger, or that they could not tell.
+
+| Item | Pair | Heard |
+|---|---|---|
+| Pitch | Low (new) and Lowish | yes, right |
+| Pitch | Natural and High | no |
+| Energy | Sleepy (new) and Gentle | yes, right |
+| Energy | Moderate and Upbeat (new) | yes, right |
+| Energy | Lively and Bubbly (new) | yes, right |
+| Brightness | Bright and Very bright (new) | no |
+| Brightness | Dark (new) and Calm | no |
+| Brightness | Dark and Very bright | the wrong way round |
+| Youth | Young adult and late teens (new) | no |
+| Youth | Middle-aged (new) and Mature | no |
+| Youth | Middle-aged and Cartoon-like | yes, right |
+
+Measured: the male instruction gave 109 to 137 Hz on three seeds of four (229 Hz on one), and the user heard natural male voices. The neutral one gave two male and two female voices, not a neutral one. Above Natural, pitch stayed about 280 to 300 Hz.
+
+Decided (the user, 2026-11-07): a voice choice, female or male, swaps the instruction's person and pronouns (no neutral choice). Energy has six levels, pitch four (Low, Lowish, Natural, Raised; higher is STEP 2's knob), youth three (Mature, Young, Cartoon-like). Brightness is not chosen in STEP 1 and keeps its default sentence; STEP 2's knob does it. Only levels heard apart are offered.

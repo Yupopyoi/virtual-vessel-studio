@@ -238,7 +238,7 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 #### 8.3.1 Picking a base
 
-- The mood is set with sliders (youth, pitch, brightness, softness, breathiness, energy, cuteness, intonation, pace, naturalness) and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder`.
+- The mood is set with a voice (female or male), named levels (youth, pitch, softness, breathiness, energy, cuteness, intonation, pace, naturalness), and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder` (`voicelab/prompt.py`). VCBM's sentences are written for a female voice; a male voice swaps the person and the pronouns, and the user's words are left as written. Only levels heard apart in a blind test are offered, and brightness keeps its default sentence and is set in STEP 2 (decision record, 2026-11-07).
 - The same instruction gives very different voices with different seeds (268 Hz and 406 Hz). Sliders alone do not reach the ideal, so several candidates (about six) are made at a time, with More to add more.
 - STEP 1 only finds a base close to the ideal; STEP 2 shapes it (the user's decision, 2026-11-05). Make candidates near this voice makes six with the picked candidate as VoxCPM2's reference and the same instruction, to look around a voice that is close. Picking one of them and going again uses it as the next reference. In a measurement three rounds of this stayed natural to the ear; the six of a round differ clearly, so they are compared and picked, not fine-tuned (2026-11-05). Keeping the same person is not needed here: training clones the base afterwards.
 - The mood items' levels and words move a voice's pitch little (the combination of youth and pitch about +60 Hz, writing Hz no effect; 2026-11-05). The pitch in Hz is set in STEP 2.
@@ -320,7 +320,7 @@ python -I <script>.py <operation> <request JSON file>
 
 | Script and operation | Main request items | Result |
 |---|---|---|
-| `generate.py candidates` | The mood (slider values and words), count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py candidates` | The mood (slider values and words), the voice (`female` or `male`, `female` if left out), count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
 | `generate.py speech` | The reference audio, first seed, model location, output folder | The training speech files and their total length |
 | `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
 | `timbre.py batch` | The source folder, timbre values, output folder | The edited files |
