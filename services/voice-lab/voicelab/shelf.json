@@ -24,9 +24,9 @@
   "words": [
     { "id": "female", "slot": "voice" },
     { "id": "male", "slot": "voice" },
-    { "id": "p40", "slot": "person", "sentence": "A mature Japanese {woman} speaking calmly in a relaxed everyday conversation." },
-    { "id": "p20", "slot": "person", "sentence": "A Japanese young adult {woman} speaking in a relaxed everyday conversation." },
-    { "id": "p10", "slot": "person", "sentence": "A youthful Japanese {girl} speaking casually in a relaxed everyday conversation." },
+    { "id": "p40", "slot": "person", "sentence": "A Japanese {woman} in {her} forties speaking in a relaxed everyday conversation." },
+    { "id": "p20", "slot": "person", "sentence": "A Japanese {woman} in {her} twenties speaking in a relaxed everyday conversation." },
+    { "id": "p10", "slot": "person", "sentence": "A Japanese {girl} in {her} late teens speaking casually in a relaxed everyday conversation." },
     { "id": "anime", "slot": "person", "sentence": "A youthful Japanese {girl} speaking casually. {Her} voice is squeaky cartoon-character voice" },
     { "id": "deep", "slot": "pitch", "sentence": "{Her} voice is deep and low, with a calm, steady register." },
     { "id": "lowish", "slot": "pitch", "sentence": "{Her} voice has a calm, slightly low and stable register." },

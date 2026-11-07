@@ -2,9 +2,10 @@
 design 8.3.1).
 
 The shelf is voicelab/shelf.json, read by Unity too. Each word fills one slot of the instruction; a slot with
-no word takes its default, so an empty pick gives the instruction VCBM's VoicePromptBuilder tuned by listening.
-The sentences are VCBM's, or were heard apart from their neighbours in a blind A/B test (decision record,
-2026-11-07). They are written for a female voice; the male word swaps the person and the pronouns.
+no word takes its default, so an empty pick gives the instruction VCBM's VoicePromptBuilder was tuned with,
+but for the person, which says the age the screen shows (the user's decision, 2026-11-07). The other sentences
+are VCBM's, or were heard apart from their neighbours in a blind A/B test (decision record, 2026-11-07). They
+are written for a female voice; the male word swaps the person and the pronouns.
 """
 
 import json
@@ -15,8 +16,8 @@ import unicodedata
 SHELF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shelf.json")
 MAX_WORDS = 200
 
-_FEMALE = {"{woman}": "woman", "{girl}": "girl", "{Her}": "Her", "{She}": "She"}
-_MALE = {"{woman}": "man", "{girl}": "boy", "{Her}": "His", "{She}": "He"}
+_FEMALE = {"{woman}": "woman", "{girl}": "girl", "{Her}": "Her", "{her}": "her", "{She}": "She"}
+_MALE = {"{woman}": "man", "{girl}": "boy", "{Her}": "His", "{her}": "his", "{She}": "He"}
 
 # The instruction is sent in brackets before the line read aloud, so a bracket in the user's words would end
 # it early and turn the rest into speech. Line breaks, controls, and invisible or direction-changing characters
