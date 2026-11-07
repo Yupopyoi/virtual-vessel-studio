@@ -77,6 +77,15 @@ public interface IVoiceLab
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
     void Register(string runId, string name);
+
+    // 作った声（8.6）
+    IReadOnlyList<VoiceLabRunRecord> ListRuns();     // 新しい順
+    IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // 新しい順
+    void SetComment(string runId, string comment);
+    void RenameVoice(string voiceId, string name);
+    void DeleteRun(string runId);
+    void DeleteVoice(string voiceId);
+    VoiceLabRemake Remake(string runId);             // 作り直すための、Runの言葉、土台、声色
 }
 ```
 
@@ -123,7 +132,7 @@ public interface IVoiceLab
 
 方式設計13.14のとおり`VoiceLab/TrainingRuns/<RunId>/`に置き、`run.json`に状態を持つ。
 
-**最初の版はSQLiteを使わない。** 一覧は`run.json`を読めば作れる。比較の画面を作るときに、方式設計13.12のSQLiteを足す。
+**最初の版はSQLiteを使わない。** 一覧は`run.json`を読めば作れる。比較の画面を作るときに、方式設計13.12のSQLiteを、同じリポジトリの裏に足す（8.6）。
 
 ```text
 VoiceLab/
@@ -140,7 +149,7 @@ VoiceLab/
    └─ output/                   voice.sentis、voice.spk、voice.json（登録の元）
 ```
 
-`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
+`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`とユーザーの文章`freeWords`。古いRunにはなく、なしとして読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
 声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
 
@@ -150,7 +159,7 @@ VoiceLab/
 
 ### 6.5 登録した声
 
-`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
+`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで行う。登録した声は、名前の変更と削除ができる（8.6）。登録では、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
 
 ## 7. 状態とライフサイクル
 
@@ -284,6 +293,17 @@ PCの確認：GPU、ドライバー、空き容量、接続
 - アプリのリアルタイムの変換（Voice詳細設計の窓、つなぎ目の重ね、直前の声、ノイズ除去）で試す。ファイル全体を一度に変換する上流の変換は窓の問題を隠し、作った声を高く評価してしまう。伸ばした「う」と「え」は、上流の変換では正しく、リアルタイムでは崩れた。
 - 試す音声は、利用者の録音（WAV、M4A、MP3。Audio詳細設計5.4）か、マイクの声とする。
 - 変換の高さは自動で合わせる：声の登録のときに声の高さの中央値を残し、利用者の声の高さとの差から移す量を決める。Voice側の受け取り方はVoice詳細設計で決める（17章）。
+
+### 8.6 作った声
+
+Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録（Run）と登録した声を一覧し、聞き、名前とメモを付け、消し、Runを作り直す（ユーザーの決定、2026-11-07）。
+
+**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
+
+- 一覧：Runと声を新しい順に並べる。Runは日時、状態、選んだ言葉、声色、メモ、そこから登録した声を見せる。声は名前、高さ、日時を見せる。どちらも、Runを作った土台を聞ける（登録した声をリアルタイムの変換で試すのは第5段階）。
+- 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。
+- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使っている声を消せないようにするのは、「すぐに使う」と合わせて作る。声が使われる状態はそこで初めてできるためである。
+- 作り直す：Runの言葉、自由入力、土台、声色をSTEP 1とSTEP 2に戻し、STEP 2を開く。土台の音声がなくなっていれば、言葉を入れたSTEP 1を開き、その旨を伝える。言葉を残す前のRun（`words`がない）は、空の棚で開く。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）
 

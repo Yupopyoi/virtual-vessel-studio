@@ -77,6 +77,15 @@ public interface IVoiceLab
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
     void Register(string runId, string name);
+
+    // Made voices (8.6)
+    IReadOnlyList<VoiceLabRunRecord> ListRuns();     // Newest first
+    IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // Newest first
+    void SetComment(string runId, string comment);
+    void RenameVoice(string voiceId, string name);
+    void DeleteRun(string runId);
+    void DeleteVoice(string voiceId);
+    VoiceLabRemake Remake(string runId);             // The run's words, base, and timbre, to make it again
 }
 ```
 
@@ -123,7 +132,7 @@ Saved in `Config/voice-activation.json`.
 
 As in system design 13.14, kept in `VoiceLab/TrainingRuns/<RunId>/`, with state in `run.json`.
 
-**The first version does not use SQLite.** The list can be made by reading `run.json`. SQLite (system design 13.12) comes with the comparison screen.
+**The first version does not use SQLite.** The list can be made by reading `run.json`. SQLite (system design 13.12) comes with the comparison screen, behind the same repositories (8.6).
 
 ```text
 VoiceLab/
@@ -140,7 +149,7 @@ VoiceLab/
    └─ output/                   voice.sentis, voice.spk, voice.json (what registration copies)
 ```
 
-`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
+`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre, and the shelf's `words` and the user's `freeWords`; missing in older runs, read as none), `comment` (the user's note), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
 
 The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its measured share of the time (speech 39%, edit 6%, training 50%, export 5%).
 
@@ -150,7 +159,7 @@ Until activation (the sixth stage) exists, a developer names the training enviro
 
 ### 6.5 Registered Voices
 
-`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
+`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. A voice can be renamed and deleted (8.6). The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
 
 ## 7. State and Lifecycle
 
@@ -284,6 +293,17 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 - Trying goes through the application's real-time conversion (the window, the overlap at joins, the recent speech, and noise removal in the Voice detailed design). Upstream's conversion of a whole file at once hides the window's problems and overrates a voice: held "u" and "e" were right there and drifted in real time.
 - The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone.
 - The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is for the Voice detailed design (chapter 17).
+
+### 8.6 Made Voices
+
+The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the registered voices, plays them, names and notes them, deletes them, and makes a run again (the user's decision, 2026-11-07).
+
+**Storage behind repositories.** Runs and voices are read and written only through `ITrainingRunRepository` (list, get, create, save, delete) and `IVoiceModelRepository` (list, get, add, rename, delete). The first implementations keep `run.json` and `model.json` (6.3, 6.5). SQLite (system design 13.12) will be another implementation of the same interfaces, with the large files staying in the folders (13.13), so the service and the screen do not change. Nothing outside the repositories reads those files.
+
+- List: runs and voices, newest first. A run shows its date, state, the words picked, the timbre, its note, and the voices registered from it; a voice shows its name, its pitch, and its date. Both play the base the run was made from (registered voices are tried with the real-time conversion, the fifth stage).
+- Rename and note: a voice's name follows the register rules (required, up to 60 characters). A run's note is up to 500 characters. Both are saved at once.
+- Delete: after a confirmation. A run being built cannot be deleted. Deleting a voice leaves its run, and deleting a run leaves the voices registered from it (each voice folder holds its own files and design). Keeping a voice that streaming uses from being deleted comes with Use it now, which is when a voice can be in use.
+- Make again: the run's words, free words, base, and timbre go back into STEP 1 and STEP 2, which open at STEP 2. When the base's audio is gone, STEP 1 opens with the words and says so. A run from before the words were kept (no `words`) opens with an empty shelf.
 
 ### 8.4 Registration (making a `.sentis` without the Editor)
 
