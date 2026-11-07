@@ -55,16 +55,15 @@ namespace VirtualVessel.VoiceLab.Registration
     /// </summary>
     public sealed class VoiceModelRegistrar
     {
-        public const string ModelFile = "model.json";
         public static readonly IReadOnlyList<string> VoiceFiles = new[] { "voice.sentis", "voice.spk", "voice.json" };
 
-        private readonly string _voiceModels;
-        private readonly TrainingRunStore _runs;
+        private readonly IVoiceModelRepository _voices;
+        private readonly ITrainingRunRepository _runs;
         private readonly ISystemClock _clock;
 
-        public VoiceModelRegistrar(string voiceModelsFolder, TrainingRunStore runs, ISystemClock clock)
+        public VoiceModelRegistrar(IVoiceModelRepository voices, ITrainingRunRepository runs, ISystemClock clock)
         {
-            _voiceModels = voiceModelsFolder ?? throw new ArgumentNullException(nameof(voiceModelsFolder));
+            _voices = voices ?? throw new ArgumentNullException(nameof(voices));
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
@@ -87,7 +86,7 @@ namespace VirtualVessel.VoiceLab.Registration
             }
 
             string id = VoiceId(run.RunId);
-            string folder = Path.Combine(_voiceModels, id);
+            string folder = _voices.FolderOf(id);
             // Copied into a folder beside the target and then moved, so the runtime never sees half a voice.
             string staging = folder + ".part";
             if (Directory.Exists(staging))
@@ -102,21 +101,21 @@ namespace VirtualVessel.VoiceLab.Registration
             }
 
             int medianPitch = MedianPitch(File.ReadAllText(Path.Combine(output, "voice.json")));
-            new ConfigFileStore<VoiceModelRecord>(staging, ModelFile, VoiceModelRecord.SchemaVersion, () => new VoiceModelRecord(), _clock)
-                .Save(Record(id, name, run, medianPitch, _clock.UtcNow));
             if (Directory.Exists(folder))
             {
                 Directory.Delete(folder, true);
             }
 
             Directory.Move(staging, folder);
+            // Recorded once the files are in place; until then the voice is not listed.
+            _voices.Add(Record(id, name, run, medianPitch, _clock.UtcNow));
             return new RegisteredVoice(id, name, folder, medianPitch);
         }
 
         /// <summary>A voice's ID from the run it came from: one voice per run. Pure.</summary>
         public static string VoiceId(string runId)
         {
-            return "voice-" + runId;
+            return VoiceModelStore.IdPrefix + runId;
         }
 
         /// <summary>The median pitch export_voice.py wrote in voice.json; 0 when it is not there. Pure.</summary>

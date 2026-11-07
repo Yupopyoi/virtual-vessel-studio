@@ -118,7 +118,7 @@ namespace VirtualVessel.VoiceLab.Design
     /// <summary>One voice made from a description, to listen to and maybe build on.</summary>
     public sealed class VoiceCandidate
     {
-        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction, string reference = null)
+        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction, string reference = null, VoiceDescription description = null)
         {
             Id = id;
             Seed = seed;
@@ -126,7 +126,11 @@ namespace VirtualVessel.VoiceLab.Design
             Pitch = pitch;
             Instruction = instruction;
             Reference = reference;
+            Description = description;
         }
+
+        /// <summary>The words it was asked with, kept in the run to make it again; null when unknown.</summary>
+        public VoiceDescription Description { get; }
 
         public string Id { get; }
 

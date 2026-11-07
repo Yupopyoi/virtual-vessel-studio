@@ -11,7 +11,7 @@ namespace VirtualVessel.VoiceLab.Training
     /// with ProjectData's settings files: written whole or not at all, fields from newer versions kept, and a
     /// damaged file moved aside.
     /// </summary>
-    public sealed class TrainingRunStore
+    public sealed class TrainingRunStore : ITrainingRunRepository
     {
         public const string FolderName = "TrainingRuns";
         public const string FileName = "run.json";
@@ -29,7 +29,37 @@ namespace VirtualVessel.VoiceLab.Training
 
         public string FolderOf(string runId)
         {
+            if (!IsPlainName(runId))
+            {
+                throw new ArgumentException($"'{runId}' is not a run ID.", nameof(runId));
+            }
+
             return Path.Combine(_root, runId);
+        }
+
+        public TrainingRun Get(string runId)
+        {
+            if (!IsPlainName(runId) || !File.Exists(Path.Combine(FolderOf(runId), FileName)))
+            {
+                return null;
+            }
+
+            ConfigLoadResult<TrainingRun> loaded = Store(runId).Load();
+            return loaded.Status != ConfigLoadStatus.Recovered && !string.IsNullOrEmpty(loaded.Value.RunId) ? loaded.Value : null;
+        }
+
+        public void Delete(string runId)
+        {
+            if (IsPlainName(runId) && Directory.Exists(FolderOf(runId)))
+            {
+                Directory.Delete(FolderOf(runId), true);
+            }
+        }
+
+        /// <summary>A folder name with no path in it, so a run ID never reaches outside the runs' folder. Pure.</summary>
+        public static bool IsPlainName(string name)
+        {
+            return !string.IsNullOrEmpty(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name != "." && name != "..";
         }
 
         public TrainingRun Create(RunDesign design)
@@ -62,15 +92,10 @@ namespace VirtualVessel.VoiceLab.Training
 
             foreach (string folder in Directory.GetDirectories(_root))
             {
-                if (!File.Exists(Path.Combine(folder, FileName)))
+                TrainingRun run = Get(Path.GetFileName(folder));
+                if (run != null)
                 {
-                    continue;
-                }
-
-                ConfigLoadResult<TrainingRun> loaded = Store(Path.GetFileName(folder)).Load();
-                if (loaded.Status != ConfigLoadStatus.Recovered && !string.IsNullOrEmpty(loaded.Value.RunId))
-                {
-                    runs.Add(loaded.Value);
+                    runs.Add(run);
                 }
             }
 

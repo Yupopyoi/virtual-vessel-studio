@@ -49,6 +49,15 @@ namespace VirtualVessel.VoiceLab.Training
         public string Reference { get; set; }
 
         public TimbreValues Timbre { get; set; } = new TimbreValues();
+
+        /// <summary>
+        /// The shelf's word ids the candidate was asked with (Voice Lab detailed design 8.3.1), to make it again.
+        /// Added later; older run.json files read it as none.
+        /// </summary>
+        public List<string> Words { get; set; } = new List<string>();
+
+        /// <summary>The user's own words the candidate was asked with. Added later; older run.json files read it as none.</summary>
+        public string FreeWords { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -77,6 +86,11 @@ namespace VirtualVessel.VoiceLab.Training
 
         /// <summary>For developers: the failing script's message.</summary>
         public string Error { get; set; }
+
+        /// <summary>The user's note on the run (Voice Lab detailed design 8.6). Added later; older files read it as none.</summary>
+        public string Comment { get; set; } = string.Empty;
+
+        public const int MaxComment = 500;
 
         /// <summary>The versions the run depended on (torch, voxcpm, numpy), as the scripts reported them.</summary>
         public Dictionary<string, string> Versions { get; set; } = new Dictionary<string, string>();
@@ -122,6 +136,15 @@ namespace VirtualVessel.VoiceLab.Training
             return copy;
         }
 
+        /// <summary>The run with the user's note, trimmed and cut to <see cref="MaxComment"/>. Pure.</summary>
+        public TrainingRun WithComment(string comment)
+        {
+            TrainingRun copy = Copy();
+            string trimmed = (comment ?? string.Empty).Trim();
+            copy.Comment = trimmed.Length > MaxComment ? trimmed.Substring(0, MaxComment) : trimmed;
+            return copy;
+        }
+
         /// <summary>The run with the versions it depended on. Pure.</summary>
         public TrainingRun WithVersions(IReadOnlyDictionary<string, string> versions)
         {
@@ -161,16 +184,21 @@ namespace VirtualVessel.VoiceLab.Training
                     Instruction = Design?.Instruction,
                     Seed = Design?.Seed ?? 0,
                     Candidate = Design?.Candidate,
+                    Reference = Design?.Reference,
                     Timbre = new TimbreValues
                     {
                         Pitch = Design?.Timbre?.Pitch ?? 0f,
                         Age = Design?.Timbre?.Age ?? 0f,
                         Brightness = Design?.Timbre?.Brightness ?? 0f,
                         Breathiness = Design?.Timbre?.Breathiness ?? 0f,
+                        Softness = Design?.Timbre?.Softness ?? 0f,
                     },
+                    Words = new List<string>(Design?.Words ?? new List<string>()),
+                    FreeWords = Design?.FreeWords ?? string.Empty,
                 },
                 ErrorCode = ErrorCode,
                 Error = Error,
+                Comment = Comment ?? string.Empty,
                 Versions = new Dictionary<string, string>(Versions ?? new Dictionary<string, string>()),
             };
         }

@@ -245,13 +245,13 @@ namespace VirtualVessel.VoiceLab.Tests
             File.WriteAllText(Path.Combine(output, "voice.sentis"), "model");
             File.WriteAllText(Path.Combine(output, "voice.spk"), "speaker");
             File.WriteAllText(Path.Combine(output, "voice.json"), "{\"medianPitchHz\":360}");
-            var registrar = new VoiceModelRegistrar(Path.Combine(_folder, "VoiceModels"), _runs, _clock);
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
             RegisteredVoice voice = registrar.Register(run, "My voice");
 
             Assert.That(voice.MedianPitchHz, Is.EqualTo(360));
             Assert.That(Directory.GetFiles(voice.Folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "model.json", "voice.json", "voice.sentis", "voice.spk" }));
-            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelRegistrar.ModelFile)));
+            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelStore.ModelFile)));
             Assert.That(model.Get<string>("name"), Is.EqualTo("My voice"));
             Assert.That(model.Get<int>("design.seed"), Is.EqualTo(7));
             Assert.That(model.Get<int>("schemaVersion"), Is.EqualTo(1));
@@ -262,7 +262,7 @@ namespace VirtualVessel.VoiceLab.Tests
         public void Register_RefusesARunThatDidNotComplete()
         {
             TrainingRun run = _runs.Create(new RunDesign());
-            var registrar = new VoiceModelRegistrar(Path.Combine(_folder, "VoiceModels"), _runs, _clock);
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
             Assert.Throws<InvalidOperationException>(() => registrar.Register(run, "x"));
         }

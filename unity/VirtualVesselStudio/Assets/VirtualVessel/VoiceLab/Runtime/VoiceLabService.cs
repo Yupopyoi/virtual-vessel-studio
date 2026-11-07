@@ -26,7 +26,8 @@ namespace VirtualVessel.VoiceLab
 
         private readonly object _gate = new object();
         private readonly VoiceDesigner _designer;
-        private readonly TrainingRunStore _runs;
+        private readonly ITrainingRunRepository _runs;
+        private readonly IVoiceModelRepository _voices;
         private readonly VoiceModelRegistrar _registrar;
         private readonly ILog _log;
         private readonly string _samplesFolder;
@@ -36,10 +37,11 @@ namespace VirtualVessel.VoiceLab
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
-        private VoiceLabService(VoiceDesigner designer, TrainingRunStore runs, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log)
+        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log)
         {
             _designer = designer;
             _runs = runs;
+            _voices = voices;
             _registrar = registrar;
             Shelf = shelf;
             _samplesFolder = samplesFolder;
@@ -69,7 +71,7 @@ namespace VirtualVessel.VoiceLab
             if (!File.Exists(path))
             {
                 log.Information("Voice Lab is not set up: no training environment.");
-                return new VoiceLabService(null, null, null, null, null, log);
+                return new VoiceLabService(null, null, null, null, null, null, log);
             }
 
             VoiceLabEnvironment environment = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
@@ -86,14 +88,15 @@ namespace VirtualVessel.VoiceLab
             if (problems.Count > 0)
             {
                 log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
-                return new VoiceLabService(null, null, null, null, null, log);
+                return new VoiceLabService(null, null, null, null, null, null, log);
             }
 
             var runner = new ExternalProcessRunner(environment.AllowedFolders, log.WithContext("component", "process"), clock);
             var runs = new TrainingRunStore(voiceLabFolder, clock, random);
             var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(voiceLabFolder, "Designs"), clock, log, (random ?? new Random()).Next(1, 1_000_000));
             log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
-            return new VoiceLabService(designer, runs, new VoiceModelRegistrar(voiceModelsFolder, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log);
+            var voices = new VoiceModelStore(voiceModelsFolder, clock);
+            return new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log);
         }
 
         public string SampleFile(string language, string name)
@@ -180,7 +183,7 @@ namespace VirtualVessel.VoiceLab
         public void Register(string runId, string name)
         {
             Ensure();
-            TrainingRun run = _runs.List().FirstOrDefault(r => r.RunId == runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
+            TrainingRun run = _runs.Get(runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
             try
             {
                 RegisteredVoice voice = _registrar.Register(run, name);

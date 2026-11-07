@@ -48,14 +48,14 @@ namespace VirtualVessel.VoiceLab.Design
         };
 
         private readonly PythonScripts _scripts;
-        private readonly TrainingRunStore _runs;
+        private readonly ITrainingRunRepository _runs;
         private readonly ISystemClock _clock;
         private readonly ILog _log;
         private readonly string _session;
         private int _nextSeed;
 
         /// <param name="designsFolder">Candidates and previews of this session go in a folder of their own here.</param>
-        public VoiceDesigner(PythonScripts scripts, TrainingRunStore runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
+        public VoiceDesigner(PythonScripts scripts, ITrainingRunRepository runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
         {
             _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
@@ -81,7 +81,7 @@ namespace VirtualVessel.VoiceLab.Design
             request.Set("output", Path.Combine(_session, "candidates"));
             _nextSeed += count;
             ConfigDocument result = await _scripts.RunAsync("generate.py", "candidates", request, _session, progress, cancellationToken).ConfigureAwait(false);
-            return Candidates(result);
+            return Candidates(result, description);
         }
 
         /// <summary>STEP 1's samples into <paramref name="folder"/>/&lt;language&gt;/ (generate.py samples).</summary>
@@ -151,14 +151,14 @@ namespace VirtualVessel.VoiceLab.Design
         }
 
         /// <summary>Candidates from generate.py's result. Pure.</summary>
-        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result)
+        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result, VoiceDescription description = null)
         {
             string instruction = result.Get<string>("instruction");
             string reference = result.Get<string>("reference");
             var candidates = new List<VoiceCandidate>();
             foreach (CandidateFields item in result.Get("candidates", new List<CandidateFields>()))
             {
-                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference));
+                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference, description));
             }
 
             return candidates;
@@ -187,7 +187,16 @@ namespace VirtualVessel.VoiceLab.Design
         /// <summary>What run.json keeps of how the voice was made. Pure.</summary>
         public static RunDesign Design(VoiceCandidate candidate, TimbreSettings timbre)
         {
-            return new RunDesign { Instruction = candidate.Instruction, Seed = candidate.Seed, Candidate = candidate.File, Reference = candidate.Reference, Timbre = timbre.ToValues() };
+            return new RunDesign
+            {
+                Instruction = candidate.Instruction,
+                Seed = candidate.Seed,
+                Candidate = candidate.File,
+                Reference = candidate.Reference,
+                Timbre = timbre.ToValues(),
+                Words = new List<string>(candidate.Description?.Words ?? Array.Empty<string>()),
+                FreeWords = candidate.Description?.FreeWords ?? string.Empty,
+            };
         }
 
         /// <summary>The request of the build's step <paramref name="step"/>. Pure.</summary>
