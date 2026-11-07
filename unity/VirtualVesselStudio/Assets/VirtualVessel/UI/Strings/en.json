@@ -755,7 +755,7 @@
         "lab.library.delete-run.body": "The record and the training speech and weights made with it are deleted. Voices registered from it stay.",
         "lab.library.delete-making": "It cannot be deleted while it is being made",
         "lab.library.run.completed": "Completed",
-        "lab.library.run.cancelled": "Stopped",
+        "lab.library.run.cancelled": "Cancelled midway",
         "lab.library.run.failed": "Failed",
         "lab.library.run.making": "Making",
         "lab.library.registered-as": "Registered as:",

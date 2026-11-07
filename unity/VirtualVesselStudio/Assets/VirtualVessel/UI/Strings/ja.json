@@ -755,7 +755,7 @@
         "lab.library.delete-run.body": "記録と、そのとき作った学習用の音声や重みを消します。この記録から登録した声は残ります。",
         "lab.library.delete-making": "作っている最中は消せません",
         "lab.library.run.completed": "完了",
-        "lab.library.run.cancelled": "止めた",
+        "lab.library.run.cancelled": "途中で中止",
         "lab.library.run.failed": "失敗",
         "lab.library.run.making": "作成中",
         "lab.library.registered-as": "登録した声：",

@@ -49,9 +49,16 @@
     margin: var(--vv-space-s) 0;
 }
 
+/* A making bar: the meter takes the row's width, Stop at its end, and room before what follows (the user's review, 2026-11-07). */
 .vv-lab__busy {
     flex-direction: row;
     align-items: center;
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-lab__busy > .vv-progress {
+    flex-grow: 1;
+    flex-shrink: 1;
 }
 
 .vv-lab__busy > * {
