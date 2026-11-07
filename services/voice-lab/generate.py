@@ -55,7 +55,10 @@ def candidates(request, reporter):
     output = protocol.require(request, "output", str)
     if not 1 <= count <= 24:
         raise protocol.BadRequest("'count' must be 1 to 24.")
-    instruction = prompt.build(request.get("mood", {}), request.get("words", ""))
+    voice = request.get("voice", "female")
+    if voice not in prompt.VOICES:
+        raise protocol.BadRequest(f"'voice' must be one of {', '.join(prompt.VOICES)}.")
+    instruction = prompt.build(request.get("mood", {}), request.get("words", ""), voice)
     reference = reference_of(request)
     reporter.progress("load", 0, 1)
     model = _load(protocol.require(request, "model", str))

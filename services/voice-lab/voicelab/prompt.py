@@ -1,13 +1,22 @@
 """The instruction VoxCPM2 gets for a voice's mood (Voice Lab detailed design 8.3.1).
 
 The sentences and thresholds are VCBM's VoicePromptBuilder, kept as they were: they were tuned there by listening.
-A slider at exactly 0 leaves its sentence out.
+Added later, each heard apart from its neighbour in a blind A/B test (decision record, 2026-11-07): a low pitch,
+the sleepy, upbeat, and excited energy, and the male voice. A slider at exactly 0 leaves its sentence out.
 """
+
+import re
 
 DEFAULTS = {
     "youthful": 0.55, "pitch": 0.55, "brightness": 0.65, "softness": 0.70, "breathiness": 0.25,
     "energy": 0.40, "cuteness": 0.60, "expressiveness": 0.55, "speed": 0.50, "naturalness": 0.90,
 }
+
+VOICES = ("female", "male")
+
+# The sentences are written for a female voice; a male one swaps the person and the pronouns. A neutral
+# subject was tried and gave a female or a male voice by seed, not a neutral one.
+_MALE = ((r"\bwoman\b", "man"), (r"\bgirl\b", "boy"), (r"\bHer\b", "His"), (r"\bher\b", "his"), (r"\bShe\b", "He"))
 
 
 def _speaker(v):
@@ -31,6 +40,8 @@ def _pitch(v):
         return "Her voice has a distinctly high, light and youthful register that remains comfortable and effortless."
     if v >= 0.64:
         return "Her voice has a naturally elevated, light register without sounding strained."
+    if v <= 0.10:
+        return "Her voice is deep and low, with a calm, steady register."
     if v <= 0.28:
         return "Her voice has a calm, slightly low and stable register."
     return "Her voice stays in a comfortable, naturally light register."
@@ -71,8 +82,14 @@ def _character(cuteness, energy):
         character = "She sounds naturally charming and friendly"
     else:
         character = "She sounds composed and understated"
+    if energy >= 0.90:
+        return character + ", with very energetic, bubbly and excited energy."
     if energy >= 0.72:
         return character + ", with cheerful and pleasantly lively energy."
+    if energy >= 0.55:
+        return character + ", with warm and upbeat energy."
+    if energy <= 0.10:
+        return character + ", with a quiet, subdued and sleepy mood."
     if energy <= 0.30:
         return character + ", with a calm, gentle and relaxed mood."
     return character + ", with relaxed but attentive energy."
@@ -115,12 +132,23 @@ def _sentence(text):
     return text if text[-1] in ".!?。！？" else text + "."
 
 
-def build(sliders, words=""):
-    """The instruction for slider values from 0 to 1 (missing ones take DEFAULTS) and optional words. Pure."""
+def _voiced(text, voice):
+    if voice == "male":
+        for female, male in _MALE:
+            text = re.sub(female, male, text)
+    return text
+
+
+def build(sliders, words="", voice="female"):
+    """The instruction for slider values from 0 to 1 (missing ones take DEFAULTS), optional words, and a voice
+    from VOICES. Pure."""
+    if voice not in VOICES:
+        raise ValueError(f"voice must be one of {VOICES}.")
     s = {key: min(1.0, max(0.0, float(sliders.get(key, value)))) for key, value in DEFAULTS.items()}
     parts = [
         _speaker(s["youthful"]), _pitch(s["pitch"]), _tone(s["brightness"], s["softness"]), _breathiness(s["breathiness"]),
         _character(s["cuteness"], s["energy"]), _intonation(s["expressiveness"]), _speed(s["speed"]),
-        _naturalness(s["naturalness"]), _sentence(words),
+        _naturalness(s["naturalness"]),
     ]
-    return " ".join(part for part in parts if part)
+    # The user's words are theirs, so they are not changed for the voice.
+    return " ".join(part for part in [_voiced(" ".join(part for part in parts if part), voice), _sentence(words)] if part)

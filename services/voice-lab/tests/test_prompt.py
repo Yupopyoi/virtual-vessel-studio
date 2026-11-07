@@ -40,3 +40,25 @@ def test_words_are_added_as_a_sentence():
     assert prompt.build({}, "  slightly husky ").endswith(" slightly husky.")
     assert prompt.build({}, "少し舌足らず。").endswith(" 少し舌足らず。")
     assert prompt.build({}, "   ") == NATURAL
+
+
+def test_a_male_voice_swaps_the_person_and_pronouns_only():
+    male = prompt.build({"youthful": 0.95}, "Her words stay.", "male")
+    assert male.startswith("A youthful Japanese boy speaking casually. His voice")
+    assert " She " not in male and " Her " not in male.replace("Her words stay.", "")
+    assert male.endswith(" Her words stay.")
+    assert prompt.build({}, voice="female") == NATURAL
+
+
+def test_an_unknown_voice_is_refused():
+    import pytest
+    with pytest.raises(ValueError):
+        prompt.build({}, voice="neutral")
+
+
+def test_the_added_levels_are_their_own_sentences():
+    # Each heard apart from its neighbour in the blind test of 2026-11-07.
+    assert "deep and low" in prompt.build({"pitch": 0.05})
+    assert "slightly low" in prompt.build({"pitch": 0.2})
+    energies = [prompt._character(0.6, v) for v in (0.05, 0.2, 0.4, 0.6, 0.8, 0.95)]
+    assert len(set(energies)) == 6

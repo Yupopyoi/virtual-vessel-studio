@@ -18,3 +18,9 @@ def test_a_reference_must_be_a_file_that_exists(tmp_path):
         generate.reference_of({"reference": str(tmp_path / "missing.wav")})
     with pytest.raises(protocol.BadRequest):
         generate.reference_of({"reference": 3})
+
+
+def test_an_unknown_voice_is_refused_before_the_model_loads(tmp_path):
+    request = {"count": 1, "firstSeed": 1, "output": str(tmp_path), "voice": "neutral", "model": "unused"}
+    with pytest.raises(protocol.BadRequest):
+        generate.candidates(request, None)
