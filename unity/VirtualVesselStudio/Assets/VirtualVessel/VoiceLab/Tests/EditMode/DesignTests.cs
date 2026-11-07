@@ -54,24 +54,32 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
-        public void Candidates_RequestCarriesTheMoodAndNextSeeds()
+        public void Candidates_RequestCarriesTheShelfWordsAndNextSeeds()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[]}" });
             VoiceDesigner designer = Designer(runner, 100);
-            var mood = new VoiceDescription(new Dictionary<string, float> { ["softness"] = 0.85f, ["energy"] = 2f }, "husky");
+            var mood = new VoiceDescription(new[] { "male", "airy" }, "husky");
 
             designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
             designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
 
             ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
             Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 106 }));
-            Assert.That(requests[0].Get<float>("mood.softness"), Is.EqualTo(0.85f).Within(1e-6));
-            Assert.That(requests[0].Get<float>("mood.energy"), Is.EqualTo(1f), "Sliders are clamped to 0..1.");
-            Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"));
-            Assert.That(requests[0].Get<string>("voice"), Is.EqualTo("female"));
+            Assert.That(requests[0].Get<List<string>>("shelf"), Is.EqualTo(new[] { "male", "airy" }));
+            Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"), "The script cleans the words and builds the instruction.");
+        }
 
-            designer.MakeCandidatesAsync(new VoiceDescription(null, "", male: true), 1, null, null, CancellationToken.None).Wait();
-            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Last().Arguments[3])).Get<string>("voice"), Is.EqualTo("male"));
+        [Test]
+        public void Samples_RequestNamesTheLanguagesAndFolder()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"count\":27}" });
+            string folder = Path.Combine(_folder, "Samples");
+            Designer(runner, 1).MakeSamplesAsync(new[] { "ja" }, folder, null, CancellationToken.None).Wait();
+
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
+            Assert.That(runner.Requests.Single().Arguments[2], Is.EqualTo("samples"));
+            Assert.That(request.Get<List<string>>("languages"), Is.EqualTo(new[] { "ja" }));
+            Assert.That(request.Get<string>("output"), Is.EqualTo(folder));
         }
 
         [Test]

@@ -14,50 +14,6 @@ namespace VirtualVessel.UI.VoiceLab
         HighestFirst,
     }
 
-    /// <summary>
-    /// A mood item: the key the scripts know and its levels. The scripts' instruction changes only at
-    /// thresholds (services/voice-lab/voicelab/prompt.py), so the screen offers the levels, each sent as a
-    /// value inside its band, and names the one chosen. Moving the knob always changes the instruction.
-    /// </summary>
-    public sealed class MoodSlider
-    {
-        public MoodSlider(string key, int start, params float[] levels)
-        {
-            Key = key;
-            Levels = levels;
-            Start = start;
-        }
-
-        /// <summary>The item's key in the request's "mood" object (Voice Lab detailed design 8.3.1).</summary>
-        public string Key { get; }
-
-        /// <summary>The value sent for each level, low to high, each inside one band of the instruction.</summary>
-        public IReadOnlyList<float> Levels { get; }
-
-        /// <summary>The level that holds the value VCBM's instructions were tuned with.</summary>
-        public int Start { get; }
-
-        public string NameKey => "lab.mood." + Key;
-
-        /// <summary>The name of each level: "lab.mood.&lt;key&gt;.&lt;level&gt;", counted from 0.</summary>
-        public string[] LevelKeys()
-        {
-            var keys = new string[Levels.Count];
-            for (int i = 0; i < keys.Length; i++)
-            {
-                keys[i] = NameKey + "." + i.ToString(CultureInfo.InvariantCulture);
-            }
-
-            return keys;
-        }
-
-        /// <summary>The value sent for <paramref name="level"/>, clamped to the levels. Pure.</summary>
-        public float ValueAt(int level)
-        {
-            return Levels[Math.Max(0, Math.Min(Levels.Count - 1, level))];
-        }
-    }
-
     /// <summary>The Voice Lab screen's decisions, apart from the elements so they can be tested. All pure.</summary>
     public static class VoiceLabView
     {
@@ -74,27 +30,46 @@ namespace VirtualVessel.UI.VoiceLab
 
         public static int CandidatesPerRound => CandidateCounts[DefaultCountIndex];
 
-        /// <summary>The main items, shown first after the voice (system design 14.14). The bands are prompt.py's.</summary>
-        public static readonly IReadOnlyList<MoodSlider> MainMood = new[]
+        /// <summary>
+        /// The picked words read back as one sentence in the screen's language (Voice Lab detailed design 8.3.1):
+        /// "lab.ask.sentence" with {who}, {voice}, and {how}, then the delivery and the user's own words. Each
+        /// word gives its "phrase"; <paramref name="text"/> looks a key up. Pure.
+        /// </summary>
+        public static string AskSentence(VoiceLabShelf shelf, IReadOnlyList<string> picked, string freeWords, Func<string, string> text)
         {
-            // Only levels heard apart in a blind A/B test (decision record, 2026-11-07). Youth: the ends were
-            // heard apart, neighbours were not. Pitch: above the middle it did not rise (STEP 2 raises it).
-            // Brightness is left to STEP 2: its words were heard the wrong way round.
-            new MoodSlider("youthful", 1, 0.25f, 0.55f, 0.95f),                       // <0.40, to 0.80, from 0.90
-            new MoodSlider("pitch", 2, 0.05f, 0.20f, 0.50f, 0.70f),                   // to 0.10, to 0.28, to 0.64, to 0.82
-            new MoodSlider("energy", 2, 0.05f, 0.20f, 0.40f, 0.60f, 0.80f, 0.95f),    // to 0.10, 0.30, 0.55, 0.72, 0.90, from 0.90
-        };
+            string Phrase(string slot)
+            {
+                foreach (string id in picked)
+                {
+                    VoiceLabShelfWord word = shelf.Word(id);
+                    if (word != null && word.Slot == slot)
+                    {
+                        return text(word.PhraseKey);
+                    }
+                }
 
-        /// <summary>The rest, under More detail.</summary>
-        public static readonly IReadOnlyList<MoodSlider> MoreMood = new[]
-        {
-            new MoodSlider("softness", 2, 0.20f, 0.50f, 0.80f),            // to 0.32, to 0.68, from 0.68
-            new MoodSlider("breathiness", 0, 0.20f, 0.50f, 0.85f),         // to 0.30, to 0.72, from 0.72
-            new MoodSlider("cuteness", 1, 0.30f, 0.60f, 0.90f),            // <0.45, to 0.78, from 0.78
-            new MoodSlider("expressiveness", 1, 0.20f, 0.50f, 0.85f),      // to 0.30, to 0.72, from 0.72
-            new MoodSlider("speed", 1, 0.20f, 0.50f, 0.85f),               // to 0.30, to 0.72, from 0.72
-            new MoodSlider("naturalness", 2, 0.30f, 0.70f, 0.90f),         // <0.52, to 0.82, from 0.82
-        };
+                return null;
+            }
+
+            string Join(string separatorKey, params string[] parts)
+            {
+                return string.Join(text(separatorKey), Array.FindAll(parts, p => !string.IsNullOrEmpty(p)));
+            }
+
+            string who = text("lab.ask.who").Replace("{person}", Phrase("person") ?? string.Empty).Replace("{voice}", Phrase("voice") ?? string.Empty).Trim();
+            string sentence = text("lab.ask.sentence")
+                .Replace("{who}", who)
+                .Replace("{voice}", Join("lab.ask.list", Phrase("pitch"), Phrase("resonance"), Phrase("breath")))
+                .Replace("{how}", Join("lab.ask.and", Phrase("character"), Phrase("energy")));
+            string manner = Join("lab.ask.manner-join", Phrase("intonation"), Phrase("speed"));
+            if (manner.Length > 0)
+            {
+                sentence += text("lab.ask.manner").Replace("{manner}", manner);
+            }
+
+            string own = freeWords?.Trim();
+            return string.IsNullOrEmpty(own) ? sentence : sentence + " " + own;
+        }
 
         /// <summary>The candidates' indexes in <paramref name="order"/>; equal pitches keep the order made.</summary>
         public static int[] Order(IReadOnlyList<int> medianHz, CandidateOrder order)

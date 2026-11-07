@@ -3,8 +3,9 @@ using VirtualVessel.UI.Localization;
 namespace VirtualVessel.UI.VoiceLab
 {
     /// <summary>
-    /// String table keys of the Voice Lab screen (system design 14.13 to 14.18). The mood sliders' keys are
-    /// built from <see cref="MoodSlider"/>: "lab.mood.&lt;key&gt;" with ".low" and ".high".
+    /// String table keys of the Voice Lab screen (system design 14.13 to 14.18). The shelf's keys are built
+    /// from its ids (<see cref="VoiceLabShelf"/>): "lab.group.&lt;id&gt;", "lab.word.&lt;id&gt;" with ".phrase",
+    /// and "lab.example.&lt;id&gt;"; the read-back sentence's are "lab.ask.*".
     /// </summary>
     [StringKeys]
     public static class VoiceLabStrings
@@ -21,10 +22,20 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string BaseLead = "lab.base.lead";
         public const string Mood = "lab.base.mood";
-        public const string Voice = "lab.base.voice";
-        public const string VoiceTip = "lab.base.voice.tip";
-        public const string VoiceFemale = "lab.base.voice.female";
-        public const string VoiceMale = "lab.base.voice.male";
+        public const string SamplesMissing = "lab.base.samples-missing";
+        public const string MakeSamples = "lab.base.make-samples";
+        public const string MakingSamples = "lab.base.making-samples";
+        public const string SamplesFailed = "lab.base.samples-failed";
+        public const string PlaySample = "lab.base.play-sample";
+        public const string Examples = "lab.base.examples";
+        public const string ExamplesNote = "lab.base.examples-note";
+        public const string Shelf = "lab.base.shelf";
+        public const string ShelfNote = "lab.base.shelf-note";
+        public const string PickOne = "lab.base.pick-one";
+        public const string PickAny = "lab.base.pick-any";
+        public const string Ask = "lab.base.ask";
+        public const string WordsNote = "lab.base.words-note";
+        public const string Instruction = "lab.base.instruction";
         public const string MoreMood = "lab.base.more-mood";
         public const string Words = "lab.base.words";
         public const string WordsHint = "lab.base.words-hint";

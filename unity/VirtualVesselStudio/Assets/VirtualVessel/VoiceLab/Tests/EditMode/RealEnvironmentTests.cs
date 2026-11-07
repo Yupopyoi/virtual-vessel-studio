@@ -87,7 +87,7 @@ namespace VirtualVessel.VoiceLab.Tests
         // The experiment's airy_soft (decision record, 2026-11-03).
         private static VoiceDescription Airy()
         {
-            return new VoiceDescription(new Dictionary<string, float> { ["softness"] = 0.85f, ["breathiness"] = 0.80f, ["energy"] = 0.25f, ["speed"] = 0.35f }, "");
+            return new VoiceDescription(new[] { "airy", "gentle" }, "");
         }
     }
 }

@@ -1,9 +1,15 @@
 """Makes speech with VoxCPM2 (Voice Lab detailed design 8.3.1, 8.3.3, 8.5).
 
-candidates: {"mood": {slider: 0..1}, "words": str, "count": n, "firstSeed": n, "model": folder, "output": folder,
+candidates: {"shelf": [word id], "words": str, "count": n, "firstSeed": n, "model": folder, "output": folder,
              "reference": wav (optional)}
-            -> a voice per seed reading the same line, with its pitch, to compare by ear and by number. With a
+            -> a voice per seed reading the same line, with its pitch, to compare by ear and by number. The
+               shelf's words (voicelab/shelf.json) and the user's free words make the instruction. With a
                reference, the voices are made near it: new candidates around one the user picked (8.3.1).
+samples:    {"languages": ["ja", ...], "model": folder, "output": folder}
+            -> STEP 1's samples, made on the user's PC when Voice Lab is set up: each example of the shelf with
+               its seed, the base (no words picked), and each word added to the base alone, all with one seed so
+               only the word differs. <output>/<lang>/example_<id>.wav, base.wav, word_<id>.wav. Files already
+               made are kept, so a stopped run continues.
 speech:     {"reference": wav, "firstSeed": n, "model": folder, "output": folder}
             -> training speech: the reference's voice reading this project's texts. Files already made are kept,
                so a stopped run continues.
@@ -20,6 +26,11 @@ import soundfile as sf
 from voicelab import corpus, pitch, prompt, protocol
 
 CANDIDATE_LINE = "今日はとてもいい天気ですね。少し散歩に出かけてみようと思います。みなさんは、休みの日は何をして過ごしていますか？"
+# The line the samples read in each language the screen can show.
+SAMPLE_LINES = {
+    "ja": CANDIDATE_LINE,
+    "en": "It's such a nice day today. I think I'll go out for a little walk. What do you all like to do on your days off?",
+}
 CFG = 2.0
 STEPS = 10
 
@@ -55,10 +66,7 @@ def candidates(request, reporter):
     output = protocol.require(request, "output", str)
     if not 1 <= count <= 24:
         raise protocol.BadRequest("'count' must be 1 to 24.")
-    voice = request.get("voice", "female")
-    if voice not in prompt.VOICES:
-        raise protocol.BadRequest(f"'voice' must be one of {', '.join(prompt.VOICES)}.")
-    instruction = prompt.build(request.get("mood", {}), request.get("words", ""), voice)
+    instruction = instruction_of(request)
     reference = reference_of(request)
     reporter.progress("load", 0, 1)
     model = _load(protocol.require(request, "model", str))
@@ -77,6 +85,21 @@ def candidates(request, reporter):
     reporter.result(instruction=instruction, reference=reference, candidates=made, versions=_versions())
 
 
+def instruction_of(request):
+    """The instruction for the request's shelf words and free words, checked before the model loads. Pure but
+    for reading shelf.json."""
+    picked = request.get("shelf", [])
+    words = request.get("words", "")
+    if not isinstance(picked, list) or not all(isinstance(word, str) for word in picked):
+        raise protocol.BadRequest("'shelf' must be a list of word ids.")
+    if not isinstance(words, str):
+        raise protocol.BadRequest("'words' must be text.")
+    try:
+        return prompt.build(prompt.load(), picked, words)
+    except prompt.ShelfError as error:
+        raise protocol.BadRequest(str(error)) from error
+
+
 def reference_of(request):
     """The optional reference to make candidates near, checked before the model loads; None without one."""
     reference = request.get("reference")
@@ -87,6 +110,42 @@ def reference_of(request):
     if not os.path.isfile(reference):
         raise FileNotFoundError(f"The reference {reference} does not exist.")
     return reference
+
+
+def sample_plan(shelf, languages):
+    """Every sample to make: (language, file name, picked words, seed), in order. Pure."""
+    defaults = {slot.get("default") for slot in shelf["slots"]}
+    plan = []
+    for lang in languages:
+        if lang not in SAMPLE_LINES:
+            raise protocol.BadRequest(f"No sample line for language '{lang}'.")
+        for example in shelf["examples"]:
+            plan.append((lang, f"example_{example['id']}.wav", example["words"], example["seeds"][lang]))
+        plan.append((lang, "base.wav", [], shelf["sampleSeed"]))
+        # A default word adds nothing to the base, so its sample is the base.
+        for word in shelf["words"]:
+            if word["id"] not in defaults:
+                plan.append((lang, f"word_{word['id']}.wav", [word["id"]], shelf["sampleSeed"]))
+    return plan
+
+
+def samples(request, reporter):
+    languages = protocol.require(request, "languages", list)
+    output = protocol.require(request, "output", str)
+    shelf = prompt.load()
+    plan = sample_plan(shelf, languages)
+    reporter.progress("load", 0, 1)
+    model = _load(protocol.require(request, "model", str))
+    rate = model.tts_model.sample_rate
+    for done, (lang, name, picked, seed) in enumerate(plan):
+        reporter.progress("samples", done, len(plan))
+        path = os.path.join(output, lang, name)
+        if not os.path.exists(path):
+            _seeded(seed)
+            wav = model.generate(text=f"({prompt.build(shelf, picked)}){SAMPLE_LINES[lang]}", cfg_value=CFG, inference_timesteps=STEPS, normalize=False)
+            _save(path, wav, rate)
+    reporter.progress("samples", len(plan), len(plan))
+    reporter.result(output=output, count=len(plan), versions=_versions())
 
 
 def speech(request, reporter):
@@ -116,4 +175,4 @@ def speech(request, reporter):
 
 
 if __name__ == "__main__":
-    sys.exit(protocol.main({"candidates": candidates, "speech": speech}))
+    sys.exit(protocol.main({"candidates": candidates, "samples": samples, "speech": speech}))

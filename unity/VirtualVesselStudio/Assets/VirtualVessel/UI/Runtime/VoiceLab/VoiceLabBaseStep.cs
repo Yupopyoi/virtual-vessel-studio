@@ -20,10 +20,9 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
         private readonly IVoiceLabFlow _flow;
-        private readonly Dictionary<MoodSlider, Segmented> _mood = new Dictionary<MoodSlider, Segmented>();
+        private readonly VoiceLabShelfView _request;
         private readonly List<(int Number, int From, VoiceLabCandidate Candidate)> _candidates = new List<(int, int, VoiceLabCandidate)>();
         private readonly Dictionary<CandidateTile, VoiceLabCandidate> _shown = new Dictionary<CandidateTile, VoiceLabCandidate>();
-        private readonly TextInput _words;
         private readonly ActionButton _make;
         private readonly ActionButton _makeMore;
         private readonly ActionButton _makeNear;
@@ -31,7 +30,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _busy;
         private readonly ProgressMeter _progress;
         private readonly Segmented _count;
-        private readonly Segmented _voice;
+        private readonly Label _instruction;
         private IVisualElementScheduledItem _watch;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
@@ -49,30 +48,11 @@ namespace VirtualVessel.UI.VoiceLab
             _flow = flow ?? throw new ArgumentNullException(nameof(flow));
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BaseLead));
 
+            // Examples, the word shelf, the read-back sentence, and the user's words (Voice Lab detailed design 8.3.1).
+            _request = new VoiceLabShelfView(lab, player);
+            Add(_request);
+
             Card mood = Ui.Card(VoiceLabStrings.Mood);
-            _voice = Ui.Segmented(VoiceLabStrings.VoiceFemale, VoiceLabStrings.VoiceMale);
-            _voice.TooltipKey = VoiceLabStrings.VoiceTip;
-            VisualElement voiceRow = Ui.SettingRow(VoiceLabStrings.Voice);
-            voiceRow.Add(_voice);
-            mood.Add(voiceRow);
-            foreach (MoodSlider slider in VoiceLabView.MainMood)
-            {
-                mood.Add(MoodRow(slider));
-            }
-
-            Card more = Ui.Card(VoiceLabStrings.MoreMood, alternate: true, collapsible: true);
-            more.Expanded = false;
-            foreach (MoodSlider slider in VoiceLabView.MoreMood)
-            {
-                more.Add(MoodRow(slider));
-            }
-
-            mood.Add(more);
-            _words = Ui.TextField(VoiceLabStrings.Words);
-            _words.PlaceholderKey = VoiceLabStrings.WordsHint;
-            _words.MaxLength = 200;
-            mood.Add(_words);
-
             _count = Ui.Segmented(CountKeys());
             _count.TooltipKey = VoiceLabStrings.CountTip;
             _count.SetValueWithoutNotify(VoiceLabView.DefaultCountIndex);
@@ -113,6 +93,15 @@ namespace VirtualVessel.UI.VoiceLab
             _makeNear.TooltipKey = VoiceLabStrings.MakeNearTip;
             _makeNear.clicked += () => Make(MakeKind.Near);
             _candidatesCard.Add(VoiceLabScreen.Actions(_makeNear, _makeMore, Ui.Text(VoiceLabStrings.CandidatesNote, VoiceLabScreen.NoteClass, "vv-text-body")));
+
+            // The English instruction the candidates were made from, for whoever wants to read it.
+            Card instruction = Ui.Card(VoiceLabStrings.Instruction, collapsible: true);
+            instruction.Expanded = false;
+            _instruction = QuietText.Of(new Label());
+            _instruction.AddToClassList("vv-text-body");
+            _instruction.AddToClassList(VoiceLabScreen.NoteClass);
+            instruction.Add(_instruction);
+            _candidatesCard.Add(instruction);
             Add(_candidatesCard);
 
             _next = Ui.Button(VoiceLabStrings.ToTimbre, ButtonVariant.Primary);
@@ -128,38 +117,13 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton NextButton => _next;
 
-        /// <summary>Female (0) or male (1).</summary>
-        public Segmented VoiceChooser => _voice;
-
         /// <summary>How many candidates to make.</summary>
         public Segmented CountChooser => _count;
 
-        /// <summary>The mood items' level buttons, in the order shown.</summary>
-        public IReadOnlyDictionary<MoodSlider, Segmented> MoodLevels => _mood;
+        /// <summary>Examples, words, and the user's own words.</summary>
+        public VoiceLabShelfView RequestView => _request;
 
-        /// <summary>The mood as the sliders and words set it.</summary>
-        public VoiceLabMood Mood()
-        {
-            var sliders = new Dictionary<string, float>(StringComparer.Ordinal);
-            foreach (KeyValuePair<MoodSlider, Segmented> item in _mood)
-            {
-                sliders[item.Key.Key] = item.Key.ValueAt(item.Value.value);
-            }
-
-            return new VoiceLabMood(sliders, _words.value?.Trim(), _voice.value == 1 ? VoiceLabVoice.Male : VoiceLabVoice.Female);
-        }
-
-        private VisualElement MoodRow(MoodSlider mood)
-        {
-            // Every level named and one press to choose it: a slider over three to five levels was hard to
-            // stop on (the user's review, 2026-11-07), and a 0 to 100 scale moved without changing anything.
-            Segmented levels = Ui.Segmented(mood.LevelKeys());
-            levels.SetValueWithoutNotify(mood.Start);
-            VisualElement row = Ui.SettingRow(mood.NameKey);
-            row.Add(levels);
-            _mood.Add(mood, levels);
-            return row;
-        }
+        public string InstructionText => _instruction.text;
 
         private enum MakeKind
         {
@@ -188,10 +152,10 @@ namespace VirtualVessel.UI.VoiceLab
             SetBusy(true);
             try
             {
-                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(Mood(), VoiceLabView.CandidateCounts[_count.value], near, _making.Token);
+                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(_request.Request(), VoiceLabView.CandidateCounts[_count.value], near, _making.Token);
                 if (kind == MakeKind.New)
                 {
-                    // A new mood starts a new set: the earlier candidates were for another one.
+                    // A new request starts a new set: the earlier candidates were for another one.
                     _candidates.Clear();
                     _made = 0;
                     if (_draft.Candidate != null)
@@ -205,6 +169,8 @@ namespace VirtualVessel.UI.VoiceLab
                 {
                     _candidates.Add((++_made, nearNumber, candidate));
                 }
+
+                _instruction.text = made.Count > 0 ? made[made.Count - 1].Instruction : _instruction.text;
             }
             catch (OperationCanceledException)
             {

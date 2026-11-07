@@ -32,7 +32,20 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(lab.Availability, Is.EqualTo(VoiceLabAvailability.NotSetUp));
             Assert.That(lab.BuildProgress.State, Is.EqualTo(VoiceLabBuildState.None));
             Assert.Throws<VoiceLabFailedException>(() => lab.Register("r", "x"));
-            Assert.That(() => lab.MakeCandidatesAsync(new VoiceLabMood(null, ""), 6, null, CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
+            Assert.That(() => lab.MakeCandidatesAsync(new VoiceLabRequest(null, ""), 6, null, CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
+            Assert.That(lab.Shelf, Is.Null);
+            Assert.That(lab.SampleFile("ja", "base.wav"), Is.Null);
+            Assert.That(() => lab.MakeSamplesAsync(CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
+        }
+
+        [TestCase("base.wav", true)]
+        [TestCase("ja", true)]
+        [TestCase("..", false)]
+        [TestCase("../x.wav", false)]
+        [TestCase("", false)]
+        public void Samples_AreOnlyReadByPlainNames(string name, bool plain)
+        {
+            Assert.That(VoiceLabService.IsPlainName(name), Is.EqualTo(plain));
         }
 
         [Test]

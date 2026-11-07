@@ -74,8 +74,7 @@ namespace VirtualVessel.VoiceLab.Design
                 request.Set("reference", near.File);
             }
 
-            description.WriteMood(request);
-            request.Set("words", description.Words);
+            description.WriteTo(request);
             request.Set("count", count);
             request.Set("firstSeed", _nextSeed);
             request.Set("model", _scripts.Environment.VoxCpmModel);
@@ -83,6 +82,16 @@ namespace VirtualVessel.VoiceLab.Design
             _nextSeed += count;
             ConfigDocument result = await _scripts.RunAsync("generate.py", "candidates", request, _session, progress, cancellationToken).ConfigureAwait(false);
             return Candidates(result);
+        }
+
+        /// <summary>STEP 1's samples into <paramref name="folder"/>/&lt;language&gt;/ (generate.py samples).</summary>
+        public async Task MakeSamplesAsync(IReadOnlyList<string> languages, string folder, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
+        {
+            ConfigDocument request = ConfigDocument.Create();
+            request.Set("languages", new List<string>(languages));
+            request.Set("model", _scripts.Environment.VoxCpmModel);
+            request.Set("output", folder);
+            await _scripts.RunAsync("generate.py", "samples", request, folder, progress, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<TimbrePreview> PreviewTimbreAsync(VoiceCandidate candidate, TimbreSettings timbre, CancellationToken cancellationToken)

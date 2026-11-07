@@ -1,9 +1,6 @@
-using System.IO;
+using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using NUnit.Framework;
-using UnityEngine;
-using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.VoiceLab;
 
@@ -12,49 +9,77 @@ namespace VirtualVessel.UI.Tests
     /// <summary>The Voice Lab screen's decisions (system design 14.13 to 14.18); the screen itself is in the PlayMode tests.</summary>
     public sealed class VoiceLabViewTests
     {
-        [Test]
-        public void MoodItems_AreTheScriptsBut_Brightness_ThreeShownFirst()
+        private static VoiceLabShelf Shelf()
         {
-            // Brightness in words was heard the wrong way round; STEP 2's knob does it (2026-11-07).
-            Assert.That(VoiceLabView.MainMood.Select(m => m.Key), Is.EqualTo(new[] { "youthful", "pitch", "energy" }));
-            Assert.That(VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood).Select(m => m.Key), Is.EquivalentTo(new[]
-            {
-                "youthful", "pitch", "softness", "breathiness", "energy", "cuteness", "expressiveness", "speed", "naturalness",
-            }));
-            Assert.That(VoiceLabView.MainMood.Select(m => m.Levels.Count), Is.EqualTo(new[] { 3, 4, 6 }));
-        }
-
-        [Test]
-        public void MoodSliderTexts_AreInEveryTable()
-        {
-            // Built from the slider's key rather than declared, so the key test of the string tables does not see them.
-            string folder = Path.Combine(Application.dataPath, "VirtualVessel", "UI", "Strings");
-            foreach (string file in Directory.GetFiles(folder, "*.json"))
-            {
-                StringTable table = StringTable.Parse(File.ReadAllText(file, Encoding.UTF8));
-                foreach (MoodSlider slider in VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood))
+            return new VoiceLabShelf(
+                new[]
                 {
-                    Assert.That(table.Strings.Keys, Does.Contain(slider.NameKey), file);
-                    Assert.That(table.Strings.Keys, Is.SupersetOf(slider.LevelKeys()), file);
-                }
-            }
+                    new VoiceLabShelfGroup("voice", true, new[] { new VoiceLabShelfWord("female", "voice", true), new VoiceLabShelfWord("male", "voice", false) }),
+                    new VoiceLabShelfGroup("pitch", true, new[] { new VoiceLabShelfWord("deep", "pitch", false), new VoiceLabShelfWord("light", "pitch", true) }),
+                    new VoiceLabShelfGroup("quality", false, new[]
+                    {
+                        new VoiceLabShelfWord("soft", "resonance", true), new VoiceLabShelfWord("focused", "resonance", false),
+                        new VoiceLabShelfWord("airy", "breath", false),
+                    }),
+                },
+                new[] { new VoiceLabExample("low-male", new[] { "male", "deep", "focused" }), new VoiceLabExample("airy", new[] { "airy" }) });
         }
 
         [Test]
-        public void MoodLevels_RiseInsideZeroToOne_AndStartOnOne()
+        public void Shelf_StartsWithEachPickOneGroupsDefault()
         {
-            // 0 would drop the item's sentence from the instruction, which no level means.
-            foreach (MoodSlider slider in VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood))
-            {
-                Assert.That(slider.Levels, Is.Ordered.Ascending.And.All.InRange(0.01f, 1f), slider.Key);
-                Assert.That(slider.Levels.Distinct().Count(), Is.EqualTo(slider.Levels.Count), slider.Key);
-                Assert.That(slider.Start, Is.InRange(0, slider.Levels.Count - 1), slider.Key);
-            }
+            Assert.That(Shelf().Start(), Is.EqualTo(new[] { "female", "light" }));
+            Assert.That(Shelf().Groups.Select(g => g.PickOne), Is.EqualTo(new[] { true, true, false }));
+        }
 
-            MoodSlider pitch = VoiceLabView.MainMood[1];
-            Assert.That(pitch.ValueAt(3), Is.EqualTo(0.70f));
-            Assert.That(pitch.ValueAt(9), Is.EqualTo(0.70f), "Clamped to the levels.");
-            Assert.That(pitch.LevelKeys()[0], Is.EqualTo("lab.mood.pitch.0"));
+        [Test]
+        public void PressingAWord_ReplacesItsSlot_AndOnlyManyGroupsLetGo()
+        {
+            VoiceLabShelf shelf = Shelf();
+            IReadOnlyList<string> picked = shelf.Start();
+            Assert.That(shelf.Toggle(picked, "male"), Is.EqualTo(new[] { "male", "light" }));
+            Assert.That(shelf.Toggle(picked, "female"), Is.EqualTo(picked), "A group of one always keeps one.");
+            picked = shelf.Toggle(shelf.Toggle(picked, "soft"), "airy");
+            Assert.That(picked, Is.EqualTo(new[] { "female", "light", "soft", "airy" }));
+            Assert.That(shelf.Toggle(picked, "focused"), Is.EqualTo(new[] { "female", "light", "focused", "airy" }), "Opposites share a slot.");
+            Assert.That(shelf.Toggle(picked, "airy"), Is.EqualTo(new[] { "female", "light", "soft" }));
+            Assert.That(shelf.Toggle(picked, "nonsense"), Is.EqualTo(picked));
+        }
+
+        [Test]
+        public void AnExample_FillsTheSlotsItLeavesOpenFromTheStart()
+        {
+            VoiceLabShelf shelf = Shelf();
+            Assert.That(shelf.FromExample(shelf.Examples[0]), Is.EqualTo(new[] { "male", "deep", "focused" }));
+            Assert.That(shelf.FromExample(shelf.Examples[1]), Is.EqualTo(new[] { "female", "light", "airy" }));
+        }
+
+        [Test]
+        public void ADefaultWord_PlaysTheBase()
+        {
+            Assert.That(VoiceLabShelf.WordSampleName(new VoiceLabShelfWord("soft", "resonance", true)), Is.EqualTo("base.wav"));
+            Assert.That(VoiceLabShelf.WordSampleName(new VoiceLabShelfWord("airy", "breath", false)), Is.EqualTo("word_airy.wav"));
+            Assert.That(VoiceLabShelf.ExampleSampleName(new VoiceLabExample("low-male", null)), Is.EqualTo("example_low-male.wav"));
+        }
+
+        [Test]
+        public void TheRequest_IsReadBackAsOneSentence()
+        {
+            var texts = new Dictionary<string, string>
+            {
+                ["lab.ask.sentence"] = "{who}が、{voice}声で、{how}話す。",
+                ["lab.ask.who"] = "{person}{voice}",
+                ["lab.ask.list"] = "、",
+                ["lab.ask.and"] = "、",
+                ["lab.ask.manner"] = "{manner}。",
+                ["lab.ask.manner-join"] = "で、",
+                ["lab.word.male.phrase"] = "男性",
+                ["lab.word.deep.phrase"] = "低く太い",
+                ["lab.word.airy.phrase"] = "ほんのり息まじりの",
+            };
+            string Text(string key) => texts.TryGetValue(key, out string value) ? value : string.Empty;
+            VoiceLabShelf shelf = Shelf();
+            Assert.That(VoiceLabView.AskSentence(shelf, new[] { "male", "deep", "airy" }, " 少しかすれた ", Text), Is.EqualTo("男性が、低く太い、ほんのり息まじりの声で、話す。 少しかすれた"));
         }
 
         [TestCase(2f, 0f, 1f, 5, 2)]

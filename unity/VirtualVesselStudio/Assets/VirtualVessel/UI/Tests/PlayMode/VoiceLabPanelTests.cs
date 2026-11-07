@@ -67,16 +67,18 @@ namespace VirtualVessel.UI.Tests
             Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.BaseStep));
             Assert.That(baseStep.NextButton.enabledSelf, Is.False, "Nothing is picked yet.");
 
-            MoodSlider pitch = VoiceLabView.MainMood[1];
-            baseStep.MoodLevels[pitch].value = 3;
-            baseStep.VoiceChooser.value = 1;
+            VoiceLabShelfView request = baseStep.RequestView;
+            Submit(request.WordButton("male"));
+            Submit(request.WordButton("airy"));
+            Assert.That(request.WordButton("male").Variant, Is.EqualTo(ButtonVariant.Primary), "A picked word is filled.");
+            Assert.That(request.WordButton("female").Variant, Is.EqualTo(ButtonVariant.Secondary));
+            Assert.That(request.SentenceText, Does.Contain("lab.word.male.phrase").Or.Contain("男性").Or.Contain("A man"));
             Submit(baseStep.MakeButton);
             yield return null;
-            Assert.That(_lab.Moods.Single().Sliders[pitch.Key], Is.EqualTo(pitch.ValueAt(3)), "The level pressed is asked for.");
-            Assert.That(_lab.Moods.Single().Voice, Is.EqualTo(VoiceLabVoice.Male));
+            Assert.That(_lab.Requests.Single().Words, Is.EqualTo(new[] { "male", "light", "airy" }), "The pressed words replace their slot's.");
+            Assert.That(baseStep.InstructionText, Is.EqualTo("instruction"), "The instruction the candidates came from can be read.");
             List<CandidateTile> tiles = baseStep.Tiles.ToList();
             Assert.That(tiles.Count, Is.EqualTo(VoiceLabView.CandidatesPerRound));
-            Assert.That(_lab.Moods.Single().Sliders.Count, Is.EqualTo(9), "Every item, folded or not, is asked for.");
 
             Submit(tiles[1].PlayButton);
             yield return null;
@@ -166,6 +168,27 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(timbre.ShapingKey, Is.Null);
             Assert.That(_preview.Played.Last(), Is.EqualTo("p3.wav"));
+        }
+
+        [UnityTest]
+        public IEnumerator Samples_AreOfferedUntilMade_ThenEachWordAndExamplePlays()
+        {
+            var baseStep = (VoiceLabBaseStep)Screen().Panel(VoiceLabScreen.BaseStep);
+            VoiceLabShelfView request = baseStep.RequestView;
+            IconButton[] plays = request.Query<IconButton>().ToList().ToArray();
+            Assert.That(plays.All(p => p.style.display == DisplayStyle.None), Is.True, "Nothing to play before the samples are made.");
+
+            Submit(request.MakeSamplesButton);
+            yield return null;
+            Assert.That(_lab.SampleRuns, Is.EqualTo(1));
+            Assert.That(plays.All(p => p.style.display == DisplayStyle.Flex), Is.True);
+
+            Submit(plays[0]);
+            yield return null;
+            Assert.That(_preview.Played.Last(), Does.EndWith("example_low.wav"));
+
+            request.PickExample(_lab.Shelf.Examples[0]);
+            Assert.That(request.Picked, Is.EqualTo(new[] { "male", "deep", "clean" }), "A group of one keeps its default where the example has none.");
         }
 
         [UnityTest]
@@ -289,7 +312,34 @@ namespace VirtualVessel.UI.Tests
 
             public VoiceLabAvailability Availability { get; set; } = VoiceLabAvailability.Ready;
 
-            public List<VoiceLabMood> Moods { get; } = new List<VoiceLabMood>();
+            public List<VoiceLabRequest> Requests { get; } = new List<VoiceLabRequest>();
+
+            public VoiceLabShelf Shelf { get; } = new VoiceLabShelf(
+                new[]
+                {
+                    new VoiceLabShelfGroup("voice", true, new[] { new VoiceLabShelfWord("female", "voice", true), new VoiceLabShelfWord("male", "voice", false) }),
+                    new VoiceLabShelfGroup("pitch", true, new[] { new VoiceLabShelfWord("light", "pitch", true), new VoiceLabShelfWord("deep", "pitch", false) }),
+                    new VoiceLabShelfGroup("quality", false, new[] { new VoiceLabShelfWord("clean", "breath", true), new VoiceLabShelfWord("airy", "breath", false) }),
+                },
+                new[] { new VoiceLabExample("low", new[] { "male", "deep" }) });
+
+            public bool SamplesMade { get; set; }
+
+            public int SampleRuns { get; private set; }
+
+            public VoiceLabMaking SamplesProgress => default;
+
+            public string SampleFile(string language, string name)
+            {
+                return SamplesMade ? language + "/" + name : null;
+            }
+
+            public Task MakeSamplesAsync(CancellationToken cancellationToken)
+            {
+                SampleRuns++;
+                SamplesMade = true;
+                return Task.CompletedTask;
+            }
 
             public List<VoiceLabCandidate> Near { get; } = new List<VoiceLabCandidate>();
 
@@ -305,15 +355,15 @@ namespace VirtualVessel.UI.Tests
 
             public List<int> Counts { get; } = new List<int>();
 
-            public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
+            public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
             {
-                Moods.Add(mood);
+                Requests.Add(request);
                 Near.Add(near);
                 Counts.Add(count);
                 var made = new List<VoiceLabCandidate>();
                 for (int i = 0; i < count; i++, _made++)
                 {
-                    made.Add(new VoiceLabCandidate("c" + _made, "c" + _made + ".wav", 200 + 10 * _made, 180, 300));
+                    made.Add(new VoiceLabCandidate("c" + _made, "c" + _made + ".wav", 200 + 10 * _made, 180, 300, "instruction"));
                 }
 
                 return Task.FromResult<IReadOnlyList<VoiceLabCandidate>>(made);

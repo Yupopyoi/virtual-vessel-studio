@@ -26,33 +26,6 @@ namespace VirtualVessel.UI.VoiceLab
         Cancelled,
     }
 
-    /// <summary>The mood a voice is asked for (Voice Lab detailed design 8.3.1): sliders from 0 to 1, and words.</summary>
-    public sealed class VoiceLabMood
-    {
-        public VoiceLabMood(IReadOnlyDictionary<string, float> sliders, string words, VoiceLabVoice voice = VoiceLabVoice.Female)
-        {
-            Sliders = sliders ?? new Dictionary<string, float>();
-            Words = words ?? string.Empty;
-            Voice = voice;
-        }
-
-        public IReadOnlyDictionary<string, float> Sliders { get; }
-
-        public string Words { get; }
-
-        public VoiceLabVoice Voice { get; }
-    }
-
-    /// <summary>
-    /// The voice the candidates are made as (Voice Lab detailed design 8.3.1). There is no neutral one: a
-    /// neutral instruction gave a female or a male voice by seed (2026-11-07).
-    /// </summary>
-    public enum VoiceLabVoice
-    {
-        Female,
-        Male,
-    }
-
     /// <summary>The timbre steps (Voice Lab detailed design 8.3.2), -6 to +6; softness 0 to +6.</summary>
     public readonly struct VoiceLabTimbre
     {
@@ -79,14 +52,18 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A candidate voice: its sample to play and its pitch to compare.</summary>
     public sealed class VoiceLabCandidate
     {
-        public VoiceLabCandidate(string id, string file, int medianHz, int lowHz, int highHz)
+        public VoiceLabCandidate(string id, string file, int medianHz, int lowHz, int highHz, string instruction = null)
         {
             Id = id;
             File = file;
             MedianHz = medianHz;
             LowHz = lowHz;
             HighHz = highHz;
+            Instruction = instruction ?? string.Empty;
         }
+
+        /// <summary>The instruction VoxCPM2 was given, in English, for the user who wants to read it.</summary>
+        public string Instruction { get; }
 
         public string Id { get; }
 
@@ -172,12 +149,31 @@ namespace VirtualVessel.UI.VoiceLab
     {
         VoiceLabAvailability Availability { get; }
 
+        /// <summary>STEP 1's words and examples; null when Voice Lab is not set up.</summary>
+        VoiceLabShelf Shelf { get; }
+
         /// <summary>
-        /// Several candidates in the mood; each call makes new ones. With <paramref name="near"/>, they are made
+        /// A sample's file (<see cref="VoiceLabShelf.WordSampleName"/>, <see cref="VoiceLabShelf.ExampleSampleName"/>)
+        /// in a language, or null when it has not been made.
+        /// </summary>
+        string SampleFile(string language, string name);
+
+        /// <summary>
+        /// Makes STEP 1's samples on this PC; files already made are kept. Activation will run it; until then
+        /// the screen offers it (Voice Lab detailed design 8.3.1).
+        /// </summary>
+        /// <exception cref="VoiceLabFailedException">They could not be made.</exception>
+        Task MakeSamplesAsync(CancellationToken cancellationToken);
+
+        /// <summary>Where the running <see cref="MakeSamplesAsync"/> is. Read it as often as needed.</summary>
+        VoiceLabMaking SamplesProgress { get; }
+
+        /// <summary>
+        /// Several candidates for the request; each call makes new ones. With <paramref name="near"/>, they are made
         /// near that candidate, to look around a voice the user picked (Voice Lab detailed design 8.3.1).
         /// </summary>
         /// <exception cref="VoiceLabFailedException">The voices could not be made.</exception>
-        Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken);
+        Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);
 
         /// <summary>Where the running <see cref="MakeCandidatesAsync"/> is. Read it as often as needed.</summary>
         VoiceLabMaking CandidatesProgress { get; }

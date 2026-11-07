@@ -29,19 +29,39 @@ namespace VirtualVessel.VoiceLab
         private readonly TrainingRunStore _runs;
         private readonly VoiceModelRegistrar _registrar;
         private readonly ILog _log;
+        private readonly string _samplesFolder;
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         private VoiceLabBuildProgress _progress;
         private VoiceLabMaking _making;
+        private VoiceLabMaking _samplesMaking;
 
-        private VoiceLabService(VoiceDesigner designer, TrainingRunStore runs, VoiceModelRegistrar registrar, ILog log)
+        private VoiceLabService(VoiceDesigner designer, TrainingRunStore runs, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log)
         {
             _designer = designer;
             _runs = runs;
             _registrar = registrar;
+            Shelf = shelf;
+            _samplesFolder = samplesFolder;
             _log = log;
         }
 
+        /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
+        public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
+
         public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
+
+        public VoiceLabShelf Shelf { get; }
+
+        public VoiceLabMaking SamplesProgress
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _samplesMaking;
+                }
+            }
+        }
 
         public VoiceLabMaking CandidatesProgress
         {
@@ -75,25 +95,70 @@ namespace VirtualVessel.VoiceLab
             if (!File.Exists(path))
             {
                 log.Information("Voice Lab is not set up: no training environment.");
-                return new VoiceLabService(null, null, null, log);
+                return new VoiceLabService(null, null, null, null, null, log);
             }
 
             VoiceLabEnvironment environment = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
             IReadOnlyList<string> problems = environment?.Problems(File.Exists, Directory.Exists) ?? new[] { problem };
+            VoiceLabShelf shelf = null;
+            if (problems.Count == 0)
+            {
+                string shelfPath = Path.Combine(environment.Scripts, "voicelab", "shelf.json");
+                string shelfProblem = "The scripts have no voicelab/shelf.json.";
+                shelf = File.Exists(shelfPath) ? ShelfFile.Parse(File.ReadAllText(shelfPath), out shelfProblem) : null;
+                problems = shelf == null ? new[] { shelfProblem } : problems;
+            }
+
             if (problems.Count > 0)
             {
                 log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
-                return new VoiceLabService(null, null, null, log);
+                return new VoiceLabService(null, null, null, null, null, log);
             }
 
             var runner = new ExternalProcessRunner(environment.AllowedFolders, log.WithContext("component", "process"), clock);
             var runs = new TrainingRunStore(voiceLabFolder, clock, random);
             var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(voiceLabFolder, "Designs"), clock, log, (random ?? new Random()).Next(1, 1_000_000));
             log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
-            return new VoiceLabService(designer, runs, new VoiceModelRegistrar(voiceModelsFolder, runs, clock), log);
+            return new VoiceLabService(designer, runs, new VoiceModelRegistrar(voiceModelsFolder, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log);
         }
 
-        public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabMood mood, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
+        public string SampleFile(string language, string name)
+        {
+            if (_samplesFolder == null || !IsPlainName(language) || !IsPlainName(name))
+            {
+                return null;
+            }
+
+            string path = Path.Combine(_samplesFolder, language, name);
+            return File.Exists(path) ? path : null;
+        }
+
+        public async Task MakeSamplesAsync(CancellationToken cancellationToken)
+        {
+            SetSamplesMaking(default);
+            var progress = new Forward<ScriptProgress>(p => SetSamplesMaking(p.Stage == "samples" ? new VoiceLabMaking(p.Done, p.Total) : default));
+            try
+            {
+                await Run(async () =>
+                {
+                    await _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken).ConfigureAwait(false);
+                    return true;
+                }).ConfigureAwait(false);
+                _log.Information("Made Voice Lab's samples.");
+            }
+            finally
+            {
+                SetSamplesMaking(default);
+            }
+        }
+
+        /// <summary>A file or folder name with no path in it, so a sample is only ever read from the samples folder. Pure.</summary>
+        public static bool IsPlainName(string name)
+        {
+            return !string.IsNullOrEmpty(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name != "." && name != "..";
+        }
+
+        public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
         {
             VoiceCandidate reference = near != null ? Find(near) : null;
             SetMaking(default);
@@ -101,7 +166,7 @@ namespace VirtualVessel.VoiceLab
             IReadOnlyList<VoiceCandidate> made;
             try
             {
-                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words, mood.Voice == VoiceLabVoice.Male), count, reference, progress, cancellationToken)).ConfigureAwait(false);
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords), count, reference, progress, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {
@@ -196,7 +261,7 @@ namespace VirtualVessel.VoiceLab
         /// <summary>A candidate as the screen shows it. Pure.</summary>
         public static VoiceLabCandidate ToScreen(VoiceCandidate candidate)
         {
-            return new VoiceLabCandidate(candidate.Id, candidate.File, candidate.Pitch.MedianHz, candidate.Pitch.LowHz, candidate.Pitch.HighHz);
+            return new VoiceLabCandidate(candidate.Id, candidate.File, candidate.Pitch.MedianHz, candidate.Pitch.LowHz, candidate.Pitch.HighHz, candidate.Instruction);
         }
 
         // The environment's folder name only, so the log does not hold the user's paths.
@@ -255,6 +320,14 @@ namespace VirtualVessel.VoiceLab
             lock (_gate)
             {
                 _progress = progress;
+            }
+        }
+
+        private void SetSamplesMaking(VoiceLabMaking making)
+        {
+            lock (_gate)
+            {
+                _samplesMaking = making;
             }
         }
 
