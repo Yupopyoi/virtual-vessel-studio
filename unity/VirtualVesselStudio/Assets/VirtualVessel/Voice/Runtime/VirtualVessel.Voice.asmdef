@@ -5,6 +5,7 @@
         "VirtualVessel.Audio",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
+        "VirtualVessel.ProjectData",
         "VirtualVessel.UI",
         "Unity.InferenceEngine"
     ],

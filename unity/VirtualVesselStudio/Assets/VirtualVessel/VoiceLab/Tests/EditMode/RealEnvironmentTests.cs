@@ -5,6 +5,7 @@ using System.Threading;
 using NUnit.Framework;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ExternalServices.Process;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;
@@ -69,11 +70,13 @@ namespace VirtualVessel.VoiceLab.Tests
 
             TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
-            RegisteredVoice voice = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock), runs, clock).Register(run, "Real environment test").Value;
+            var voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock);
+            VoiceModelRecord voice = new VoiceModelRegistrar(voices, runs, clock).Register(run, "Real environment test").Value;
 
-            Assert.That(File.Exists(Path.Combine(voice.Folder, "voice.sentis")), Is.True);
+            string folder = voices.FolderOf(voice.Id);
+            Assert.That(File.Exists(Path.Combine(folder, "voice.sentis")), Is.True);
             Assert.That(voice.MedianPitchHz, Is.InRange(150, 700));
-            TestContext.WriteLine($"Registered {voice.Id} at {voice.Folder}, median {voice.MedianPitchHz} Hz");
+            TestContext.WriteLine($"Registered {voice.Id} at {folder}, median {voice.MedianPitchHz} Hz");
         }
 
         private VoiceDesigner Designer(out TrainingRunStore runs, out ISystemClock clock)

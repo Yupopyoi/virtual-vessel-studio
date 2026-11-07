@@ -21,7 +21,8 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 | Building, checking, and removing the training environment | VoiceLab (`VoiceComponentInstaller`) |
 | Managing training audio | VoiceLab (`DatasetStore`) |
 | Running training and its state | VoiceLab (`VoiceDesigner`, `TrainingRunStore`, `PythonScripts`) |
-| Registering a voice | VoiceLab (`VoiceModelRegistrar`) |
+| Registering a voice (handing it over to Voice) | VoiceLab (`VoiceModelRegistrar`) |
+| Records of registered voices | Voice (`IVoiceModelRepository`; Voice detailed design 6.1) |
 | Running processes | ExternalServices |
 | Using registered voices | Voice |
 
@@ -31,6 +32,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 - RVC and VoxCPM2 themselves are not changed (system design 13.3). The project's code sits in adapters in `services/`.
 - Unity knows only the adapters' inputs and outputs, not RVC's folders or log format.
 - The streaming path does not depend on VoiceLab.
+- Voice owns registered voices (user's decision, 2026-11-08). VoiceLab hands voices over, renames them, and deletes them through Voice's `IVoiceModelRepository`. Voice does not reference VoiceLab.
 
 ## 4. Main Classes and Interfaces
 
@@ -45,7 +47,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 | `TrainingRunStore` | Class | Training Run folders and `run.json` (6.3) |
 | `PythonScripts` | Class | Talks to the Python scripts (8.5); the only place that knows their names and protocol |
 | `VoiceLabEnvironment` | Class | Where the training environment is; a developer names it until activation exists (6.4) |
-| `VoiceModelRegistrar` | Class | Registers a training result as a voice |
+| `VoiceModelRegistrar` | Class | Hands a training result over to Voice, with how it was made (`design.json`) |
 | `VoiceDesigner` | Class | The flow of designing a voice (8.3): base candidates, timbre previews, training speech |
 
 On the Python side:
@@ -166,7 +168,9 @@ Until activation (the sixth stage) exists, a developer names the training enviro
 
 ### 6.5 Registered Voices
 
-`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. A voice can be renamed and deleted (8.6). The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
+Voice owns registered voices (Voice detailed design 6.1). Only a completed run is registered. Voice Lab hands Voice the run's `output/` files `voice.sentis`, `voice.spk`, and `voice.json`, and `design.json` with how it was made (`RunDesign`, with a `schemaVersion`). Voice copies them to `VoiceModels/voice-<RunId>/` and writes `model.json`. Only Voice Lab reads `design.json`, to play the base in the Made voices tab. With the design kept beside the voice, deleting the run leaves how the voice was made. A voice can be renamed and deleted (8.6). The run's own files stay.
+
+Voices registered before 2026-11-08 have no `design.json`; their design is in `model.json`'s `design`. They are development voices only, so they are not moved over, and the Made voices tab cannot play their base.
 
 ## 7. State and Lifecycle
 
@@ -307,7 +311,7 @@ The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the
 
 **CRUD follows system design 6.31.** The repositories, the library, `Register`, and `Remake` return `CrudResult` and only report a failure (NotFound, Invalid, Busy, StorageFailed); the screen handles it, telling the user by its kind and logging the detail. Deleting what is not there succeeds.
 
-**Storage behind repositories.** Runs and voices are read and written only through `ITrainingRunRepository` (list, get, create, save, delete) and `IVoiceModelRepository` (list, get, add, rename, delete). The first implementations keep `run.json` and `model.json` (6.3, 6.5). SQLite (system design 13.12) will be another implementation of the same interfaces, with the large files staying in the folders (13.13), so the service and the screen do not change. Nothing outside the repositories reads those files.
+**Storage behind repositories.** Runs and voices are read and written only through `ITrainingRunRepository` (list, get, create, save, delete) and Voice's `IVoiceModelRepository` (list, get, add, rename, delete; Voice detailed design 6.1). The first implementations keep `run.json` and `model.json` (6.3, 6.5). SQLite (system design 13.12) will be another implementation of the same interfaces, with the large files staying in the folders (13.13), so the service and the screen do not change. Nothing outside the repositories reads those files.
 
 - List: runs and voices, newest first. A run shows its date, state, the words picked, the timbre, its note, and the voices registered from it; a voice shows its name, its pitch, and its date. Both play the base the run was made from (registered voices are tried with the real-time conversion, the fifth stage).
 - Rename and note: a voice's name follows the register rules (required, up to 60 characters). A run's note is up to 500 characters. Both are saved at once.

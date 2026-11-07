@@ -21,7 +21,8 @@
 | 学習環境の構築、確認、削除 | VoiceLab（`VoiceComponentInstaller`） |
 | 学習用の音声の管理 | VoiceLab（`DatasetStore`） |
 | 学習の実行と状態 | VoiceLab（`VoiceDesigner`、`TrainingRunStore`、`PythonScripts`） |
-| 声の登録 | VoiceLab（`VoiceModelRegistrar`） |
+| 声の登録（Voiceへ渡す） | VoiceLab（`VoiceModelRegistrar`） |
+| 登録した声の記録 | Voice（`IVoiceModelRepository`。Voice詳細設計6.1） |
 | Processの実行 | ExternalServices |
 | 登録された声の利用 | Voice |
 
@@ -31,6 +32,7 @@
 - RVCとVoxCPM2の本体は変更しない（方式設計13.3）。本システムのコードは`services/`のAdapterに置く。
 - Unityが知るのはAdapterの入出力だけで、RVCのフォルダー構成やログの形式は知らない。
 - 配信の経路はVoiceLabに依存しない。
+- 登録した声はVoiceが持つ（利用者の決定、2026-11-08）。VoiceLabはVoiceの`IVoiceModelRepository`を通して、声を渡し、名前を変え、消す。VoiceはVoiceLabを参照しない。
 
 ## 4. 主なClassとInterface
 
@@ -45,7 +47,7 @@
 | `TrainingRunStore` | Class | Training Runのフォルダーと`run.json`（6.3） |
 | `PythonScripts` | Class | Python側のスクリプトとのやり取り（8.5）。スクリプトの名前と決まりごとを知るのはここだけ |
 | `VoiceLabEnvironment` | Class | 学習環境の場所。アクティベーションができるまでは開発者が指定する（6.4） |
-| `VoiceModelRegistrar` | Class | 学習結果を声として登録する |
+| `VoiceModelRegistrar` | Class | 学習結果を、作り方（`design.json`）と一緒にVoiceへ渡す |
 | `VoiceDesigner` | Class | 声を設計する流れ（8.3）：土台の候補、声色の試聴、学習用の音声 |
 
 Python側：
@@ -166,7 +168,9 @@ VoiceLab/
 
 ### 6.5 登録した声
 
-`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで行う。登録した声は、名前の変更と削除ができる（8.6）。登録では、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
+登録した声はVoiceが持つ（Voice詳細設計6.1）。登録は完了したRunだけで行う。Voice Labは、Runの`output/`の`voice.sentis`、`voice.spk`、`voice.json`と、作り方の`design.json`（`RunDesign`。`schemaVersion`付き）をVoiceへ渡す。Voiceはそれを`VoiceModels/voice-<RunId>/`へ写し、`model.json`を書く。`design.json`を読むのはVoice Labだけで、「作った声」のタブで土台を聞くために使う。作り方が声と一緒にあるので、Runを消しても声の作り方は残る。登録した声は、名前の変更と削除ができる（8.6）。Runのファイルはそのまま残る。
+
+2026-11-08より前に登録した声は`design.json`を持たず、作り方は`model.json`の`design`にある。開発中の声だけなので移し替えはせず、「作った声」のタブではその声の土台を聞けない。
 
 ## 7. 状態とライフサイクル
 
@@ -307,7 +311,7 @@ Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録�
 
 **CRUDは方式設計6.31に従う。** リポジトリ、ライブラリ、`Register`、`Remake`は`CrudResult`を返し、失敗（NotFound、Invalid、Busy、StorageFailed）を知らせるだけにする。画面が対応し、失敗の種類に合わせてユーザーに伝え、説明をログに残す。ないものを消すのは成功とする。
 
-**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
+**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と、Voiceの`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除。Voice詳細設計6.1）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
 
 - 一覧：Runと声を新しい順に並べる。Runは日時、状態、選んだ言葉、声色、メモ、そこから登録した声を見せる。声は名前、高さ、日時を見せる。どちらも、Runを作った土台を聞ける（登録した声をリアルタイムの変換で試すのは第5段階）。
 - 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。

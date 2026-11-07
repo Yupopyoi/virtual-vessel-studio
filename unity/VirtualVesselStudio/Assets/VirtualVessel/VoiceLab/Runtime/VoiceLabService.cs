@@ -9,6 +9,7 @@ using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;

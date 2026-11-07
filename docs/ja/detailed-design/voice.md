@@ -16,9 +16,10 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 | 処理の段の出し入れ（`IAudioStage`） | Audio |
 | ブロックの受け渡し、変換のオンとオフ、失敗時の扱い | Voice（`VoiceService`） |
 | 変換の処理（DSP、モデルの実行） | Voice（`RvcVoiceConverter`） |
-| 登録済みの声の一覧、検証、読み込み | Voice（`VoiceModelLibrary`） |
+| 登録済みの声の記録（追加、一覧、名前の変更、削除） | Voice（`IVoiceModelRepository`） |
+| 登録済みの声の検証、読み込み | Voice（`VoiceModelLibrary`） |
 | 声の選択、音の高さ、失敗時の扱いの保存 | ProjectData（Voice Profile） |
-| 声の作成と登録 | VoiceLab |
+| 声の作成、登録する声を渡すこと | VoiceLab |
 | 声の選択と状態の表示 | UI |
 
 ## 3. Moduleの境界
@@ -27,6 +28,7 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 - UIは`IVoiceConversion`（UIに置くInterface）だけを見る。RVC、モデル、Inference Engineの型はUIへ出さない。
 - Inference Engineの型は`RvcVoiceConverter`の中に閉じる（方式設計9.12）。上位は`IVoiceConverter`だけを見る（方式設計9.6）。
 - Voice Labが壊れていても、登録済みの声は動く（方式設計13.23）。VoiceはVoiceLabもExternalServicesも参照しない。
+- 登録済みの声はVoiceが持つ。VoiceLabは作った声を`IVoiceModelRepository.Add`で渡し、名前の変更と削除もこれを通す。参照はVoiceLabからVoiceへの一方向である（利用者の決定、2026-11-08）。
 
 ## 4. 主なClassとInterface
 
@@ -37,7 +39,9 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 | `IVoiceConverter` | Interface | 変換方式の抽象（方式設計9.6） |
 | `RvcVoiceConverter` | Class | RVC v2の実装。試作の`RvcStream` |
 | `RvcDsp` | Static Class | リサンプル、メル、F0、クロスフェード。副作用なし |
-| `VoiceModelLibrary` | Class | `VoiceModels`の一覧、検証、読み込み |
+| `IVoiceModelRepository` | Interface | 登録済みの声の記録：追加（ファイルを写す）、取得、一覧、名前の変更、削除。CRUDは方式設計6.31に従う |
+| `VoiceModelStore` | Class | その最初の実装。声ごとの`model.json` |
+| `VoiceModelLibrary` | Class | `VoiceModels`の検証、読み込み |
 | `VoiceModelManifest` | Class | `voice.json`の内容 |
 | `VoiceActivation` | Class | アクティベーションの状態を読む |
 
@@ -75,16 +79,21 @@ public interface IVoiceConversion
 
 ```text
 VoiceModels/
-├─ <VoiceModelId>/
-│  ├─ voice.json        名前、推奨の音の高さ、形式の版、由来、ハッシュ
-│  ├─ generator.sentis  学習した重みを書き込んだ生成器
-│  └─ speaker.spk       話者ベクトル（256個のfloat）
+├─ voice-<RunId>/
+│  ├─ model.json    名前、元のRun、登録の日時、声の高さの中央値、版。VoiceModelStoreだけが読み書きする
+│  ├─ voice.json    形式の版、窓と返すフレームの数、声の高さの中央値
+│  ├─ voice.sentis  学習した重みを書き込んだ生成器
+│  ├─ voice.spk     話者ベクトル（256個のfloat）
+│  └─ design.json   作り方。Voice Labのファイルで、Voiceは読まずに写す
 └─ Shared/<版>/
    ├─ hubert.sentis
    └─ rmvpe.sentis
 ```
 
-`voice.json`は`schemaVersion`を持つ（CLAUDE.md 25章）。`shape`に窓とブロックの値を持ち、Runtimeが対応しない形の声は「この版では使えません」と表示して、消さずに残す。
+- 追加では、隣のフォルダー（`.part`）へ写してから名前を変える。配信の側が作りかけの声を読むことはない。`voice.sentis`、`voice.spk`、`voice.json`のどれかがなければ断る（`Invalid`）。
+- `model.json`の、この版が知らない項目は消さずに書き戻す（CLAUDE.md 25章）。2026-11-08より前の声は、ここにVoice Labの`design`を持っていた。
+
+`voice.json`は`schemaVersion`を持つ（CLAUDE.md 25章）。`frames`と`returned`に窓と返すフレームの数を持ち、Runtimeが対応しない形の声は「この版では使えません」と表示して、消さずに残す。
 
 HuBERTとRMVPEは声によらず共通なので、1組だけ持つ。
 
@@ -231,7 +240,7 @@ Assets/VirtualVessel/Voice/
 ├─ Runtime/
 │  ├─ VoiceService.cs
 │  ├─ Conversion/   IVoiceConverter、RvcVoiceConverter、RvcDsp
-│  └─ Models/       VoiceModelLibrary、VoiceModelManifest
+│  └─ Models/       IVoiceModelRepository、VoiceModelStore、VoiceModelLibrary、VoiceModelManifest
 ├─ Editor/          VoiceModelImport（開発者がひな形を作る）
 └─ Tests/
    ├─ EditMode/

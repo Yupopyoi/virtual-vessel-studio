@@ -6,6 +6,7 @@ using NUnit.Framework;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Design;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
 
@@ -30,7 +31,7 @@ namespace VirtualVessel.VoiceLab.Tests
             _runs = new TrainingRunStore(Path.Combine(_folder, "VoiceLab"), _clock, new Random(1));
             _voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock);
             _building = false;
-            _library = new VoiceLabLibrary(_runs, _voices, () => _building);
+            _library = new VoiceLabLibrary(_runs, _voices, _clock, () => _building);
         }
 
         [TearDown]
@@ -53,11 +54,17 @@ namespace VirtualVessel.VoiceLab.Tests
             return _runs.Save(run.With(state, _clock.UtcNow)).Value;
         }
 
-        private void Voice(string runId, string name)
+        // Registers the run's voice as Voice Lab does, with stand-in files.
+        private void Voice(TrainingRun run, string name)
         {
-            string id = VoiceModelRegistrar.VoiceId(runId);
-            Directory.CreateDirectory(_voices.FolderOf(id));
-            _voices.Add(new VoiceModelRecord { Id = id, Name = name, RunId = runId, RegisteredAtUtc = "2026-11-07T00:00:00.0000000Z" });
+            string output = Path.Combine(_runs.FolderOf(run.RunId), "output");
+            Directory.CreateDirectory(output);
+            foreach (string file in VoiceModelStore.RuntimeFiles)
+            {
+                File.WriteAllText(Path.Combine(output, file), "{}");
+            }
+
+            Assert.That(new VoiceModelRegistrar(_voices, _runs, _clock).Register(run, name).Ok, Is.True);
         }
 
         [Test]
@@ -66,7 +73,7 @@ namespace VirtualVessel.VoiceLab.Tests
             string wav = Path.Combine(_folder, "c.wav");
             File.WriteAllText(wav, "x");
             TrainingRun run = Run(TrainingState.Completed, wav);
-            Voice(run.RunId, "Fuwari");
+            Voice(run, "Fuwari");
 
             VoiceLabRunRecord shown = _library.ListRuns().Value.Single();
             Assert.That(shown.State, Is.EqualTo(VoiceLabBuildState.Completed));
@@ -74,6 +81,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(shown.Timbre.Softness, Is.EqualTo(2f));
             Assert.That(shown.VoiceNames, Is.EqualTo(new[] { "Fuwari" }));
             Assert.That(shown.BaseFile, Is.EqualTo(wav));
+            Assert.That(_library.ListVoices().Value.Single().BaseFile, Is.EqualTo(wav), "The design goes with the voice.");
 
             File.Delete(wav);
             Assert.That(_library.ListRuns().Value.Single().BaseFile, Is.Null);
@@ -84,7 +92,7 @@ namespace VirtualVessel.VoiceLab.Tests
         public void Notes_AndNames_AreSaved_AndANameMustBeOneToSixtyCharacters()
         {
             TrainingRun run = Run(TrainingState.Completed);
-            Voice(run.RunId, "A");
+            Voice(run, "A");
             _library.SetComment(run.RunId, " bright ");
             _library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), " Fuwari ");
 
@@ -100,7 +108,7 @@ namespace VirtualVessel.VoiceLab.Tests
         public void DeletingAVoiceKeepsItsRun_AndDeletingARunKeepsItsVoices()
         {
             TrainingRun run = Run(TrainingState.Completed);
-            Voice(run.RunId, "A");
+            Voice(run, "A");
 
             _library.DeleteRun(run.RunId);
             Assert.That(_library.ListRuns().Value, Is.Empty);

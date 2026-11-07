@@ -6,6 +6,7 @@ using System.Linq;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
 
@@ -22,20 +23,22 @@ namespace VirtualVessel.VoiceLab
 
         private readonly ITrainingRunRepository _runs;
         private readonly IVoiceModelRepository _voices;
+        private readonly ISystemClock _clock;
         private readonly Func<bool> _building;
 
         /// <param name="building">Whether a build is running now, so an unfinished run is not deleted under it.</param>
-        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, Func<bool> building)
+        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, ISystemClock clock, Func<bool> building)
         {
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _voices = voices ?? throw new ArgumentNullException(nameof(voices));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _building = building ?? (() => false);
         }
 
         /// <summary>The library over the Data Root's folders.</summary>
         public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building)
         {
-            return new VoiceLabLibrary(new TrainingRunStore(voiceLabFolder, clock), new VoiceModelStore(voiceModelsFolder, clock), building);
+            return new VoiceLabLibrary(new TrainingRunStore(voiceLabFolder, clock), new VoiceModelStore(voiceModelsFolder, clock), clock, building);
         }
 
         public CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns()
@@ -59,7 +62,7 @@ namespace VirtualVessel.VoiceLab
         {
             CrudResult<IReadOnlyList<VoiceModelRecord>> voices = _voices.List();
             return voices.Ok
-                ? CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.Success(voices.Value.Select(voice => ToRecord(voice, File.Exists)).ToArray())
+                ? CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.Success(voices.Value.Select(voice => ToRecord(voice, BaseOf(voice), File.Exists)).ToArray())
                 : CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.From(voices.WithoutValue);
         }
 
@@ -127,11 +130,17 @@ namespace VirtualVessel.VoiceLab
                 voices.Where(v => v.RunId == run.RunId).Select(v => v.Name).ToArray());
         }
 
-        /// <summary>A voice as the tab shows it. Pure but for <paramref name="exists"/>.</summary>
-        public static VoiceLabVoiceRecord ToRecord(VoiceModelRecord voice, Func<string, bool> exists)
+        /// <summary>A voice as the tab shows it, with the base it was made from. Pure but for <paramref name="exists"/>.</summary>
+        public static VoiceLabVoiceRecord ToRecord(VoiceModelRecord voice, string basePath, Func<string, bool> exists)
         {
             DateTimeOffset.TryParse(voice.RegisteredAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset at);
-            return new VoiceLabVoiceRecord(voice.Id, voice.Name, voice.RunId, at, voice.MedianPitchHz, ExistingFile(voice.Design?.Candidate, exists));
+            return new VoiceLabVoiceRecord(voice.Id, voice.Name, voice.RunId, at, voice.MedianPitchHz, ExistingFile(basePath, exists));
+        }
+
+        // The base audio named in the voice's design.json, which goes with the voice so that it outlives its run.
+        private string BaseOf(VoiceModelRecord voice)
+        {
+            return VoiceModelRegistrar.ReadDesign(_voices.FolderOf(voice.Id), _clock)?.Candidate;
         }
 
         private static string ExistingFile(string path, Func<string, bool> exists)

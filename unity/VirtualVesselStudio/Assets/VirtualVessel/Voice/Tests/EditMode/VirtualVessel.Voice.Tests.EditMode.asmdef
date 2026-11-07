@@ -8,6 +8,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "VirtualVessel.Audio",
+        "VirtualVessel.ProjectData",
         "VirtualVessel.UI"
     ],
     "includePlatforms": [

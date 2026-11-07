@@ -7,6 +7,7 @@ using NUnit.Framework;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;
@@ -246,17 +247,20 @@ namespace VirtualVessel.VoiceLab.Tests
             File.WriteAllText(Path.Combine(output, "voice.sentis"), "model");
             File.WriteAllText(Path.Combine(output, "voice.spk"), "speaker");
             File.WriteAllText(Path.Combine(output, "voice.json"), "{\"medianPitchHz\":360}");
-            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
+            var voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock);
+            var registrar = new VoiceModelRegistrar(voices, _runs, _clock);
 
-            RegisteredVoice voice = registrar.Register(run, "My voice").Value;
+            VoiceModelRecord voice = registrar.Register(run, "My voice").Value;
 
+            string folder = voices.FolderOf(voice.Id);
             Assert.That(voice.MedianPitchHz, Is.EqualTo(360));
-            Assert.That(Directory.GetFiles(voice.Folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "model.json", "voice.json", "voice.sentis", "voice.spk" }));
-            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelStore.ModelFile)));
+            Assert.That(voice.RunId, Is.EqualTo(run.RunId));
+            Assert.That(Directory.GetFiles(folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "design.json", "model.json", "voice.json", "voice.sentis", "voice.spk" }));
+            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(folder, VoiceModelStore.ModelFile)));
             Assert.That(model.Get<string>("name"), Is.EqualTo("My voice"));
-            Assert.That(model.Get<int>("design.seed"), Is.EqualTo(7));
-            Assert.That(model.Get<int>("schemaVersion"), Is.EqualTo(1));
-            Assert.That(Directory.Exists(voice.Folder + ".part"), Is.False);
+            Assert.That(model.Contains("design"), Is.False, "Voice does not keep Voice Lab's design.");
+            Assert.That(VoiceModelRegistrar.ReadDesign(folder, _clock).Seed, Is.EqualTo(7));
+            Assert.That(Directory.Exists(folder + ".part"), Is.False);
         }
 
         [Test]
@@ -268,12 +272,19 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
         }
 
-        [TestCase("{\"medianPitchHz\":353}", 353)]
-        [TestCase("{}", 0)]
-        [TestCase("not json", 0)]
-        public void MedianPitch_IsReadFromVoiceJson(string json, int expected)
+        [Test]
+        public void Register_RefusesARunWithoutItsVoice()
         {
-            Assert.That(VoiceModelRegistrar.MedianPitch(json), Is.EqualTo(expected));
+            TrainingRun run = _runs.Save(_runs.Create(new RunDesign()).Value.With(TrainingState.Completed, _clock.UtcNow)).Value;
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
+
+            Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
+        }
+
+        [Test]
+        public void AVoiceWithoutADesign_HasNone()
+        {
+            Assert.That(VoiceModelRegistrar.ReadDesign(_folder, _clock), Is.Null);
         }
 
         private VoiceDesigner Designer(IExternalProcessRunner runner, int firstSeed)

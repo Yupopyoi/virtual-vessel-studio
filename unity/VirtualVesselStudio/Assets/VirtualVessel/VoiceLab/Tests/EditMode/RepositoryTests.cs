@@ -1,22 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using NUnit.Framework;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Design;
-using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
 
 namespace VirtualVessel.VoiceLab.Tests
 {
-    /// <summary>The run and voice repositories' file implementations (Voice Lab detailed design 6.3, 6.5, 8.6).</summary>
+    /// <summary>The run repository's file implementation (Voice Lab detailed design 6.3, 8.6).</summary>
     public sealed class RepositoryTests
     {
         private string _folder;
         private FixedClock _clock;
         private TrainingRunStore _runs;
-        private VoiceModelStore _voices;
 
         [SetUp]
         public void SetUp()
@@ -25,7 +22,6 @@ namespace VirtualVessel.VoiceLab.Tests
             Directory.CreateDirectory(_folder);
             _clock = new FixedClock();
             _runs = new TrainingRunStore(Path.Combine(_folder, "VoiceLab"), _clock, new Random(1));
-            _voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock);
         }
 
         [TearDown]
@@ -101,37 +97,12 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
-        public void Voices_AreListedNewestFirst_RenamedAndDeleted_AndOtherFoldersAreNotVoices()
-        {
-            Directory.CreateDirectory(Path.Combine(_folder, "VoiceModels", "prototype"));
-            Add("voice-a", "A", "2026-11-01T00:00:00.0000000Z");
-            Add("voice-b", "B", "2026-11-02T00:00:00.0000000Z");
-
-            Assert.That(_voices.List().Value.Select(v => v.Id), Is.EqualTo(new[] { "voice-b", "voice-a" }));
-            _voices.Rename("voice-a", "Fuwari");
-            Assert.That(_voices.Get("voice-a").Value.Name, Is.EqualTo("Fuwari"));
-            Assert.That(_voices.Rename("voice-none", "x").Error, Is.EqualTo(CrudError.NotFound));
-
-            _voices.Delete("voice-a");
-            Assert.That(_voices.List().Value.Select(v => v.Id), Is.EqualTo(new[] { "voice-b" }));
-            Assert.That(Directory.Exists(Path.Combine(_folder, "VoiceModels", "prototype")), Is.True);
-            Assert.That(VoiceModelStore.IsVoiceId("prototype"), Is.False);
-            Assert.That(VoiceModelStore.IsVoiceId("voice-../x"), Is.False);
-        }
-
-        [Test]
         public void ADesign_KeepsTheWordsTheCandidateWasAskedWith()
         {
             var candidate = new VoiceCandidate("candidate_7", 7, "c.wav", default, "i", null, new VoiceDescription(new[] { "male" }, "husky"));
             RunDesign design = VoiceDesigner.Design(candidate, new TimbreSettings(0f, 0f, 0f, 0f));
             Assert.That(design.Words, Is.EqualTo(new[] { "male" }));
             Assert.That(design.FreeWords, Is.EqualTo("husky"));
-        }
-
-        private void Add(string id, string name, string at)
-        {
-            Directory.CreateDirectory(_voices.FolderOf(id));
-            _voices.Add(new VoiceModelRecord { Id = id, Name = name, RunId = id.Substring(6), RegisteredAtUtc = at });
         }
     }
 }

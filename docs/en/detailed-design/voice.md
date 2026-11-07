@@ -16,9 +16,10 @@ Out of scope: making voices ([Voice Lab detailed design](voice-lab.md)), a virtu
 | Moving audio through a processing stage (`IAudioStage`) | Audio |
 | Passing blocks, conversion on and off, what to do on failure | Voice (`VoiceService`) |
 | The conversion (DSP, running the models) | Voice (`RvcVoiceConverter`) |
-| Listing, checking, and loading registered voices | Voice (`VoiceModelLibrary`) |
+| Records of registered voices (add, list, rename, delete) | Voice (`IVoiceModelRepository`) |
+| Checking and loading registered voices | Voice (`VoiceModelLibrary`) |
 | Saving the chosen voice, pitch, and failure behavior | ProjectData (Voice Profile) |
-| Making and registering voices | VoiceLab |
+| Making voices, and handing a voice over to register | VoiceLab |
 | Choosing a voice and showing its state | UI |
 
 ## 3. Module Boundaries
@@ -27,6 +28,7 @@ Out of scope: making voices ([Voice Lab detailed design](voice-lab.md)), a virtu
 - The UI sees only `IVoiceConversion`, an interface placed in UI. Types from RVC, the models, and Inference Engine do not reach the UI.
 - Inference Engine's types stay inside `RvcVoiceConverter` (system design 9.12). Everything above sees only `IVoiceConverter` (system design 9.6).
 - Registered voices work even if Voice Lab is broken (system design 13.23). Voice references neither VoiceLab nor ExternalServices.
+- Voice owns registered voices. VoiceLab hands a voice it made over through `IVoiceModelRepository.Add`, and renames and deletes through it too. References go one way, from VoiceLab to Voice (user's decision, 2026-11-08).
 
 ## 4. Main Classes and Interfaces
 
@@ -37,7 +39,9 @@ Out of scope: making voices ([Voice Lab detailed design](voice-lab.md)), a virtu
 | `IVoiceConverter` | Interface | Abstraction of the conversion method (system design 9.6) |
 | `RvcVoiceConverter` | Class | The RVC v2 implementation; the prototype's `RvcStream` |
 | `RvcDsp` | Static class | Resampling, mel, F0, crossfade; no side effects |
-| `VoiceModelLibrary` | Class | Lists, checks, and loads `VoiceModels` |
+| `IVoiceModelRepository` | Interface | Records of registered voices: add (copies the files), get, list, rename, delete. CRUD follows system design 6.31 |
+| `VoiceModelStore` | Class | Its first implementation: a `model.json` per voice |
+| `VoiceModelLibrary` | Class | Checks and loads `VoiceModels` |
 | `VoiceModelManifest` | Class | The content of `voice.json` |
 | `VoiceActivation` | Class | Reads the activation state |
 
@@ -75,16 +79,21 @@ Kept in `VoiceModels/<VoiceModelId>/`. They are not the training output (system 
 
 ```text
 VoiceModels/
-├─ <VoiceModelId>/
-│  ├─ voice.json        Name, recommended pitch, format version, origin, hashes
-│  ├─ generator.sentis  The generator with the trained weights written in
-│  └─ speaker.spk       The speaker vector (256 floats)
+├─ voice-<RunId>/
+│  ├─ model.json    Name, source run, registration time, median pitch, versions. Only VoiceModelStore reads and writes it
+│  ├─ voice.json    Format version, the window and returned frame counts, median pitch
+│  ├─ voice.sentis  The generator with the trained weights written in
+│  ├─ voice.spk     The speaker vector (256 floats)
+│  └─ design.json   How it was made. Voice Lab's file; Voice copies it without reading it
 └─ Shared/<version>/
    ├─ hubert.sentis
    └─ rmvpe.sentis
 ```
 
-`voice.json` has a `schemaVersion` (CLAUDE.md chapter 25). Its `shape` holds the window and block values. A voice whose shape the runtime does not support says "This voice cannot be used in this version" and is kept, not deleted.
+- Adding copies into a folder beside the target (`.part`) and then renames it, so streaming never reads half a voice. A voice without `voice.sentis`, `voice.spk`, or `voice.json` is refused (`Invalid`).
+- Fields of `model.json` this version does not know are written back, not dropped (CLAUDE.md chapter 25). Voices from before 2026-11-08 kept Voice Lab's `design` there.
+
+`voice.json` has a `schemaVersion` (CLAUDE.md chapter 25). Its `frames` and `returned` hold the window and returned frame counts. A voice whose shape the runtime does not support says "This voice cannot be used in this version" and is kept, not deleted.
 
 HuBERT and RMVPE are the same for every voice, so there is one pair.
 
@@ -231,7 +240,7 @@ Assets/VirtualVessel/Voice/
 ├─ Runtime/
 │  ├─ VoiceService.cs
 │  ├─ Conversion/   IVoiceConverter, RvcVoiceConverter, RvcDsp
-│  └─ Models/       VoiceModelLibrary, VoiceModelManifest
+│  └─ Models/       IVoiceModelRepository, VoiceModelStore, VoiceModelLibrary, VoiceModelManifest
 ├─ Editor/          VoiceModelImport (developers make the template)
 └─ Tests/
    ├─ EditMode/
