@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using NUnit.Framework;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.VoiceLab.Design;
@@ -123,7 +124,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(run.Design.Timbre.Age, Is.EqualTo(4f));
             Assert.That(reported.Select(p => p.Fraction), Is.Ordered);
             Assert.That(reported.Last().State, Is.EqualTo(TrainingState.Completed));
-            TrainingRun stored = _runs.List().Single();
+            TrainingRun stored = _runs.List().Value.Single();
             Assert.That(stored.GetState(), Is.EqualTo(TrainingState.Completed));
             Assert.That(stored.Design.Seed, Is.EqualTo(7));
             Assert.That(File.ReadAllText(Path.Combine(_runs.FolderOf(run.RunId), TrainingRunStore.FileName)), Does.Contain("\"state\": \"Completed\""));
@@ -141,7 +142,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Failed));
             Assert.That(run.ErrorCode, Is.EqualTo("out_of_memory"));
             Assert.That(runner.Ran.Last(), Is.EqualTo("train.py run"));
-            Assert.That(_runs.List().Single().ErrorCode, Is.EqualTo("out_of_memory"));
+            Assert.That(_runs.List().Value.Single().ErrorCode, Is.EqualTo("out_of_memory"));
         }
 
         [Test]
@@ -226,20 +227,20 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void Store_ListsNewestFirstAndSkipsUnreadableRuns()
         {
-            TrainingRun first = _runs.Create(new RunDesign());
+            TrainingRun first = _runs.Create(new RunDesign()).Value;
             _clock.UtcNow = _clock.UtcNow.AddMinutes(5);
-            TrainingRun second = _runs.Create(new RunDesign());
+            TrainingRun second = _runs.Create(new RunDesign()).Value;
             string broken = Path.Combine(_folder, "VoiceLab", TrainingRunStore.FolderName, "broken");
             Directory.CreateDirectory(broken);
             File.WriteAllText(Path.Combine(broken, TrainingRunStore.FileName), "{");
 
-            Assert.That(_runs.List().Select(r => r.RunId), Is.EqualTo(new[] { second.RunId, first.RunId }));
+            Assert.That(_runs.List().Value.Select(r => r.RunId), Is.EqualTo(new[] { second.RunId, first.RunId }));
         }
 
         [Test]
         public void Register_CopiesACompletedRunsVoice()
         {
-            TrainingRun run = _runs.Save(_runs.Create(new RunDesign { Seed = 7 }).With(TrainingState.Completed, _clock.UtcNow));
+            TrainingRun run = _runs.Save(_runs.Create(new RunDesign { Seed = 7 }).Value.With(TrainingState.Completed, _clock.UtcNow)).Value;
             string output = Path.Combine(_runs.FolderOf(run.RunId), "output");
             Directory.CreateDirectory(output);
             File.WriteAllText(Path.Combine(output, "voice.sentis"), "model");
@@ -247,7 +248,7 @@ namespace VirtualVessel.VoiceLab.Tests
             File.WriteAllText(Path.Combine(output, "voice.json"), "{\"medianPitchHz\":360}");
             var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
-            RegisteredVoice voice = registrar.Register(run, "My voice");
+            RegisteredVoice voice = registrar.Register(run, "My voice").Value;
 
             Assert.That(voice.MedianPitchHz, Is.EqualTo(360));
             Assert.That(Directory.GetFiles(voice.Folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "model.json", "voice.json", "voice.sentis", "voice.spk" }));
@@ -261,10 +262,10 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void Register_RefusesARunThatDidNotComplete()
         {
-            TrainingRun run = _runs.Create(new RunDesign());
+            TrainingRun run = _runs.Create(new RunDesign()).Value;
             var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
-            Assert.Throws<InvalidOperationException>(() => registrar.Register(run, "x"));
+            Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
         }
 
         [TestCase("{\"medianPitchHz\":353}", 353)]

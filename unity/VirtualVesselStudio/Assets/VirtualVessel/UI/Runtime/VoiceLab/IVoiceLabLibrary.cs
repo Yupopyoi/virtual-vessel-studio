@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using VirtualVessel.ProjectData.Records;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -7,26 +8,25 @@ namespace VirtualVessel.UI.VoiceLab
     /// What Voice Lab has made, for the Made voices tab (Voice Lab detailed design 8.6): runs and registered
     /// voices to list, play, name, note, and delete. It works without a training environment, so what was made
     /// can always be seen. Making a run again is <see cref="IVoiceLab.Remake"/>, which needs the environment.
+    /// Like every CRUD it returns results and only reports failures; the screen handles them (system design 6.31).
     /// </summary>
     public interface IVoiceLabLibrary
     {
         /// <summary>Newest first.</summary>
-        IReadOnlyList<VoiceLabRunRecord> ListRuns();
+        CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns();
 
         /// <summary>Newest first.</summary>
-        IReadOnlyList<VoiceLabVoiceRecord> ListVoices();
+        CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices();
 
-        /// <exception cref="VoiceLabFailedException">It could not be saved.</exception>
-        void SetComment(string runId, string comment);
+        CrudResult SetComment(string runId, string comment);
 
-        /// <exception cref="VoiceLabFailedException">The name is empty or too long, or it could not be saved.</exception>
-        void RenameVoice(string voiceId, string name);
+        /// <summary>Invalid when the name is empty or longer than 60 characters.</summary>
+        CrudResult RenameVoice(string voiceId, string name);
 
-        /// <exception cref="VoiceLabFailedException">The run is being made, or it could not be deleted.</exception>
-        void DeleteRun(string runId);
+        /// <summary>Busy while the run is being made; a run that is not there succeeds.</summary>
+        CrudResult DeleteRun(string runId);
 
-        /// <exception cref="VoiceLabFailedException">It could not be deleted.</exception>
-        void DeleteVoice(string voiceId);
+        CrudResult DeleteVoice(string voiceId);
     }
 
     /// <summary>A Training Run as the Made voices tab shows it.</summary>

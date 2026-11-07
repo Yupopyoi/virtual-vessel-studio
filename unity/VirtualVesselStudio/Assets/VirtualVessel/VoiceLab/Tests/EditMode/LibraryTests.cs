@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
@@ -29,7 +30,7 @@ namespace VirtualVessel.VoiceLab.Tests
             _runs = new TrainingRunStore(Path.Combine(_folder, "VoiceLab"), _clock, new Random(1));
             _voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock);
             _building = false;
-            _library = new VoiceLabLibrary(_runs, _voices, () => _building, new NullLog());
+            _library = new VoiceLabLibrary(_runs, _voices, () => _building);
         }
 
         [TearDown]
@@ -48,8 +49,8 @@ namespace VirtualVessel.VoiceLab.Tests
                 Words = new List<string> { "male" },
                 FreeWords = "husky",
                 MedianHz = 140,
-            });
-            return _runs.Save(run.With(state, _clock.UtcNow));
+            }).Value;
+            return _runs.Save(run.With(state, _clock.UtcNow)).Value;
         }
 
         private void Voice(string runId, string name)
@@ -67,7 +68,7 @@ namespace VirtualVessel.VoiceLab.Tests
             TrainingRun run = Run(TrainingState.Completed, wav);
             Voice(run.RunId, "Fuwari");
 
-            VoiceLabRunRecord shown = _library.ListRuns().Single();
+            VoiceLabRunRecord shown = _library.ListRuns().Value.Single();
             Assert.That(shown.State, Is.EqualTo(VoiceLabBuildState.Completed));
             Assert.That(shown.Words, Is.EqualTo(new[] { "male" }));
             Assert.That(shown.Timbre.Softness, Is.EqualTo(2f));
@@ -75,8 +76,8 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(shown.BaseFile, Is.EqualTo(wav));
 
             File.Delete(wav);
-            Assert.That(_library.ListRuns().Single().BaseFile, Is.Null);
-            Assert.That(_library.ListVoices().Single().Name, Is.EqualTo("Fuwari"));
+            Assert.That(_library.ListRuns().Value.Single().BaseFile, Is.Null);
+            Assert.That(_library.ListVoices().Value.Single().Name, Is.EqualTo("Fuwari"));
         }
 
         [Test]
@@ -87,11 +88,12 @@ namespace VirtualVessel.VoiceLab.Tests
             _library.SetComment(run.RunId, " bright ");
             _library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), " Fuwari ");
 
-            Assert.That(_library.ListRuns().Single().Comment, Is.EqualTo("bright"));
-            Assert.That(_library.ListVoices().Single().Name, Is.EqualTo("Fuwari"));
-            Assert.Throws<VoiceLabFailedException>(() => _library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), "  "));
-            Assert.Throws<VoiceLabFailedException>(() => _library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), new string('a', 61)));
-            Assert.Throws<VoiceLabFailedException>(() => _library.SetComment("missing", "x"));
+            Assert.That(_library.ListRuns().Value.Single().Comment, Is.EqualTo("bright"));
+            Assert.That(_library.ListVoices().Value.Single().Name, Is.EqualTo("Fuwari"));
+            Assert.That(_library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), "  ").Error, Is.EqualTo(CrudError.Invalid));
+            Assert.That(_library.RenameVoice(VoiceModelRegistrar.VoiceId(run.RunId), new string('a', 61)).Error, Is.EqualTo(CrudError.Invalid));
+            Assert.That(_library.SetComment("missing", "x").Error, Is.EqualTo(CrudError.NotFound));
+            Assert.That(_library.RenameVoice("voice-none", "x").Error, Is.EqualTo(CrudError.NotFound));
         }
 
         [Test]
@@ -101,11 +103,11 @@ namespace VirtualVessel.VoiceLab.Tests
             Voice(run.RunId, "A");
 
             _library.DeleteRun(run.RunId);
-            Assert.That(_library.ListRuns(), Is.Empty);
-            Assert.That(_library.ListVoices().Single().Name, Is.EqualTo("A"));
+            Assert.That(_library.ListRuns().Value, Is.Empty);
+            Assert.That(_library.ListVoices().Value.Single().Name, Is.EqualTo("A"));
 
             _library.DeleteVoice(VoiceModelRegistrar.VoiceId(run.RunId));
-            Assert.That(_library.ListVoices(), Is.Empty);
+            Assert.That(_library.ListVoices().Value, Is.Empty);
         }
 
         [Test]
@@ -113,12 +115,13 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             TrainingRun run = Run(TrainingState.Training);
             _building = true;
-            Assert.Throws<VoiceLabFailedException>(() => _library.DeleteRun(run.RunId));
+            Assert.That(_library.DeleteRun(run.RunId).Error, Is.EqualTo(CrudError.Busy));
 
             // A run left unfinished when the app closed is not being made.
             _building = false;
-            _library.DeleteRun(run.RunId);
-            Assert.That(_library.ListRuns(), Is.Empty);
+            Assert.That(_library.DeleteRun(run.RunId).Ok, Is.True);
+            Assert.That(_library.ListRuns().Value, Is.Empty);
+            Assert.That(_library.DeleteRun(run.RunId).Ok, Is.True, "Gone either way.");
         }
 
         [Test]

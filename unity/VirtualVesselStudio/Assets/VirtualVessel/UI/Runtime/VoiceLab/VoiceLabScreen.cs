@@ -1,6 +1,8 @@
 using System;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
+using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
@@ -155,16 +157,14 @@ namespace VirtualVessel.UI.VoiceLab
         /// </summary>
         public void Remake(string runId)
         {
-            VoiceLabRemake remake;
-            try
+            CrudResult<VoiceLabRemake> read = _lab.Remake(runId);
+            if (!read.Ok)
             {
-                remake = _lab.Remake(runId);
-            }
-            catch (VoiceLabFailedException)
-            {
-                // The service has logged why.
+                Library?.ShowFailure("Making run " + runId + " again", read.Error, read.Detail);
                 return;
             }
+
+            VoiceLabRemake remake = read.Value;
 
             _base.RequestView.SetPicks(remake.Words, remake.FreeWords);
             _base.ShowBaseGone(remake.Candidate == null);
@@ -236,6 +236,18 @@ namespace VirtualVessel.UI.VoiceLab
         internal static Label Lead(string key)
         {
             return Ui.Text(key, LeadClass, "vv-text-body");
+        }
+
+        /// <summary>
+        /// Handles a CRUD failure as its caller (system design 6.31): the chip tells the user by the kind of
+        /// failure, and the log keeps the detail for developers.
+        /// </summary>
+        internal static void ShowFailure(VisualElement owner, StatusChip chip, string what, CrudError error, string detail)
+        {
+            chip.Status = StatusKind.Error;
+            chip.TextKey = VoiceLabView.CrudFailureKey(error);
+            chip.style.display = DisplayStyle.Flex;
+            UiServices.Find(owner)?.Log?.Warning($"{what} failed ({error}): {detail}");
         }
 
         internal static VisualElement Actions(params VisualElement[] buttons)

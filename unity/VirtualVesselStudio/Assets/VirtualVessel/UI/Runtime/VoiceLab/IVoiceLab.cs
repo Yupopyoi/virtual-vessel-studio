@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using VirtualVessel.ProjectData.Records;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -191,12 +192,14 @@ namespace VirtualVessel.UI.VoiceLab
         /// A run's words, base, and timbre, to make it again (Voice Lab detailed design 8.6). The base becomes a
         /// candidate of this session, so it can be previewed and built.
         /// </summary>
-        /// <exception cref="VoiceLabFailedException">There is no such run.</exception>
-        VoiceLabRemake Remake(string runId);
+        /// <remarks>A CRUD read (system design 6.31): NotFound when there is no such run, Invalid when Voice Lab is not set up.</remarks>
+        CrudResult<VoiceLabRemake> Remake(string runId);
 
-        /// <summary>Registers a completed build under a name, for voice conversion to use.</summary>
-        /// <exception cref="VoiceLabFailedException">It could not be registered.</exception>
-        void Register(string runId, string name);
+        /// <summary>
+        /// Registers a completed build under a name, for voice conversion to use. A CRUD create (system design
+        /// 6.31): NotFound without the run, Invalid for a run that did not complete, StorageFailed when copying failed.
+        /// </summary>
+        CrudResult Register(string runId, string name);
     }
 
     /// <summary>Voice Lab could not do what was asked; <see cref="System.Exception.Message"/> is for developers.</summary>

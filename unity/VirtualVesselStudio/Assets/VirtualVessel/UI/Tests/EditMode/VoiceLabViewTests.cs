@@ -136,6 +136,15 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabLibraryView.RunStatus(state).Key, Is.EqualTo(key));
         }
 
+        [TestCase(VirtualVessel.ProjectData.Records.CrudError.NotFound, VoiceLabStrings.CrudNotFound)]
+        [TestCase(VirtualVessel.ProjectData.Records.CrudError.Invalid, VoiceLabStrings.CrudInvalid)]
+        [TestCase(VirtualVessel.ProjectData.Records.CrudError.Busy, VoiceLabStrings.CrudBusy)]
+        [TestCase(VirtualVessel.ProjectData.Records.CrudError.StorageFailed, VoiceLabStrings.CrudStorageFailed)]
+        public void CrudFailures_TellTheUserByTheirKind(VirtualVessel.ProjectData.Records.CrudError error, string key)
+        {
+            Assert.That(VoiceLabView.CrudFailureKey(error), Is.EqualTo(key));
+        }
+
         [Test]
         public void MadeVoices_ShowDatesAndBaseNames()
         {

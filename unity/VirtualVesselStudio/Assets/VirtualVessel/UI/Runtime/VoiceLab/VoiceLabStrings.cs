@@ -128,14 +128,17 @@ namespace VirtualVessel.UI.VoiceLab
         public const string RegisterNote = "lab.register.note";
         public const string RegisterButton = "lab.register.button";
         public const string Registered = "lab.register.done";
-        public const string RegisterFailed = "lab.register.failed";
         public const string MakeAnother = "lab.register.again";
+
+        public const string CrudNotFound = "lab.crud.not-found";
+        public const string CrudInvalid = "lab.crud.invalid";
+        public const string CrudBusy = "lab.crud.busy";
+        public const string CrudStorageFailed = "lab.crud.storage-failed";
 
         public const string TabMake = "lab.tab.make";
         public const string TabMade = "lab.tab.made";
         public const string LibraryLead = "lab.library.lead";
         public const string LibraryEmpty = "lab.library.empty";
-        public const string LibraryFailed = "lab.library.failed";
         public const string LibraryVoices = "lab.library.voices";
         public const string LibraryRuns = "lab.library.runs";
         public const string Rename = "lab.library.rename";

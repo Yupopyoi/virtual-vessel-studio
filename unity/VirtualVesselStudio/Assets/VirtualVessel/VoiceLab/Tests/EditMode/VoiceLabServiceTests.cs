@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using NUnit.Framework;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Training;
 
@@ -31,7 +32,8 @@ namespace VirtualVessel.VoiceLab.Tests
 
             Assert.That(lab.Availability, Is.EqualTo(VoiceLabAvailability.NotSetUp));
             Assert.That(lab.BuildProgress.State, Is.EqualTo(VoiceLabBuildState.None));
-            Assert.Throws<VoiceLabFailedException>(() => lab.Register("r", "x"));
+            Assert.That(lab.Register("r", "x").Error, Is.EqualTo(CrudError.Invalid), "Not set up.");
+            Assert.That(lab.Remake("r").Error, Is.EqualTo(CrudError.Invalid));
             Assert.That(() => lab.MakeCandidatesAsync(new VoiceLabRequest(null, ""), 6, null, CancellationToken.None).GetAwaiter().GetResult(), Throws.TypeOf<VoiceLabFailedException>());
             Assert.That(lab.Shelf, Is.Null);
             Assert.That(lab.SampleFile("ja", "base.wav"), Is.Null);

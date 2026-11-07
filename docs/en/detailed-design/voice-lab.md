@@ -76,9 +76,9 @@ public interface IVoiceLab
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
-    void Register(string runId, string name);
+    CrudResult Register(string runId, string name);
 
-    VoiceLabRemake Remake(string runId);             // A run's words, base, and timbre, to make it again (8.6)
+    CrudResult<VoiceLabRemake> Remake(string runId);             // A run's words, base, and timbre, to make it again (8.6)
 }
 ```
 
@@ -87,12 +87,12 @@ public interface IVoiceLab
 ```csharp
 public interface IVoiceLabLibrary
 {
-    IReadOnlyList<VoiceLabRunRecord> ListRuns();     // Newest first
-    IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // Newest first
-    void SetComment(string runId, string comment);
-    void RenameVoice(string voiceId, string name);
-    void DeleteRun(string runId);                    // Refused while that run is being made
-    void DeleteVoice(string voiceId);
+    CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns();     // Newest first
+    CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices(); // Newest first
+    CrudResult SetComment(string runId, string comment);
+    CrudResult RenameVoice(string voiceId, string name);
+    CrudResult DeleteRun(string runId);                    // Refused while that run is being made
+    CrudResult DeleteVoice(string voiceId);
 }
 ```
 
@@ -304,6 +304,8 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 ### 8.6 Made Voices
 
 The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the registered voices, plays them, names and notes them, deletes them, and makes a run again (the user's decision, 2026-11-07).
+
+**CRUD follows system design 6.31.** The repositories, the library, `Register`, and `Remake` return `CrudResult` and only report a failure (NotFound, Invalid, Busy, StorageFailed); the screen handles it, telling the user by its kind and logging the detail. Deleting what is not there succeeds.
 
 **Storage behind repositories.** Runs and voices are read and written only through `ITrainingRunRepository` (list, get, create, save, delete) and `IVoiceModelRepository` (list, get, add, rename, delete). The first implementations keep `run.json` and `model.json` (6.3, 6.5). SQLite (system design 13.12) will be another implementation of the same interfaces, with the large files staying in the folders (13.13), so the service and the screen do not change. Nothing outside the repositories reads those files.
 

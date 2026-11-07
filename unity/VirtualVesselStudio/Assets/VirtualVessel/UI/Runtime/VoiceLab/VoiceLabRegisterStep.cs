@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using UnityEngine.UIElements;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
 
@@ -96,23 +97,18 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             RegisterButton.SetEnabled(false);
-            try
+            // Copies the voice's files, which can take a moment: off the main thread.
+            CrudResult registered = await Task.Run(() => _lab.Register(runId, name));
+            if (!registered.Ok)
             {
-                // Copies the voice's files, which can take a moment: off the main thread.
-                await Task.Run(() => _lab.Register(runId, name));
-                _registeredRun = runId;
-                _result.Status = StatusKind.Success;
-                _result.TextKey = VoiceLabStrings.Registered;
-            }
-            catch (VoiceLabFailedException)
-            {
-                // The service has logged why.
-                _result.Status = StatusKind.Error;
-                _result.TextKey = VoiceLabStrings.RegisterFailed;
-                _result.style.display = DisplayStyle.Flex;
+                VoiceLabScreen.ShowFailure(this, _result, "Registering run " + runId, registered.Error, registered.Detail);
                 RegisterButton.SetEnabled(true);
                 return;
             }
+
+            _registeredRun = runId;
+            _result.Status = StatusKind.Success;
+            _result.TextKey = VoiceLabStrings.Registered;
 
             Refresh();
         }

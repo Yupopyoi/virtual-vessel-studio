@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Streaming;
 
@@ -69,6 +70,22 @@ namespace VirtualVessel.UI.VoiceLab
 
             string own = freeWords?.Trim();
             return string.IsNullOrEmpty(own) ? sentence : sentence + " " + own;
+        }
+
+        /// <summary>What the user is told when a CRUD operation fails, by its kind (system design 6.31). Pure.</summary>
+        public static string CrudFailureKey(CrudError error)
+        {
+            switch (error)
+            {
+                case CrudError.NotFound:
+                    return VoiceLabStrings.CrudNotFound;
+                case CrudError.Invalid:
+                    return VoiceLabStrings.CrudInvalid;
+                case CrudError.Busy:
+                    return VoiceLabStrings.CrudBusy;
+                default:
+                    return VoiceLabStrings.CrudStorageFailed;
+            }
         }
 
         /// <summary>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Audio;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Tests
@@ -97,17 +98,19 @@ namespace VirtualVessel.UI.Tests
         /// <summary>What Remake puts back; null throws as a missing run does.</summary>
         public VoiceLabRemake RemakeResult { get; set; }
 
-        public VoiceLabRemake Remake(string runId)
+        public CrudResult<VoiceLabRemake> Remake(string runId)
         {
-            return RemakeResult ?? throw new VoiceLabFailedException("no run");
+            return RemakeResult != null ? CrudResult<VoiceLabRemake>.Success(RemakeResult) : CrudResult<VoiceLabRemake>.Fail(CrudError.NotFound, "no run");
         }
 
-        public void Register(string runId, string name)
+        public CrudResult Register(string runId, string name)
         {
             lock (Registered)
             {
                 Registered.Add((runId, name));
             }
+
+            return CrudResult.Success;
         }
     }
 
@@ -134,38 +137,50 @@ namespace VirtualVessel.UI.Tests
 
         public List<VoiceLabVoiceRecord> Voices { get; } = new List<VoiceLabVoiceRecord>();
 
-        public IReadOnlyList<VoiceLabRunRecord> ListRuns()
+        public CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns()
         {
-            return Runs.ToArray();
+            return CrudResult<IReadOnlyList<VoiceLabRunRecord>>.Success(Runs.ToArray());
         }
 
-        public IReadOnlyList<VoiceLabVoiceRecord> ListVoices()
+        public CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices()
         {
-            return Voices.ToArray();
+            return CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.Success(Voices.ToArray());
         }
 
-        public void SetComment(string runId, string comment)
+        public CrudResult SetComment(string runId, string comment)
         {
             int i = Runs.FindIndex(r => r.RunId == runId);
             VoiceLabRunRecord r0 = Runs[i];
             Runs[i] = new VoiceLabRunRecord(r0.RunId, r0.CreatedAt, r0.State, r0.Words, r0.FreeWords, r0.Timbre, comment, r0.BaseFile, r0.VoiceNames);
+            return CrudResult.Success;
         }
 
-        public void RenameVoice(string voiceId, string name)
+        public CrudResult RenameVoice(string voiceId, string name)
         {
             int i = Voices.FindIndex(v => v.Id == voiceId);
             VoiceLabVoiceRecord v0 = Voices[i];
             Voices[i] = new VoiceLabVoiceRecord(v0.Id, name, v0.RunId, v0.RegisteredAt, v0.MedianHz, v0.BaseFile);
+            return CrudResult.Success;
         }
 
-        public void DeleteRun(string runId)
+        public CrudResult DeleteRun(string runId)
         {
             Runs.RemoveAll(r => r.RunId == runId);
+            return CrudResult.Success;
         }
 
-        public void DeleteVoice(string voiceId)
+        /// <summary>When set, deleting a voice fails with it, as storage might.</summary>
+        public CrudError DeleteFailure { get; set; }
+
+        public CrudResult DeleteVoice(string voiceId)
         {
+            if (DeleteFailure != CrudError.None)
+            {
+                return CrudResult.Fail(DeleteFailure, "disk full");
+            }
+
             Voices.RemoveAll(v => v.Id == voiceId);
+            return CrudResult.Success;
         }
     }
 }

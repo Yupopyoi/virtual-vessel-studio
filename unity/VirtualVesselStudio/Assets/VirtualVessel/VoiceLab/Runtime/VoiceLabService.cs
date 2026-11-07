@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ExternalServices.Process;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
@@ -73,7 +74,7 @@ namespace VirtualVessel.VoiceLab
         {
             // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
             VoiceLabService created = null;
-            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, log);
+            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None);
             string path = Path.Combine(configDirectory, EnvironmentFile);
             if (!File.Exists(path))
             {
@@ -187,10 +188,20 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
-        public VoiceLabRemake Remake(string runId)
+        public CrudResult<VoiceLabRemake> Remake(string runId)
         {
-            Ensure();
-            TrainingRun run = _runs.Get(runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
+            if (_designer == null)
+            {
+                return CrudResult<VoiceLabRemake>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+            }
+
+            CrudResult<TrainingRun> read = _runs.Get(runId);
+            if (!read.Ok)
+            {
+                return CrudResult<VoiceLabRemake>.From(read.WithoutValue);
+            }
+
+            TrainingRun run = read.Value;
             VoiceCandidate candidate = FromRun(run.Design ?? new RunDesign(), File.Exists);
             if (candidate != null)
             {
@@ -201,7 +212,7 @@ namespace VirtualVessel.VoiceLab
             }
 
             RunDesign design = run.Design ?? new RunDesign();
-            return new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre));
+            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre)));
         }
 
         /// <summary>
@@ -225,19 +236,15 @@ namespace VirtualVessel.VoiceLab
                 new VoiceDescription(design.Words, design.FreeWords));
         }
 
-        public void Register(string runId, string name)
+        public CrudResult Register(string runId, string name)
         {
-            Ensure();
-            TrainingRun run = _runs.Get(runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
-            try
+            if (_designer == null)
             {
-                RegisteredVoice voice = _registrar.Register(run, name);
-                _log.Information($"Registered voice {voice.Id} from run {runId}.");
+                return CrudResult.Fail(CrudError.Invalid, "Voice Lab is not set up.");
             }
-            catch (Exception exception) when (exception is InvalidOperationException || exception is IOException || exception is UnauthorizedAccessException)
-            {
-                throw new VoiceLabFailedException($"Registering run {runId} failed: {exception.Message}", exception);
-            }
+
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            return run.Ok ? _registrar.Register(run.Value, name).WithoutValue : run.WithoutValue;
         }
 
         /// <summary>A script's progress as a making bar shows it: any stage but <paramref name="stage"/> (loading the model) has no total. Pure.</summary>

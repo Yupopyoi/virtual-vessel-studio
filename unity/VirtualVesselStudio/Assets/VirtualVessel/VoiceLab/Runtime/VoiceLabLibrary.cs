@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using VirtualVessel.Core.Time;
-using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
@@ -13,7 +13,8 @@ namespace VirtualVessel.VoiceLab
 {
     /// <summary>
     /// <see cref="IVoiceLabLibrary"/> over the run and voice repositories (Voice Lab detailed design 8.6). It
-    /// needs no training environment, so what was made is listed even when Voice Lab is not set up.
+    /// needs no training environment, so what was made is listed even when Voice Lab is not set up. Like every
+    /// CRUD it only reports failures; the screen handles them (system design 6.31).
     /// </summary>
     public sealed class VoiceLabLibrary : IVoiceLabLibrary
     {
@@ -22,67 +23,85 @@ namespace VirtualVessel.VoiceLab
         private readonly ITrainingRunRepository _runs;
         private readonly IVoiceModelRepository _voices;
         private readonly Func<bool> _building;
-        private readonly ILog _log;
 
         /// <param name="building">Whether a build is running now, so an unfinished run is not deleted under it.</param>
-        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, Func<bool> building, ILog log)
+        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, Func<bool> building)
         {
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _voices = voices ?? throw new ArgumentNullException(nameof(voices));
             _building = building ?? (() => false);
-            _log = log ?? throw new ArgumentNullException(nameof(log));
         }
 
         /// <summary>The library over the Data Root's folders.</summary>
-        public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building, ILog log)
+        public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building)
         {
-            return new VoiceLabLibrary(new TrainingRunStore(voiceLabFolder, clock), new VoiceModelStore(voiceModelsFolder, clock), building, log);
+            return new VoiceLabLibrary(new TrainingRunStore(voiceLabFolder, clock), new VoiceModelStore(voiceModelsFolder, clock), building);
         }
 
-        public IReadOnlyList<VoiceLabRunRecord> ListRuns()
+        public CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns()
         {
-            IReadOnlyList<VoiceModelRecord> voices = _voices.List();
-            return _runs.List().Select(run => ToRecord(run, voices, File.Exists)).ToArray();
-        }
-
-        public IReadOnlyList<VoiceLabVoiceRecord> ListVoices()
-        {
-            return _voices.List().Select(voice => ToRecord(voice, File.Exists)).ToArray();
-        }
-
-        public void SetComment(string runId, string comment)
-        {
-            TrainingRun run = _runs.Get(runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
-            Guard(() => _runs.Save(run.WithComment(comment)), $"Saving the note of run {runId}");
-        }
-
-        public void RenameVoice(string voiceId, string name)
-        {
-            string clean = CleanName(name) ?? throw new VoiceLabFailedException($"A voice name must be 1 to {MaxVoiceName} characters.");
-            Guard(() => _voices.Rename(voiceId, clean), $"Renaming voice {voiceId}");
-        }
-
-        public void DeleteRun(string runId)
-        {
-            TrainingRun run = _runs.Get(runId);
-            if (run == null)
+            CrudResult<IReadOnlyList<TrainingRun>> runs = _runs.List();
+            if (!runs.Ok)
             {
-                return;
+                return CrudResult<IReadOnlyList<VoiceLabRunRecord>>.From(runs.WithoutValue);
             }
 
-            if (!run.IsFinished() && _building())
+            CrudResult<IReadOnlyList<VoiceModelRecord>> voices = _voices.List();
+            if (!voices.Ok)
             {
-                throw new VoiceLabFailedException($"Run {runId} is being made.");
+                return CrudResult<IReadOnlyList<VoiceLabRunRecord>>.From(voices.WithoutValue);
             }
 
-            Guard(() => _runs.Delete(runId), $"Deleting run {runId}");
-            _log.Information($"Deleted run {runId}.");
+            return CrudResult<IReadOnlyList<VoiceLabRunRecord>>.Success(runs.Value.Select(run => ToRecord(run, voices.Value, File.Exists)).ToArray());
         }
 
-        public void DeleteVoice(string voiceId)
+        public CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices()
         {
-            Guard(() => _voices.Delete(voiceId), $"Deleting voice {voiceId}");
-            _log.Information($"Deleted voice {voiceId}.");
+            CrudResult<IReadOnlyList<VoiceModelRecord>> voices = _voices.List();
+            return voices.Ok
+                ? CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.Success(voices.Value.Select(voice => ToRecord(voice, File.Exists)).ToArray())
+                : CrudResult<IReadOnlyList<VoiceLabVoiceRecord>>.From(voices.WithoutValue);
+        }
+
+        public CrudResult SetComment(string runId, string comment)
+        {
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            return run.Ok ? _runs.Save(run.Value.WithComment(comment)).WithoutValue : run.WithoutValue;
+        }
+
+        public CrudResult RenameVoice(string voiceId, string name)
+        {
+            string clean = CleanName(name);
+            return clean == null
+                ? CrudResult.Fail(CrudError.Invalid, $"A voice name must be 1 to {MaxVoiceName} characters.")
+                : _voices.Rename(voiceId, clean);
+        }
+
+        public CrudResult DeleteRun(string runId)
+        {
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            if (run.Error == CrudError.NotFound)
+            {
+                // Gone either way.
+                return CrudResult.Success;
+            }
+
+            if (!run.Ok)
+            {
+                return run.WithoutValue;
+            }
+
+            if (!run.Value.IsFinished() && _building())
+            {
+                return CrudResult.Fail(CrudError.Busy, $"Run {runId} is being made.");
+            }
+
+            return _runs.Delete(runId);
+        }
+
+        public CrudResult DeleteVoice(string voiceId)
+        {
+            return _voices.Delete(voiceId);
         }
 
         /// <summary>A voice name as kept: trimmed, or null when empty or longer than <see cref="MaxVoiceName"/>. Pure.</summary>
@@ -118,18 +137,6 @@ namespace VirtualVessel.VoiceLab
         private static string ExistingFile(string path, Func<string, bool> exists)
         {
             return !string.IsNullOrEmpty(path) && exists(path) ? path : null;
-        }
-
-        private static void Guard(Action work, string what)
-        {
-            try
-            {
-                work();
-            }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidOperationException || exception is ArgumentException)
-            {
-                throw new VoiceLabFailedException($"{what} failed: {exception.Message}", exception);
-            }
         }
     }
 }

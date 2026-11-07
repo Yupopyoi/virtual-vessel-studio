@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
@@ -51,10 +52,10 @@ namespace VirtualVessel.VoiceLab.Tests
         public void ARunKeepsEveryField_ThroughStateChanges()
         {
             // Copy() dropped the reference and softness, added after it was written, on every state change.
-            TrainingRun run = _runs.Create(Design());
-            run = _runs.Save(run.With(TrainingState.Training, _clock.UtcNow).WithComment("  good  "));
+            TrainingRun run = _runs.Create(Design()).Value;
+            run = _runs.Save(run.With(TrainingState.Training, _clock.UtcNow).WithComment("  good  ")).Value;
 
-            TrainingRun read = _runs.Get(run.RunId);
+            TrainingRun read = _runs.Get(run.RunId).Value;
             Assert.That(read.Design.Reference, Is.EqualTo("r.wav"));
             Assert.That(read.Design.Timbre.Softness, Is.EqualTo(3f));
             Assert.That(read.Design.Words, Is.EqualTo(new[] { "male", "airy" }));
@@ -70,7 +71,7 @@ namespace VirtualVessel.VoiceLab.Tests
             File.WriteAllText(Path.Combine(folder, TrainingRunStore.FileName),
                 "{\"schemaVersion\":1,\"runId\":\"20261101-120000-0001\",\"state\":\"Completed\",\"createdAtUtc\":\"2026-11-01T12:00:00Z\",\"design\":{\"instruction\":\"i\",\"seed\":1}}");
 
-            TrainingRun read = _runs.Get("20261101-120000-0001");
+            TrainingRun read = _runs.Get("20261101-120000-0001").Value;
             Assert.That(read.Design.Words, Is.Empty);
             Assert.That(read.Design.FreeWords, Is.Empty);
             Assert.That(read.Comment, Is.Empty);
@@ -86,16 +87,17 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void Runs_CanBeFoundAndDeleted_ButNeverOutsideTheirFolder()
         {
-            TrainingRun run = _runs.Create(Design());
-            Assert.That(_runs.Get(run.RunId).RunId, Is.EqualTo(run.RunId));
-            Assert.That(_runs.Get("missing"), Is.Null);
-            Assert.That(_runs.Get(".."), Is.Null);
+            TrainingRun run = _runs.Create(Design()).Value;
+            Assert.That(_runs.Get(run.RunId).Value.RunId, Is.EqualTo(run.RunId));
+            Assert.That(_runs.Get("missing").Error, Is.EqualTo(CrudError.NotFound));
+            Assert.That(_runs.Get("..").Error, Is.EqualTo(CrudError.Invalid));
             Assert.Throws<ArgumentException>(() => _runs.FolderOf("../x"));
 
-            _runs.Delete(run.RunId);
-            Assert.That(_runs.Get(run.RunId), Is.Null);
-            Assert.That(_runs.List(), Is.Empty);
-            Assert.DoesNotThrow(() => _runs.Delete(run.RunId));
+            Assert.That(_runs.Delete(run.RunId).Ok, Is.True);
+            Assert.That(_runs.Get(run.RunId).Error, Is.EqualTo(CrudError.NotFound));
+            Assert.That(_runs.List().Value, Is.Empty);
+            Assert.That(_runs.Delete(run.RunId).Ok, Is.True, "Gone either way.");
+            Assert.That(_runs.Delete("../x").Error, Is.EqualTo(CrudError.Invalid));
         }
 
         [Test]
@@ -105,13 +107,13 @@ namespace VirtualVessel.VoiceLab.Tests
             Add("voice-a", "A", "2026-11-01T00:00:00.0000000Z");
             Add("voice-b", "B", "2026-11-02T00:00:00.0000000Z");
 
-            Assert.That(_voices.List().Select(v => v.Id), Is.EqualTo(new[] { "voice-b", "voice-a" }));
+            Assert.That(_voices.List().Value.Select(v => v.Id), Is.EqualTo(new[] { "voice-b", "voice-a" }));
             _voices.Rename("voice-a", "Fuwari");
-            Assert.That(_voices.Get("voice-a").Name, Is.EqualTo("Fuwari"));
-            Assert.Throws<InvalidOperationException>(() => _voices.Rename("voice-none", "x"));
+            Assert.That(_voices.Get("voice-a").Value.Name, Is.EqualTo("Fuwari"));
+            Assert.That(_voices.Rename("voice-none", "x").Error, Is.EqualTo(CrudError.NotFound));
 
             _voices.Delete("voice-a");
-            Assert.That(_voices.List().Select(v => v.Id), Is.EqualTo(new[] { "voice-b" }));
+            Assert.That(_voices.List().Value.Select(v => v.Id), Is.EqualTo(new[] { "voice-b" }));
             Assert.That(Directory.Exists(Path.Combine(_folder, "VoiceModels", "prototype")), Is.True);
             Assert.That(VoiceModelStore.IsVoiceId("prototype"), Is.False);
             Assert.That(VoiceModelStore.IsVoiceId("voice-../x"), Is.False);

@@ -264,7 +264,6 @@
         "lab.register.note": "What it was made from is kept, so it can be made again later.",
         "lab.register.button": "Register",
         "lab.register.done": "Registered",
-        "lab.register.failed": "It could not be registered. Try again",
         "lab.register.again": "Make another",
         "common.items.one": "{count} item",
         "common.items.other": "{count} items",
@@ -743,7 +742,6 @@
         "lab.tab.made": "Made voices",
         "lab.library.lead": "The voices you made and the records of making them. Listen, rename, write notes, delete, or make one again.",
         "lab.library.empty": "No voice has been made yet. Make one in the Make a voice tab.",
-        "lab.library.failed": "Could not save or delete it",
         "lab.library.voices": "Registered voices",
         "lab.library.runs": "Records of making",
         "lab.library.rename": "Rename",
@@ -765,6 +763,10 @@
         "lab.library.quoted": "“{words}”",
         "lab.base.base-gone": "The base's audio is gone",
         "lab.base.base-gone.body": "The record's words are on the shelf. Make candidates and pick a base again.",
-        "lab.timbre.remade-base": "The base from the record"
+        "lab.timbre.remade-base": "The base from the record",
+        "lab.crud.not-found": "It was not found. It may have been deleted elsewhere.",
+        "lab.crud.invalid": "The input does not fit the rules.",
+        "lab.crud.busy": "It cannot be done while it is being made.",
+        "lab.crud.storage-failed": "Could not save or delete it. Check the free space and the file permissions."
     }
 }

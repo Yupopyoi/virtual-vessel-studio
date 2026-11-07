@@ -76,9 +76,9 @@ public interface IVoiceLab
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
-    void Register(string runId, string name);
+    CrudResult Register(string runId, string name);
 
-    VoiceLabRemake Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
+    CrudResult<VoiceLabRemake> Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
 }
 ```
 
@@ -87,12 +87,12 @@ public interface IVoiceLab
 ```csharp
 public interface IVoiceLabLibrary
 {
-    IReadOnlyList<VoiceLabRunRecord> ListRuns();     // 新しい順
-    IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // 新しい順
-    void SetComment(string runId, string comment);
-    void RenameVoice(string voiceId, string name);
-    void DeleteRun(string runId);                    // 作成中のRunは断る
-    void DeleteVoice(string voiceId);
+    CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns();     // 新しい順
+    CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices(); // 新しい順
+    CrudResult SetComment(string runId, string comment);
+    CrudResult RenameVoice(string voiceId, string name);
+    CrudResult DeleteRun(string runId);                    // 作成中のRunは断る
+    CrudResult DeleteVoice(string voiceId);
 }
 ```
 
@@ -304,6 +304,8 @@ PCの確認：GPU、ドライバー、空き容量、接続
 ### 8.6 作った声
 
 Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録（Run）と登録した声を一覧し、聞き、名前とメモを付け、消し、Runを作り直す（ユーザーの決定、2026-11-07）。
+
+**CRUDは方式設計6.31に従う。** リポジトリ、ライブラリ、`Register`、`Remake`は`CrudResult`を返し、失敗（NotFound、Invalid、Busy、StorageFailed）を知らせるだけにする。画面が対応し、失敗の種類に合わせてユーザーに伝え、説明をログに残す。ないものを消すのは成功とする。
 
 **保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
 

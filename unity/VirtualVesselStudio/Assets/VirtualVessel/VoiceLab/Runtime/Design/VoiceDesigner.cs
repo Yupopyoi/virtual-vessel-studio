@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Scripts;
 using VirtualVessel.VoiceLab.Training;
 
@@ -110,7 +111,15 @@ namespace VirtualVessel.VoiceLab.Design
         /// </summary>
         public async Task<TrainingRun> BuildVoiceAsync(VoiceCandidate candidate, TimbreSettings timbre, IProgress<BuildProgress> progress, CancellationToken cancellationToken)
         {
-            TrainingRun run = _runs.Create(Design(candidate, timbre));
+            CrudResult<TrainingRun> created = _runs.Create(Design(candidate, timbre));
+            if (!created.Ok)
+            {
+                // No run to keep the failure in: it comes back as a failed run without an ID.
+                _log.Error($"Building a voice could not start: {created.Detail}");
+                return TrainingRun.Start(null, Design(candidate, timbre), _clock.UtcNow).Ended(TrainingState.Failed, "io", created.Detail, _clock.UtcNow);
+            }
+
+            TrainingRun run = created.Value;
             string folder = _runs.FolderOf(run.RunId);
             ILog log = _log.WithContext("runId", run.RunId);
             log.Information("Building a voice.");
@@ -119,7 +128,7 @@ namespace VirtualVessel.VoiceLab.Design
                 for (int i = 0; i < s_steps.Length; i++)
                 {
                     BuildStep step = s_steps[i];
-                    run = _runs.Save(run.With(step.State, _clock.UtcNow));
+                    run = Keep(run.With(step.State, _clock.UtcNow));
                     int index = i;
                     var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total))));
                     ConfigDocument result = await _scripts.RunAsync(step.Script, step.Operation, StepRequest(index, candidate, timbre, folder, _scripts.Environment), folder, scriptProgress, cancellationToken).ConfigureAwait(false);
@@ -130,21 +139,41 @@ namespace VirtualVessel.VoiceLab.Design
                     }
                 }
 
-                run = _runs.Save(run.With(TrainingState.Completed, _clock.UtcNow));
+                run = Keep(run.With(TrainingState.Completed, _clock.UtcNow));
                 progress?.Report(new BuildProgress(TrainingState.Completed, 1f));
                 log.Information("The voice is built.");
             }
             catch (ScriptFailedException exception)
             {
                 TrainingState state = exception.Code == "cancelled" ? TrainingState.Cancelled : TrainingState.Failed;
-                run = _runs.Save(run.Ended(state, exception.Code, exception.Message, _clock.UtcNow));
+                run = KeepEnded(run.Ended(state, exception.Code, exception.Message, _clock.UtcNow), log);
                 log.Write(state == TrainingState.Failed ? LogLevel.Warning : LogLevel.Information, $"Building the voice ended: {state}", exception);
             }
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
             {
                 // Writing a request or run.json failed (a full disk, a locked file): the run still ends as failed.
-                run = _runs.Save(run.Ended(TrainingState.Failed, "io", exception.Message, _clock.UtcNow));
+                run = KeepEnded(run.Ended(TrainingState.Failed, "io", exception.Message, _clock.UtcNow), log);
                 log.Error("Building the voice failed on a file.", exception);
+            }
+
+            return run;
+        }
+
+        // The build is the caller of the run's CRUD (system design 6.31): a run that cannot be saved ends the
+        // build as failed, through the IOException handler above.
+        private TrainingRun Keep(TrainingRun run)
+        {
+            CrudResult<TrainingRun> saved = _runs.Save(run);
+            return saved.Ok ? saved.Value : throw new IOException(saved.Detail);
+        }
+
+        // The ending is kept if it can be; when even that fails, the run still comes back ended, and the log says so.
+        private TrainingRun KeepEnded(TrainingRun run, ILog log)
+        {
+            CrudResult<TrainingRun> saved = _runs.Save(run);
+            if (!saved.Ok)
+            {
+                log.Error($"The run's ending could not be saved: {saved.Detail}");
             }
 
             return run;

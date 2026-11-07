@@ -349,6 +349,15 @@ namespace VirtualVessel.UI.Tests
             Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.SaveName));
             Assert.That(library.Voices.Single().Name, Is.EqualTo("Kirari"));
 
+            library.DeleteFailure = VirtualVessel.ProjectData.Records.CrudError.StorageFailed;
+            Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Delete));
+            yield return null;
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+            StatusChip failed = view.Query<StatusChip>().ToList().First(c => c.TextKey == VoiceLabStrings.CrudStorageFailed);
+            Assert.That(failed.style.display.value, Is.EqualTo(DisplayStyle.Flex), "The screen, as the caller, tells the user.");
+            library.DeleteFailure = VirtualVessel.ProjectData.Records.CrudError.None;
+
             Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Delete));
             yield return null;
             Assert.That(library.Voices.Count, Is.EqualTo(1), "Asked before deleting.");

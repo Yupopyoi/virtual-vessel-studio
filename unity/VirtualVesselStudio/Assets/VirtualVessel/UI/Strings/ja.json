@@ -264,7 +264,6 @@
         "lab.register.note": "作った元のデータは残るので、あとで作り直せます。",
         "lab.register.button": "登録する",
         "lab.register.done": "登録しました",
-        "lab.register.failed": "登録できませんでした。もう一度試してください",
         "lab.register.again": "もう1つ作る",
         "common.items.one": "{count} 件",
         "common.items.other": "{count} 件",
@@ -743,7 +742,6 @@
         "lab.tab.made": "作った声",
         "lab.library.lead": "作った声と、作ったときの記録です。聞く、名前を変える、メモを書く、消す、作り直すができます。",
         "lab.library.empty": "まだ声を作っていません。「声を作る」のタブから作れます。",
-        "lab.library.failed": "保存または削除ができませんでした",
         "lab.library.voices": "登録した声",
         "lab.library.runs": "作った記録",
         "lab.library.rename": "名前を変える",
@@ -765,6 +763,10 @@
         "lab.library.quoted": "「{words}」",
         "lab.base.base-gone": "土台の音声がありません",
         "lab.base.base-gone.body": "記録の言葉を入れました。候補を作り、土台を選び直してください。",
-        "lab.timbre.remade-base": "記録から戻した土台"
+        "lab.timbre.remade-base": "記録から戻した土台",
+        "lab.crud.not-found": "見つかりませんでした。ほかの操作で消された可能性があります。",
+        "lab.crud.invalid": "入力が決まりに合いません。",
+        "lab.crud.busy": "作成中のため、今はできません。",
+        "lab.crud.storage-failed": "保存または削除ができませんでした。空き容量とファイルの権限を確かめてください。"
     }
 }

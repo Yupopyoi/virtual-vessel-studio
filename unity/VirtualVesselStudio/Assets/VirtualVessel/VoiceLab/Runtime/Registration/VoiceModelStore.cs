@@ -3,33 +3,35 @@ using System.Collections.Generic;
 using System.IO;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Records;
 
 namespace VirtualVessel.VoiceLab.Registration
 {
     /// <summary>
     /// Where registered voices' records are kept (Voice Lab detailed design 6.5, 8.6). The first one keeps
     /// model.json beside each voice's files; SQLite (system design 13.12) will be another, so nothing else reads
-    /// the records. The voice files stay in their folders either way (system design 13.13).
+    /// the records. The voice files stay in their folders either way (system design 13.13). Every operation
+    /// reports its failure as a result and leaves handling it to the caller (system design 6.31).
     /// </summary>
     public interface IVoiceModelRepository
     {
         /// <summary>The folder of a voice's files.</summary>
+        /// <exception cref="ArgumentException">Not a voice ID: a bug in the caller.</exception>
         string FolderOf(string voiceId);
 
         /// <summary>Records a voice whose files are already in <see cref="FolderOf"/>.</summary>
-        void Add(VoiceModelRecord record);
+        CrudResult Add(VoiceModelRecord record);
 
-        /// <summary>The voice, or null when there is none.</summary>
-        VoiceModelRecord Get(string voiceId);
+        /// <summary>NotFound when there is no such voice.</summary>
+        CrudResult<VoiceModelRecord> Get(string voiceId);
 
         /// <summary>Every voice that can be read, newest first.</summary>
-        IReadOnlyList<VoiceModelRecord> List();
+        CrudResult<IReadOnlyList<VoiceModelRecord>> List();
 
-        /// <exception cref="InvalidOperationException">There is no such voice.</exception>
-        void Rename(string voiceId, string name);
+        CrudResult Rename(string voiceId, string name);
 
-        /// <summary>Deletes the voice and its files; a voice that is not there is no error.</summary>
-        void Delete(string voiceId);
+        /// <summary>Deletes the voice and its files; a voice that is not there succeeds.</summary>
+        CrudResult Delete(string voiceId);
     }
 
     /// <summary>
@@ -60,57 +62,91 @@ namespace VirtualVessel.VoiceLab.Registration
             return Path.Combine(_root, voiceId);
         }
 
-        public void Add(VoiceModelRecord record)
+        public CrudResult Add(VoiceModelRecord record)
         {
-            Store(record.Id).Save(record);
+            if (!IsVoiceId(record?.Id))
+            {
+                return CrudResult.Fail(CrudError.Invalid, $"'{record?.Id}' is not a voice ID.");
+            }
+
+            return CrudResult.Run(() => Store(record.Id).Save(record), $"Recording voice {record.Id}");
         }
 
-        public VoiceModelRecord Get(string voiceId)
+        public CrudResult<VoiceModelRecord> Get(string voiceId)
         {
-            if (!IsVoiceId(voiceId) || !File.Exists(Path.Combine(FolderOf(voiceId), ModelFile)))
+            if (!IsVoiceId(voiceId))
+            {
+                return CrudResult<VoiceModelRecord>.Fail(CrudError.Invalid, $"'{voiceId}' is not a voice ID.");
+            }
+
+            CrudResult<VoiceModelRecord> read = CrudResult<VoiceModelRecord>.Run(() => Load(voiceId), $"Reading voice {voiceId}");
+            return read.Ok && read.Value == null ? CrudResult<VoiceModelRecord>.Fail(CrudError.NotFound, $"There is no voice {voiceId}.") : read;
+        }
+
+        public CrudResult<IReadOnlyList<VoiceModelRecord>> List()
+        {
+            return CrudResult<IReadOnlyList<VoiceModelRecord>>.Run(() =>
+            {
+                var voices = new List<VoiceModelRecord>();
+                if (!Directory.Exists(_root))
+                {
+                    return voices;
+                }
+
+                foreach (string folder in Directory.GetDirectories(_root))
+                {
+                    string voiceId = Path.GetFileName(folder);
+                    VoiceModelRecord voice = IsVoiceId(voiceId) ? Load(voiceId) : null;
+                    if (voice != null)
+                    {
+                        voices.Add(voice);
+                    }
+                }
+
+                // ISO 8601 in UTC sorts as text.
+                voices.Sort((a, b) => string.CompareOrdinal(b.RegisteredAtUtc, a.RegisteredAtUtc));
+                return voices;
+            }, "Listing voices");
+        }
+
+        public CrudResult Rename(string voiceId, string name)
+        {
+            CrudResult<VoiceModelRecord> voice = Get(voiceId);
+            if (!voice.Ok)
+            {
+                return voice.WithoutValue;
+            }
+
+            voice.Value.Name = name;
+            return CrudResult.Run(() => Store(voiceId).Save(voice.Value), $"Renaming voice {voiceId}");
+        }
+
+        public CrudResult Delete(string voiceId)
+        {
+            if (!IsVoiceId(voiceId))
+            {
+                return CrudResult.Fail(CrudError.Invalid, $"'{voiceId}' is not a voice ID.");
+            }
+
+            return CrudResult.Run(() =>
+            {
+                if (Directory.Exists(FolderOf(voiceId)))
+                {
+                    Directory.Delete(FolderOf(voiceId), true);
+                }
+            }, $"Deleting voice {voiceId}");
+        }
+
+        // The voice, or null when there is none or its file could not be used.
+        private VoiceModelRecord Load(string voiceId)
+        {
+            if (!File.Exists(Path.Combine(FolderOf(voiceId), ModelFile)))
             {
                 return null;
             }
 
             ConfigLoadResult<VoiceModelRecord> loaded = Store(voiceId).Load();
             return loaded.Status != ConfigLoadStatus.Recovered && !string.IsNullOrEmpty(loaded.Value.Id) ? loaded.Value : null;
-        }
-
-        public IReadOnlyList<VoiceModelRecord> List()
-        {
-            var voices = new List<VoiceModelRecord>();
-            if (!Directory.Exists(_root))
-            {
-                return voices;
-            }
-
-            foreach (string folder in Directory.GetDirectories(_root))
-            {
-                VoiceModelRecord voice = Get(Path.GetFileName(folder));
-                if (voice != null)
-                {
-                    voices.Add(voice);
-                }
-            }
-
-            // ISO 8601 in UTC sorts as text.
-            voices.Sort((a, b) => string.CompareOrdinal(b.RegisteredAtUtc, a.RegisteredAtUtc));
-            return voices;
-        }
-
-        public void Rename(string voiceId, string name)
-        {
-            VoiceModelRecord voice = Get(voiceId) ?? throw new InvalidOperationException($"There is no voice {voiceId}.");
-            voice.Name = name;
-            Store(voiceId).Save(voice);
-        }
-
-        public void Delete(string voiceId)
-        {
-            if (IsVoiceId(voiceId) && Directory.Exists(FolderOf(voiceId)))
-            {
-                Directory.Delete(FolderOf(voiceId), true);
-            }
         }
 
         /// <summary>A Voice Lab voice's folder name with no path in it. Pure.</summary>

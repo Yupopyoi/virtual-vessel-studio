@@ -69,7 +69,7 @@ namespace VirtualVessel.VoiceLab.Tests
 
             TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
-            RegisteredVoice voice = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock), runs, clock).Register(run, "Real environment test");
+            RegisteredVoice voice = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock), runs, clock).Register(run, "Real environment test").Value;
 
             Assert.That(File.Exists(Path.Combine(voice.Folder, "voice.sentis")), Is.True);
             Assert.That(voice.MedianPitchHz, Is.InRange(150, 700));

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using UnityEngine.UIElements;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Icons;
@@ -39,7 +40,7 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Lead(VoiceLabStrings.LibraryLead));
             _empty = Ui.Text(VoiceLabStrings.LibraryEmpty, VoiceLabScreen.NoteClass, "vv-text-body");
             Add(_empty);
-            _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.LibraryFailed);
+            _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.CrudStorageFailed);
             _failed.style.display = DisplayStyle.None;
             Add(_failed);
 
@@ -58,8 +59,16 @@ namespace VirtualVessel.UI.VoiceLab
         public void Refresh()
         {
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
-            IReadOnlyList<VoiceLabVoiceRecord> voices = _library.ListVoices();
-            IReadOnlyList<VoiceLabRunRecord> runs = _library.ListRuns();
+            CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> voicesRead = _library.ListVoices();
+            CrudResult<IReadOnlyList<VoiceLabRunRecord>> runsRead = _library.ListRuns();
+            if (!voicesRead.Ok || !runsRead.Ok)
+            {
+                CrudResult failed = voicesRead.Ok ? runsRead.WithoutValue : voicesRead.WithoutValue;
+                ShowFailure("Listing what was made", failed.Error, failed.Detail);
+            }
+
+            IReadOnlyList<VoiceLabVoiceRecord> voices = voicesRead.Ok ? voicesRead.Value : Array.Empty<VoiceLabVoiceRecord>();
+            IReadOnlyList<VoiceLabRunRecord> runs = runsRead.Ok ? runsRead.Value : Array.Empty<VoiceLabRunRecord>();
             _voices.Clear();
             foreach (VoiceLabVoiceRecord voice in voices)
             {
@@ -142,10 +151,10 @@ namespace VirtualVessel.UI.VoiceLab
                     return;
                 }
 
-                Try(() => _library.RenameVoice(voice.Id, rename.value));
+                Try(() => _library.RenameVoice(voice.Id, rename.value), "Renaming voice " + voice.Id);
             };
             ActionButton delete = Ui.Button(VoiceLabStrings.Delete);
-            delete.clicked += () => Delete(VoiceLabStrings.DeleteVoiceTitle, VoiceLabStrings.DeleteVoiceBody, () => _library.DeleteVoice(voice.Id));
+            delete.clicked += () => Delete(VoiceLabStrings.DeleteVoiceTitle, VoiceLabStrings.DeleteVoiceBody, () => _library.DeleteVoice(voice.Id), "Deleting voice " + voice.Id);
             row.Add(rename);
             row.Add(save);
             row.Add(renameButton);
@@ -174,7 +183,7 @@ namespace VirtualVessel.UI.VoiceLab
             bool unfinished = run.State != VoiceLabBuildState.Completed && run.State != VoiceLabBuildState.Failed && run.State != VoiceLabBuildState.Cancelled;
             delete.SetEnabled(!(unfinished && _building()));
             delete.TooltipKey = delete.enabledSelf ? null : VoiceLabStrings.DeleteWhileMaking;
-            delete.clicked += () => Delete(VoiceLabStrings.DeleteRunTitle, VoiceLabStrings.DeleteRunBody, () => _library.DeleteRun(run.RunId));
+            delete.clicked += () => Delete(VoiceLabStrings.DeleteRunTitle, VoiceLabStrings.DeleteRunBody, () => _library.DeleteRun(run.RunId), "Deleting run " + run.RunId);
             row.Add(remake);
             row.Add(delete);
             block.Add(row);
@@ -188,7 +197,7 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 if (comment.value != run.Comment)
                 {
-                    Try(() => _library.SetComment(run.RunId, comment.value), refresh: false);
+                    Try(() => _library.SetComment(run.RunId, comment.value), "Saving the note of run " + run.RunId, refresh: false);
                 }
             });
             block.Add(comment);
@@ -217,7 +226,13 @@ namespace VirtualVessel.UI.VoiceLab
             return play;
         }
 
-        private async void Delete(string titleKey, string bodyKey, Action delete)
+        /// <summary>Tells the user a CRUD operation failed and logs why (system design 6.31).</summary>
+        public void ShowFailure(string what, CrudError error, string detail)
+        {
+            VoiceLabScreen.ShowFailure(this, _failed, what, error, detail);
+        }
+
+        private async void Delete(string titleKey, string bodyKey, Func<CrudResult> delete, string what)
         {
             var dialogs = UiServices.Find(this)?.Dialogs;
             if (dialogs != null && !await dialogs.ConfirmAsync(titleKey, bodyKey, VoiceLabStrings.Delete, ConfirmStyle.Danger))
@@ -226,20 +241,16 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _player.Stop();
-            Try(delete);
+            Try(delete, what);
         }
 
-        private void Try(Action work, bool refresh = true)
+        private void Try(Func<CrudResult> work, string what, bool refresh = true)
         {
             _failed.style.display = DisplayStyle.None;
-            try
+            CrudResult result = work();
+            if (!result.Ok)
             {
-                work();
-            }
-            catch (VoiceLabFailedException)
-            {
-                // The service has logged why.
-                _failed.style.display = DisplayStyle.Flex;
+                ShowFailure(what, result.Error, result.Detail);
                 return;
             }
 
