@@ -13,13 +13,15 @@ namespace VirtualVessel.UI.Tests
     public sealed class VoiceLabViewTests
     {
         [Test]
-        public void MoodSliders_AreTheTenTheScriptsKnow_FourShownFirst()
+        public void MoodItems_AreTheScriptsBut_Brightness_ThreeShownFirst()
         {
-            Assert.That(VoiceLabView.MainMood.Select(m => m.Key), Is.EqualTo(new[] { "youthful", "pitch", "brightness", "energy" }));
+            // Brightness in words was heard the wrong way round; STEP 2's knob does it (2026-11-07).
+            Assert.That(VoiceLabView.MainMood.Select(m => m.Key), Is.EqualTo(new[] { "youthful", "pitch", "energy" }));
             Assert.That(VoiceLabView.MainMood.Concat(VoiceLabView.MoreMood).Select(m => m.Key), Is.EquivalentTo(new[]
             {
-                "youthful", "pitch", "brightness", "softness", "breathiness", "energy", "cuteness", "expressiveness", "speed", "naturalness",
+                "youthful", "pitch", "softness", "breathiness", "energy", "cuteness", "expressiveness", "speed", "naturalness",
             }));
+            Assert.That(VoiceLabView.MainMood.Select(m => m.Levels.Count), Is.EqualTo(new[] { 3, 4, 6 }));
         }
 
         [Test]
@@ -50,8 +52,8 @@ namespace VirtualVessel.UI.Tests
             }
 
             MoodSlider pitch = VoiceLabView.MainMood[1];
-            Assert.That(pitch.ValueAt(4), Is.EqualTo(0.95f));
-            Assert.That(pitch.ValueAt(9), Is.EqualTo(0.95f), "Clamped to the levels.");
+            Assert.That(pitch.ValueAt(3), Is.EqualTo(0.70f));
+            Assert.That(pitch.ValueAt(9), Is.EqualTo(0.70f), "Clamped to the levels.");
             Assert.That(pitch.LevelKeys()[0], Is.EqualTo("lab.mood.pitch.0"));
         }
 

@@ -29,15 +29,28 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>The mood a voice is asked for (Voice Lab detailed design 8.3.1): sliders from 0 to 1, and words.</summary>
     public sealed class VoiceLabMood
     {
-        public VoiceLabMood(IReadOnlyDictionary<string, float> sliders, string words)
+        public VoiceLabMood(IReadOnlyDictionary<string, float> sliders, string words, VoiceLabVoice voice = VoiceLabVoice.Female)
         {
             Sliders = sliders ?? new Dictionary<string, float>();
             Words = words ?? string.Empty;
+            Voice = voice;
         }
 
         public IReadOnlyDictionary<string, float> Sliders { get; }
 
         public string Words { get; }
+
+        public VoiceLabVoice Voice { get; }
+    }
+
+    /// <summary>
+    /// The voice the candidates are made as (Voice Lab detailed design 8.3.1). There is no neutral one: a
+    /// neutral instruction gave a female or a male voice by seed (2026-11-07).
+    /// </summary>
+    public enum VoiceLabVoice
+    {
+        Female,
+        Male,
     }
 
     /// <summary>The timbre steps (Voice Lab detailed design 8.3.2), -6 to +6; softness 0 to +6.</summary>

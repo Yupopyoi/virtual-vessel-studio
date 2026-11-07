@@ -21,6 +21,10 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string BaseLead = "lab.base.lead";
         public const string Mood = "lab.base.mood";
+        public const string Voice = "lab.base.voice";
+        public const string VoiceTip = "lab.base.voice.tip";
+        public const string VoiceFemale = "lab.base.voice.female";
+        public const string VoiceMale = "lab.base.voice.male";
         public const string MoreMood = "lab.base.more-mood";
         public const string Words = "lab.base.words";
         public const string WordsHint = "lab.base.words-hint";

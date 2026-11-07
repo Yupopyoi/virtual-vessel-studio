@@ -74,24 +74,30 @@ namespace VirtualVessel.VoiceLab.Design
     /// <summary>The mood a voice is asked for (Voice Lab detailed design 8.3.1): sliders from 0 to 1, and words.</summary>
     public sealed class VoiceDescription
     {
-        public VoiceDescription(IReadOnlyDictionary<string, float> sliders, string words)
+        public VoiceDescription(IReadOnlyDictionary<string, float> sliders, string words, bool male = false)
         {
             Sliders = sliders ?? new Dictionary<string, float>();
             Words = words ?? string.Empty;
+            Male = male;
         }
+
+        /// <summary>Made as a male voice; the instruction's sentences are written for a female one otherwise.</summary>
+        public bool Male { get; }
 
         /// <summary>youthful, pitch, brightness, softness, breathiness, energy, cuteness, expressiveness, speed, naturalness.</summary>
         public IReadOnlyDictionary<string, float> Sliders { get; }
 
         public string Words { get; }
 
-        /// <summary>Writes the sliders, each clamped to 0 to 1, as the request's "mood" object.</summary>
+        /// <summary>Writes the sliders, each clamped to 0 to 1, as the request's "mood" object, and the voice.</summary>
         public void WriteMood(ConfigDocument document)
         {
             foreach (KeyValuePair<string, float> slider in Sliders)
             {
                 document.Set("mood." + slider.Key, Math.Max(0f, Math.Min(1f, slider.Value)));
             }
+
+            document.Set("voice", Male ? "male" : "female");
         }
     }
 

@@ -68,6 +68,10 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(requests[0].Get<float>("mood.softness"), Is.EqualTo(0.85f).Within(1e-6));
             Assert.That(requests[0].Get<float>("mood.energy"), Is.EqualTo(1f), "Sliders are clamped to 0..1.");
             Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"));
+            Assert.That(requests[0].Get<string>("voice"), Is.EqualTo("female"));
+
+            designer.MakeCandidatesAsync(new VoiceDescription(null, "", male: true), 1, null, null, CancellationToken.None).Wait();
+            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Last().Arguments[3])).Get<string>("voice"), Is.EqualTo("male"));
         }
 
         [Test]

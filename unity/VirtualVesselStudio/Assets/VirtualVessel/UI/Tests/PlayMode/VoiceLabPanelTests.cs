@@ -68,13 +68,15 @@ namespace VirtualVessel.UI.Tests
             Assert.That(baseStep.NextButton.enabledSelf, Is.False, "Nothing is picked yet.");
 
             MoodSlider pitch = VoiceLabView.MainMood[1];
-            baseStep.MoodLevels[pitch].value = 4;
+            baseStep.MoodLevels[pitch].value = 3;
+            baseStep.VoiceChooser.value = 1;
             Submit(baseStep.MakeButton);
             yield return null;
-            Assert.That(_lab.Moods.Single().Sliders[pitch.Key], Is.EqualTo(pitch.ValueAt(4)), "The level pressed is asked for.");
+            Assert.That(_lab.Moods.Single().Sliders[pitch.Key], Is.EqualTo(pitch.ValueAt(3)), "The level pressed is asked for.");
+            Assert.That(_lab.Moods.Single().Voice, Is.EqualTo(VoiceLabVoice.Male));
             List<CandidateTile> tiles = baseStep.Tiles.ToList();
             Assert.That(tiles.Count, Is.EqualTo(VoiceLabView.CandidatesPerRound));
-            Assert.That(_lab.Moods.Single().Sliders.Count, Is.EqualTo(10), "Every slider, folded or not, is asked for.");
+            Assert.That(_lab.Moods.Single().Sliders.Count, Is.EqualTo(9), "Every item, folded or not, is asked for.");
 
             Submit(tiles[1].PlayButton);
             yield return null;

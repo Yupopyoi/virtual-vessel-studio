@@ -101,7 +101,7 @@ namespace VirtualVessel.VoiceLab
             IReadOnlyList<VoiceCandidate> made;
             try
             {
-                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words), count, reference, progress, cancellationToken)).ConfigureAwait(false);
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(mood.Sliders, mood.Words, mood.Voice == VoiceLabVoice.Male), count, reference, progress, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {

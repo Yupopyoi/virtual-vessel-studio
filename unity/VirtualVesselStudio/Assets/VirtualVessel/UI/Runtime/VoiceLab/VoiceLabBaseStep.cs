@@ -31,6 +31,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _busy;
         private readonly ProgressMeter _progress;
         private readonly Segmented _count;
+        private readonly Segmented _voice;
         private IVisualElementScheduledItem _watch;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
@@ -49,6 +50,11 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BaseLead));
 
             Card mood = Ui.Card(VoiceLabStrings.Mood);
+            _voice = Ui.Segmented(VoiceLabStrings.VoiceFemale, VoiceLabStrings.VoiceMale);
+            _voice.TooltipKey = VoiceLabStrings.VoiceTip;
+            VisualElement voiceRow = Ui.SettingRow(VoiceLabStrings.Voice);
+            voiceRow.Add(_voice);
+            mood.Add(voiceRow);
             foreach (MoodSlider slider in VoiceLabView.MainMood)
             {
                 mood.Add(MoodRow(slider));
@@ -122,6 +128,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton NextButton => _next;
 
+        /// <summary>Female (0) or male (1).</summary>
+        public Segmented VoiceChooser => _voice;
+
         /// <summary>How many candidates to make.</summary>
         public Segmented CountChooser => _count;
 
@@ -137,7 +146,7 @@ namespace VirtualVessel.UI.VoiceLab
                 sliders[item.Key.Key] = item.Key.ValueAt(item.Value.value);
             }
 
-            return new VoiceLabMood(sliders, _words.value?.Trim());
+            return new VoiceLabMood(sliders, _words.value?.Trim(), _voice.value == 1 ? VoiceLabVoice.Male : VoiceLabVoice.Female);
         }
 
         private VisualElement MoodRow(MoodSlider mood)

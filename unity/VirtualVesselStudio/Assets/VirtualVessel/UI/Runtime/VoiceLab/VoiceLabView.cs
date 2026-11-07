@@ -74,13 +74,15 @@ namespace VirtualVessel.UI.VoiceLab
 
         public static int CandidatesPerRound => CandidateCounts[DefaultCountIndex];
 
-        /// <summary>The main four, shown first (system design 14.14). The bands are prompt.py's.</summary>
+        /// <summary>The main items, shown first after the voice (system design 14.14). The bands are prompt.py's.</summary>
         public static readonly IReadOnlyList<MoodSlider> MainMood = new[]
         {
-            new MoodSlider("youthful", 1, 0.25f, 0.55f, 0.85f, 0.95f),      // <0.40, to 0.80, to 0.90, from 0.90
-            new MoodSlider("pitch", 1, 0.20f, 0.50f, 0.70f, 0.85f, 0.95f), // to 0.28, to 0.64, to 0.82, to 0.92, from 0.92
-            new MoodSlider("brightness", 1, 0.20f, 0.50f, 0.80f),          // to 0.32, to 0.68, from 0.68
-            new MoodSlider("energy", 1, 0.20f, 0.50f, 0.85f),              // to 0.30, to 0.72, from 0.72
+            // Only levels heard apart in a blind A/B test (decision record, 2026-11-07). Youth: the ends were
+            // heard apart, neighbours were not. Pitch: above the middle it did not rise (STEP 2 raises it).
+            // Brightness is left to STEP 2: its words were heard the wrong way round.
+            new MoodSlider("youthful", 1, 0.25f, 0.55f, 0.95f),                       // <0.40, to 0.80, from 0.90
+            new MoodSlider("pitch", 2, 0.05f, 0.20f, 0.50f, 0.70f),                   // to 0.10, to 0.28, to 0.64, to 0.82
+            new MoodSlider("energy", 2, 0.05f, 0.20f, 0.40f, 0.60f, 0.80f, 0.95f),    // to 0.10, 0.30, 0.55, 0.72, 0.90, from 0.90
         };
 
         /// <summary>The rest, under More detail.</summary>
