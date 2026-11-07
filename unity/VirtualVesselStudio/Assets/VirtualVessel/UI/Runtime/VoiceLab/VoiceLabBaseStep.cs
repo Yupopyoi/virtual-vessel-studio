@@ -20,7 +20,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
         private readonly IVoiceLabFlow _flow;
-        private readonly Dictionary<MoodSlider, ValueSlider> _mood = new Dictionary<MoodSlider, ValueSlider>();
+        private readonly Dictionary<MoodSlider, Segmented> _mood = new Dictionary<MoodSlider, Segmented>();
         private readonly List<(int Number, int From, VoiceLabCandidate Candidate)> _candidates = new List<(int, int, VoiceLabCandidate)>();
         private readonly Dictionary<CandidateTile, VoiceLabCandidate> _shown = new Dictionary<CandidateTile, VoiceLabCandidate>();
         private readonly TextInput _words;
@@ -122,13 +122,19 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton NextButton => _next;
 
+        /// <summary>How many candidates to make.</summary>
+        public Segmented CountChooser => _count;
+
+        /// <summary>The mood items' level buttons, in the order shown.</summary>
+        public IReadOnlyDictionary<MoodSlider, Segmented> MoodLevels => _mood;
+
         /// <summary>The mood as the sliders and words set it.</summary>
         public VoiceLabMood Mood()
         {
             var sliders = new Dictionary<string, float>(StringComparer.Ordinal);
-            foreach (KeyValuePair<MoodSlider, ValueSlider> item in _mood)
+            foreach (KeyValuePair<MoodSlider, Segmented> item in _mood)
             {
-                sliders[item.Key.Key] = item.Key.ValueAt((int)item.Value.value);
+                sliders[item.Key.Key] = item.Key.ValueAt(item.Value.value);
             }
 
             return new VoiceLabMood(sliders, _words.value?.Trim());
@@ -136,15 +142,14 @@ namespace VirtualVessel.UI.VoiceLab
 
         private VisualElement MoodRow(MoodSlider mood)
         {
-            // A knob that stops on the levels and names the one chosen, rather than a number from 0 to 100
-            // whose small moves change nothing.
-            ValueSlider slider = Ui.Slider(mood.NameKey, 0f, mood.Levels.Count - 1);
-            slider.Step = 1f;
-            slider.ValueKeys = mood.LevelKeys();
-            slider.SetValueWithoutNotify(mood.Start);
-            slider.AddToClassList(VoiceLabTimbreStep.SliderClass);
-            _mood.Add(mood, slider);
-            return slider;
+            // Every level named and one press to choose it: a slider over three to five levels was hard to
+            // stop on (the user's review, 2026-11-07), and a 0 to 100 scale moved without changing anything.
+            Segmented levels = Ui.Segmented(mood.LevelKeys());
+            levels.SetValueWithoutNotify(mood.Start);
+            VisualElement row = Ui.SettingRow(mood.NameKey);
+            row.Add(levels);
+            _mood.Add(mood, levels);
+            return row;
         }
 
         private enum MakeKind
