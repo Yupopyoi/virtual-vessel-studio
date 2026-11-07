@@ -112,3 +112,15 @@
     white-space: normal;
     color: var(--vv-color-text);
 }
+
+/* STEP 2's held timbres: play, name, summary, go back, remove. */
+.vv-lab__held {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-lab__held > * {
+    margin-right: var(--vv-space-s);
+}

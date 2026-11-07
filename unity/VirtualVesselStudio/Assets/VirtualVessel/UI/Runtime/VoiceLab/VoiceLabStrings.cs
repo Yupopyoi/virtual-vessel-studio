@@ -27,6 +27,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string MakingSamples = "lab.base.making-samples";
         public const string SamplesFailed = "lab.base.samples-failed";
         public const string PlaySample = "lab.base.play-sample";
+        public const string SampleNotMade = "lab.base.sample-not-made";
         public const string Examples = "lab.base.examples";
         public const string ExamplesNote = "lab.base.examples-note";
         public const string Shelf = "lab.base.shelf";
@@ -84,6 +85,12 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ListenShaped = "lab.timbre.listen-shaped";
         public const string Shaping = "lab.timbre.shaping";
         public const string Reshaping = "lab.timbre.reshaping";
+        public const string Hold = "lab.timbre.hold";
+        public const string HoldTip = "lab.timbre.hold.tip";
+        public const string HeldNote = "lab.timbre.held-note";
+        public const string HeldName = "lab.timbre.held-name";
+        public const string Restore = "lab.timbre.restore";
+        public const string RemoveHeld = "lab.timbre.remove-held";
         public const string PitchChange = "lab.timbre.pitch-change";
         public const string FarTitle = "lab.timbre.far";
         public const string FarBody = "lab.timbre.far-body";

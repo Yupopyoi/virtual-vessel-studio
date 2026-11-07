@@ -29,7 +29,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 
 The user starts from an example, moves it with words, and picks a candidate by ear (the user's decision, 2026-11-07). The lead says that words only give a direction: the same words sound different in each candidate.
 
-- Samples: until they are made, a line says so with Make the samples, a progress bar (Making the samples, "12 / 27"), and Stop; play buttons appear only where a sample exists (Voice Lab detailed design 8.3.1).
+- Samples: until they are made, a line says so with Make the samples, a progress bar (Making the samples, "12 / 27"), and Stop. Play buttons are always shown, so the user sees where samples will be; one without its sample is disabled and its tooltip says to make the samples (the user's review, 2026-11-07; Voice Lab detailed design 8.3.1).
 - Start from an example: one row per example, with play, its name (pressing it puts its words on the shelf), and its words.
 - Move it with words: one setting row per group (`lab.group.*`), saying Pick one or Pick any, with its words as buttons, each with a play button for the sample of that word alone. A picked word is filled (Primary), so the state shows by shape and weight as well as color. Voice, Person, Pitch, and Energy are shown; Voice quality, Character, and Delivery are folded under More detail. A word replaces the one in its slot; pressing a picked word takes it off, except in a group that takes one word.
 - The voice you ask for: the picked words read back as one sentence (`lab.ask.*` and each word's phrase), with the user's words after it.
@@ -48,6 +48,7 @@ The user starts from an example, moves it with words, and picks a candidate by e
 - When pitch, age, and brightness are all moved by 4 or more, a warning chip and a line say it may sound mechanical (`lab.timbre.mechanical`).
 - Beyond the age that still sounded like the same person (more than 4 steps either way), a warning chip and a line say it may sound like someone else.
 - Compare: Original plays the base; Shaped makes the preview (seconds) and plays it. The last preview is kept while nothing changes. While it is being made, a line says so. Pressing Shaped again with the same values keeps the one being made, which plays when ready. Only pressing it with changed values stops that one and starts again, and the line says the earlier one was stopped (`lab.timbre.reshaping`). A stopped one is not shown as a failure.
+- Hold (the user's request, 2026-11-07): keeps the current timbre, up to six and each once. Each held one has play (its own preview), Go back to this (sets the knobs), and Remove, with a summary of its steps. Held timbres belong to the base, so picking another base clears them.
 - Reset sets the five back to 0. STEP 3: Make this voice moves on.
 - There are no intonation or pace sliders (system design 14.15).
 

@@ -128,6 +128,20 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void HeldTimbres_AreDistinct_AndAtMostSix()
+        {
+            var held = new List<VoiceLabTimbre> { new VoiceLabTimbre(4f, 0f, 0f, 0f) };
+            Assert.That(VoiceLabHoldList.CanHold(held, new VoiceLabTimbre(4f, 0f, 0f, 0f)), Is.False);
+            Assert.That(VoiceLabHoldList.CanHold(held, new VoiceLabTimbre(4f, 1f, 0f, 0f)), Is.True);
+            for (int i = 1; i < VoiceLabHoldList.Most; i++)
+            {
+                held.Add(new VoiceLabTimbre(0f, i, 0f, 0f));
+            }
+
+            Assert.That(VoiceLabHoldList.CanHold(held, new VoiceLabTimbre(-6f, 0f, 0f, 0f)), Is.False);
+        }
+
+        [Test]
         public void Softness_CountsAsAChange()
         {
             Assert.That(VoiceLabView.IsUnchanged(new VoiceLabTimbre(0f, 0f, 0f, 0f, 2f)), Is.False);

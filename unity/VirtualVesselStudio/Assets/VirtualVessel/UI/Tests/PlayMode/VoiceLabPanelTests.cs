@@ -171,17 +171,53 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TimbresCanBeHeld_Played_AndGoneBackTo_UntilTheBaseChanges()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            yield return null;
+            Submit(baseStep.NextButton);
+            yield return null;
+
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            ValueSlider pitch = timbre.Query<ValueSlider>().First();
+            pitch.value = 4f;
+            Submit(timbre.HoldButton);
+            Assert.That(timbre.HoldButton.enabledSelf, Is.False, "The same timbre is held once.");
+            pitch.value = -2f;
+            Submit(timbre.HoldButton);
+            Assert.That(timbre.HeldList.Held.Select(t => t.Pitch), Is.EqualTo(new[] { 4f, -2f }));
+
+            Submit(timbre.HeldList.Query<IconButton>().First());
+            yield return null;
+            Assert.That(_lab.Previews.Last().Timbre.Pitch, Is.EqualTo(4f), "A held timbre plays its own preview.");
+
+            timbre.Restore(timbre.HeldList.Held[0]);
+            Assert.That(timbre.Timbre.Pitch, Is.EqualTo(4f));
+
+            screen.GoTo(VoiceLabScreen.BaseStep);
+            Submit(baseStep.Tiles.Last().PickButton);
+            yield return null;
+            screen.GoTo(VoiceLabScreen.TimbreStep);
+            timbre.Refresh();
+            Assert.That(timbre.HeldList.Held, Is.Empty, "Held timbres belong to the base.");
+        }
+
+        [UnityTest]
         public IEnumerator Samples_AreOfferedUntilMade_ThenEachWordAndExamplePlays()
         {
             var baseStep = (VoiceLabBaseStep)Screen().Panel(VoiceLabScreen.BaseStep);
             VoiceLabShelfView request = baseStep.RequestView;
             IconButton[] plays = request.Query<IconButton>().ToList().ToArray();
-            Assert.That(plays.All(p => p.style.display == DisplayStyle.None), Is.True, "Nothing to play before the samples are made.");
+            Assert.That(plays.All(p => p.style.display == DisplayStyle.Flex && !p.enabledSelf), Is.True, "Shown but disabled before the samples are made, so the user sees where they will be.");
 
             Submit(request.MakeSamplesButton);
             yield return null;
             Assert.That(_lab.SampleRuns, Is.EqualTo(1));
-            Assert.That(plays.All(p => p.style.display == DisplayStyle.Flex), Is.True);
+            Assert.That(plays.All(p => p.enabledSelf), Is.True);
 
             Submit(plays[0]);
             yield return null;

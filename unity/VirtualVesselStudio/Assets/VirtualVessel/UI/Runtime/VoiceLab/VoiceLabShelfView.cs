@@ -275,13 +275,20 @@ namespace VirtualVessel.UI.VoiceLab
             _samplesProgress.Detail = detail;
         }
 
-        /// <summary>Play buttons only where a sample exists; the offer to make them while the base is missing.</summary>
+        /// <summary>
+        /// Play buttons are always shown, so the user sees where samples will be; one without its sample is
+        /// disabled and says how to get it (the user's review, 2026-11-07). The offer to make them shows while
+        /// the base is missing.
+        /// </summary>
         private void ShowSamples()
         {
             bool canPlay = _player.Available;
             foreach (IconButton play in _playButtons)
             {
-                play.style.display = canPlay && SampleFile((string)play.userData) != null ? DisplayStyle.Flex : DisplayStyle.None;
+                bool made = SampleFile((string)play.userData) != null;
+                play.style.display = canPlay ? DisplayStyle.Flex : DisplayStyle.None;
+                play.SetEnabled(made);
+                play.TooltipKey = made ? VoiceLabStrings.PlaySample : VoiceLabStrings.SampleNotMade;
             }
 
             _samplesNotice.style.display = SampleFile("base.wav") == null ? DisplayStyle.Flex : DisplayStyle.None;

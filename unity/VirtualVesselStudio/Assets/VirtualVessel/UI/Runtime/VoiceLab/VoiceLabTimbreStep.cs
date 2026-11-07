@@ -35,6 +35,9 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly Label _shaping;
         private readonly Label _reshaping;
         private readonly StatusChip _failed;
+        private readonly ActionButton _hold;
+        private readonly VoiceLabHoldList _held;
+        private VoiceLabCandidate _heldFor;
         private CancellationTokenSource _shapingSource;
         private VoiceLabCandidate _shapingCandidate;
         private VoiceLabTimbre _shapingTimbre;
@@ -83,11 +86,20 @@ namespace VirtualVessel.UI.VoiceLab
             _listenBase.clicked += ListenBase;
             _listenShaped = Ui.Button(VoiceLabStrings.ListenShaped);
             _listenShaped.clicked += ListenShaped;
+            _hold = Ui.Button(VoiceLabStrings.Hold);
+            _hold.TooltipKey = VoiceLabStrings.HoldTip;
             _shaping = Ui.Text(VoiceLabStrings.Shaping, VoiceLabScreen.NoteClass, "vv-text-body");
             _reshaping = Ui.Text(VoiceLabStrings.Reshaping, VoiceLabScreen.NoteClass, "vv-text-body");
-            timbre.Add(VoiceLabScreen.Actions(Ui.Text(VoiceLabStrings.Compare, VoiceLabScreen.NoteClass, "vv-text-body"), _listenBase, _listenShaped, _shaping, _reshaping));
+            timbre.Add(VoiceLabScreen.Actions(Ui.Text(VoiceLabStrings.Compare, VoiceLabScreen.NoteClass, "vv-text-body"), _listenBase, _listenShaped, _hold, _shaping, _reshaping));
             _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.ShapeFailed);
             timbre.Add(_failed);
+            _held = new VoiceLabHoldList(ListenTo, Restore);
+            _hold.clicked += () =>
+            {
+                _held.Hold(Timbre);
+                Refresh();
+            };
+            timbre.Add(_held);
             Add(timbre);
 
             Add(Ui.Text(VoiceLabStrings.TimbreNote, VoiceLabScreen.NoteClass, "vv-text-body"));
@@ -131,6 +143,30 @@ namespace VirtualVessel.UI.VoiceLab
             _pitchChange.text = (localizer?.Get(VoiceLabStrings.PitchChange) ?? string.Empty) + "  " + VoiceLabView.PitchChangeText(_draft.Candidate?.MedianHz ?? 0, _pitch.value);
             _far.style.display = VoiceLabView.IsFar(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;
             _mechanical.style.display = VoiceLabView.IsMechanical(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!ReferenceEquals(_heldFor, _draft.Candidate))
+            {
+                // Held timbres belong to one base.
+                _held.Clear();
+                _heldFor = _draft.Candidate;
+            }
+
+            _hold.SetEnabled(VoiceLabHoldList.CanHold(_held.Held, Timbre));
+        }
+
+        /// <summary>The timbres held to compare.</summary>
+        public VoiceLabHoldList HeldList => _held;
+
+        public ActionButton HoldButton => _hold;
+
+        /// <summary>Sets the knobs to a held timbre.</summary>
+        public void Restore(VoiceLabTimbre timbre)
+        {
+            _pitch.SetValueWithoutNotify(timbre.Pitch);
+            _age.SetValueWithoutNotify(timbre.Age);
+            _brightness.SetValueWithoutNotify(timbre.Brightness);
+            _softness.SetValueWithoutNotify(timbre.Softness);
+            _breathiness.SetValueWithoutNotify(timbre.Breathiness);
+            OnMoved();
         }
 
         private ValueSlider Knob(VisualElement parent, string nameKey, string tipKey, string lowKey, string highKey, float low = -6f)
@@ -167,10 +203,14 @@ namespace VirtualVessel.UI.VoiceLab
             _ = _player.PlayAsync(_draft.Candidate?.File, null);
         }
 
-        private async void ListenShaped()
+        private void ListenShaped()
+        {
+            ListenTo(Timbre);
+        }
+
+        private async void ListenTo(VoiceLabTimbre timbre)
         {
             VoiceLabCandidate candidate = _draft.Candidate;
-            VoiceLabTimbre timbre = Timbre;
             if (candidate == null)
             {
                 return;
