@@ -48,6 +48,16 @@ def _seeded(seed):
     np.random.seed(seed)
 
 
+def _speak(model, line, seed, instruction="", reference=None, **options):
+    """One voice reading `line`. Seeded, so the same seed and inputs give the same voice; the instruction goes in
+    brackets before the line, and a reference is a voice to copy."""
+    _seeded(seed)
+    if reference:
+        options["reference_wav_path"] = reference
+    text = f"({instruction}){line}" if instruction else line
+    return model.generate(text=text, cfg_value=CFG, inference_timesteps=STEPS, normalize=False, **options)
+
+
 def _versions():
     """What a seed's voice depends on: the same seed gives another voice under other versions."""
     import torch
@@ -75,9 +85,7 @@ def candidates(request, reporter):
     for i in range(count):
         reporter.progress("candidates", i, count)
         seed = first + i
-        _seeded(seed)
-        wav = model.generate(text=f"({instruction}){CANDIDATE_LINE}", cfg_value=CFG, inference_timesteps=STEPS, normalize=False,
-                             **({"reference_wav_path": reference} if reference else {}))
+        wav = _speak(model, CANDIDATE_LINE, seed, instruction, reference)
         path = os.path.join(output, f"candidate_{seed}.wav")
         _save(path, wav, rate)
         made.append({"seed": seed, "file": path, **pitch.describe(np.asarray(wav, dtype=np.float32).reshape(-1), rate)})
@@ -141,8 +149,7 @@ def samples(request, reporter):
         reporter.progress("samples", done, len(plan))
         path = os.path.join(output, lang, name)
         if not os.path.exists(path):
-            _seeded(seed)
-            wav = model.generate(text=f"({prompt.build(shelf, picked)}){SAMPLE_LINES[lang]}", cfg_value=CFG, inference_timesteps=STEPS, normalize=False)
+            wav = _speak(model, SAMPLE_LINES[lang], seed, prompt.build(shelf, picked))
             _save(path, wav, rate)
     reporter.progress("samples", len(plan), len(plan))
     reporter.result(output=output, count=len(plan), versions=_versions())
@@ -163,10 +170,9 @@ def speech(request, reporter):
         reporter.progress("speech", done, len(lines))
         path = os.path.join(output, f"{index:03d}.wav")
         if not os.path.exists(path):
-            _seeded(first + index)
             # No instruction: the reference's voice is copied as it is, and the timbre is edited afterwards.
-            wav = model.generate(text=text, reference_wav_path=reference, cfg_value=CFG, inference_timesteps=STEPS, normalize=False,
-                                 retry_badcase=True, retry_badcase_max_times=3, retry_badcase_ratio_threshold=6.0)
+            wav = _speak(model, text, first + index, reference=reference,
+                         retry_badcase=True, retry_badcase_max_times=3, retry_badcase_ratio_threshold=6.0)
             _save(path, wav, rate)
         files.append(os.path.basename(path))
         seconds += sf.info(path).duration
