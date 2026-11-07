@@ -69,8 +69,9 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void CandidatesProgress_CountsOnlyOnceTheModelHasLoaded()
         {
-            Assert.That(VoiceLabService.ToMaking(new Scripts.ScriptProgress("generate.py", "load", 0, 1)).Loading, Is.True);
-            VoiceLabMaking making = VoiceLabService.ToMaking(new Scripts.ScriptProgress("generate.py", "candidates", 2, 6));
+            Assert.That(VoiceLabService.ToMaking(new Scripts.ScriptProgress("generate.py", "load", 0, 1), "candidates").Loading, Is.True);
+            Assert.That(VoiceLabService.ToMaking(new Scripts.ScriptProgress("generate.py", "samples", 3, 27), "samples").Done, Is.EqualTo(3));
+            VoiceLabMaking making = VoiceLabService.ToMaking(new Scripts.ScriptProgress("generate.py", "candidates", 2, 6), "candidates");
             Assert.That((making.Done, making.Total), Is.EqualTo((2, 6)));
         }
 

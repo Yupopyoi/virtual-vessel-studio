@@ -31,9 +31,10 @@ namespace VirtualVessel.VoiceLab
         private readonly ILog _log;
         private readonly string _samplesFolder;
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
-        private VoiceLabBuildProgress _progress;
-        private VoiceLabMaking _making;
-        private VoiceLabMaking _samplesMaking;
+        // Written by the scripts' reading threads, read by the screen on the main thread.
+        private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
+        private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
+        private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
         private VoiceLabService(VoiceDesigner designer, TrainingRunStore runs, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log)
         {
@@ -52,38 +53,11 @@ namespace VirtualVessel.VoiceLab
 
         public VoiceLabShelf Shelf { get; }
 
-        public VoiceLabMaking SamplesProgress
-        {
-            get
-            {
-                lock (_gate)
-                {
-                    return _samplesMaking;
-                }
-            }
-        }
+        public VoiceLabMaking SamplesProgress => _samplesMaking.Value;
 
-        public VoiceLabMaking CandidatesProgress
-        {
-            get
-            {
-                lock (_gate)
-                {
-                    return _making;
-                }
-            }
-        }
+        public VoiceLabMaking CandidatesProgress => _making.Value;
 
-        public VoiceLabBuildProgress BuildProgress
-        {
-            get
-            {
-                lock (_gate)
-                {
-                    return _progress;
-                }
-            }
-        }
+        public VoiceLabBuildProgress BuildProgress => _progress.Value;
 
         /// <summary>
         /// The service from the settings folder's environment file; one that is missing, unreadable, or points at
@@ -135,20 +109,16 @@ namespace VirtualVessel.VoiceLab
 
         public async Task MakeSamplesAsync(CancellationToken cancellationToken)
         {
-            SetSamplesMaking(default);
-            var progress = new Forward<ScriptProgress>(p => SetSamplesMaking(p.Stage == "samples" ? new VoiceLabMaking(p.Done, p.Total) : default));
+            _samplesMaking.Value = default;
+            var progress = new Forward<ScriptProgress>(p => _samplesMaking.Value = ToMaking(p, "samples"));
             try
             {
-                await Run(async () =>
-                {
-                    await _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken).ConfigureAwait(false);
-                    return true;
-                }).ConfigureAwait(false);
+                await Run(() => _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken)).ConfigureAwait(false);
                 _log.Information("Made Voice Lab's samples.");
             }
             finally
             {
-                SetSamplesMaking(default);
+                _samplesMaking.Value = default;
             }
         }
 
@@ -161,8 +131,8 @@ namespace VirtualVessel.VoiceLab
         public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
         {
             VoiceCandidate reference = near != null ? Find(near) : null;
-            SetMaking(default);
-            var progress = new Forward<ScriptProgress>(p => SetMaking(ToMaking(p)));
+            _making.Value = default;
+            var progress = new Forward<ScriptProgress>(p => _making.Value = ToMaking(p, "candidates"));
             IReadOnlyList<VoiceCandidate> made;
             try
             {
@@ -170,7 +140,7 @@ namespace VirtualVessel.VoiceLab
             }
             finally
             {
-                SetMaking(default);
+                _making.Value = default;
             }
 
             lock (_gate)
@@ -193,8 +163,8 @@ namespace VirtualVessel.VoiceLab
         public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
         {
             Ensure();
-            SetProgress(new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f));
-            var progress = new Forward<BuildProgress>(p => SetProgress(new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction)));
+            _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
+            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
             try
             {
                 TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
@@ -203,7 +173,7 @@ namespace VirtualVessel.VoiceLab
             finally
             {
                 // Also when the build threw, so the screen never shows a build that is not running.
-                SetProgress(default);
+                _progress.Value = default;
             }
         }
 
@@ -222,10 +192,10 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
-        /// <summary>A script's progress as the candidates' bar shows it: loading the model counts as no total. Pure.</summary>
-        public static VoiceLabMaking ToMaking(ScriptProgress progress)
+        /// <summary>A script's progress as a making bar shows it: any stage but <paramref name="stage"/> (loading the model) has no total. Pure.</summary>
+        public static VoiceLabMaking ToMaking(ScriptProgress progress, string stage)
         {
-            return progress.Stage == "candidates" ? new VoiceLabMaking(progress.Done, progress.Total) : default;
+            return progress.Stage == stage ? new VoiceLabMaking(progress.Done, progress.Total) : default;
         }
 
         /// <summary>A training state as the screen shows it. Pure.</summary>
@@ -268,6 +238,15 @@ namespace VirtualVessel.VoiceLab
         private static string EnvironmentFolderName(VoiceLabEnvironment environment)
         {
             return Path.GetFileName(VoiceLabEnvironment.EnvironmentFolder(environment.Python));
+        }
+
+        private async Task Run(Func<Task> work)
+        {
+            await Run(async () =>
+            {
+                await work().ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
         }
 
         private async Task<T> Run<T>(Func<Task<T>> work)
@@ -315,27 +294,29 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
-        private void SetProgress(VoiceLabBuildProgress progress)
+        /// <summary>A value one thread writes and another reads.</summary>
+        private sealed class Shared<T>
         {
-            lock (_gate)
-            {
-                _progress = progress;
-            }
-        }
+            private readonly object _gate = new object();
+            private T _value;
 
-        private void SetSamplesMaking(VoiceLabMaking making)
-        {
-            lock (_gate)
+            public T Value
             {
-                _samplesMaking = making;
-            }
-        }
+                get
+                {
+                    lock (_gate)
+                    {
+                        return _value;
+                    }
+                }
 
-        private void SetMaking(VoiceLabMaking making)
-        {
-            lock (_gate)
-            {
-                _making = making;
+                set
+                {
+                    lock (_gate)
+                    {
+                        _value = value;
+                    }
+                }
             }
         }
 
