@@ -1,0 +1,128 @@
+/* Step Indicator (components.md 3.26) and Candidate Tile (components.md 3.27). */
+.vv-steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.vv-step {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 6px 6px 0;
+    padding: 6px 14px 6px 6px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-control);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-text-2);
+    font-size: 13px;
+}
+
+.vv-step__number {
+    height: 24px;
+    padding: 0 10px;
+    margin-right: 8px;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+    font-size: 11px;
+    -unity-text-align: middle-center;
+}
+
+.vv-step--current {
+    color: var(--vv-color-text);
+    border-color: var(--vv-color-accent-line);
+    background-color: var(--vv-color-tint);
+}
+
+.vv-step--current > .vv-step__number {
+    background-color: var(--vv-color-primary);
+    color: var(--vv-color-on-accent);
+}
+
+.vv-step--done > .vv-step__number {
+    color: var(--vv-color-success);
+    background-color: var(--vv-color-success-chip);
+}
+
+.vv-tile {
+    width: 220px;
+    margin: 0 12px 12px 0;
+    padding: 12px;
+    border-width: 1px;
+    border-radius: var(--vv-radius-m);
+    border-color: var(--vv-color-border);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-tile--picked {
+    border-color: var(--vv-color-accent-line);
+    background-color: var(--vv-color-tint);
+}
+
+.vv-tile__head {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.vv-tile__name {
+    flex-grow: 1;
+    margin-left: 8px;
+}
+
+.vv-tile__from {
+    margin: -4px 0 6px 0;
+    font-size: 11px;
+    color: var(--vv-color-text-3);
+}
+
+.vv-tile__stat {
+    flex-direction: row;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.vv-tile__stat-name {
+    color: var(--vv-color-text-3);
+}
+
+.vv-tile__span {
+    margin: 8px 0;
+}
+
+.vv-tile__track {
+    height: 14px;
+}
+
+.vv-tile__line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 6px;
+    height: 2px;
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-tile__band {
+    position: absolute;
+    top: 4px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: var(--vv-color-primary-wash);
+}
+
+.vv-tile__mid {
+    position: absolute;
+    top: 1px;
+    width: 4px;
+    height: 12px;
+    margin-left: -2px;
+    border-radius: 2px;
+    background-color: var(--vv-color-primary);
+}
+
+.vv-tile__scale {
+    flex-direction: row;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--vv-color-text-3);
+}

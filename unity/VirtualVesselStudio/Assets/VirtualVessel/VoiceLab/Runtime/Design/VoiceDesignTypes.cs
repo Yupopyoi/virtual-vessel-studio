@@ -6,19 +6,20 @@ using VirtualVessel.VoiceLab.Training;
 namespace VirtualVessel.VoiceLab.Design
 {
     /// <summary>
-    /// How the timbre moves (Voice Lab detailed design 8.3.2): steps of -6 to +6, 0 changing nothing. The scripts
-    /// turn steps into edits, so previews and training speech use the same meaning.
+    /// How the timbre moves (Voice Lab detailed design 8.3.2): steps of -6 to +6 (softness 0 to +6), 0 changing
+    /// nothing. The scripts turn steps into edits, so previews and training speech use the same meaning.
     /// </summary>
     public readonly struct TimbreSettings : IEquatable<TimbreSettings>
     {
         public const float StepLimit = 6f;
 
-        public TimbreSettings(float pitch, float age, float brightness, float breathiness)
+        public TimbreSettings(float pitch, float age, float brightness, float breathiness, float softness = 0f)
         {
             Pitch = Clamp(pitch);
             Age = Clamp(age);
             Brightness = Clamp(brightness);
             Breathiness = Clamp(breathiness);
+            Softness = Math.Max(0f, Clamp(softness));
         }
 
         /// <summary>Semitones.</summary>
@@ -30,6 +31,9 @@ namespace VirtualVessel.VoiceLab.Design
 
         public float Breathiness { get; }
 
+        /// <summary>0 to +6: only the soft side exists (a pressed side sounded harsh).</summary>
+        public float Softness { get; }
+
         /// <summary>Writes the settings as the object at <paramref name="path"/> of a request.</summary>
         public void WriteTo(ConfigDocument document, string path)
         {
@@ -37,17 +41,18 @@ namespace VirtualVessel.VoiceLab.Design
             document.Set(path + ".age", Age);
             document.Set(path + ".brightness", Brightness);
             document.Set(path + ".breathiness", Breathiness);
+            document.Set(path + ".softness", Softness);
         }
 
         /// <summary>The settings as run.json keeps them. Pure.</summary>
         public TimbreValues ToValues()
         {
-            return new TimbreValues { Pitch = Pitch, Age = Age, Brightness = Brightness, Breathiness = Breathiness };
+            return new TimbreValues { Pitch = Pitch, Age = Age, Brightness = Brightness, Breathiness = Breathiness, Softness = Softness };
         }
 
         public bool Equals(TimbreSettings other)
         {
-            return Pitch == other.Pitch && Age == other.Age && Brightness == other.Brightness && Breathiness == other.Breathiness;
+            return Pitch == other.Pitch && Age == other.Age && Brightness == other.Brightness && Breathiness == other.Breathiness && Softness == other.Softness;
         }
 
         public override bool Equals(object obj)
@@ -57,7 +62,7 @@ namespace VirtualVessel.VoiceLab.Design
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Pitch, Age, Brightness, Breathiness);
+            return HashCode.Combine(Pitch, Age, Brightness, Breathiness, Softness);
         }
 
         private static float Clamp(float step)
@@ -66,27 +71,24 @@ namespace VirtualVessel.VoiceLab.Design
         }
     }
 
-    /// <summary>The mood a voice is asked for (Voice Lab detailed design 8.3.1): sliders from 0 to 1, and words.</summary>
+    /// <summary>What candidates are made from: shelf word ids (voicelab/shelf.json) and the user's own words.</summary>
     public sealed class VoiceDescription
     {
-        public VoiceDescription(IReadOnlyDictionary<string, float> sliders, string words)
+        public VoiceDescription(IReadOnlyList<string> words, string freeWords)
         {
-            Sliders = sliders ?? new Dictionary<string, float>();
-            Words = words ?? string.Empty;
+            Words = words ?? Array.Empty<string>();
+            FreeWords = freeWords ?? string.Empty;
         }
 
-        /// <summary>youthful, pitch, brightness, softness, breathiness, energy, cuteness, expressiveness, speed, naturalness.</summary>
-        public IReadOnlyDictionary<string, float> Sliders { get; }
+        public IReadOnlyList<string> Words { get; }
 
-        public string Words { get; }
+        public string FreeWords { get; }
 
-        /// <summary>Writes the sliders, each clamped to 0 to 1, as the request's "mood" object.</summary>
-        public void WriteMood(ConfigDocument document)
+        /// <summary>Writes the request's "shelf" and "words"; the script builds and checks the instruction.</summary>
+        public void WriteTo(ConfigDocument document)
         {
-            foreach (KeyValuePair<string, float> slider in Sliders)
-            {
-                document.Set("mood." + slider.Key, Math.Max(0f, Math.Min(1f, slider.Value)));
-            }
+            document.Set("shelf", new List<string>(Words));
+            document.Set("words", FreeWords);
         }
     }
 
@@ -116,14 +118,19 @@ namespace VirtualVessel.VoiceLab.Design
     /// <summary>One voice made from a description, to listen to and maybe build on.</summary>
     public sealed class VoiceCandidate
     {
-        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction)
+        public VoiceCandidate(string id, int seed, string file, PitchSummary pitch, string instruction, string reference = null, VoiceDescription description = null)
         {
             Id = id;
             Seed = seed;
             File = file;
             Pitch = pitch;
             Instruction = instruction;
+            Reference = reference;
+            Description = description;
         }
+
+        /// <summary>The words it was asked with, kept in the run to make it again; null when unknown.</summary>
+        public VoiceDescription Description { get; }
 
         public string Id { get; }
 
@@ -135,6 +142,9 @@ namespace VirtualVessel.VoiceLab.Design
         public PitchSummary Pitch { get; }
 
         public string Instruction { get; }
+
+        /// <summary>The audio it was made near, or null.</summary>
+        public string Reference { get; }
     }
 
     /// <summary>A timbre preview: the edited sample of a candidate.</summary>

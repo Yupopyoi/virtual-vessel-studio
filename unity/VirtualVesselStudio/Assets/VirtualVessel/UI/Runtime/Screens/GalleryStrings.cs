@@ -67,6 +67,10 @@ namespace VirtualVessel.UI.Screens
         public const string DialogBody = "gallery.dialog-body";
         public const string DialogConfirm = "gallery.dialog-confirm";
         public const string OpenMenu = "gallery.open-menu";
+        public const string Steps = "gallery.steps";
+        public const string StepBase = "gallery.step-base";
+        public const string StepTone = "gallery.step-tone";
+        public const string StepBuild = "gallery.step-build";
     }
 }
 #endif

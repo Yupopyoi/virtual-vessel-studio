@@ -61,6 +61,7 @@ For each component, the following states are defined:
 - A 6px track. The part up to the value is Primary; the rest is Surface 3.
 - The thumb is an 18px circle (fill Knob, edge Primary). Knob is light on dark backgrounds and white-ish on light ones, so the thumb does not look heavy on light.
 - The current value is shown nearby as a number (Numeric or tabular digits) with its unit (for example `−12 dB`, `+4`).
+- A slider over a few choices in order, whose numbers would mean nothing, stops only on them and shows the chosen one's name instead of a number (for example Voice Lab's mood).
 
 ### 3.5 Level Meter
 
@@ -239,7 +240,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 ### 3.26 Step Indicator
 
 - Shows where the user is in work split into steps (for example, Voice Lab's flow for making a voice, system design 14.13).
-- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a radius-round frame. Steps sit in a row and wrap when narrow.
+- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a frame with Radius Control corners (the number with Radius S). Steps sit in a row and wrap when narrow.
 - The current step: Accent Line frame, Tint background, Primary behind the number. Finished steps: the success color behind the number. Steps not reached: Text 2.
 - Finished steps can be pressed to go back. The current step carries `aria-current="step"`. Color is not the only cue: the current step also differs in frame and background.
 - Buttons that move on name the step they lead to (for example, "STEP 2: Shape the timbre").
@@ -247,7 +248,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 ### 3.27 Candidate Tile
 
 - A frame for comparing several candidates and choosing one (for example, Voice Lab's STEP 1, system design 14.14). At least 200px wide, as many per row as fit.
-- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked").
+- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked"). A candidate made near another says so under its name in a caption ("From candidate 3").
 - In the middle: numbers (pitch and pitch range, monospace) and the range drawn as a band on a shared scale. Every candidate uses the same scale so they compare.
 - At the bottom: a Pick this voice button (Secondary).
 - The chosen candidate has an Accent Line frame and a Tint background.

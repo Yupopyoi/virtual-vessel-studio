@@ -126,6 +126,29 @@ void vv_audio_clip_free(vv_audio_clip* clip);
 - Media Foundationは遅延読み込みにする。Media FoundationのないWindows（NエディションでMedia Feature Packがないとき）でもエンジンは動き、ファイルの読み込みだけが`VV_AUDIO_UNREADABLE`になる。
 - 今の使い道は、診断画面の声の変換（試作）の「音声ファイルを流す」（スマートフォンで録ったM4Aなど）。WAVはそこではVoiceの`WavFile`が読み、プラグインを通さない。後でBGMとSEのファイルの再生（4章の`AudioSourceInput`）にも使う。
 
+### 5.5 ユーザーだけに聞かせる再生
+
+```c
+// モノラルのサンプルをモニター用のバスだけに流す。配信には流さない。流すと前のものと入れ替わり、終わりで止まる。
+int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate);
+int32_t vv_audio_preview_stop(vv_audio_engine* engine);
+int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
+```
+
+```csharp
+public interface IAudioPreview
+{
+    Task<bool> PlayAsync(string path);   // ファイルはメインスレッドの外で読む。読めないか流せないときはfalse
+    void Stop();
+    float? Progress { get; }             // 0から1。流していないときはnull
+}
+```
+
+- Voice Labの候補や声色の試聴のように、ユーザーだけが聞く音に使う（方式設計14.14、14.15）。配信中でも、配信と録画には入らない。
+- モニター用のバスのリミッターの前で混ぜる。モニターの音量とミュートが効く（API version 9）。
+- 一度に1つ。別のものを流すと入れ替わる。サンプルはエンジンのレートに変換し、エンジンのロックの外でコピーする。ロックを取るのは入れ替えだけなので、オーディオスレッドはコピーを待たない。
+- `IAudioPreview`は`AudioService`が実装し、ファイルを`AudioFile.ReadMono`（5.4）で読む。プラグインがないときはfalseを返す。
+
 ## 6. Data Model
 
 - 内部の形式：48kHz、32bit float、ステレオ。モノラルの音の元は両方のチャンネルに写す。
@@ -244,7 +267,7 @@ native/audio/src/                      mixer（混ぜ合わせ、バス、読み
                                        dsp（音量、リミッター）、device_loop（機器のスレッド、WASAPIの共有モード）、device_source（取り込み）、
                                        device_output（モニターの再生）、audio_file（Media Foundationでのファイルの読み込み）、exports（エンジンと混ぜ合わせのスレッド）
 native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
-Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）、AudioFile
+Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）、AudioFile、IAudioPreview
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip（ライブ画面）
 ```

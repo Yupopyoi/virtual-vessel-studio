@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Core.Lifecycle;
@@ -16,7 +17,7 @@ namespace VirtualVessel.Audio
     /// project's audio profile in the engine, follows their states and levels every tenth of a second, and
     /// saves the user's changes. Optional: without it there is no sound, and everything else runs.
     /// </summary>
-    public sealed class AudioService : IApplicationService, IAudioService
+    public sealed class AudioService : IApplicationService, IAudioService, IAudioPreview
     {
         public const string ServiceName = "Audio";
 
@@ -71,6 +72,61 @@ namespace VirtualVessel.Audio
         public IAudioMonitor Monitor => _monitor;
 
         public TimeSpan StreamLatency => _engine?.StreamLatency ?? TimeSpan.Zero;
+
+        public float? Progress
+        {
+            get
+            {
+                if (!(_engine is IAudioPreviewEngine engine))
+                {
+                    return null;
+                }
+
+                (long played, long length) = engine.GetPreviewPosition();
+                return PreviewProgress(played, length);
+            }
+        }
+
+        public async Task<bool> PlayAsync(string path)
+        {
+            if (!(_engine is IAudioPreviewEngine engine))
+            {
+                return false;
+            }
+
+            float[] samples;
+            int rate = 0;
+            try
+            {
+                // Continues off the main thread: the engine's preview calls take its own lock and are safe from any thread.
+                samples = await Task.Run(() => AudioFile.ReadMono(path, out rate)).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is InvalidDataException || exception is AudioEngineException || exception is IOException || exception is UnauthorizedAccessException)
+            {
+                _log?.Warning($"This preview cannot be played: {exception.Message}");
+                return false;
+            }
+
+            // The engine may have stopped while the file was read.
+            if (_engine is IAudioPreviewEngine current && current == engine)
+            {
+                engine.PlayPreview(samples, rate);
+                return true;
+            }
+
+            return false;
+        }
+
+        public void Stop()
+        {
+            (_engine as IAudioPreviewEngine)?.StopPreview();
+        }
+
+        /// <summary>How far a preview is, from the engine's frames; null when nothing plays. Pure.</summary>
+        public static float? PreviewProgress(long played, long length)
+        {
+            return length > 0 ? Math.Min(1f, Math.Max(0f, played / (float)length)) : (float?)null;
+        }
 
         public AudioStreamTap RecordingTap => _engine?.RecordingTap ?? default;
 

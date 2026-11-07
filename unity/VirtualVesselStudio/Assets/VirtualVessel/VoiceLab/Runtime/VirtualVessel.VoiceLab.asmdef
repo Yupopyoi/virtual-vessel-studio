@@ -5,7 +5,8 @@
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",
         "VirtualVessel.ExternalServices",
-        "VirtualVessel.ProjectData"
+        "VirtualVessel.ProjectData",
+        "VirtualVessel.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

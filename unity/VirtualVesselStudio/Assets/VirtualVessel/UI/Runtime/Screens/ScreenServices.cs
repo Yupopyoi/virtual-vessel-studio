@@ -13,6 +13,7 @@ using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.Voice;
+using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -38,6 +39,15 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The voice conversion prototype, for the Diagnostics screen; null leaves its Card out.</summary>
         public IVoiceConversion Voice { get; set; }
+
+        /// <summary>Voice Lab (VoiceLab), for its screen; null shows it as not set up.</summary>
+        public IVoiceLab VoiceLab { get; set; }
+
+        /// <summary>What Voice Lab has made, for its Made voices tab; null leaves the tab out.</summary>
+        public IVoiceLabLibrary VoiceLabLibrary { get; set; }
+
+        /// <summary>Playing samples to the user only (Audio), for Voice Lab's candidates; null leaves out the play buttons.</summary>
+        public IAudioPreview AudioPreview { get; set; }
 
         /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
         public ISystemSettings SystemSettings { get; set; }

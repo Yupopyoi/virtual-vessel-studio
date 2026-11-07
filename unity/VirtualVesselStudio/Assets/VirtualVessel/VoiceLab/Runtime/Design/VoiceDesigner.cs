@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Scripts;
 using VirtualVessel.VoiceLab.Training;
 
@@ -48,14 +49,14 @@ namespace VirtualVessel.VoiceLab.Design
         };
 
         private readonly PythonScripts _scripts;
-        private readonly TrainingRunStore _runs;
+        private readonly ITrainingRunRepository _runs;
         private readonly ISystemClock _clock;
         private readonly ILog _log;
         private readonly string _session;
         private int _nextSeed;
 
         /// <param name="designsFolder">Candidates and previews of this session go in a folder of their own here.</param>
-        public VoiceDesigner(PythonScripts scripts, TrainingRunStore runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
+        public VoiceDesigner(PythonScripts scripts, ITrainingRunRepository runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
         {
             _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
@@ -65,18 +66,33 @@ namespace VirtualVessel.VoiceLab.Design
             _nextSeed = firstSeed;
         }
 
-        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
+        /// <param name="near">A candidate to make the new ones near, or null to make them from the description alone.</param>
+        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, VoiceCandidate near, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
         {
             ConfigDocument request = ConfigDocument.Create();
-            description.WriteMood(request);
-            request.Set("words", description.Words);
+            if (near != null)
+            {
+                request.Set("reference", near.File);
+            }
+
+            description.WriteTo(request);
             request.Set("count", count);
             request.Set("firstSeed", _nextSeed);
             request.Set("model", _scripts.Environment.VoxCpmModel);
             request.Set("output", Path.Combine(_session, "candidates"));
             _nextSeed += count;
             ConfigDocument result = await _scripts.RunAsync("generate.py", "candidates", request, _session, progress, cancellationToken).ConfigureAwait(false);
-            return Candidates(result);
+            return Candidates(result, description);
+        }
+
+        /// <summary>STEP 1's samples into <paramref name="folder"/>/&lt;language&gt;/ (generate.py samples).</summary>
+        public async Task MakeSamplesAsync(IReadOnlyList<string> languages, string folder, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
+        {
+            ConfigDocument request = ConfigDocument.Create();
+            request.Set("languages", new List<string>(languages));
+            request.Set("model", _scripts.Environment.VoxCpmModel);
+            request.Set("output", folder);
+            await _scripts.RunAsync("generate.py", "samples", request, folder, progress, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<TimbrePreview> PreviewTimbreAsync(VoiceCandidate candidate, TimbreSettings timbre, CancellationToken cancellationToken)
@@ -95,7 +111,15 @@ namespace VirtualVessel.VoiceLab.Design
         /// </summary>
         public async Task<TrainingRun> BuildVoiceAsync(VoiceCandidate candidate, TimbreSettings timbre, IProgress<BuildProgress> progress, CancellationToken cancellationToken)
         {
-            TrainingRun run = _runs.Create(Design(candidate, timbre));
+            CrudResult<TrainingRun> created = _runs.Create(Design(candidate, timbre));
+            if (!created.Ok)
+            {
+                // No run to keep the failure in: it comes back as a failed run without an ID.
+                _log.Error($"Building a voice could not start: {created.Detail}");
+                return TrainingRun.Start(null, Design(candidate, timbre), _clock.UtcNow).Ended(TrainingState.Failed, "io", created.Detail, _clock.UtcNow);
+            }
+
+            TrainingRun run = created.Value;
             string folder = _runs.FolderOf(run.RunId);
             ILog log = _log.WithContext("runId", run.RunId);
             log.Information("Building a voice.");
@@ -104,7 +128,7 @@ namespace VirtualVessel.VoiceLab.Design
                 for (int i = 0; i < s_steps.Length; i++)
                 {
                     BuildStep step = s_steps[i];
-                    run = _runs.Save(run.With(step.State, _clock.UtcNow));
+                    run = Keep(run.With(step.State, _clock.UtcNow));
                     int index = i;
                     var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total))));
                     ConfigDocument result = await _scripts.RunAsync(step.Script, step.Operation, StepRequest(index, candidate, timbre, folder, _scripts.Environment), folder, scriptProgress, cancellationToken).ConfigureAwait(false);
@@ -115,34 +139,55 @@ namespace VirtualVessel.VoiceLab.Design
                     }
                 }
 
-                run = _runs.Save(run.With(TrainingState.Completed, _clock.UtcNow));
+                run = Keep(run.With(TrainingState.Completed, _clock.UtcNow));
                 progress?.Report(new BuildProgress(TrainingState.Completed, 1f));
                 log.Information("The voice is built.");
             }
             catch (ScriptFailedException exception)
             {
                 TrainingState state = exception.Code == "cancelled" ? TrainingState.Cancelled : TrainingState.Failed;
-                run = _runs.Save(run.Ended(state, exception.Code, exception.Message, _clock.UtcNow));
+                run = KeepEnded(run.Ended(state, exception.Code, exception.Message, _clock.UtcNow), log);
                 log.Write(state == TrainingState.Failed ? LogLevel.Warning : LogLevel.Information, $"Building the voice ended: {state}", exception);
             }
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
             {
                 // Writing a request or run.json failed (a full disk, a locked file): the run still ends as failed.
-                run = _runs.Save(run.Ended(TrainingState.Failed, "io", exception.Message, _clock.UtcNow));
+                run = KeepEnded(run.Ended(TrainingState.Failed, "io", exception.Message, _clock.UtcNow), log);
                 log.Error("Building the voice failed on a file.", exception);
             }
 
             return run;
         }
 
+        // The build is the caller of the run's CRUD (system design 6.31): a run that cannot be saved ends the
+        // build as failed, through the IOException handler above.
+        private TrainingRun Keep(TrainingRun run)
+        {
+            CrudResult<TrainingRun> saved = _runs.Save(run);
+            return saved.Ok ? saved.Value : throw new IOException(saved.Detail);
+        }
+
+        // The ending is kept if it can be; when even that fails, the run still comes back ended, and the log says so.
+        private TrainingRun KeepEnded(TrainingRun run, ILog log)
+        {
+            CrudResult<TrainingRun> saved = _runs.Save(run);
+            if (!saved.Ok)
+            {
+                log.Error($"The run's ending could not be saved: {saved.Detail}");
+            }
+
+            return run;
+        }
+
         /// <summary>Candidates from generate.py's result. Pure.</summary>
-        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result)
+        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result, VoiceDescription description = null)
         {
             string instruction = result.Get<string>("instruction");
+            string reference = result.Get<string>("reference");
             var candidates = new List<VoiceCandidate>();
             foreach (CandidateFields item in result.Get("candidates", new List<CandidateFields>()))
             {
-                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction));
+                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference, description));
             }
 
             return candidates;
@@ -164,14 +209,26 @@ namespace VirtualVessel.VoiceLab.Design
         /// <summary>A preview's file name, one per candidate and timbre, so trying a timbre again plays the same file. Pure.</summary>
         public static string PreviewName(string candidateId, TimbreSettings timbre)
         {
-            return string.Format(CultureInfo.InvariantCulture, "{0}_p{1:+0.#;-0.#;0}_a{2:+0.#;-0.#;0}_b{3:+0.#;-0.#;0}_r{4:+0.#;-0.#;0}.wav",
-                candidateId, timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness);
+            return string.Format(CultureInfo.InvariantCulture, "{0}_p{1:+0.#;-0.#;0}_a{2:+0.#;-0.#;0}_b{3:+0.#;-0.#;0}_r{4:+0.#;-0.#;0}_s{5:+0.#;-0.#;0}.wav",
+                candidateId, timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
         }
 
         /// <summary>What run.json keeps of how the voice was made. Pure.</summary>
         public static RunDesign Design(VoiceCandidate candidate, TimbreSettings timbre)
         {
-            return new RunDesign { Instruction = candidate.Instruction, Seed = candidate.Seed, Candidate = candidate.File, Timbre = timbre.ToValues() };
+            return new RunDesign
+            {
+                Instruction = candidate.Instruction,
+                Seed = candidate.Seed,
+                Candidate = candidate.File,
+                Reference = candidate.Reference,
+                Timbre = timbre.ToValues(),
+                Words = new List<string>(candidate.Description?.Words ?? Array.Empty<string>()),
+                FreeWords = candidate.Description?.FreeWords ?? string.Empty,
+                MedianHz = candidate.Pitch.MedianHz,
+                LowHz = candidate.Pitch.LowHz,
+                HighHz = candidate.Pitch.HighHz,
+            };
         }
 
         /// <summary>The request of the build's step <paramref name="step"/>. Pure.</summary>

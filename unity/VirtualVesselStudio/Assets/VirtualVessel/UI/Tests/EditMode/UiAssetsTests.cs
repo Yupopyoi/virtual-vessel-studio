@@ -21,6 +21,19 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void EveryStyleSheet_IsImported()
+        {
+            // A broken .meta makes Unity ignore the sheet without an error in the tests, and the screen loses its styles.
+            string[] files = System.IO.Directory.GetFiles(System.IO.Path.Combine(Application.dataPath, "VirtualVessel", "UI", "Styles"), "*.uss", System.IO.SearchOption.AllDirectories);
+            Assert.That(files, Is.Not.Empty);
+            foreach (string file in files)
+            {
+                string path = "Assets" + file.Substring(Application.dataPath.Length).Replace('\\', '/');
+                Assert.That(AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.StyleSheet>(path), Is.Not.Null, path);
+            }
+        }
+
+        [Test]
         public void StringTables_AreEveryStringsJson()
         {
             TextAsset[] files = UiAssetsUpdater.FindStringTables();

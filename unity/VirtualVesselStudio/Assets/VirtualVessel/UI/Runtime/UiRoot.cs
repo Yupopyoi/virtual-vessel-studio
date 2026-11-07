@@ -21,6 +21,7 @@ using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.UI.Theme;
 using VirtualVessel.UI.Tooltips;
+using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI
 {
@@ -492,7 +493,7 @@ namespace VirtualVessel.UI
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens)),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), settings.LastSetupPage, settings.SetLastSetupPage)),
-                new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
+                new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new VoiceLabScreen(context.Screens.VoiceLab, context.Screens.AudioPreview, context.Screens.Streaming, context.Screens.VoiceLabLibrary)),
                 new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId), voice: context.Screens.Voice, files: context.Screens.FileDialog), developerOnly: true),
             };
 #if UNITY_EDITOR

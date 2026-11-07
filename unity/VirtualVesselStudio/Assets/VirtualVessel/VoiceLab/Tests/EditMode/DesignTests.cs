@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using NUnit.Framework;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.VoiceLab.Design;
@@ -45,7 +46,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 "{\"type\":\"result\",\"instruction\":\"calm\",\"candidates\":[{\"seed\":7,\"file\":\"a.wav\",\"medianHz\":268,\"lowHz\":203,\"highHz\":338},{\"seed\":8,\"file\":\"b.wav\"}]}",
             });
 
-            IReadOnlyList<VoiceCandidate> candidates = Designer(runner, 7).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, null, CancellationToken.None).Result;
+            IReadOnlyList<VoiceCandidate> candidates = Designer(runner, 7).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, null, null, CancellationToken.None).Result;
 
             Assert.That(candidates.Select(c => c.Id), Is.EqualTo(new[] { "candidate_7", "candidate_8" }));
             Assert.That(candidates[0].Pitch.MedianHz, Is.EqualTo(268));
@@ -54,20 +55,57 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
-        public void Candidates_RequestCarriesTheMoodAndNextSeeds()
+        public void Candidates_RequestCarriesTheShelfWordsAndNextSeeds()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[]}" });
             VoiceDesigner designer = Designer(runner, 100);
-            var mood = new VoiceDescription(new Dictionary<string, float> { ["softness"] = 0.85f, ["energy"] = 2f }, "husky");
+            var mood = new VoiceDescription(new[] { "male", "airy" }, "husky");
 
-            designer.MakeCandidatesAsync(mood, 6, null, CancellationToken.None).Wait();
-            designer.MakeCandidatesAsync(mood, 6, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
 
             ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
             Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 106 }));
-            Assert.That(requests[0].Get<float>("mood.softness"), Is.EqualTo(0.85f).Within(1e-6));
-            Assert.That(requests[0].Get<float>("mood.energy"), Is.EqualTo(1f), "Sliders are clamped to 0..1.");
-            Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"));
+            Assert.That(requests[0].Get<List<string>>("shelf"), Is.EqualTo(new[] { "male", "airy" }));
+            Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"), "The script cleans the words and builds the instruction.");
+        }
+
+        [Test]
+        public void Samples_RequestNamesTheLanguagesAndFolder()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"count\":27}" });
+            string folder = Path.Combine(_folder, "Samples");
+            Designer(runner, 1).MakeSamplesAsync(new[] { "ja" }, folder, null, CancellationToken.None).Wait();
+
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
+            Assert.That(runner.Requests.Single().Arguments[2], Is.EqualTo("samples"));
+            Assert.That(request.Get<List<string>>("languages"), Is.EqualTo(new[] { "ja" }));
+            Assert.That(request.Get<string>("output"), Is.EqualTo(folder));
+        }
+
+        [Test]
+        public void CandidatesNearAPickedOne_SendItAsTheReference_AndRememberIt()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"reference\":\"C:/d/candidate_7.wav\",\"candidates\":[{\"seed\":13,\"file\":\"c.wav\"}]}" });
+            VoiceDesigner designer = Designer(runner, 13);
+
+            VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, Candidate(), null, CancellationToken.None).Result.Single();
+
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
+            Assert.That(request.Get<string>("reference"), Is.EqualTo(Candidate().File));
+            Assert.That(made.Reference, Is.EqualTo("C:/d/candidate_7.wav"));
+            Assert.That(VoiceDesigner.Design(made, default).Reference, Is.EqualTo("C:/d/candidate_7.wav"), "Kept in run.json, to make the voice again.");
+        }
+
+        [Test]
+        public void CandidatesFromTheMoodAlone_HaveNoReference()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[{\"seed\":1,\"file\":\"a.wav\"}]}" });
+
+            VoiceCandidate made = Designer(runner, 1).MakeCandidatesAsync(new VoiceDescription(null, ""), 1, null, null, CancellationToken.None).Result.Single();
+
+            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3])).Get<string>("reference"), Is.Null);
+            Assert.That(made.Reference, Is.Null);
         }
 
         [Test]
@@ -86,7 +124,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(run.Design.Timbre.Age, Is.EqualTo(4f));
             Assert.That(reported.Select(p => p.Fraction), Is.Ordered);
             Assert.That(reported.Last().State, Is.EqualTo(TrainingState.Completed));
-            TrainingRun stored = _runs.List().Single();
+            TrainingRun stored = _runs.List().Value.Single();
             Assert.That(stored.GetState(), Is.EqualTo(TrainingState.Completed));
             Assert.That(stored.Design.Seed, Is.EqualTo(7));
             Assert.That(File.ReadAllText(Path.Combine(_runs.FolderOf(run.RunId), TrainingRunStore.FileName)), Does.Contain("\"state\": \"Completed\""));
@@ -104,7 +142,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Failed));
             Assert.That(run.ErrorCode, Is.EqualTo("out_of_memory"));
             Assert.That(runner.Ran.Last(), Is.EqualTo("train.py run"));
-            Assert.That(_runs.List().Single().ErrorCode, Is.EqualTo("out_of_memory"));
+            Assert.That(_runs.List().Value.Single().ErrorCode, Is.EqualTo("out_of_memory"));
         }
 
         [Test]
@@ -134,12 +172,14 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             string folder = @"C:\runs\r1";
             ConfigDocument speech = VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment);
-            ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0), folder, _environment);
+            ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0, 2), folder, _environment);
             ConfigDocument train = VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment);
             ConfigDocument export = VoiceDesigner.StepRequest(3, Candidate(), default, folder, _environment);
 
             Assert.That(timbre.Get<string>("source"), Is.EqualTo(speech.Get<string>("output")));
             Assert.That(timbre.Get<float>("timbre.pitch"), Is.EqualTo(4f));
+            Assert.That(timbre.Get<float>("timbre.softness"), Is.EqualTo(2f));
+            Assert.That(VoiceDesigner.Design(Candidate(), new TimbreSettings(0, 0, 0, 0, 2)).Timbre.Softness, Is.EqualTo(2f), "Kept in run.json, to make the voice again.");
             Assert.That(train.Get<string>("data"), Is.EqualTo(timbre.Get<string>("output")));
             Assert.That(export.Get<string>("weights"), Is.EqualTo(Path.Combine(train.Get<string>("work"), "voice.pth")));
             Assert.That(export.Get<string>("speech"), Is.EqualTo(timbre.Get<string>("output")));
@@ -150,7 +190,10 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void PreviewName_IsTheSameForTheSameTimbre()
         {
-            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(4, -2.5f, 0, 0)), Is.EqualTo("candidate_7_p+4_a-2.5_b0_r0.wav"));
+            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(4, -2.5f, 0, 0)), Is.EqualTo("candidate_7_p+4_a-2.5_b0_r0_s0.wav"));
+            Assert.That(VoiceDesigner.PreviewName("candidate_7", new TimbreSettings(0, 0, 0, 0, 3)), Is.EqualTo("candidate_7_p0_a0_b0_r0_s+3.wav"));
+            Assert.That(new TimbreSettings(0, 0, 0, 0, -2).Softness, Is.EqualTo(0f), "There is no pressed side.");
+            Assert.That(new TimbreSettings(0, 0, 0, 0, 9).Softness, Is.EqualTo(6f));
             Assert.That(new TimbreSettings(9, 0, 0, 0).Pitch, Is.EqualTo(6f));
         }
 
@@ -184,32 +227,32 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void Store_ListsNewestFirstAndSkipsUnreadableRuns()
         {
-            TrainingRun first = _runs.Create(new RunDesign());
+            TrainingRun first = _runs.Create(new RunDesign()).Value;
             _clock.UtcNow = _clock.UtcNow.AddMinutes(5);
-            TrainingRun second = _runs.Create(new RunDesign());
+            TrainingRun second = _runs.Create(new RunDesign()).Value;
             string broken = Path.Combine(_folder, "VoiceLab", TrainingRunStore.FolderName, "broken");
             Directory.CreateDirectory(broken);
             File.WriteAllText(Path.Combine(broken, TrainingRunStore.FileName), "{");
 
-            Assert.That(_runs.List().Select(r => r.RunId), Is.EqualTo(new[] { second.RunId, first.RunId }));
+            Assert.That(_runs.List().Value.Select(r => r.RunId), Is.EqualTo(new[] { second.RunId, first.RunId }));
         }
 
         [Test]
         public void Register_CopiesACompletedRunsVoice()
         {
-            TrainingRun run = _runs.Save(_runs.Create(new RunDesign { Seed = 7 }).With(TrainingState.Completed, _clock.UtcNow));
+            TrainingRun run = _runs.Save(_runs.Create(new RunDesign { Seed = 7 }).Value.With(TrainingState.Completed, _clock.UtcNow)).Value;
             string output = Path.Combine(_runs.FolderOf(run.RunId), "output");
             Directory.CreateDirectory(output);
             File.WriteAllText(Path.Combine(output, "voice.sentis"), "model");
             File.WriteAllText(Path.Combine(output, "voice.spk"), "speaker");
             File.WriteAllText(Path.Combine(output, "voice.json"), "{\"medianPitchHz\":360}");
-            var registrar = new VoiceModelRegistrar(Path.Combine(_folder, "VoiceModels"), _runs, _clock);
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
-            RegisteredVoice voice = registrar.Register(run, "My voice");
+            RegisteredVoice voice = registrar.Register(run, "My voice").Value;
 
             Assert.That(voice.MedianPitchHz, Is.EqualTo(360));
             Assert.That(Directory.GetFiles(voice.Folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "model.json", "voice.json", "voice.sentis", "voice.spk" }));
-            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelRegistrar.ModelFile)));
+            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelStore.ModelFile)));
             Assert.That(model.Get<string>("name"), Is.EqualTo("My voice"));
             Assert.That(model.Get<int>("design.seed"), Is.EqualTo(7));
             Assert.That(model.Get<int>("schemaVersion"), Is.EqualTo(1));
@@ -219,10 +262,10 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void Register_RefusesARunThatDidNotComplete()
         {
-            TrainingRun run = _runs.Create(new RunDesign());
-            var registrar = new VoiceModelRegistrar(Path.Combine(_folder, "VoiceModels"), _runs, _clock);
+            TrainingRun run = _runs.Create(new RunDesign()).Value;
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
 
-            Assert.Throws<InvalidOperationException>(() => registrar.Register(run, "x"));
+            Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
         }
 
         [TestCase("{\"medianPitchHz\":353}", 353)]

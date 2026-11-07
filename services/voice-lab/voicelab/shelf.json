@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    { "id": "voice", "main": true },
+    { "id": "person", "main": true },
+    { "id": "pitch", "main": true },
+    { "id": "energy", "main": true },
+    { "id": "quality", "main": false },
+    { "id": "character", "main": false },
+    { "id": "manner", "main": false }
+  ],
+  "slots": [
+    { "id": "voice", "group": "voice", "default": "female" },
+    { "id": "person", "group": "person", "default": "p20" },
+    { "id": "pitch", "group": "pitch", "default": "light" },
+    { "id": "resonance", "group": "quality", "default": "soft" },
+    { "id": "breath", "group": "quality", "default": "clean" },
+    { "id": "character", "group": "character", "default": "friendly" },
+    { "id": "energy", "group": "energy", "default": "attentive" },
+    { "id": "intonation", "group": "manner", "defaultSentence": "{She} uses subtle, varied intonation and small spontaneous changes in rhythm." },
+    { "id": "speed", "group": "manner", "defaultSentence": "{She} speaks at a natural conversational pace." },
+    { "id": "naturalness", "group": null, "defaultSentence": "The performance is realistic, human and conversational, without forced pitch, exaggerated acting, squeaking or cartoon-like delivery." }
+  ],
+  "words": [
+    { "id": "female", "slot": "voice" },
+    { "id": "male", "slot": "voice" },
+    { "id": "p40", "slot": "person", "sentence": "A Japanese {woman} in {her} forties speaking in a relaxed everyday conversation." },
+    { "id": "p20", "slot": "person", "sentence": "A Japanese {woman} in {her} twenties speaking in a relaxed everyday conversation." },
+    { "id": "p10", "slot": "person", "sentence": "A Japanese {girl} in {her} late teens speaking casually in a relaxed everyday conversation." },
+    { "id": "anime", "slot": "person", "sentence": "A youthful Japanese {girl} speaking casually. {Her} voice is squeaky cartoon-character voice" },
+    { "id": "deep", "slot": "pitch", "sentence": "{Her} voice is deep and low, with a calm, steady register." },
+    { "id": "lowish", "slot": "pitch", "sentence": "{Her} voice has a calm, slightly low and stable register." },
+    { "id": "light", "slot": "pitch", "sentence": "{Her} voice stays in a comfortable, naturally light register." },
+    { "id": "raised", "slot": "pitch", "sentence": "{Her} voice has a naturally elevated, light register without sounding strained." },
+    { "id": "soft", "slot": "resonance", "sentence": "{Her} vocal tone is light, clear and warm, with a gentle smile and soft, rounded vocal resonance." },
+    { "id": "focused", "slot": "resonance", "sentence": "{Her} vocal tone is light, clear and warm, with focused resonance and crisp articulation." },
+    { "id": "airy", "slot": "breath", "sentence": "A slight airy quality adds softness while the speech remains clear and intelligible." },
+    { "id": "clean", "slot": "breath", "sentence": "The voice remains clean and focused without excessive breathiness." },
+    { "id": "friendly", "slot": "character", "sentence": "{She} sounds naturally charming and friendly" },
+    { "id": "sweet", "slot": "character", "sentence": "{She} sounds naturally charming, sweet and slightly playful" },
+    { "id": "cool", "slot": "character", "sentence": "{She} sounds composed and understated" },
+    { "id": "sleepy", "slot": "energy", "sentence": ", with a quiet, subdued and sleepy mood." },
+    { "id": "gentle", "slot": "energy", "sentence": ", with a calm, gentle and relaxed mood." },
+    { "id": "attentive", "slot": "energy", "sentence": ", with relaxed but attentive energy." },
+    { "id": "upbeat", "slot": "energy", "sentence": ", with warm and upbeat energy." },
+    { "id": "lively", "slot": "energy", "sentence": ", with cheerful and pleasantly lively energy." },
+    { "id": "bubbly", "slot": "energy", "sentence": ", with very energetic, bubbly and excited energy." },
+    { "id": "varied", "slot": "intonation", "sentence": "{She} uses lively but natural variations in rhythm and intonation." },
+    { "id": "steady", "slot": "intonation", "sentence": "{She} uses restrained, calm and stable intonation." },
+    { "id": "slow", "slot": "speed", "sentence": "{She} speaks slowly and gently with natural pauses." },
+    { "id": "quick", "slot": "speed", "sentence": "{She} speaks at a slightly quick but comfortable conversational pace." }
+  ],
+  "sampleSeed": 400,
+  "examples": [
+    { "id": "calm-adult", "words": ["female", "p40", "lowish", "gentle", "clean", "cool", "steady"], "seeds": { "ja": 400, "en": 400 } },
+    { "id": "lively-teen", "words": ["female", "p10", "raised", "lively", "friendly", "varied"], "seeds": { "ja": 400, "en": 400 } },
+    { "id": "soft-gentle", "words": ["female", "p20", "light", "gentle", "soft", "airy", "friendly", "slow"], "seeds": { "ja": 401, "en": 400 } },
+    { "id": "cartoon", "words": ["female", "anime", "raised", "bubbly", "sweet", "varied"], "seeds": { "ja": 400, "en": 400 } },
+    { "id": "low-calm-male", "words": ["male", "p40", "deep", "gentle", "focused", "cool", "steady"], "seeds": { "ja": 401, "en": 400 } },
+    { "id": "bright-boy", "words": ["male", "p10", "light", "upbeat", "clean", "friendly"], "seeds": { "ja": 403, "en": 403 } }
+  ]
+}

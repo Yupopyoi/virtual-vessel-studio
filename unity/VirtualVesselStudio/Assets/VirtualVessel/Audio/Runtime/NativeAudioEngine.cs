@@ -102,10 +102,10 @@ namespace VirtualVessel.Audio
     /// <c>VirtualVessel.Audio.Native</c> (native/audio/include/vv_audio.h): WASAPI capture, the mix, and the
     /// stream tap, on threads of its own. Calls come from the main thread.
     /// </summary>
-    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine
+    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 8;
+        private const int ApiVersion = 9;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -209,6 +209,21 @@ namespace VirtualVessel.Audio
         public void Denoise(float[] samples, int count)
         {
             vv_audio_denoise(_engine, samples, count);
+        }
+
+        public void PlayPreview(float[] samples, int rate)
+        {
+            vv_audio_preview_play(_engine, samples, samples.Length, rate);
+        }
+
+        public void StopPreview()
+        {
+            vv_audio_preview_stop(_engine);
+        }
+
+        public (long Played, long Length) GetPreviewPosition()
+        {
+            return vv_audio_preview_position(_engine, out long played, out long length) == Ok ? (played, length) : (0, 0);
         }
 
         public AudioStageDelay GetStageDelay(int source)
@@ -377,6 +392,15 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_api_version();
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_preview_play(IntPtr engine, [In] float[] samples, long count, int rate);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_preview_stop(IntPtr engine);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_preview_position(IntPtr engine, out long played, out long length);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_denoise(IntPtr engine, [In, Out] float[] samples, int count);

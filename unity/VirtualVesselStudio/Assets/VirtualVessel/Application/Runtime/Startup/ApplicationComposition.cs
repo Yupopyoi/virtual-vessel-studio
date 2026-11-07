@@ -28,6 +28,7 @@ using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
+using VirtualVessel.VoiceLab;
 using VirtualVessel.Voice;
 
 namespace VirtualVessel.Application.Startup
@@ -261,6 +262,7 @@ namespace VirtualVessel.Application.Startup
             // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
             if (context.UiRoot != null && context.ConfigDirectory != null)
             {
+                VoiceLabService voiceLab = null;
                 descriptors.Add(new ApplicationServiceDescriptor(
                     UiApplicationService.ServiceName,
                     ServiceCriticality.Optional,
@@ -288,6 +290,10 @@ namespace VirtualVessel.Application.Startup
                                 Captures = capture,
                                 Audio = audio,
                                 Voice = voice,
+                                // Assigned in order: the library comes with Voice Lab.
+                                VoiceLab = voiceLab = VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")),
+                                VoiceLabLibrary = voiceLab.Library,
+                                AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
                                 Streaming = streamingService,

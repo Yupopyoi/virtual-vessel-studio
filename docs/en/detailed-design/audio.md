@@ -126,6 +126,29 @@ void vv_audio_clip_free(vv_audio_clip* clip);
 - Media Foundation is delay-loaded. On Windows without it (an N edition without the Media Feature Pack) the engine still runs, and only reading a file gives `VV_AUDIO_UNREADABLE`.
 - For now it serves Play an audio file in voice conversion (prototype) on the Diagnostics screen, such as an M4A recorded on a phone. There, WAV is read by Voice's `WavFile`, without the plugin. Later it also serves playing BGM and sound effect files (`AudioSourceInput` in chapter 4).
 
+### 5.5 Previews to the User
+
+```c
+// Plays mono samples on the monitor bus only, never the stream. Playing replaces what plays; it stops at the end.
+int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate);
+int32_t vv_audio_preview_stop(vv_audio_engine* engine);
+int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
+```
+
+```csharp
+public interface IAudioPreview
+{
+    Task<bool> PlayAsync(string path);   // Reads the file off the main thread; false when it cannot be read or played
+    void Stop();
+    float? Progress { get; }             // 0 to 1; null when nothing plays
+}
+```
+
+- For samples only the user should hear, such as Voice Lab's candidates and timbre previews (system design 14.14, 14.15). They are not heard on the stream or in recordings, even while a stream runs.
+- The preview is mixed into the monitor bus before the monitor's limiter, so the monitor volume and mute apply to it (API version 9).
+- One at a time; playing another replaces it. The samples are resampled to the engine's rate and copied outside the engine's lock; only the swap takes the lock, so the audio thread does not wait for the copy.
+- `AudioService` implements `IAudioPreview` and reads the file with `AudioFile.ReadMono` (5.4). Without the plugin it returns false.
+
 ## 6. Data Models
 
 - Format inside: 48 kHz, 32-bit float, stereo. A mono source is copied to both channels.
@@ -244,7 +267,7 @@ native/audio/src/                      mixer (the mix, the buses, the tap; no th
                                        dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
                                        device_output (the monitor's playback), audio_file (reading files with Media Foundation), exports (the engine and its mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
-Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine), AudioFile
+Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine), AudioFile, IAudioPreview
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard (setup screen), AudioStrip (live screen)
 ```

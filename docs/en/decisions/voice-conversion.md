@@ -531,3 +531,69 @@ Before implementing Voice Lab, the two untested points were checked (Voice Lab d
 - Whether RVC training still runs as before in this environment is not yet checked (only `einops`, `pydantic`, and `voxcpm` are added; RVC's pinned versions do not change).
 
 One environment would mean one build and one copy of torch and CUDA (several GB).
+
+## 2026-11-05 to 2026-11-06 Shaping the timbre: what moves a voice, and how far
+
+The aim: controls a user can understand and that really change the voice (Voice Lab detailed design 8.3.1, 8.3.2). Each test used the same seeds, or the same two voices (about 257 Hz and 321 Hz) edited with WORLD and matched in loudness to the voice resynthesized without an edit. The scripts and audio are outside the repository (voice-work).
+
+1. **The mood and pitch**: the instruction changes only at thresholds, so the mood sliders became named levels. With six seeds each, the pitch item from Low to Raised gave the same medians (about 260 Hz); High about 300 Hz; youth and pitch together about +60 Hz; youth Mature about -30 Hz. A pitch written in Hz in the words had no effect. Above about 370 Hz nothing came out. Levels combined toward Cartoon-like sometimes sounded strained (the user).
+2. **Candidates near a picked one** (VoxCPM2 with the picked voice as the reference): three chained rounds stayed natural (the user). The six of a round differ clearly. Keeping the same person is not needed in STEP 1 (the user).
+3. **Wide bands** (a band of 1.5 octaves raised or lowered by 6 or 12 dB): small differences (the user).
+4. **Harmonics by number and narrow bands**: the 2nd harmonic and up, and a third of an octave from 1.4 kHz up, moved as set; the differences were still small. Raising or lowering the 4th and 5th harmonics (about 1 to 1.3 kHz for this voice) sounded muffled or nasal.
+5. **Brightness**: the old knob, a slope about 1 kHz running on to 24 kHz, put 44% of the energy above 8 kHz at +3 (1.3% before) and was heard as hiss. Raising 2 to 5 kHz by 8 dB sounded brighter but slightly hoarse; raising the harmonics only, with the noise kept at its level, kept the brightness without the hoarseness (the user). Moving the resonances above 1 kHz up (a "smile") changed little.
+6. **Pitch and brightness**: +4 semitones sounded brighter than age +4. Pitch +4 alone, and with the brightness lift, were acceptable; pitch +4, age +4, and the brightness lift together sounded mechanical (the user).
+7. **Soft or pressed**: tilting every harmonic by its number sounded nasal on the soft side and harsh on the pressed side (the pressed side was dropped). Raising only the first harmonic sounded soft without the nasal sound, and lowering above 4 kHz took the edge off. Changing the breath with them added little. The mood's Softness in STEP 1 made softer candidates by ear. H1-H2, the usual measure of softness, disagreed with the ear on one candidate and is not used to judge.
+
+8. **Through training and conversion**: the same training speech (VoxCPM2 copying one base) was trained as it was and with brightness and softness, and the user's recordings were converted with upstream's offline conversion to the same pitch. At 8 dB of brightness and 6 dB of softness the numbers changed (2 to 5 kHz three times the unedited voice's share, the first harmonic about 6 dB stronger) but the user heard no difference. At twice those sizes the difference was heard and not bad; at three times the voice was muffled (the share above 4 kHz fell from 0.8% to 0.1%).
+
+Decided (the user, 2026-11-06): brightness raises the harmonics of 2 to 5 kHz (16 dB at +6); softness (0 to +6) raises the first harmonic by up to 12 dB and lowers above 4 kHz by up to 6 dB; there is no pressed side. Pitch, age, and brightness all moved by 4 or more are warned of. Small timbre edits that are heard before training can vanish after conversion, so a knob is judged by listening after conversion.
+
+## 2026-11-07 The mood's levels and the voice, by a blind test
+
+STEP 1's mood items moved from sliders to named level buttons, and the user asked for about six levels per item and no gender in the names. The instruction (VCBM's sentences) was written for a female voice throughout.
+
+Made: VoxCPM2 candidates with the same seeds, only the instruction changed. Six levels each for youth, pitch, brightness, and energy (VCBM's sentences kept, new ones filling the gaps and the ends), three seeds each; and the default instruction with its person and pronouns made female, male, or neutral, four seeds each.
+
+Heard: pairs played as A and B with the levels hidden, the user saying which was lower, brighter, more energetic, or younger, or that they could not tell.
+
+| Item | Pair | Heard |
+|---|---|---|
+| Pitch | Low (new) and Lowish | yes, right |
+| Pitch | Natural and High | no |
+| Energy | Sleepy (new) and Gentle | yes, right |
+| Energy | Moderate and Upbeat (new) | yes, right |
+| Energy | Lively and Bubbly (new) | yes, right |
+| Brightness | Bright and Very bright (new) | no |
+| Brightness | Dark (new) and Calm | no |
+| Brightness | Dark and Very bright | the wrong way round |
+| Youth | Young adult and late teens (new) | no |
+| Youth | Middle-aged (new) and Mature | no |
+| Youth | Middle-aged and Cartoon-like | yes, right |
+
+Measured: the male instruction gave 109 to 137 Hz on three seeds of four (229 Hz on one), and the user heard natural male voices. The neutral one gave two male and two female voices, not a neutral one. Above Natural, pitch stayed about 280 to 300 Hz.
+
+Decided (the user, 2026-11-07): a voice choice, female or male, swaps the instruction's person and pronouns (no neutral choice). Energy has six levels, pitch four (Low, Lowish, Natural, Raised; higher is STEP 2's knob), youth three (Mature, Young, Cartoon-like). Brightness is not chosen in STEP 1 and keeps its default sentence; STEP 2's knob does it. Only levels heard apart are offered.
+
+## 2026-11-07 Words on a shelf instead of levels
+
+The named levels (Mature, Young, Cartoon-like) were vague to the user, who asked to see the words that go into the instruction instead, chosen from candidates or typed, with care for security.
+
+Decided (the user, 2026-11-07): STEP 1 offers a shelf of words to pick several from, shown in the screen's language with the English instruction readable. To make it clear: each word has a sample of the base with only that word added; the screen starts from examples with samples; the request is read back as one sentence; and the lead says words only give a direction. Samples are made on the user's PC when Voice Lab is set up, from the list of words and seeds in the repository, not shipped as audio. The examples' seeds are placeholders for now (the highest median of four seeds), to be replaced.
+
+Measured: the same seed read in Japanese and in English gave voices up to 136 Hz apart (examples, 2026-11-07), so samples are made per language with their own seeds; Japanese first.
+
+## 2026-11-08 The user's own words work in Japanese too
+
+The words field is appended to the English instruction as written, and its placeholder is Japanese, so whether Japanese words work was measured: the empty shelf with four seeds, then the same meaning added in Japanese and in English.
+
+| Words | Median pitch | Intonation range | 2 to 5 kHz share |
+|---|---|---|---|
+| None | 260 Hz | 159 Hz | 3.8% |
+| 低く落ち着いた声 | 263 Hz | 142 Hz | 3.1% |
+| a low, calm voice | 271 Hz | 139 Hz | 3.8% |
+| 明るく元気な声 | 283 Hz | 174 Hz | 4.3% |
+| a bright, cheerful voice | 276 Hz | 170 Hz | 5.1% |
+
+Japanese and English moved the voice alike: neither lowered the pitch (words do not set pitch, as before), and both made the bright one a little higher and livelier. The effects are small next to the seed's.
+
+Decided (the user, 2026-11-08): the words field takes Japanese as it is; no translation.

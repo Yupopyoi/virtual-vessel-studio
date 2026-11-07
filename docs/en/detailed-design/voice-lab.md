@@ -36,7 +36,7 @@ Out of scope: real-time conversion ([Voice detailed design](voice.md)), and star
 
 | Class | Kind | Role |
 |---|---|---|
-| `IVoiceLab` | Interface (UI) | For the UI: activation, audio, training, registration |
+| `IVoiceLab` | Interface (UI) | For the screen: candidates, timbre previews, building, registration (5); activation later |
 | `VoiceLabService` | Class | Application Service |
 | `VoiceTerms` | Class | The terms' version, where the text is, checking agreement |
 | `VoiceComponentInstaller` | Class | Moves the build through its steps |
@@ -59,25 +59,49 @@ On the Python side:
 
 ## 5. Public API
 
+`IVoiceLab` is declared in the UI module (`VirtualVessel.UI.VoiceLab`), so the screen depends on no Voice Lab class; `VoiceLabService` implements it. Its types are the screen's own: the request and result types of 8.5 stay inside Voice Lab.
+
 ```csharp
 public interface IVoiceLab
 {
-    IReadOnlyObservable<VoiceLabState> State { get; }
-    IReadOnlyObservable<InstallProgress> Install { get; }
-    VoiceTermsDocument Terms { get; }
-    Task ActivateAsync(VoiceTermsAgreement agreement, CancellationToken cancellationToken);
-    Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
-    Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+    VoiceLabAvailability Availability { get; }   // Ready, or NotSetUp without a training environment (6.4)
+    VoiceLabShelf Shelf { get; }                 // STEP 1's words and examples (8.3.1); null when not set up
+    string SampleFile(string language, string name);           // A sample's file, or null before it is made
+    Task MakeSamplesAsync(CancellationToken cancellationToken);  // Makes the samples on this PC (8.3.1)
+    VoiceLabMaking SamplesProgress { get; }
 
     // Designing a voice (8.3)
-    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
-    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near: null, or the candidate to make them near (8.3.1)
+    Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
+    VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
+    CrudResult Register(string runId, string name);
+
+    CrudResult<VoiceLabRemake> Remake(string runId);             // A run's words, base, and timbre, to make it again (8.6)
 }
 ```
 
-`TimbreSettings` holds four numbers, pitch (semitones), age (a formant ratio), brightness, and breathiness, each 0 (no change) by default.
+`IVoiceLabLibrary` (also in the UI module) is what was made, for the Made voices tab. It works without a training environment, so it is a separate interface; `VoiceLabLibrary` implements it over the repositories (8.6).
+
+```csharp
+public interface IVoiceLabLibrary
+{
+    CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns();     // Newest first
+    CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices(); // Newest first
+    CrudResult SetComment(string runId, string comment);
+    CrudResult RenameVoice(string voiceId, string name);
+    CrudResult DeleteRun(string runId);                    // Refused while that run is being made
+    CrudResult DeleteVoice(string voiceId);
+}
+```
+
+- `VoiceLabRequest` holds the shelf's word ids and the user's own words. `VoiceLabShelf` holds the shelf's groups, words (each with its slot and whether it is the slot's default), and examples, and decides what pressing a word does. `VoiceLabCandidate` holds the sample to play, its pitch (the median and the 5 to 95% range in Hz), and the instruction it was made from, shown folded (system design 14.14). The seed stays inside Voice Lab.
+- `VoiceLabTimbre` holds five steps, pitch (semitones), age (a formant ratio), brightness, breathiness from -6 to +6, and softness from 0 to +6, each 0 (no change) by default. `run.json` keeps all five; one without softness was made with 0. Voice Lab clamps them on the way in.
+- A failure that the screen should tell the user about throws `VoiceLabFailedException`, whose message is for developers. Cancelling throws `OperationCanceledException`. A build reports failing and cancelling in `VoiceLabBuild.State` instead, with `OutOfMemory` for GPU memory.
+- None of the methods blocks the main thread.
+- `Register` copies files and is called off the main thread by the screen.
+- Activation and terms (8.1, 8.2) and importing one's own recordings (the first stage of 8.3) come with their stages (17).
 
 ## 6. Data Model
 
@@ -115,10 +139,11 @@ Saved in `Config/voice-activation.json`.
 
 As in system design 13.14, kept in `VoiceLab/TrainingRuns/<RunId>/`, with state in `run.json`.
 
-**The first version does not use SQLite.** The list can be made by reading `run.json`. SQLite (system design 13.12) comes with the comparison screen.
+**The first version does not use SQLite.** The list can be made by reading `run.json`. SQLite (system design 13.12) comes with the comparison screen, behind the same repositories (8.6).
 
 ```text
 VoiceLab/
+├─ Samples/<language>/          STEP 1's samples, made on this PC (8.3.1)
 ├─ Designs/<start time>/        One session of designing a voice (8.3.1, 8.3.2)
 │  ├─ candidates/              The candidates' audio
 │  ├─ previews/                Timbre previews, one per candidate and timbre
@@ -131,7 +156,7 @@ VoiceLab/
    └─ output/                   voice.sentis, voice.spk, voice.json (what registration copies)
 ```
 
-`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the timbre), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
+`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre, and the shelf's `words`, the user's `freeWords`, and the base's pitch `medianHz`, `lowHz`, `highHz`; missing in older runs, read as none or 0), `comment` (the user's note), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
 
 The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its measured share of the time (speech 39%, edit 6%, training 50%, export 5%).
 
@@ -141,7 +166,7 @@ Until activation (the sixth stage) exists, a developer names the training enviro
 
 ### 6.5 Registered Voices
 
-`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
+`VoiceModels/voice-<RunId>/` holds `voice.sentis`, `voice.spk`, `voice.json`, and `model.json` (`schemaVersion`, `id`, `name`, `runId`, `registeredAtUtc`, `medianPitchHz`, `design`, `versions`). Only a completed run is registered. A voice can be renamed and deleted (8.6). The files are copied into a folder beside the target and then renamed, so streaming never reads half a voice. The run's own files stay.
 
 ## 7. State and Lifecycle
 
@@ -234,8 +259,12 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 #### 8.3.1 Picking a base
 
-- The mood is set with sliders (youth, pitch, brightness, softness, breathiness, energy, cuteness, intonation, pace, naturalness) and free words, built into an instruction for VoxCPM2 by VCBM's `VoicePromptBuilder`.
+- The voice is asked for with words from a shelf (`voicelab/shelf.json`, read by the scripts and by Unity) and free words. Each word fills one slot of the instruction (person, pitch, resonance, breath, character, energy, intonation, pace); a slot takes one word, so opposite words share a slot, and a slot with none takes its default. An empty pick gives the instruction VCBM's `VoicePromptBuilder` was tuned with. The sentences are VCBM's, or were heard apart in a blind test; the person's say the age the screen shows (in her forties, twenties, late teens), so the label and the instruction agree (the user's decision, 2026-11-07). Brightness is not on the shelf and is set in STEP 2. VCBM's sentences are written for a female voice; the male word swaps the person and the pronouns, and the user's words are left as written (decision record, 2026-11-07).
+- The screen starts from examples (a set of words with a seed), offers each word with a sample of the base (no words) with only that word added, made with one seed, and reads the request back as one sentence in the screen's language from each word's phrase. Samples are made on the user's PC when Voice Lab is set up (`generate.py samples`, into `Samples/<language>/`); until activation exists the screen offers to make them. They are made in Japanese for now: the same seed in English gave a voice of another pitch, so each language needs its own seeds.
+- The user's words are sent inside the instruction, which is sent in brackets before the line read aloud. The scripts remove brackets, line breaks, controls, and invisible or direction-changing characters, and keep 200 characters, so the words cannot end the instruction and be read aloud. Imitating a real person is not something code can stop; the terms (8.2) cover it.
 - The same instruction gives very different voices with different seeds (268 Hz and 406 Hz). Sliders alone do not reach the ideal, so several candidates (about six) are made at a time, with More to add more.
+- STEP 1 only finds a base close to the ideal; STEP 2 shapes it (the user's decision, 2026-11-05). Make candidates near this voice makes six with the picked candidate as VoxCPM2's reference and the same instruction, to look around a voice that is close. Picking one of them and going again uses it as the next reference. In a measurement three rounds of this stayed natural to the ear; the six of a round differ clearly, so they are compared and picked, not fine-tuned (2026-11-05). Keeping the same person is not needed here: training clones the base afterwards.
+- The mood items' levels and words move a voice's pitch little (the combination of youth and pitch about +60 Hz, writing Hz no effect; 2026-11-05). The pitch in Hz is set in STEP 2.
 - Candidates can be compared by numbers as well as by ear (the user's request, 2026-11-03): pitch (the median) and its range (5 to 95%) in Hz, with the range drawn on a shared scale, and sorting by pitch.
 - The screen numbers its steps STEP 1 to STEP 5, and the buttons that move on name the step they lead to (the user's request, 2026-11-03).
 - Words that move the voice use only the chosen base as the reference. Using generated voices as references, one after another, makes the voice hoarse.
@@ -251,9 +280,12 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 |---|---|---|
 | Pitch | Pitch in semitones | Still the same person at +4 semitones |
 | Age | The envelope stretched along frequency | ×1.10 is "the same person, if anything" (the user) |
-| Brightness | The envelope's slope | Not tried |
+| Brightness | The harmonics of 2 to 5 kHz raised or lowered (16 dB at +6), the noise there kept at its level | Brighter without hoarseness; the old slope to 24 kHz was heard as hiss (decision record, 2026-11-06) |
+| Softness (0 to +6) | The first harmonic raised (up to 12 dB) and above 4 kHz lowered (up to 6 dB) | Soft without the nasal sound of tilting every harmonic; no pressed side, which sounded harsh |
 | Breathiness | Aperiodicity of voiced parts | No difference in the measured numbers; needs listening |
 
+- Brightness and softness are sized by what is heard after training and conversion: half these sizes was not heard, these were heard and natural, and one and a half times these muffled the voice (decision record, 2026-11-06).
+- Pitch, age, and brightness moved far together (all three at 4 or more) sound mechanical, so the screen warns of it (decision record, 2026-11-06).
 - There are no intonation or pace knobs. After conversion, intonation and pace come from the speaker (changing them in training speech does not survive conversion). Widening intonation during conversion sounds mechanical (the user, 2026-11-03).
 - The edited timbre survived training and a conversion that is not real-time (decision record).
 
@@ -268,6 +300,19 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 - Trying goes through the application's real-time conversion (the window, the overlap at joins, the recent speech, and noise removal in the Voice detailed design). Upstream's conversion of a whole file at once hides the window's problems and overrates a voice: held "u" and "e" were right there and drifted in real time.
 - The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone.
 - The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is for the Voice detailed design (chapter 17).
+
+### 8.6 Made Voices
+
+The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the registered voices, plays them, names and notes them, deletes them, and makes a run again (the user's decision, 2026-11-07).
+
+**CRUD follows system design 6.31.** The repositories, the library, `Register`, and `Remake` return `CrudResult` and only report a failure (NotFound, Invalid, Busy, StorageFailed); the screen handles it, telling the user by its kind and logging the detail. Deleting what is not there succeeds.
+
+**Storage behind repositories.** Runs and voices are read and written only through `ITrainingRunRepository` (list, get, create, save, delete) and `IVoiceModelRepository` (list, get, add, rename, delete). The first implementations keep `run.json` and `model.json` (6.3, 6.5). SQLite (system design 13.12) will be another implementation of the same interfaces, with the large files staying in the folders (13.13), so the service and the screen do not change. Nothing outside the repositories reads those files.
+
+- List: runs and voices, newest first. A run shows its date, state, the words picked, the timbre, its note, and the voices registered from it; a voice shows its name, its pitch, and its date. Both play the base the run was made from (registered voices are tried with the real-time conversion, the fifth stage).
+- Rename and note: a voice's name follows the register rules (required, up to 60 characters). A run's note is up to 500 characters. Both are saved at once.
+- Delete: after a confirmation. A run being built cannot be deleted. Deleting a voice leaves its run, and deleting a run leaves the voices registered from it (each voice folder holds its own files and design). Keeping a voice that streaming uses from being deleted comes with Use it now, which is when a voice can be in use.
+- Make again: the run's words, free words, base, and timbre go back into STEP 1 and STEP 2, which open at STEP 2. When the base's audio is gone, STEP 1 opens with the words and says so. A run from before the words were kept (no `words`) opens with an empty shelf.
 
 ### 8.4 Registration (making a `.sentis` without the Editor)
 
@@ -311,7 +356,8 @@ python -I <script>.py <operation> <request JSON file>
 
 | Script and operation | Main request items | Result |
 |---|---|---|
-| `generate.py candidates` | The mood (slider values and words), count, first seed, model location, output folder | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py candidates` | The shelf's word ids and the user's words, count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
+| `generate.py samples` | The languages, model location, output folder | Each example with its seed, the base (no words), and each word added to the base alone, with one seed; files already made are kept |
 | `generate.py speech` | The reference audio, first seed, model location, output folder | The training speech files and their total length |
 | `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
 | `timbre.py batch` | The source folder, timbre values, output folder | The edited files |

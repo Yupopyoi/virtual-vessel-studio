@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -17,6 +18,8 @@ namespace VirtualVessel.UI.Controls
 
         private readonly KeyedText _label;
         private readonly Label _valueText;
+        private readonly KeyedText _valueName;
+        private IReadOnlyList<string> _valueKeys;
         private readonly VisualElement _track;
         private readonly VisualElement _fill;
         private readonly VisualElement _thumb;
@@ -41,6 +44,14 @@ namespace VirtualVessel.UI.Controls
             _valueText.AddToClassList("vv-mono");
             header.Add(label);
             header.Add(_valueText);
+            // Only with value keys: without them the number is the text.
+            _valueName = new KeyedText(_valueText, text =>
+            {
+                if (_valueKeys != null)
+                {
+                    _valueText.text = text;
+                }
+            });
             Add(header);
 
             // The track is a 24px hit area around a 6px rail, so it is easy to grab.
@@ -181,6 +192,34 @@ namespace VirtualVessel.UI.Controls
         public string DisplayedValue => _valueText.text;
 
         /// <summary>
+        /// Names each step instead of showing a number: the i-th key for <see cref="LowValue"/> + i ×
+        /// <see cref="Step"/>. For choices in order whose numbers mean nothing to the user. Null shows the number.
+        /// </summary>
+        public IReadOnlyList<string> ValueKeys
+        {
+            get => _valueKeys;
+            set
+            {
+                _valueKeys = value != null && value.Count > 0 ? value : null;
+                _valueText.EnableInClassList("vv-mono", _valueKeys == null);
+                _valueName.Key = null;
+                Refresh();
+            }
+        }
+
+        /// <summary>Which of <paramref name="count"/> steps <paramref name="value"/> is on. Pure.</summary>
+        public static int StepIndex(float value, float low, float step, int count)
+        {
+            if (count <= 0)
+            {
+                return 0;
+            }
+
+            int index = step > 0f ? Mathf.RoundToInt((value - low) / step) : 0;
+            return Mathf.Clamp(index, 0, count - 1);
+        }
+
+        /// <summary>
         /// Clamps <paramref name="value"/> to the range and snaps it to <paramref name="step"/> from
         /// <paramref name="low"/>. A step of 0 snaps to 1/100 of the range. Pure.
         /// </summary>
@@ -234,7 +273,14 @@ namespace VirtualVessel.UI.Controls
             float fraction = Fraction(_value, _low, _high);
             _fill.style.left = Length.Percent(fraction * 100f);
             _thumb.style.left = Length.Percent(fraction * 100f);
-            _valueText.text = Format(_value, _decimals, _signed, _unit);
+            if (_valueKeys != null)
+            {
+                _valueName.Key = _valueKeys[StepIndex(_value, _low, _step, _valueKeys.Count)];
+            }
+            else
+            {
+                _valueText.text = Format(_value, _decimals, _signed, _unit);
+            }
         }
 
         private void OnPointerDown(PointerDownEvent evt)

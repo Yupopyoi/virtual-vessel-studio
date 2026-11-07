@@ -28,7 +28,8 @@ extern "C"
 // 6: noise removal for a stage (vv_audio_denoise).
 // 7: where a stage's frames wait (vv_audio_get_stage_delay).
 // 8: audio files (vv_audio_decode_file).
-#define VV_AUDIO_API_VERSION 8
+// 9: a preview on the monitor bus (vv_audio_preview_play).
+#define VV_AUDIO_API_VERSION 9
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -181,6 +182,14 @@ VV_AUDIO_API int32_t vv_audio_get_stream_tap(vv_audio_engine* engine, int32_t re
 VV_AUDIO_API int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
 VV_AUDIO_API int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
 VV_AUDIO_API void vv_audio_clip_free(vv_audio_clip* clip);
+
+// Plays mono samples at `rate` on the monitor bus only, never the stream (audio detailed design 5.5): what the
+// user previews, such as Voice Lab's candidates. Playing replaces what plays; it stops by itself at the end.
+// Up to VV_AUDIO_MAX_FILE_SECONDS. The samples are copied.
+VV_AUDIO_API int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate);
+VV_AUDIO_API int32_t vv_audio_preview_stop(vv_audio_engine* engine);
+// Frames played and the length, at the mix's rate; both 0 when nothing plays.
+VV_AUDIO_API int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
 
 #ifdef __cplusplus
 }

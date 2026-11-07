@@ -44,7 +44,7 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             VoiceDesigner designer = Designer(out _, out _);
 
-            IReadOnlyList<VoiceCandidate> candidates = designer.MakeCandidatesAsync(Airy(), 1, null, CancellationToken.None).Result;
+            IReadOnlyList<VoiceCandidate> candidates = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result;
             TimbrePreview preview = designer.PreviewTimbreAsync(candidates[0], new TimbreSettings(4, 4, 0, 0), CancellationToken.None).Result;
 
             Assert.That(candidates, Has.Count.EqualTo(1));
@@ -65,11 +65,11 @@ namespace VirtualVessel.VoiceLab.Tests
             }
 
             VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
-            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, CancellationToken.None).Result[0];
+            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
 
             TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
-            RegisteredVoice voice = new VoiceModelRegistrar(Path.Combine(_folder, "VoiceModels"), runs, clock).Register(run, "Real environment test");
+            RegisteredVoice voice = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock), runs, clock).Register(run, "Real environment test").Value;
 
             Assert.That(File.Exists(Path.Combine(voice.Folder, "voice.sentis")), Is.True);
             Assert.That(voice.MedianPitchHz, Is.InRange(150, 700));
@@ -87,7 +87,7 @@ namespace VirtualVessel.VoiceLab.Tests
         // The experiment's airy_soft (decision record, 2026-11-03).
         private static VoiceDescription Airy()
         {
-            return new VoiceDescription(new Dictionary<string, float> { ["softness"] = 0.85f, ["breathiness"] = 0.80f, ["energy"] = 0.25f, ["speed"] = 0.35f }, "");
+            return new VoiceDescription(new[] { "airy", "gentle" }, "");
         }
     }
 }

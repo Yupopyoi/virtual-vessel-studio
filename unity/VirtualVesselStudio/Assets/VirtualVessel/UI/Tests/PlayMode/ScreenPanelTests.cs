@@ -460,7 +460,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(gallery.Sections.Keys, Is.EquivalentTo(new[]
             {
                 GalleryStrings.Buttons, GalleryStrings.Tooltips, GalleryStrings.Toggles, GalleryStrings.Status, GalleryStrings.Fields,
-                GalleryStrings.Tabs, GalleryStrings.Notices, GalleryStrings.Dialog, GalleryStrings.Menu, GalleryStrings.Table,
+                GalleryStrings.Tabs, GalleryStrings.Notices, GalleryStrings.Dialog, GalleryStrings.Menu, GalleryStrings.Steps, GalleryStrings.Table,
             }));
 
             foreach (ActionButton button in gallery.Sections[GalleryStrings.Notices].Query<ActionButton>().ToList())

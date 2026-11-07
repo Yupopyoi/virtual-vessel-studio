@@ -3,7 +3,9 @@
 #pragma once
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <vector>
 
 namespace vv::audio
 {
@@ -11,6 +13,34 @@ namespace vv::audio
     constexpr float MaxGainDb = 12.0f;
 
     // -inf (or below -120 dB) is silence.
+    // Mono samples at another rate brought to `to` by linear interpolation: enough for a preview the user
+    // listens to, not for the stream. Pure.
+    inline std::vector<float> ResampleLinear(const float* samples, size_t count, int from, int to)
+    {
+        if (count == 0 || from <= 0 || to <= 0)
+        {
+            return {};
+        }
+
+        if (from == to)
+        {
+            return std::vector<float>(samples, samples + count);
+        }
+
+        size_t frames = static_cast<size_t>((static_cast<double>(count) * to) / from);
+        std::vector<float> out(frames);
+        for (size_t i = 0; i < frames; i++)
+        {
+            double at = (static_cast<double>(i) * from) / to;
+            size_t left = static_cast<size_t>(at);
+            size_t right = left + 1 < count ? left + 1 : left;
+            float t = static_cast<float>(at - static_cast<double>(left));
+            out[i] = samples[left] + ((samples[right] - samples[left]) * t);
+        }
+
+        return out;
+    }
+
     inline float DbToLinear(float db)
     {
         return db <= -120.0f ? 0.0f : std::pow(10.0f, db / 20.0f);

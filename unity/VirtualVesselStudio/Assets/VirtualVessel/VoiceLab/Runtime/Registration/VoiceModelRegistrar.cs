@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Training;
 
 namespace VirtualVessel.VoiceLab.Registration
@@ -55,26 +56,28 @@ namespace VirtualVessel.VoiceLab.Registration
     /// </summary>
     public sealed class VoiceModelRegistrar
     {
-        public const string ModelFile = "model.json";
         public static readonly IReadOnlyList<string> VoiceFiles = new[] { "voice.sentis", "voice.spk", "voice.json" };
 
-        private readonly string _voiceModels;
-        private readonly TrainingRunStore _runs;
+        private readonly IVoiceModelRepository _voices;
+        private readonly ITrainingRunRepository _runs;
         private readonly ISystemClock _clock;
 
-        public VoiceModelRegistrar(string voiceModelsFolder, TrainingRunStore runs, ISystemClock clock)
+        public VoiceModelRegistrar(IVoiceModelRepository voices, ITrainingRunRepository runs, ISystemClock clock)
         {
-            _voiceModels = voiceModelsFolder ?? throw new ArgumentNullException(nameof(voiceModelsFolder));
+            _voices = voices ?? throw new ArgumentNullException(nameof(voices));
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
-        /// <exception cref="InvalidOperationException">The run did not complete, or its output is missing.</exception>
-        public RegisteredVoice Register(TrainingRun run, string name)
+        /// <summary>
+        /// Creates the voice (system design 6.31): Invalid when the run did not complete or its output is missing,
+        /// StorageFailed when the files could not be copied.
+        /// </summary>
+        public CrudResult<RegisteredVoice> Register(TrainingRun run, string name)
         {
             if (run.GetState() != TrainingState.Completed)
             {
-                throw new InvalidOperationException($"Run {run.RunId} is {run.State}; only a completed run can be registered.");
+                return CrudResult<RegisteredVoice>.Fail(CrudError.Invalid, $"Run {run.RunId} is {run.State}; only a completed run can be registered.");
             }
 
             string output = Path.Combine(_runs.FolderOf(run.RunId), "output");
@@ -82,12 +85,25 @@ namespace VirtualVessel.VoiceLab.Registration
             {
                 if (!File.Exists(Path.Combine(output, file)))
                 {
-                    throw new InvalidOperationException($"Run {run.RunId} has no {file}.");
+                    return CrudResult<RegisteredVoice>.Fail(CrudError.Invalid, $"Run {run.RunId} has no {file}.");
                 }
             }
 
+            CrudResult<RegisteredVoice> copied = CrudResult<RegisteredVoice>.Run(() => Copy(run, name, output), $"Copying run {run.RunId}'s voice");
+            if (!copied.Ok)
+            {
+                return copied;
+            }
+
+            // Recorded once the files are in place; until then the voice is not listed.
+            CrudResult added = _voices.Add(Record(copied.Value.Id, name, run, copied.Value.MedianPitchHz, _clock.UtcNow));
+            return added.Ok ? copied : CrudResult<RegisteredVoice>.From(added);
+        }
+
+        private RegisteredVoice Copy(TrainingRun run, string name, string output)
+        {
             string id = VoiceId(run.RunId);
-            string folder = Path.Combine(_voiceModels, id);
+            string folder = _voices.FolderOf(id);
             // Copied into a folder beside the target and then moved, so the runtime never sees half a voice.
             string staging = folder + ".part";
             if (Directory.Exists(staging))
@@ -102,8 +118,6 @@ namespace VirtualVessel.VoiceLab.Registration
             }
 
             int medianPitch = MedianPitch(File.ReadAllText(Path.Combine(output, "voice.json")));
-            new ConfigFileStore<VoiceModelRecord>(staging, ModelFile, VoiceModelRecord.SchemaVersion, () => new VoiceModelRecord(), _clock)
-                .Save(Record(id, name, run, medianPitch, _clock.UtcNow));
             if (Directory.Exists(folder))
             {
                 Directory.Delete(folder, true);
@@ -116,7 +130,7 @@ namespace VirtualVessel.VoiceLab.Registration
         /// <summary>A voice's ID from the run it came from: one voice per run. Pure.</summary>
         public static string VoiceId(string runId)
         {
-            return "voice-" + runId;
+            return VoiceModelStore.IdPrefix + runId;
         }
 
         /// <summary>The median pitch export_voice.py wrote in voice.json; 0 when it is not there. Pure.</summary>

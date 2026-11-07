@@ -36,7 +36,7 @@
 
 | Class | 種類 | 役割 |
 |---|---|---|
-| `IVoiceLab` | Interface（UI） | UIが使う：アクティベーション、音声、学習、登録 |
+| `IVoiceLab` | Interface（UI） | 画面が使う：候補、声色の試聴、作成、登録（5）。アクティベーションは後で |
 | `VoiceLabService` | Class | Application Service |
 | `VoiceTerms` | Class | 規約の版、本文の場所、同意の確認 |
 | `VoiceComponentInstaller` | Class | 構築の手順を進める |
@@ -59,25 +59,49 @@ Python側：
 
 ## 5. 公開API
 
+`IVoiceLab`はUIのモジュール（`VirtualVessel.UI.VoiceLab`）で宣言し、`VoiceLabService`が実装する。画面はVoice Labのクラスに依存しない。型は画面のためのもので、8.5の要求と結果の型はVoice Labの中に留める。
+
 ```csharp
 public interface IVoiceLab
 {
-    IReadOnlyObservable<VoiceLabState> State { get; }
-    IReadOnlyObservable<InstallProgress> Install { get; }
-    VoiceTermsDocument Terms { get; }
-    Task ActivateAsync(VoiceTermsAgreement agreement, CancellationToken cancellationToken);
-    Task<DatasetInfo> ImportDatasetAsync(IReadOnlyList<string> files, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> TrainAsync(TrainingRequest request, CancellationToken cancellationToken);
-    Task<VoiceModelInfo> RegisterAsync(string runId, string name, CancellationToken cancellationToken);
+    VoiceLabShelf Shelf { get; }                 // STEP 1の言葉と例（8.3.1）。準備がないときはnull
+    string SampleFile(string language, string name);           // 見本のファイル。まだ作っていなければnull
+    Task MakeSamplesAsync(CancellationToken cancellationToken);  // このPCで見本を作る（8.3.1）
+    VoiceLabMaking SamplesProgress { get; }
+    VoiceLabAvailability Availability { get; }   // Ready、または学習の環境がないときNotSetUp（6.4）
 
     // 声を設計する（8.3）
-    Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, CancellationToken cancellationToken);
-    Task<AudioClipInfo> PreviewTimbreAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
-    Task<TrainingRunInfo> BuildVoiceAsync(string candidateId, TimbreSettings timbre, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
+    Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
+    VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
+    CrudResult Register(string runId, string name);
+
+    CrudResult<VoiceLabRemake> Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
 }
 ```
 
-`TimbreSettings`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさの4つの数値で、どれも0（変えない）を既定とする。
+`IVoiceLabLibrary`（これもUIモジュール）は作ったもので、「作った声」のタブが使う。学習の環境がなくても使えるので、別のインターフェイスにする。`VoiceLabLibrary`がリポジトリの上で実装する（8.6）。
+
+```csharp
+public interface IVoiceLabLibrary
+{
+    CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns();     // 新しい順
+    CrudResult<IReadOnlyList<VoiceLabVoiceRecord>> ListVoices(); // 新しい順
+    CrudResult SetComment(string runId, string comment);
+    CrudResult RenameVoice(string voiceId, string name);
+    CrudResult DeleteRun(string runId);                    // 作成中のRunは断る
+    CrudResult DeleteVoice(string voiceId);
+}
+```
+
+- `VoiceLabRequest`は棚の言葉のIDと、ユーザーの文章を持つ。`VoiceLabShelf`は棚のグループ、言葉（それぞれの枠と、枠の既定か）、例を持ち、言葉を押したときの変化を決める。`VoiceLabCandidate`は再生用の音声、声の高さ（中央値と5〜95%の範囲、Hz）、作ったときの指示文を持つ。指示文は折りたたんで見せる（方式設計14.14）。seedはVoice Labの中に留める。
+- `VoiceLabTimbre`は高さ（半音）、年齢（響きの倍率）、明るさ、息っぽさ（-6から+6）と、やわらかさ（0から+6）の5つの段階で、どれも0（変えない）を既定とする。`run.json`は5つとも残す。やわらかさのない`run.json`は0で作ったものである。範囲はVoice Lab側で丸める。
+- ユーザーに伝えるべき失敗は`VoiceLabFailedException`を投げる。メッセージは開発者向け。取り消しは`OperationCanceledException`を投げる。作成だけは、失敗と取り消しを`VoiceLabBuild.State`で返し、GPUのメモリー不足を`OutOfMemory`で示す。
+- どのメソッドもメインスレッドを止めない。
+- `Register`はファイルをコピーするので、画面はメインスレッドの外から呼ぶ。
+- アクティベーションと規約（8.1、8.2）、自分の録音の取り込み（8.3の第1段階）は、それぞれの段階（17）で加える。
 
 ## 6. Data Model
 
@@ -115,10 +139,11 @@ public interface IVoiceLab
 
 方式設計13.14のとおり`VoiceLab/TrainingRuns/<RunId>/`に置き、`run.json`に状態を持つ。
 
-**最初の版はSQLiteを使わない。** 一覧は`run.json`を読めば作れる。比較の画面を作るときに、方式設計13.12のSQLiteを足す。
+**最初の版はSQLiteを使わない。** 一覧は`run.json`を読めば作れる。比較の画面を作るときに、方式設計13.12のSQLiteを、同じリポジトリの裏に足す（8.6）。
 
 ```text
 VoiceLab/
+├─ Samples/<言語>/              STEP 1の見本。このPCで作る（8.3.1）
 ├─ Designs/<開始時刻>/          声を設計する1回分（8.3.1、8.3.2）
 │  ├─ candidates/              候補の音声
 │  ├─ previews/                声色の試聴。候補と声色の値ごとに1つ
@@ -131,7 +156,7 @@ VoiceLab/
    └─ output/                   voice.sentis、voice.spk、voice.json（登録の元）
 ```
 
-`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、声色）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
+`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
 声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
 
@@ -141,7 +166,7 @@ VoiceLab/
 
 ### 6.5 登録した声
 
-`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
+`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで行う。登録した声は、名前の変更と削除ができる（8.6）。登録では、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
 
 ## 7. 状態とライフサイクル
 
@@ -234,8 +259,12 @@ PCの確認：GPU、ドライバー、空き容量、接続
 
 #### 8.3.1 土台を選ぶ
 
-- 声の雰囲気は、つまみ（若さ、高さ、明るさ、柔らかさ、息っぽさ、元気さ、かわいさ、抑揚、速さ、自然さ）と自由な文章から、VoxCPM2への指示文を組み立てる。組み立て方はVCBMの`VoicePromptBuilder`を使う。
+- 声は、棚の言葉（`voicelab/shelf.json`。スクリプトとUnityの両方が読む）と自由な文章で頼む。言葉はそれぞれ指示文の1つの枠（人物、高さ、響き、息、人柄、元気さ、抑揚、速さ）を埋める。1つの枠には1つの言葉だけが入るので、反対の言葉は同じ枠に置く。言葉のない枠は既定の文になる。何も選ばないと、VCBMの`VoicePromptBuilder`を調整したときの指示文になる。文はVCBMのものか、伏せた聞き比べで聞き分けられたもの。人物の文は画面に出す年齢（40代、20代、10代後半）をそのまま書き、表示と指示文を合わせる（ユーザーの決定、2026-11-07）。明るさは棚に置かず、STEP 2で決める。VCBMの文は女性の声として書かれている。男性の言葉は人物と代名詞を入れ替え、ユーザーの文章はそのままにする（決定記録、2026-11-07）。
+- 画面は例（言葉の組と乱数）から始める。言葉ごとに、基準（言葉なし）にその言葉だけを足した見本を1つの乱数で作って聞かせる。頼む声は、言葉ごとの断片から画面の言語の1文で読み返す。見本はVoice Labの準備のときにユーザーのPCで作る（`generate.py samples`、`Samples/<言語>/`）。アクティベーションができるまでは、画面から作れるようにする。今は日本語だけで作る。同じ乱数でも英語では高さの違う声になったので、言語ごとに乱数を選ぶ必要がある。
+- ユーザーの文章は指示文の中に入れ、指示文は読み上げる文の前に括弧で囲んで送る。スクリプトは括弧、改行、制御文字、見えない文字と向きを変える文字を取り除き、200文字までにする。文章が指示文を閉じて読み上げられることはない。実在の人をまねることはコードでは止められないので、規約（8.2）で扱う。
 - 同じ指示でも乱数で声が大きく変わる（同じ指示で268 Hzと406 Hz）。つまみだけでは理想に届かないので、1回に複数（6個程度）の候補を作り、「もっと作る」で増やせるようにする。
+- STEP 1は理想に近い土台を見つけるだけで、寄せるのはSTEP 2で行う（ユーザーの決定、2026-11-05）。「この声に近い候補を作る」は、選んだ候補をVoxCPM2の手本にし、同じ指示で6個作る。近い声のまわりを探すためである。その中から選んでもう一度押すと、それが次の手本になる。測った範囲では3回つないでも聞いて自然だった。1回の6個ははっきり違うので、細かく寄せるのではなく、聞き比べて選ぶ使い方になる（2026-11-05）。ここでは同じ人の声を保つ必要はない。土台はあとで学習によりクローンする。
+- 雰囲気の段階やことばは、声の高さをあまり動かさない（若さと高さの組み合わせで約＋60 Hz、Hzを書いても効かない。2026-11-05）。Hzの高さはSTEP 2で決める。
 - 候補は聞くだけでなく数値でも比べられるようにする（利用者の要望、2026-11-03）：声の高さ（中央値）と高さの幅（5〜95%）をHzで示し、共通の目盛りの上に幅を描く。高さの順に並べ替えられる。
 - 画面の段階は「STEP 1」から「STEP 5」の番号で示し、次へ進むボタンにも行き先の番号を付ける（利用者の要望、2026-11-03）。
 - 言葉の指示で寄せる場合は、選んだ土台だけを手本にする。生成した声を手本にして重ねると、声が枯れていく。
@@ -251,9 +280,12 @@ PCの確認：GPU、ドライバー、空き容量、接続
 |---|---|---|
 | 高さ | 高さを半音で動かす | +4半音でも同じ人に聞こえる |
 | 年齢 | 響きを周波数の方向に伸ばす | ×1.10は「同じ人と言えば同じ人」（利用者） |
-| 明るさ | 響きの傾き | 未検証 |
+| 明るさ | 2〜5 kHzの倍音を上げ下げする（+6で16 dB）。その帯域の雑音は大きさを保つ | かすれずに明るくなる。前の24 kHzまで続く傾きは雑音に聞こえた（決定記録、2026-11-06） |
+| やわらかさ（0〜+6） | 第1倍音を上げ（最大12 dB）、4 kHzより上を下げる（最大6 dB） | 倍音全体を傾けたときの鼻声にならずにやわらかい。張った側はとげとげしかったので作らない |
 | 息っぽさ | 声の部分の非周期成分 | 測った数値では違いが見えない。耳での確認が要る |
 
+- 明るさとやわらかさの大きさは、学習と変換の後に聞こえるかで決めた。この半分では聞き分けられず、この大きさで聞き分けられて自然、この1.5倍ではこもった（決定記録、2026-11-06）。
+- 高さ、年齢、明るさを3つとも大きく動かす（どれも4以上）と機械っぽく聞こえるので、画面で注意する（決定記録、2026-11-06）。
 - 抑揚と話す速さのつまみは置かない。変換の後の抑揚と速さは話す本人から来る（学習用の音声で変えても変換後に残らない）。抑揚を変換で大きくすると機械っぽくなる（利用者、2026-11-03）。
 - 加工した声色は、学習とリアルタイムでない変換を通っても残った（決定記録）。
 
@@ -268,6 +300,19 @@ PCの確認：GPU、ドライバー、空き容量、接続
 - アプリのリアルタイムの変換（Voice詳細設計の窓、つなぎ目の重ね、直前の声、ノイズ除去）で試す。ファイル全体を一度に変換する上流の変換は窓の問題を隠し、作った声を高く評価してしまう。伸ばした「う」と「え」は、上流の変換では正しく、リアルタイムでは崩れた。
 - 試す音声は、利用者の録音（WAV、M4A、MP3。Audio詳細設計5.4）か、マイクの声とする。
 - 変換の高さは自動で合わせる：声の登録のときに声の高さの中央値を残し、利用者の声の高さとの差から移す量を決める。Voice側の受け取り方はVoice詳細設計で決める（17章）。
+
+### 8.6 作った声
+
+Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録（Run）と登録した声を一覧し、聞き、名前とメモを付け、消し、Runを作り直す（ユーザーの決定、2026-11-07）。
+
+**CRUDは方式設計6.31に従う。** リポジトリ、ライブラリ、`Register`、`Remake`は`CrudResult`を返し、失敗（NotFound、Invalid、Busy、StorageFailed）を知らせるだけにする。画面が対応し、失敗の種類に合わせてユーザーに伝え、説明をログに残す。ないものを消すのは成功とする。
+
+**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
+
+- 一覧：Runと声を新しい順に並べる。Runは日時、状態、選んだ言葉、声色、メモ、そこから登録した声を見せる。声は名前、高さ、日時を見せる。どちらも、Runを作った土台を聞ける（登録した声をリアルタイムの変換で試すのは第5段階）。
+- 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。
+- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使っている声を消せないようにするのは、「すぐに使う」と合わせて作る。声が使われる状態はそこで初めてできるためである。
+- 作り直す：Runの言葉、自由入力、土台、声色をSTEP 1とSTEP 2に戻し、STEP 2を開く。土台の音声がなくなっていれば、言葉を入れたSTEP 1を開き、その旨を伝える。言葉を残す前のRun（`words`がない）は、空の棚で開く。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）
 
@@ -311,7 +356,8 @@ python -I <スクリプト>.py <操作> <依頼のJSONファイル>
 
 | スクリプトと操作 | 依頼の主な項目 | 結果 |
 |---|---|---|
-| `generate.py candidates` | 雰囲気（つまみの値と文章）、個数、最初の乱数、モデルの場所、出力先 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
+| `generate.py candidates` | 棚の言葉のIDとユーザーの文章、個数、最初の乱数、モデルの場所、出力先、任意で近くに作る手本 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
+| `generate.py samples` | 言語、モデルの場所、出力先 | 例ごとの音声（例の乱数）、基準（言葉なし）、基準に言葉を1つだけ足したもの（1つの乱数）。作ったファイルは残す |
 | `generate.py speech` | 手本の音声、乱数の始まり、モデルの場所、出力先 | 学習用の音声の一覧と合計の長さ |
 | `timbre.py preview` | 元の音声、声色の値、出力先 | 加工した音声、声の高さの中央値 |
 | `timbre.py batch` | 元の音声のフォルダー、声色の値、出力先 | 加工した音声の一覧 |

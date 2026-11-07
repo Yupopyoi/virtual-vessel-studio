@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using NUnit.Framework;
@@ -250,10 +251,80 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void APreview_IsReadAndPlayedOnTheEngine()
+        {
+            string path = Path.Combine(Path.GetTempPath(), $"vv_preview_{Guid.NewGuid():N}.wav");
+            File.WriteAllBytes(path, MonoWav(24000, 2400));
+            try
+            {
+                try
+                {
+                    AudioFile.ReadMono(path, out _);
+                }
+                catch (AudioEngineException exception)
+                {
+                    Assert.Ignore(exception.Message);
+                }
+
+                using AudioService service = Start(new AudioSettings());
+
+                Assert.That(service.PlayAsync(path).GetAwaiter().GetResult(), Is.True);
+                Assert.That(_engine.Preview, Is.EqualTo((2400, 24000)));
+                _engine.PreviewPosition = (12000, 48000);
+                Assert.That(service.Progress, Is.EqualTo(0.25f));
+                service.Stop();
+                Assert.That(_engine.Preview, Is.EqualTo((0, 0)));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Test]
+        public void APreview_ThatCannotBeRead_IsNotPlayed()
+        {
+            using AudioService service = Start(new AudioSettings());
+
+            Assert.That(service.PlayAsync(Path.Combine(Path.GetTempPath(), "vv no such preview.m4a")).GetAwaiter().GetResult(), Is.False);
+            Assert.That(_engine.Preview, Is.EqualTo((0, 0)));
+        }
+
+        [TestCase(0L, 0L, null)]
+        [TestCase(24000L, 48000L, 0.5f)]
+        [TestCase(60000L, 48000L, 1f)]
+        public void PreviewProgress_IsAFractionOrNothing(long played, long length, float? expected)
+        {
+            Assert.That(AudioService.PreviewProgress(played, length), Is.EqualTo(expected));
+        }
+
+        [Test]
         public void NativeCodes_MapToStatesAndProblems()
         {
             Assert.That(Enumerable.Range(0, 5).Select(NativeAudioEngine.StateOf), Is.EqualTo(new[] { AudioSourceState.Off, AudioSourceState.Starting, AudioSourceState.Running, AudioSourceState.Unavailable, AudioSourceState.Error }));
             Assert.That(NativeAudioEngine.ProblemOf(2), Is.EqualTo(AudioProblem.AccessDenied));
+        }
+
+        // 16-bit PCM mono silence.
+        private static byte[] MonoWav(int rate, int frames)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+            writer.Write(new[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
+            writer.Write(36 + (frames * 2));
+            writer.Write(new[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E', (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
+            writer.Write(16);
+            writer.Write((short)1);
+            writer.Write((short)1);
+            writer.Write(rate);
+            writer.Write(rate * 2);
+            writer.Write((short)2);
+            writer.Write((short)16);
+            writer.Write(new[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
+            writer.Write(frames * 2);
+            writer.Write(new byte[frames * 2]);
+            writer.Flush();
+            return stream.ToArray();
         }
 
         private AudioService Start(AudioSettings settings)
@@ -264,8 +335,27 @@ namespace VirtualVessel.Audio.Tests
             return service;
         }
 
-        private sealed class FakeEngine : IAudioEngine
+        private sealed class FakeEngine : IAudioEngine, IAudioPreviewEngine
         {
+            public (int Count, int Rate) Preview { get; private set; }
+
+            public (long Played, long Length) PreviewPosition { get; set; }
+
+            public void PlayPreview(float[] samples, int rate)
+            {
+                Preview = (samples.Length, rate);
+            }
+
+            public void StopPreview()
+            {
+                Preview = default;
+            }
+
+            public (long Played, long Length) GetPreviewPosition()
+            {
+                return PreviewPosition;
+            }
+
             public Dictionary<int, string> Devices { get; } = new Dictionary<int, string>();
 
             public Dictionary<int, (float, bool)> Gains { get; } = new Dictionary<int, (float, bool)>();

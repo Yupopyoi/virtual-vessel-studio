@@ -29,6 +29,13 @@ namespace vv::audio
         float peak = 0.0f; // Linear; the highest since the last TakeCounters.
     };
 
+    // Where a preview is: frames played and its length, both 0 when none plays.
+    struct PreviewPosition
+    {
+        int64_t played = 0;
+        int64_t length = 0;
+    };
+
     // How long a staged source's frames wait in the mix's rings, in frames (audio detailed design 8.3). Each
     // is the average fill, sampled every block, so by Little's law it is the average wait there.
     struct StageDelay
@@ -97,6 +104,19 @@ namespace vv::audio
         // The monitor bus's peak since the last call, linear, after its gain.
         float TakeMonitorPeak();
 
+        // A preview on the monitor bus only, never the stream: Voice Lab's samples (audio detailed design 5.5).
+        // Mono at SampleRate; playing replaces what plays. Called under the engine's lock, like the sources.
+        void PlayPreview(std::vector<float> samples);
+        void StopPreview();
+        PreviewPosition GetPreviewPosition() const
+        {
+            return PreviewPosition{ _previewPlayed.load(), _previewLength.load() };
+        }
+
+        // Adds mono preview samples from `position` to every channel of a block, as far as they go, and returns
+        // how many frames it took. Changes only the block passed in. Pure apart from that.
+        static size_t AddPreview(float* block, size_t frames, int channels, const std::vector<float>& preview, size_t position);
+
         // The stream tap (vv_audio_stream_tap.read). Each reader keeps its own place and has one thread.
         int32_t ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc, int reader = 0);
 
@@ -157,6 +177,12 @@ namespace vv::audio
         float _appliedMonitorGain = 1.0f;
         std::atomic<float> _monitorPeak{ 0.0f };
         std::atomic<float> _monitorWait{ 0.0f };
+
+        // The preview: replaced whole under the engine's lock, read by the mix under the same lock.
+        std::vector<float> _preview;
+        size_t _previewPosition = 0;
+        std::atomic<int64_t> _previewPlayed{ 0 };
+        std::atomic<int64_t> _previewLength{ 0 };
 
         // The stream bus: overwritten in a circle, so with no reader it simply keeps the last seconds.
         std::vector<float> _bus;
