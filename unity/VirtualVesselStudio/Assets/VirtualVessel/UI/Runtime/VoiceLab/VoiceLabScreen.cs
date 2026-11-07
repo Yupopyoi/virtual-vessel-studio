@@ -1,9 +1,7 @@
 using System;
-using System.Threading.Tasks;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
 using VirtualVessel.UI.Controls;
-using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
 
@@ -39,121 +37,9 @@ namespace VirtualVessel.UI.VoiceLab
     }
 
     /// <summary>
-    /// Plays candidates and previews to the user (Audio's monitor bus, never the stream) and says when one
-    /// ends, so a button can show Play again. One sample at a time.
-    /// </summary>
-    public sealed class VoiceLabPlayer
-    {
-        private const long WatchMs = 200;
-
-        private readonly IAudioPreview _audio;
-        private readonly VisualElement _owner;
-        private Action _finished;
-        private IVisualElementScheduledItem _watch;
-        private IconButton _button;
-
-        public VoiceLabPlayer(IAudioPreview audio, VisualElement owner)
-        {
-            _audio = audio;
-            _owner = owner ?? throw new ArgumentNullException(nameof(owner));
-        }
-
-        public bool Available => _audio != null;
-
-        /// <summary>Plays <paramref name="file"/>, stopping the one before; <paramref name="finished"/> runs when it ends or is replaced.</summary>
-        public async Task<bool> PlayAsync(string file, Action finished)
-        {
-            Stop();
-            if (_audio == null || file == null)
-            {
-                finished?.Invoke();
-                return false;
-            }
-
-            _finished = finished;
-            bool playing = await _audio.PlayAsync(file);
-            if (_finished != finished)
-            {
-                // Another sample started or Stop ran while this one was being read.
-                return playing;
-            }
-
-            if (!playing)
-            {
-                Finish();
-                return false;
-            }
-
-            _watch = _owner.schedule.Execute(Watch).Every(WatchMs);
-            return true;
-        }
-
-        /// <summary>
-        /// Plays <paramref name="file"/> from a play button, which shows Stop while it plays; pressing the
-        /// playing button again stops it. A null file does nothing.
-        /// </summary>
-        public async void Toggle(IconButton button, string file)
-        {
-            if (_button == button)
-            {
-                Stop();
-                return;
-            }
-
-            if (file == null)
-            {
-                return;
-            }
-
-            _button = button;
-            button.IconName = IconName.Stop;
-            await PlayAsync(file, () =>
-            {
-                button.IconName = IconName.Play;
-                if (_button == button)
-                {
-                    _button = null;
-                }
-            });
-        }
-
-        public void Stop()
-        {
-            if (_finished != null)
-            {
-                _audio?.Stop();
-            }
-
-            Finish();
-        }
-
-        /// <summary>Whether a preview's progress means it has ended. Pure.</summary>
-        public static bool HasEnded(float? progress)
-        {
-            return progress == null || progress.Value >= 1f;
-        }
-
-        private void Watch()
-        {
-            if (HasEnded(_audio.Progress))
-            {
-                Finish();
-            }
-        }
-
-        private void Finish()
-        {
-            _watch?.Pause();
-            _watch = null;
-            Action finished = _finished;
-            _finished = null;
-            finished?.Invoke();
-        }
-    }
-
-    /// <summary>
     /// The Voice Lab screen (id "lab"; system design 14.13 to 14.18): making a voice in numbered steps. Pick
-    /// a base, shape its timbre, make it, try it, and register it. Finished steps can be revisited.
+    /// a base, shape its timbre, make it, try it, and register it. Finished steps can be revisited. A second
+    /// tab lists what was made (screen spec 8).
     /// </summary>
     public sealed class VoiceLabScreen : VisualElement, IScreen, IVoiceLabFlow
     {
@@ -169,7 +55,13 @@ namespace VirtualVessel.UI.VoiceLab
         public const int TryStep = 3;
         public const int RegisterStep = 4;
 
+        public const int MakeTab = 0;
+        public const int MadeTab = 1;
+
         private readonly VisualElement[] _panels = new VisualElement[5];
+        private readonly IVoiceLab _lab;
+        private readonly VisualElement _make;
+        private readonly VoiceLabBaseStep _base;
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
         private readonly VoiceLabTimbreStep _timbre;
@@ -178,29 +70,50 @@ namespace VirtualVessel.UI.VoiceLab
         /// <param name="lab">Null, or not set up, shows that voices cannot be made yet.</param>
         /// <param name="audio">Plays candidates; null leaves out the play buttons.</param>
         /// <param name="streaming">Stops a build from starting during a stream; optional.</param>
-        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null)
+        /// <param name="library">What was made, for the Made voices tab; null leaves the tab out.</param>
+        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null, IVoiceLabLibrary library = null)
         {
             AddToClassList(UssClass);
-            if (lab == null || lab.Availability != VoiceLabAvailability.Ready)
+            _lab = lab;
+            _player = new VoiceLabPlayer(audio, this);
+            bool ready = lab != null && lab.Availability == VoiceLabAvailability.Ready;
+            if (library != null)
+            {
+                Tabs = Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
+                Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
+                Add(Tabs);
+            }
+
+            _make = new VisualElement();
+            Add(_make);
+            if (library != null)
+            {
+                // What was made can be listed without a training environment; making it again cannot.
+                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
+                Library.style.display = DisplayStyle.None;
+                Add(Library);
+            }
+
+            if (!ready)
             {
                 Card card = Ui.Card(VoiceLabStrings.NotSetUpTitle);
                 card.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
-                Add(card);
+                _make.Add(card);
                 return;
             }
 
-            _player = new VoiceLabPlayer(audio, this);
             _draft = new VoiceLabDraft();
             VoiceLabDraft draft = _draft;
 
             Steps = new StepIndicator();
             Steps.SetSteps(VoiceLabStrings.StepBase, VoiceLabStrings.StepTimbre, VoiceLabStrings.StepBuild, VoiceLabStrings.StepTry, VoiceLabStrings.StepRegister);
             Steps.StepChosen += GoTo;
-            Add(Steps);
+            _make.Add(Steps);
 
             _timbre = new VoiceLabTimbreStep(lab, _player, draft, this);
             _register = new VoiceLabRegisterStep(lab, draft, this);
-            _panels[BaseStep] = new VoiceLabBaseStep(lab, _player, draft, this);
+            _base = new VoiceLabBaseStep(lab, _player, draft, this);
+            _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;
             _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, streaming, this);
             _panels[TryStep] = TryPanel();
@@ -208,13 +121,67 @@ namespace VirtualVessel.UI.VoiceLab
             foreach (VisualElement panel in _panels)
             {
                 panel.AddToClassList(PanelClass);
-                Add(panel);
+                _make.Add(panel);
             }
 
             GoTo(BaseStep);
         }
 
         public StepIndicator Steps { get; }
+
+        /// <summary>Make a voice and Made voices; null without a library.</summary>
+        public TabBar Tabs { get; }
+
+        public VoiceLabLibraryView Library { get; }
+
+        public void ShowTab(int tab)
+        {
+            _player.Stop();
+            Tabs?.SetValueWithoutNotify(tab);
+            _make.style.display = tab == MakeTab ? DisplayStyle.Flex : DisplayStyle.None;
+            if (Library != null)
+            {
+                Library.style.display = tab == MadeTab ? DisplayStyle.Flex : DisplayStyle.None;
+                if (tab == MadeTab)
+                {
+                    Library.Refresh();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Puts a run's words, base, and timbre back and opens STEP 2; without the base's audio, STEP 1 with the
+        /// words (Voice Lab detailed design 8.6).
+        /// </summary>
+        public void Remake(string runId)
+        {
+            VoiceLabRemake remake;
+            try
+            {
+                remake = _lab.Remake(runId);
+            }
+            catch (VoiceLabFailedException)
+            {
+                // The service has logged why.
+                return;
+            }
+
+            _base.RequestView.SetPicks(remake.Words, remake.FreeWords);
+            _base.ShowBaseGone(remake.Candidate == null);
+            _draft.RunId = null;
+            ShowTab(MakeTab);
+            if (remake.Candidate == null)
+            {
+                _draft.Candidate = null;
+                GoTo(BaseStep, reset: true);
+                return;
+            }
+
+            _draft.Candidate = remake.Candidate;
+            _draft.CandidateNumber = 0;
+            GoTo(TimbreStep, reset: true);
+            _timbre.Restore(remake.Timbre);
+        }
 
         public int Current => Steps?.Current ?? -1;
 
@@ -253,6 +220,10 @@ namespace VirtualVessel.UI.VoiceLab
 
         void IScreen.OnShown()
         {
+            if (Library != null && Library.style.display == DisplayStyle.Flex)
+            {
+                Library.Refresh();
+            }
         }
 
         void IScreen.OnHidden()

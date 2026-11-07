@@ -124,3 +124,21 @@
 .vv-lab__held > * {
     margin-right: var(--vv-space-s);
 }
+
+/* The Made voices tab: one row per voice or run, wrapping on a narrow window. */
+.vv-lab__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-lab__row > * {
+    margin-right: var(--vv-space-s);
+}
+
+.vv-lab__row-block {
+    padding: var(--vv-space-s) 0;
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}

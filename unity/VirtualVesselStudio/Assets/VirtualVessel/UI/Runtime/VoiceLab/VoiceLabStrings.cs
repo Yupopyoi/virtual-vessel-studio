@@ -130,5 +130,33 @@ namespace VirtualVessel.UI.VoiceLab
         public const string Registered = "lab.register.done";
         public const string RegisterFailed = "lab.register.failed";
         public const string MakeAnother = "lab.register.again";
+
+        public const string TabMake = "lab.tab.make";
+        public const string TabMade = "lab.tab.made";
+        public const string LibraryLead = "lab.library.lead";
+        public const string LibraryEmpty = "lab.library.empty";
+        public const string LibraryFailed = "lab.library.failed";
+        public const string LibraryVoices = "lab.library.voices";
+        public const string LibraryRuns = "lab.library.runs";
+        public const string Rename = "lab.library.rename";
+        public const string SaveName = "lab.library.save-name";
+        public const string Delete = "lab.library.delete";
+        public const string DeleteVoiceTitle = "lab.library.delete-voice";
+        public const string DeleteVoiceBody = "lab.library.delete-voice.body";
+        public const string DeleteRunTitle = "lab.library.delete-run";
+        public const string DeleteRunBody = "lab.library.delete-run.body";
+        public const string DeleteWhileMaking = "lab.library.delete-making";
+        public const string RunCompleted = "lab.library.run.completed";
+        public const string RunCancelled = "lab.library.run.cancelled";
+        public const string RunFailed = "lab.library.run.failed";
+        public const string RunMaking = "lab.library.run.making";
+        public const string RegisteredAs = "lab.library.registered-as";
+        public const string Remake = "lab.library.remake";
+        public const string Comment = "lab.library.comment";
+        public const string PlayBase = "lab.library.play-base";
+        public const string QuotedWords = "lab.library.quoted";
+        public const string BaseGone = "lab.base.base-gone";
+        public const string BaseGoneBody = "lab.base.base-gone.body";
+        public const string RemadeBase = "lab.timbre.remade-base";
     }
 }

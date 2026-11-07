@@ -187,6 +187,13 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Where the running build is; <see cref="VoiceLabBuildState.None"/> when none runs. Read it as often as needed.</summary>
         VoiceLabBuildProgress BuildProgress { get; }
 
+        /// <summary>
+        /// A run's words, base, and timbre, to make it again (Voice Lab detailed design 8.6). The base becomes a
+        /// candidate of this session, so it can be previewed and built.
+        /// </summary>
+        /// <exception cref="VoiceLabFailedException">There is no such run.</exception>
+        VoiceLabRemake Remake(string runId);
+
         /// <summary>Registers a completed build under a name, for voice conversion to use.</summary>
         /// <exception cref="VoiceLabFailedException">It could not be registered.</exception>
         void Register(string runId, string name);

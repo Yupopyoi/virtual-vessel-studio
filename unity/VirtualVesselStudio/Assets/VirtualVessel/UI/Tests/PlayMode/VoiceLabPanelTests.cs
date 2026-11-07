@@ -328,6 +328,51 @@ namespace VirtualVessel.UI.Tests
             yield return null;
         }
 
+        [UnityTest]
+        public IEnumerator MadeVoices_AreListedRenamedDeletedAndMadeAgain()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 140, "b.wav"));
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(4f, 0f, 0f, 0f), "", "b.wav", new[] { "Fuwari" }));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library });
+
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            VoiceLabLibraryView view = screen.Library;
+            Assert.That(view.Query<ActionButton>().ToList().Count(b => b.TextKey == VoiceLabStrings.Delete), Is.EqualTo(2), "A voice row and a run row.");
+
+            ActionButton rename = view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Rename);
+            Submit(rename);
+            view.Query<TextInput>().ToList().First().value = "Kirari";
+            Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.SaveName));
+            Assert.That(library.Voices.Single().Name, Is.EqualTo("Kirari"));
+
+            Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Delete));
+            yield return null;
+            Assert.That(library.Voices.Count, Is.EqualTo(1), "Asked before deleting.");
+            Assert.That(_root.Dialogs.Current.Q<Label>().text, Is.Not.Empty);
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+            Assert.That(library.Voices, Is.Empty);
+            Assert.That(library.Runs.Count, Is.EqualTo(1), "Deleting a voice keeps its run.");
+
+            var candidate = new VoiceLabCandidate("candidate_7", "b.wav", 140, 100, 200);
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "husky", candidate, new VoiceLabTimbre(4f, 0f, 0f, 0f, 2f));
+            Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake));
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TimbreStep));
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            Assert.That(timbre.Timbre.Softness, Is.EqualTo(2f));
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Assert.That(baseStep.RequestView.Picked, Does.Contain("male"));
+
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "", null, default);
+            screen.Remake("run-1");
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.BaseStep), "Without the base, STEP 1 opens with the words.");
+        }
+
         private VoiceLabScreen Screen()
         {
             return (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");
@@ -339,119 +384,6 @@ namespace VirtualVessel.UI.Tests
             {
                 evt.target = element;
                 element.SendEvent(evt);
-            }
-        }
-
-        private sealed class FakeLab : IVoiceLab
-        {
-            private int _made;
-
-            public VoiceLabAvailability Availability { get; set; } = VoiceLabAvailability.Ready;
-
-            public List<VoiceLabRequest> Requests { get; } = new List<VoiceLabRequest>();
-
-            public VoiceLabShelf Shelf { get; } = new VoiceLabShelf(
-                new[]
-                {
-                    new VoiceLabShelfGroup("voice", true, new[] { new VoiceLabShelfWord("female", "voice", true), new VoiceLabShelfWord("male", "voice", false) }),
-                    new VoiceLabShelfGroup("pitch", true, new[] { new VoiceLabShelfWord("light", "pitch", true), new VoiceLabShelfWord("deep", "pitch", false) }),
-                    new VoiceLabShelfGroup("quality", false, new[] { new VoiceLabShelfWord("clean", "breath", true), new VoiceLabShelfWord("airy", "breath", false) }),
-                },
-                new[] { new VoiceLabExample("low", new[] { "male", "deep" }) });
-
-            public bool SamplesMade { get; set; }
-
-            public int SampleRuns { get; private set; }
-
-            public VoiceLabMaking SamplesProgress => default;
-
-            public string SampleFile(string language, string name)
-            {
-                return SamplesMade ? language + "/" + name : null;
-            }
-
-            public Task MakeSamplesAsync(CancellationToken cancellationToken)
-            {
-                SampleRuns++;
-                SamplesMade = true;
-                return Task.CompletedTask;
-            }
-
-            public List<VoiceLabCandidate> Near { get; } = new List<VoiceLabCandidate>();
-
-            public List<(VoiceLabCandidate Candidate, VoiceLabTimbre Timbre)> Built { get; } = new List<(VoiceLabCandidate, VoiceLabTimbre)>();
-
-            public List<(string RunId, string Name)> Registered { get; } = new List<(string, string)>();
-
-            public VoiceLabBuild BuildResult { get; set; } = new VoiceLabBuild("run-1", VoiceLabBuildState.Completed, false);
-
-            public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(VoiceLabBuildState.None, 0f);
-
-            public VoiceLabMaking CandidatesProgress => default;
-
-            public List<int> Counts { get; } = new List<int>();
-
-            public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
-            {
-                Requests.Add(request);
-                Near.Add(near);
-                Counts.Add(count);
-                var made = new List<VoiceLabCandidate>();
-                for (int i = 0; i < count; i++, _made++)
-                {
-                    made.Add(new VoiceLabCandidate("c" + _made, "c" + _made + ".wav", 200 + 10 * _made, 180, 300, "instruction"));
-                }
-
-                return Task.FromResult<IReadOnlyList<VoiceLabCandidate>>(made);
-            }
-
-            /// <summary>When set, previews wait until their source is completed, and cancelling cancels them.</summary>
-            public bool HoldPreviews { get; set; }
-
-            public List<(VoiceLabTimbre Timbre, TaskCompletionSource<VoiceLabPreview> Source)> Previews { get; } = new List<(VoiceLabTimbre, TaskCompletionSource<VoiceLabPreview>)>();
-
-            public Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
-            {
-                var source = new TaskCompletionSource<VoiceLabPreview>();
-                Previews.Add((timbre, source));
-                if (!HoldPreviews)
-                {
-                    source.SetResult(new VoiceLabPreview("p.wav", candidate.MedianHz));
-                }
-
-                cancellationToken.Register(() => source.TrySetCanceled());
-                return source.Task;
-            }
-
-            public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
-            {
-                Built.Add((candidate, timbre));
-                return Task.FromResult(BuildResult);
-            }
-
-            public void Register(string runId, string name)
-            {
-                lock (Registered)
-                {
-                    Registered.Add((runId, name));
-                }
-            }
-        }
-
-        private sealed class FakePreview : IAudioPreview
-        {
-            public List<string> Played { get; } = new List<string>();
-
-            public float? Progress => Played.Count > 0 ? 0.5f : (float?)null;
-
-            public Task<bool> PlayAsync(string path)
-            {
-                Played.Add(path);
-                return Task.FromResult(true);
-            }
-
-            public void Stop()
-            {
             }
         }
     }

@@ -139,7 +139,7 @@ namespace VirtualVessel.UI.VoiceLab
         public void Refresh()
         {
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
-            _base.text = _draft.Candidate == null ? string.Empty : CandidateTile.NameText(localizer, _draft.CandidateNumber);
+            _base.text = VoiceLabView.BaseName(localizer, _draft.Candidate, _draft.CandidateNumber);
             _pitchChange.text = (localizer?.Get(VoiceLabStrings.PitchChange) ?? string.Empty) + "  " + VoiceLabView.PitchChangeText(_draft.Candidate?.MedianHz ?? 0, _pitch.value);
             _far.style.display = VoiceLabView.IsFar(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;
             _mechanical.style.display = VoiceLabView.IsMechanical(Timbre) ? DisplayStyle.Flex : DisplayStyle.None;

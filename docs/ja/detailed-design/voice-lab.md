@@ -78,14 +78,21 @@ public interface IVoiceLab
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
     void Register(string runId, string name);
 
-    // 作った声（8.6）
+    VoiceLabRemake Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
+}
+```
+
+`IVoiceLabLibrary`（これもUIモジュール）は作ったもので、「作った声」のタブが使う。学習の環境がなくても使えるので、別のインターフェイスにする。`VoiceLabLibrary`がリポジトリの上で実装する（8.6）。
+
+```csharp
+public interface IVoiceLabLibrary
+{
     IReadOnlyList<VoiceLabRunRecord> ListRuns();     // 新しい順
     IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // 新しい順
     void SetComment(string runId, string comment);
     void RenameVoice(string voiceId, string name);
-    void DeleteRun(string runId);
+    void DeleteRun(string runId);                    // 作成中のRunは断る
     void DeleteVoice(string voiceId);
-    VoiceLabRemake Remake(string runId);             // 作り直すための、Runの言葉、土台、声色
 }
 ```
 
@@ -149,7 +156,7 @@ VoiceLab/
    └─ output/                   voice.sentis、voice.spk、voice.json（登録の元）
 ```
 
-`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`とユーザーの文章`freeWords`。古いRunにはなく、なしとして読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
+`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
 声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
 

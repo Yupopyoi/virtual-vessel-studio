@@ -78,14 +78,21 @@ public interface IVoiceLab
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
     void Register(string runId, string name);
 
-    // Made voices (8.6)
+    VoiceLabRemake Remake(string runId);             // A run's words, base, and timbre, to make it again (8.6)
+}
+```
+
+`IVoiceLabLibrary` (also in the UI module) is what was made, for the Made voices tab. It works without a training environment, so it is a separate interface; `VoiceLabLibrary` implements it over the repositories (8.6).
+
+```csharp
+public interface IVoiceLabLibrary
+{
     IReadOnlyList<VoiceLabRunRecord> ListRuns();     // Newest first
     IReadOnlyList<VoiceLabVoiceRecord> ListVoices(); // Newest first
     void SetComment(string runId, string comment);
     void RenameVoice(string voiceId, string name);
-    void DeleteRun(string runId);
+    void DeleteRun(string runId);                    // Refused while that run is being made
     void DeleteVoice(string voiceId);
-    VoiceLabRemake Remake(string runId);             // The run's words, base, and timbre, to make it again
 }
 ```
 
@@ -149,7 +156,7 @@ VoiceLab/
    └─ output/                   voice.sentis, voice.spk, voice.json (what registration copies)
 ```
 
-`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre, and the shelf's `words` and the user's `freeWords`; missing in older runs, read as none), `comment` (the user's note), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
+`run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre, and the shelf's `words`, the user's `freeWords`, and the base's pitch `medianHz`, `lowHz`, `highHz`; missing in older runs, read as none or 0), `comment` (the user's note), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
 
 The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its measured share of the time (speech 39%, edit 6%, training 50%, export 5%).
 

@@ -61,7 +61,7 @@ namespace VirtualVessel.UI.VoiceLab
         {
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
             VoiceLabCandidate candidate = _draft.Candidate;
-            _base.text = candidate == null ? string.Empty : CandidateTile.NameText(localizer, _draft.CandidateNumber) + "  " + CandidateTile.HzText(candidate.MedianHz);
+            _base.text = candidate == null ? string.Empty : VoiceLabView.BaseName(localizer, candidate, _draft.CandidateNumber) + "  " + CandidateTile.HzText(candidate.MedianHz);
             _timbre.text = VoiceLabView.TimbreSummary(localizer, _draft.Timbre);
             bool registered = _draft.RunId != null && _draft.RunId == _registeredRun;
             _result.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;

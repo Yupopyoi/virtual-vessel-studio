@@ -129,6 +129,14 @@ namespace VirtualVessel.UI.VoiceLab
             ShowPicks();
         }
 
+        /// <summary>Puts a run's words back (Voice Lab detailed design 8.6); words the shelf no longer has are left out.</summary>
+        public void SetPicks(IReadOnlyList<string> words, string freeWords)
+        {
+            _picked = _shelf.FromExample(new VoiceLabExample(string.Empty, words));
+            _words.value = freeWords ?? string.Empty;
+            ShowPicks();
+        }
+
         public void Press(string wordId)
         {
             _picked = _shelf.Toggle(_picked, wordId);

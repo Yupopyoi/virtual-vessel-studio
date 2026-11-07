@@ -71,6 +71,20 @@ namespace VirtualVessel.UI.VoiceLab
             return string.IsNullOrEmpty(own) ? sentence : sentence + " " + own;
         }
 
+        /// <summary>
+        /// The base's name: "Candidate n", or, for a base put back from a run, which has no number in this
+        /// session, that it is the run's base. Pure.
+        /// </summary>
+        public static string BaseName(ILocalizer localizer, VoiceLabCandidate candidate, int number)
+        {
+            if (candidate == null)
+            {
+                return string.Empty;
+            }
+
+            return number > 0 ? Controls.CandidateTile.NameText(localizer, number) : Controls.KeyedText.Resolve(localizer, VoiceLabStrings.RemadeBase);
+        }
+
         /// <summary>The candidates' indexes in <paramref name="order"/>; equal pitches keep the order made.</summary>
         public static int[] Order(IReadOnlyList<int> medianHz, CandidateOrder order)
         {

@@ -37,8 +37,9 @@ namespace VirtualVessel.VoiceLab
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
-        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log)
+        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log, IVoiceLabLibrary library)
         {
+            Library = library;
             _designer = designer;
             _runs = runs;
             _voices = voices;
@@ -55,6 +56,9 @@ namespace VirtualVessel.VoiceLab
 
         public VoiceLabShelf Shelf { get; }
 
+        /// <summary>What was made; there even when Voice Lab is not set up, so it can still be listed.</summary>
+        public IVoiceLabLibrary Library { get; }
+
         public VoiceLabMaking SamplesProgress => _samplesMaking.Value;
 
         public VoiceLabMaking CandidatesProgress => _making.Value;
@@ -67,11 +71,14 @@ namespace VirtualVessel.VoiceLab
         /// </summary>
         public static VoiceLabService Create(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random = null)
         {
+            // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
+            VoiceLabService created = null;
+            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, log);
             string path = Path.Combine(configDirectory, EnvironmentFile);
             if (!File.Exists(path))
             {
                 log.Information("Voice Lab is not set up: no training environment.");
-                return new VoiceLabService(null, null, null, null, null, null, log);
+                return created = new VoiceLabService(null, null, null, null, null, null, log, library);
             }
 
             VoiceLabEnvironment environment = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
@@ -88,7 +95,7 @@ namespace VirtualVessel.VoiceLab
             if (problems.Count > 0)
             {
                 log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
-                return new VoiceLabService(null, null, null, null, null, null, log);
+                return created = new VoiceLabService(null, null, null, null, null, null, log, library);
             }
 
             var runner = new ExternalProcessRunner(environment.AllowedFolders, log.WithContext("component", "process"), clock);
@@ -96,7 +103,7 @@ namespace VirtualVessel.VoiceLab
             var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(voiceLabFolder, "Designs"), clock, log, (random ?? new Random()).Next(1, 1_000_000));
             log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
             var voices = new VoiceModelStore(voiceModelsFolder, clock);
-            return new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log);
+            return created = new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log, library);
         }
 
         public string SampleFile(string language, string name)
@@ -180,6 +187,44 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
+        public VoiceLabRemake Remake(string runId)
+        {
+            Ensure();
+            TrainingRun run = _runs.Get(runId) ?? throw new VoiceLabFailedException($"There is no run {runId}.");
+            VoiceCandidate candidate = FromRun(run.Design ?? new RunDesign(), File.Exists);
+            if (candidate != null)
+            {
+                lock (_gate)
+                {
+                    _candidates[candidate.Id] = candidate;
+                }
+            }
+
+            RunDesign design = run.Design ?? new RunDesign();
+            return new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre));
+        }
+
+        /// <summary>
+        /// The run's base as a candidate again, with the words it was asked with; null when its audio is gone.
+        /// Pure but for <paramref name="exists"/>.
+        /// </summary>
+        public static VoiceCandidate FromRun(RunDesign design, Func<string, bool> exists)
+        {
+            if (string.IsNullOrEmpty(design.Candidate) || !exists(design.Candidate))
+            {
+                return null;
+            }
+
+            return new VoiceCandidate(
+                $"candidate_{design.Seed}",
+                design.Seed,
+                design.Candidate,
+                new PitchSummary(design.MedianHz, design.LowHz, design.HighHz),
+                design.Instruction,
+                design.Reference,
+                new VoiceDescription(design.Words, design.FreeWords));
+        }
+
         public void Register(string runId, string name)
         {
             Ensure();
@@ -223,6 +268,12 @@ namespace VirtualVessel.VoiceLab
                 default:
                     return VoiceLabBuildState.Failed;
             }
+        }
+
+        /// <summary>A run's timbre as the screen shows it; a missing one is no change. Pure.</summary>
+        public static VoiceLabTimbre ToScreen(TimbreValues timbre)
+        {
+            return timbre == null ? default : new VoiceLabTimbre(timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
         }
 
         /// <summary>The screen's timbre as the designer takes it. Pure.</summary>

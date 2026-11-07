@@ -58,6 +58,13 @@ namespace VirtualVessel.VoiceLab.Training
 
         /// <summary>The user's own words the candidate was asked with. Added later; older run.json files read it as none.</summary>
         public string FreeWords { get; set; } = string.Empty;
+
+        /// <summary>The candidate's pitch: median and 5 to 95% range in Hz. Added later; older run.json files read 0 (unknown).</summary>
+        public int MedianHz { get; set; }
+
+        public int LowHz { get; set; }
+
+        public int HighHz { get; set; }
     }
 
     /// <summary>
@@ -195,6 +202,9 @@ namespace VirtualVessel.VoiceLab.Training
                     },
                     Words = new List<string>(Design?.Words ?? new List<string>()),
                     FreeWords = Design?.FreeWords ?? string.Empty,
+                    MedianHz = Design?.MedianHz ?? 0,
+                    LowHz = Design?.LowHz ?? 0,
+                    HighHz = Design?.HighHz ?? 0,
                 },
                 ErrorCode = ErrorCode,
                 Error = Error,

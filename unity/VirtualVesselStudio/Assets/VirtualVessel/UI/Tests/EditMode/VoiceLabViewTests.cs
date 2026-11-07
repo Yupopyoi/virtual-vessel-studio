@@ -127,6 +127,24 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabView.IsMechanical(new VoiceLabTimbre(pitch, age, brightness, 0f)), Is.EqualTo(mechanical));
         }
 
+        [TestCase(VoiceLabBuildState.Completed, VoiceLabStrings.RunCompleted)]
+        [TestCase(VoiceLabBuildState.Failed, VoiceLabStrings.RunFailed)]
+        [TestCase(VoiceLabBuildState.Cancelled, VoiceLabStrings.RunCancelled)]
+        [TestCase(VoiceLabBuildState.Training, VoiceLabStrings.RunMaking)]
+        public void RunStates_HaveTheirChips(VoiceLabBuildState state, string key)
+        {
+            Assert.That(VoiceLabLibraryView.RunStatus(state).Key, Is.EqualTo(key));
+        }
+
+        [Test]
+        public void MadeVoices_ShowDatesAndBaseNames()
+        {
+            Assert.That(VoiceLabLibraryView.DateText(System.DateTimeOffset.MinValue), Is.EqualTo("—"));
+            var candidate = new VoiceLabCandidate("c", "c.wav", 140, 100, 200);
+            Assert.That(VoiceLabView.BaseName(null, candidate, 0), Is.EqualTo("[" + VoiceLabStrings.RemadeBase + "]"), "A base put back from a run has no number.");
+            Assert.That(VoiceLabView.BaseName(null, null, 3), Is.Empty);
+        }
+
         [Test]
         public void HeldTimbres_AreDistinct_AndAtMostSix()
         {

@@ -19,6 +19,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabDraft _draft;
         private readonly IVoiceLabFlow _flow;
         private readonly VoiceLabShelfView _request;
+        private readonly VisualElement _baseGone;
         private readonly List<(int Number, int From, VoiceLabCandidate Candidate)> _candidates = new List<(int, int, VoiceLabCandidate)>();
         private readonly Dictionary<CandidateTile, VoiceLabCandidate> _shown = new Dictionary<CandidateTile, VoiceLabCandidate>();
         private readonly ActionButton _make;
@@ -44,6 +45,11 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BaseLead));
 
             // Examples, the word shelf, the read-back sentence, and the user's words (Voice Lab detailed design 8.3.1).
+            _baseGone = new VisualElement();
+            _baseGone.Add(Ui.Chip(StatusKind.Warning, VoiceLabStrings.BaseGone));
+            _baseGone.Add(Ui.Text(VoiceLabStrings.BaseGoneBody, VoiceLabScreen.NoteClass, "vv-text-body"));
+            _baseGone.style.display = DisplayStyle.None;
+            Add(_baseGone);
             _request = new VoiceLabShelfView(lab, player);
             Add(_request);
 
@@ -112,6 +118,12 @@ namespace VirtualVessel.UI.VoiceLab
         public VoiceLabShelfView RequestView => _request;
 
         public string InstructionText => _instruction.text;
+
+        /// <summary>Says a run being made again has lost its base's audio, so a new base is picked here.</summary>
+        public void ShowBaseGone(bool gone)
+        {
+            _baseGone.style.display = gone ? DisplayStyle.Flex : DisplayStyle.None;
+        }
 
         private enum MakeKind
         {
