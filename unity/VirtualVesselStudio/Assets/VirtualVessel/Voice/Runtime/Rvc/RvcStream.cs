@@ -367,6 +367,17 @@ namespace VirtualVessel.Voice.Rvc
             }
         }
 
+        /// <summary>
+        /// The input's pitch in Hz, before the transposition, for the last finished block's frames that no longer
+        /// change: the newest frames lean on reflected padding and are decoded again next block. 0 where unvoiced.
+        /// Writes <see cref="RvcStreamShape.BlockFrames"/> values into the caller's buffer, reused to avoid garbage.
+        /// </summary>
+        public void CopySettledPitch(Span<float> target)
+        {
+            int end = _cachedF0.Length - ReflectedFrames;
+            new ReadOnlySpan<float>(_cachedF0, end - _shape.BlockFrames, _shape.BlockFrames).CopyTo(target);
+        }
+
         /// <summary>Forgets a block on its way, such as when the conversion turns off.</summary>
         public void Abandon()
         {

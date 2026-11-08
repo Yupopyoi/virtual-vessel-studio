@@ -128,6 +128,18 @@ namespace VirtualVessel.Voice.Models
             return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(choices);
         }
 
+        /// <summary>A registered voice's median pitch in Hz; 0 for the prototype's or when unknown. Reads its record.</summary>
+        public int MedianPitchOf(string voiceId)
+        {
+            if (_voices == null || !VoiceModelStore.IsVoiceId(voiceId))
+            {
+                return 0;
+            }
+
+            CrudResult<VoiceModelRecord> voice = _voices.Get(voiceId);
+            return voice.Ok ? voice.Value.MedianPitchHz : 0;
+        }
+
         /// <summary>The voice's files, checked; reads its voice.json. Not for hot paths.</summary>
         public VoiceModelFiles Locate(string voiceId)
         {

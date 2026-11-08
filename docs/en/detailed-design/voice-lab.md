@@ -304,7 +304,7 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 - Trying goes through the application's real-time conversion (the window, the overlap at joins, the recent speech, and noise removal in the Voice detailed design). Upstream's conversion of a whole file at once hides the window's problems and overrates a voice: held "u" and "e" were right there and drifted in real time.
 - The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone.
-- The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is for the Voice detailed design (chapter 17).
+- The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is in Voice detailed design 8.4.
 
 ### 8.6 Made Voices
 
@@ -468,7 +468,6 @@ Open issues:
 - The agreement screen's wording, reviewed by a legal professional before release.
 - The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
 - The flow of designing a voice (8.3): how well the brightness and breathiness knobs work, the range of the age ratio, and the training-speech vowel hypothesis. "Passable" above was judged on upstream's conversion, not yet on real-time conversion.
-- Matching the conversion's pitch automatically: the registered voice's format for its median pitch, and how Voice uses it (the Voice detailed design's part).
 
 Approved by the user (2026-11-01):
 

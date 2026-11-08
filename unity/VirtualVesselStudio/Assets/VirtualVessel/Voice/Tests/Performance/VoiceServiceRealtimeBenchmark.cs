@@ -194,6 +194,59 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(service.Stats.Dropped, Is.EqualTo(0));
         }
 
+        /// <summary>
+        /// Converts a recording with a registered voice and the automatic pitch on (Voice detailed design 8.4): the
+        /// user's pitch is measured from the conversion's own pitch track and the shift follows it. The output is
+        /// written for listening. Voices come from VV_VOICE_MODELS.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator MatchesThePitch_WhileConverting()
+        {
+            string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
+            string voicesRoot = Environment.GetEnvironmentVariable("VV_VOICE_MODELS");
+            if (string.IsNullOrEmpty(work) || string.IsNullOrEmpty(voicesRoot))
+            {
+                Assert.Ignore("VV_VOICE_WORK or VV_VOICE_MODELS is not set.");
+            }
+
+            var library = new VoiceModelLibrary(voicesRoot, Path.Combine(work, "sentis"), new VoiceModelStore(voicesRoot, new UtcSystemClock()));
+            VoiceConversionVoice target = library.List().Value.FirstOrDefault(v => v.Id != VoiceModelLibrary.PrototypeId && v.Usable && v.MedianPitchHz > 0);
+            if (target.Id == null)
+            {
+                Assert.Ignore("No usable registered voice with a known pitch.");
+            }
+
+            float[] speech = WavFile.Read(File.ReadAllBytes(Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(work, "rec", "record_speak2.wav")), out int rate);
+            var stage = new WavStage(WavFile.ToRate(speech, rate, RvcStream.DeviceRate));
+            var loop = new ManualFrameLoop();
+            using var service = new VoiceService(stage, loop, library, null);
+            service.SelectVoice(target.Id);
+            service.SetEnabled(true);
+            while (service.State.Value == VoiceConversionState.Loading)
+            {
+                loop.Tick();
+                yield return null;
+            }
+
+            stage.Start();
+            var clock = Stopwatch.StartNew();
+            while (clock.Elapsed.TotalSeconds < 12)
+            {
+                loop.Tick();
+                Thread.Sleep(10);
+                yield return null;
+            }
+
+            service.SetEnabled(false);
+            string report = $"Pitch match with {target.Id}: user {service.UserPitchHz:F0} Hz, voice {service.VoicePitchHz:F0} Hz, shift {service.AutoSemitones:+0;-0;0}";
+            TestContext.WriteLine(report);
+            File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
+            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", "unity_pitch_match.wav"), stage.Output.ToArray());
+            Assert.That(service.UserPitchHz, Is.InRange(80f, 500f));
+            Assert.That(service.VoicePitchHz, Is.EqualTo(target.MedianPitchHz));
+            Assert.That(service.AutoSemitones, Is.EqualTo(PitchMatch.Semitones(target.MedianPitchHz, service.UserPitchHz)));
+        }
+
         private sealed class ManualFrameLoop : IFrameLoop
         {
             private Action _tick;

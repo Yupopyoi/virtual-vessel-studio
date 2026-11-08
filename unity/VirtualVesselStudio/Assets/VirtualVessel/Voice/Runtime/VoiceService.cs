@@ -29,6 +29,9 @@ namespace VirtualVessel.Voice
 
         private const int ChannelCount = 2;
 
+        // 48 kHz samples in one 10 ms frame of the models.
+        private const int BlockSamplesPerFrame = 480;
+
         // The stage's output comes in bursts, so the first one is put back by this much silence, which
         // every later burst inherits, to let a late burst arrive before the mix runs dry.
         private const int MarginFrames = 1440;
@@ -47,6 +50,13 @@ namespace VirtualVessel.Voice
         private readonly VoiceModelLibrary _library;
         private readonly VoiceLoader _loader;
         private readonly VoiceWarmup _next = new VoiceWarmup();
+        private readonly PitchMeter _meter = new PitchMeter();
+        private float[] _blockPitch;
+        private bool _autoPitch = true;
+
+        // The median pitch of the voice converting, and of the one loading or warming behind it.
+        private float _voicePitchHz;
+        private float _loadingPitchHz;
         private readonly ILog _log;
         private readonly ObservableValue<VoiceConversionState> _state = new ObservableValue<VoiceConversionState>(VoiceConversionState.Off);
 
@@ -151,10 +161,40 @@ namespace VirtualVessel.Voice
             set
             {
                 _semitones = value;
-                if (_stream != null)
-                {
-                    _stream.Semitones = value;
-                }
+                ApplyPitch();
+            }
+        }
+
+        public bool AutoPitch
+        {
+            get => _autoPitch;
+            set
+            {
+                _autoPitch = value;
+                ApplyPitch();
+            }
+        }
+
+        public float AutoSemitones => PitchMatch.Semitones(_voicePitchHz, _meter.MedianHz);
+
+        public float UserPitchHz => _meter.MedianHz;
+
+        public float VoicePitchHz => _voicePitchHz;
+
+        public void RemeasurePitch()
+        {
+            _meter.Reset();
+            ApplyPitch();
+        }
+
+        // The shift the stream converts with; it applies from the next block.
+        private float AppliedSemitones => PitchMatch.Applied(_autoPitch, AutoSemitones, _semitones);
+
+        private void ApplyPitch()
+        {
+            if (_stream != null)
+            {
+                _stream.Semitones = AppliedSemitones;
             }
         }
 
@@ -304,7 +344,11 @@ namespace VirtualVessel.Voice
 
             bool switching = _stream != null;
             string problem = _stage.IsAvailable ? _loader.Begin(_wantedVoice) : "the microphone's stage is unavailable.";
-            if (problem != null)
+            if (problem == null)
+            {
+                _loadingPitchHz = _library.MedianPitchOf(_wantedVoice);
+            }
+            else
             {
                 _log?.Warning($"Voice conversion cannot load voice '{LogName(_wantedVoice)}': {problem}");
                 if (switching)
@@ -368,7 +412,7 @@ namespace VirtualVessel.Voice
             string voiceId = _loader.LoadingVoice;
             try
             {
-                stream = _loader.Finish(_semitones, out voiceId);
+                stream = _loader.Finish(PitchMatch.Applied(_autoPitch, PitchMatch.Semitones(_loadingPitchHz, _meter.MedianHz), _semitones), out voiceId);
                 if (switching)
                 {
                     // Warmed a little each frame, while the voice in use keeps converting.
@@ -381,6 +425,7 @@ namespace VirtualVessel.Voice
                 _waiting ??= new float[RvcStream.DeviceRate];
                 _block ??= new float[stream.BlockSamples];
                 _output ??= new float[stream.BlockSamples * ChannelCount];
+                _blockPitch ??= new float[stream.BlockSamples / BlockSamplesPerFrame];
 
                 // The first runs compile the shaders and take far longer than a block, so they happen
                 // here, where nobody is waiting for the audio yet.
@@ -394,6 +439,7 @@ namespace VirtualVessel.Voice
                 _stream?.Dispose();
                 _stream = stream;
                 _streamVoice = voiceId;
+                _voicePitchHz = _loadingPitchHz;
                 _log?.Information($"Voice conversion is ready with voice {LogName(voiceId)}: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
                 if (_wanted)
                 {
@@ -449,9 +495,10 @@ namespace VirtualVessel.Voice
 
             _log?.Information($"Voice {LogName(_next.VoiceId)} takes over from voice {LogName(_streamVoice)}.");
             _streamVoice = _next.VoiceId;
+            _voicePitchHz = _loadingPitchHz;
             _stream.Dispose();
             _stream = _next.Take();
-            _stream.Semitones = _semitones;
+            ApplyPitch();
         }
 
         private void Attach()
@@ -556,6 +603,22 @@ namespace VirtualVessel.Voice
             }
         }
 
+        // The user's pitch, from the frames of the block just delivered that no longer change, until the meter keeps
+        // its median. Its buffer is reused: this runs every block.
+        private void MeasurePitch()
+        {
+            if (_meter.IsLocked)
+            {
+                return;
+            }
+
+            _stream.CopySettledPitch(_blockPitch);
+            if (_meter.Add(_blockPitch))
+            {
+                ApplyPitch();
+            }
+        }
+
         private void Collect()
         {
             int room = _waiting.Length - _waitingSamples;
@@ -604,6 +667,7 @@ namespace VirtualVessel.Voice
 
             _stage.Write(_output, _block.Length);
             _blocks++;
+            MeasurePitch();
             long started = _startedAt.Count > 0 ? _startedAt.Dequeue() : System.Diagnostics.Stopwatch.GetTimestamp();
             double work = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             _workTimer?.Record(TimeSpan.FromMilliseconds(work));

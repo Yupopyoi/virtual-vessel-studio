@@ -30,6 +30,8 @@ namespace VirtualVessel.UI.Screens
         public const string StateUnavailable = "diagnostics.voice.state.unavailable";
         public const string StateFailed = "diagnostics.voice.state.failed";
         public const string Voice = "diagnostics.voice.voice";
+        public const string AutoPitch = "diagnostics.voice.auto-pitch";
+        public const string Remeasure = "diagnostics.voice.remeasure";
         public const string Prototype = "diagnostics.voice.prototype";
         public const string Unusable = "diagnostics.voice.unusable";
         public const string Switching = "diagnostics.voice.switching";
@@ -56,6 +58,7 @@ namespace VirtualVessel.UI.Screens
         private readonly ActionButton _stopFile;
         private readonly ProgressMeter _progress;
         private readonly Label _file;
+        private readonly Label _pitch;
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
         private VoiceConversionState _state;
@@ -77,6 +80,17 @@ namespace VirtualVessel.UI.Screens
             _voices = Ui.Select(VoiceConversionStrings.Voice);
             _voices.RegisterValueChangedCallback(evt => _voice.SelectVoice(evt.newValue));
             card.Add(_voices);
+
+            SwitchToggle auto = Ui.Toggle(VoiceConversionStrings.AutoPitch);
+            auto.SetValueWithoutNotify(_voice.AutoPitch);
+            auto.RegisterValueChangedCallback(evt => _voice.AutoPitch = evt.newValue);
+            card.Add(auto);
+            _pitch = Text();
+            _pitch.AddToClassList("vv-text-mono");
+            card.Add(_pitch);
+            ActionButton remeasure = Ui.Button(VoiceConversionStrings.Remeasure);
+            remeasure.clicked += _voice.RemeasurePitch;
+            card.Add(remeasure);
 
             ValueSlider semitones = Ui.Slider(VoiceConversionStrings.Semitones, -SemitoneRange, SemitoneRange, null);
             semitones.Step = 1f;
@@ -172,6 +186,14 @@ namespace VirtualVessel.UI.Screens
             return name == null ? string.Empty : string.Format(CultureInfo.InvariantCulture, "{0}  {1:F0} / {2:F0} s", name, position, length);
         }
 
+        /// <summary>The pitch match as numbers, which read the same in every language. Pure.</summary>
+        public static string FormatPitch(float userHz, float voiceHz, float autoSemitones)
+        {
+            string user = userHz > 0f ? string.Format(CultureInfo.InvariantCulture, "{0:F0} Hz", userHz) : "? Hz";
+            string voice = voiceHz > 0f ? string.Format(CultureInfo.InvariantCulture, "{0:F0} Hz", voiceHz) : "? Hz";
+            return string.Format(CultureInfo.InvariantCulture, "{0} -> {1}  ({2:+0;-0;0})", user, voice, autoSemitones);
+        }
+
         /// <summary>Numbers read the same in every language, so this needs no string table. Pure.</summary>
         public static string FormatStats(VoiceConversionStats stats)
         {
@@ -210,6 +232,7 @@ namespace VirtualVessel.UI.Screens
         private void Refresh()
         {
             _stats.text = FormatStats(_voice.Stats);
+            _pitch.text = FormatPitch(_voice.UserPitchHz, _voice.VoicePitchHz, _voice.AutoSemitones);
             _progress.Progress = _voice.LoadProgress;
             (float position, float length) = _voice.FileTime;
             _file.text = FormatFile(_voice.FileName, position, length);

@@ -91,7 +91,26 @@ namespace VirtualVessel.UI.Voice
         /// <summary>True while a chosen voice loads behind the one converting.</summary>
         bool IsSwitching { get; }
 
+        /// <summary>
+        /// The user's adjustment in semitones, added to the automatic shift while <see cref="AutoPitch"/> is on, or the
+        /// whole shift while it is off.
+        /// </summary>
         float Semitones { get; set; }
+
+        /// <summary>Matches the voice's pitch to the user's own (Voice Lab detailed design 8.3.4). On by default.</summary>
+        bool AutoPitch { get; set; }
+
+        /// <summary>The automatic shift; 0 until the user's pitch is measured or when the voice's is unknown.</summary>
+        float AutoSemitones { get; }
+
+        /// <summary>The user's median pitch in Hz, measured while converting; 0 until about 2 s of voice.</summary>
+        float UserPitchHz { get; }
+
+        /// <summary>The voice's median pitch in Hz; 0 when unknown, as for the prototype's voice.</summary>
+        float VoicePitchHz { get; }
+
+        /// <summary>Forgets the user's measured pitch and measures it again from the next voice.</summary>
+        void RemeasurePitch();
 
         /// <summary>Removes noise such as key presses before the voice is converted.</summary>
         bool Denoise { get; set; }

@@ -70,6 +70,12 @@ public interface IVoiceConversion
     string VoiceId { get; }                  // The chosen voice; the prototype's is the empty string
     void SelectVoice(string voiceId);        // While converting, loads behind and takes over (8.2)
     bool IsSwitching { get; }                // While the chosen voice gets ready
+    float Semitones { get; set; }            // The user's adjustment, added to the automatic shift when on
+    bool AutoPitch { get; set; }             // Automatic pitch matching (8.4); on by default
+    float AutoSemitones { get; }             // The automatic shift
+    float UserPitchHz { get; }               // The user's measured median pitch; 0 until measured
+    float VoicePitchHz { get; }              // The voice's median pitch; 0 when unknown
+    void RemeasurePitch();                   // Measure again
     void SetEnabled(bool enabled);
 }
 ```
@@ -184,6 +190,22 @@ Choose → read the generator and speaker vector on the thread pool (HuBERT and 
 ### 8.3 Sync with the video
 
 The stream video is delayed by the conversion's delay (audio detailed design 8.3, 8.4). `IAudioStage` gets a way to declare that delay. The prototype does not have it yet.
+
+### 8.4 Automatic pitch matching
+
+A voice that does not sound at its own pitch sounds like another voice, even with the right timbre (decision record, 2026-11-08). So the user's median pitch is moved to the voice's (Voice Lab detailed design 8.3.4).
+
+```text
+semitones = 12·log2(voice median / user median), rounded to a whole one, within ±24
+shift     = (when automatic is on) semitones + the user's adjustment
+```
+
+- The voice's median comes from its registration record (`medianPitchHz` in `model.json`). A voice without one (the prototype's) is not matched.
+- The user's pitch is RMVPE's inside the conversion; nothing else estimates it. Each block, the generator's `f0new` (the pitch before the shift) gives one block's 10 frames that no longer lean on reflected padding (`PitchMeter`), from the microphone or a recording alike.
+- The generator fills unvoiced frames with the last voiced pitch. Counted, they pulled the median to the falling ends of phrases (149 Hz, against 200 Hz by upstream's RMVPE). A filled frame repeats the one before it exactly, and a voiced frame, a weighted mean of bins, does not repeat, so a frame equal to the one before is not counted. With that it measured 200 Hz, as upstream's RMVPE does.
+- Matching starts after 2 s of voice, and the value is kept after 10 s, so singing high later does not move the shift. Measure again starts over.
+- Until matching starts, about 2 s sound at the user's own pitch. Keeping the measured value in the per-PC settings (6.3) would match from the start next time; it comes with those settings.
+- The collecting runs every block, so it reuses its buffers and makes no garbage. The median's sort runs only while measuring (the first 10 s).
 
 ## 9. Threading and Async
 
