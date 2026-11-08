@@ -125,6 +125,15 @@ namespace VirtualVessel.Voice.Tests
         }
 
         [Test]
+        public void AVoiceChosenByItsFolder_IsToldFromARegisteredOne()
+        {
+            Assert.That(VoiceService.FolderOf(VoiceService.FolderPrefix + "C:/runs/a/output"), Is.EqualTo("C:/runs/a/output"));
+            Assert.That(VoiceService.FolderOf("voice-a"), Is.Null);
+            Assert.That(VoiceService.FolderOf(VoiceModelLibrary.PrototypeId), Is.Null);
+            Assert.That(VoiceService.FolderOf(null), Is.Null);
+        }
+
+        [Test]
         public void TheLog_NamesThePrototypesVoice_WhoseIdIsEmpty()
         {
             Assert.That(VoiceService.LogName(VoiceModelLibrary.PrototypeId), Is.EqualTo("prototype"));

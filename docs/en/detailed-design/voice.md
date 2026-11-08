@@ -70,6 +70,7 @@ public interface IVoiceConversion
     CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID, name, median pitch, usable
     string VoiceId { get; }                  // The chosen voice; the prototype's is the empty string
     void SelectVoice(string voiceId);        // While converting, loads behind and takes over (8.2)
+    void SelectVoiceFolder(string folder);   // Chooses by folder, to try a voice not yet registered on the microphone (8.5)
     bool IsSwitching { get; }                // While the chosen voice gets ready
     float Semitones { get; set; }            // The user's adjustment, added to the automatic shift when on
     bool AutoPitch { get; set; }             // Automatic pitch matching (8.4); on by default
@@ -225,6 +226,7 @@ A voice's folder (a run's output just made, or a registered voice) and a recordi
 - Pitch matching is 8.4's. When the user's pitch is not known, one conversion runs first only to measure it (stopping after 10 s of voice), then the matched one.
 - Noise removal does not apply: it is Audio's native processing and exists only on the microphone's path.
 - One at a time. Cancelling while the voice loads lets it go once loaded.
+- Trying on the microphone uses the stream's conversion (`VoiceService`), choosing the unregistered voice by its folder (`SelectVoiceFolder`; the ID is `folder:` and the folder). It loads and switches as a registered voice does, and another folder loads again. When the trial ends, the screen puts back the voice and the on/off state from before. The converted voice is heard only with the microphone's Hear on.
 - Measured (RTX 4070): a 7.4 s recording converted in 8.8 s, measuring included; the longest frame was 21 ms. The first run in the test copy stalled one frame for 5.5 s compiling shaders; once cached, it does not recur.
 
 ## 9. Threading and Async

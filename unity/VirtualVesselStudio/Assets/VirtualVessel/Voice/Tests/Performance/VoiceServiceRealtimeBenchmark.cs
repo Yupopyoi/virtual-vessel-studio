@@ -247,6 +247,53 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(service.AutoSemitones, Is.EqualTo(PitchMatch.Semitones(target.MedianPitchHz, service.UserPitchHz)));
         }
 
+        /// <summary>A voice chosen by its folder converts on the microphone, with its pitch read from its voice.json.</summary>
+        [UnityTest]
+        public IEnumerator ConvertsWithAVoiceChosenByItsFolder()
+        {
+            string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
+            string voicesRoot = Environment.GetEnvironmentVariable("VV_VOICE_MODELS");
+            if (string.IsNullOrEmpty(work) || string.IsNullOrEmpty(voicesRoot))
+            {
+                Assert.Ignore("VV_VOICE_WORK or VV_VOICE_MODELS is not set.");
+            }
+
+            var store = new VoiceModelStore(voicesRoot, new UtcSystemClock());
+            var library = new VoiceModelLibrary(voicesRoot, Path.Combine(work, "sentis"), store);
+            VoiceConversionVoice target = library.List().Value.FirstOrDefault(v => v.Id != VoiceModelLibrary.PrototypeId && v.Usable && v.MedianPitchHz > 0);
+            if (target.Id == null)
+            {
+                Assert.Ignore("No usable registered voice with a known pitch.");
+            }
+
+            float[] speech = WavFile.Read(File.ReadAllBytes(Path.Combine(work, "rec", "record_speak2.wav")), out int rate);
+            var stage = new WavStage(WavFile.ToRate(speech, rate, RvcStream.DeviceRate));
+            var loop = new ManualFrameLoop();
+            using var service = new VoiceService(stage, loop, library, null);
+            service.SelectVoiceFolder(store.FolderOf(target.Id));
+            service.SetEnabled(true);
+            while (service.State.Value == VoiceConversionState.Loading)
+            {
+                loop.Tick();
+                yield return null;
+            }
+
+            stage.Start();
+            var clock = Stopwatch.StartNew();
+            while (clock.Elapsed.TotalSeconds < 3)
+            {
+                loop.Tick();
+                Thread.Sleep(10);
+                yield return null;
+            }
+
+            service.SetEnabled(false);
+            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Off), service.Failure?.ToString());
+            Assert.That(service.Stats.Blocks, Is.GreaterThan(10));
+            Assert.That(service.VoicePitchHz, Is.EqualTo(target.MedianPitchHz));
+            Assert.That(VoiceService.FolderOf(service.VoiceId), Is.EqualTo(store.FolderOf(target.Id)));
+        }
+
         internal sealed class ManualFrameLoop : IFrameLoop
         {
             private Action _tick;

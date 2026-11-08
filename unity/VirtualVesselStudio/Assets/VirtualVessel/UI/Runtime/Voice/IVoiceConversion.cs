@@ -88,6 +88,12 @@ namespace VirtualVessel.UI.Voice
         /// </summary>
         void SelectVoice(string voiceId);
 
+        /// <summary>
+        /// Chooses a voice by its folder, such as one just made and not yet registered, to try it on the microphone.
+        /// <see cref="VoiceId"/> then names the folder; choosing the earlier ID afterwards puts things back.
+        /// </summary>
+        void SelectVoiceFolder(string folder);
+
         /// <summary>True while a chosen voice loads behind the one converting.</summary>
         bool IsSwitching { get; }
 

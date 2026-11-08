@@ -29,6 +29,9 @@ namespace VirtualVessel.Voice
 
         private const int ChannelCount = 2;
 
+        /// <summary>Marks a voice ID that is a folder, for a voice chosen by its folder.</summary>
+        public const string FolderPrefix = "folder:";
+
         // 48 kHz samples in one 10 ms frame of the models.
         private const int BlockSamplesPerFrame = 480;
 
@@ -346,10 +349,11 @@ namespace VirtualVessel.Voice
             }
 
             bool switching = _stream != null;
-            string problem = _stage.IsAvailable ? _loader.Begin(_wantedVoice) : "the microphone's stage is unavailable.";
+            VoiceModelFiles files = Locate(_wantedVoice);
+            string problem = _stage.IsAvailable ? _loader.Begin(files, _wantedVoice) : "the microphone's stage is unavailable.";
             if (problem == null)
             {
-                _loadingPitchHz = _library.MedianPitchOf(_wantedVoice);
+                _loadingPitchHz = FolderOf(_wantedVoice) != null ? files.MedianPitchHz : _library.MedianPitchOf(_wantedVoice);
             }
             else
             {
@@ -472,6 +476,33 @@ namespace VirtualVessel.Voice
         }
 
         /// <summary>A voice's ID as the log shows it: the prototype's is empty, so it gets a name. Pure.</summary>
+        /// <summary>
+        /// Chooses a voice by its folder, such as one just made and not yet registered, to try it on the microphone
+        /// (Voice Lab detailed design 8.3.4). It loads and switches as a chosen voice does; another folder loads again.
+        /// </summary>
+        public void SelectVoiceFolder(string folder)
+        {
+            SelectVoice(FolderPrefix + folder);
+        }
+
+        /// <summary>The folder a voice ID names, or null for a registered voice or the prototype's. Pure.</summary>
+        public static string FolderOf(string voiceId)
+        {
+            return voiceId != null && voiceId.StartsWith(FolderPrefix, StringComparison.Ordinal) ? voiceId.Substring(FolderPrefix.Length) : null;
+        }
+
+        // Registered voices by their ID, a voice chosen by its folder by the folder.
+        private VoiceModelFiles Locate(string voiceId)
+        {
+            if (_library == null || voiceId == null)
+            {
+                return VoiceModelFiles.Unusable("There is no voice.");
+            }
+
+            string folder = FolderOf(voiceId);
+            return folder != null ? _library.LocateFolder(folder) : _library.Locate(voiceId);
+        }
+
         public static string LogName(string voiceId)
         {
             return voiceId == VoiceModelLibrary.PrototypeId ? "prototype" : voiceId ?? "none";

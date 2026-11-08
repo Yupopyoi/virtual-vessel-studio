@@ -70,6 +70,7 @@ public interface IVoiceConversion
     CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID、名前、高さの中央値、使えるか
     string VoiceId { get; }                  // 選んだ声。試作の声は空文字
     void SelectVoice(string voiceId);        // 変換中なら裏で読み込んで差し替える（8.2）
+    void SelectVoiceFolder(string folder);   // フォルダーで選ぶ。登録前の声をマイクで試す（8.5）
     bool IsSwitching { get; }                // 選んだ声を準備している間
     float Semitones { get; set; }            // 利用者の調整。自動がオンなら自動の量に足す
     bool AutoPitch { get; set; }             // 高さの自動合わせ（8.4）。既定はオン
@@ -225,6 +226,7 @@ Voice LabのSTEP 4で、作った声を録音で試す（Voice Lab詳細設計8.
 - 高さの自動合わせは8.4と同じ計算である。利用者の高さが分からないときは、先に一度変換して高さだけを測る（10秒の声で打ち切る）。それから合わせて変換する。
 - ノイズ除去はかからない。Audioのネイティブの処理で、マイクの流れにしかないためである。
 - 一度に1つ。取り消すと、読み込み中の声は読み終わってから捨てる。
+- マイクで試すときは、配信と同じ変換（`VoiceService`）で、登録前の声をフォルダーで選ぶ（`SelectVoiceFolder`。IDは`folder:`とフォルダー）。読み込みと切り替えは登録した声と同じで、別のフォルダーなら読み直す。試し終えたら、画面が試す前の声とオンかオフかに戻す。変換した声を聞くには、マイクの「聞く」がオンである必要がある。
 - 測定（RTX 4070）：7.4秒の録音を、高さの測定を含めて8.8秒で変換した。最も長いフレームは21 ms。テスト用のコピーで初めて動かしたときは、シェーダーのコンパイルで1フレームが5.5秒止まった。キャッシュに残った後は起きない。
 
 ## 9. Threadと非同期
