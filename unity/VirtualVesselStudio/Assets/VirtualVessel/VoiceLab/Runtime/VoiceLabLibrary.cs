@@ -107,6 +107,12 @@ namespace VirtualVessel.VoiceLab
             return _voices.Delete(voiceId);
         }
 
+        public CrudResult<string> VoiceFolder(string voiceId)
+        {
+            CrudResult<VoiceModelRecord> voice = _voices.Get(voiceId);
+            return voice.Ok ? CrudResult<string>.Success(_voices.FolderOf(voiceId)) : CrudResult<string>.From(voice.WithoutValue);
+        }
+
         /// <summary>A voice name as kept: trimmed, or null when empty or longer than <see cref="MaxVoiceName"/>. Pure.</summary>
         public static string CleanName(string name)
         {

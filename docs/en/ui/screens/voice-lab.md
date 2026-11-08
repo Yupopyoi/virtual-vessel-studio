@@ -84,8 +84,9 @@ Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice L
 
 A tab bar at the top of the screen: Make a voice (chapters 3 to 7) and Made voices (the user's decision, 2026-11-07). Each tab keeps its state while the other is open, and a build goes on in Make a voice.
 
-- Registered voices Card: one row per voice, newest first, with play (the base it was made from), its name, its pitch in Hz, the date, Rename, and Delete. Rename opens the name in a text field with the register rules (required, up to 60 characters).
-- Training runs Card: one row per run, newest first, with play (its base), the date, a status chip (Completed, Failed, Cancelled midway, Making), the words picked and the timbre as one line, the voices registered from it, a note field (up to 500 characters, saved when it loses focus), Make again, and Delete.
+- Registered voices Card: one row per voice, newest first, with play (the base it was made from), its name, its pitch in Hz, the date, Try, Rename, and Delete. Rename opens the name in a text field with the register rules (required, up to 60 characters).
+- Training runs Card: one row per run, newest first, with play (its base), the date, a status chip (Completed, Failed, Cancelled midway, Making), the words picked and the timbre as one line, the voices registered from it, a note field (up to 500 characters, saved when it loses focus), Try (completed runs only), Make again, and Delete.
+- Try opens Make a voice's STEP 4 with that voice (user's check, 2026-11-08). The run's words, base, and timbre come back as with Make again, so STEP 2 can adjust it and STEP 5 register it. A registered voice is tried by its own folder, so it can be tried even when its run is gone. Make again still opens STEP 2.
 - Delete asks first, in a dialog that names what goes and what stays ("The voice is deleted. The run it was made from stays."). A run being made has Delete disabled with the reason.
 - Make again opens Make a voice at STEP 2 with the run's words, base, and timbre; without the base's audio it opens STEP 1 with the words and a line saying the base is gone.
 - Empty: a line saying nothing has been made yet, with Make a voice.

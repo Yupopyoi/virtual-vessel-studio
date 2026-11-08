@@ -332,6 +332,28 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var trial = new FakeTrial();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Single().VoiceFolder, Is.EqualTo("voices/voice-1"), "The registered voice, not a build.");
+        }
+
+        [UnityTest]
         public IEnumerator AfterRegistering_STEP4CanBeOpenedAgain()
         {
             VoiceLabScreen screen = Screen();

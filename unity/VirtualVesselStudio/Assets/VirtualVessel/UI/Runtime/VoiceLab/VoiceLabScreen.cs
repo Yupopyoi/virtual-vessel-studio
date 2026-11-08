@@ -27,6 +27,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>The completed build to register; null until STEP 3 completes.</summary>
         public string RunId { get; set; }
+
+        /// <summary>A registered voice's folder that STEP 4 tries in place of the build's; null for the build's own.</summary>
+        public string TryFolder { get; set; }
     }
 
     /// <summary>How a step moves the flow on, or back.</summary>
@@ -128,7 +131,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (library != null)
             {
                 // What was made can be listed without a training environment; making it again cannot.
-                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
+                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
                 Library.style.display = DisplayStyle.None;
                 _content.Add(Library);
             }
@@ -242,6 +245,7 @@ namespace VirtualVessel.UI.VoiceLab
             _base.RequestView.SetPicks(remake.Words, remake.FreeWords);
             _base.ShowBaseGone(remake.Candidate == null);
             _draft.RunId = null;
+            _draft.TryFolder = null;
             ShowTab(MakeTab);
             if (remake.Candidate == null)
             {
@@ -254,6 +258,40 @@ namespace VirtualVessel.UI.VoiceLab
             _draft.CandidateNumber = 0;
             GoTo(TimbreStep, reset: true);
             _timbre.Restore(remake.Timbre);
+        }
+
+        /// <summary>
+        /// Opens STEP 4 with a voice already made (the user's review, 2026-11-08): a completed run's, or a registered
+        /// voice's by its folder. The run's words, base, and timbre come back as for making it again, so STEP 2 and
+        /// STEP 5 work from there; a registered voice whose run is gone is still tried by its folder.
+        /// </summary>
+        /// <param name="runId">The run it was made from; may be gone for a registered voice.</param>
+        /// <param name="voiceFolder">A registered voice's folder, or null to try the run's own voice.</param>
+        public void TryVoice(string runId, string voiceFolder)
+        {
+            CrudResult<VoiceLabRemake> read = runId == null ? CrudResult<VoiceLabRemake>.Fail(CrudError.NotFound, "No run.") : _lab.Remake(runId);
+            if (!read.Ok && voiceFolder == null)
+            {
+                Library?.ShowFailure("Trying run " + runId, read.Error, read.Detail);
+                return;
+            }
+
+            if (read.Ok)
+            {
+                _base.RequestView.SetPicks(read.Value.Words, read.Value.FreeWords);
+                _base.ShowBaseGone(read.Value.Candidate == null);
+                _draft.Candidate = read.Value.Candidate;
+                _draft.CandidateNumber = 0;
+            }
+
+            _draft.RunId = read.Ok ? runId : null;
+            _draft.TryFolder = voiceFolder;
+            ShowTab(MakeTab);
+            GoTo(TryStep, reset: true);
+            if (read.Ok && read.Value.Candidate != null)
+            {
+                _timbre.Restore(read.Value.Timbre);
+            }
         }
 
         public int Current => Steps?.Current ?? -1;
@@ -274,6 +312,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (lastValid < BuildStep)
             {
                 _draft.RunId = null;
+                _draft.TryFolder = null;
             }
 
             Steps.Show(Steps.Current, Math.Min(Steps.Reached, Math.Max(lastValid, Steps.Current)));
@@ -288,6 +327,7 @@ namespace VirtualVessel.UI.VoiceLab
         public void StartOver()
         {
             _draft.RunId = null;
+            _draft.TryFolder = null;
             GoTo(BaseStep, reset: true);
         }
 

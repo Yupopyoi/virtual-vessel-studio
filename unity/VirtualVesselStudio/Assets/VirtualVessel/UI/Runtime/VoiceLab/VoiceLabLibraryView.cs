@@ -23,6 +23,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly IVoiceLabLibrary _library;
         private readonly VoiceLabPlayer _player;
         private readonly Action<string> _remake;
+        private readonly Action<string, string> _try;
         private readonly Func<bool> _building;
         private readonly VisualElement _voices;
         private readonly VisualElement _runs;
@@ -30,9 +31,11 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly StatusChip _failed;
 
         /// <param name="remake">Makes a run again; null when voices cannot be made here, which disables it.</param>
+        /// <param name="tryVoice">Opens STEP 4 with a run (and a registered voice's folder); null disables Try.</param>
         /// <param name="building">Whether a build runs now, so an unfinished run cannot be deleted.</param>
-        public VoiceLabLibraryView(IVoiceLabLibrary library, VoiceLabPlayer player, Action<string> remake, Func<bool> building)
+        public VoiceLabLibraryView(IVoiceLabLibrary library, VoiceLabPlayer player, Action<string> remake, Action<string, string> tryVoice, Func<bool> building)
         {
+            _try = tryVoice;
             _library = library ?? throw new ArgumentNullException(nameof(library));
             _player = player ?? throw new ArgumentNullException(nameof(player));
             _remake = remake;
@@ -53,6 +56,18 @@ namespace VirtualVessel.UI.VoiceLab
             _runs = new VisualElement();
             runs.Add(_runs);
             Add(runs);
+        }
+
+        private void TryVoice(VoiceLabVoiceRecord voice)
+        {
+            CrudResult<string> folder = _library.VoiceFolder(voice.Id);
+            if (!folder.Ok)
+            {
+                ShowFailure("Finding voice " + voice.Id, folder.Error, folder.Detail);
+                return;
+            }
+
+            _try?.Invoke(voice.RunId, folder.Value);
         }
 
         /// <summary>Reads what was made again and shows it.</summary>
@@ -155,8 +170,12 @@ namespace VirtualVessel.UI.VoiceLab
             };
             ActionButton delete = Ui.Button(VoiceLabStrings.Delete);
             delete.clicked += () => Delete(VoiceLabStrings.DeleteVoiceTitle, VoiceLabStrings.DeleteVoiceBody, () => _library.DeleteVoice(voice.Id), "Deleting voice " + voice.Id);
+            ActionButton tryButton = Ui.Button(VoiceLabStrings.LibraryTry);
+            tryButton.SetEnabled(_try != null);
+            tryButton.clicked += () => TryVoice(voice);
             row.Add(rename);
             row.Add(save);
+            row.Add(tryButton);
             row.Add(renameButton);
             row.Add(delete);
             return row;
@@ -184,6 +203,10 @@ namespace VirtualVessel.UI.VoiceLab
             delete.SetEnabled(!(unfinished && _building()));
             delete.TooltipKey = delete.enabledSelf ? null : VoiceLabStrings.DeleteWhileMaking;
             delete.clicked += () => Delete(VoiceLabStrings.DeleteRunTitle, VoiceLabStrings.DeleteRunBody, () => _library.DeleteRun(run.RunId), "Deleting run " + run.RunId);
+            ActionButton tryButton = Ui.Button(VoiceLabStrings.LibraryTry);
+            tryButton.SetEnabled(_try != null && run.State == VoiceLabBuildState.Completed);
+            tryButton.clicked += () => _try?.Invoke(run.RunId, null);
+            row.Add(tryButton);
             row.Add(remake);
             row.Add(delete);
             block.Add(row);

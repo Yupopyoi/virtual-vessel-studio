@@ -159,6 +159,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (resultKey == null)
             {
                 _draft.RunId = build.RunId;
+                _draft.TryFolder = null;
                 _flow.GoTo(VoiceLabScreen.TryStep);
                 return;
             }

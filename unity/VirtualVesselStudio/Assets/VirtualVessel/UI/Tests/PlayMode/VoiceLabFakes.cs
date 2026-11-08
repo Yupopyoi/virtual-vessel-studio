@@ -207,6 +207,11 @@ namespace VirtualVessel.UI.Tests
             Voices.RemoveAll(v => v.Id == voiceId);
             return CrudResult.Success;
         }
+
+        public CrudResult<string> VoiceFolder(string voiceId)
+        {
+            return Voices.Exists(v => v.Id == voiceId) ? CrudResult<string>.Success("voices/" + voiceId) : CrudResult<string>.Fail(CrudError.NotFound, voiceId);
+        }
     }
 
     internal sealed class FakeTrial : IVoiceTrial

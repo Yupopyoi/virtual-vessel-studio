@@ -166,7 +166,9 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>The voice to try: the completed build's. Called when the step opens.</summary>
         public void Enter()
         {
-            CrudResult<string> folder = _draft.RunId == null ? CrudResult<string>.Fail(CrudError.NotFound, "No build.") : _lab.BuiltVoiceFolder(_draft.RunId);
+            CrudResult<string> folder = _draft.TryFolder != null
+                ? CrudResult<string>.Success(_draft.TryFolder)
+                : _draft.RunId == null ? CrudResult<string>.Fail(CrudError.NotFound, "No build.") : _lab.BuiltVoiceFolder(_draft.RunId);
             if (folder.Value != _folder)
             {
                 _converted = null;
