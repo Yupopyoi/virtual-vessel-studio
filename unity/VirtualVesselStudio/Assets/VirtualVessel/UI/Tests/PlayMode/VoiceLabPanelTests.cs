@@ -109,6 +109,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(_lab.Built.Single().Candidate.Id, Is.EqualTo("c1"));
             Assert.That(_lab.Built.Single().Timbre.Age, Is.EqualTo(4f));
+            Assert.That(_lab.BuiltLength, Is.EqualTo(VoiceLabTrainingLength.Short), "Short unless chosen in the details.");
             Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep), "A finished voice goes on to be tried.");
 
             screen.GoTo(VoiceLabScreen.RegisterStep);
@@ -295,6 +296,25 @@ namespace VirtualVessel.UI.Tests
 
             streaming.SetState(StreamingState.Idle);
             Assert.That(build.StartButton.enabledSelf, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator ALongerTraining_ChosenInTheDetails_IsBuilt_AndSaysItsTime()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            var build = (VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep);
+
+            build.LengthChooser.value = (int)VoiceLabTrainingLength.Long;
+            Assert.That(build.Query<Label>().ToList().Any(l => l.text == _root.Localizer.Get(VoiceLabStrings.BuildNoteLong)), Is.True);
+            Submit(build.StartButton);
+            yield return null;
+
+            Assert.That(_lab.BuiltLength, Is.EqualTo(VoiceLabTrainingLength.Long));
         }
 
         [UnityTest]

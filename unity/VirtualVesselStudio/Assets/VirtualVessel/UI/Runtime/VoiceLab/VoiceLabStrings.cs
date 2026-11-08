@@ -103,6 +103,14 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string BuildLead = "lab.build.lead";
         public const string BuildNote = "lab.build.note";
+        public const string BuildNoteNormal = "lab.build.note.normal";
+        public const string BuildNoteLong = "lab.build.note.long";
+        public const string BuildDetails = "lab.build.details";
+        public const string BuildLength = "lab.build.length";
+        public const string BuildLengthDescription = "lab.build.length.description";
+        public const string BuildLengthShort = "lab.build.length.short";
+        public const string BuildLengthNormal = "lab.build.length.normal";
+        public const string BuildLengthLong = "lab.build.length.long";
         public const string BuildPreparing = "lab.build.preparing";
         public const string BuildLearning = "lab.build.learning";
         public const string BuildFinishing = "lab.build.finishing";

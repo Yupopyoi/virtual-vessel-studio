@@ -132,6 +132,14 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(_library.DeleteRun(run.RunId).Ok, Is.True, "Gone either way.");
         }
 
+        [TestCase(VoiceLabTrainingLength.Short, 150)]
+        [TestCase(VoiceLabTrainingLength.Normal, 300)]
+        [TestCase(VoiceLabTrainingLength.Long, 600)]
+        public void ATrainingLength_HasItsEpochs(VoiceLabTrainingLength length, int epochs)
+        {
+            Assert.That(VoiceLabService.EpochsOf(length), Is.EqualTo(epochs));
+        }
+
         [Test]
         public void ARun_ComesBackAsACandidate_OnlyWhileItsBaseIsThere()
         {

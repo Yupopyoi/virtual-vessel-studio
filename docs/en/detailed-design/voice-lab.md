@@ -75,7 +75,7 @@ public interface IVoiceLab
     // Designing a voice (8.3)
     Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near: null, or the candidate to make them near (8.3.1)
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
-    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);  // length: 8.3.3
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
     CrudResult Register(string runId, string name);
@@ -160,7 +160,7 @@ VoiceLab/
 
 `run.json` holds `schemaVersion`, `runId` (start time and a random part: `20261104-120000-1a2b`), `state` (system design 13.15), `createdAtUtc`, `updatedAtUtc`, `design` (the instruction, the seed, the candidate's audio, the audio it was made near if any, the timbre, and the shelf's `words`, the user's `freeWords`, and the base's pitch `medianHz`, `lowHz`, `highHz`; missing in older runs, read as none or 0), `comment` (the user's note), `errorCode` and `error` (on failure and cancelling), and `versions` (torch, voxcpm, and numpy as the scripts reported them). `state` is written as the state's name. It is read and written with ProjectData's settings files (`ConfigFileStore`): writes that never leave half a file, unknown fields from newer versions kept, and a damaged file moved aside, as for any settings file. A state name it does not know (from a newer version) counts as failed. Only ProjectData's parts read and write JSON, so requests to the scripts and their output also go through `ConfigDocument`.
 
-The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its measured share of the time (speech 39%, edit 6%, training 50%, export 5%).
+The build's steps and states: training speech (`Preparing`) → timbre edit (`Preprocessing`) → training (`Training`) → export (`PostProcessing`) → `Completed`. A failure ends as `Failed` and cancelling as `Cancelled`, and the run stays (system design 13.22). Overall progress weighs each step's own progress by its share of the expected time (measured at 150 epochs: speech 7 minutes, edit 1, training 9, export 1; training scales with the epochs).
 
 ### 6.4 The Environment During Development
 
@@ -259,7 +259,7 @@ Second stage (designing an ideal voice), a flow based on the experiment (decisio
 5. Register              : if you don't like it, back to 2
 ```
 
-The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 10 minutes. Step 3 takes about 20 minutes per voice (about 7 minutes to generate 7.5 minutes of training speech, about 2 to edit it, about 11 to train; measured 2026-11-03).
+The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took about 10 minutes. The training length can be chosen in STEP 3's details (8.3.3). Step 3 takes about 20 minutes per voice (about 7 minutes to generate 7.5 minutes of training speech, about 2 to edit it, about 11 to train; measured 2026-11-03).
 
 #### 8.3.1 Picking a base
 
@@ -297,7 +297,8 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 
 - Training speech is VoxCPM2 copying the chosen base (with no instruction), then edited with the same values as 8.3.2.
 - What to read: all five vowels, held vowels, and higher pitches. Held "u" drifting toward "a" (Voice detailed design) may partly come from too few vowels in the training speech. **This is an untested hypothesis.**
-- The base's instruction, seed, and timbre values are kept in the Training Run, so the voice can be made again (6.3).
+- The base's instruction, seed, timbre values, and epochs are kept in the Training Run, so the voice can be made again (6.3). A `run.json` without `epochs` was made with 150.
+- Training length: Short (150 epochs, the default, about 20 minutes), Normal (300, about 30 minutes), or Long (600, about 50 minutes), chosen in STEP 3's details (user's decision, 2026-11-08). At 150 the voice lost its "mochi-mochi" quality (softness and roundness); at 600 it came back, by ear and by the first harmonic's level (H1−H2) (decision record, 2026-11-08). The default stays 150 for its time. The screen does not show epochs; Voice Lab sets them from the length.
 
 #### 8.3.4 Trying it with your voice
 

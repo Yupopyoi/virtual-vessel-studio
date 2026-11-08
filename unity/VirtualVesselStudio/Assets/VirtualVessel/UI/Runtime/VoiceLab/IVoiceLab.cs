@@ -14,6 +14,17 @@ namespace VirtualVessel.UI.VoiceLab
         NotSetUp,
     }
 
+    /// <summary>
+    /// How long a voice trains, chosen in STEP 3's details. Longer keeps more of the voice's texture and takes longer
+    /// (Voice Lab detailed design 8.3.3); Voice Lab decides the epochs of each.
+    /// </summary>
+    public enum VoiceLabTrainingLength
+    {
+        Short,
+        Normal,
+        Long,
+    }
+
     /// <summary>Where building a voice is, in the states the screen shows (system design 13.15, 13.16).</summary>
     public enum VoiceLabBuildState
     {
@@ -183,7 +194,7 @@ namespace VirtualVessel.UI.VoiceLab
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
 
         /// <summary>Builds the voice; a failure or cancelling comes back as the build's state.</summary>
-        Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+        Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);
 
         /// <summary>Where the running build is; <see cref="VoiceLabBuildState.None"/> when none runs. Read it as often as needed.</summary>
         VoiceLabBuildProgress BuildProgress { get; }

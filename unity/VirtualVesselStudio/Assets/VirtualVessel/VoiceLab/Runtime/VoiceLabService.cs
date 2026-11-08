@@ -172,20 +172,37 @@ namespace VirtualVessel.VoiceLab
             return new VoiceLabPreview(preview.File, preview.Pitch.MedianHz);
         }
 
-        public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
+        public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Ensure();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
             var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
             try
             {
-                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), EpochsOf(length), progress, cancellationToken).ConfigureAwait(false);
                 return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
             }
             finally
             {
                 // Also when the build threw, so the screen never shows a build that is not running.
                 _progress.Value = default;
+            }
+        }
+
+        /// <summary>
+        /// The epochs of a training length. 600 kept the "mochi-mochi" texture that 150 lost, by ear and by the first
+        /// harmonic's level (decision record, 2026-11-08); 150 stays the default for its time. Pure.
+        /// </summary>
+        public static int EpochsOf(VoiceLabTrainingLength length)
+        {
+            switch (length)
+            {
+                case VoiceLabTrainingLength.Normal:
+                    return 300;
+                case VoiceLabTrainingLength.Long:
+                    return 600;
+                default:
+                    return VoiceDesigner.DefaultEpochs;
             }
         }
 

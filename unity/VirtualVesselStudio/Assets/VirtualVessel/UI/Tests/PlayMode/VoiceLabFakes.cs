@@ -89,9 +89,13 @@ namespace VirtualVessel.UI.Tests
             return source.Task;
         }
 
-        public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
+        /// <summary>The training length of the last build.</summary>
+        public VoiceLabTrainingLength BuiltLength { get; private set; }
+
+        public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Built.Add((candidate, timbre));
+            BuiltLength = length;
             return Task.FromResult(BuildResult);
         }
 

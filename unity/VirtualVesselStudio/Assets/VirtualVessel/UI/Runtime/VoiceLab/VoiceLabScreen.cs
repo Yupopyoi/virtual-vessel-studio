@@ -19,6 +19,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         public VoiceLabTimbre Timbre { get; set; }
 
+        /// <summary>How long STEP 3 trains; short unless chosen in its details.</summary>
+        public VoiceLabTrainingLength TrainingLength { get; set; }
+
         /// <summary>The completed build to register; null until STEP 3 completes.</summary>
         public string RunId { get; set; }
     }

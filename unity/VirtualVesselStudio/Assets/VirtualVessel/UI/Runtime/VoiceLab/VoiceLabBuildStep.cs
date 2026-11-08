@@ -23,6 +23,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ProgressMeter _progress;
         private readonly VisualElement _streamingNote;
         private readonly StatusChip _result;
+        private readonly KeyedText _note;
         private CancellationTokenSource _building;
         private IVisualElementScheduledItem _refresh;
         private IDisposable _streamingSubscription;
@@ -37,7 +38,27 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BuildLead));
 
             Card card = Ui.Card(VoiceLabStrings.StepBuild);
-            card.Add(Ui.Text(VoiceLabStrings.BuildNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Label note = QuietText.Of(new Label());
+            note.AddToClassList(VoiceLabScreen.NoteClass);
+            note.AddToClassList("vv-text-body");
+            _note = new KeyedText(note, value => note.text = value) { Key = NoteKey(_draft.TrainingLength) };
+            card.Add(note);
+
+            // Folded: most people keep the default; a longer training keeps more of the voice's texture (decision
+            // record, 2026-11-08).
+            Card details = Ui.Card(VoiceLabStrings.BuildDetails, collapsible: true);
+            details.Expanded = false;
+            LengthChooser = Ui.Segmented(VoiceLabStrings.BuildLengthShort, VoiceLabStrings.BuildLengthNormal, VoiceLabStrings.BuildLengthLong);
+            LengthChooser.SetValueWithoutNotify((int)_draft.TrainingLength);
+            LengthChooser.RegisterValueChangedCallback(evt =>
+            {
+                _draft.TrainingLength = (VoiceLabTrainingLength)evt.newValue;
+                _note.Key = NoteKey(_draft.TrainingLength);
+            });
+            SettingRow length = Ui.SettingRow(VoiceLabStrings.BuildLength, VoiceLabStrings.BuildLengthDescription);
+            length.Add(LengthChooser);
+            details.Add(length);
+            card.Add(details);
 
             _streamingNote = new VisualElement();
             _streamingNote.Add(Ui.Chip(StatusKind.Warning, VoiceLabStrings.BuildStreaming));
@@ -68,6 +89,22 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         public ActionButton StartButton { get; }
+
+        public Segmented LengthChooser { get; }
+
+        /// <summary>The time it takes, for a training length. Pure.</summary>
+        public static string NoteKey(VoiceLabTrainingLength length)
+        {
+            switch (length)
+            {
+                case VoiceLabTrainingLength.Normal:
+                    return VoiceLabStrings.BuildNoteNormal;
+                case VoiceLabTrainingLength.Long:
+                    return VoiceLabStrings.BuildNoteLong;
+                default:
+                    return VoiceLabStrings.BuildNote;
+            }
+        }
 
         public ActionButton StopButton { get; }
 
@@ -103,7 +140,7 @@ namespace VirtualVessel.UI.VoiceLab
             VoiceLabBuild build = null;
             try
             {
-                build = await _lab.BuildAsync(candidate, _draft.Timbre, _building.Token);
+                build = await _lab.BuildAsync(candidate, _draft.Timbre, _draft.TrainingLength, _building.Token);
             }
             catch (OperationCanceledException)
             {
@@ -153,6 +190,7 @@ namespace VirtualVessel.UI.VoiceLab
         {
             _running.style.display = running ? DisplayStyle.Flex : DisplayStyle.None;
             _ready.style.display = running ? DisplayStyle.None : DisplayStyle.Flex;
+            LengthChooser.SetEnabled(!running);
             if (running)
             {
                 _progress.LabelKey = VoiceLabStrings.BuildPreparing;

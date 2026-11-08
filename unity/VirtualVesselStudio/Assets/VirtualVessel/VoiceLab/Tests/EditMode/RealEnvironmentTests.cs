@@ -68,7 +68,7 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
             VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
 
-            TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), null, CancellationToken.None).Result;
+            TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), VoiceDesigner.DefaultEpochs, null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
             var voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock);
             VoiceModelRecord voice = new VoiceModelRegistrar(voices, runs, clock).Register(run, "Real environment test").Value;

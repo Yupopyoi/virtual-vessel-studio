@@ -75,7 +75,7 @@ public interface IVoiceLab
     // 声を設計する（8.3）
     Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
-    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);  // 長さ：8.3.3
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
     CrudResult Register(string runId, string name);
@@ -160,7 +160,7 @@ VoiceLab/
 
 `run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
-声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
+声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、各段階の見込みの時間（150エポックの実測で、音声7分、加工1分、学習9分、書き出し1分。学習はエポック数に比例させる）の割合で、各段階の進み具合を合わせる。
 
 ### 6.4 開発中の環境の指定
 
@@ -259,7 +259,7 @@ PCの確認：GPU、ドライバー、空き容量、接続
 5. 登録する       ：気に入らなければ2へ戻る
 ```
 
-既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。3は1つの声で約20分（学習用の音声7.5分の生成に約7分、加工に約2分、学習に約11分。2026-11-03の実測）。
+既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。学習の長さはSTEP 3の詳細設定で選べる（8.3.3）。3は1つの声で約20分（学習用の音声7.5分の生成に約7分、加工に約2分、学習に約11分。2026-11-03の実測）。
 
 #### 8.3.1 土台を選ぶ
 
@@ -297,7 +297,8 @@ PCの確認：GPU、ドライバー、空き容量、接続
 
 - 学習用の音声は、選んだ土台を手本にしたVoxCPM2の声のコピーで作る（指示文は付けない）。そのあと8.3.2と同じ値で加工する。
 - 文の選び方：5つの母音のすべて、伸ばした母音、高めの声を含める。伸ばした「う」が「あ」に寄る問題（Voice詳細設計）は、学習用の音声の母音の不足も一因かもしれない。**未検証の仮説**である。
-- 土台の指示文、乱数、声色の値をTraining Runに残し、作り直せるようにする（6.3）。
+- 土台の指示文、乱数、声色の値、エポック数をTraining Runに残し、作り直せるようにする（6.3）。`epochs`のない`run.json`は150で作ったものである。
+- 学習の長さ：短い（150エポック、既定、約20分）、ふつう（300、約30分）、長い（600、約50分）をSTEP 3の詳細設定で選ぶ（ユーザーの決定、2026-11-08）。150では声の「もちもち感」（やわらかさ、丸み）が消え、600では戻った。耳と、第1倍音の強さ（H1−H2）で確かめた（決定記録、2026-11-08）。既定は時間を優先して150のままにする。エポック数は画面に出さず、Voice Labが長さから決める。
 
 #### 8.3.4 自分の声で試す
 

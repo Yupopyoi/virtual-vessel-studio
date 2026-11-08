@@ -60,6 +60,36 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void ADesignsCopy_CarriesEveryField_AndSharesNothingToChange()
+        {
+            RunDesign design = Design();
+            design.Epochs = 600;
+            design.MedianHz = 300;
+            design.LowHz = 200;
+            design.HighHz = 400;
+
+            RunDesign copy = design.Copy();
+
+            // Every property, so a field added later cannot be left out of the copy unnoticed.
+            foreach (System.Reflection.PropertyInfo property in typeof(RunDesign).GetProperties())
+            {
+                object value = property.GetValue(design);
+                Assert.That(value, Is.Not.EqualTo(property.PropertyType.IsValueType ? Activator.CreateInstance(property.PropertyType) : null), $"Set {property.Name} in this test.");
+                if (property.PropertyType == typeof(TimbreValues))
+                {
+                    Assert.That(((TimbreValues)property.GetValue(copy)).Softness, Is.EqualTo(3f));
+                }
+                else
+                {
+                    Assert.That(property.GetValue(copy), Is.EqualTo(value), property.Name);
+                }
+            }
+
+            Assert.That(copy.Words, Is.Not.SameAs(design.Words));
+            Assert.That(copy.Timbre, Is.Not.SameAs(design.Timbre));
+        }
+
+        [Test]
         public void ARunKeepsFieldsThisVersionDoesNotKnow_ThroughASave()
         {
             TrainingRun run = _runs.Create(Design()).Value;

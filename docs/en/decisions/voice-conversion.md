@@ -597,3 +597,27 @@ The words field is appended to the English instruction as written, and its place
 Japanese and English moved the voice alike: neither lowered the pitch (words do not set pitch, as before), and both made the bright one a little higher and livelier. The effects are small next to the seed's.
 
 Decided (the user, 2026-11-08): the words field takes Japanese as it is; no translation.
+
+## 2026-11-08 The voice's "mochi-mochi" quality and the training length
+
+The user tried a voice made in Voice Lab (poyapoya, 150 epochs) in the app and heard the timbre come close but its "mochi-mochi" quality go. The cause was narrowed down step by step.
+
+- The conversion was that voice: ECAPA speaker similarity 0.70 against 0.26 for the prototype's voice, 0.85 at +6 semitones. At the wrong pitch it sounds like another voice, so automatic pitch matching (8.3.4) is needed.
+- Not the real-time path: upstream's whole-file conversion lost it too (the user listened).
+- Not the way the user speaks: converting poyapoya's own speech with its own model lost it too (the user listened). The model had not learned it.
+
+The same training speech (48 files, about 7.5 minutes) was trained for 600 epochs, saving every 150, and an index was built from the training features. Six training sentences were converted and compared with the originals (`voice-work/mochi_measure.py`).
+
+| | Original | 150 | 150 + index 1.0 | 300 | 450 | 600 | 600 + index 1.0 |
+|---|---|---|---|---|---|---|---|
+| H1−H2 (dB) | 4.9 | 3.1 to 3.2 | 3.3 | 4.5 | 3.9 | 4.8 to 5.0 | 4.9 |
+| 0 to 500 Hz (of all, dB) | −3.4 | −4.1 | −3.9 | −3.4 | −4.0 | −3.3 | −3.2 |
+| 500 to 1500 Hz (of all, dB) | −3.4 | −2.7 | −2.9 | −3.2 | −2.8 | −3.3 | −3.5 |
+
+- At 150 the first harmonic weakens (H1−H2 about 1.7 dB lower) and 500 to 1500 Hz grows by comparison: the voice moves from round and soft toward forward and pressed. Jitter, shimmer, and fine pitch movement do not change.
+- At 600 it comes back. The index does little at 150. 300 and 450 go back and forth, so saved checkpoints vary.
+- The user heard 600 and 600 with the index as equally good. ECAPA similarity is about the same in every case and does not catch this difference.
+
+Decided (user, 2026-11-08): the training length is chosen in STEP 3's details (Short 150, Normal 300, Long 600), with 150 staying the default. The index is not added to the real-time conversion.
+
+This is one voice, and only 600 was checked by ear. Which length suits other voices is not known.
