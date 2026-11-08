@@ -56,7 +56,7 @@ The user starts from an example, moves it with words, and picks a candidate by e
 ## 5. STEP 3 Make It
 
 - A note on the time (about 20 minutes per voice on an RTX 4070), and Start. A build does not start until Start is pressed, since it takes long.
-- A folded Details card with Training length: Short (about 20 minutes, the default), Normal (about 30), Long (about 50), with a line saying a longer one learns more of the voice's softness and roundness. Choosing one changes the time note. It cannot be changed while building (Voice Lab detailed design 8.3.3).
+- A folded Details card with Training length (epochs): 150 (the default), 300, 600. The time cannot be promised, so the choices show epochs, not minutes (user's check, 2026-11-08). A line says more learns more of the voice's softness and roundness. Choosing one changes the time note above (about 20 minutes at 150, 30 at 300, 50 at 600). It cannot be changed while building (Voice Lab detailed design 8.3.3).
 - While building: a progress bar (`components.md` 3.15) with the stage (Making training speech, Learning the voice, Finishing) and the percent, read every 0.5 s, and Stop.
 - Completed: STEP 4 opens. Failed: an error chip, with "Not enough GPU memory…" when it ran out of GPU memory. Stopped: a chip saying so. The user stays on STEP 3 and can start again.
 - The time left is not shown yet; the build reports a fraction but no estimate.

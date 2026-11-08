@@ -57,6 +57,9 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ActionsClass = UssClass + "__actions";
         public const string NoteClass = UssClass + "__note";
 
+        /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
+        public const string GapClass = UssClass + "__gap";
+
         public const int BaseStep = 0;
         public const int TimbreStep = 1;
         public const int BuildStep = 2;

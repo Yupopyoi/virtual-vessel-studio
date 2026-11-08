@@ -36,6 +36,7 @@ namespace VirtualVessel.UI.VoiceLab
             Label note = QuietText.Of(new Label());
             note.AddToClassList(VoiceLabScreen.NoteClass);
             note.AddToClassList("vv-text-body");
+            note.AddToClassList(VoiceLabScreen.GapClass);
             _note = new KeyedText(note, value => note.text = value) { Key = NoteKey(_draft.TrainingLength) };
             card.Add(note);
 
@@ -43,6 +44,7 @@ namespace VirtualVessel.UI.VoiceLab
             // record, 2026-11-08).
             Card details = Ui.Card(VoiceLabStrings.BuildDetails, collapsible: true);
             details.Expanded = false;
+            details.AddToClassList(VoiceLabScreen.GapClass);
             LengthChooser = Ui.Segmented(VoiceLabStrings.BuildLengthShort, VoiceLabStrings.BuildLengthNormal, VoiceLabStrings.BuildLengthLong);
             LengthChooser.SetValueWithoutNotify((int)_draft.TrainingLength);
             LengthChooser.RegisterValueChangedCallback(evt =>
@@ -56,6 +58,7 @@ namespace VirtualVessel.UI.VoiceLab
             card.Add(details);
 
             _result = new StatusChip(StatusKind.Error, VoiceLabStrings.BuildFailed);
+            _result.AddToClassList(VoiceLabScreen.GapClass);
             card.Add(_result);
 
             StartButton = Ui.Button(VoiceLabStrings.BuildStart, ButtonVariant.Primary);

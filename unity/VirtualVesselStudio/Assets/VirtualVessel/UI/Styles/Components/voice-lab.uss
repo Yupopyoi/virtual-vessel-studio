@@ -10,6 +10,10 @@
     color: var(--vv-color-text-2);
 }
 
+.vv-lab__gap {
+    margin-bottom: var(--vv-space-m);
+}
+
 .vv-lab__actions {
     flex-direction: row;
     flex-wrap: wrap;
