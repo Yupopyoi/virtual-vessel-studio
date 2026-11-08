@@ -621,3 +621,7 @@ The same training speech (48 files, about 7.5 minutes) was trained for 600 epoch
 Decided (user, 2026-11-08): the training length is chosen in STEP 3's details (Short 150, Normal 300, Long 600), with 150 staying the default. The index is not added to the real-time conversion.
 
 This is one voice, and only 600 was checked by ear. Which length suits other voices is not known.
+
+Addendum (2026-11-08): whether a filter after the conversion can make up for it was also tried. The 150-epoch conversions got a low shelf below a point between the voice's first and second harmonics (about 1.4 times its median; +2 or +3 dB) and a gentle dip at 1 kHz (−1 dB), at the same loudness (`voice-work/mochi_filter.py`). With +2 dB and −1 dB, H1−H2 (4.9) and the band levels came out about as in the original. ECAPA similarity hardly moved on poyapoya's own sentence (0.922 → 0.925) and fell a little on the user's recording (0.850 → 0.825 to 0.841).
+
+By the user's ear, the voice did not sound different with the filters, and the "mochi-mochi" quality did not come back. It lies in a finer texture than the broad spectral shape, and longer training brings it back. Decided (user, 2026-11-08): no filter for the voice. Noise reduction with high-pass and low-pass filters stays a candidate for post-processing after the conversion (system design 9.9).
