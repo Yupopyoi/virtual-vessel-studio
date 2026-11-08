@@ -35,7 +35,9 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 | Class | 種類 | 役割 |
 |---|---|---|
 | `IVoiceConversion` | Interface（UI） | 状態、選んだ声、音の高さ、オンとオフ |
-| `VoiceService` | Class | Application Service：フレームごとにブロックを進める |
+| `VoiceService` | Class | Application Service：フレームごとにブロックを進め、どの声を使うかを決める |
+| `VoiceLoader` | Class | 声のモデルをThread Poolで読み、`RvcStream`をメインスレッドで作る。HuBERTとRMVPEは使い回す（8.2） |
+| `VoiceWarmup` | Class | 次の声の下ごしらえと準備運転。差し替えてよいかを決める（8.2） |
 | `IVoiceConverter` | Interface | 変換方式の抽象（方式設計9.6） |
 | `RvcVoiceConverter` | Class | RVC v2の実装。試作の`RvcStream` |
 | `RvcDsp` | Static Class | リサンプル、メル、F0、クロスフェード。副作用なし |
@@ -261,6 +263,7 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 Assets/VirtualVessel/Voice/
 ├─ Runtime/
 │  ├─ VoiceService.cs
+│  ├─ VoiceLoader.cs、VoiceWarmup.cs
 │  ├─ Conversion/   IVoiceConverter、RvcVoiceConverter、RvcDsp
 │  └─ Models/       IVoiceModelRepository、VoiceModelStore、VoiceModelLibrary、VoiceModelManifest
 ├─ Editor/          VoiceModelImport（開発者がひな形を作る）

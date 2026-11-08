@@ -4,7 +4,6 @@ using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.InferenceEngine;
 using VirtualVessel.Audio;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
@@ -29,14 +28,10 @@ namespace VirtualVessel.Voice
         public const string ServiceName = "Voice";
 
         private const int ChannelCount = 2;
-        private const int WarmupBlocks = 3;
 
         // The stage's output comes in bursts, so the first one is put back by this much silence, which
         // every later burst inherits, to let a late burst arrive before the mix runs dry.
         private const int MarginFrames = 1440;
-
-        // How long a frame may spend preparing the next voice's layers; a few ms keep the frame well inside a block.
-        private const double PrimeBudgetMs = 4.0;
 
         // More waiting than this and the oldest is left out: being late would last for the whole stream.
         private const int MaxWaitingBlocks = 2;
@@ -50,29 +45,15 @@ namespace VirtualVessel.Voice
         private readonly IAudioStage _stage;
         private readonly IFrameLoop _frameLoop;
         private readonly VoiceModelLibrary _library;
+        private readonly VoiceLoader _loader;
+        private readonly VoiceWarmup _next = new VoiceWarmup();
         private readonly ILog _log;
         private readonly ObservableValue<VoiceConversionState> _state = new ObservableValue<VoiceConversionState>(VoiceConversionState.Off);
 
         private IDisposable _tick;
-        private Task<LoadedVoice> _loading;
         private RvcStream _stream;
         private string _streamVoice;
         private string _wantedVoice;
-
-        // HuBERT and RMVPE are the same for every voice, so a switch loads only the generator and speaker.
-        private Model _features;
-        private Model _pitch;
-        private string _featuresPath;
-        private string _pitchPath;
-
-        // A switch's stream warming up behind the one converting, a block of silence at a time.
-        private RvcStream _next;
-        private string _nextVoice;
-        private int _nextWarmed;
-        private float[] _warmSilence;
-        private float[] _warmOutput;
-        private System.Collections.IEnumerator _priming;
-        private int _modelsToLoad;
         private float[] _stereo;
         private float[] _waiting;
         private float[] _block;
@@ -96,7 +77,6 @@ namespace VirtualVessel.Voice
         private VoiceConversionStats _stats;
         private float[] _file;
         private string _fileName;
-        private int _loadedModels;
         private bool _denoise;
         private int _fileRead;
         private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
@@ -115,6 +95,7 @@ namespace VirtualVessel.Voice
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _library = library;
+            _loader = new VoiceLoader(library);
             _log = log;
         }
 
@@ -128,7 +109,7 @@ namespace VirtualVessel.Voice
 
         public string VoiceId => _wantedVoice;
 
-        public bool IsSwitching => _next != null || (_loading != null && _stream != null);
+        public bool IsSwitching => _next.IsActive || (_loader.IsLoading && _stream != null);
 
         public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
         {
@@ -152,8 +133,7 @@ namespace VirtualVessel.Voice
             set => _denoise = value;
         }
 
-        // The last step, warming up, is counted as much as a model: it takes as long.
-        public float LoadProgress => _modelsToLoad == 0 ? 0f : _loadedModels / (_modelsToLoad + 1f);
+        public float LoadProgress => _loader.Progress;
 
         public string FileName => _file == null ? null : _fileName;
 
@@ -222,7 +202,7 @@ namespace VirtualVessel.Voice
             {
                 _file = null;
                 Stop();
-                DropNext();
+                _next.Dispose();
                 _state.Set(VoiceConversionState.Off);
                 ReleaseTick();
                 return;
@@ -240,7 +220,7 @@ namespace VirtualVessel.Voice
             {
                 Attach();
             }
-            else if (_loading == null)
+            else if (!_loader.IsLoading)
             {
                 BeginLoading();
             }
@@ -287,34 +267,15 @@ namespace VirtualVessel.Voice
         {
             _tick?.Dispose();
             _tick = null;
-            DropNext();
+            _next.Dispose();
             _stream?.Dispose();
             _stream = null;
-        }
-
-        /// <summary>The voice's speaker vector: 256 little-endian floats, beside its generator.</summary>
-        public static float[] ReadSpeaker(string path)
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-            var speaker = new float[bytes.Length / sizeof(float)];
-            Buffer.BlockCopy(bytes, 0, speaker, 0, speaker.Length * sizeof(float));
-            return speaker;
-        }
-
-        /// <summary>The crossfade at each join, in 10 ms frames; the generators are exported for it.</summary>
-        public const int Crossfade = 5;
-
-        private static RvcStreamShape Shape(int windowFrames)
-        {
-            // A 50 ms crossfade: with 20 ms the joins changed the sound every block, heard on held notes as a
-            // wobble in pitch (decision record, 2026-11-03).
-            return new RvcStreamShape(windowFrames, 10, Crossfade, 1, 2, 3, 10 + Crossfade + 1 + 2 + 3 + 24, 32);
         }
 
         // A load in progress still needs the frames to finish on the main thread.
         private void ReleaseTick()
         {
-            if (_loading == null)
+            if (!_loader.IsLoading)
             {
                 _tick?.Dispose();
                 _tick = null;
@@ -333,18 +294,6 @@ namespace VirtualVessel.Voice
             return samples;
         }
 
-        // What a load gives back: the shared models, which may be the ones already loaded, and the voice's own.
-        private sealed class LoadedVoice
-        {
-            public string VoiceId;
-            public string FeaturesPath;
-            public string PitchPath;
-            public Model Features;
-            public Model Pitch;
-            public Model Generator;
-            public float[] Speaker;
-        }
-
         private void BeginLoading()
         {
             if (_wantedVoice == null && _library != null)
@@ -353,11 +302,11 @@ namespace VirtualVessel.Voice
                 _wantedVoice = voices.Ok ? VoiceModelLibrary.FirstUsable(voices.Value) : null;
             }
 
-            VoiceModelFiles files = _library == null || _wantedVoice == null ? VoiceModelFiles.Unusable("There is no voice.") : _library.Locate(_wantedVoice);
             bool switching = _stream != null;
-            if (!_stage.IsAvailable || files.Problem != null)
+            string problem = _stage.IsAvailable ? _loader.Begin(_wantedVoice) : "the microphone's stage is unavailable.";
+            if (problem != null)
             {
-                _log?.Warning($"Voice conversion cannot load voice '{_wantedVoice}': stage {_stage.IsAvailable}; {files.Problem}");
+                _log?.Warning($"Voice conversion cannot load voice '{LogName(_wantedVoice)}': {problem}");
                 if (switching)
                 {
                     // The voice in use keeps converting.
@@ -371,39 +320,15 @@ namespace VirtualVessel.Voice
                 return;
             }
 
-            // Read here, on the main thread, so the loading thread touches no field it does not own.
-            Model features = files.Features == _featuresPath ? _features : null;
-            Model pitch = files.Pitch == _pitchPath ? _pitch : null;
-            _loadedModels = 0;
-            _modelsToLoad = 1 + (features == null ? 1 : 0) + (pitch == null ? 1 : 0);
             if (!switching)
             {
                 _state.Set(VoiceConversionState.Loading);
             }
-
-            string voiceId = _wantedVoice;
-            _loading = Task.Run(() => new LoadedVoice
-            {
-                VoiceId = voiceId,
-                FeaturesPath = files.Features,
-                PitchPath = files.Pitch,
-                Features = features ?? LoadModel(files.Features),
-                Pitch = pitch ?? LoadModel(files.Pitch),
-                Generator = LoadModel(files.Generator),
-                Speaker = ReadSpeaker(files.Speaker),
-            });
-        }
-
-        private Model LoadModel(string path)
-        {
-            Model model = ModelLoader.Load(path);
-            Interlocked.Increment(ref _loadedModels);
-            return model;
         }
 
         private void Tick()
         {
-            if (_loading != null && _loading.IsCompleted)
+            if (_loader.IsDone)
             {
                 FinishLoading();
             }
@@ -413,11 +338,11 @@ namespace VirtualVessel.Voice
                 return;
             }
 
-            if (_next != null)
+            if (_next.IsActive)
             {
-                WarmNext();
+                _next.Step();
             }
-            else if (_loading == null && _wantedVoice != _streamVoice)
+            else if (!_loader.IsLoading && _wantedVoice != _streamVoice)
             {
                 BeginLoading();
             }
@@ -438,28 +363,17 @@ namespace VirtualVessel.Voice
 
         private void FinishLoading()
         {
-            Task<LoadedVoice> loading = _loading;
-            _loading = null;
             bool switching = _stream != null && IsAttached;
             RvcStream stream = null;
+            string voiceId = _loader.LoadingVoice;
             try
             {
-                LoadedVoice voice = loading.GetAwaiter().GetResult();
-                _features = voice.Features;
-                _pitch = voice.Pitch;
-                _featuresPath = voice.FeaturesPath;
-                _pitchPath = voice.PitchPath;
-                stream = new RvcStream(voice.Features, voice.Pitch, voice.Generator, voice.Speaker, Shape(WindowFrames), BackendType.GPUCompute, _semitones);
+                stream = _loader.Finish(_semitones, out voiceId);
                 if (switching)
                 {
-                    // Warmed a block at a time over the next frames, while the voice in use keeps converting.
-                    _next = stream;
-                    _nextVoice = voice.VoiceId;
-                    _nextWarmed = 0;
-                    _priming = stream.Prime();
-                    _warmSilence ??= new float[stream.BlockSamples];
-                    _warmOutput ??= new float[stream.BlockSamples];
-                    _log?.Information($"Voice {voice.VoiceId} loaded; warming up behind voice {_streamVoice}.");
+                    // Warmed a little each frame, while the voice in use keeps converting.
+                    _next.Begin(stream, voiceId);
+                    _log?.Information($"Voice {LogName(voiceId)} loaded; warming up behind voice {LogName(_streamVoice)}.");
                     return;
                 }
 
@@ -471,7 +385,7 @@ namespace VirtualVessel.Voice
                 // The first runs compile the shaders and take far longer than a block, so they happen
                 // here, where nobody is waiting for the audio yet.
                 var silence = new float[stream.BlockSamples];
-                for (int i = 0; i < WarmupBlocks; i++)
+                for (int i = 0; i < VoiceWarmup.Blocks; i++)
                 {
                     stream.Process(silence, silence);
                     Array.Clear(silence, 0, silence.Length);
@@ -479,8 +393,8 @@ namespace VirtualVessel.Voice
 
                 _stream?.Dispose();
                 _stream = stream;
-                _streamVoice = voice.VoiceId;
-                _log?.Information($"Voice conversion is ready with voice {voice.VoiceId}: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
+                _streamVoice = voiceId;
+                _log?.Information($"Voice conversion is ready with voice {LogName(voiceId)}: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
                 if (_wanted)
                 {
                     Attach();
@@ -496,7 +410,7 @@ namespace VirtualVessel.Voice
                 stream?.Dispose();
                 if (switching)
                 {
-                    _log?.Error($"The chosen voice could not load; voice {_streamVoice} keeps converting.", exception);
+                    _log?.Error($"Voice {LogName(voiceId)} could not load; voice {LogName(_streamVoice)} keeps converting.", exception);
                     _wantedVoice = _streamVoice;
                     return;
                 }
@@ -508,83 +422,36 @@ namespace VirtualVessel.Voice
             }
         }
 
-        // One step of the next voice's warm-up each frame: its first runs compile shaders, which must not stall the
-        // frame that keeps the voice in use converting.
-        private void WarmNext()
+        /// <summary>A voice's ID as the log shows it: the prototype's is empty, so it gets a name. Pure.</summary>
+        public static string LogName(string voiceId)
         {
-            if (_priming != null)
-            {
-                var budget = System.Diagnostics.Stopwatch.StartNew();
-                while (budget.Elapsed.TotalMilliseconds < PrimeBudgetMs)
-                {
-                    if (!_priming.MoveNext())
-                    {
-                        _priming = null;
-                        break;
-                    }
-                }
-
-                return;
-            }
-
-            if (_next.IsBusy)
-            {
-                if (_next.Advance(_warmOutput, false))
-                {
-                    _nextWarmed++;
-                }
-            }
-            else if (_nextWarmed < WarmupBlocks)
-            {
-                Array.Clear(_warmSilence, 0, _warmSilence.Length);
-                _next.Start(_warmSilence);
-            }
-        }
-
-        /// <summary>
-        /// Whether a warmed voice takes over now: only between blocks, so no block is lost, and only if it is still
-        /// the chosen one. Pure.
-        /// </summary>
-        public static bool ShouldSwap(bool hasNext, int warmed, int warmupBlocks, bool currentBusy, bool nextBusy)
-        {
-            return hasNext && warmed >= warmupBlocks && !currentBusy && !nextBusy;
+            return voiceId == VoiceModelLibrary.PrototypeId ? "prototype" : voiceId ?? "none";
         }
 
         private void SwapIfReady()
         {
-            if (_next == null || _nextWarmed < WarmupBlocks)
+            if (!_next.IsWarm)
             {
                 return;
             }
 
-            if (_nextVoice != _wantedVoice)
+            if (_next.VoiceId != _wantedVoice)
             {
                 // Chosen and then changed again before it was ready.
-                DropNext();
+                _next.Dispose();
                 return;
             }
 
-            if (!ShouldSwap(true, _nextWarmed, WarmupBlocks, _stream.IsBusy, _next.IsBusy))
+            if (!_next.CanTakeOver(_stream.IsBusy))
             {
                 return;
             }
 
-            _log?.Information($"Voice {_nextVoice} takes over from voice {_streamVoice}.");
+            _log?.Information($"Voice {LogName(_next.VoiceId)} takes over from voice {LogName(_streamVoice)}.");
+            _streamVoice = _next.VoiceId;
             _stream.Dispose();
-            _stream = _next;
+            _stream = _next.Take();
             _stream.Semitones = _semitones;
-            _streamVoice = _nextVoice;
-            _next = null;
-            _nextVoice = null;
-        }
-
-        private void DropNext()
-        {
-            _priming = null;
-            _next?.Dispose();
-            _next = null;
-            _nextVoice = null;
-            _nextWarmed = 0;
         }
 
         private void Attach()

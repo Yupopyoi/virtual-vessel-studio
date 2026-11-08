@@ -121,7 +121,15 @@ namespace VirtualVessel.Voice.Tests
         [TestCase(false, 3, 3, false, false, false)]
         public void ShouldSwap_OnlyBetweenBlocks_OnceWarm(bool hasNext, int warmed, int warmup, bool currentBusy, bool nextBusy, bool expected)
         {
-            Assert.That(VoiceService.ShouldSwap(hasNext, warmed, warmup, currentBusy, nextBusy), Is.EqualTo(expected));
+            Assert.That(VoiceWarmup.ShouldSwap(hasNext, warmed, warmup, currentBusy, nextBusy), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TheLog_NamesThePrototypesVoice_WhoseIdIsEmpty()
+        {
+            Assert.That(VoiceService.LogName(VoiceModelLibrary.PrototypeId), Is.EqualTo("prototype"));
+            Assert.That(VoiceService.LogName("voice-a"), Is.EqualTo("voice-a"));
+            Assert.That(VoiceService.LogName(null), Is.EqualTo("none"));
         }
 
         [Test]

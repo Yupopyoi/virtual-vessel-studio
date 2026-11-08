@@ -28,7 +28,7 @@ namespace VirtualVessel.Voice.Tests
         [TestCase("w100", VoiceService.WindowFrames, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int windowFrames, BackendType backend)
         {
-            Convert(variant, windowFrames, backend, HeadGuard, VoiceService.Crossfade, TailGuard, VoiceModelLibrary.GeneratorFile(windowFrames));
+            Convert(variant, windowFrames, backend, HeadGuard, VoiceLoader.Crossfade, TailGuard, VoiceModelLibrary.GeneratorFile(windowFrames));
         }
 
         private static void Convert(string variant, int windowFrames, BackendType backend, int headGuard, int crossfade, int tailGuard, string generatorFile)
@@ -52,7 +52,7 @@ namespace VirtualVessel.Voice.Tests
                 ModelLoader.Load(Path.Combine(models, VoiceModelLibrary.FeaturesFile(windowFrames))),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),
                 ModelLoader.Load(generator),
-                VoiceService.ReadSpeaker(Path.ChangeExtension(generator, ".spk")),
+                VoiceLoader.ReadSpeaker(Path.ChangeExtension(generator, ".spk")),
                 shape,
                 backend,
                 Semitones);

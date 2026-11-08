@@ -35,7 +35,9 @@ Out of scope: making voices ([Voice Lab detailed design](voice-lab.md)), a virtu
 | Class | Kind | Role |
 |---|---|---|
 | `IVoiceConversion` | Interface (UI) | State, chosen voice, pitch, on and off |
-| `VoiceService` | Class | Application Service: moves blocks along each frame |
+| `VoiceService` | Class | Application Service: moves blocks along each frame and decides which voice runs |
+| `VoiceLoader` | Class | Loads a voice's models on the thread pool and makes its `RvcStream` on the main thread; reuses HuBERT and RMVPE (8.2) |
+| `VoiceWarmup` | Class | Primes and warms the next voice, and says when it can take over (8.2) |
 | `IVoiceConverter` | Interface | Abstraction of the conversion method (system design 9.6) |
 | `RvcVoiceConverter` | Class | The RVC v2 implementation; the prototype's `RvcStream` |
 | `RvcDsp` | Static class | Resampling, mel, F0, crossfade; no side effects |
@@ -261,6 +263,7 @@ The order for lowering latency:
 Assets/VirtualVessel/Voice/
 ├─ Runtime/
 │  ├─ VoiceService.cs
+│  ├─ VoiceLoader.cs, VoiceWarmup.cs
 │  ├─ Conversion/   IVoiceConverter, RvcVoiceConverter, RvcDsp
 │  └─ Models/       IVoiceModelRepository, VoiceModelStore, VoiceModelLibrary, VoiceModelManifest
 ├─ Editor/          VoiceModelImport (developers make the template)
