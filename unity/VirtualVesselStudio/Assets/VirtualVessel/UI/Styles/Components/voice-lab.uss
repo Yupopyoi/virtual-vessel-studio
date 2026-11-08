@@ -10,6 +10,15 @@
     color: var(--vv-color-text-2);
 }
 
+/* Cards stacked in Voice Lab keep room between them, and a card folded inside another keeps room above it (the user's review, 2026-11-08). */
+.vv-lab .vv-card {
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-lab .vv-card .vv-card {
+    margin-top: var(--vv-space-s);
+}
+
 .vv-lab__gap {
     margin-bottom: var(--vv-space-m);
 }
