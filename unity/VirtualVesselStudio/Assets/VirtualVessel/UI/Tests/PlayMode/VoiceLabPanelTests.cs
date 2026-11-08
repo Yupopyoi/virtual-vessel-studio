@@ -15,6 +15,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 using Object = UnityEngine.Object;
 
@@ -283,6 +284,71 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             Assert.That(screen.Steps.Current, Is.EqualTo(VoiceLabScreen.TimbreStep));
+        }
+
+        // Builds a voice through STEP 3 and opens STEP 4.
+        private IEnumerator ToTryStep(VoiceLabScreen screen)
+        {
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            Submit(((VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep)).StartButton);
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+        }
+
+        [UnityTest]
+        public IEnumerator ARecording_IsConvertedWithTheVoiceJustMade_AndPlayedToTheMonitor()
+        {
+            Object.Destroy(_host);
+            var trial = new FakeTrial();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            VoiceLabTryStep step = screen.Try;
+            step.Recording = "me.m4a";
+            yield return null;
+
+            Submit(step.ConvertedButton);
+            yield return null;
+            Submit(step.ConvertedButton);
+            yield return null;
+
+            Assert.That(trial.Requests.Count, Is.EqualTo(1), "The same conversion plays again without converting again.");
+            Assert.That((trial.Requests[0].VoiceFolder, trial.Requests[0].Recording, trial.Requests[0].AutoPitch), Is.EqualTo(("built", "me.m4a", true)));
+            Assert.That(_preview.Played.Last(), Is.EqualTo("converted-1.wav"));
+
+            step.Adjustment.value = 2f;
+            Submit(step.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Count, Is.EqualTo(2), "A new adjustment converts again.");
+            Assert.That(trial.Requests[1].KnownUserHz, Is.EqualTo(200f), "The measured pitch is reused.");
+
+            Submit(step.OriginalButton);
+            yield return null;
+            Assert.That(_preview.Played.Last(), Is.EqualTo("me.m4a"));
+        }
+
+        [UnityTest]
+        public IEnumerator TheMicrophoneTrial_UsesTheVoiceJustMade_AndPutsTheConversionBack()
+        {
+            Object.Destroy(_host);
+            var voice = new FakeVoice { Semitones = 3f };
+            voice.SelectVoice("voice-old");
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            VoiceLabTryStep step = screen.Try;
+            step.Sources.value = VoiceLabTryStep.MicrophoneSource;
+
+            step.MicToggle.value = true;
+            Assert.That((voice.VoiceId, voice.State.Value), Is.EqualTo(("folder:built", VoiceConversionState.Running)));
+            Assert.That(voice.Semitones, Is.EqualTo(0f), "STEP 4's own adjustment.");
+
+            screen.GoTo(VoiceLabScreen.TimbreStep);
+            Assert.That((voice.VoiceId, voice.State.Value, voice.Semitones), Is.EqualTo(("voice-old", VoiceConversionState.Off, 3f)), "As before the trial.");
         }
 
         [UnityTest]

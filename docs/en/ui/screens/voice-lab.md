@@ -63,7 +63,14 @@ The user starts from an example, moves it with words, and picks a candidate by e
 
 ## 6. STEP 4 Try It with Your Voice
 
-Trying a voice through the real-time conversion is the next stage (Voice Lab detailed design 8.3.4). Until then the step says so (`lab.try.later`) and has STEP 2: Back to the timbre and STEP 5: Use this voice.
+Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice Lab detailed design 8.3.4). Leaving STEP 4 stops what plays and converts and puts the voice conversion back as it was before the trial (the chosen voice, on or off, the pitch settings). Voice Lab is not used while streaming or recording, so a trial never reaches the stream.
+
+- Voice to try card: Recording or Microphone (Segmented).
+  - Recording: the file's name and Choose file (WAV, M4A, MP3). Original plays the recording as it is; Converted converts it with the stream's processing first; both play to the monitor only (Voice detailed design 8.5; user's decision, 2026-11-08). A progress bar shows while converting. The same recording, voice, and pitch settings play again without converting again. Stop stops playing and converting.
+  - Microphone: Try with the microphone runs the stream's conversion with the voice made. With the microphone's Hear off, a warning chip and "Turn Hear on" show, with a line to use headphones (user's decision, 2026-11-08).
+  - A failed conversion shows an error chip (`lab.try.failed`).
+- Pitch card: Match the pitch automatically (on by default), the line "Your voice 200 Hz → this voice 285 Hz (+6)" ("not measured" before measuring), Measure again, and an Adjustment slider (-24 to +24). With recordings, the pitch measured once is used by the next conversion.
+- STEP 2 Fix the timbre, and STEP 5 Use this voice.
 
 ## 7. STEP 5 Register
 

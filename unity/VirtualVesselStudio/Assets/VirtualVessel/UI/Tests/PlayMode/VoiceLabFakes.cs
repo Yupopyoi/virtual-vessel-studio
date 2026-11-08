@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Audio;
+using VirtualVessel.Core.State;
 using VirtualVessel.ProjectData.Records;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Tests
@@ -57,6 +59,14 @@ namespace VirtualVessel.UI.Tests
         public VoiceLabBuildState BuildState { get; set; }
 
         public int BuildsCancelled { get; private set; }
+
+        /// <summary>What BuiltVoiceFolder gives; null fails as a run without a voice.</summary>
+        public string BuiltFolder { get; set; } = "built";
+
+        public CrudResult<string> BuiltVoiceFolder(string runId)
+        {
+            return BuiltFolder == null ? CrudResult<string>.Fail(CrudError.Invalid, "none") : CrudResult<string>.Success(BuiltFolder);
+        }
 
         public void CancelBuild()
         {
@@ -196,6 +206,84 @@ namespace VirtualVessel.UI.Tests
 
             Voices.RemoveAll(v => v.Id == voiceId);
             return CrudResult.Success;
+        }
+    }
+
+    internal sealed class FakeTrial : IVoiceTrial
+    {
+        public List<VoiceTrialRequest> Requests { get; } = new List<VoiceTrialRequest>();
+
+        public Task<VoiceTrialResult> ConvertAsync(VoiceTrialRequest request, IProgress<float> progress, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new VoiceTrialResult($"converted-{Requests.Count}.wav", 200f, 285f, request.AutoPitch ? 6f + request.Adjustment : request.Adjustment));
+        }
+    }
+
+    /// <summary>The voice conversion as STEP 4 sees it: the choice, on and off, and the pitch.</summary>
+    internal sealed class FakeVoice : IVoiceConversion
+    {
+        private readonly ObservableValue<VoiceConversionState> _state = new ObservableValue<VoiceConversionState>(VoiceConversionState.Off);
+
+        public IReadOnlyObservable<VoiceConversionState> State => _state;
+
+        public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
+        {
+            return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Array.Empty<VoiceConversionVoice>());
+        }
+
+        public string VoiceId { get; private set; }
+
+        public void SelectVoice(string voiceId)
+        {
+            VoiceId = voiceId;
+        }
+
+        public void SelectVoiceFolder(string folder)
+        {
+            VoiceId = "folder:" + folder;
+        }
+
+        public bool IsSwitching => false;
+
+        public float Semitones { get; set; }
+
+        public bool AutoPitch { get; set; } = true;
+
+        public float AutoSemitones => 0f;
+
+        public float UserPitchHz => 0f;
+
+        public float VoicePitchHz => 0f;
+
+        public void RemeasurePitch()
+        {
+        }
+
+        public bool Denoise { get; set; }
+
+        public float LoadProgress => 0f;
+
+        public string FileName => null;
+
+        public (float Position, float Length) FileTime => (0f, 0f);
+
+        public VoiceConversionStats Stats => default;
+
+        public void SetEnabled(bool enabled)
+        {
+            _state.Set(enabled ? VoiceConversionState.Running : VoiceConversionState.Off);
+        }
+
+        public Task<bool> PlayFileAsync(string path)
+        {
+            return Task.FromResult(false);
+        }
+
+        public IReadOnlyList<string> FileExtensions => new[] { "wav" };
+
+        public void StopFile()
+        {
         }
     }
 }

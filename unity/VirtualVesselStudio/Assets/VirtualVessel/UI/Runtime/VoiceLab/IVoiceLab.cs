@@ -220,6 +220,12 @@ namespace VirtualVessel.UI.VoiceLab
         /// 6.31): NotFound without the run, Invalid for a run that did not complete, StorageFailed when copying failed.
         /// </summary>
         CrudResult Register(string runId, string name);
+
+        /// <summary>
+        /// The folder of a completed run's voice, to try it before registering (Voice Lab detailed design 8.3.4).
+        /// NotFound without the run, Invalid when it did not complete or its voice is missing.
+        /// </summary>
+        CrudResult<string> BuiltVoiceFolder(string runId);
     }
 
     /// <summary>Voice Lab could not do what was asked; <see cref="System.Exception.Message"/> is for developers.</summary>

@@ -118,13 +118,36 @@ namespace VirtualVessel.UI.VoiceLab
         public const string BuildFinishing = "lab.build.finishing";
         public const string BuildStart = "lab.build.start";
         public const string LiveLockTitle = "lab.live-lock.title";
+        public const string TrySource = "lab.try.source";
+        public const string TryFile = "lab.try.file";
+        public const string TryMicrophone = "lab.try.microphone";
+        public const string TryNoFile = "lab.try.no-file";
+        public const string TryPick = "lab.try.pick";
+        public const string TryFileFilter = "lab.try.file-filter";
+        public const string TryOriginal = "lab.try.original";
+        public const string TryConverted = "lab.try.converted";
+        public const string TryConverting = "lab.try.converting";
+        public const string TryFailed = "lab.try.failed";
+        public const string TryHearOff = "lab.try.hear-off";
+        public const string TryHearOffBody = "lab.try.hear-off-body";
+        public const string TryHearOn = "lab.try.hear-on";
+        public const string TryMicToggle = "lab.try.mic-toggle";
+        public const string TryHeadphones = "lab.try.headphones";
+        public const string TryMicOff = "lab.try.mic-off";
+        public const string TryMicLoading = "lab.try.mic-loading";
+        public const string TryMicOn = "lab.try.mic-on";
+        public const string TryPitch = "lab.try.pitch";
+        public const string TryAutoPitch = "lab.try.auto-pitch";
+        public const string TryPitchMatch = "lab.try.pitch-match";
+        public const string TryPitchUnknown = "lab.try.pitch-unknown";
+        public const string TryRemeasure = "lab.try.remeasure";
+        public const string TryAdjust = "lab.try.adjust";
         public const string LiveLockBody = "lab.live-lock.body";
         public const string BuildFailed = "lab.build.failed";
         public const string BuildOutOfMemory = "lab.build.out-of-memory";
         public const string BuildCancelled = "lab.build.cancelled";
 
         public const string TryLead = "lab.try.lead";
-        public const string TryLater = "lab.try.later";
         public const string BackToTimbre = "lab.try.back";
         public const string ToRegister = "lab.try.next";
 

@@ -80,17 +80,24 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabDraft _draft;
         private readonly VoiceLabTimbreStep _timbre;
         private readonly VoiceLabRegisterStep _register;
+        private VoiceLabTryStep _try;
         private readonly IStreamingService _streaming;
         private readonly IRecordingService _recording;
         private readonly VisualElement _content;
 
-        /// <param name="lab">Null, or not set up, shows that voices cannot be made yet.</param>
-        /// <param name="audio">Plays candidates; null leaves out the play buttons.</param>
-        /// <param name="streaming">While it streams, Voice Lab is not used; optional.</param>
-        /// <param name="library">What was made, for the Made voices tab; null leaves the tab out.</param>
-        /// <param name="recording">While it records, Voice Lab is not used; optional.</param>
-        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null, IVoiceLabLibrary library = null, IRecordingService recording = null)
+        /// <param name="services">
+        /// VoiceLab (null, or not set up, shows that voices cannot be made yet), the Made voices library, the audio
+        /// preview for play buttons, streaming and recording (Voice Lab is not used while either runs), and for STEP 4
+        /// the voice conversion, its trial, the file dialog, and the audio sources. Any may be null.
+        /// </param>
+        public VoiceLabScreen(ScreenServices services)
         {
+            services ??= new ScreenServices();
+            IVoiceLab lab = services.VoiceLab;
+            IAudioPreview audio = services.AudioPreview;
+            IStreamingService streaming = services.Streaming;
+            IVoiceLabLibrary library = services.VoiceLabLibrary;
+            IRecordingService recording = services.Recording;
             AddToClassList(UssClass);
             _lab = lab;
             _streaming = streaming;
@@ -148,7 +155,8 @@ namespace VirtualVessel.UI.VoiceLab
             _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;
             _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, this);
-            _panels[TryStep] = TryPanel();
+            _try = new VoiceLabTryStep(services, lab, draft, _player, this);
+            _panels[TryStep] = _try;
             _panels[RegisterStep] = _register;
             foreach (VisualElement panel in _panels)
             {
@@ -189,6 +197,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (live)
             {
                 _player.Stop();
+                _try?.Leave();
             }
 
             LiveLock.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
@@ -344,22 +353,18 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _panels[i].style.display = i == step ? DisplayStyle.Flex : DisplayStyle.None;
             }
+
+            if (step == TryStep)
+            {
+                _try.Enter();
+            }
+            else
+            {
+                _try.Leave();
+            }
         }
 
-        // Trying a voice through the real-time conversion is the next stage (Voice Lab detailed design 8.3.4).
-        private VisualElement TryPanel()
-        {
-            var panel = new VisualElement();
-            panel.Add(Lead(VoiceLabStrings.TryLead));
-            Card card = Ui.Card(VoiceLabStrings.StepTry);
-            card.Add(Ui.Text(VoiceLabStrings.TryLater, NoteClass, "vv-text-body"));
-            panel.Add(card);
-            ActionButton back = Ui.Button(VoiceLabStrings.BackToTimbre);
-            back.clicked += () => GoTo(TimbreStep);
-            ActionButton next = Ui.Button(VoiceLabStrings.ToRegister, ButtonVariant.Primary);
-            next.clicked += () => GoTo(RegisterStep);
-            panel.Add(Actions(back, next));
-            return panel;
-        }
+        /// <summary>STEP 4's panel; null when Voice Lab is not set up.</summary>
+        public VoiceLabTryStep Try => _try;
     }
 }

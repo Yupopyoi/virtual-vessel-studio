@@ -5,6 +5,7 @@ using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Tests
@@ -215,6 +216,19 @@ namespace VirtualVessel.UI.Tests
         public void VoiceLab_IsNotUsed_WhileAStreamOrARecordingRuns(StreamingState streaming, RecordingState recording, bool live)
         {
             Assert.That(VoiceLabView.IsLive(streaming, recording), Is.EqualTo(live));
+        }
+
+        [Test]
+        public void STEP4_KeysAConversion_AndShowsThePitches()
+        {
+            Assert.That(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f), Is.EqualTo(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f)));
+            Assert.That(VoiceLabTryStep.ConversionKey("f", "r", true, 1f, 200f), Is.Not.EqualTo(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f)));
+            Assert.That(VoiceLabTryStep.Hz(285.4f), Is.EqualTo("285 Hz"));
+            Assert.That(VoiceLabTryStep.Hz(0f), Is.Null);
+            Assert.That(VoiceLabTryStep.Shift(7f), Is.EqualTo("+7"));
+            Assert.That(VoiceLabTryStep.Shift(-2f), Is.EqualTo("-2"));
+            Assert.That(VoiceLabTryStep.IsOn(VoiceConversionState.Running), Is.True);
+            Assert.That(VoiceLabTryStep.IsOn(VoiceConversionState.Failed), Is.False);
         }
 
         [Test]

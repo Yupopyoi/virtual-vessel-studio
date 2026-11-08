@@ -200,6 +200,25 @@ namespace VirtualVessel.VoiceLab
             }
         }
 
+        public CrudResult<string> BuiltVoiceFolder(string runId)
+        {
+            if (_runs == null)
+            {
+                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+            }
+
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            string output = Path.Combine(_runs.FolderOf(runId), "output");
+            return run.Value.GetState() == TrainingState.Completed && File.Exists(Path.Combine(output, "voice.sentis"))
+                ? CrudResult<string>.Success(output)
+                : CrudResult<string>.Fail(CrudError.Invalid, $"Run {runId} has no voice to try.");
+        }
+
         public void CancelBuild()
         {
             try
