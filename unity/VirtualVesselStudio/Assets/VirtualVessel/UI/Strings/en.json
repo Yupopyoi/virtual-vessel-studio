@@ -293,6 +293,7 @@
         "lab.try.remeasure": "Measure again",
         "lab.try.adjust": "Adjustment (semitones)",
         "lab.register.lead": "Name it and register it.",
+        "lab.register.back": "STEP 4 Try it with your voice",
         "lab.register.title": "Register",
         "lab.register.name": "Voice name",
         "lab.register.name-hint": "For example: New voice",

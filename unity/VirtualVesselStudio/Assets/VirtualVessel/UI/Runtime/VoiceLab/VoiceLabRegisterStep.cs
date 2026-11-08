@@ -49,11 +49,16 @@ namespace VirtualVessel.UI.VoiceLab
             RegisterButton.clicked += Register;
             _again = Ui.Button(VoiceLabStrings.MakeAnother);
             _again.clicked += _flow.StartOver;
-            Add(VoiceLabScreen.Actions(RegisterButton, _again));
+            // Back to trying, also after registering: the run keeps the voice's files (the user's review, 2026-11-08).
+            BackButton = Ui.Button(VoiceLabStrings.BackToTry);
+            BackButton.clicked += () => _flow.GoTo(VoiceLabScreen.TryStep);
+            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again));
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
         }
 
         public ActionButton RegisterButton { get; }
+
+        public ActionButton BackButton { get; }
 
         public TextInput NameInput => _name;
 

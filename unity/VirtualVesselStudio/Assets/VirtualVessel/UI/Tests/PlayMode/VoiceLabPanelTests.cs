@@ -332,6 +332,23 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator AfterRegistering_STEP4CanBeOpenedAgain()
+        {
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            register.Q<TextInput>().value = "Fuwari";
+            Submit(register.RegisterButton);
+            yield return null;
+            yield return null;
+
+            Submit(register.BackButton);
+
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+        }
+
+        [UnityTest]
         public IEnumerator TheMicrophoneTrial_UsesTheVoiceJustMade_AndPutsTheConversionBack()
         {
             Object.Destroy(_host);

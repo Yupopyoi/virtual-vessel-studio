@@ -150,6 +150,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string TryLead = "lab.try.lead";
         public const string BackToTimbre = "lab.try.back";
         public const string ToRegister = "lab.try.next";
+        public const string BackToTry = "lab.register.back";
 
         public const string RegisterLead = "lab.register.lead";
         public const string Register = "lab.register.title";

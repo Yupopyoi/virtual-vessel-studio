@@ -293,6 +293,7 @@
         "lab.try.remeasure": "測り直す",
         "lab.try.adjust": "調整（半音）",
         "lab.register.lead": "名前を付けて登録します。",
+        "lab.register.back": "STEP 4 自分の声で試す",
         "lab.register.title": "登録",
         "lab.register.name": "声の名前",
         "lab.register.name-hint": "例：新しい声",

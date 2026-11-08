@@ -77,6 +77,7 @@ Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice L
 - The register Card: the voice name (required, up to 60 characters), a summary of the base (candidate name and pitch) and the timbre ("Pitch +4 · Age +4 · Brightness 0 · Breathiness 0"), and a note that what it was made from is kept.
 - Register without a name shows "Enter a name" under the field.
 - Registered: a success chip, the register button disabled, and Make another, which goes back to STEP 1 keeping the mood and the candidates.
+- STEP 4 Try it with your voice goes back to STEP 4, before or after registering, since the run keeps the voice's files (user's check, 2026-11-08).
 - Use it now and the list of registered voices (system design 14.18) come with the next stage, with trying a voice.
 
 ## 8. Made Voices
