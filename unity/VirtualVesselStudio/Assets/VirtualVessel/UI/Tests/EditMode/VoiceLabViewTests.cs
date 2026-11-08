@@ -219,6 +219,14 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheVoiceInUse_IsTheSavedChoice()
+        {
+            Assert.That(VoiceLabLibraryView.IsInUse("voice-a", "voice-a"), Is.True);
+            Assert.That(VoiceLabLibraryView.IsInUse("voice-a", "voice-b"), Is.False);
+            Assert.That(VoiceLabLibraryView.IsInUse(null, "voice-a"), Is.False);
+        }
+
+        [Test]
         public void STEP4_KeysAConversion_AndShowsThePitches()
         {
             Assert.That(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f), Is.EqualTo(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f)));

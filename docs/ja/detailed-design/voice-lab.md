@@ -79,7 +79,7 @@ public interface IVoiceLab
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
     void CancelBuild();                           // 作成を止める。配信や録画を始めるとき（方式設計14.26）
-    CrudResult Register(string runId, string name);
+    CrudResult<string> Register(string runId, string name);   // 登録した声のID。すぐに使うため
 
     CrudResult<VoiceLabRemake> Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
 }
@@ -318,7 +318,7 @@ Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録�
 
 - 一覧：Runと声を新しい順に並べる。Runは日時、状態、選んだ言葉、声色、メモ、そこから登録した声を見せる。声は名前、高さ、日時を見せる。どちらも、Runを作った土台を聞ける（登録した声をリアルタイムの変換で試すのは第5段階）。
 - 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。
-- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使っている声を消せないようにするのは、「すぐに使う」と合わせて作る。声が使われる状態はそこで初めてできるためである。
+- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使う声（Voice Profileの`voiceModelId`。Voice詳細設計6.2）は消せない。`VoiceLabLibrary.DeleteVoice`が`Busy`で断る。どの声が使われているかはVoiceが知っているので、組み立ての側が`VoiceLabService.VoiceInUse`で渡す。試し（Voice詳細設計8.5）は使われている声を変えない。
 - 作り直す：Runの言葉、自由入力、土台、声色をSTEP 1とSTEP 2に戻し、STEP 2を開く。土台の音声がなくなっていれば、言葉を入れたSTEP 1を開き、その旨を伝える。言葉を残す前のRun（`words`がない）は、空の棚で開く。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）

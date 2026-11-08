@@ -219,7 +219,8 @@ namespace VirtualVessel.UI.VoiceLab
         /// Registers a completed build under a name, for voice conversion to use. A CRUD create (system design
         /// 6.31): NotFound without the run, Invalid for a run that did not complete, StorageFailed when copying failed.
         /// </summary>
-        CrudResult Register(string runId, string name);
+        /// <summary>Registers a completed run's voice under a name; the result is the voice's ID, to use it for the stream.</summary>
+        CrudResult<string> Register(string runId, string name);
 
         /// <summary>
         /// The folder of a completed run's voice, to try it before registering (Voice Lab detailed design 8.3.4).

@@ -79,7 +79,7 @@ public interface IVoiceLab
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
     void CancelBuild();                           // Stops the build, for starting a stream or a recording (system design 14.26)
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
-    CrudResult Register(string runId, string name);
+    CrudResult<string> Register(string runId, string name);   // The registered voice's ID, to use it right away
 
     CrudResult<VoiceLabRemake> Remake(string runId);             // A run's words, base, and timbre, to make it again (8.6)
 }
@@ -318,7 +318,7 @@ The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the
 
 - List: runs and voices, newest first. A run shows its date, state, the words picked, the timbre, its note, and the voices registered from it; a voice shows its name, its pitch, and its date. Both play the base the run was made from (registered voices are tried with the real-time conversion, the fifth stage).
 - Rename and note: a voice's name follows the register rules (required, up to 60 characters). A run's note is up to 500 characters. Both are saved at once.
-- Delete: after a confirmation. A run being built cannot be deleted. Deleting a voice leaves its run, and deleting a run leaves the voices registered from it (each voice folder holds its own files and design). Keeping a voice that streaming uses from being deleted comes with Use it now, which is when a voice can be in use.
+- Delete: after a confirmation. A run being built cannot be deleted. Deleting a voice leaves its run, and deleting a run leaves the voices registered from it (each voice folder holds its own files and design). The voice used for the stream (the Voice Profile's `voiceModelId`; Voice detailed design 6.2) cannot be deleted: `VoiceLabLibrary.DeleteVoice` refuses with `Busy`. Voice knows which voice is in use, so the composition passes it in through `VoiceLabService.VoiceInUse`. A trial (Voice detailed design 8.5) does not change the voice in use.
 - Make again: the run's words, free words, base, and timbre go back into STEP 1 and STEP 2, which open at STEP 2. When the base's audio is gone, STEP 1 opens with the words and says so. A run from before the words were kept (no `words`) opens with an empty shelf.
 
 ### 8.4 Registration (making a `.sentis` without the Editor)

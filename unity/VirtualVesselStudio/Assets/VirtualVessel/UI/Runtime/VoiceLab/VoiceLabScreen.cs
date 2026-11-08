@@ -131,7 +131,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (library != null)
             {
                 // What was made can be listed without a training environment; making it again cannot.
-                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
+                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None, services.Voice);
                 Library.style.display = DisplayStyle.None;
                 _content.Add(Library);
             }
@@ -153,7 +153,7 @@ namespace VirtualVessel.UI.VoiceLab
             _make.Add(Steps);
 
             _timbre = new VoiceLabTimbreStep(lab, _player, draft, this);
-            _register = new VoiceLabRegisterStep(lab, draft, this);
+            _register = new VoiceLabRegisterStep(lab, draft, this, services.Voice);
             _base = new VoiceLabBaseStep(lab, _player, draft, this);
             _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;

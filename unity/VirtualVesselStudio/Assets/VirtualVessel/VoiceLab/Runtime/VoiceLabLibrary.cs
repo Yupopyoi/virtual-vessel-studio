@@ -102,9 +102,14 @@ namespace VirtualVessel.VoiceLab
             return _runs.Delete(runId);
         }
 
+        /// <summary>Whether a voice is the one used for the stream; such a voice is not deleted. None by default.</summary>
+        public Func<string, bool> InUse { get; set; } = _ => false;
+
         public CrudResult DeleteVoice(string voiceId)
         {
-            return _voices.Delete(voiceId);
+            return InUse(voiceId)
+                ? CrudResult.Fail(CrudError.Busy, $"Voice {voiceId} is used for the stream.")
+                : _voices.Delete(voiceId);
         }
 
         public CrudResult<string> VoiceFolder(string voiceId)

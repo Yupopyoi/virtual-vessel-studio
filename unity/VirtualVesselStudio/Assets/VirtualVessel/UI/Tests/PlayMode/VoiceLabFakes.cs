@@ -128,14 +128,14 @@ namespace VirtualVessel.UI.Tests
             return RemakeResult != null ? CrudResult<VoiceLabRemake>.Success(RemakeResult) : CrudResult<VoiceLabRemake>.Fail(CrudError.NotFound, "no run");
         }
 
-        public CrudResult Register(string runId, string name)
+        public CrudResult<string> Register(string runId, string name)
         {
             lock (Registered)
             {
                 Registered.Add((runId, name));
             }
 
-            return CrudResult.Success;
+            return CrudResult<string>.Success("voice-" + runId);
         }
     }
 

@@ -310,15 +310,36 @@ namespace VirtualVessel.VoiceLab
                 new VoiceDescription(design.Words, design.FreeWords));
         }
 
-        public CrudResult Register(string runId, string name)
+        public CrudResult<string> Register(string runId, string name)
         {
             if (_designer == null)
             {
-                return CrudResult.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
             }
 
             CrudResult<TrainingRun> run = _runs.Get(runId);
-            return run.Ok ? _registrar.Register(run.Value, name).WithoutValue : run.WithoutValue;
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            CrudResult<VoiceModelRecord> voice = _registrar.Register(run.Value, name);
+            return voice.Ok ? CrudResult<string>.Success(voice.Value.Id) : CrudResult<string>.From(voice.WithoutValue);
+        }
+
+        /// <summary>
+        /// Whether a voice is the one used for the stream, so it is not deleted (Voice Lab detailed design 8.6). The
+        /// composition gives it from Voice, which Voice Lab does not ask by itself.
+        /// </summary>
+        public Func<string, bool> VoiceInUse
+        {
+            set
+            {
+                if (Library is VoiceLabLibrary library)
+                {
+                    library.InUse = value;
+                }
+            }
         }
 
         /// <summary>A script's progress as a making bar shows it: any stage but <paramref name="stage"/> (loading the model) has no total. Pure.</summary>

@@ -152,6 +152,11 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ToRegister = "lab.try.next";
         public const string BackToTry = "lab.register.back";
         public const string LibraryTry = "lab.library.try";
+        public const string Use = "lab.library.use";
+        public const string InUse = "lab.library.in-use";
+        public const string DeleteInUse = "lab.library.delete-in-use";
+        public const string UseNow = "lab.register.use-now";
+        public const string RegisteredAndUsed = "lab.register.done-used";
 
         public const string RegisterLead = "lab.register.lead";
         public const string Register = "lab.register.title";

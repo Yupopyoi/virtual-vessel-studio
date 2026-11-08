@@ -300,7 +300,7 @@ namespace VirtualVessel.Application.Startup
                                 Voice = voice,
                                 VoiceTrial = voice == null ? null : new VoiceTrialService(context.FrameLoop, voice.Library, logging.Provider.GetLog("Voice", "Trial")),
                                 // Assigned in order: the library comes with Voice Lab.
-                                VoiceLab = voiceLab = InEditor(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design"))),
+                                VoiceLab = voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")), voice),
                                 VoiceLabLibrary = voiceLab.Library,
                                 AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
@@ -388,11 +388,13 @@ namespace VirtualVessel.Application.Startup
         }
 
         // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly; built players never allow it.
-        private static VoiceLabService InEditor(VoiceLabService voiceLab)
+        // The voice used for the stream is Voice's to say, so Voice Lab does not delete it.
+        private static VoiceLabService Configure(VoiceLabService voiceLab, VoiceService voice)
         {
 #if UNITY_EDITOR
             voiceLab.AllowEditorTest = true;
 #endif
+            voiceLab.VoiceInUse = voiceId => voice != null && voice.InUseVoiceId == voiceId;
             return voiceLab;
         }
     }

@@ -354,6 +354,47 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Registering_UsesTheVoiceForTheStream_WhenAsked()
+        {
+            Object.Destroy(_host);
+            var voice = new FakeVoice();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.UseNow.value, Is.True, "On by default.");
+            register.NameInput.value = "Fuwari";
+
+            Submit(register.RegisterButton);
+            yield return null;
+            yield return null;
+
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-run-1"));
+        }
+
+        [UnityTest]
+        public IEnumerator MadeVoices_UseAVoice_AndKeepTheOneInUseFromDeletion()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var voice = new FakeVoice();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.Use).First());
+            yield return null;
+
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-1"));
+            Assert.That(screen.Library.Query<StatusChip>().Where(c => c.TextKey == VoiceLabStrings.InUse).ToList(), Has.Count.EqualTo(1));
+            ActionButton delete = screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.Delete).First();
+            Assert.That(delete.enabledSelf, Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator AfterRegistering_STEP4CanBeOpenedAgain()
         {
             VoiceLabScreen screen = Screen();

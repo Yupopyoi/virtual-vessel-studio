@@ -78,13 +78,14 @@ Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice L
 - Register without a name shows "Enter a name" under the field.
 - Registered: a success chip, the register button disabled, and Make another, which goes back to STEP 1 keeping the mood and the candidates.
 - STEP 4 Try it with your voice goes back to STEP 4, before or after registering, since the run keeps the voice's files (user's check, 2026-11-08).
-- Use it now and the list of registered voices (system design 14.18) come with the next stage, with trying a voice.
+- Use it for the stream once registered (on by default; system design 14.18). On, the registered voice becomes the Voice Profile's voice for the stream, and the success chip says it was registered and set as the voice for the stream. Hidden without the voice conversion.
 
 ## 8. Made Voices
 
 A tab bar at the top of the screen: Make a voice (chapters 3 to 7) and Made voices (the user's decision, 2026-11-07). Each tab keeps its state while the other is open, and a build goes on in Make a voice.
 
 - Registered voices Card: one row per voice, newest first, with play (the base it was made from), its name, its pitch in Hz, the date, Try, Rename, and Delete. Rename opens the name in a text field with the register rules (required, up to 60 characters).
+- A registered voice's row also has Use for the stream, which makes it the voice for the stream. The voice for the stream shows an In use chip in its place, and its Delete is disabled with a tooltip saying why (use another voice first; Voice Lab detailed design 8.6).
 - Training runs Card: one row per run, newest first, with play (its base), the date, a status chip (Completed, Failed, Cancelled midway, Making), the words picked and the timbre as one line, the voices registered from it, a note field (up to 500 characters, saved when it loses focus), Try (completed runs only), Make again, and Delete.
 - Try opens Make a voice's STEP 4 with that voice (user's check, 2026-11-08). The run's words, base, and timbre come back as with Make again, so STEP 2 can adjust it and STEP 5 register it. A registered voice is tried by its own folder, so it can be tried even when its run is gone. Make again still opens STEP 2.
 - Delete asks first, in a dialog that names what goes and what stays ("The voice is deleted. The run it was made from stays."). A run being made has Delete disabled with the reason.

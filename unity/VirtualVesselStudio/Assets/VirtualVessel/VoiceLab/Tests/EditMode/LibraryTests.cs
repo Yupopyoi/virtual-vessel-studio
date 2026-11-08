@@ -119,6 +119,21 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void TheVoiceUsedForTheStream_CannotBeDeleted()
+        {
+            TrainingRun run = Run(TrainingState.Completed);
+            Voice(run, "A");
+            string id = VoiceModelRegistrar.VoiceId(run.RunId);
+            _library.InUse = voiceId => voiceId == id;
+
+            Assert.That(_library.DeleteVoice(id).Error, Is.EqualTo(CrudError.Busy));
+            Assert.That(_library.ListVoices().Value.Count, Is.EqualTo(1));
+
+            _library.InUse = _ => false;
+            Assert.That(_library.DeleteVoice(id).Ok, Is.True);
+        }
+
+        [Test]
         public void ARunBeingMade_CannotBeDeleted_ButOneLeftUnfinishedCan()
         {
             TrainingRun run = Run(TrainingState.Training);
