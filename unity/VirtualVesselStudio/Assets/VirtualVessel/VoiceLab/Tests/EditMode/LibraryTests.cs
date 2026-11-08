@@ -141,6 +141,15 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void TheTestPlan_RunsOnlyInTheEditor()
+        {
+            Assert.That(VoiceLabService.PlanOf(VoiceLabTrainingLength.EditorTest, true), Is.SameAs(BuildPlan.EditorTest));
+            Assert.That(VoiceLabService.PlanOf(VoiceLabTrainingLength.EditorTest, false), Is.SameAs(BuildPlan.Standard), "Never a test voice outside the Editor.");
+            Assert.That(VoiceLabService.PlanOf(VoiceLabTrainingLength.Long, false).Epochs, Is.EqualTo(600));
+            Assert.That(VoiceLabService.PlanOf(VoiceLabTrainingLength.Long, false).SpeechLines, Is.EqualTo(0));
+        }
+
+        [Test]
         public void ARun_ComesBackAsACandidate_OnlyWhileItsBaseIsThere()
         {
             var design = new RunDesign { Seed = 7, Candidate = "c.wav", Instruction = "i", Words = new List<string> { "male" }, FreeWords = "husky", MedianHz = 140, LowHz = 100, HighHz = 200 };

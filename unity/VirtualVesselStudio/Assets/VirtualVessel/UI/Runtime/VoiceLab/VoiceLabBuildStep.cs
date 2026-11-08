@@ -45,7 +45,7 @@ namespace VirtualVessel.UI.VoiceLab
             Card details = Ui.Card(VoiceLabStrings.BuildDetails, collapsible: true);
             details.Expanded = false;
             details.AddToClassList(VoiceLabScreen.GapClass);
-            LengthChooser = Ui.Segmented(VoiceLabStrings.BuildLengthShort, VoiceLabStrings.BuildLengthNormal, VoiceLabStrings.BuildLengthLong);
+            LengthChooser = Ui.Segmented(LengthKeys(UnityEngine.Application.isEditor));
             LengthChooser.SetValueWithoutNotify((int)_draft.TrainingLength);
             LengthChooser.RegisterValueChangedCallback(evt =>
             {
@@ -68,6 +68,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _running = new VisualElement();
             _progress = Ui.Progress(VoiceLabStrings.BuildPreparing);
+            _progress.AddToClassList(VoiceLabScreen.GapClass);
             _running.Add(_progress);
             StopButton = Ui.Button(VoiceLabStrings.Stop);
             StopButton.clicked += () => _building?.Cancel();
@@ -83,11 +84,21 @@ namespace VirtualVessel.UI.VoiceLab
 
         public Segmented LengthChooser { get; }
 
+        /// <summary>The training lengths to choose from, in the order of <see cref="VoiceLabTrainingLength"/>; the test one in the Editor only. Pure.</summary>
+        public static string[] LengthKeys(bool inEditor)
+        {
+            return inEditor
+                ? new[] { VoiceLabStrings.BuildLengthShort, VoiceLabStrings.BuildLengthNormal, VoiceLabStrings.BuildLengthLong, VoiceLabStrings.BuildLengthTest }
+                : new[] { VoiceLabStrings.BuildLengthShort, VoiceLabStrings.BuildLengthNormal, VoiceLabStrings.BuildLengthLong };
+        }
+
         /// <summary>The time it takes, for a training length. Pure.</summary>
         public static string NoteKey(VoiceLabTrainingLength length)
         {
             switch (length)
             {
+                case VoiceLabTrainingLength.EditorTest:
+                    return VoiceLabStrings.BuildNoteTest;
                 case VoiceLabTrainingLength.Normal:
                     return VoiceLabStrings.BuildNoteNormal;
                 case VoiceLabTrainingLength.Long:

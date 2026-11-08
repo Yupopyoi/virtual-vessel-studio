@@ -256,6 +256,8 @@
         "lab.build.length.short": "150",
         "lab.build.length.normal": "300",
         "lab.build.length.long": "600",
+        "lab.build.length.test": "Test",
+        "lab.build.note.test": "For checking the screens in the Editor: 4 lines of training speech and 1 epoch. It takes minutes, and the voice is not one to use.",
         "lab.build.preparing": "Making training speech",
         "lab.build.learning": "Learning the voice",
         "lab.build.finishing": "Finishing",

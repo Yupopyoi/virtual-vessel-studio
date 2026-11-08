@@ -41,3 +41,13 @@ def test_samples_are_the_examples_the_base_and_each_word_that_is_not_a_default()
     assert {seed for _, name, _, seed in plan if name.startswith("word_")} == {shelf["sampleSeed"]}
     with pytest.raises(protocol.BadRequest):
         generate.sample_plan(shelf, ["xx"])
+
+
+def test_speech_can_be_limited_to_a_few_lines_for_checking_the_screens():
+    lines = [(0, "a"), (1, "b"), (2, "c")]
+    assert generate.limited(lines, None) == lines
+    assert generate.limited(lines, 2) == lines[:2]
+    assert generate.limited(lines, 10) == lines
+    for bad in (0, -1, "2", 1.5, True):
+        with pytest.raises(protocol.BadRequest):
+            generate.limited(lines, bad)

@@ -23,6 +23,9 @@ namespace VirtualVessel.UI.VoiceLab
         Short,
         Normal,
         Long,
+
+        /// <summary>Only in Unity's Editor: a few lines and one epoch, to check the screens quickly. Not a voice to use.</summary>
+        EditorTest,
     }
 
     /// <summary>Where building a voice is, in the states the screen shows (system design 13.15, 13.16).</summary>

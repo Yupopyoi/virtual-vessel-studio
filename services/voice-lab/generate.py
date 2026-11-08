@@ -10,7 +10,7 @@ samples:    {"languages": ["ja", ...], "model": folder, "output": folder}
                its seed, the base (no words picked), and each word added to the base alone, all with one seed so
                only the word differs. <output>/<lang>/example_<id>.wav, base.wav, word_<id>.wav. Files already
                made are kept, so a stopped run continues.
-speech:     {"reference": wav, "firstSeed": n, "model": folder, "output": folder}
+speech:     {"reference": wav, "firstSeed": n, "model": folder, "output": folder, "limit": n (optional)}
             -> training speech: the reference's voice reading this project's texts. Files already made are kept,
                so a stopped run continues.
 """
@@ -155,16 +155,26 @@ def samples(request, reporter):
     reporter.result(output=output, count=len(plan), versions=_versions())
 
 
+def limited(lines, limit):
+    """The first `limit` lines, or all of them when `limit` is None: fewer make a voice fast enough to check the
+    screens in Unity's Editor, not a voice to use. Pure."""
+    if limit is None:
+        return list(lines)
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        raise protocol.BadRequest("'limit' must be a whole number of lines, 1 or more.")
+    return list(lines)[:limit]
+
+
 def speech(request, reporter):
     reference = protocol.require(request, "reference", str)
     output = protocol.require(request, "output", str)
     first = request.get("firstSeed", 5000)
+    lines = limited(corpus.lines(), request.get("limit"))
     if not os.path.isfile(reference):
         raise FileNotFoundError(f"The reference {reference} does not exist.")
     reporter.progress("load", 0, 1)
     model = _load(protocol.require(request, "model", str))
     rate = model.tts_model.sample_rate
-    lines = corpus.lines()
     files, seconds = [], 0.0
     for done, (index, text) in enumerate(lines):
         reporter.progress("speech", done, len(lines))

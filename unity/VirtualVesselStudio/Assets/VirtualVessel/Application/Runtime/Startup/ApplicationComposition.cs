@@ -292,7 +292,7 @@ namespace VirtualVessel.Application.Startup
                                 Audio = audio,
                                 Voice = voice,
                                 // Assigned in order: the library comes with Voice Lab.
-                                VoiceLab = voiceLab = VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")),
+                                VoiceLab = voiceLab = InEditor(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design"))),
                                 VoiceLabLibrary = voiceLab.Library,
                                 AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
@@ -377,6 +377,13 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly.
+        private static VoiceLabService InEditor(VoiceLabService voiceLab)
+        {
+            voiceLab.AllowEditorTest = UnityEngine.Application.isEditor;
+            return voiceLab;
         }
     }
 }

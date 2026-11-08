@@ -218,6 +218,15 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheTestLength_IsOfferedInTheEditorOnly()
+        {
+            Assert.That(VoiceLabBuildStep.LengthKeys(true).Last(), Is.EqualTo(VoiceLabStrings.BuildLengthTest));
+            Assert.That(VoiceLabBuildStep.LengthKeys(true).Length, Is.EqualTo((int)VoiceLabTrainingLength.EditorTest + 1), "In the enum's order.");
+            Assert.That(VoiceLabBuildStep.LengthKeys(false), Does.Not.Contain(VoiceLabStrings.BuildLengthTest));
+            Assert.That(VoiceLabBuildStep.NoteKey(VoiceLabTrainingLength.EditorTest), Is.EqualTo(VoiceLabStrings.BuildNoteTest));
+        }
+
+        [Test]
         public void StartingWhileAVoiceIsMade_AsksAboutTheBuild()
         {
             var usual = new ConfirmationRequest("t", "b", "c");

@@ -56,6 +56,28 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(preview.Pitch.MedianHz / (float)candidates[0].Pitch.MedianHz, Is.InRange(1.15f, 1.40f));
         }
 
+        /// <summary>The Editor's test plan goes through every step in minutes: RVC trains on a few lines for one epoch.</summary>
+        [Test]
+        [Timeout(20 * 60 * 1000)]
+        public void Build_TheEditorTestPlan_InMinutes()
+        {
+            if (Environment.GetEnvironmentVariable("VV_VOICE_LAB_BUILD") != "1")
+            {
+                Assert.Ignore("VV_VOICE_LAB_BUILD is not 1.");
+            }
+
+            VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
+            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            TrainingRun run = designer.BuildVoiceAsync(candidate, default, BuildPlan.EditorTest, null, CancellationToken.None).Result;
+
+            Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
+            Assert.That(Directory.GetFiles(Path.Combine(runs.FolderOf(run.RunId), "speech"), "*.wav").Length, Is.EqualTo(4));
+            Assert.That(File.Exists(Path.Combine(runs.FolderOf(run.RunId), "output", "voice.sentis")), Is.True);
+            TestContext.WriteLine($"The test plan took {watch.Elapsed.TotalMinutes:F1} min.");
+        }
+
         [Test]
         [Timeout(60 * 60 * 1000)] // Unity's default of 3 minutes is far too short for a whole build.
         public void Build_AndRegister_AWholeVoice()
@@ -68,7 +90,7 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
             VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
 
-            TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), VoiceDesigner.DefaultEpochs, null, CancellationToken.None).Result;
+            TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), BuildPlan.Standard, null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
             var voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), clock);
             VoiceModelRecord voice = new VoiceModelRegistrar(voices, runs, clock).Register(run, "Real environment test").Value;

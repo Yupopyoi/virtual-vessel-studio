@@ -117,13 +117,14 @@ namespace VirtualVessel.VoiceLab.Tests
                 : new[] { "{\"type\":\"progress\",\"stage\":\"s\",\"done\":1,\"total\":2}", "{\"type\":\"result\"}" });
             var reported = new List<BuildProgress>();
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), 600, new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), BuildPlan.Training(600), new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
 
             Assert.That(runner.Ran, Is.EqualTo(new[] { "generate.py speech", "timbre.py batch", "train.py run", "export_voice.py run" }));
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed));
             Assert.That(run.Versions["torch"], Is.EqualTo("2.7.1"));
             Assert.That(run.Design.Timbre.Age, Is.EqualTo(4f));
             Assert.That(run.Design.Epochs, Is.EqualTo(600), "Kept in run.json, to make the voice again.");
+            Assert.That(run.Design.SpeechLines, Is.EqualTo(0));
             Assert.That(reported.Select(p => p.Fraction), Is.Ordered);
             Assert.That(reported.Last().State, Is.EqualTo(TrainingState.Completed));
             TrainingRun stored = _runs.List().Value.Single();
@@ -139,7 +140,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "train.py" ? new[] { "{\"type\":\"error\",\"code\":\"out_of_memory\",\"message\":\"GPU\"}" } : new[] { "{\"type\":\"result\"}" },
                 (script, _) => script == "train.py" ? ExternalProcessState.Failed : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, VoiceDesigner.DefaultEpochs, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Failed));
             Assert.That(run.ErrorCode, Is.EqualTo("out_of_memory"));
@@ -154,7 +155,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "generate.py" ? new[] { "{\"type\":\"result\"}" } : Array.Empty<string>(),
                 (script, _) => script == "timbre.py" ? ExternalProcessState.Cancelled : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, VoiceDesigner.DefaultEpochs, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Cancelled));
             Assert.That(run.ErrorCode, Is.EqualTo("cancelled"));
@@ -164,10 +165,14 @@ namespace VirtualVessel.VoiceLab.Tests
         public void Fraction_GivesTrainingMoreOfTheBar_WhenItTrainsLonger()
         {
             // At 600 epochs training takes 36 of 45 minutes, so less of the bar comes before it.
-            Assert.That(VoiceDesigner.Minutes(2, 600), Is.EqualTo(36f).Within(1e-5));
-            Assert.That(VoiceDesigner.Minutes(0, 600), Is.EqualTo(7f).Within(1e-5));
-            Assert.That(VoiceDesigner.Fraction(2, 0, 600, 600), Is.EqualTo(8f / 45f).Within(1e-5));
-            Assert.That(VoiceDesigner.Fraction(3, 1, 1, 600), Is.EqualTo(1f).Within(1e-5));
+            Assert.That(VoiceDesigner.Minutes(2, BuildPlan.Training(600)), Is.EqualTo(36f).Within(1e-5));
+            Assert.That(VoiceDesigner.Minutes(0, BuildPlan.Training(600)), Is.EqualTo(7f).Within(1e-5));
+            Assert.That(VoiceDesigner.Fraction(2, 0, 600, BuildPlan.Training(600)), Is.EqualTo(8f / 45f).Within(1e-5));
+            Assert.That(VoiceDesigner.Fraction(3, 1, 1, BuildPlan.Training(600)), Is.EqualTo(1f).Within(1e-5));
+
+            // The Editor's test plan: 4 of 48 lines and one epoch, so speech and training shrink but export does not.
+            Assert.That(VoiceDesigner.Minutes(0, BuildPlan.EditorTest), Is.EqualTo(7f * 4f / 48f).Within(1e-5));
+            Assert.That(VoiceDesigner.Minutes(3, BuildPlan.EditorTest), Is.EqualTo(1f).Within(1e-5));
         }
 
         [Test]
@@ -187,7 +192,9 @@ namespace VirtualVessel.VoiceLab.Tests
             ConfigDocument speech = VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment);
             ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0, 2), folder, _environment);
             ConfigDocument train = VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment);
-            Assert.That(VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment, 600).Get<int>("epochs"), Is.EqualTo(600));
+            Assert.That(VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment, BuildPlan.Training(600)).Get<int>("epochs"), Is.EqualTo(600));
+            Assert.That(VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment, BuildPlan.EditorTest).Get<int>("limit"), Is.EqualTo(4));
+            Assert.That(speech.Contains("limit"), Is.False, "Every line unless the plan says fewer.");
             ConfigDocument export = VoiceDesigner.StepRequest(3, Candidate(), default, folder, _environment);
 
             Assert.That(timbre.Get<string>("source"), Is.EqualTo(speech.Get<string>("output")));

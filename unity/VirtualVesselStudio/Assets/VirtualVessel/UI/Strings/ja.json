@@ -256,6 +256,8 @@
         "lab.build.length.short": "150",
         "lab.build.length.normal": "300",
         "lab.build.length.long": "600",
+        "lab.build.length.test": "テスト",
+        "lab.build.note.test": "Editorでの画面の確認用です。学習用の音声を4文だけ作り、1エポックだけ学習します。数分で終わりますが、使える声にはなりません。",
         "lab.build.preparing": "学習用の音声を作っています",
         "lab.build.learning": "声を覚えています",
         "lab.build.finishing": "仕上げています",

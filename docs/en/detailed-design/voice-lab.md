@@ -299,7 +299,8 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 - Training speech is VoxCPM2 copying the chosen base (with no instruction), then edited with the same values as 8.3.2.
 - What to read: all five vowels, held vowels, and higher pitches. Held "u" drifting toward "a" (Voice detailed design) may partly come from too few vowels in the training speech. **This is an untested hypothesis.**
 - The base's instruction, seed, timbre values, and epochs are kept in the Training Run, so the voice can be made again (6.3). A `run.json` without `epochs` was made with 150.
-- Training length: Short (150 epochs, the default, about 20 minutes), Normal (300, about 30 minutes), or Long (600, about 50 minutes), chosen in STEP 3's details (user's decision, 2026-11-08). At 150 the voice lost its "mochi-mochi" quality (softness and roundness); at 600 it came back, by ear and by the first harmonic's level (H1−H2) (decision record, 2026-11-08). The default stays 150 for its time. The screen does not show epochs; Voice Lab sets them from the length.
+- Training length: Short (150 epochs, the default, about 20 minutes), Normal (300, about 30 minutes), or Long (600, about 50 minutes), chosen in STEP 3's details (user's decision, 2026-11-08). At 150 the voice lost its "mochi-mochi" quality (softness and roundness); at 600 it came back, by ear and by the first harmonic's level (H1−H2) (decision record, 2026-11-08). The default stays 150 for its time. The screen shows the choices as epochs, since the time cannot be promised.
+- Test (Unity's Editor only): 4 lines of training speech and 1 epoch (`BuildPlan.EditorTest`), to check the screens in minutes; the voice is not one to use (user's request, 2026-11-08; about 3 minutes on the development PC). The choice appears only in the Editor, and Voice Lab follows it only when the composition says it runs there (`AllowEditorTest`); anywhere else it builds the default. `run.json` keeps `speechLines` (0 for all).
 
 #### 8.3.4 Trying it with your voice
 
@@ -364,7 +365,7 @@ python -I <script>.py <operation> <request JSON file>
 |---|---|---|
 | `generate.py candidates` | The shelf's word ids and the user's words, count, first seed, model location, output folder, optionally a reference to make them near | Each candidate's audio, seed, and median pitch and range (5 to 95%) |
 | `generate.py samples` | The languages, model location, output folder | Each example with its seed, the base (no words), and each word added to the base alone, with one seed; files already made are kept |
-| `generate.py speech` | The reference audio, first seed, model location, output folder | The training speech files and their total length |
+| `generate.py speech` | The reference audio, first seed, model location, output folder, an optional limit on the lines (the test plan only) | The training speech files and their total length |
 | `timbre.py preview` | The source audio, timbre values, output | The edited audio and its median pitch |
 | `timbre.py batch` | The source folder, timbre values, output folder | The edited files |
 | `train.py run` | RVC's location, the training speech folder, a work folder, epochs | The trained weights (`.pth`) |

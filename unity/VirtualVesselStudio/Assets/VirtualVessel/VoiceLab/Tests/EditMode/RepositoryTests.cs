@@ -64,6 +64,7 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             RunDesign design = Design();
             design.Epochs = 600;
+            design.SpeechLines = 4;
             design.MedianHz = 300;
             design.LowHz = 200;
             design.HighHz = 400;

@@ -73,6 +73,9 @@ namespace VirtualVessel.VoiceLab.Training
 
         /// <summary>How long it trained. Added later; older run.json files read 0, which were trained for 150.</summary>
         public int Epochs { get; set; }
+
+        /// <summary>Lines of training speech it was made from; 0 for all, as every run before this was.</summary>
+        public int SpeechLines { get; set; }
         /// <summary>
         /// A copy to change without touching this one. Every field comes along, so one added later is not dropped on
         /// every state change, as the softness and the reference once were and the epochs nearly were.

@@ -52,6 +52,12 @@ namespace VirtualVessel.VoiceLab
             _log = log;
         }
 
+        /// <summary>
+        /// Whether the test plan may run (STEP 3's Test, in Unity's Editor only). The composition sets it, since Voice Lab
+        /// does not reference the engine; off, a Test request makes the default voice.
+        /// </summary>
+        public bool AllowEditorTest { get; set; }
+
         /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
         public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
 
@@ -183,7 +189,7 @@ namespace VirtualVessel.VoiceLab
             _buildCancel.Value = cancel;
             try
             {
-                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), EpochsOf(length), progress, cancel.Token).ConfigureAwait(false);
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), PlanOf(length, AllowEditorTest), progress, cancel.Token).ConfigureAwait(false);
                 return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
             }
             finally
@@ -221,6 +227,20 @@ namespace VirtualVessel.VoiceLab
                 default:
                     return VoiceDesigner.DefaultEpochs;
             }
+        }
+
+        /// <summary>
+        /// What a build makes for a length. The test plan is only for Unity's Editor: anywhere else it is the default,
+        /// so a voice not fit to use is never made by mistake. Pure.
+        /// </summary>
+        public static BuildPlan PlanOf(VoiceLabTrainingLength length, bool inEditor)
+        {
+            if (length == VoiceLabTrainingLength.EditorTest)
+            {
+                return inEditor ? BuildPlan.EditorTest : BuildPlan.Standard;
+            }
+
+            return BuildPlan.Training(EpochsOf(length));
         }
 
         public CrudResult<VoiceLabRemake> Remake(string runId)
