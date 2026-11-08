@@ -9,6 +9,7 @@
         "UnityEditor.TestRunner",
         "VirtualVessel.Audio",
         "VirtualVessel.ProjectData",
+        "VirtualVessel.Diagnostics",
         "VirtualVessel.UI"
     ],
     "includePlatforms": [

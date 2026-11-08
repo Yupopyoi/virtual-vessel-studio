@@ -134,7 +134,14 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VoiceService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, VoiceModelLibrary.Create(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), new VoiceModelStore(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock)), logging.Provider.GetLog("Voice", "Conversion"), metrics),
+                    () =>
+                    {
+                        ILog voiceLog = logging.Provider.GetLog("Voice", "Conversion");
+                        // The voice for the stream is the project's voice profile; the user's measured pitch is this PC's.
+                        VoiceStorage storage = VoiceStorage.Open(project.Value.ProfileDirectory(ProfileKind.Voice), project.Value.ProfileFileName(ProfileKind.Voice), context.ConfigDirectory, context.SystemClock, context.MonotonicClock, context.FrameLoop, voiceLog);
+                        string voiceModels = context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels);
+                        return voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, VoiceModelLibrary.Create(voiceModels, new VoiceModelStore(voiceModels, context.SystemClock)), voiceLog, metrics, storage);
+                    },
                     new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 

@@ -227,8 +227,6 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabTryStep.Hz(0f), Is.Null);
             Assert.That(VoiceLabTryStep.Shift(7f), Is.EqualTo("+7"));
             Assert.That(VoiceLabTryStep.Shift(-2f), Is.EqualTo("-2"));
-            Assert.That(VoiceLabTryStep.IsOn(VoiceConversionState.Running), Is.True);
-            Assert.That(VoiceLabTryStep.IsOn(VoiceConversionState.Failed), Is.False);
         }
 
         [Test]

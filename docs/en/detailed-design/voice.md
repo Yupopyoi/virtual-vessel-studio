@@ -70,7 +70,9 @@ public interface IVoiceConversion
     CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID, name, median pitch, usable
     string VoiceId { get; }                  // The chosen voice; the prototype's is the empty string
     void SelectVoice(string voiceId);        // While converting, loads behind and takes over (8.2)
-    void SelectVoiceFolder(string folder);   // Chooses by folder, to try a voice not yet registered on the microphone (8.5)
+    void BeginTrial(string folder);          // Tries a voice not yet registered on the microphone; saves nothing (8.5)
+    void EndTrial();                         // Puts the saved voice and pitch back
+    string InUseVoiceId { get; }             // The voice for the stream as saved; a trial does not change it
     bool IsSwitching { get; }                // While the chosen voice gets ready
     float Semitones { get; set; }            // The user's adjustment, added to the automatic shift when on
     bool AutoPitch { get; set; }             // Automatic pitch matching (8.4); on by default
@@ -117,18 +119,21 @@ The voice in `Prototype/` (`fused_w100.sentis` and `.spk`) has no record and is 
 
 ### 6.2 Voice Profile
 
-A project setting (system design 6.3).
+A project setting (system design 6.3), kept in `Profiles/Voice/<VoiceProfileId>.json` and named by `voiceProfileId` in `project.json`. An older project gets a new Voice Profile when opened, as with the other profiles.
 
 | Item | Meaning |
 |---|---|
 | `schemaVersion` | Format version |
-| `voiceModelId` | The chosen voice; none when not chosen |
-| `semitones` | Pitch, from -24 to 24 |
-| `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12) |
+| `voiceModelId` | The voice for the stream; none when not chosen, and then the first usable one in the list |
+| `semitones` | The user's adjustment in semitones, -24 to 24; added to the automatic shift when that is on (8.4) |
+| `autoPitch` | Automatic pitch matching; on by default |
+| `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12). Not built yet (chapter 17) |
 
-The setting is kept even when its voice cannot be found (CLAUDE.md chapter 25).
+- Choosing a voice, changing the adjustment, or switching automatic matching saves after 0.5 s (`VoiceStorage`), with a frame callback only while a save waits; shutdown writes what waits.
+- Voice and pitch changes during a trial (8.5) are not saved; ending the trial puts the saved values back.
+- The setting is kept even when its voice cannot be found (CLAUDE.md chapter 25).
 
-### 6.3 Settings per PC (being designed)
+### 6.3 Settings per PC
 
 The GPU load differs from PC to PC, so these belong to the PC, not the Project (user decision, 2026-11-03). They are kept in the settings folder as `Config/voice-settings.json`. They do not go into `app-settings.json`, ProjectData's file that records the project in use; like `ui-settings.json`, it is a file per module.
 
@@ -137,6 +142,9 @@ The GPU load differs from PC to PC, so these belong to the PC, not the Project (
 | `schemaVersion` | Format version |
 | `denoise` | Noise removal |
 | `monitorVoice` | What the user hears: `Converted` or `Original` (setup screen 13.4) |
+| `userPitchHz` | The user's measured median pitch (8.4); 0 when not measured |
+
+Only `userPitchHz` exists now; `denoise` and `monitorVoice` come with the voice conversion card on the setup screen. The user's pitch belongs to the person and the PC, not the project, so it is kept here (user's request, 2026-11-08).
 
 The window is fixed at 1 s and the overlap at joins at 50 ms; neither is a setting (user decision, 2026-11-03).
 
@@ -206,7 +214,7 @@ shift     = (when automatic is on) semitones + the user's adjustment
 - The user's pitch is RMVPE's inside the conversion; nothing else estimates it. Each block, the generator's `f0new` (the pitch before the shift) gives one block's 10 frames that no longer lean on reflected padding (`PitchMeter`), from the microphone or a recording alike.
 - The generator fills unvoiced frames with the last voiced pitch. Counted, they pulled the median to the falling ends of phrases (149 Hz, against 200 Hz by upstream's RMVPE). A filled frame repeats the one before it exactly, and a voiced frame, a weighted mean of bins, does not repeat, so a frame equal to the one before is not counted. With that it measured 200 Hz, as upstream's RMVPE does.
 - Matching starts after 2 s of voice, and the value is kept after 10 s, so singing high later does not move the shift. Measure again starts over.
-- Until matching starts, about 2 s sound at the user's own pitch. Keeping the measured value in the per-PC settings (6.3) would match from the start next time; it comes with those settings.
+- The measured value (the median kept after 10 s) goes into the per-PC settings (6.3), so later starts match from the first block. Only the first time do about 2 s sound at the user's own pitch before matching. Measure again clears it and measures again.
 - The collecting runs every block, so it reuses its buffers and makes no garbage. The median's sort runs only while measuring (the first 10 s).
 
 ### 8.5 Trying with a recording
@@ -226,7 +234,7 @@ A voice's folder (a run's output just made, or a registered voice) and a recordi
 - Pitch matching is 8.4's. When the user's pitch is not known, one conversion runs first only to measure it (stopping after 10 s of voice), then the matched one.
 - Noise removal does not apply: it is Audio's native processing and exists only on the microphone's path.
 - One at a time. Cancelling while the voice loads lets it go once loaded.
-- Trying on the microphone uses the stream's conversion (`VoiceService`), choosing the unregistered voice by its folder (`SelectVoiceFolder`; the ID is `folder:` and the folder). It loads and switches as a registered voice does, and another folder loads again. When the trial ends, the screen puts back the voice and the on/off state from before. The converted voice is heard only with the microphone's Hear on.
+- Trying on the microphone runs the stream's conversion (`VoiceService`) with the unregistered voice by its folder (`BeginTrial`; the ID is `folder:` and the folder). It loads and switches as a registered voice does, and another folder loads again. Voice and pitch changes during the trial are not saved; `EndTrial` puts back the saved voice and pitch and the on/off state from before. If the app ends mid-trial, the saved voice is unchanged. The converted voice is heard only with the microphone's Hear on.
 - Measured (RTX 4070): a 7.4 s recording converted in 8.8 s, measuring included; the longest frame was 21 ms. The first run in the test copy stalled one frame for 5.5 s compiling shaders; once cached, it does not recur.
 
 ## 9. Threading and Async
@@ -329,6 +337,7 @@ Stages:
 
 Open issues:
 
+- What to do on failure (`onFailure`; 6.2, chapter 12) is not built yet. Now a stopped conversion lets the microphone go back to the mix as it is (as `PassThrough`). The default `Mute` needs Audio's stage to stay silent while it gives no output.
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
 - How the settings are shown (the user's request, 2026-11-03). Simple to use, with the detailed settings such as the window kept. There is no choice by what comes first (Lighter GPU, Smoothness): the 1 s window was the best in sound and on the GPU (user decision, 2026-11-03). No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing. The screen is designed in setup screen chapter 13 (the mock-up waits for the user's review).
 - Slow GPUs. Voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03; setup screen 13.3). There is no minimum GPU. There is no required performance yet, and only the RTX 4070 has been measured.

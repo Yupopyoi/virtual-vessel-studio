@@ -270,8 +270,7 @@ namespace VirtualVessel.Voice.Tests
             var stage = new WavStage(WavFile.ToRate(speech, rate, RvcStream.DeviceRate));
             var loop = new ManualFrameLoop();
             using var service = new VoiceService(stage, loop, library, null);
-            service.SelectVoiceFolder(store.FolderOf(target.Id));
-            service.SetEnabled(true);
+            service.BeginTrial(store.FolderOf(target.Id));
             while (service.State.Value == VoiceConversionState.Loading)
             {
                 loop.Tick();
@@ -287,11 +286,13 @@ namespace VirtualVessel.Voice.Tests
                 yield return null;
             }
 
-            service.SetEnabled(false);
-            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Off), service.Failure?.ToString());
-            Assert.That(service.Stats.Blocks, Is.GreaterThan(10));
+            Assert.That(service.Stats.Blocks, Is.GreaterThan(10), service.Failure?.ToString());
             Assert.That(service.VoicePitchHz, Is.EqualTo(target.MedianPitchHz));
             Assert.That(VoiceService.FolderOf(service.VoiceId), Is.EqualTo(store.FolderOf(target.Id)));
+
+            service.EndTrial();
+            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Off), "Off again, as before the trial.");
+            Assert.That(service.InUseVoiceId, Is.Null, "A trial saves nothing.");
         }
 
         internal sealed class ManualFrameLoop : IFrameLoop

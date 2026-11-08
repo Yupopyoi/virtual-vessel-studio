@@ -52,6 +52,8 @@ namespace VirtualVessel.Voice
         private readonly IFrameLoop _frameLoop;
         private readonly VoiceModelLibrary _library;
         private readonly VoiceLoader _loader;
+        private readonly VoiceStorage _storage;
+        private Trial _trial;
         private readonly VoiceWarmup _next = new VoiceWarmup();
         private readonly PitchMeter _meter = new PitchMeter();
         private float[] _blockPitch;
@@ -96,7 +98,8 @@ namespace VirtualVessel.Voice
 
         /// <param name="library">The voices; null leaves the conversion unavailable.</param>
         /// <param name="metrics">Optional; each block's work and the blocks left out, for the totals at exit.</param>
-        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, VoiceModelLibrary library, ILog log, IPerformanceMetrics metrics = null)
+        /// <param name="storage">The project's voice and this PC's measured pitch, read and saved; null keeps them in memory.</param>
+        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, VoiceModelLibrary library, ILog log, IPerformanceMetrics metrics = null, VoiceStorage storage = null)
         {
             _workTimer = metrics?.Timer("Voice", "BlockWork");
             _issueTimer = metrics?.Timer("Voice", "BlockIssue");
@@ -110,7 +113,17 @@ namespace VirtualVessel.Voice
             _library = library;
             _loader = new VoiceLoader(library);
             _log = log;
+            _storage = storage ?? VoiceStorage.InMemory();
+            _wantedVoice = _storage.Profile.VoiceModelId;
+            _semitones = _storage.Profile.Semitones;
+            _autoPitch = _storage.Profile.AutoPitch;
+            _meter.Restore(_storage.Settings.UserPitchHz);
         }
+
+        /// <summary>The voice chosen for the stream, as saved; a trial does not change it. Voice Lab keeps it from being deleted.</summary>
+        public string InUseVoiceId => _storage.Profile.VoiceModelId;
+
+        public bool InTrial => _trial != null;
 
         public string Name => ServiceName;
 
@@ -134,6 +147,50 @@ namespace VirtualVessel.Voice
 
         public void SelectVoice(string voiceId)
         {
+            VoiceProfile profile = _storage.Profile.Clone();
+            profile.VoiceModelId = voiceId;
+            _storage.SaveProfile(profile);
+            if (_trial == null)
+            {
+                Choose(voiceId);
+            }
+        }
+
+        /// <summary>
+        /// Tries a voice by its folder, such as one just made and not yet registered, on the microphone (Voice Lab
+        /// detailed design 8.3.4): the conversion turns on with it. Nothing is saved; the pitch settings changed during
+        /// the trial are the trial's own.
+        /// </summary>
+        public void BeginTrial(string folder)
+        {
+            _trial ??= new Trial(_wanted);
+            Choose(FolderPrefix + folder);
+            SetEnabled(true);
+        }
+
+        /// <summary>Ends a trial: the saved voice and pitch come back, and the conversion is off again if it was.</summary>
+        public void EndTrial()
+        {
+            if (_trial == null)
+            {
+                return;
+            }
+
+            bool wasOn = _trial.WasOn;
+            _trial = null;
+            if (!wasOn)
+            {
+                SetEnabled(false);
+            }
+
+            _semitones = _storage.Profile.Semitones;
+            _autoPitch = _storage.Profile.AutoPitch;
+            Choose(_storage.Profile.VoiceModelId);
+            ApplyPitch();
+        }
+
+        private void Choose(string voiceId)
+        {
             _wantedVoice = voiceId;
             if (_tick == null && _stream != null && _streamVoice != voiceId)
             {
@@ -141,6 +198,17 @@ namespace VirtualVessel.Voice
                 _stream.Dispose();
                 _stream = null;
             }
+        }
+
+        // The state before a trial, to put back after it.
+        private sealed class Trial
+        {
+            public Trial(bool wasOn)
+            {
+                WasOn = wasOn;
+            }
+
+            public bool WasOn { get; }
         }
 
         public bool Denoise
@@ -168,6 +236,7 @@ namespace VirtualVessel.Voice
             {
                 _semitones = value;
                 ApplyPitch();
+                SavePitch();
             }
         }
 
@@ -178,7 +247,22 @@ namespace VirtualVessel.Voice
             {
                 _autoPitch = value;
                 ApplyPitch();
+                SavePitch();
             }
+        }
+
+        // A trial's pitch settings are its own and are not saved.
+        private void SavePitch()
+        {
+            if (_trial != null)
+            {
+                return;
+            }
+
+            VoiceProfile profile = _storage.Profile.Clone();
+            profile.Semitones = _semitones;
+            profile.AutoPitch = _autoPitch;
+            _storage.SaveProfile(profile);
         }
 
         public float AutoSemitones => PitchMatch.Semitones(_voicePitchHz, _meter.MedianHz);
@@ -191,6 +275,14 @@ namespace VirtualVessel.Voice
         {
             _meter.Reset();
             ApplyPitch();
+            SaveUserPitch(0f);
+        }
+
+        private void SaveUserPitch(float hz)
+        {
+            VoiceSettings settings = _storage.Settings.Clone();
+            settings.UserPitchHz = hz;
+            _storage.SaveSettings(settings);
         }
 
         // The shift the stream converts with; it applies from the next block.
@@ -306,7 +398,7 @@ namespace VirtualVessel.Voice
             Stop();
             _tick?.Dispose();
             _tick = null;
-            return Task.CompletedTask;
+            return _storage.FlushAsync();
         }
 
         public void Dispose()
@@ -476,15 +568,6 @@ namespace VirtualVessel.Voice
         }
 
         /// <summary>A voice's ID as the log shows it: the prototype's is empty, so it gets a name. Pure.</summary>
-        /// <summary>
-        /// Chooses a voice by its folder, such as one just made and not yet registered, to try it on the microphone
-        /// (Voice Lab detailed design 8.3.4). It loads and switches as a chosen voice does; another folder loads again.
-        /// </summary>
-        public void SelectVoiceFolder(string folder)
-        {
-            SelectVoice(FolderPrefix + folder);
-        }
-
         /// <summary>The folder a voice ID names, or null for a registered voice or the prototype's. Pure.</summary>
         public static string FolderOf(string voiceId)
         {
@@ -650,6 +733,12 @@ namespace VirtualVessel.Voice
             if (_meter.Add(_blockPitch))
             {
                 ApplyPitch();
+            }
+
+            if (_meter.IsLocked)
+            {
+                // Kept for this PC, so the next start matches the pitch from its first block.
+                SaveUserPitch(_meter.MedianHz);
             }
         }
 

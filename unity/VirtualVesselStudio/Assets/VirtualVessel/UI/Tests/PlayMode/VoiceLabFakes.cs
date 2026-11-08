@@ -237,21 +237,55 @@ namespace VirtualVessel.UI.Tests
             return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Array.Empty<VoiceConversionVoice>());
         }
 
+        private bool _wasOn;
+        private float _savedSemitones;
+        private bool _savedAuto = true;
+
         public string VoiceId { get; private set; }
+
+        public string InUseVoiceId { get; private set; }
+
+        public bool InTrial { get; private set; }
 
         public void SelectVoice(string voiceId)
         {
-            VoiceId = voiceId;
+            InUseVoiceId = voiceId;
+            VoiceId = InTrial ? VoiceId : voiceId;
         }
 
-        public void SelectVoiceFolder(string folder)
+        public void BeginTrial(string folder)
         {
+            _wasOn = InTrial ? _wasOn : _state.Value != VoiceConversionState.Off;
+            InTrial = true;
             VoiceId = "folder:" + folder;
+            SetEnabled(true);
+        }
+
+        public void EndTrial()
+        {
+            InTrial = false;
+            VoiceId = InUseVoiceId;
+            _semitones = _savedSemitones;
+            AutoPitch = _savedAuto;
+            SetEnabled(_wasOn);
         }
 
         public bool IsSwitching => false;
 
-        public float Semitones { get; set; }
+        private float _semitones;
+
+        public float Semitones
+        {
+            get => _semitones;
+            set
+            {
+                _semitones = value;
+                if (!InTrial)
+                {
+                    _savedSemitones = value;
+                }
+            }
+        }
 
         public bool AutoPitch { get; set; } = true;
 

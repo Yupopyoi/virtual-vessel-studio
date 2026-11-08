@@ -99,6 +99,18 @@ namespace VirtualVessel.Voice
             return moved;
         }
 
+        /// <summary>A median measured before, kept as if measured now, so the pitch matches from the first block.</summary>
+        public void Restore(float medianHz)
+        {
+            if (medianHz <= 0f)
+            {
+                return;
+            }
+
+            _count = LockFrames;
+            MedianHz = medianHz;
+        }
+
         /// <summary>Forgets what was measured, to measure again.</summary>
         public void Reset()
         {

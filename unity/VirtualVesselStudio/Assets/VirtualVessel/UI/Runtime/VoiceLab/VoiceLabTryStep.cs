@@ -51,7 +51,7 @@ namespace VirtualVessel.UI.VoiceLab
         private float _shift;
         private CancellationTokenSource _conversion;
         private IVisualElementScheduledItem _refresh;
-        private TrialBefore _before;
+        private bool _micOn;
 
         public VoiceLabTryStep(ScreenServices services, IVoiceLab lab, VoiceLabDraft draft, VoiceLabPlayer player, IVoiceLabFlow flow)
         {
@@ -331,7 +331,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void PitchChanged()
         {
-            if (OnMicrophone && _before != null && _voice != null)
+            if (OnMicrophone && _micOn && _voice != null)
             {
                 _voice.AutoPitch = AutoPitch.value;
                 _voice.Semitones = Adjustment.value;
@@ -378,38 +378,23 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _player.Stop();
-            _before ??= new TrialBefore(_voice.VoiceId, IsOn(_voice.State.Value), _voice.AutoPitch, _voice.Semitones);
-            _voice.SelectVoiceFolder(_folder);
+            _micOn = true;
+            _voice.BeginTrial(_folder);
             _voice.AutoPitch = AutoPitch.value;
             _voice.Semitones = Adjustment.value;
-            _voice.SetEnabled(true);
             Refresh();
         }
 
-        // The voice conversion as it was before the trial: off first so the trial's voice is let go, not switched to.
+        // The voice service puts its saved voice, pitch, and on or off back itself.
         private void EndMicrophone()
         {
-            if (_before == null || _voice == null)
+            if (!_micOn || _voice == null)
             {
                 return;
             }
 
-            TrialBefore before = _before;
-            _before = null;
-            if (!before.Enabled)
-            {
-                _voice.SetEnabled(false);
-            }
-
-            _voice.SelectVoice(before.VoiceId);
-            _voice.AutoPitch = before.AutoPitch;
-            _voice.Semitones = before.Semitones;
-        }
-
-        /// <summary>Whether the conversion counts as on in a state, to be put back so. Pure.</summary>
-        public static bool IsOn(VoiceConversionState state)
-        {
-            return state == VoiceConversionState.Loading || state == VoiceConversionState.Running || state == VoiceConversionState.NoMicrophone || state == VoiceConversionState.PlayingFile;
+            _micOn = false;
+            _voice.EndTrial();
         }
 
         private void Refresh()
@@ -418,7 +403,7 @@ namespace VirtualVessel.UI.VoiceLab
             IAudioSource microphone = Microphone;
             _hearOff.style.display = OnMicrophone && microphone != null && !microphone.Options.Value.Monitored ? DisplayStyle.Flex : DisplayStyle.None;
             MicToggle.SetEnabled(_voice != null && _folder != null);
-            if (mic && _before != null)
+            if (mic && _micOn)
             {
                 _micState.text = UiServices.Find(this)?.Localizer?.Get(_voice.State.Value == VoiceConversionState.Loading || _voice.IsSwitching ? VoiceLabStrings.TryMicLoading : VoiceLabStrings.TryMicOn) ?? string.Empty;
             }
@@ -427,34 +412,15 @@ namespace VirtualVessel.UI.VoiceLab
                 _micState.text = UiServices.Find(this)?.Localizer?.Get(VoiceLabStrings.TryMicOff) ?? string.Empty;
             }
 
-            float user = mic && _before != null ? _voice.UserPitchHz : _userHz;
-            float voice = mic && _before != null ? _voice.VoicePitchHz : _voiceHz;
-            float shift = mic && _before != null ? _voice.AutoSemitones : _shift;
+            float user = mic && _micOn ? _voice.UserPitchHz : _userHz;
+            float voice = mic && _micOn ? _voice.VoicePitchHz : _voiceHz;
+            float shift = mic && _micOn ? _voice.AutoSemitones : _shift;
             var localizer = UiServices.Find(this)?.Localizer;
             if (localizer != null)
             {
                 string unknown = localizer.Get(VoiceLabStrings.TryPitchUnknown);
                 _pitchLine.text = localizer.Get(VoiceLabStrings.TryPitchMatch, ("user", Hz(user) ?? unknown), ("voice", Hz(voice) ?? unknown), ("shift", Shift(AutoPitch.value ? shift : 0f)));
             }
-        }
-
-        private sealed class TrialBefore
-        {
-            public TrialBefore(string voiceId, bool enabled, bool autoPitch, float semitones)
-            {
-                VoiceId = voiceId;
-                Enabled = enabled;
-                AutoPitch = autoPitch;
-                Semitones = semitones;
-            }
-
-            public string VoiceId { get; }
-
-            public bool Enabled { get; }
-
-            public bool AutoPitch { get; }
-
-            public float Semitones { get; }
         }
     }
 }

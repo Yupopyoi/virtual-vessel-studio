@@ -14,6 +14,9 @@ namespace VirtualVessel.ProjectData.Projects
 
         /// <summary>The audio sources, their devices, gains, and sends (audio detailed design 10).</summary>
         Audio,
+
+        /// <summary>The voice used for the stream and its pitch (Voice detailed design 6.2).</summary>
+        Voice,
     }
 
     /// <summary>
@@ -44,6 +47,9 @@ namespace VirtualVessel.ProjectData.Projects
         /// <summary>Added without a schema step, as the streaming profile was.</summary>
         public string AudioProfileId { get; set; }
 
+        /// <summary>Added without a schema step, as the streaming profile was.</summary>
+        public string VoiceProfileId { get; set; }
+
         public ProjectManifest Clone()
         {
             return (ProjectManifest)MemberwiseClone();
@@ -57,6 +63,7 @@ namespace VirtualVessel.ProjectData.Projects
                 ProfileKind.Tracking => TrackingProfileId,
                 ProfileKind.Capture => CaptureProfileId,
                 ProfileKind.Streaming => StreamingProfileId,
+                ProfileKind.Voice => VoiceProfileId,
                 _ => AudioProfileId,
             };
         }
@@ -75,6 +82,9 @@ namespace VirtualVessel.ProjectData.Projects
                     break;
                 case ProfileKind.Streaming:
                     next.StreamingProfileId = id;
+                    break;
+                case ProfileKind.Voice:
+                    next.VoiceProfileId = id;
                     break;
                 default:
                     next.AudioProfileId = id;

@@ -79,7 +79,7 @@ namespace VirtualVessel.UI.Voice
         /// <summary>The voices to choose from; reads the disk, so not every frame (system design 6.31).</summary>
         CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();
 
-        /// <summary>The chosen voice's ID; null when none is chosen or there is none.</summary>
+        /// <summary>The voice converting or loading, a trial's included; null when none is chosen or there is none. Choosing saves it in the project.</summary>
         string VoiceId { get; }
 
         /// <summary>
@@ -89,10 +89,16 @@ namespace VirtualVessel.UI.Voice
         void SelectVoice(string voiceId);
 
         /// <summary>
-        /// Chooses a voice by its folder, such as one just made and not yet registered, to try it on the microphone.
-        /// <see cref="VoiceId"/> then names the folder; choosing the earlier ID afterwards puts things back.
+        /// Tries a voice by its folder, such as one just made and not yet registered, on the microphone: the conversion
+        /// turns on with it. Nothing is saved, and pitch settings changed meanwhile are the trial's own.
         /// </summary>
-        void SelectVoiceFolder(string folder);
+        void BeginTrial(string folder);
+
+        /// <summary>Ends a trial: the saved voice and pitch come back, and the conversion is off again if it was.</summary>
+        void EndTrial();
+
+        /// <summary>The voice chosen for the stream as saved, which a trial does not change.</summary>
+        string InUseVoiceId { get; }
 
         /// <summary>True while a chosen voice loads behind the one converting.</summary>
         bool IsSwitching { get; }
