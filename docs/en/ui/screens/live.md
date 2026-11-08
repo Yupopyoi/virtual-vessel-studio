@@ -51,6 +51,8 @@ It has the stream preview, starting and stopping a recording, the sound going in
 
 Placement editing follows UI foundation detailed design 9.3 and 9.4. With the keyboard alone, Tab selects a frame and the arrow keys move it.
 
+Pressing Go live or Record while Voice Lab is making a voice shows, in place of the usual confirmation, a dialog asking whether to stop making it (`live.voice-lab-busy.*`; system design 14.26). "Stop making it and go live" (or record) stops the build and starts; Cancel does not start and the build goes on. Recording normally starts without asking and asks only then.
+
 ## 5. Strings
 
 | Key | Japanese | English |
@@ -101,6 +103,11 @@ Placement editing follows UI foundation detailed design 9.3 and 9.4. With the ke
 | `live.record.confirm.title` | 録画を停止しますか？ | Stop recording? |
 | `live.record.confirm.body` | ここまでのファイルは保存されます。 | The file so far is saved. |
 | `live.record.confirm.stop` | 録画を停止 | Stop recording |
+| `live.voice-lab-busy.title` | Voice Labで声を作っています | Voice Lab is making a voice |
+| `live.voice-lab-busy.stream-body` | 声を作っている間は、GPUを大きく使うため配信が乱れます。配信を始めると、声の作成を止めます。止めた作成は、最初からやり直しになります。 | Making a voice uses the GPU heavily and would disturb the stream. Going live stops making the voice, which then has to start over. |
+| `live.voice-lab-busy.stream-confirm` | 作成を止めて配信を開始 | Stop making it and go live |
+| `live.voice-lab-busy.record-body` | 声を作っている間は、GPUを大きく使うため録画が乱れます。録画を始めると、声の作成を止めます。止めた作成は、最初からやり直しになります。 | Making a voice uses the GPU heavily and would disturb the recording. Recording stops making the voice, which then has to start over. |
+| `live.voice-lab-busy.record-confirm` | 作成を止めて録画を開始 | Stop making it and record |
 | `live.record.saved` | 保存しました: {name} | Saved: {name} |
 | `live.record.open-folder` | フォルダーを開く | Open folder |
 | `live.record.problem.folder` | 録画フォルダーに書き込めません。設定画面の「録画」で別のフォルダーを選んでください。 | The recording folder cannot be written. Choose another folder under Recording on the setup screen. |

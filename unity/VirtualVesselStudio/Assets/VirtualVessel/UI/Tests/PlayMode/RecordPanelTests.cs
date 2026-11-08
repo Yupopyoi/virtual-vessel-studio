@@ -258,7 +258,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeRecording : IRecordingService
+        internal sealed class FakeRecording : IRecordingService
         {
             private readonly ObservableValue<RecordingState> _state = new ObservableValue<RecordingState>(RecordingState.Idle);
             private readonly ObservableValue<RecordingProblem> _problem = new ObservableValue<RecordingProblem>(RecordingProblem.None);

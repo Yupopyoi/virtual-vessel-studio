@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.VoiceLab;
 
@@ -200,14 +203,30 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabView.BuildResultKey(null), Is.EqualTo(VoiceLabStrings.BuildFailed));
         }
 
-        [TestCase(StreamingState.Idle, false)]
-        [TestCase(StreamingState.Connecting, true)]
-        [TestCase(StreamingState.Live, true)]
-        [TestCase(StreamingState.Reconnecting, true)]
-        [TestCase(StreamingState.Failed, false)]
-        public void Builds_WaitWhileAStreamRuns(StreamingState state, bool streaming)
+        [TestCase(StreamingState.Idle, RecordingState.Idle, false)]
+        [TestCase(StreamingState.Connecting, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Live, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Reconnecting, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Failed, RecordingState.Idle, false)]
+        [TestCase(StreamingState.Idle, RecordingState.Starting, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Recording, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Stopping, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Failed, false)]
+        public void VoiceLab_IsNotUsed_WhileAStreamOrARecordingRuns(StreamingState streaming, RecordingState recording, bool live)
         {
-            Assert.That(VoiceLabView.IsStreaming(state), Is.EqualTo(streaming));
+            Assert.That(VoiceLabView.IsLive(streaming, recording), Is.EqualTo(live));
+        }
+
+        [Test]
+        public void StartingWhileAVoiceIsMade_AsksAboutTheBuild()
+        {
+            var usual = new ConfirmationRequest("t", "b", "c");
+            ConfirmationRequest whileBuilding = BuildGuardedStart.WhileBuildingStream();
+            Assert.That(BuildGuardedStart.ConfirmationFor(true, usual, whileBuilding), Is.SameAs(whileBuilding));
+            Assert.That(BuildGuardedStart.ConfirmationFor(false, usual, whileBuilding), Is.SameAs(usual));
+            Assert.That(BuildGuardedStart.ConfirmationFor(false, null, whileBuilding), Is.Null, "Recording starts without asking.");
+            Assert.That(BuildGuardedStart.Building(VoiceLabBuildState.None), Is.False);
+            Assert.That(BuildGuardedStart.Building(VoiceLabBuildState.Training), Is.True);
         }
 
         [Test]

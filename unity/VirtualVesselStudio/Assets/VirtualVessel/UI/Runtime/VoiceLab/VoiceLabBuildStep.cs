@@ -2,13 +2,13 @@ using System;
 using System.Threading;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
-using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.VoiceLab
 {
     /// <summary>
     /// STEP 3, make it (system design 14.16): training speech in the shaped voice, then training, with
-    /// progress and Stop. It goes on while other screens are open, and does not start during a stream.
+    /// progress and Stop. It goes on while other screens are open. During a stream or a recording the whole screen
+    /// is locked (VoiceLabScreen), so this step does not check for them.
     /// </summary>
     public sealed class VoiceLabBuildStep : VisualElement
     {
@@ -16,25 +16,20 @@ namespace VirtualVessel.UI.VoiceLab
 
         private readonly IVoiceLab _lab;
         private readonly VoiceLabDraft _draft;
-        private readonly IStreamingService _streaming;
         private readonly IVoiceLabFlow _flow;
         private readonly VisualElement _ready;
         private readonly VisualElement _running;
         private readonly ProgressMeter _progress;
-        private readonly VisualElement _streamingNote;
         private readonly StatusChip _result;
         private readonly KeyedText _note;
         private CancellationTokenSource _building;
         private IVisualElementScheduledItem _refresh;
-        private IDisposable _streamingSubscription;
 
-        /// <param name="streaming">Optional; without it a build is never held back for a stream.</param>
-        public VoiceLabBuildStep(IVoiceLab lab, VoiceLabDraft draft, IStreamingService streaming, IVoiceLabFlow flow)
+        public VoiceLabBuildStep(IVoiceLab lab, VoiceLabDraft draft, IVoiceLabFlow flow)
         {
             _lab = lab ?? throw new ArgumentNullException(nameof(lab));
             _draft = draft ?? throw new ArgumentNullException(nameof(draft));
             _flow = flow ?? throw new ArgumentNullException(nameof(flow));
-            _streaming = streaming;
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BuildLead));
 
             Card card = Ui.Card(VoiceLabStrings.StepBuild);
@@ -60,11 +55,6 @@ namespace VirtualVessel.UI.VoiceLab
             details.Add(length);
             card.Add(details);
 
-            _streamingNote = new VisualElement();
-            _streamingNote.Add(Ui.Chip(StatusKind.Warning, VoiceLabStrings.BuildStreaming));
-            _streamingNote.Add(Ui.Text(VoiceLabStrings.BuildStreamingBody, VoiceLabScreen.NoteClass, "vv-text-body"));
-            card.Add(_streamingNote);
-
             _result = new StatusChip(StatusKind.Error, VoiceLabStrings.BuildFailed);
             card.Add(_result);
 
@@ -84,8 +74,6 @@ namespace VirtualVessel.UI.VoiceLab
 
             ShowRunning(false);
             _result.style.display = DisplayStyle.None;
-            RegisterCallback<AttachToPanelEvent>(_ => OnAttached());
-            RegisterCallback<DetachFromPanelEvent>(_ => OnDetached());
         }
 
         public ActionButton StartButton { get; }
@@ -110,24 +98,10 @@ namespace VirtualVessel.UI.VoiceLab
 
         public bool IsBuilding => _building != null;
 
-        private bool Streaming => _streaming != null && VoiceLabView.IsStreaming(_streaming.State.Value);
-
-        private void OnAttached()
-        {
-            _streamingSubscription = _streaming?.State.Subscribe(_ => ShowStreaming());
-            ShowStreaming();
-        }
-
-        private void OnDetached()
-        {
-            _streamingSubscription?.Dispose();
-            _streamingSubscription = null;
-        }
-
         private async void Build()
         {
             VoiceLabCandidate candidate = _draft.Candidate;
-            if (_building != null || candidate == null || Streaming)
+            if (_building != null || candidate == null)
             {
                 return;
             }
@@ -198,14 +172,6 @@ namespace VirtualVessel.UI.VoiceLab
                 _progress.Detail = VoiceLabView.PercentText(0f);
             }
 
-            ShowStreaming();
-        }
-
-        private void ShowStreaming()
-        {
-            bool streaming = Streaming;
-            _streamingNote.style.display = streaming && _building == null ? DisplayStyle.Flex : DisplayStyle.None;
-            StartButton.SetEnabled(!streaming);
         }
     }
 }

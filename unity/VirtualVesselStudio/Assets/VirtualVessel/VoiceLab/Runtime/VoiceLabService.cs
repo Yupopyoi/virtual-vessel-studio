@@ -36,6 +36,7 @@ namespace VirtualVessel.VoiceLab
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         // Written by the scripts' reading threads, read by the screen on the main thread.
         private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
+        private readonly Shared<CancellationTokenSource> _buildCancel = new Shared<CancellationTokenSource>();
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
@@ -177,15 +178,31 @@ namespace VirtualVessel.VoiceLab
             Ensure();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
             var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
+            // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.
+            using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _buildCancel.Value = cancel;
             try
             {
-                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), EpochsOf(length), progress, cancellationToken).ConfigureAwait(false);
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), EpochsOf(length), progress, cancel.Token).ConfigureAwait(false);
                 return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
             }
             finally
             {
                 // Also when the build threw, so the screen never shows a build that is not running.
+                _buildCancel.Value = null;
                 _progress.Value = default;
+            }
+        }
+
+        public void CancelBuild()
+        {
+            try
+            {
+                _buildCancel.Value?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The build ended between reading it and cancelling it: nothing is left to stop.
             }
         }
 

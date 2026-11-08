@@ -13,6 +13,7 @@ using VirtualVessel.Audio;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.VoiceLab;
 using Object = UnityEngine.Object;
@@ -56,7 +57,8 @@ namespace VirtualVessel.UI.Tests
 
             VoiceLabScreen screen = Screen();
             Assert.That(screen.Steps, Is.Null);
-            Assert.That(screen.Q<Card>().TitleKey, Is.EqualTo(VoiceLabStrings.NotSetUpTitle));
+            Assert.That(screen.Query<Card>().ToList().Any(c => c.TitleKey == VoiceLabStrings.NotSetUpTitle && c.resolvedStyle.display == DisplayStyle.Flex), Is.True);
+            Assert.That(screen.LiveLock.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Not live, so not locked.");
         }
 
         [UnityTest]
@@ -283,19 +285,24 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator Building_WaitsWhileAStreamRuns()
+        public IEnumerator TheScreen_IsLocked_WhileStreamingOrRecording()
         {
             Object.Destroy(_host);
             var streaming = new StreamPanelTests.FakeStreaming();
+            var recording = new RecordPanelTests.FakeRecording();
             streaming.SetState(StreamingState.Live);
-            yield return Build(new ScreenServices { VoiceLab = _lab, Streaming = streaming });
+            yield return Build(new ScreenServices { VoiceLab = _lab, Streaming = streaming, Recording = recording });
 
             VoiceLabScreen screen = Screen();
-            var build = (VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep);
-            Assert.That(build.StartButton.enabledSelf, Is.False);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.None), "Voice Lab is hidden.");
 
             streaming.SetState(StreamingState.Idle);
-            Assert.That(build.StartButton.enabledSelf, Is.True);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.None));
+            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+
+            recording.SetState(RecordingState.Recording);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Recording locks it too.");
         }
 
         [UnityTest]

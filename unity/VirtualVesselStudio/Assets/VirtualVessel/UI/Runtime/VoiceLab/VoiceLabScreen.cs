@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.VoiceLab
@@ -71,32 +74,49 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabDraft _draft;
         private readonly VoiceLabTimbreStep _timbre;
         private readonly VoiceLabRegisterStep _register;
+        private readonly IStreamingService _streaming;
+        private readonly IRecordingService _recording;
+        private readonly VisualElement _content;
 
         /// <param name="lab">Null, or not set up, shows that voices cannot be made yet.</param>
         /// <param name="audio">Plays candidates; null leaves out the play buttons.</param>
-        /// <param name="streaming">Stops a build from starting during a stream; optional.</param>
+        /// <param name="streaming">While it streams, Voice Lab is not used; optional.</param>
         /// <param name="library">What was made, for the Made voices tab; null leaves the tab out.</param>
-        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null, IVoiceLabLibrary library = null)
+        /// <param name="recording">While it records, Voice Lab is not used; optional.</param>
+        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null, IVoiceLabLibrary library = null, IRecordingService recording = null)
         {
             AddToClassList(UssClass);
             _lab = lab;
+            _streaming = streaming;
+            _recording = recording;
             _player = new VoiceLabPlayer(audio, this);
             bool ready = lab != null && lab.Availability == VoiceLabAvailability.Ready;
+
+            // In place of everything while a stream or a recording runs; a build in progress was stopped or kept when
+            // it started (BuildGuardedStart).
+            LiveLock = Ui.Card(VoiceLabStrings.LiveLockTitle);
+            LiveLock.Add(Ui.Text(VoiceLabStrings.LiveLockBody, NoteClass, "vv-text-body"));
+            Add(LiveLock);
+            _content = new VisualElement();
+            Add(_content);
+            ShowLock();
+            PanelLifetime.WhileAttached(this, _ => WatchLive());
+
             if (library != null)
             {
                 Tabs = Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
                 Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
-                Add(Tabs);
+                _content.Add(Tabs);
             }
 
             _make = new VisualElement();
-            Add(_make);
+            _content.Add(_make);
             if (library != null)
             {
                 // What was made can be listed without a training environment; making it again cannot.
                 Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
                 Library.style.display = DisplayStyle.None;
-                Add(Library);
+                _content.Add(Library);
             }
 
             if (!ready)
@@ -120,7 +140,7 @@ namespace VirtualVessel.UI.VoiceLab
             _base = new VoiceLabBaseStep(lab, _player, draft, this);
             _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;
-            _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, streaming, this);
+            _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, this);
             _panels[TryStep] = TryPanel();
             _panels[RegisterStep] = _register;
             foreach (VisualElement panel in _panels)
@@ -133,6 +153,40 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         public StepIndicator Steps { get; }
+
+        /// <summary>Shown instead of Voice Lab while a stream or a recording runs.</summary>
+        public Card LiveLock { get; }
+
+        private bool IsLive => VoiceLabView.IsLive(_streaming?.State.Value ?? StreamingState.Idle, _recording?.State.Value ?? RecordingState.Idle);
+
+        private IDisposable WatchLive()
+        {
+            var subscriptions = new List<IDisposable>();
+            if (_streaming != null)
+            {
+                subscriptions.Add(_streaming.State.Subscribe(_ => ShowLock()));
+            }
+
+            if (_recording != null)
+            {
+                subscriptions.Add(_recording.State.Subscribe(_ => ShowLock()));
+            }
+
+            ShowLock();
+            return new DisposeAction(() => subscriptions.ForEach(s => s.Dispose()));
+        }
+
+        private void ShowLock()
+        {
+            bool live = IsLive;
+            if (live)
+            {
+                _player.Stop();
+            }
+
+            LiveLock.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
+            _content.style.display = live ? DisplayStyle.None : DisplayStyle.Flex;
+        }
 
         /// <summary>Make a voice and Made voices; null without a library.</summary>
         public TabBar Tabs { get; }

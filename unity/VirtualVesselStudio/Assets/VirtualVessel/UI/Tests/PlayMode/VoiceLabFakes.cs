@@ -51,7 +51,18 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabBuild BuildResult { get; set; } = new VoiceLabBuild("run-1", VoiceLabBuildState.Completed, false);
 
-        public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(VoiceLabBuildState.None, 0f);
+        public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(BuildState, 0f);
+
+        /// <summary>What BuildProgress says; a build in progress for the live screen's guard.</summary>
+        public VoiceLabBuildState BuildState { get; set; }
+
+        public int BuildsCancelled { get; private set; }
+
+        public void CancelBuild()
+        {
+            BuildsCancelled++;
+            BuildState = VoiceLabBuildState.None;
+        }
 
         public VoiceLabMaking CandidatesProgress => default;
 

@@ -77,6 +77,7 @@ public interface IVoiceLab
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);  // length: 8.3.3
     VoiceLabMaking CandidatesProgress { get; }    // Candidates made of the round; no total while the model loads
+    void CancelBuild();                           // Stops the build, for starting a stream or a recording (system design 14.26)
     VoiceLabBuildProgress BuildProgress { get; }  // The running build's state and fraction, read by the screen as often as it needs
     CrudResult Register(string runId, string name);
 

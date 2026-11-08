@@ -23,6 +23,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - Changing an earlier choice (another candidate, another timbre) closes the steps after it, since they no longer hold. A voice made from an earlier choice is not registered by mistake.
 - While a voice is being made, the Step Indicator is disabled. The user can still open other screens, and the build goes on. The screen keeps its state while hidden.
 - Leaving the screen stops a sample that is playing.
+- While streaming or recording, a Card "Voice Lab cannot be used while streaming or recording" with the reason replaces the whole screen, tabs included (`lab.live-lock.*`; system design 14.26). Playing sound stops. When streaming and recording stop, the screen comes back.
 - Without a training environment (`Availability` is `NotSetUp`), the screen shows only a Card titled "Not ready to make voices yet" explaining it (`lab.not-set-up.*`). Activation (Voice Lab detailed design 8.1) will set it up from there.
 
 ## 3. STEP 1 Pick a Base
@@ -57,7 +58,6 @@ The user starts from an example, moves it with words, and picks a candidate by e
 - A note on the time (about 20 minutes per voice on an RTX 4070), and Start. A build does not start until Start is pressed, since it takes long.
 - A folded Details card with Training length: Short (about 20 minutes, the default), Normal (about 30), Long (about 50), with a line saying a longer one learns more of the voice's softness and roundness. Choosing one changes the time note. It cannot be changed while building (Voice Lab detailed design 8.3.3).
 - While building: a progress bar (`components.md` 3.15) with the stage (Making training speech, Learning the voice, Finishing) and the percent, read every 0.5 s, and Stop.
-- While a stream is starting or running, Start is disabled and a warning chip and a line say why (system design 14.26).
 - Completed: STEP 4 opens. Failed: an error chip, with "Not enough GPU memory…" when it ran out of GPU memory. Stopped: a chip saying so. The user stays on STEP 3 and can start again.
 - The time left is not shown yet; the build reports a fraction but no estimate.
 

@@ -196,6 +196,12 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Builds the voice; a failure or cancelling comes back as the build's state.</summary>
         Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Stops the build in progress, as its own Stop does; it ends as cancelled. For starting a stream or a recording,
+        /// which a build's GPU load would spoil (system design 14.26). Nothing happens when no build runs.
+        /// </summary>
+        void CancelBuild();
+
         /// <summary>Where the running build is; <see cref="VoiceLabBuildState.None"/> when none runs. Read it as often as needed.</summary>
         VoiceLabBuildProgress BuildProgress { get; }
 

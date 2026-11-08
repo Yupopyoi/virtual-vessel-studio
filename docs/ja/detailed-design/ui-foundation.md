@@ -232,6 +232,7 @@ bool confirmed = await _dialogs.ConfirmAsync(
 - 表示中に別の確認が求められた場合は、前のDialogが閉じてから順に表示する。`CancellationToken`が取り消された場合は「キャンセル」と同じ扱いとする。
 - ボタンは押されるとすぐ実行中の表示になるため、確認を待つ間に2つ目のDialogは開かない。
 - `UiServices`に確認Dialogがない場合、`DangerCommand`は実行せず、開発者向けLogにErrorを記録する。取り消しにくい操作を確認なしで実行しないためである。
+- `IConfirmedCommand.Confirmation`は押したときに読む。nullなら確認せずに実行する。時によって確認するCommand（Voice Labの作成中にだけ尋ねる録画の開始、`BuildGuardedStart`）のためである。
 
 ### 6.5 Style
 

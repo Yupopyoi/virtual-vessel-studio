@@ -78,6 +78,7 @@ public interface IVoiceLab
     Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);  // 長さ：8.3.3
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
+    void CancelBuild();                           // 作成を止める。配信や録画を始めるとき（方式設計14.26）
     CrudResult Register(string runId, string name);
 
     CrudResult<VoiceLabRemake> Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）

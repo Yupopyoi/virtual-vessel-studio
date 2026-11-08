@@ -232,6 +232,7 @@ A command registered as a `DangerCommand` shows the confirmation dialog automati
 - If another confirmation is requested while one is open, it is shown after the first closes. A canceled `CancellationToken` acts as "Cancel".
 - A button shows its busy state as soon as it is pressed, so a second dialog does not open while the first is waiting for an answer.
 - If `UiServices` has no confirmation dialog, a `DangerCommand` does not run and an Error is recorded in the developer log, so that an action that is hard to undo never runs without confirmation.
+- `IConfirmedCommand.Confirmation` is read when the button is pressed; null runs the command without asking. This is for commands that ask only sometimes, such as starting a recording, which asks only while Voice Lab makes a voice (`BuildGuardedStart`).
 
 ### 6.5 Style
 

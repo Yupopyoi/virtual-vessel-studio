@@ -115,8 +115,8 @@ namespace VirtualVessel.UI.VoiceLab
         public const string BuildLearning = "lab.build.learning";
         public const string BuildFinishing = "lab.build.finishing";
         public const string BuildStart = "lab.build.start";
-        public const string BuildStreaming = "lab.build.streaming";
-        public const string BuildStreamingBody = "lab.build.streaming-body";
+        public const string LiveLockTitle = "lab.live-lock.title";
+        public const string LiveLockBody = "lab.live-lock.body";
         public const string BuildFailed = "lab.build.failed";
         public const string BuildOutOfMemory = "lab.build.out-of-memory";
         public const string BuildCancelled = "lab.build.cancelled";
