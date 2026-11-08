@@ -51,7 +51,7 @@
 
 配置編集の操作は、UI基盤詳細設計9.3、9.4に従う。キーボードだけでも、Tabで枠を選び、矢印キーで動かせる。
 
-Voice Labで声を作っている間に「配信を開始」か「録画を開始」を押すと、ふだんの確認の代わりに、作成を止めるかを尋ねる確認Dialogを出す（`live.voice-lab-busy.*`。方式設計14.26）。「声づくりをやめて配信する」（または録画）で作成を止めてから始め、「キャンセル」では始めずに作成を続ける。録画はふだんは確認なしで始まり、このときだけ尋ねる。
+Voice Labで声を作っている間に「配信を開始」か「録画を開始」を押すと、ふだんの確認の代わりに、作成を止めるかを尋ねる確認Dialogを出す（`live.voice-lab-busy.*`。方式設計14.26）。「作成を中止して配信を開始」（または録画）で作成を止めてから始め、「キャンセル」では始めずに作成を続ける。録画はふだんは確認なしで始まり、このときだけ尋ねる。
 
 ## 5. 文字列
 
@@ -103,11 +103,11 @@ Voice Labで声を作っている間に「配信を開始」か「録画を開�
 | `live.record.confirm.title` | 録画を停止しますか？ | Stop recording? |
 | `live.record.confirm.body` | ここまでのファイルは保存されます。 | The file so far is saved. |
 | `live.record.confirm.stop` | 録画を停止 | Stop recording |
-| `live.voice-lab-busy.title` | Voice Labで声を作っているところです | Voice Lab is making a voice |
-| `live.voice-lab-busy.stream-body` | このまま配信を始めると、声づくりは中止になります。あとで作り直すときは、最初からになります。 | Going live now cancels making the voice. Making it again starts over. |
-| `live.voice-lab-busy.stream-confirm` | 声づくりをやめて配信する | Cancel it and go live |
-| `live.voice-lab-busy.record-body` | このまま録画を始めると、声づくりは中止になります。あとで作り直すときは、最初からになります。 | Recording now cancels making the voice. Making it again starts over. |
-| `live.voice-lab-busy.record-confirm` | 声づくりをやめて録画する | Cancel it and record |
+| `live.voice-lab-busy.title` | Voice Labで声を作成中です | Voice Lab is making a voice |
+| `live.voice-lab-busy.stream-body` | 配信を開始すると、声の作成は中止されます。中止した作成は、最初からやり直しになります。 | Going live now cancels making the voice. Making it again starts over. |
+| `live.voice-lab-busy.stream-confirm` | 作成を中止して配信を開始 | Cancel it and go live |
+| `live.voice-lab-busy.record-body` | 録画を開始すると、声の作成は中止されます。中止した作成は、最初からやり直しになります。 | Recording now cancels making the voice. Making it again starts over. |
+| `live.voice-lab-busy.record-confirm` | 作成を中止して録画を開始 | Cancel it and record |
 | `live.record.saved` | 保存しました: {name} | Saved: {name} |
 | `live.record.open-folder` | フォルダーを開く | Open folder |
 | `live.record.problem.folder` | 録画フォルダーに書き込めません。設定画面の「録画」で別のフォルダーを選んでください。 | The recording folder cannot be written. Choose another folder under Recording on the setup screen. |

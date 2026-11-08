@@ -42,22 +42,23 @@ Visual values are defined in `design-system.md`, and component specifications in
 
 ### 4.1 Japanese wording
 
-As an app for streamers, the screens speak softly and naturally (user's request, 2026-11-08). Avoid sentences that read as mechanical or machine-written.
+Firm and concise, close to the screens of professional software (user's decision, 2026-11-08). Avoid sentences that read as mechanical or machine-written. A softer voice (「〜しましょう」, 「〜かもしれません」) was tried and judged worse than a firmer one.
 
 - Do not give a reason every time. Do not pile up 「〜ためです」 or 「〜から来るので」. Say first what the user can do next.
-- Avoid translated-sounding phrasing. Not 「声を覚えさせます」 or 「方向を伝えるだけです」 but everyday words (「声のモデルを作ります」, 「好みの声に近づけます」).
-- Do not line up short sentences of the same shape. When 「〜します。〜します。〜になります。」 follow each other, join or cut them.
+- Avoid translated-sounding phrasing. Not 「声を覚えさせます」 or 「方向を伝えるだけです」 but the settled words of screens (「声のモデルを作成します」, 「声の方向性を決定します」).
+- Do not line up short sentences of the same shape; join or cut them.
 - Do not use 「あなた」; leave the subject out.
-- Invitations soften with 「〜しましょう」 or 「〜してみてください」, cautions with 「〜かもしれません」 or 「〜しがちです」. Errors still say plainly what happened and what to do (「〜できませんでした。もう一度お試しください」).
-- Buttons stay short verbs (「作り始める」, 「声づくりをやめて配信する」).
+- Actions use the same Sino-Japanese words: 「作成」, 「選択」, 「変更」, 「削除」, 「確認」, 「再生」. Cautions say 「〜場合があります」, requests 「〜してください」, errors 「〜できませんでした。もう一度お試しください」.
+- No invitations (「〜しましょう」) and no colloquial words (「ぴんとくる」).
+- Buttons are short verb phrases (「作り始める」, 「作成を中止して配信を開始」).
 
 Examples:
 
 | Avoid | Use |
 |---|---|
-| 選んだ声で学習用の音声を作り、声を覚えさせます。 | 選んだ声をもとに、声のモデルを作ります。 |
-| 声を作ったり試したりすると、GPUを大きく使い、配信や録画に影響するためです。 | 配信や録画が終わったら、また使えるようになります。 |
-| 機械っぽく聞こえることがあります | 機械っぽく聞こえるかもしれません |
+| 選んだ声で学習用の音声を作り、声を覚えさせます。 | 選択した声をもとに、声のモデルを作成します。 |
+| 声を作ったり試したりすると、GPUを大きく使い、配信や録画に影響するためです。 | 配信・録画の終了後に使用できます。 |
+| 機械っぽく聞こえることがあります | 不自然に聞こえる場合があります |
 
 ---
 

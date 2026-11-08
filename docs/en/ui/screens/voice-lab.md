@@ -23,7 +23,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - Changing an earlier choice (another candidate, another timbre) closes the steps after it, since they no longer hold. A voice made from an earlier choice is not registered by mistake.
 - While a voice is being made, the Step Indicator is disabled. The user can still open other screens, and the build goes on. The screen keeps its state while hidden.
 - Leaving the screen stops a sample that is playing.
-- While streaming or recording, a Card "Not available while streaming or recording", saying it comes back when they end, replaces the whole screen, tabs included (`lab.live-lock.*`; system design 14.26). Playing sound stops. When streaming and recording stop, the screen comes back.
+- While streaming or recording, a Card "Not available while streaming or recording", saying it can be used once they end, replaces the whole screen, tabs included (`lab.live-lock.*`; system design 14.26). Playing sound stops. When streaming and recording stop, the screen comes back.
 - Without a training environment (`Availability` is `NotSetUp`), the screen shows only a Card titled "Not ready to make voices yet" explaining it (`lab.not-set-up.*`). Activation (Voice Lab detailed design 8.1) will set it up from there.
 
 ## 3. STEP 1 Pick a Base
