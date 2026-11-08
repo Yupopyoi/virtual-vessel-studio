@@ -45,7 +45,7 @@ namespace VirtualVessel.UI.VoiceLab
             Card details = Ui.Card(VoiceLabStrings.BuildDetails, collapsible: true);
             details.Expanded = false;
             details.AddToClassList(VoiceLabScreen.GapClass);
-            LengthChooser = Ui.Segmented(LengthKeys(UnityEngine.Application.isEditor));
+            LengthChooser = Ui.Segmented(LengthKeys(InEditor));
             LengthChooser.SetValueWithoutNotify((int)_draft.TrainingLength);
             LengthChooser.RegisterValueChangedCallback(evt =>
             {
@@ -83,6 +83,13 @@ namespace VirtualVessel.UI.VoiceLab
         public ActionButton StartButton { get; }
 
         public Segmented LengthChooser { get; }
+
+#if UNITY_EDITOR
+        private const bool InEditor = true;
+#else
+        // Built players leave the test length out altogether.
+        private const bool InEditor = false;
+#endif
 
         /// <summary>The training lengths to choose from, in the order of <see cref="VoiceLabTrainingLength"/>; the test one in the Editor only. Pure.</summary>
         public static string[] LengthKeys(bool inEditor)

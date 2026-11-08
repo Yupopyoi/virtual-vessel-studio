@@ -379,10 +379,12 @@ namespace VirtualVessel.Application.Startup
             };
         }
 
-        // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly.
+        // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly; built players never allow it.
         private static VoiceLabService InEditor(VoiceLabService voiceLab)
         {
-            voiceLab.AllowEditorTest = UnityEngine.Application.isEditor;
+#if UNITY_EDITOR
+            voiceLab.AllowEditorTest = true;
+#endif
             return voiceLab;
         }
     }

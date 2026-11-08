@@ -268,6 +268,24 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator PressingAStepReached_OpensIt()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            screen.GoTo(VoiceLabScreen.BaseStep);
+            yield return null;
+
+            Submit(screen.Steps.Query<Button>().AtIndex(VoiceLabScreen.TimbreStep));
+            yield return null;
+
+            Assert.That(screen.Steps.Current, Is.EqualTo(VoiceLabScreen.TimbreStep));
+        }
+
+        [UnityTest]
         public IEnumerator ChangingTheTimbre_ClosesTheStepsAfterIt()
         {
             VoiceLabScreen screen = Screen();

@@ -1,5 +1,6 @@
 /* The Voice Lab screen (system design 14.13 to 14.18). */
 .vv-lab > *,
+.vv-lab__content > *,
 .vv-lab__panel > * {
     margin-bottom: var(--vv-space-m);
 }

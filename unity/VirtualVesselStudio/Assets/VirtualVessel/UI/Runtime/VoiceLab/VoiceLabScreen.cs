@@ -60,6 +60,9 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
         public const string GapClass = UssClass + "__gap";
 
+        /// <summary>Everything but the lock card, hidden as one while live; its parts keep the screen's gaps.</summary>
+        public const string ContentClass = UssClass + "__content";
+
         public const int BaseStep = 0;
         public const int TimbreStep = 1;
         public const int BuildStep = 2;
@@ -101,6 +104,7 @@ namespace VirtualVessel.UI.VoiceLab
             LiveLock.Add(Ui.Text(VoiceLabStrings.LiveLockBody, NoteClass, "vv-text-body"));
             Add(LiveLock);
             _content = new VisualElement();
+            _content.AddToClassList(ContentClass);
             Add(_content);
             ShowLock();
             PanelLifetime.WhileAttached(this, _ => WatchLive());
