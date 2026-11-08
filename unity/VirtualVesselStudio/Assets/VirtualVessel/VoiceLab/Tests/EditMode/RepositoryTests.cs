@@ -60,6 +60,19 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void ARunKeepsFieldsThisVersionDoesNotKnow_ThroughASave()
+        {
+            TrainingRun run = _runs.Create(Design()).Value;
+            string file = Path.Combine(_runs.FolderOf(run.RunId), TrainingRunStore.FileName);
+            File.WriteAllText(file, File.ReadAllText(file).TrimEnd().TrimEnd('}') + ",\"fromANewerVersion\":\"kept\"}");
+
+            _runs.Save(_runs.Get(run.RunId).Value.With(TrainingState.Training, _clock.UtcNow));
+
+            Assert.That(File.ReadAllText(file), Does.Contain("fromANewerVersion"));
+            Assert.That(_runs.Get(run.RunId).Value.State, Is.EqualTo(nameof(TrainingState.Training)));
+        }
+
+        [Test]
         public void ARunFromBeforeTheWords_ReadsAsNone()
         {
             string folder = _runs.FolderOf("20261101-120000-0001");

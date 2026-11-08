@@ -65,7 +65,15 @@ namespace VirtualVessel.VoiceLab.Training
 
             return CrudResult<TrainingRun>.Run(() =>
             {
-                Store(run.RunId).Save(run);
+                // The store keeps the fields this version does not know only from its own last load, so it reads the
+                // file first; a fresh store would drop them on every state change (CLAUDE.md 25).
+                ConfigFileStore<TrainingRun> store = Store(run.RunId);
+                if (File.Exists(Path.Combine(FolderOf(run.RunId), FileName)))
+                {
+                    store.Load();
+                }
+
+                store.Save(run);
                 return run;
             }, $"Saving run {run.RunId}");
         }
