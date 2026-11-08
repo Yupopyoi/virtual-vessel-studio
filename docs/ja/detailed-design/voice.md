@@ -64,12 +64,17 @@ public interface IVoiceConverter : IDisposable
 public interface IVoiceConversion
 {
     IReadOnlyObservable<VoiceConversionState> State { get; }
-    IReadOnlyObservable<IReadOnlyList<VoiceModelInfo>> Models { get; }
-    IReadOnlyObservable<VoiceOptions> Options { get; }  // 声、音の高さ、失敗時の扱い
-    void SetOptions(VoiceOptions options);
+    CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID、名前、高さの中央値、使えるか
+    string VoiceId { get; }                  // 選んだ声。試作の声は空文字
+    void SelectVoice(string voiceId);        // 変換中なら裏で読み込んで差し替える（8.2）
+    bool IsSwitching { get; }                // 選んだ声を準備している間
     void SetEnabled(bool enabled);
 }
 ```
+
+- 一覧はディスクを読むので、画面を開いたときに読む（方式設計6.31）。使えない声（6.1）も一覧に出し、選べないことを示す。
+- 声を選んでいないときは、一覧の最初の使える声を使う。試作の声があれば、それが最初である。
+- 音の高さと失敗時の扱いは、Voice Profile（6.2）と一緒に足す。
 
 ## 6. Data Model
 
@@ -85,9 +90,10 @@ VoiceModels/
 │  ├─ voice.sentis  学習した重みを書き込んだ生成器
 │  ├─ voice.spk     話者ベクトル（256個のfloat）
 │  └─ design.json   作り方。Voice Labのファイルで、Voiceは読まずに写す
-└─ Shared/<版>/
-   ├─ hubert.sentis
-   └─ rmvpe.sentis
+├─ Shared/1/
+│  ├─ hubert_16000_anchored.sentis
+│  └─ rmvpe_32.sentis
+└─ Prototype/        開発者が置いた試作の声と共通のモデル
 ```
 
 - 追加では、隣のフォルダー（`.part`）へ写してから名前を変える。配信の側が作りかけの声を読むことはない。`voice.sentis`、`voice.spk`、`voice.json`のどれかがなければ断る（`Invalid`）。
@@ -95,7 +101,9 @@ VoiceModels/
 
 `voice.json`は`schemaVersion`を持つ（CLAUDE.md 25章）。`frames`と`returned`に窓と返すフレームの数を持ち、Runtimeが対応しない形の声は「この版では使えません」と表示して、消さずに残す。
 
-HuBERTとRMVPEは声によらず共通なので、1組だけ持つ。
+HuBERTとRMVPEは声によらず共通なので、1組だけ持つ。`Shared/1/`の`1`は書き出しの版で、生成器の形と直前の声（SpeechAnchor）に対になる。そこになければ`Prototype/`のものを使う。アクティベーション（Voice Lab詳細設計8.1）ができるまでは、`Prototype/`にしかない。
+
+`Prototype/`の声（`fused_w100.sentis`と`.spk`）は記録を持たず、一覧では「試作の声」として出る。開発中に、登録した声と比べるためのものである。
 
 ### 6.2 Voice Profile
 
@@ -158,6 +166,19 @@ stateDiagram-v2
 
 方式設計9.8のとおり、音声の機器は止めない。新しい声を裏で読み込み、準備運転が終わってから次のブロックで差し替える。切り替えの間は前の声が動き続ける。
 
+```text
+選ぶ → 生成器と話者ベクトルをThread Poolで読む（HuBERTとRMVPEは読み込み済みのものを使う）
+  → RvcStreamを作る（メインスレッド、約40 ms）
+  → 下ごしらえ：各モデルを1層ずつ無音で実行する。1フレームに4 msまで
+  → 準備運転：無音のブロックを3つ、ふつうのブロックと同じく待たずに進める
+  → 前の声が手元のブロックを終えたら差し替え、前の声を捨てる
+```
+
+- 新しいWorkerの最初の実行は、すべての層を準備するので、1回で約300 msかかる（RTX 4070）。そのままではそのフレームが止まり、前の声のブロックが9つ捨てられた。`Worker.ScheduleIterable`で層ごとに分け、1フレームの時間に上限を置いた。
+- 準備の間に別の声を選び直すと、準備したものは使わずに捨て、選び直した声を読む。
+- 読み込めなかったときは、前の声のまま変換を続け、ログに残す。
+- オフの間に選んだ声は、次にオンにしたときに読む。
+
 ### 8.3 映像との同期
 
 変換の遅れの分、配信の映像を遅らせる（Audio詳細設計8.3、8.4）。`IAudioStage`に遅れの量を申告する口を足す。試作にはまだない。
@@ -211,8 +232,8 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 
 | 種類 | 内容 |
 |---|---|
-| EditMode | `RvcDsp`、`voice.json`の読み書きと古い形式、ライブラリの検証、状態の変化 |
-| PlayMode | 本物のモデルでの実時間のベンチマーク。読み出しの非同期はPlayModeでしか確かめられない |
+| EditMode | `RvcDsp`、`voice.json`の読み書きと古い形式、ライブラリの検証（共通のモデルの場所、形の合わない声）、差し替えの条件、状態の変化 |
+| PlayMode | 本物のモデルでの実時間のベンチマークと、変換中の声の切り替え（`VV_VOICE_MODELS`に登録した声のフォルダー）。読み出しの非同期はPlayModeでしか確かめられない |
 | ネイティブ | 処理の段のバースト、オンとオフ |
 | 手動 | 実際のマイクで聞く |
 
@@ -226,6 +247,7 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 | 1ブロックの処理 | ブロックより短い | 87 ms |
 | 発行するフレームの負担 | 下げる | 13から17 ms |
 | 取りこぼし | 0 | 199ブロックで0 |
+| 声の切り替え | 取りこぼしなし | 159ブロックで0。選んでから約1.5秒で替わる。その間のフレームは中央値4.7 ms、最長47 ms（RvcStreamを作るフレーム） |
 
 遅延を下げる順番：
 

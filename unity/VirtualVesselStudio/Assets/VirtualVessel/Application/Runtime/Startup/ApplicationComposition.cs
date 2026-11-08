@@ -30,6 +30,7 @@ using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
 using VirtualVessel.VoiceLab;
 using VirtualVessel.Voice;
+using VirtualVessel.Voice.Models;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -133,7 +134,7 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VoiceService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion"), metrics),
+                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, VoiceModelLibrary.Create(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), new VoiceModelStore(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock)), logging.Provider.GetLog("Voice", "Conversion"), metrics),
                     new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 

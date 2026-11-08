@@ -11,7 +11,9 @@ using Unity.InferenceEngine;
 using UnityEngine.TestTools;
 using VirtualVessel.Audio;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Voice;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.Voice.Rvc;
 
 namespace VirtualVessel.Voice.Tests
@@ -38,7 +40,7 @@ namespace VirtualVessel.Voice.Tests
             }
 
             string folder = Path.Combine(work, "sentis");
-            if (!File.Exists(Path.Combine(folder, VoiceService.GeneratorFile(windowFrames))))
+            if (!File.Exists(Path.Combine(folder, VoiceModelLibrary.GeneratorFile(windowFrames))))
             {
                 Assert.Ignore($"No models for a window of {windowFrames} frames.");
             }
@@ -49,7 +51,7 @@ namespace VirtualVessel.Voice.Tests
             int seconds = Math.Max(MinSeconds, speech.Length / RvcStream.DeviceRate + 2);
             var stage = new WavStage(speech);
             var loop = new ManualFrameLoop();
-            using var service = new VoiceService(stage, loop, folder, null);
+            using var service = new VoiceService(stage, loop, new VoiceModelLibrary(null, folder, null), null);
             service.Semitones = 9f;
             service.InitializeAsync(CancellationToken.None).Wait();
             service.SetEnabled(true);
@@ -109,6 +111,87 @@ namespace VirtualVessel.Voice.Tests
             File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
             RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", $"unity_load_{windowFrames}.wav"), stage.Output.ToArray());
             Assert.That(seen, Is.GreaterThan(seconds * 5));
+        }
+
+        /// <summary>
+        /// Switches from the prototype's voice to a registered one while converting (system design 9.8): the old voice
+        /// keeps converting while the new one loads and warms up, so no block is left out and the frames stay short.
+        /// Voices come from VV_VOICE_MODELS, a VoiceModels folder with registered voices.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Switches_WithoutStopping()
+        {
+            string work = Environment.GetEnvironmentVariable("VV_VOICE_WORK");
+            string voicesRoot = Environment.GetEnvironmentVariable("VV_VOICE_MODELS");
+            if (string.IsNullOrEmpty(work) || string.IsNullOrEmpty(voicesRoot))
+            {
+                Assert.Ignore("VV_VOICE_WORK or VV_VOICE_MODELS is not set.");
+            }
+
+            string folder = Path.Combine(work, "sentis");
+            var library = new VoiceModelLibrary(voicesRoot, folder, new VoiceModelStore(voicesRoot, new UtcSystemClock()));
+            string target = library.List().Value.Where(v => v.Id != VoiceModelLibrary.PrototypeId && v.Usable).Select(v => v.Id).FirstOrDefault();
+            if (target == null || library.Locate(VoiceModelLibrary.PrototypeId).Problem != null)
+            {
+                Assert.Ignore("The prototype's voice or a usable registered voice is missing.");
+            }
+
+            float[] speech = WavFile.Read(File.ReadAllBytes(Environment.GetEnvironmentVariable("VV_VOICE_INPUT") ?? Path.Combine(work, "data", "source", "000.wav")), out int rate);
+            var stage = new WavStage(WavFile.ToRate(speech, rate, RvcStream.DeviceRate));
+            var loop = new ManualFrameLoop();
+            using var service = new VoiceService(stage, loop, library, null);
+            service.SelectVoice(VoiceModelLibrary.PrototypeId);
+            service.SetEnabled(true);
+            while (service.State.Value == VoiceConversionState.Loading)
+            {
+                loop.Tick();
+                yield return null;
+            }
+
+            Assert.That(service.State.Value, Is.EqualTo(VoiceConversionState.Running), service.Failure?.ToString());
+            stage.Start();
+            var clock = Stopwatch.StartNew();
+            var switchFrames = new List<double>();
+            double switchedAt = -1;
+            bool asked = false;
+            while (clock.Elapsed.TotalSeconds < 16)
+            {
+                if (!asked && clock.Elapsed.TotalSeconds > 4)
+                {
+                    asked = true;
+                    service.SelectVoice(target);
+                }
+
+                double frameStart = clock.Elapsed.TotalMilliseconds;
+                loop.Tick();
+                double frame = clock.Elapsed.TotalMilliseconds - frameStart;
+                if (asked && switchedAt < 0)
+                {
+                    switchFrames.Add(frame);
+                    if (!service.IsSwitching)
+                    {
+                        switchedAt = clock.Elapsed.TotalSeconds;
+                    }
+                }
+
+                double left = frameStart + MinFrameMs - clock.Elapsed.TotalMilliseconds;
+                if (left > 1.0)
+                {
+                    Thread.Sleep((int)left);
+                }
+
+                yield return null;
+            }
+
+            service.SetEnabled(false);
+            var report = new StringBuilder($"Switch to {target}: done {switchedAt - 4:F1} s after asking, {service.Stats.Blocks} blocks, {service.Stats.Dropped} dropped, {stage.Underruns} underruns\n");
+            RvcStreamBenchmark.AppendStage(report, "frames while switching", switchFrames);
+            File.AppendAllText(Path.Combine(work, "out", "benchmark.txt"), report + "\n");
+            RvcStreamBenchmark.WriteWav(Path.Combine(work, "out", "unity_switch.wav"), stage.Output.ToArray());
+            TestContext.WriteLine(report);
+            Assert.That(switchedAt, Is.GreaterThan(0), "The chosen voice never took over.");
+            Assert.That(service.VoiceId, Is.EqualTo(target));
+            Assert.That(service.Stats.Dropped, Is.EqualTo(0));
         }
 
         private sealed class ManualFrameLoop : IFrameLoop

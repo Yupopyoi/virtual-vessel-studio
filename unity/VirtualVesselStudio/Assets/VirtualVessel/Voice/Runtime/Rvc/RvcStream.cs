@@ -327,6 +327,46 @@ namespace VirtualVessel.Voice.Rvc
             return true;
         }
 
+        /// <summary>
+        /// Runs each model once on silence, a layer per step, for a stream that warms up beside one converting: a new
+        /// worker's first run prepares every layer, about 300 ms in one call on an RTX 4070, which would stop the
+        /// frame that keeps the other voice converting. The caller steps it within a time budget each frame and
+        /// starts blocks only once it ends. Main thread.
+        /// </summary>
+        public System.Collections.IEnumerator Prime()
+        {
+            _audioTensor.dataOnBackend.Upload(_audioData, _audioData.Length);
+            System.Collections.IEnumerator features = _features.ScheduleIterable(_audioTensor);
+            while (features.MoveNext())
+            {
+                yield return null;
+            }
+
+            _melTensor.dataOnBackend.Upload(_melData, _melData.Length);
+            System.Collections.IEnumerator pitch = _pitch.ScheduleIterable(_melTensor);
+            while (pitch.MoveNext())
+            {
+                yield return null;
+            }
+
+            _historyTensor.dataOnBackend.Upload(_historyData, _historyData.Length);
+            Upload(_lastTensor, 0f);
+            Upload(_factorTensor, 1f);
+            _noiseTensor.dataOnBackend.Upload(_noiseData, _noiseData.Length);
+            _generator.SetInput("feats", _features.PeekOutput());
+            _generator.SetInput("salience", _pitch.PeekOutput());
+            _generator.SetInput("history", _historyTensor);
+            _generator.SetInput("last", _lastTensor);
+            _generator.SetInput("factor", _factorTensor);
+            _generator.SetInput("rnd", _noiseTensor);
+            _generator.SetInput("spk", _speakerTensor);
+            System.Collections.IEnumerator generator = _generator.ScheduleIterable();
+            while (generator.MoveNext())
+            {
+                yield return null;
+            }
+        }
+
         /// <summary>Forgets a block on its way, such as when the conversion turns off.</summary>
         public void Abandon()
         {

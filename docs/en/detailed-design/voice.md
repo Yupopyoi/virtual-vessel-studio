@@ -64,12 +64,17 @@ public interface IVoiceConverter : IDisposable
 public interface IVoiceConversion
 {
     IReadOnlyObservable<VoiceConversionState> State { get; }
-    IReadOnlyObservable<IReadOnlyList<VoiceModelInfo>> Models { get; }
-    IReadOnlyObservable<VoiceOptions> Options { get; }  // Voice, pitch, failure behavior
-    void SetOptions(VoiceOptions options);
+    CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID, name, median pitch, usable
+    string VoiceId { get; }                  // The chosen voice; the prototype's is the empty string
+    void SelectVoice(string voiceId);        // While converting, loads behind and takes over (8.2)
+    bool IsSwitching { get; }                // While the chosen voice gets ready
     void SetEnabled(bool enabled);
 }
 ```
+
+- The list reads the disk, so it is read when a screen opens (system design 6.31). Voices that cannot be used (6.1) are listed too, marked as not selectable.
+- With no voice chosen, the first usable voice in the list is used. The prototype's voice, when present, comes first.
+- Pitch and what to do on failure are added with the Voice Profile (6.2).
 
 ## 6. Data Model
 
@@ -85,9 +90,10 @@ VoiceModels/
 │  ├─ voice.sentis  The generator with the trained weights written in
 │  ├─ voice.spk     The speaker vector (256 floats)
 │  └─ design.json   How it was made. Voice Lab's file; Voice copies it without reading it
-└─ Shared/<version>/
-   ├─ hubert.sentis
-   └─ rmvpe.sentis
+├─ Shared/1/
+│  ├─ hubert_16000_anchored.sentis
+│  └─ rmvpe_32.sentis
+└─ Prototype/        The prototype's voice and shared models, placed by developers
 ```
 
 - Adding copies into a folder beside the target (`.part`) and then renames it, so streaming never reads half a voice. A voice without `voice.sentis`, `voice.spk`, or `voice.json` is refused (`Invalid`).
@@ -95,7 +101,9 @@ VoiceModels/
 
 `voice.json` has a `schemaVersion` (CLAUDE.md chapter 25). Its `frames` and `returned` hold the window and returned frame counts. A voice whose shape the runtime does not support says "This voice cannot be used in this version" and is kept, not deleted.
 
-HuBERT and RMVPE are the same for every voice, so there is one pair.
+HuBERT and RMVPE are the same for every voice, so there is one pair. The `1` in `Shared/1/` is the export's version; it pairs with the generators' shape and the speech anchor (SpeechAnchor). When they are not there, the ones in `Prototype/` are used. Until activation (Voice Lab detailed design 8.1), they are only in `Prototype/`.
+
+The voice in `Prototype/` (`fused_w100.sentis` and `.spk`) has no record and is listed as "Prototype voice". It is there for developers to compare with registered voices.
 
 ### 6.2 Voice Profile
 
@@ -158,6 +166,19 @@ Microphone → Audio → IAudioStage.Read → gather (100 ms)
 
 As in system design 9.8, audio devices do not stop. The new voice loads in the background, warms up, and takes over at the next block. The old voice keeps running until then.
 
+```text
+Choose → read the generator and speaker vector on the thread pool (HuBERT and RMVPE are reused)
+  → create the RvcStream (main thread, about 40 ms)
+  → prime: run each model once on silence, a layer at a time, up to 4 ms per frame
+  → warm up: three blocks of silence, moved along without waiting like normal blocks
+  → when the old voice finishes the block it holds, swap and let the old voice go
+```
+
+- A new worker's first run prepares every layer and takes about 300 ms in one call (RTX 4070). Left as it was, that frame stalled and 9 of the old voice's blocks were dropped. `Worker.ScheduleIterable` splits it by layer, with a time limit per frame.
+- Choosing another voice while one gets ready discards the prepared one and loads the newly chosen one.
+- If the voice cannot load, the old voice keeps converting and the failure is logged.
+- A voice chosen while off is loaded the next time conversion turns on.
+
 ### 8.3 Sync with the video
 
 The stream video is delayed by the conversion's delay (audio detailed design 8.3, 8.4). `IAudioStage` gets a way to declare that delay. The prototype does not have it yet.
@@ -211,8 +232,8 @@ Voice Lab writes the activation state, and Voice only reads it.
 
 | Kind | Content |
 |---|---|
-| EditMode | `RvcDsp`, reading and writing `voice.json` including old formats, library checks, state changes |
-| PlayMode | Real-time benchmark with real models; asynchronous readback can only be checked in PlayMode |
+| EditMode | `RvcDsp`, reading and writing `voice.json` including old formats, library checks (where the shared models are, voices of another shape), when to swap, state changes |
+| PlayMode | Real-time benchmark with real models, and switching voices while converting (`VV_VOICE_MODELS` names a folder of registered voices); asynchronous readback can only be checked in PlayMode |
 | Native | Stage bursts, on and off |
 | Manual | Listening with a real microphone |
 
@@ -226,6 +247,7 @@ Without models, as in CI, the benchmarks are ignored.
 | One block's work | Shorter than a block | 87 ms |
 | Cost of a frame issuing work | To be lowered | 13 to 17 ms |
 | Dropped blocks | 0 | 0 in 199 |
+| Switching voices | No dropped blocks | 0 in 159. Takes over about 1.5 s after choosing. Frames meanwhile: median 4.7 ms, longest 47 ms (the frame creating the RvcStream) |
 
 The order for lowering latency:
 

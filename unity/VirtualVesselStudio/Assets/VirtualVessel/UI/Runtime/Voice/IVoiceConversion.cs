@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtualVessel.Core.State;
+using VirtualVessel.ProjectData.Records;
 
 namespace VirtualVessel.UI.Voice
 {
@@ -46,10 +48,48 @@ namespace VirtualVessel.UI.Voice
         public long Dropped { get; }
     }
 
+    /// <summary>A voice the conversion can be given, as a list shows it.</summary>
+    public readonly struct VoiceConversionVoice
+    {
+        public VoiceConversionVoice(string id, string name, int medianPitchHz, bool usable)
+        {
+            Id = id;
+            Name = name;
+            MedianPitchHz = medianPitchHz;
+            Usable = usable;
+        }
+
+        public string Id { get; }
+
+        /// <summary>The user's name for it; null for the prototype's voice, which has none.</summary>
+        public string Name { get; }
+
+        /// <summary>For matching the user's pitch (Voice Lab detailed design 8.3.4); 0 when unknown.</summary>
+        public int MedianPitchHz { get; }
+
+        /// <summary>False for a voice this version cannot run; it is listed and kept, not deleted (Voice detailed design 6.1).</summary>
+        public bool Usable { get; }
+    }
+
     /// <summary>Real-time voice conversion of the microphone. A prototype, shown only to developers.</summary>
     public interface IVoiceConversion
     {
         IReadOnlyObservable<VoiceConversionState> State { get; }
+
+        /// <summary>The voices to choose from; reads the disk, so not every frame (system design 6.31).</summary>
+        CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();
+
+        /// <summary>The chosen voice's ID; null when none is chosen or there is none.</summary>
+        string VoiceId { get; }
+
+        /// <summary>
+        /// Chooses the voice. While converting, the new one loads behind the one in use, which keeps converting
+        /// until the new one is ready (system design 9.8). If it cannot load, the one in use stays.
+        /// </summary>
+        void SelectVoice(string voiceId);
+
+        /// <summary>True while a chosen voice loads behind the one converting.</summary>
+        bool IsSwitching { get; }
 
         float Semitones { get; set; }
 
@@ -73,7 +113,7 @@ namespace VirtualVessel.UI.Voice
         Task<bool> PlayFileAsync(string path);
 
         /// <summary>The audio files PlayFileAsync reads, by extension.</summary>
-        System.Collections.Generic.IReadOnlyList<string> FileExtensions { get; }
+        IReadOnlyList<string> FileExtensions { get; }
 
         /// <summary>Stops an audio file; the microphone comes back.</summary>
         void StopFile();
