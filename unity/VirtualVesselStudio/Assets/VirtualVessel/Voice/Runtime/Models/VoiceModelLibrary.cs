@@ -10,14 +10,18 @@ namespace VirtualVessel.Voice.Models
     /// <summary>What the conversion loads for one voice; <see cref="Problem"/> is null when it can be used.</summary>
     public readonly struct VoiceModelFiles
     {
-        public VoiceModelFiles(string features, string pitch, string generator, string speaker, string problem)
+        public VoiceModelFiles(string features, string pitch, string generator, string speaker, string problem, int medianPitchHz = 0)
         {
             Features = features;
             Pitch = pitch;
             Generator = generator;
             Speaker = speaker;
             Problem = problem;
+            MedianPitchHz = medianPitchHz;
         }
+
+        /// <summary>The voice's median pitch from its voice.json, when it was found by folder; 0 when unknown.</summary>
+        public int MedianPitchHz { get; }
 
         /// <summary>HuBERT, shared by every voice.</summary>
         public string Features { get; }
@@ -47,6 +51,9 @@ namespace VirtualVessel.Voice.Models
     {
         /// <summary>The prototype's voice, which has no record.</summary>
         public const string PrototypeId = "";
+
+        // A voice found by its folder: a registered voice's ID shape, so Locate checks it the same way.
+        private const string TrialId = VoiceModelStore.IdPrefix + "trial";
 
         /// <summary>The prototype's folder under the Data Root's VoiceModels.</summary>
         public const string PrototypeFolder = "Prototype";
@@ -138,6 +145,42 @@ namespace VirtualVessel.Voice.Models
 
             CrudResult<VoiceModelRecord> voice = _voices.Get(voiceId);
             return voice.Ok ? voice.Value.MedianPitchHz : 0;
+        }
+
+        /// <summary>
+        /// A voice in any folder holding voice.sentis, voice.spk, and voice.json, such as one just built and not yet
+        /// registered (Voice Lab detailed design 8.3.4): checked as a registered one is. Reads its voice.json.
+        /// </summary>
+        public VoiceModelFiles LocateFolder(string folder)
+        {
+            string manifest = null;
+            try
+            {
+                string path = Path.Combine(folder ?? string.Empty, VoiceModelStore.ManifestFile);
+                manifest = File.Exists(path) ? File.ReadAllText(path) : null;
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+
+            return LocateFolder(folder, _root, _prototype, manifest, File.Exists);
+        }
+
+        /// <summary>A voice in <paramref name="folder"/>, with the shared models as <see cref="Locate(string, string, string, Func{string, string}, string, Func{string, bool})"/> finds them. Pure but for <paramref name="exists"/>.</summary>
+        public static VoiceModelFiles LocateFolder(string folder, string root, string prototype, string manifest, Func<string, bool> exists)
+        {
+            if (string.IsNullOrEmpty(folder))
+            {
+                return VoiceModelFiles.Unusable("There is no folder.");
+            }
+
+            VoiceModelFiles files = Locate(TrialId, root, prototype, _ => folder, manifest, exists);
+            return files.Problem != null
+                ? files
+                : new VoiceModelFiles(files.Features, files.Pitch, files.Generator, files.Speaker, null, VoiceModelStore.MedianPitch(manifest));
         }
 
         /// <summary>The voice's files, checked; reads its voice.json. Not for hot paths.</summary>

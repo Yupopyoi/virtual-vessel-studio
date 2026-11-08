@@ -291,6 +291,7 @@ namespace VirtualVessel.Application.Startup
                                 Captures = capture,
                                 Audio = audio,
                                 Voice = voice,
+                                VoiceTrial = voice == null ? null : new VoiceTrialService(context.FrameLoop, voice.Library, logging.Provider.GetLog("Voice", "Trial")),
                                 // Assigned in order: the library comes with Voice Lab.
                                 VoiceLab = voiceLab = InEditor(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design"))),
                                 VoiceLabLibrary = voiceLab.Library,

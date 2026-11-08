@@ -119,6 +119,9 @@ namespace VirtualVessel.Voice
 
         public string VoiceId => _wantedVoice;
 
+        /// <summary>The voices it converts with, for a trial that converts recordings with the same ones.</summary>
+        public VoiceModelLibrary Library => _library;
+
         public bool IsSwitching => _next.IsActive || (_loader.IsLoading && _stream != null);
 
         public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
@@ -324,7 +327,7 @@ namespace VirtualVessel.Voice
 
         // A second of silence at the end carries the last block through, whatever its length. WAV is read here,
         // without the audio plugin; other formats, such as M4A from a phone, go through Windows' decoders.
-        private static float[] ReadFile(string path)
+        internal static float[] ReadFile(string path)
         {
             float[] decoded = string.Equals(Path.GetExtension(path), ".wav", StringComparison.OrdinalIgnoreCase)
                 ? WavFile.Read(File.ReadAllBytes(path), out int rate)

@@ -305,7 +305,7 @@ The default training is 150 epochs. On an RTX 4070, 7 minutes of audio took abou
 #### 8.3.4 Trying it with your voice
 
 - Trying goes through the application's real-time conversion (the window, the overlap at joins, the recent speech, and noise removal in the Voice detailed design). Upstream's conversion of a whole file at once hides the window's problems and overrates a voice: held "u" and "e" were right there and drifted in real time.
-- The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone.
+- The input is the user's recording (WAV, M4A, MP3; audio detailed design 5.4) or the microphone. A recording is converted a block at a time with the stream's processing and then played to the monitor only (Voice detailed design 8.5; user's decision, 2026-11-08), so it can be heard whatever the microphone's settings and compared with the original back and forth.
 - The conversion's pitch is matched automatically: registration keeps the voice's median pitch, and the shift comes from its distance to the user's. How Voice takes it is in Voice detailed design 8.4.
 
 ### 8.6 Made Voices

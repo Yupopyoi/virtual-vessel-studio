@@ -38,6 +38,7 @@ Out of scope: making voices ([Voice Lab detailed design](voice-lab.md)), a virtu
 | `VoiceService` | Class | Application Service: moves blocks along each frame and decides which voice runs |
 | `VoiceLoader` | Class | Loads a voice's models on the thread pool and makes its `RvcStream` on the main thread; reuses HuBERT and RMVPE (8.2) |
 | `VoiceWarmup` | Class | Primes and warms the next voice, and says when it can take over (8.2) |
+| `VoiceTrialService` | Class | Converts a recording with a given voice into a file to hear (`IVoiceTrial`; 8.5) |
 | `IVoiceConverter` | Interface | Abstraction of the conversion method (system design 9.6) |
 | `RvcVoiceConverter` | Class | The RVC v2 implementation; the prototype's `RvcStream` |
 | `RvcDsp` | Static class | Resampling, mel, F0, crossfade; no side effects |
@@ -206,6 +207,25 @@ shift     = (when automatic is on) semitones + the user's adjustment
 - Matching starts after 2 s of voice, and the value is kept after 10 s, so singing high later does not move the shift. Measure again starts over.
 - Until matching starts, about 2 s sound at the user's own pitch. Keeping the measured value in the per-PC settings (6.3) would match from the start next time; it comes with those settings.
 - The collecting runs every block, so it reuses its buffers and makes no garbage. The median's sort runs only while measuring (the first 10 s).
+
+### 8.5 Trying with a recording
+
+Voice Lab's STEP 4 tries a voice just made with a recording (Voice Lab detailed design 8.3.4; user's decision, 2026-11-08). `IVoiceTrial`, an interface placed in UI, is implemented by `VoiceTrialService`.
+
+```text
+A voice's folder (a run's output just made, or a registered voice) and a recording
+  → VoiceModelLibrary.LocateFolder: checks voice.json's shape and reads the median pitch
+  → VoiceLoader: loads on the thread pool (the shared models are reused)
+  → VoiceWarmup: priming and warm-up
+  → converts a block at a time (one per frame; the same window, joins, and speech anchor as the stream)
+  → a WAV (in the temporary folder) → the screen plays it to the monitor only with IAudioPreview
+```
+
+- It runs its own `RvcStream`, apart from the stream's conversion. The microphone, its monitoring, and the voice used for the stream are untouched, and it can be heard with the microphone's Hear off.
+- Pitch matching is 8.4's. When the user's pitch is not known, one conversion runs first only to measure it (stopping after 10 s of voice), then the matched one.
+- Noise removal does not apply: it is Audio's native processing and exists only on the microphone's path.
+- One at a time. Cancelling while the voice loads lets it go once loaded.
+- Measured (RTX 4070): a 7.4 s recording converted in 8.8 s, measuring included; the longest frame was 21 ms. The first run in the test copy stalled one frame for 5.5 s compiling shaders; once cached, it does not recur.
 
 ## 9. Threading and Async
 

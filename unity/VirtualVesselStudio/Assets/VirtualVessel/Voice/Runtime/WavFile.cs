@@ -5,7 +5,7 @@ using VirtualVessel.Voice.Rvc;
 
 namespace VirtualVessel.Voice
 {
-    /// <summary>Reads a WAV file's audio as mono floats at the device rate. Pure.</summary>
+    /// <summary>Reads and writes WAV files' audio as mono floats. Pure.</summary>
     public static class WavFile
     {
         private const int FormatPcm = 1;
@@ -58,6 +58,37 @@ namespace VirtualVessel.Voice
             }
 
             throw new InvalidDataException("The WAV file has no audio.");
+        }
+
+        /// <summary>
+        /// A mono 16-bit PCM WAV file of <paramref name="samples"/>, clipped to -1 to 1: what Windows and the audio
+        /// plugin read everywhere. Pure.
+        /// </summary>
+        public static byte[] Write(float[] samples, int rate)
+        {
+            const int headerBytes = 44;
+            int dataBytes = samples.Length * 2;
+            var bytes = new byte[headerBytes + dataBytes];
+            Encoding.ASCII.GetBytes("RIFF").CopyTo(bytes, 0);
+            BitConverter.GetBytes(headerBytes - 8 + dataBytes).CopyTo(bytes, 4);
+            Encoding.ASCII.GetBytes("WAVEfmt ").CopyTo(bytes, 8);
+            BitConverter.GetBytes(16).CopyTo(bytes, 16);
+            BitConverter.GetBytes((short)FormatPcm).CopyTo(bytes, 20);
+            BitConverter.GetBytes((short)1).CopyTo(bytes, 22);
+            BitConverter.GetBytes(rate).CopyTo(bytes, 24);
+            BitConverter.GetBytes(rate * 2).CopyTo(bytes, 28);
+            BitConverter.GetBytes((short)2).CopyTo(bytes, 32);
+            BitConverter.GetBytes((short)16).CopyTo(bytes, 34);
+            Encoding.ASCII.GetBytes("data").CopyTo(bytes, 36);
+            BitConverter.GetBytes(dataBytes).CopyTo(bytes, 40);
+            for (int i = 0; i < samples.Length; i++)
+            {
+                short value = (short)Math.Round(Math.Max(-1f, Math.Min(1f, samples[i])) * short.MaxValue);
+                bytes[headerBytes + (i * 2)] = (byte)value;
+                bytes[headerBytes + (i * 2) + 1] = (byte)(value >> 8);
+            }
+
+            return bytes;
         }
 
         /// <summary>The samples at <paramref name="rate"/>, or the same array when they already are.</summary>

@@ -52,6 +52,17 @@ namespace VirtualVessel.Voice
             }
 
             VoiceModelFiles files = _library == null || voiceId == null ? VoiceModelFiles.Unusable("There is no voice.") : _library.Locate(voiceId);
+            return Begin(files, voiceId);
+        }
+
+        /// <summary>Starts loading a voice already located, such as one found by its folder; returns why it cannot, or null.</summary>
+        public string Begin(VoiceModelFiles files, string voiceId)
+        {
+            if (_loading != null)
+            {
+                throw new InvalidOperationException("A voice is loading already.");
+            }
+
             if (files.Problem != null)
             {
                 return files.Problem;

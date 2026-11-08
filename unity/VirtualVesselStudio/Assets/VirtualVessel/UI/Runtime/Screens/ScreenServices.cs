@@ -40,6 +40,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The voice conversion prototype, for the Diagnostics screen; null leaves its Card out.</summary>
         public IVoiceConversion Voice { get; set; }
 
+        /// <summary>Converting a recording with a voice for the user to hear (Voice), for Voice Lab's STEP 4; null leaves it out.</summary>
+        public IVoiceTrial VoiceTrial { get; set; }
+
         /// <summary>Voice Lab (VoiceLab), for its screen; null shows it as not set up.</summary>
         public IVoiceLab VoiceLab { get; set; }
 

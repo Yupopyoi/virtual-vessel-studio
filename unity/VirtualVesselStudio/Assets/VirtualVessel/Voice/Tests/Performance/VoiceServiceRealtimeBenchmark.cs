@@ -247,7 +247,7 @@ namespace VirtualVessel.Voice.Tests
             Assert.That(service.AutoSemitones, Is.EqualTo(PitchMatch.Semitones(target.MedianPitchHz, service.UserPitchHz)));
         }
 
-        private sealed class ManualFrameLoop : IFrameLoop
+        internal sealed class ManualFrameLoop : IFrameLoop
         {
             private Action _tick;
 
@@ -280,7 +280,7 @@ namespace VirtualVessel.Voice.Tests
 
         // Stands in for the microphone at real time, and for the mix, with its rules: it starts playing
         // once 20 ms waits, takes 10 ms at a time, and when it runs dry it drops the rest and waits again.
-        private sealed class WavStage : IAudioStage
+        internal sealed class WavStage : IAudioStage
         {
             private const int Prime = 960;
             private const int MixBlock = 480;
