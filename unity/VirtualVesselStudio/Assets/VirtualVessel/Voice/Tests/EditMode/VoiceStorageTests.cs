@@ -45,6 +45,24 @@ namespace VirtualVessel.Voice.Tests
         }
 
         [Test]
+        public void OnAndOff_AreSaved_AndComeBackAtStart_ButATrialsAreNot()
+        {
+            VoiceStorage storage = VoiceStorage.InMemory();
+            var service = new VoiceService(new IdleStage(), new IdleLoop(), null, null, null, storage);
+            service.BeginTrial("f");
+            Assert.That(storage.Profile.Enabled, Is.False, "A trial's on is not saved.");
+            service.EndTrial();
+
+            service.SetEnabled(true);
+            Assert.That(storage.Profile.Enabled, Is.True);
+
+            var next = new VoiceService(new IdleStage(), new IdleLoop(), null, null, null, storage);
+            Assert.That(next.State.Value, Is.EqualTo(UI.Voice.VoiceConversionState.Off));
+            next.InitializeAsync(System.Threading.CancellationToken.None).Wait();
+            Assert.That(next.State.Value, Is.Not.EqualTo(UI.Voice.VoiceConversionState.Off), "On again at start; unavailable here without voices.");
+        }
+
+        [Test]
         public void NoiseRemoval_IsOnByDefault_AndSavedForThePC()
         {
             VoiceStorage storage = VoiceStorage.InMemory();

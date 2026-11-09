@@ -127,6 +127,7 @@ A project setting (system design 6.3), kept in `Profiles/Voice/<VoiceProfileId>.
 | `voiceModelId` | The voice for the stream; none when not chosen, and then the first usable one in the list |
 | `semitones` | The user's adjustment in semitones, -24 to 24; added to the automatic shift when that is on (8.4) |
 | `autoPitch` | Automatic pitch matching; on by default |
+| `enabled` | Whether the conversion was on, restored at start; off by default. A trial's on and off are not saved |
 | `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12). Not built yet (chapter 17) |
 
 - Choosing a voice, changing the adjustment, or switching automatic matching saves after 0.5 s (`VoiceStorage`), with a frame callback only while a save waits; shutdown writes what waits.
@@ -337,7 +338,7 @@ Stages:
 
 Open issues:
 
-- What to do on failure (`onFailure`; 6.2, chapter 12) is not built yet. Now a stopped conversion lets the microphone go back to the mix as it is (as `PassThrough`). The default `Mute` needs Audio's stage to stay silent while it gives no output.
+- What to do on failure (`onFailure`; 6.2, chapter 12) is not built yet. Now a stopped conversion lets the microphone go back to the mix as it is (as `PassThrough`). The default `Mute` needs Audio's stage to stay silent while it gives no output. Turning on again at start also lets your own voice through for the seconds the voice loads, which the same mechanism would silence.
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
 - How the settings are shown (the user's request, 2026-11-03). Simple to use, with the detailed settings such as the window kept. There is no choice by what comes first (Lighter GPU, Smoothness): the 1 s window was the best in sound and on the GPU (user decision, 2026-11-03). No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing. The screen is designed in setup screen chapter 13 (the mock-up waits for the user's review).
 - Slow GPUs. Voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03; setup screen 13.3). There is no minimum GPU. There is no required performance yet, and only the RTX 4070 has been measured.

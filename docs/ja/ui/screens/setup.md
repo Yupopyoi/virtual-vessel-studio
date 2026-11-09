@@ -336,7 +336,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
+| 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る。前回の状態を保存し、起動時に戻す。声を変えて配信する人には、起動時にオフで地声が乗るほうが重い失敗であるため（利用者の決定、2026-11-10） |
 | 声 | Select | Voice Labで作った、使える声。試作の声は開発者用なので出さない（診断画面にだけ出す）。選ぶとVoice Profileに保存する（Voice詳細設計6.2） |
 | 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
 | 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
@@ -383,7 +383,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
 | `setup.voice.failed.body` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
+| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings as it is. It starts as it was last time. |
 | `setup.voice.voice` | 声 | Voice |
 | `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |

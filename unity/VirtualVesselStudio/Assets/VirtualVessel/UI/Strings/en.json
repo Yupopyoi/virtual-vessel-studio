@@ -447,7 +447,7 @@
         "setup.voice.failed": "Voice conversion stopped",
         "setup.voice.failed.body": "The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen.",
         "setup.voice.enabled": "Convert my voice",
-        "setup.voice.enabled.body": "Off, your own voice goes to the stream and recordings as it is.",
+        "setup.voice.enabled.body": "Off, your own voice goes to the stream and recordings as it is. It starts as it was last time.",
         "setup.voice.voice": "Voice",
         "setup.voice.voice.body": "Choose from the voices made in Voice Lab.",
         "setup.voice.auto-pitch": "Match the pitch automatically",

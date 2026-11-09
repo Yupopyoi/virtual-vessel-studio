@@ -166,7 +166,7 @@ namespace VirtualVessel.Voice
         {
             _trial ??= new Trial(_wanted);
             Choose(FolderPrefix + folder);
-            SetEnabled(true);
+            Enable(true);
         }
 
         /// <summary>Ends a trial: the saved voice and pitch come back, and the conversion is off again if it was.</summary>
@@ -181,7 +181,7 @@ namespace VirtualVessel.Voice
             _trial = null;
             if (!wasOn)
             {
-                SetEnabled(false);
+                Enable(false);
             }
 
             _semitones = _storage.Profile.Semitones;
@@ -348,10 +348,30 @@ namespace VirtualVessel.Voice
 
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
+            // On again if it was on when the app closed: for someone who streams with a changed voice, starting with
+            // their own voice is the worse failure (the user's decision, 2026-11-10).
+            if (_storage.Profile.Enabled)
+            {
+                Enable(true);
+            }
+
             return Task.CompletedTask;
         }
 
+        /// <summary>Turns the conversion on or off as the user chose, and saves it; a trial's on and off are not saved.</summary>
         public void SetEnabled(bool enabled)
+        {
+            if (_trial == null)
+            {
+                VoiceProfile profile = _storage.Profile.Clone();
+                profile.Enabled = enabled;
+                _storage.SaveProfile(profile);
+            }
+
+            Enable(enabled);
+        }
+
+        private void Enable(bool enabled)
         {
             _wanted = enabled;
             if (!enabled)
@@ -399,7 +419,7 @@ namespace VirtualVessel.Voice
             _fileName = Path.GetFileName(path);
             _fileRead = 0;
             _fileClock.Reset();
-            SetEnabled(true);
+            Enable(true);
             return true;
         }
 

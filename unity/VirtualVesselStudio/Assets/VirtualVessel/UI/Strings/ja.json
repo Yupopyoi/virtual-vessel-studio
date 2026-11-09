@@ -447,7 +447,7 @@
         "setup.voice.failed": "声の変換が停止しました",
         "setup.voice.failed.body": "配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。",
         "setup.voice.enabled": "声を変換する",
-        "setup.voice.enabled.body": "オフの場合、元の声のまま配信と録画に入ります。",
+        "setup.voice.enabled.body": "オフの場合、元の声のまま配信と録画に入ります。起動時は前回の状態に戻ります。",
         "setup.voice.voice": "声",
         "setup.voice.voice.body": "Voice Labで作成した声から選択します。",
         "setup.voice.auto-pitch": "高さを自動で合わせる",

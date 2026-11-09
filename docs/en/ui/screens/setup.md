@@ -334,7 +334,7 @@ A status chip at the right end of the title (Running ✓, Loading ○, Off ○, 
 
 | Row | Control | What it does |
 |---|---|---|
-| Convert my voice | Toggle | Off, your own voice goes to the stream and recordings as it is |
+| Convert my voice | Toggle | Off, your own voice goes to the stream and recordings as it is. Saved and restored at start: for someone streaming with a changed voice, starting off and sending their own voice is the worse failure (user's decision, 2026-11-10) |
 | Voice | Select | The usable voices made in Voice Lab. The prototype's voice is for developers and not listed (only on the Diagnostics screen). Choosing saves it in the Voice Profile (Voice detailed design 6.2) |
 | Match the pitch automatically | Toggle, Measure again | Under the description, "Your voice 200 Hz → this voice 285 Hz (+6)"; "not measured" before measuring |
 | Pitch adjustment | Slider | -24 to +24 semitones, added to the automatic shift when that is on; the description changes with automatic on or off. Under it, "Converted pitch 317 Hz (total +8)" (user's check, 2026-11-10) |
@@ -381,7 +381,7 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
 | `setup.voice.failed.body` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
+| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings as it is. It starts as it was last time. |
 | `setup.voice.voice` | 声 | Voice |
 | `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |

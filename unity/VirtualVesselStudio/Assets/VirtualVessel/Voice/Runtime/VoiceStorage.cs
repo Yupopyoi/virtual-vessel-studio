@@ -23,6 +23,9 @@ namespace VirtualVessel.Voice
 
         public bool AutoPitch { get; set; } = true;
 
+        /// <summary>Whether the conversion was on, to turn it on again at start. Off by default.</summary>
+        public bool Enabled { get; set; }
+
         public VoiceProfile Clone()
         {
             return (VoiceProfile)MemberwiseClone();
