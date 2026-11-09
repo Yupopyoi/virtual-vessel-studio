@@ -324,30 +324,30 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
 
-## 13. 声の変換のCard（設計中）
+## 13. 声の変換のCard
 
-`IVoiceConversion`（Voice）を表示する（`VoiceCard`）。音声のページで、音声のCardの下に置く。マイクに掛ける処理なので、マイクと同じページにする。画面案：https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R（利用者の確認待ち）
+`IVoiceConversion`（Voice）を表示する（`VoiceCard`）。音声のページで、音声のCardの下に置く。マイクに掛ける処理なので、マイクと同じページにする。画面案：https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R（利用者の確認、2026-11-10）
 
 普段は簡単な設定だけで使えるようにする（利用者の要望、2026-11-03）。窓を1秒に固定してから、細かい設定はノイズ除去だけになったので、Cardは1つにする（13.2）。
 
 ### 13.1 声の変換のCard
 
-タイトルの右端に状態のStatus Chip（動作中 ✓、準備中 ○、オフ ○、使えません ×、止まりました ×）。
+タイトルの右端に状態のStatus Chip（動作中 ✓、準備中 ○、オフ ○、使用不可 ×、停止 ×）。
 
 | 行 | 部品 | 内容 |
 |---|---|---|
 | 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る |
-| 声 | Select | Voice Labで作った声 |
-| 声の高さ | Slider | -24〜+24半音 |
-| ノイズ除去 | Toggle | 既定はオン |
-| 自分に聞こえる声 | Segmented | 変換した声、元の声。マイクの「聞く」がオンのとき。配信と録画は常に変換した声（13.4） |
-| 変換できないとき | Segmented | 無音（既定）、元の声（Voice詳細設計12章） |
+| 声 | Select | Voice Labで作った、使える声。試作の声は開発者用なので出さない（診断画面にだけ出す）。選ぶとVoice Profileに保存する（Voice詳細設計6.2） |
+| 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
+| 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
+| ノイズ除去 | Toggle | 既定はオン。PCごとに保存する（Voice詳細設計6.3） |
 
-Cardの下に「声の変換は、GPUを多く使います。」の一文と、「利用上の注意を見る」のButtonを置く。声を作る機能の規約と注意は、いつでも見られるようにする（Voice Lab詳細設計1章）。
+Cardの下に「声の変換はGPUを多く使用します。」の一文を置く。
 
-- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使えません」とその理由を出し、すべての行を無効にする（13.3）。
-- 声がないとき：Cardの先頭に「声がまだありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
-- 止まったとき：Cardの先頭に、何が起きたか、配信に何を流しているか、どうすればよいかを出す。
+- 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使用できません」とその理由を出し、すべての行を無効にする（13.3）。
+- 声がないとき：Cardの先頭に「声がありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
+- 止まったとき：Cardの先頭に、止まったことと、配信と録画に元の声が流れていること、どうすればよいかを出す。変換できないときの扱い（`onFailure`）を作るまでは、止まると元の声が流れる（Voice詳細設計17章）。
+- 「自分に聞こえる声」（13.4）、「変換できないとき」、「利用上の注意を見る」は、後の段階で加える。音声の処理の段の変更、変換できないときの扱い、規約（Voice Lab詳細設計8.2）がそれぞれ要るためである。
 
 ### 13.2 固定した値
 
@@ -373,31 +373,28 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.state.running` | 動作中 | Running |
 | `setup.voice.state.loading` | 準備中 | Loading |
 | `setup.voice.state.off` | オフ | Off |
-| `setup.voice.state.unavailable` | 使えません | Unavailable |
-| `setup.voice.state.failed` | 止まりました | Stopped |
-| `setup.voice.no-voice` | 声がまだありません | No voice yet |
-| `setup.voice.no-voice.description` | Voice Labで声を作ると、ここで選べるようになります。 | Make a voice in Voice Lab, and you can choose it here. |
-| `setup.voice.no-gpu` | このPCでは声の変換を使えません | Voice conversion cannot be used on this PC |
-| `setup.voice.no-gpu.description` | 声の変換には、グラフィックボード（GPU）が必要です。このPCでは使えるGPUが見つかりませんでした。 | It needs a graphics card (GPU), and none that it can use was found on this PC. |
+| `setup.voice.state.unavailable` | 使用不可 | Unavailable |
+| `setup.voice.state.stopped` | 停止 | Stopped |
+| `setup.voice.no-voice` | 声がありません | No voice |
+| `setup.voice.no-voice.body` | Voice Labで声を作成すると、ここで選択できます。 | Make a voice in Voice Lab to choose it here. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
-| `setup.voice.failed` | 声の変換を続けられませんでした | Voice conversion could not continue |
-| `setup.voice.failed.mute` | 設定に従って、配信と録画には無音を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get silence. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
-| `setup.voice.failed.pass` | 設定に従って、配信と録画には元の声を流しています。もう一度オンにしてください。続く場合は、診断画面のログを確認してください。 | As set, the stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.no-gpu` | このPCでは声の変換を使用できません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.body` | 声の変換にはGPUが必要です。使用できるGPUが見つかりませんでした。 | It needs a GPU, and no usable GPU was found. |
+| `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
+| `setup.voice.failed.body` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.description` | オフにすると、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
+| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。 | Off, your own voice goes to the stream and recordings as it is. |
 | `setup.voice.voice` | 声 | Voice |
-| `setup.voice.voice.description` | Voice Labで作った声から選びます。 | Choose from the voices made in Voice Lab. |
-| `setup.voice.pitch` | 声の高さ | Pitch |
-| `setup.voice.pitch.description` | 半音ずつ上げ下げします。男性の声を女性の声にするなら、+12前後が目安です。 | Raises or lowers it by semitones. From a man's voice to a woman's, about +12. |
-| `setup.voice.hear` | 自分に聞こえる声 | What you hear |
-| `setup.voice.hear.description` | マイクの「聞く」がオンのときに聞こえる声です。元の声は遅れないので、歌うときにリズムを取りやすくなります。配信と録画には、変換した声が入ります。 | The voice heard when the microphone's Hear is on. Your own voice comes without delay, which makes rhythm easier when singing. The stream and recordings get the converted voice. |
-| `setup.voice.hear.converted` | 変換した声 | Converted |
-| `setup.voice.hear.original` | 元の声 | My own |
-| `setup.voice.failure` | 変換できないとき | If conversion stops |
-| `setup.voice.failure.description` | 変換が止まったときに、配信と録画に流す音です。「無音」なら、元の声が配信に出ることはありません。 | What goes to the stream and recordings when conversion stops. With Silence, your own voice never goes out. |
-| `setup.voice.failure.mute` | 無音 | Silence |
-| `setup.voice.failure.pass` | 元の声 | My own |
-| `setup.voice.gpu` | 声の変換は、GPUを多く使います。 | Voice conversion uses a lot of the GPU. |
-| `setup.voice.terms` | 利用上の注意を見る | Read the notes on use |
+| `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
+| `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |
+| `setup.voice.auto-pitch.body` | 自分の声の高さを測定し、選択した声の高さに合わせます。 | Measures your voice and moves it to the chosen voice's pitch. |
+| `setup.voice.pitch-match` | 自分の声 {user} → この声 {voice}（{shift}） | Your voice {user} → this voice {voice} ({shift}) |
+| `setup.voice.unmeasured` | 測定前 | not measured |
+| `setup.voice.remeasure` | 測り直す | Measure again |
+| `setup.voice.adjust` | 高さの調整 | Pitch adjustment |
+| `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
+| `setup.voice.adjust.body-manual` | 半音単位で調整します。男性の声を女性の声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
 | `setup.voice.denoise` | ノイズ除去 | Noise removal |
-| `setup.voice.denoise.description` | 声のない間の、キーボードやマウスなどの音を減らします。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
+| `setup.voice.denoise.body` | 声がない間の、キーボードやマウスなどの音を抑えます。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
+| `setup.voice.gpu` | 声の変換はGPUを多く使用します。 | Voice conversion uses a lot of the GPU. |

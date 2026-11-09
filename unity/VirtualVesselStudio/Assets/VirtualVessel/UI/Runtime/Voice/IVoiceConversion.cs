@@ -124,7 +124,10 @@ namespace VirtualVessel.UI.Voice
         /// <summary>Forgets the user's measured pitch and measures it again from the next voice.</summary>
         void RemeasurePitch();
 
-        /// <summary>Removes noise such as key presses before the voice is converted.</summary>
+        /// <summary>Whether this PC has a GPU that can convert; without one it cannot be turned on (setup screen 13.3).</summary>
+        bool GpuAvailable { get; }
+
+        /// <summary>Removes noise such as key presses before the voice is converted. Saved for this PC.</summary>
         bool Denoise { get; set; }
 
         /// <summary>How far the models have loaded, from 0 to 1.</summary>

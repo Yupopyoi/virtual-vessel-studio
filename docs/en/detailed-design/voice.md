@@ -144,7 +144,7 @@ The GPU load differs from PC to PC, so these belong to the PC, not the Project (
 | `monitorVoice` | What the user hears: `Converted` or `Original` (setup screen 13.4) |
 | `userPitchHz` | The user's measured median pitch (8.4); 0 when not measured |
 
-Only `userPitchHz` exists now; `denoise` and `monitorVoice` come with the voice conversion card on the setup screen. The user's pitch belongs to the person and the PC, not the project, so it is kept here (user's request, 2026-11-08).
+`userPitchHz` and `denoise` (on by default; setup screen 13.1) exist now; `monitorVoice` comes with What you hear (setup screen 13.4). The user's pitch belongs to the person and the PC, not the project, so it is kept here (user's request, 2026-11-08).
 
 The window is fixed at 1 s and the overlap at joins at 50 ms; neither is a setting (user decision, 2026-11-03).
 

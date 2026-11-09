@@ -41,6 +41,9 @@ namespace VirtualVessel.Voice
         /// <summary>The user's median pitch in Hz once measured; 0 until then.</summary>
         public float UserPitchHz { get; set; }
 
+        /// <summary>Noise removal before the conversion. On by default; a file from before reads on.</summary>
+        public bool Denoise { get; set; } = true;
+
         public VoiceSettings Clone()
         {
             return (VoiceSettings)MemberwiseClone();

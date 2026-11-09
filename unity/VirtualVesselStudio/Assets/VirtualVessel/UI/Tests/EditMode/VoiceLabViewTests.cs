@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
@@ -216,6 +217,20 @@ namespace VirtualVessel.UI.Tests
         public void VoiceLab_IsNotUsed_WhileAStreamOrARecordingRuns(StreamingState streaming, RecordingState recording, bool live)
         {
             Assert.That(VoiceLabView.IsLive(streaming, recording), Is.EqualTo(live));
+        }
+
+        [Test]
+        public void TheVoiceCard_SaysTheState_AndTheConvertedPitch()
+        {
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Running, true, true), Is.EqualTo((StatusKind.Success, VoiceCardStrings.StateRunning)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Off, true, true), Is.EqualTo((StatusKind.Idle, VoiceCardStrings.StateOff)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Failed, true, true), Is.EqualTo((StatusKind.Error, VoiceCardStrings.StateStopped)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Running, false, true).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Off, true, false).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
+            Assert.That(VoiceCard.FinalHz(200f, true, 6f, 0f), Is.EqualTo(200f * (float)System.Math.Pow(2.0, 0.5)).Within(0.01f));
+            Assert.That(VoiceCard.FinalHz(200f, false, 6f, 12f), Is.EqualTo(400f).Within(0.01f), "Automatic off: the adjustment alone.");
+            Assert.That(VoiceCard.FinalHz(0f, true, 6f, 0f), Is.EqualTo(0f));
+            Assert.That(VoiceCard.Choices(new[] { new VoiceConversionVoice("", null, 0, true), new VoiceConversionVoice("voice-a", "A", 0, false), new VoiceConversionVoice("voice-b", "B", 0, true) }).Select(c => c.Id), Is.EqualTo(new[] { "voice-b" }));
         }
 
         [Test]

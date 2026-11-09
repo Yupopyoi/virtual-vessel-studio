@@ -45,6 +45,26 @@ namespace VirtualVessel.Voice.Tests
         }
 
         [Test]
+        public void NoiseRemoval_IsOnByDefault_AndSavedForThePC()
+        {
+            VoiceStorage storage = VoiceStorage.InMemory();
+            var service = new VoiceService(new IdleStage(), new IdleLoop(), null, null, null, storage);
+            Assert.That(service.Denoise, Is.True);
+
+            service.Denoise = false;
+
+            Assert.That(storage.Settings.Denoise, Is.False);
+        }
+
+        [Test]
+        public void TheGpu_MustComputeAndNotBeSoftware()
+        {
+            Assert.That(VoiceService.IsGpuUsable(true, UnityEngine.Rendering.GraphicsDeviceType.Direct3D11), Is.True);
+            Assert.That(VoiceService.IsGpuUsable(false, UnityEngine.Rendering.GraphicsDeviceType.Direct3D11), Is.False);
+            Assert.That(VoiceService.IsGpuUsable(true, UnityEngine.Rendering.GraphicsDeviceType.Null), Is.False);
+        }
+
+        [Test]
         public void TheFiles_ReadBackWhatWasSaved()
         {
             string folder = Path.Combine(Path.GetTempPath(), "vv-voice-" + Guid.NewGuid().ToString("N"));

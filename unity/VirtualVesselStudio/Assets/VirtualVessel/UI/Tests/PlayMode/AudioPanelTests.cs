@@ -14,6 +14,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Voice;
 using Object = UnityEngine.Object;
 
 namespace VirtualVessel.UI.Tests
@@ -250,6 +251,60 @@ namespace VirtualVessel.UI.Tests
             var devices = new[] { new AudioDevice("a", "A", true) };
             Assert.That(AudioCard.Choices(devices, "gone", "Not connected").Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "a", "gone" }), "An unplugged choice is kept.");
             Assert.That(AudioCard.Choices(devices, "a", "Not connected").Count, Is.EqualTo(2));
+        }
+
+        // The setup screen again, with the voice conversion beside the audio.
+        private IEnumerator WithVoice(FakeVoice voice)
+        {
+            Object.Destroy(_host);
+            yield return null;
+            _host = new GameObject(nameof(AudioPanelTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Audio = _audio, SystemSettings = _settings, Voice = voice }));
+            yield return null;
+            OpenCard();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator TheVoiceCard_ChoosesTheVoiceForTheStream_AndShowsTheConvertedPitch()
+        {
+            var voice = new FakeVoice();
+            voice.Voices.Add(new VoiceConversionVoice("", null, 0, true));
+            voice.Voices.Add(new VoiceConversionVoice("voice-a", "Poyapoya", 285, true));
+            voice.Voices.Add(new VoiceConversionVoice("voice-b", "Fuwari", 353, true));
+            yield return WithVoice(voice);
+            VoiceCard card = _root.Content.Q<VoiceCard>();
+
+            Assert.That(card.VoiceChoice.Choices.Select(c => c.Id), Is.EqualTo(new[] { "voice-a", "voice-b" }), "The prototype's voice is for developers.");
+            card.VoiceChoice.value = "voice-b";
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-b"));
+
+            card.Adjustment.value = 3f;
+            Assert.That(voice.Semitones, Is.EqualTo(3f));
+            card.DenoiseToggle.value = false;
+            Assert.That(voice.Denoise, Is.False);
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator TheVoiceCard_WithoutAVoiceOrAGpu_SaysWhy_AndCannotBeTurnedOn()
+        {
+            var voice = new FakeVoice();
+            yield return WithVoice(voice);
+            VoiceCard card = _root.Content.Q<VoiceCard>();
+            Assert.That((card.Status.Status, card.Status.TextKey), Is.EqualTo((StatusKind.Error, VoiceCardStrings.StateUnavailable)));
+            Assert.That(card.Query<ActionButton>().Where(b => b.TextKey == VoiceCardStrings.OpenLab).First().resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.False);
+
+            var noGpu = new FakeVoice { GpuAvailable = false };
+            noGpu.Voices.Add(new VoiceConversionVoice("voice-a", "Poyapoya", 285, true));
+            yield return WithVoice(noGpu);
+            card = _root.Content.Q<VoiceCard>();
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.False);
+            Assert.That(card.Query<StatusChip>().Where(c => c.TextKey == VoiceCardStrings.NoGpu).ToList().Count, Is.EqualTo(1));
         }
 
         private AudioCard OpenCard()

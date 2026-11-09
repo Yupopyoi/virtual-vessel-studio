@@ -118,6 +118,7 @@ namespace VirtualVessel.Voice
             _semitones = _storage.Profile.Semitones;
             _autoPitch = _storage.Profile.AutoPitch;
             _meter.Restore(_storage.Settings.UserPitchHz);
+            _denoise = _storage.Settings.Denoise;
         }
 
         /// <summary>The voice chosen for the stream, as saved; a trial does not change it. Voice Lab keeps it from being deleted.</summary>
@@ -214,7 +215,24 @@ namespace VirtualVessel.Voice
         public bool Denoise
         {
             get => _denoise;
-            set => _denoise = value;
+            set
+            {
+                _denoise = value;
+                VoiceSettings settings = _storage.Settings.Clone();
+                settings.Denoise = value;
+                _storage.SaveSettings(settings);
+            }
+        }
+
+        public bool GpuAvailable => IsGpuUsable(UnityEngine.SystemInfo.supportsComputeShaders, UnityEngine.SystemInfo.graphicsDeviceType);
+
+        /// <summary>
+        /// Whether the GPU can run the conversion: compute shaders, and not a software device. No speed is required, as
+        /// none is known yet (setup screen 13.3; Voice detailed design 17). Pure.
+        /// </summary>
+        public static bool IsGpuUsable(bool computeShaders, UnityEngine.Rendering.GraphicsDeviceType device)
+        {
+            return computeShaders && device != UnityEngine.Rendering.GraphicsDeviceType.Null;
         }
 
         public float LoadProgress => _loader.Progress;

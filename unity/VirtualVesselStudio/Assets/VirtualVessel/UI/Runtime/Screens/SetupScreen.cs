@@ -85,6 +85,12 @@ namespace VirtualVessel.UI.Screens
             if (services.Audio != null)
             {
                 audio.Add(new AudioCard(services.Audio, services.SystemSettings, video.Q<GameAudioRow>() != null));
+
+                // Under the microphone, since it converts the microphone (setup screen 13).
+                if (services.Voice != null)
+                {
+                    audio.Add(new VoiceCard(services.Voice));
+                }
             }
             else
             {

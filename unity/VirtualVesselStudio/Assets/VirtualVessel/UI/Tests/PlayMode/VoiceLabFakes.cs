@@ -232,9 +232,11 @@ namespace VirtualVessel.UI.Tests
 
         public IReadOnlyObservable<VoiceConversionState> State => _state;
 
+        public List<VoiceConversionVoice> Voices { get; } = new List<VoiceConversionVoice>();
+
         public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
         {
-            return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Array.Empty<VoiceConversionVoice>());
+            return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Voices.ToArray());
         }
 
         private bool _wasOn;
@@ -300,6 +302,8 @@ namespace VirtualVessel.UI.Tests
         }
 
         public bool Denoise { get; set; }
+
+        public bool GpuAvailable { get; set; } = true;
 
         public float LoadProgress => 0f;
 
