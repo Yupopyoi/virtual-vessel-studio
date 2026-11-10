@@ -307,7 +307,7 @@ A Card on the setup screen's Audio page. As a mixer, it has a row each for the s
 | Mute | Toggle |
 | Level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
 
-Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
+Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Hear and Noise removal are explained in Help Hints after their headings (components 3.28). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
 - The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.

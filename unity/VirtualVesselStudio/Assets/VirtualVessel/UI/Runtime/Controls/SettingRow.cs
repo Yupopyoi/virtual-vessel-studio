@@ -12,10 +12,14 @@ namespace VirtualVessel.UI.Controls
     {
         public const string UssClass = "vv-setting-row";
 
+        /// <summary>For an element holding more than one control on the row, so they keep the S space between them.</summary>
+        public const string ControlsClass = UssClass + "__controls";
+
         private readonly KeyedText _name;
         private readonly KeyedText _description;
         private readonly VisualElement _text;
         private readonly VisualElement _control;
+        private readonly HelpHint _help;
 
         public SettingRow()
             : this(null, null)
@@ -34,7 +38,14 @@ namespace VirtualVessel.UI.Controls
             var description = new Label();
             description.AddToClassList(UssClass + "__description");
             description.AddToClassList("vv-text-caption");
-            text.Add(name);
+            // The name and, when the row has one, its help hint (components.md 3.28) on one line.
+            var heading = new VisualElement();
+            heading.AddToClassList(UssClass + "__heading");
+            heading.Add(name);
+            _help = new HelpHint(null);
+            _help.style.display = DisplayStyle.None;
+            heading.Add(_help);
+            text.Add(heading);
             text.Add(description);
             hierarchy.Add(text);
 
@@ -66,6 +77,21 @@ namespace VirtualVessel.UI.Controls
             get => _name.Key;
             set => _name.Key = value;
         }
+
+        /// <summary>The explanation behind a help hint after the name; null for no hint.</summary>
+        [UxmlAttribute("help-key")]
+        public string HelpKey
+        {
+            get => _help.TooltipKey;
+            set
+            {
+                _help.TooltipKey = value;
+                _help.style.display = string.IsNullOrEmpty(value) ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+        }
+
+        /// <summary>The help hint after the name, shown when <see cref="HelpKey"/> is set.</summary>
+        public HelpHint Help => _help;
 
         [UxmlAttribute("description-key")]
         public string DescriptionKey

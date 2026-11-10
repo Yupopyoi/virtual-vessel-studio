@@ -52,6 +52,7 @@ namespace VirtualVessel.UI.Screens
         public const string TabStage = "gallery.tab.stage";
         public const string Noise = "gallery.noise";
         public const string NoiseDescription = "gallery.noise-description";
+        public const string NoiseHelp = "gallery.noise-help";
         public const string Weak = "gallery.weak";
         public const string Strong = "gallery.strong";
         public const string ShowInfo = "gallery.show-info";

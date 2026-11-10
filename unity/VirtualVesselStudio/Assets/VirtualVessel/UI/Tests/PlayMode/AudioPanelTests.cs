@@ -176,6 +176,18 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Explanations_AreBehindHelpHints_NotLinesUnderTheTable()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            List<string> hints = card.Query<HelpHint>().ToList().Select(h => h.TooltipKey).Where(k => k != null).Distinct().ToList();
+
+            Assert.That(hints, Is.EquivalentTo(new[] { AudioStrings.MonitoredDescription, AudioStrings.DenoiseDescription }));
+            Assert.That(card.Query<HelpHint>().ToList().Where(h => h.TooltipKey != null).All(h => h.focusable), Is.True, "Reachable from the keyboard.");
+            Assert.That(card.Query<Label>().ToList().Where(l => l.ClassListContains(AudioCard.NoteClass)), Is.Empty, "No notes under the table.");
+        }
+
+        [UnityTest]
         public IEnumerator NoiseRemoval_IsOnTheMicrophonesRow_Only()
         {
             AudioCard card = OpenCard();
@@ -352,7 +364,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeSource : IAudioSource
+        internal sealed class FakeSource : IAudioSource
         {
             private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Off);
             private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
@@ -391,7 +403,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeMonitor : IAudioMonitor
+        internal sealed class FakeMonitor : IAudioMonitor
         {
             private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Running);
             private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
@@ -411,7 +423,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeAudio : IAudioService
+        internal sealed class FakeAudio : IAudioService
         {
             private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(new[]
             {
@@ -457,7 +469,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeSettings : ISystemSettings
+        internal sealed class FakeSettings : ISystemSettings
         {
             public int Opened { get; private set; }
 

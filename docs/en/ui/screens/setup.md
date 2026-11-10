@@ -239,9 +239,9 @@ Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a 
 | Mute | Toggle |
 | Level | Level Meter, -60 to 0 dB |
 
-Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Under the table, the notes and the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
+Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Hear and Noise removal are explained in Help Hints after their column headings (components.md 3.28), not in lines under the table (the user's request, 2026-11-11). That the game audio's device is chosen on the Video page is the tooltip of its disabled device choice. Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
 
-- When the Card is narrower than 850 px, the column headings hide, rows wrap, and each control carries its name.
+- When the Card is narrower than 870 px, the column headings hide, rows wrap, and each control carries its name.
 - Devices are listed again every 5 seconds while the Card is shown.
 - The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
 
@@ -272,10 +272,9 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
-| `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンをおすすめします。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
 | `setup.audio.denoise` | ノイズ除去 | Noise removal |
-| `setup.audio.denoise.description` | 「ノイズ除去」は、話していない間のキーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Noise removal reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
-| `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.denoise.description` | 話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
 | `setup.audio.monitor.device` | 出力先 | Output |
@@ -342,7 +341,7 @@ A status chip at the right end of the title (Running ✓, Loading ○, Off ○, 
 | Match the pitch automatically | Toggle, Measure again | Under the description, "Your voice 200 Hz → this voice 285 Hz (+6)"; "not measured" before measuring |
 | Pitch adjustment | Slider | -24 to +24 semitones, added to the automatic shift when that is on; the description changes with automatic on or off. Under it, "Converted pitch 317 Hz (total +8)" (user's check, 2026-11-10) |
 
-Under the Card, the line "Voice conversion uses a lot of the GPU."
+A Help Hint after the name "Convert my voice" holds "Voice conversion uses a lot of the GPU." (the user's request, 2026-11-11: keep the screen's text short).
 
 - Without a usable GPU: the Card starts with "Voice conversion cannot be used on this PC" and why, and every row is disabled (13.3).
 - Without a voice: the Card starts with "No voice" and "Open Voice Lab", and the other rows are disabled.

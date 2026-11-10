@@ -57,8 +57,8 @@ namespace VirtualVessel.UI.Screens
             Gain.RegisterValueChangedCallback(evt => SetGain(evt.newValue));
             row.Add(Cell(AudioStrings.Gain, Gain, AudioCard.GainColumn));
 
-            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn) : EmptyCell(AudioCard.ToggleColumn));
-            row.Add(denoise != null ? Cell(AudioStrings.Denoise, denoise, AudioCard.DenoiseColumn) : EmptyCell(AudioCard.DenoiseColumn));
+            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription) : EmptyCell(AudioCard.ToggleColumn));
+            row.Add(denoise != null ? Cell(AudioStrings.Denoise, denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription) : EmptyCell(AudioCard.DenoiseColumn));
 
             Mute = new SwitchToggle();
             Mute.RegisterValueChangedCallback(evt => SetMuted(evt.newValue));
@@ -99,8 +99,8 @@ namespace VirtualVessel.UI.Screens
             columns.Add(Heading(AudioStrings.Source, AudioCard.NameColumn));
             columns.Add(Heading(AudioStrings.Device, AudioCard.DeviceColumn));
             columns.Add(Heading(AudioStrings.Gain, AudioCard.GainColumn));
-            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn));
-            columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn));
+            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription));
+            columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription));
             columns.Add(Heading(AudioStrings.Mute, AudioCard.ToggleColumn));
             columns.Add(Heading(AudioStrings.Level, AudioCard.LevelColumn));
             return columns;
@@ -144,9 +144,18 @@ namespace VirtualVessel.UI.Screens
             return problemKey;
         }
 
-        private static VisualElement Heading(string key, string column)
+        private static VisualElement Heading(string key, string column, string helpKey = null)
         {
-            return Ui.Text(key, AudioCard.CellClass, column, "vv-text-caption");
+            if (helpKey == null)
+            {
+                return Ui.Text(key, AudioCard.CellClass, column, "vv-text-caption");
+            }
+
+            VisualElement cell = NewCell(column);
+            cell.AddToClassList(AudioCard.HelpCellClass);
+            cell.Add(Ui.Text(key, "vv-text-caption"));
+            cell.Add(new HelpHint(helpKey));
+            return cell;
         }
 
         private static VisualElement NameCell(VisualElement name)
@@ -156,11 +165,25 @@ namespace VirtualVessel.UI.Screens
             return cell;
         }
 
-        // The name in a cell shows only while the columns' headings are gone (AudioCard.NarrowClass).
-        private static VisualElement Cell(string key, VisualElement control, string column)
+        // The name in a cell shows only while the columns' headings are gone (AudioCard.NarrowClass), with the heading's
+        // help hint, so the explanation stays reachable then.
+        private static VisualElement Cell(string key, VisualElement control, string column, string helpKey = null)
         {
             VisualElement cell = NewCell(column);
-            cell.Add(Ui.Text(key, AudioCard.CellLabelClass, "vv-text-caption"));
+            if (helpKey == null)
+            {
+                cell.Add(Ui.Text(key, AudioCard.CellLabelClass, "vv-text-caption"));
+            }
+            else
+            {
+                var label = new VisualElement();
+                label.AddToClassList(AudioCard.CellLabelClass);
+                label.AddToClassList(AudioCard.HelpCellClass);
+                label.Add(Ui.Text(key, "vv-text-caption"));
+                label.Add(new HelpHint(helpKey));
+                cell.Add(label);
+            }
+
             cell.Add(control);
             return cell;
         }
@@ -212,8 +235,10 @@ namespace VirtualVessel.UI.Screens
             PrivacyButton.AddToClassList(AudioCard.PrivacyClass);
             Root.Add(PrivacyButton);
 
-            // Disabled, not left out, so the row still says which device the sound comes from.
+            // Disabled, not left out, so the row still says which device the sound comes from; the tooltip says where
+            // it is chosen.
             Devices.SetEnabled(!deviceElsewhere);
+            Devices.TooltipKey = deviceElsewhere ? AudioStrings.GameDeviceNote : null;
             Show();
         }
 

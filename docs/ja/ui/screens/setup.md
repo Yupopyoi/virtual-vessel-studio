@@ -241,9 +241,9 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | ミュート | Toggle |
 | レベル | Level Meter、-60〜0dB |
 
-行の下に、問題があるときだけ、何が起きたかと対処を出す。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」を置く。表の下に注記と、配信・録画の音声の遅延（Slider、0〜1000ms、既定300ms。Audio詳細設計8.5）を置く。
+行の下に、問題があるときだけ、何が起きたかと対処を出す。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」を置く。「聞く」と「ノイズ除去」の説明は、列の見出しの後のHelp Hint（components.md 3.28）に置き、表の下に文を並べない（利用者の要望、2026-11-11）。ゲームの音声の機器を「映像」のページで選ぶことは、無効にした機器の選択のツールチップで伝える。表の下に、配信・録画の音声の遅延（Slider、0〜1000ms、既定300ms。Audio詳細設計8.5）を置く。
 
-- Cardの幅が850pxより狭いときは列の見出しを隠し、行を折り返して、操作部品ごとに名前を添える。
+- Cardの幅が870pxより狭いときは列の見出しを隠し、行を折り返して、操作部品ごとに名前を添える。
 - Cardを表示している間、機器を5秒ごとに数え直す。
 - マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ。映像の機器を選ぶと自動で選ばれる。3章）。
 
@@ -274,10 +274,9 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
-| `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンをおすすめします。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
 | `setup.audio.denoise` | ノイズ除去 | Noise removal |
-| `setup.audio.denoise.description` | 「ノイズ除去」は、話していない間のキーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Noise removal reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
-| `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.denoise.description` | 話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
 | `setup.audio.monitor.device` | 出力先 | Output |
@@ -344,7 +343,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
 | 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
 
-Cardの下に「声の変換はGPUを多く使用します。」の一文を置く。
+「声を変換する」の名前の後のHelp Hintに「声の変換はGPUを多く使用します。」を置く（利用者の要望、2026-11-11。画面の文字を増やさない）。
 
 - 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使用できません」とその理由を出し、すべての行を無効にする（13.3）。
 - 声がないとき：Cardの先頭に「声がありません」と「Voice Labを開く」を出し、ほかの行を無効にする。

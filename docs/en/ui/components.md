@@ -99,6 +99,8 @@ For each component, the following states are defined:
 - Rows are separated by a 1px divider.
 - The control fits in 260px. Segmented items have short names ("Standard", "AV1"), and anything more goes in the description. A value too long for it, such as a folder's path, goes under the description (`SettingRow.TextArea`) instead of on the right, and wraps there, so every row's control lines up.
 - Values are in Text, more readable than the description.
+- What only some need to read goes in a Help Hint after the name (3.28, `SettingRow.HelpKey`), not in more lines of description.
+- More than one control on a row (a button and a toggle, for example) has the S space (8px) between them (`SettingRow.ControlsClass`).
 - On narrow screens the control moves below the description. The name and description keep at least 240px: UI Toolkit breaks the line by the minimum width, not by the basis alone, so without it the text was squeezed beside the control, one character a line.
 
 ### 3.10 Card
@@ -236,6 +238,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - A problem's explanation appears under its row, only when there is one.
 - An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.
 - Without enough width, the column headings hide, rows wrap, and each control carries its name.
+- A column's explanation is a Help Hint (3.28) after its heading, not lines under the table. With the headings hidden, it follows the name each control carries.
 
 ### 3.26 Step Indicator
 
@@ -255,6 +258,14 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - A sort control (Segmented, 3.18) may sit above.
 
 ---
+
+### 3.28 Help Hint
+
+- A 16px Info icon after a name or a column heading, in Text 3, Text on hover, XS (4px) after the name.
+- Its tooltip (3.12) explains the item. It is not about an action, so it may be more than one sentence, but at most three, within the 260px width.
+- It takes keyboard focus, and shows the tooltip on focus too.
+- It keeps the screen short (the user's request, 2026-11-11). What the user must read to avoid a mistake (losing data, for example) is written on the screen, not hidden here.
+- Why a control is disabled goes in that control's tooltip (3.12), not in a Help Hint.
 
 ## 4. Adding a Component
 

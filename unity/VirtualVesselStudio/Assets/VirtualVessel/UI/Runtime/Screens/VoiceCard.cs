@@ -90,7 +90,9 @@ namespace VirtualVessel.UI.Screens
 
             EnabledToggle = Ui.Toggle(null);
             EnabledToggle.RegisterValueChangedCallback(evt => _voice.SetEnabled(evt.newValue));
-            card.Add(Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledBody, EnabledToggle));
+            SettingRow enabled = Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledBody, EnabledToggle);
+            enabled.HelpKey = VoiceCardStrings.Gpu;
+            card.Add(enabled);
 
             VoiceChoice = Ui.Select(null);
             VoiceChoice.RegisterValueChangedCallback(evt =>
@@ -115,7 +117,7 @@ namespace VirtualVessel.UI.Screens
                 Refresh();
             };
             var autoControls = new VisualElement();
-            autoControls.style.flexDirection = FlexDirection.Row;
+            autoControls.AddToClassList(SettingRow.ControlsClass);
             autoControls.Add(remeasure);
             autoControls.Add(AutoPitchToggle);
             SettingRow auto = Row(VoiceCardStrings.AutoPitch, VoiceCardStrings.AutoPitchBody, autoControls);
@@ -137,7 +139,6 @@ namespace VirtualVessel.UI.Screens
             AdjustRow = adjust;
             card.Add(adjust);
 
-            card.Add(Ui.Text(VoiceCardStrings.Gpu, NoteClass, "vv-text-caption"));
             RegisterCallback<AttachToPanelEvent>(_ => OnAttached());
             RegisterCallback<DetachFromPanelEvent>(_ => OnDetached());
         }
