@@ -226,7 +226,7 @@ A record control sits under the stream preview, so recording starts and stops fr
 | Failed | A status chip with the problem and what to do (5), and "● Record" again |
 
 - **Against mistakes** (the user's request; components 3.1, 3.11):
-  - Stopping is a Danger action and runs only after a confirmation dialog: "Stop recording? The file so far is saved." with "Stop recording" (Danger) and "Cancel".
+  - Stopping is a Danger action and runs only after a confirmation dialog: "Stop recording? What has been recorded so far is saved." with "Stop recording" (Danger) and "Cancel".
   - Starting needs no confirmation: starting by mistake loses nothing, and a stray start is stopped as above.
   - The button does not answer a second press while starting or stopping, and Space or Enter must be pressed on the button itself (no global shortcut yet).
 - After stopping, "Saved: <file name>" and "Open folder" appear under the record control. "Open folder" opens Explorer with the file selected. Notifications (`INotificationService`) have no buttons, so this is on the live screen.

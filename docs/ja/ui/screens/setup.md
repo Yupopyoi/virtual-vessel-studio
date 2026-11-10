@@ -76,11 +76,11 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 停止中 | Idle | 停止中 |
 | 準備中 | Idle | 準備中 |
 | トラッキング中 | Success | トラッキング中 |
-| 人が映っていない | Warning | 人が映っていません。説明：「カメラの前に座り、顔と上半身が映るようにしてください。」 |
-| カメラを選ぶ必要がある | Warning | カメラを待っています。説明：「「カメラ」でトラッキングに使うWebカメラを選んでください。」 |
-| カメラが見つからない | Warning | カメラを待っています。説明：「カメラが見つかりません。つなぐと自動で見つけ直します。」 |
-| ゲーム画面と同じカメラ | Error | トラッキングできません。説明：「このカメラはゲーム画面の取り込みで使っています。別のカメラを選んでください。」 |
-| 失敗 | Error | トラッキングできません。説明：「カメラを開けないか、トラッキングを始められませんでした。ほかのアプリがカメラを使っていないか確かめてください。」 |
+| 人が映っていない | Warning | 人が映っていません。説明：「カメラの前に座り、顔と上半身がカメラに映るようにしてください。」 |
+| カメラを選ぶ必要がある | Warning | カメラを待っています。説明：「「カメラ」でトラッキングに使うWebカメラを選択してください。」 |
+| カメラが見つからない | Warning | カメラを待っています。説明：「カメラが見つかりません。カメラをつなぐと自動で探し直します。」 |
+| ゲーム画面と同じカメラ | Error | トラッキングできません。説明：「このカメラはゲーム画面の取り込みで使っています。別のカメラを選択してください。」 |
+| 失敗 | Error | トラッキングできません。説明：「カメラを開けないか、トラッキングを始められませんでした。ほかのアプリがカメラを使っていないか確認してください。」 |
 
 - MediaPipeのPluginがない等の開発者向けの問題は、利用者には「失敗」として表示する。
 - ToggleはカメラやMediaPipeを待っている間もオンのまま。
@@ -136,9 +136,9 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 機器を選ぶ必要がある | Warning | 停止中。説明：「機器でキャプチャーボードを選んでください。Webカメラで顔が映らないよう、カメラは自動では開きません。」 |
 | 開始中 | Idle | 開始中 |
 | 映像を待っている | Idle | 映像を待っています |
-| 信号がない | Warning | 映像を待っています。説明：「映像が届いていません。ゲーム機の電源とケーブルを確かめてください。」 |
+| 信号がない | Warning | 映像を待っています。説明：「映像が届いていません。ゲーム機の電源とケーブル接続を確認してください。」 |
 | 取り込み中 | Success | 取り込み中 |
-| 機器が見つからない | Warning | 機器が見つかりません（探し続けています）。説明：「つなぐと自動で見つけ直します。」 |
+| 機器が見つからない | Warning | 機器が見つかりません（探し続けています）。説明：「機器をつなぐと自動で探し直します。」 |
 | トラッキングと同じカメラ | Error | 取り込めませんでした。説明：「同じカメラをトラッキングで使っています。別の機器を選んでください。」 |
 | 失敗 | Error | 取り込めませんでした。説明：「ほかのアプリが機器を使っている可能性があります。」 |
 
@@ -154,14 +154,14 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 説明 | 説明文（Text 2） | 「Virtual Vessel Studio は、次のソフトウェアと素材を使っています。ライセンスの全文があるものは「全文を見る」で読めます。」 |
+| 説明 | 説明文（Text 2） | 「Virtual Vessel Studio は、次のソフトウェアと素材を使っています。ライセンスの全文があるものは「全文を見る」から確認可能です。」 |
 | 部品ごとの行 | Setting Rowと同じ見た目 | 左に名前、その下に「版 · 提供元 · ライセンス」（SBOMにあるものだけ、Caption、Text 3）。先頭はアプリ自身。続けて、配布物に含まれる部品をSBOMの順に並べ、組み込まれた部品は親の下に余白L（24px）だけ字下げする。開発にだけ使う部品（`excluded`）は出さない |
 | 全文 | Button（Secondary）「全文を見る」／「全文を閉じる」 | SBOMがライセンスのファイルを挙げている部品だけに置く。押すと行の下に全文を開く。ファイルが複数あるときは、ファイル名（等幅）を見出しにして順に並べる |
 | 全文の欄 | Scrollする欄（高さ320pxまで、背景Surface 3、Radius S） | 全文（Caption、Text 2）。長い通知文でも画面が伸びないよう、欄の中だけをScrollする |
 
 - 名前、版、ライセンス名、全文は、ファイルに書かれたとおりに文字として表示する（Rich Textとして解釈しない）。言語で変えない。
 - SBOMは画面を作るときに読む。全文は、初めて開いたときに読む。
-- SBOMを読めないときは、行の代わりに「クレジットを読み込めませんでした。アプリを入れ直すと直る場合があります。」を出す。ファイルがないときは、その欄に「ライセンスの全文が見つかりません。」を出す。開発者向けには、ファイルのパスと理由をLogに書く。
+- SBOMを読めないときは、行の代わりに「クレジットを読み込めませんでした。アプリの再起動を試してください。」を出す。ファイルがないときは、その欄に「ライセンスの全文が見つかりません。」を出す。開発者向けには、ファイルのパスと理由をLogに書く。
 - ファイルを読む場所：ビルドしたアプリでは実行ファイルのフォルダー（`licenses/`等）。Editorでは、`tools/release/license-files.json`がそれぞれのファイルの元として挙げる、リポジトリの中のファイル。
 - SBOMに書かれたパスは、そのフォルダーの中だけを読む（`..`、絶対パス、`\`を含むものは読まない）。SBOMはアプリと一緒に配布するファイルで、信頼の境界は越えないが、書き換えられても画面がほかのファイルを読まないようにする。
 
@@ -171,12 +171,12 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 説明 | 説明文（Text 2） | 「トラッキングを動かし、アバターを見ながら合わせます。大きくするほど、小さな動きで表情が出ます。各スライダーの下は、いまのアバターの動きです。」 |
+| 説明 | 説明文（Text 2） | 「トラッキングを動かし、アバターの動きを見ながら合わせます。値を大きくするほど、小さな動きで表情が出るようになります。各スライダーの下は、いまのアバターの動きです。」 |
 | 映像 | 画像（384×216、16:9） | 配信の映像の中央を拡大して表示する。表情を見やすくするため。映像がないときは「映像なし」 |
 | 映像の高さ | Slider（0〜100%、5%刻み）、映像の下 | 映像のどの高さを見せるか（0%が下端、100%が上端）。既定は85%（カメラの既定の位置で、平均的な身長のアバターの顔が入る所）。顔の位置はアバターの身長によるため、利用者が合わせる。保存はしない |
 | 拡大 | Slider（100〜400%、10%刻み）、映像の高さの下 | 映像をどれだけ拡大するか。100%で配信の映像全体、既定は220%。拡大の中心は映像の左右の中央で、映像の外は見せない。顔の大きさはアバターによるため、利用者が合わせる（利用者の要望、2026-10-21）。保存はしない |
 | 照明の強さ | Slider（10〜150%、5%刻み）、拡大の下 | 舞台のライトの強さ（Stage詳細設計7.1）。100%が既定。説明（Caption）：「配信の照明も変わり、保存されます。」顔が白く飛ぶときに弱める（利用者の要望、2026-10-21）。顔を見ながら変えるため、映像の横に置く（利用者の決定、2026-10-21）。Stageがないときは置かない |
-| ウインク | Toggle | 片目だけを閉じられるか。説明：「オンにすると、片目だけを閉じられます。顔を向けたときなどに片目が誤って閉じる場合はオフにします。」既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
+| ウインク | Toggle | 片目だけを閉じられるか。説明：「オンにすると、片目だけを閉じられるようになります。顔を向けたときなどに片目が誤って閉じる場合はオフにしてください。」既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
 | 部位ごと | Slider（50〜300%、10%刻み）と、その下の帯 | 目の閉じやすさ、ウインクのしやすさ、眉の動き（驚き・怒り・悲しみ）、口の動き、視線の動き、笑顔の強さ。100%が既定。帯は、その部位のいまのアバターの動き（0〜100%）で、約50msごとに描き直す |
 | 指の曲がり、親指の曲がり | Slider（50〜200%、10%刻み） | 指の曲がる強さ（Avatar詳細設計7.5）。100%が既定。説明（Caption）：「指が曲がりきらないときは上げ、曲がりすぎるときは下げます。手のひらを開いたときは、どの値でも開いたままです。」手は「映像の高さ」と「拡大」で見る |
 | すべて既定に戻す | Button（Secondary）「既定に戻す」 | すべての部位と指を100%へ戻し、ウインクをオフにする |
@@ -256,7 +256,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
-| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
+| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
 | `setup.audio.gain` | 音量 | Volume |
@@ -269,12 +269,12 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
-| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有をやめてください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
+| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有を解除してください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
-| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンをおすすめします。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
+| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンの使用を推奨します。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
 | `setup.audio.denoise` | ノイズ除去 | Noise removal |
 | `setup.audio.denoise.description` | 話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
@@ -298,16 +298,16 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.streaming.url` | サーバーのURL | Server URL |
 | `setup.streaming.url.description` | YouTubeは既定のままで使えます。rtmp:// か rtmps:// で始まるURLです。 | YouTube works with the default. The URL starts with rtmp:// or rtmps://. |
 | `setup.streaming.url.placeholder` | rtmps://example.com/live | rtmps://example.com/live |
-| `setup.streaming.url.invalid` | rtmp:// か rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
-| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。使えるなら rtmps:// にしてください。 | rtmp:// is not encrypted, and neither is the stream key sent over it. Use rtmps:// if you can. |
+| `setup.streaming.url.invalid` | rtmp:// または rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。rtmps:// を使用することを推奨します。 | rtmp:// is not encrypted, and neither is the stream key sent over it. rtmps:// is recommended. |
 | `setup.streaming.key` | ストリームキー | Stream key |
-| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。プロジェクトのファイルには入らず、他のPCでは登録し直します。 | Kept in Windows Credential Manager. It is not in project files, and is registered again on another PC. |
+| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。 | Saved in Windows Credential Manager. |
 | `setup.streaming.key.registered` | 登録済み | Registered |
 | `setup.streaming.key.not-registered` | 未登録 | Not registered |
 | `setup.streaming.key.register` | 登録… | Register… |
 | `setup.streaming.key.remove` | 削除 | Remove |
 | `setup.streaming.key.dialog.title` | ストリームキーの登録 | Register the stream key |
-| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを貼り付けてください。登録した後は表示されません。 | Paste the stream key from YouTube Studio. It is not shown again once registered. |
+| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを入力してください。 | Enter the stream key from YouTube Studio. |
 | `setup.streaming.key.dialog.field` | ストリームキー | Stream key |
 | `setup.streaming.key.dialog.confirm` | 登録 | Register |
 | `setup.streaming.key.failed` | 登録できませんでした。もう一度試してください。 | It could not be registered. Please try again. |
@@ -315,14 +315,14 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.streaming.key.remove.body` | 配信するには、もう一度登録が必要です。 | You will need to register it again to stream. |
 | `setup.streaming.key.remove.confirm` | 削除 | Remove |
 | `setup.streaming.codec` | 形式 | Format |
-| `setup.streaming.codec.description` | AV1がおすすめです。同じビットレートできれいに映ります。うまく配信できないときは、H.264を選んでください。 | AV1 is recommended: it looks better at the same bitrate. Choose H.264 if the stream does not work. |
-| `setup.streaming.codec.no-av1` | このPCのGPUか配信先がAV1に対応していないため、H.264で配信します。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
+| `setup.streaming.codec.description` | AV1を推奨します。同じビットレートできれいに映ります。配信が正常に行えない場合は、H.264を選択してください。 | AV1 is recommended: it looks better at the same bitrate. If the stream does not work properly, choose H.264. |
+| `setup.streaming.codec.no-av1` | このPCのGPU、または配信先がAV1に対応していないため、H.264で配信を行います。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
 | `setup.streaming.codec.av1` | AV1 | AV1 |
 | `setup.streaming.codec.h264` | H.264 | H.264 |
 | `setup.streaming.bitrate` | 映像のビットレート | Video bitrate |
-| `setup.streaming.bitrate.description` | 1080p 30 fpsなら6 Mbpsがおすすめです。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
+| `setup.streaming.bitrate.description` | 1080p 30 fpsならば、6 Mbpsを推奨します。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
 | `setup.streaming.test` | 接続テスト | Connection test |
-| `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
+| `setup.streaming.test.description` | サーバーに接続可能であるかを確かめます。配信は開始しません。 | Checks that the server can be reached. The stream does not start. |
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
 
@@ -343,7 +343,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
 | 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
 
-「声を変換する」の名前の後のHelp Hintに「声の変換はGPUを多く使用します。」を置く（利用者の要望、2026-11-11。画面の文字を増やさない）。
+「声を変換する」の名前の後のHelp Hintに「声の変換にはGPUを使用します。」を置く（利用者の要望、2026-11-11。画面の文字を増やさない）。
 
 - 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使用できません」とその理由を出し、すべての行を無効にする（13.3）。
 - 声がないとき：Cardの先頭に「声がありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
@@ -377,14 +377,14 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.state.unavailable` | 使用不可 | Unavailable |
 | `setup.voice.state.stopped` | 停止 | Stopped |
 | `setup.voice.no-voice` | 声がありません | No voice |
-| `setup.voice.no-voice.body` | Voice Labで声を作成すると、ここで選択できます。 | Make a voice in Voice Lab to choose it here. |
+| `setup.voice.no-voice.body` | Voice Labで声を作成すると、変換先の声を選択できるようになります。 | Make a voice in Voice Lab to choose the voice to convert to. |
 | `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
 | `setup.voice.no-gpu` | このPCでは声の変換を使用できません | Voice conversion cannot be used on this PC |
 | `setup.voice.no-gpu.body` | 声の変換にはGPUが必要です。使用できるGPUが見つかりませんでした。 | It needs a GPU, and no usable GPU was found. |
 | `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
 | `setup.voice.failed.body` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.body` | オフの場合、元の声のまま配信と録画に入ります。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings as it is. It starts as it was last time. |
+| `setup.voice.enabled.body` | オフの場合、元の声が配信と録画に入ります。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings. It starts as it was last time. |
 | `setup.voice.voice` | 声 | Voice |
 | `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |
@@ -394,6 +394,6 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.remeasure` | 測り直す | Measure again |
 | `setup.voice.adjust` | 高さの調整 | Pitch adjustment |
 | `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
-| `setup.voice.adjust.body-manual` | 半音単位で調整します。男性の声を女性の声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
-| `setup.voice.gpu` | 声の変換はGPUを多く使用します。 | Voice conversion uses a lot of the GPU. |
+| `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
