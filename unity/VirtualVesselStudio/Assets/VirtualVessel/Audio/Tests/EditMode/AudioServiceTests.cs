@@ -159,6 +159,37 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void NoiseRemoval_IsOnForTheMicrophone_AndReachesTheEngine()
+        {
+            using AudioService service = Start(new AudioSettings());
+            IAudioSource microphone = service.Sources[0];
+            IAudioSource game = service.Sources[1];
+
+            Assert.That((microphone.Options.Value.Denoise, game.Options.Value.Denoise), Is.EqualTo((true, false)), "On for the voice, with or without conversion (2026-11-11).");
+            Assert.That((_engine.Denoised[0], _engine.Denoised[1]), Is.EqualTo((true, false)));
+            Assert.That(service.MicrophoneStage.Denoises, Is.True);
+
+            microphone.SetOptions(microphone.Options.Value.WithDenoise(false));
+
+            Assert.That(_engine.Denoised[0], Is.False);
+            Assert.That(service.MicrophoneStage.Denoises, Is.False);
+        }
+
+        [Test]
+        public void NoiseRemoval_IsSaved_AndAFileFromBefore_ReadsOnForTheMicrophone()
+        {
+            var before = new AudioSourceSettings { Id = "m", Role = AudioSettings.MicrophoneRole };
+            var game = new AudioSourceSettings { Id = "g", Role = AudioSettings.GameAudioRole };
+            Assert.That((before.ToOptions().Denoise, game.ToOptions().Denoise), Is.EqualTo((true, false)));
+
+            AudioSourceSettings off = before.With(before.ToOptions().WithDenoise(false));
+
+            Assert.That(off.Denoise, Is.False);
+            Assert.That(off.ToOptions().Denoise, Is.False);
+            Assert.That(before.ToOptions().WithDenoise(true), Is.Not.EqualTo(before.ToOptions().WithDenoise(false)));
+        }
+
+        [Test]
         public void TheMonitor_StartsOnTheDefaultOutput_AndFollowsTheUser()
         {
             using AudioService service = Start(new AudioSettings());
@@ -359,6 +390,14 @@ namespace VirtualVessel.Audio.Tests
             public Dictionary<int, string> Devices { get; } = new Dictionary<int, string>();
 
             public Dictionary<int, (float, bool)> Gains { get; } = new Dictionary<int, (float, bool)>();
+
+            public Dictionary<int, bool> Denoised { get; } = new Dictionary<int, bool>();
+
+            public bool SetDenoise(int source, bool enabled)
+            {
+                Denoised[source] = enabled;
+                return true;
+            }
 
             public Dictionary<int, AudioEngineStatus> Statuses { get; } = new Dictionary<int, AudioEngineStatus>();
 

@@ -237,12 +237,13 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | デバイス | Select。先頭に「なし」。抜かれている機器は「接続されていないデバイス」として残す。ゲームの音声は、映像の取り込みのCardで選ぶ（3章）ので、ここでは無効にして機器の名前だけを見せる。モニターは出力先を選ぶ |
 | 音量 | Slider、-60〜+12dB |
 | 聞く | Toggle。モニターの行にはない |
+| ノイズ除去 | Toggle。マイクの行だけ。既定はオン。声の変換を使わないときも効く（利用者の決定、2026-11-11。Audio詳細設計8.6）。ProjectのAudio Profileに保存する |
 | ミュート | Toggle |
 | レベル | Level Meter、-60〜0dB |
 
 行の下に、問題があるときだけ、何が起きたかと対処を出す。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」を置く。表の下に注記と、配信・録画の音声の遅延（Slider、0〜1000ms、既定300ms。Audio詳細設計8.5）を置く。
 
-- Cardの幅が760pxより狭いときは列の見出しを隠し、行を折り返して、操作部品ごとに名前を添える。
+- Cardの幅が850pxより狭いときは列の見出しを隠し、行を折り返して、操作部品ごとに名前を添える。
 - Cardを表示している間、機器を5秒ごとに数え直す。
 - マイクは、初めて使うときにWindowsの既定の入力の機器になる。ゲームの音声は「なし」から始まる（キャプチャーボードの音声を選ぶ。映像の機器を選ぶと自動で選ばれる。3章）。
 
@@ -274,6 +275,8 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
 | `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.denoise` | ノイズ除去 | Noise removal |
+| `setup.audio.denoise.description` | 「ノイズ除去」は、話していない間のキーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Noise removal reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
@@ -328,7 +331,7 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 
 `IVoiceConversion`（Voice）を表示する（`VoiceCard`）。音声のページで、音声のCardの下に置く。マイクに掛ける処理なので、マイクと同じページにする。画面案：https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R（利用者の確認、2026-11-10）
 
-普段は簡単な設定だけで使えるようにする（利用者の要望、2026-11-03）。窓を1秒に固定してから、細かい設定はノイズ除去だけになったので、Cardは1つにする（13.2）。
+普段は簡単な設定だけで使えるようにする（利用者の要望、2026-11-03）。窓を1秒に固定して細かい設定はノイズ除去だけになり、そのノイズ除去も音声のCardへ移した（11章）ので、Cardは1つにする（13.2）。
 
 ### 13.1 声の変換のCard
 
@@ -340,7 +343,6 @@ Keyは、取り込みのCardが`setup.capture.*`、トラッキングのCardが`
 | 声 | Select | Voice Labで作った、使える声。試作の声は開発者用なので出さない（診断画面にだけ出す）。選ぶとVoice Profileに保存する（Voice詳細設計6.2） |
 | 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
 | 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
-| ノイズ除去 | Toggle | 既定はオン。PCごとに保存する（Voice詳細設計6.3） |
 
 Cardの下に「声の変換はGPUを多く使用します。」の一文を置く。
 
@@ -395,6 +397,4 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男性の声を女性の声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
-| `setup.voice.denoise` | ノイズ除去 | Noise removal |
-| `setup.voice.denoise.body` | 声がない間の、キーボードやマウスなどの音を抑えます。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
 | `setup.voice.gpu` | 声の変換はGPUを多く使用します。 | Voice conversion uses a lot of the GPU. |

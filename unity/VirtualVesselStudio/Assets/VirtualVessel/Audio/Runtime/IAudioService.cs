@@ -80,13 +80,14 @@ namespace VirtualVessel.Audio
         public const float MinGainDb = -60f;
         public const float MaxGainDb = 12f;
 
-        public AudioSourceOptions(string deviceId, float gainDb, bool muted, float streamSendDb, float monitorSendDb = float.NegativeInfinity)
+        public AudioSourceOptions(string deviceId, float gainDb, bool muted, float streamSendDb, float monitorSendDb = float.NegativeInfinity, bool denoise = false)
         {
             DeviceId = deviceId;
             GainDb = gainDb;
             Muted = muted;
             StreamSendDb = streamSendDb;
             MonitorSendDb = monitorSendDb;
+            Denoise = denoise;
         }
 
         /// <summary>The endpoint ID; null turns the source off.</summary>
@@ -105,29 +106,40 @@ namespace VirtualVessel.Audio
         /// <summary>Whether the user hears this source.</summary>
         public bool Monitored => !float.IsNegativeInfinity(MonitorSendDb);
 
+        /// <summary>
+        /// Noise removal as the source is captured (audio detailed design 8.6), with or without voice conversion.
+        /// On by default for the microphone (the user's decision, 2026-11-11).
+        /// </summary>
+        public bool Denoise { get; }
+
         public AudioSourceOptions WithDevice(string deviceId)
         {
-            return new AudioSourceOptions(string.IsNullOrEmpty(deviceId) ? null : deviceId, GainDb, Muted, StreamSendDb, MonitorSendDb);
+            return new AudioSourceOptions(string.IsNullOrEmpty(deviceId) ? null : deviceId, GainDb, Muted, StreamSendDb, MonitorSendDb, Denoise);
         }
 
         public AudioSourceOptions WithGain(float gainDb)
         {
-            return new AudioSourceOptions(DeviceId, Math.Max(MinGainDb, Math.Min(MaxGainDb, gainDb)), Muted, StreamSendDb, MonitorSendDb);
+            return new AudioSourceOptions(DeviceId, Math.Max(MinGainDb, Math.Min(MaxGainDb, gainDb)), Muted, StreamSendDb, MonitorSendDb, Denoise);
         }
 
         public AudioSourceOptions WithMuted(bool muted)
         {
-            return new AudioSourceOptions(DeviceId, GainDb, muted, StreamSendDb, MonitorSendDb);
+            return new AudioSourceOptions(DeviceId, GainDb, muted, StreamSendDb, MonitorSendDb, Denoise);
         }
 
         public AudioSourceOptions WithMonitored(bool monitored)
         {
-            return new AudioSourceOptions(DeviceId, GainDb, Muted, StreamSendDb, monitored ? 0f : float.NegativeInfinity);
+            return new AudioSourceOptions(DeviceId, GainDb, Muted, StreamSendDb, monitored ? 0f : float.NegativeInfinity, Denoise);
+        }
+
+        public AudioSourceOptions WithDenoise(bool denoise)
+        {
+            return new AudioSourceOptions(DeviceId, GainDb, Muted, StreamSendDb, MonitorSendDb, denoise);
         }
 
         public bool Equals(AudioSourceOptions other)
         {
-            return DeviceId == other.DeviceId && GainDb.Equals(other.GainDb) && Muted == other.Muted && StreamSendDb.Equals(other.StreamSendDb) && MonitorSendDb.Equals(other.MonitorSendDb);
+            return DeviceId == other.DeviceId && GainDb.Equals(other.GainDb) && Muted == other.Muted && StreamSendDb.Equals(other.StreamSendDb) && MonitorSendDb.Equals(other.MonitorSendDb) && Denoise == other.Denoise;
         }
 
         public override bool Equals(object obj)
@@ -137,7 +149,7 @@ namespace VirtualVessel.Audio
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(DeviceId, GainDb, Muted, StreamSendDb, MonitorSendDb);
+            return HashCode.Combine(DeviceId, GainDb, Muted, StreamSendDb, MonitorSendDb, Denoise);
         }
     }
 
@@ -291,6 +303,12 @@ namespace VirtualVessel.Audio
         bool IsCapturing { get; }
 
         void SetEnabled(bool enabled);
+
+        /// <summary>
+        /// Whether the microphone's noise removal is on. What <see cref="Read"/> gives is cleaned already; a stage
+        /// that feeds a file in its place cleans it with <see cref="Denoise"/> to sound the same.
+        /// </summary>
+        bool Denoises { get; }
 
         /// <summary>
         /// Removes noise from mono audio in place, keeping its state between calls. A whole number of

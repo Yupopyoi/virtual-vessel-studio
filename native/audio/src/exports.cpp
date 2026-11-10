@@ -379,6 +379,22 @@ extern "C"
         return engine->denoiser.Process(samples, count) ? VV_AUDIO_OK : VV_AUDIO_OUT_OF_MEMORY;
     }
 
+    int32_t vv_audio_set_denoise(vv_audio_engine* engine, int32_t source, int32_t enabled)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        std::lock_guard<std::mutex> guard(engine->lock);
+        if (!engine->mixer.Used(source))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        return engine->mixer.SetDenoise(source, enabled != 0) ? VV_AUDIO_OK : VV_AUDIO_OUT_OF_MEMORY;
+    }
+
     int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled)
     {
         if (engine == nullptr || !engine->mixer.Used(source))

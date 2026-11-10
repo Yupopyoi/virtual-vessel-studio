@@ -231,7 +231,7 @@ The frame for editing the placement of a video (game screen, second monitor, and
 
 ### 3.25 Mixer
 
-- A row per source, in shared columns: the source (name and state), the device, the volume, hear, mute, and the level. The column headings are Caption, Text 3.
+- A row per source, in shared columns: the source (name and state), the device, the volume, hear, noise removal, mute, and the level. The column headings are Caption, Text 3.
 - 1 px Border lines between rows. The device column takes the remaining width; the others have fixed widths.
 - A problem's explanation appears under its row, only when there is one.
 - An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.

@@ -63,18 +63,6 @@ namespace VirtualVessel.Voice.Tests
         }
 
         [Test]
-        public void NoiseRemoval_IsOnByDefault_AndSavedForThePC()
-        {
-            VoiceStorage storage = VoiceStorage.InMemory();
-            var service = new VoiceService(new IdleStage(), new IdleLoop(), null, null, null, storage);
-            Assert.That(service.Denoise, Is.True);
-
-            service.Denoise = false;
-
-            Assert.That(storage.Settings.Denoise, Is.False);
-        }
-
-        [Test]
         public void TheGpu_MustComputeAndNotBeSoftware()
         {
             Assert.That(VoiceService.IsGpuUsable(true, UnityEngine.Rendering.GraphicsDeviceType.Direct3D11), Is.True);
@@ -129,6 +117,8 @@ namespace VirtualVessel.Voice.Tests
             public bool IsAvailable => false;
 
             public bool IsCapturing => false;
+
+            public bool Denoises => false;
 
             public AudioStageDelay Delay => default;
 

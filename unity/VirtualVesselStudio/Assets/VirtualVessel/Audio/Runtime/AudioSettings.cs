@@ -169,6 +169,12 @@ namespace VirtualVessel.Audio
 
         public bool Muted { get; set; }
 
+        /// <summary>
+        /// Noise removal as it is captured (audio detailed design 8.6). Added in version 1 without a step: null, as in
+        /// a file from before, is on for the microphone and off for the others.
+        /// </summary>
+        public bool? Denoise { get; set; }
+
         /// <summary>Per bus, in dB; a bus not listed gets none. Negative infinity cannot be written to JSON, so -120 or below is none.</summary>
         public Dictionary<string, float> Sends { get; set; } = new Dictionary<string, float>();
 
@@ -182,7 +188,7 @@ namespace VirtualVessel.Audio
         /// <summary>What the user sees of this source. Pure.</summary>
         public AudioSourceOptions ToOptions()
         {
-            return new AudioSourceOptions(string.IsNullOrEmpty(DeviceId) ? null : DeviceId, ClampGain(GainDb), Muted, SendOf(AudioSettings.StreamBus), SendOf(AudioSettings.MonitorBus));
+            return new AudioSourceOptions(string.IsNullOrEmpty(DeviceId) ? null : DeviceId, ClampGain(GainDb), Muted, SendOf(AudioSettings.StreamBus), SendOf(AudioSettings.MonitorBus), Denoise ?? Role == AudioSettings.MicrophoneRole);
         }
 
         /// <summary>A copy with the user's options; other buses' sends are kept. Pure.</summary>
@@ -192,6 +198,7 @@ namespace VirtualVessel.Audio
             next.DeviceId = options.DeviceId;
             next.GainDb = ClampGain(options.GainDb);
             next.Muted = options.Muted;
+            next.Denoise = options.Denoise;
             next.Sends[AudioSettings.StreamBus] = Saved(options.StreamSendDb);
             next.Sends[AudioSettings.MonitorBus] = Saved(options.MonitorSendDb);
             return next;

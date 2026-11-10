@@ -625,3 +625,16 @@ This is one voice, and only 600 was checked by ear. Which length suits other voi
 Addendum (2026-11-08): whether a filter after the conversion can make up for it was also tried. The 150-epoch conversions got a low shelf below a point between the voice's first and second harmonics (about 1.4 times its median; +2 or +3 dB) and a gentle dip at 1 kHz (−1 dB), at the same loudness (`voice-work/mochi_filter.py`). With +2 dB and −1 dB, H1−H2 (4.9) and the band levels came out about as in the original. ECAPA similarity hardly moved on poyapoya's own sentence (0.922 → 0.925) and fell a little on the user's recording (0.850 → 0.825 to 0.841).
 
 By the user's ear, the voice did not sound different with the filters, and the "mochi-mochi" quality did not come back. It lies in a finer texture than the broad spectral shape, and longer training brings it back. Decided (user, 2026-11-08): no filter for the voice. Noise reduction with high-pass and low-pass filters stays a candidate for post-processing after the conversion (system design 9.9).
+
+## 2026-11-11 Noise removal moves from voice conversion to microphone capture
+
+The user's request (2026-11-11): noise removal helps people who stream with their own voice, without voice conversion. Until then Voice called it before converting, so it did nothing with conversion off.
+
+Decided (user, 2026-11-11):
+
+- Noise removal is processing in Audio's capture (audio detailed design 8.6): the input processing before voice conversion in system design 9.3.
+- There is one setting, on the microphone's row of the Audio Card. The Voice Conversion Card no longer has it.
+- On by default. Someone who streamed with their own voice on v0.1.2 gets it on after updating; turning it off gives the sound as before.
+- It is kept in the project's Audio Profile, on the source (`denoise`). The `denoise` in Voice's `Config/voice-settings.json` was added on a branch before any release, so it was dropped without reading it over.
+
+It runs on the capture thread, so while converting, the main thread does about 3 ms less work per 100 ms block (the 2026-11-01 measurement above).

@@ -349,6 +349,8 @@ namespace VirtualVessel.Voice.Tests
 
             public bool IsCapturing => true;
 
+            public bool Denoises => false;
+
             public long Underruns { get; private set; }
 
             public List<float> Output { get; } = new List<float>();

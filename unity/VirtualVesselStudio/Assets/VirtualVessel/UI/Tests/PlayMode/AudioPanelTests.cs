@@ -176,6 +176,19 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator NoiseRemoval_IsOnTheMicrophonesRow_Only()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            Assert.That(card.Groups[1].Denoise, Is.Null, "The game is left as it is.");
+            card.Groups[0].Denoise.value = true;
+
+            Assert.That(_audio.Microphone.Options.Value.Denoise, Is.True);
+            card.Groups[0].Denoise.value = false;
+            Assert.That(_audio.Microphone.Options.Value.Denoise, Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator AProblem_SaysWhatToDo_AndDeniedAccessOpensWindowsSettings()
         {
             AudioCard card = OpenCard();
@@ -284,8 +297,6 @@ namespace VirtualVessel.UI.Tests
 
             card.Adjustment.value = 3f;
             Assert.That(voice.Semitones, Is.EqualTo(3f));
-            card.DenoiseToggle.value = false;
-            Assert.That(voice.Denoise, Is.False);
             Assert.That(card.EnabledToggle.enabledInHierarchy, Is.True);
         }
 

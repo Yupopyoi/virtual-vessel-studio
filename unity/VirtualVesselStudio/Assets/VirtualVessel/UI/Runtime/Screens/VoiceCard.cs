@@ -39,8 +39,6 @@ namespace VirtualVessel.UI.Screens
         public const string AdjustBodyAuto = "setup.voice.adjust.body-auto";
         public const string AdjustBodyManual = "setup.voice.adjust.body-manual";
         public const string Final = "setup.voice.final";
-        public const string Denoise = "setup.voice.denoise";
-        public const string DenoiseBody = "setup.voice.denoise.body";
         public const string Gpu = "setup.voice.gpu";
     }
 
@@ -139,10 +137,6 @@ namespace VirtualVessel.UI.Screens
             AdjustRow = adjust;
             card.Add(adjust);
 
-            DenoiseToggle = Ui.Toggle(null);
-            DenoiseToggle.RegisterValueChangedCallback(evt => _voice.Denoise = evt.newValue);
-            card.Add(Row(VoiceCardStrings.Denoise, VoiceCardStrings.DenoiseBody, DenoiseToggle));
-
             card.Add(Ui.Text(VoiceCardStrings.Gpu, NoteClass, "vv-text-caption"));
             RegisterCallback<AttachToPanelEvent>(_ => OnAttached());
             RegisterCallback<DetachFromPanelEvent>(_ => OnDetached());
@@ -157,8 +151,6 @@ namespace VirtualVessel.UI.Screens
         public SwitchToggle AutoPitchToggle { get; }
 
         public ValueSlider Adjustment { get; }
-
-        public SwitchToggle DenoiseToggle { get; }
 
         public SettingRow AdjustRow { get; }
 
@@ -235,7 +227,6 @@ namespace VirtualVessel.UI.Screens
             VoiceChoice.SetValueWithoutNotify(_voice.InUseVoiceId ?? _voice.VoiceId ?? string.Empty);
             AutoPitchToggle.SetValueWithoutNotify(_voice.AutoPitch);
             Adjustment.SetValueWithoutNotify(_voice.Semitones);
-            DenoiseToggle.SetValueWithoutNotify(_voice.Denoise);
             _stateSubscription = _voice.State.Subscribe(_ => Refresh());
             _refresh = schedule.Execute(Refresh).Every(RefreshMs);
             Refresh();

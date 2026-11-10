@@ -41,6 +41,9 @@ namespace vv::audio
                 slot.gain = 1.0f;
                 slot.muted = false;
                 slot.stage = false;
+                slot.denoise = false;
+                slot.denoiser.reset();
+                slot.denoised = false;
                 slot.send = 1.0f;
                 slot.monitorSend = 0.0f;
                 slot.overruns = 0;
@@ -81,12 +84,109 @@ namespace vv::audio
         }
 
         Slot& slot = _slots[id];
+        if (slot.denoise.load(std::memory_order_acquire))
+        {
+            slot.denoised = true;
+            WriteDenoised(slot, frames, count);
+            return;
+        }
+
+        if (slot.denoised)
+        {
+            FlushDenoise(slot);
+            slot.denoised = false;
+        }
+
+        Put(slot, frames, count);
+    }
+
+    void Mixer::Put(Slot& slot, const float* frames, size_t count)
+    {
         FrameRing& target = slot.stage.load() ? *slot.stageInput : *slot.input;
         size_t written = target.Write(frames, count);
         if (written < count)
         {
             slot.overruns += static_cast<int64_t>(count - written);
         }
+    }
+
+    void Mixer::ToMono(const float* stereo, size_t frames, float* mono)
+    {
+        for (size_t i = 0; i < frames; i++)
+        {
+            mono[i] = stereo == nullptr ? 0.0f : (stereo[i * Channels] + stereo[i * Channels + 1]) * 0.5f;
+        }
+    }
+
+    void Mixer::WriteDenoised(Slot& slot, const float* frames, size_t count)
+    {
+        DenoiseStage& stage = *slot.denoiser;
+        size_t at = 0;
+        while (at < count)
+        {
+            size_t take = std::min(count - at, static_cast<size_t>(BlockFrames - stage.pending));
+            ToMono(frames == nullptr ? nullptr : frames + at * Channels, take, stage.mono + stage.pending);
+            stage.pending += static_cast<int>(take);
+            at += take;
+            if (stage.pending < BlockFrames)
+            {
+                break;
+            }
+
+            // Started when it was turned on, so this does not fail; if it ever did, the frame passes as it is.
+            stage.denoiser.Process(stage.mono, BlockFrames);
+            for (int i = 0; i < BlockFrames; i++)
+            {
+                stage.stereo[i * Channels] = stage.mono[i];
+                stage.stereo[i * Channels + 1] = stage.mono[i];
+            }
+
+            Put(slot, stage.stereo, BlockFrames);
+            stage.pending = 0;
+        }
+    }
+
+    void Mixer::FlushDenoise(Slot& slot)
+    {
+        DenoiseStage* stage = slot.denoiser.get();
+        if (stage == nullptr || stage->pending == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < stage->pending; i++)
+        {
+            stage->stereo[i * Channels] = stage->mono[i];
+            stage->stereo[i * Channels + 1] = stage->mono[i];
+        }
+
+        Put(slot, stage->stereo, static_cast<size_t>(stage->pending));
+        stage->pending = 0;
+    }
+
+    bool Mixer::SetDenoise(int id, bool enabled)
+    {
+        if (!Used(id))
+        {
+            return false;
+        }
+
+        Slot& slot = _slots[id];
+        if (enabled && slot.denoiser == nullptr)
+        {
+            // Made here, under the engine's lock, so the capture thread never allocates. The capture thread reads
+            // the pointer only after it sees the flag, which is stored after it.
+            auto stage = std::make_unique<DenoiseStage>();
+            if (!stage->denoiser.Start())
+            {
+                return false;
+            }
+
+            slot.denoiser = std::move(stage);
+        }
+
+        slot.denoise.store(enabled, std::memory_order_release);
+        return true;
     }
 
     void Mixer::SetStage(int id, bool enabled)

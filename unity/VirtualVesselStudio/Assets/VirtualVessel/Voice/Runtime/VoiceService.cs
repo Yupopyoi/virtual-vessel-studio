@@ -92,7 +92,6 @@ namespace VirtualVessel.Voice
         private VoiceConversionStats _stats;
         private float[] _file;
         private string _fileName;
-        private bool _denoise;
         private int _fileRead;
         private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
 
@@ -118,7 +117,6 @@ namespace VirtualVessel.Voice
             _semitones = _storage.Profile.Semitones;
             _autoPitch = _storage.Profile.AutoPitch;
             _meter.Restore(_storage.Settings.UserPitchHz);
-            _denoise = _storage.Settings.Denoise;
         }
 
         /// <summary>The voice chosen for the stream, as saved; a trial does not change it. Voice Lab keeps it from being deleted.</summary>
@@ -210,18 +208,6 @@ namespace VirtualVessel.Voice
             }
 
             public bool WasOn { get; }
-        }
-
-        public bool Denoise
-        {
-            get => _denoise;
-            set
-            {
-                _denoise = value;
-                VoiceSettings settings = _storage.Settings.Clone();
-                settings.Denoise = value;
-                _storage.SaveSettings(settings);
-            }
         }
 
         public bool GpuAvailable => IsGpuUsable(UnityEngine.SystemInfo.supportsComputeShaders, UnityEngine.SystemInfo.graphicsDeviceType);
@@ -746,8 +732,10 @@ namespace VirtualVessel.Voice
                     _droppedCounter?.Add(drop / block);
                 }
 
-                // The block is a whole number of the denoiser's 10 ms frames, so nothing waits for it.
-                if (_denoise)
+                // The microphone is cleaned as it is captured, if the user has it on (audio detailed design 8.6). A file
+                // in its place is cleaned here the same way, so it sounds as the microphone would. The block is a whole
+                // number of the denoiser's 10 ms frames, so nothing waits for it.
+                if (_file != null && _stage.Denoises)
                 {
                     _stage.Denoise(_waiting, block);
                 }

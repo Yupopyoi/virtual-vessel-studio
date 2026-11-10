@@ -128,6 +128,11 @@
     width: 56px;
 }
 
+/* Wider than the other toggles' columns, for its heading. */
+.vv-audio-card__cell--denoise {
+    width: 80px;
+}
+
 .vv-audio-card__cell--level {
     width: 120px;
     margin-right: 0;

@@ -301,7 +301,6 @@ namespace VirtualVessel.UI.Tests
         {
         }
 
-        public bool Denoise { get; set; }
 
         public bool GpuAvailable { get; set; } = true;
 

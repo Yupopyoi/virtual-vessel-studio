@@ -235,12 +235,13 @@ Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a 
 | Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
 | Volume | Slider, -60 to +12 dB |
 | Hear | Toggle; not on the monitor's row |
+| Noise removal | Toggle, on the microphone's row only. On by default, and it works without voice conversion too (the user's decision, 2026-11-11; audio detailed design 8.6). Saved in the project's Audio Profile |
 | Mute | Toggle |
 | Level | Level Meter, -60 to 0 dB |
 
 Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Under the table, the notes and the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
 
-- When the Card is narrower than 760 px, the column headings hide, rows wrap, and each control carries its name.
+- When the Card is narrower than 850 px, the column headings hide, rows wrap, and each control carries its name.
 - Devices are listed again every 5 seconds while the Card is shown.
 - The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
 
@@ -272,6 +273,8 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
 | `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
+| `setup.audio.denoise` | ノイズ除去 | Noise removal |
+| `setup.audio.denoise.description` | 「ノイズ除去」は、話していない間のキーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Noise removal reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
@@ -326,7 +329,7 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 
 Shows `IVoiceConversion` (Voice) (`VoiceCard`). It goes on the Audio page, under the Audio Card: it is processing on the microphone, so it sits on the microphone's page. Mock-up: https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R (reviewed by the user, 2026-11-10)
 
-It should be usable with simple settings alone (the user's request, 2026-11-03). With the window fixed at 1 s, noise removal is the only detailed setting left, so it is one Card (13.2).
+It should be usable with simple settings alone (the user's request, 2026-11-03). With the window fixed at 1 s, noise removal was the only detailed setting left, and it moved to the Audio Card (chapter 11), so it is one Card (13.2).
 
 ### 13.1 The Voice Conversion Card
 
@@ -338,7 +341,6 @@ A status chip at the right end of the title (Running ✓, Loading ○, Off ○, 
 | Voice | Select | The usable voices made in Voice Lab. The prototype's voice is for developers and not listed (only on the Diagnostics screen). Choosing saves it in the Voice Profile (Voice detailed design 6.2) |
 | Match the pitch automatically | Toggle, Measure again | Under the description, "Your voice 200 Hz → this voice 285 Hz (+6)"; "not measured" before measuring |
 | Pitch adjustment | Slider | -24 to +24 semitones, added to the automatic shift when that is on; the description changes with automatic on or off. Under it, "Converted pitch 317 Hz (total +8)" (user's check, 2026-11-10) |
-| Noise removal | Toggle | On by default; saved for this PC (Voice detailed design 6.3) |
 
 Under the Card, the line "Voice conversion uses a lot of the GPU."
 
@@ -393,6 +395,4 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男性の声を女性の声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
-| `setup.voice.denoise` | ノイズ除去 | Noise removal |
-| `setup.voice.denoise.body` | 声がない間の、キーボードやマウスなどの音を抑えます。 | Reduces keyboard, mouse, and other sounds while you are not speaking. |
 | `setup.voice.gpu` | 声の変換はGPUを多く使用します。 | Voice conversion uses a lot of the GPU. |

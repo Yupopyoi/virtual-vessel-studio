@@ -313,6 +313,16 @@ namespace VirtualVessel.Audio
             _engine.SetGain(engineSource, options.GainDb, options.Muted);
             _engine.SetStreamSend(engineSource, options.StreamSendDb);
             _engine.SetMonitorSend(engineSource, options.MonitorSendDb);
+            SetDenoise(engineSource, options.Denoise);
+        }
+
+        private void SetDenoise(int engineSource, bool denoise)
+        {
+            if (_engine != null && !_engine.SetDenoise(engineSource, denoise))
+            {
+                // The source plays as it is; nothing else depends on it.
+                _log?.Warning("Noise removal could not start; the source plays without it.");
+            }
         }
 
         private void Changed(Source source, AudioSourceOptions previous, AudioSourceOptions options)
@@ -326,6 +336,12 @@ namespace VirtualVessel.Audio
             _engine?.SetGain(source.Engine, options.GainDb, options.Muted);
             _engine?.SetStreamSend(source.Engine, options.StreamSendDb);
             _engine?.SetMonitorSend(source.Engine, options.MonitorSendDb);
+            if (previous.Denoise != options.Denoise)
+            {
+                SetDenoise(source.Engine, options.Denoise);
+                _log?.Information($"Audio source {source.Role}: noise removal {(options.Denoise ? "on" : "off")}.");
+            }
+
             _settings = WithSource(_settings, source.Id, options);
             _saves?.Changed(_settings.Clone());
         }
@@ -383,6 +399,8 @@ namespace VirtualVessel.Audio
                     Engine.SetStage(Microphone.Engine, enabled);
                 }
             }
+
+            public bool Denoises => Microphone?.Options.Value.Denoise ?? false;
 
             public void Denoise(float[] samples, int count)
             {

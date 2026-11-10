@@ -19,7 +19,6 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
-        public const string Denoise = "diagnostics.voice.denoise";
         public const string Loading = "diagnostics.voice.loading";
         public const string PlayFile = "diagnostics.voice.play-file";
         public const string StopFile = "diagnostics.voice.stop-file";
@@ -98,11 +97,6 @@ namespace VirtualVessel.UI.Screens
             semitones.SetValueWithoutNotify(_voice.Semitones);
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
-
-            SwitchToggle denoise = Ui.Toggle(VoiceConversionStrings.Denoise);
-            denoise.SetValueWithoutNotify(_voice.Denoise);
-            denoise.RegisterValueChangedCallback(evt => _voice.Denoise = evt.newValue);
-            card.Add(denoise);
 
             if (files != null)
             {

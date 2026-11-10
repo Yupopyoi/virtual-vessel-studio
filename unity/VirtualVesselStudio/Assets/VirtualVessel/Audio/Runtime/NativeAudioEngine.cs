@@ -57,6 +57,9 @@ namespace VirtualVessel.Audio
 
         void SetMonitorSend(int source, float sendDb);
 
+        /// <summary>Noise removal as the source is captured; false when it cannot start (audio detailed design 8.6).</summary>
+        bool SetDenoise(int source, bool enabled);
+
         void SetMonitorDevice(string deviceId);
 
         void SetMonitorGain(float gainDb, bool muted);
@@ -105,7 +108,7 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 9;
+        private const int ApiVersion = 10;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -189,6 +192,11 @@ namespace VirtualVessel.Audio
         public void SetDevice(int source, string deviceId)
         {
             vv_audio_set_device(_engine, source, deviceId);
+        }
+
+        public bool SetDenoise(int source, bool enabled)
+        {
+            return vv_audio_set_denoise(_engine, source, enabled ? 1 : 0) == Ok;
         }
 
         public void SetStage(int source, bool enabled)
@@ -407,6 +415,9 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_set_stage(IntPtr engine, int source, int enabled);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_set_denoise(IntPtr engine, int source, int enabled);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_stage_read(IntPtr engine, int source, [Out] float[] frames, int capacity, out int read);

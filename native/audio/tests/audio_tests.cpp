@@ -242,6 +242,62 @@ namespace
 
     // With a stage on, capture waits for the stage, the mix hears only what the stage writes, and bursts
     // of many blocks are played evenly without drift corrections.
+    // Noise removal on a source as it is captured (audio detailed design 8.6): odd packet sizes are gathered into
+    // 10 ms frames, it works with or without a stage, and turning it off passes on what waited.
+    void SourceDenoise()
+    {
+        std::vector<float> mono(3);
+        const float stereo[] = { 0.2f, 0.4f, -1.0f, 1.0f, 0.5f, 0.5f };
+        Mixer::ToMono(stereo, 3, mono.data());
+        Check(std::abs(mono[0] - 0.3f) < 1e-6f && mono[1] == 0.0f && mono[2] == 0.5f, "stereo is averaged to mono");
+        Mixer::ToMono(nullptr, 3, mono.data());
+        Check(mono[0] == 0.0f && mono[2] == 0.0f, "a silent packet is silence");
+
+        Mixer mixer(Frequency);
+        int id = -1;
+        Check(mixer.Add(&id), "a source is added");
+        Check(mixer.SetDenoise(id, true), "noise removal starts");
+        Check(!mixer.SetDenoise(id + 1, true), "not on a source that is not there");
+        mixer.SetStage(id, true);
+
+        // Two seconds of steady noise in packets of 441 frames, which are not 10 ms frames.
+        unsigned int state = 12345;
+        std::vector<float> packet(static_cast<size_t>(441) * Channels);
+        std::vector<float> read(static_cast<size_t>(48000) * 2 * Channels);
+        size_t got = 0;
+        double before = 0.0;
+        double after = 0.0;
+        for (int p = 0; p < 218; p++)
+        {
+            for (size_t i = 0; i < 441; i++)
+            {
+                state = state * 1103515245u + 12345u;
+                float value = (static_cast<float>((state >> 16) & 0x7fff) / 16384.0f - 1.0f) * 0.05f;
+                packet[i * Channels] = value;
+                packet[i * Channels + 1] = value;
+                before += p >= 109 ? value * value : 0.0;
+            }
+
+            mixer.Write(id, packet.data(), 441);
+            size_t n = mixer.ReadStage(id, read.data() + got * Channels, 48000 * 2 - got);
+            for (size_t i = got; i < got + n; i++)
+            {
+                after += i >= 48000 ? read[i * Channels] * read[i * Channels] : 0.0;
+            }
+
+            got += n;
+        }
+
+        Check(got % BlockFrames == 0, "the stage gets whole 10 ms frames");
+        Check(got >= 218 * 441 - BlockFrames, "nothing but the last part frame waits");
+        Check(after < before * 0.25 * 0.25, "steady noise falls by more than 12 dB before the stage");
+
+        Check(mixer.SetDenoise(id, false), "noise removal stops");
+        mixer.Write(id, packet.data(), 1);
+        size_t left = mixer.ReadStage(id, read.data(), 48000);
+        Check(left == (218 * 441) % BlockFrames + 1, "what waited for a frame comes out when it stops");
+    }
+
     void Stage()
     {
         Mixer mixer(Frequency);
@@ -778,6 +834,7 @@ int main()
     Step("tap timing", TapTiming);
     Step("stage", Stage);
     Step("denoise", Denoise);
+    Step("source denoise", SourceDenoise);
     Step("monitor bus", MonitorBus);
     Step("fill", Fill);
     Step("ramps", Ramps);

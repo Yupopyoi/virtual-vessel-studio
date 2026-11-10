@@ -141,11 +141,10 @@ The GPU load differs from PC to PC, so these belong to the PC, not the Project (
 | Item | Meaning |
 |---|---|
 | `schemaVersion` | Format version |
-| `denoise` | Noise removal |
 | `monitorVoice` | What the user hears: `Converted` or `Original` (setup screen 13.4) |
 | `userPitchHz` | The user's measured median pitch (8.4); 0 when not measured |
 
-`userPitchHz` and `denoise` (on by default; setup screen 13.1) exist now; `monitorVoice` comes with What you hear (setup screen 13.4). The user's pitch belongs to the person and the PC, not the project, so it is kept here (user's request, 2026-11-08).
+`userPitchHz` exists now; `monitorVoice` comes with What you hear (setup screen 13.4). The user's pitch belongs to the person and the PC, not the project, so it is kept here (user's request, 2026-11-08).
 
 The window is fixed at 1 s and the overlap at joins at 50 ms; neither is a setting (user decision, 2026-11-03).
 
@@ -174,7 +173,7 @@ stateDiagram-v2
 
 ```text
 Microphone → Audio → IAudioStage.Read → gather (100 ms)
-  → Start: noise removal (RNNoise; the original is blended back while voiced), to 16 kHz, mel, HuBERT (1 s of the user's recent speech before the window) and RMVPE to the GPU
+  → Start: (the microphone was cleaned of noise in Audio's capture, audio detailed design 8.6; only a file played in its place is cleaned here, as the microphone's setting says), to 16 kHz, mel, HuBERT (1 s of the user's recent speech before the window) and RMVPE to the GPU
   → Advance: read each as it completes; the data lasts only the frame it completed
   → the generator to the GPU
   → Advance: read, to 48 kHz, crossfade
@@ -233,7 +232,7 @@ A voice's folder (a run's output just made, or a registered voice) and a recordi
 
 - It runs its own `RvcStream`, apart from the stream's conversion. The microphone, its monitoring, and the voice used for the stream are untouched, and it can be heard with the microphone's Hear off.
 - Pitch matching is 8.4's. When the user's pitch is not known, one conversion runs first only to measure it (stopping after 10 s of voice), then the matched one.
-- Noise removal does not apply: it is Audio's native processing and exists only on the microphone's path.
+- Noise removal does not apply: it is part of Audio's capture (audio detailed design 8.6) and exists only on the microphone's path.
 - One at a time. Cancelling while the voice loads lets it go once loaded.
 - Trying on the microphone runs the stream's conversion (`VoiceService`) with the unregistered voice by its folder (`BeginTrial`; the ID is `folder:` and the folder). It loads and switches as a registered voice does, and another folder loads again. Voice and pitch changes during the trial are not saved; `EndTrial` puts back the saved voice and pitch and the on/off state from before. If the app ends mid-trial, the saved voice is unchanged. The converted voice is heard only with the microphone's Hear on.
 - Measured (RTX 4070): a 7.4 s recording converted in 8.8 s, measuring included; the longest frame was 21 ms. The first run in the test copy stalled one frame for 5.5 s compiling shaders; once cached, it does not recur.
