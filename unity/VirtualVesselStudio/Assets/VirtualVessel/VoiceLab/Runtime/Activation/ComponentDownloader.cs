@@ -34,9 +34,14 @@ namespace VirtualVessel.VoiceLab.Activation
         private const int BufferSize = 1 << 20;
 
         private readonly HttpClient _client;
+        private readonly TimeSpan _stall;
 
-        public HttpComponentDownloader()
+        /// <param name="stall">How long no data may come before the download counts as stopped; 60 seconds when null.</param>
+        public HttpComponentDownloader(TimeSpan? stall = null)
         {
+            _stall = stall ?? TimeSpan.FromSeconds(60);
+
+            // No overall timeout: a 4 GB file takes long. A connection that stops sending is caught by the stall instead.
             _client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("VirtualVesselStudio-VoiceLab");
         }
@@ -56,9 +61,11 @@ namespace VirtualVessel.VoiceLab.Activation
                 request.Headers.Range = new RangeHeaderValue(have, null);
             }
 
+            using var stall = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            stall.CancelAfter(_stall);
             try
             {
-                using HttpResponseMessage response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                using HttpResponseMessage response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stall.Token).ConfigureAwait(false);
                 if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
                 {
                     // The part file is already whole, or longer than the file: the hash check decides.
@@ -76,21 +83,57 @@ namespace VirtualVessel.VoiceLab.Activation
                 using var file = new FileStream(partPath, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
                 var buffer = new byte[BufferSize];
                 int read;
-                while ((read = await body.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false)) > 0)
+                stall.CancelAfter(Timeout.InfiniteTimeSpan);
+                while ((read = await ReadOrStallAsync(body, buffer, response, cancellationToken).ConfigureAwait(false)) > 0)
                 {
                     await file.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
                     have += read;
                     received?.Report(have);
                 }
             }
-            catch (HttpRequestException exception)
+            catch (ComponentDownloadException)
             {
-                throw new ComponentDownloadException($"{url} could not be downloaded: {exception.Message}", exception);
+                throw;
             }
-            catch (IOException exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception) when (cancellationToken.IsCancellationRequested)
             {
-                throw new ComponentDownloadException($"{url} stopped while downloading: {exception.Message}", exception);
+                // Stopped by the user. Unity's runtime reports an aborted read as a WebException, not a cancellation.
+                cancellationToken.ThrowIfCancellationRequested();
+                throw;
             }
+            catch (Exception exception) when (IsConnectionFailure(exception))
+            {
+                // A dropped or stalled connection, whatever type the runtime gives it (HttpRequestException, IOException,
+                // and WebException in Unity's runtime); what was received stays for the next try (2026-11-11).
+                string why = stall.IsCancellationRequested ? $"no data came for {_stall.TotalSeconds:0} s" : exception.Message;
+                throw new ComponentDownloadException($"{url} stopped while downloading: {why}", exception);
+            }
+        }
+
+        // Unity's runtime does not stop a read for a cancelled token, so a connection that goes quiet would wait forever:
+        // the read races a timer, and losing it closes the response, which ends the read (measured 2026-11-11).
+        private async Task<int> ReadOrStallAsync(Stream body, byte[] buffer, HttpResponseMessage response, CancellationToken cancellationToken)
+        {
+            Task<int> read = body.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+            using var timer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Task finished = await Task.WhenAny(read, Task.Delay(_stall, timer.Token)).ConfigureAwait(false);
+            if (finished == read)
+            {
+                timer.Cancel();
+                return await read.ConfigureAwait(false);
+            }
+
+            response.Dispose();
+            _ = read.ContinueWith(t => _ = t.Exception, TaskScheduler.Default);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new ComponentDownloadException($"no data came for {_stall.TotalSeconds:0} s");
+        }
+
+        /// <summary>Whether an exception from a download is the connection failing, rather than a bug. Pure.</summary>
+        public static bool IsConnectionFailure(Exception exception)
+        {
+            return exception is HttpRequestException || exception is IOException || exception is WebException
+                || exception is OperationCanceledException || exception is ObjectDisposedException;
         }
 
         public void Dispose()

@@ -825,6 +825,8 @@ namespace VirtualVessel.UI.VoiceLab
                 _stepChips[i].TextKey = stepKey;
             }
 
+            // Only while it runs: a stopped build's last figures would be stale, and after a restart there are none.
+            _meter.style.display = Show(running);
             _meter.LabelKey = s_stepKeys[current];
             _meter.Progress = progress.Fraction;
             _meter.Detail = ProgressDetail(UiServices.Find(this)?.Localizer, progress) + DownloadRate(progress, running);

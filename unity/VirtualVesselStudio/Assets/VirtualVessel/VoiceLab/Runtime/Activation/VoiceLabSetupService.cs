@@ -270,6 +270,13 @@ namespace VirtualVessel.VoiceLab.Activation
                 Record(VoiceLabSetupEntryKind.Stopped);
                 throw;
             }
+            catch (Exception exception)
+            {
+                // Not one of the kinds the build names: still a failure the screen shows, not a silent stop.
+                LastFailure = VoiceLabSetupFailure.Setup;
+                _log?.Error("Preparing Voice Lab failed unexpectedly.", exception);
+                Record(VoiceLabSetupEntryKind.Failed);
+            }
             finally
             {
                 _running = false;

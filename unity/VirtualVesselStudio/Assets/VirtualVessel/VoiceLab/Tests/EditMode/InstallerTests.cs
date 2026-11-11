@@ -89,6 +89,58 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void ADroppedDownload_IsTriedAgain_FromWhereItStopped()
+        {
+            // The first two tries send part of the file and drop, as a connection does over a large file.
+            _downloader.DropsLeft["https://source/template"] = 2;
+
+            Installer().InstallAsync(null, null, CancellationToken.None).Wait();
+
+            Assert.That(_downloader.Requests.Count(r => r == "https://source/template"), Is.EqualTo(3));
+            Assert.That(_downloader.StartedFrom["https://source/template"], Is.GreaterThan(0L), "The last try continued.");
+        }
+
+        [Test]
+        public void AConnectionFailure_IsToldFromABug_WhateverTheRuntimeCallsIt()
+        {
+            Assert.That(HttpComponentDownloader.IsConnectionFailure(new System.Net.WebException("aborted")), Is.True, "Unity's runtime.");
+            Assert.That(HttpComponentDownloader.IsConnectionFailure(new IOException("reset")), Is.True);
+            Assert.That(HttpComponentDownloader.IsConnectionFailure(new System.Net.Http.HttpRequestException("refused")), Is.True);
+            Assert.That(HttpComponentDownloader.IsConnectionFailure(new NullReferenceException()), Is.False);
+        }
+
+        [Test]
+        public void AServerThatStopsSending_CountsAsAStoppedDownload()
+        {
+            // A local server sends the headers and a little, then nothing.
+            var listener = new System.Net.HttpListener();
+            int port = 50000 + new Random().Next(10000);
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            listener.Start();
+            Task serve = Task.Run(async () =>
+            {
+                System.Net.HttpListenerContext context = await listener.GetContextAsync();
+                context.Response.ContentLength64 = 1000;
+                await context.Response.OutputStream.WriteAsync(new byte[10], 0, 10);
+                await context.Response.OutputStream.FlushAsync();
+                await Task.Delay(TimeSpan.FromSeconds(10));
+            });
+            try
+            {
+                using var downloader = new HttpComponentDownloader(TimeSpan.FromSeconds(1));
+                string part = Path.Combine(_folder, "stall.part");
+                var started = DateTime.UtcNow;
+                AggregateException thrown = Assert.Throws<AggregateException>(() => downloader.DownloadAsync($"http://127.0.0.1:{port}/f", part, null, CancellationToken.None).Wait());
+                Assert.That(thrown.InnerException, Is.InstanceOf<ComponentDownloadException>());
+                Assert.That(DateTime.UtcNow - started, Is.LessThan(TimeSpan.FromSeconds(8)), "Not waiting for the server.");
+            }
+            finally
+            {
+                listener.Stop();
+            }
+        }
+
+        [Test]
         public void Failures_SayWhatKind()
         {
             _downloader.Served["https://source/template"] = Bytes("tampered");
@@ -154,7 +206,7 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceComponentManifest manifest = VoiceComponentManifest.Parse(json, out IReadOnlyList<string> problems);
             Assert.That(problems, Is.Empty);
             Directory.CreateDirectory(_folders.Scripts);
-            return new VoiceComponentInstaller(manifest, _folders, _downloader, _uv, null);
+            return new VoiceComponentInstaller(manifest, _folders, _downloader, _uv, null) { RetryDelay = TimeSpan.Zero };
         }
 
         private static byte[] Bytes(string text)
@@ -192,6 +244,9 @@ namespace VirtualVessel.VoiceLab.Tests
 
             public Dictionary<string, long> StartedFrom { get; } = new Dictionary<string, long>();
 
+            /// <summary>Tries left that send half of what remains and then drop.</summary>
+            public Dictionary<string, int> DropsLeft { get; } = new Dictionary<string, int>();
+
             public Task DownloadAsync(string url, string partPath, IProgress<long> received, CancellationToken cancellationToken)
             {
                 Requests.Add(url);
@@ -203,7 +258,16 @@ namespace VirtualVessel.VoiceLab.Tests
                 long have = File.Exists(partPath) ? new FileInfo(partPath).Length : 0L;
                 StartedFrom[url] = have;
                 using var file = new FileStream(partPath, FileMode.Append);
-                file.Write(bytes, (int)Math.Min(have, bytes.Length), (int)Math.Max(0, bytes.Length - have));
+                int from = (int)Math.Min(have, bytes.Length);
+                int rest = (int)Math.Max(0, bytes.Length - have);
+                if (DropsLeft.TryGetValue(url, out int drops) && drops > 0)
+                {
+                    DropsLeft[url] = drops - 1;
+                    file.Write(bytes, from, Math.Max(1, rest / 2));
+                    throw new ComponentDownloadException(url + " dropped.");
+                }
+
+                file.Write(bytes, from, rest);
                 return Task.CompletedTask;
             }
         }

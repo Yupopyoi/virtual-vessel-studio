@@ -138,7 +138,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 + "]}";
             VoiceComponentManifest manifest = VoiceComponentManifest.Parse(json, out IReadOnlyList<string> problems);
             Assert.That(problems, Is.Empty);
-            var activation = new VoiceLabActivation(_config, manifest, _folders.SharedModels, _folders.Scripts, f => new VoiceComponentInstaller(manifest, f, new Bytes(bytes), new Uv(failUv), null), "1", new FixedClock(), null);
+            var activation = new VoiceLabActivation(_config, manifest, _folders.SharedModels, _folders.Scripts, f => new VoiceComponentInstaller(manifest, f, new Bytes(bytes), new Uv(failUv), null) { RetryDelay = TimeSpan.Zero }, "1", new FixedClock(), null);
             if (!activation.IsReady)
             {
                 Assert.That(activation.SetLocation(_folder).Ok, Is.True);

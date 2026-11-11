@@ -149,6 +149,12 @@ namespace VirtualVessel.VoiceLab.Activation
             _log = log;
         }
 
+        /// <summary>Tries a download makes before it fails: a dropped connection is common over a 4 GB file.</summary>
+        public const int DownloadAttempts = 3;
+
+        /// <summary>The wait before trying a download again; tests set it to zero.</summary>
+        public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(3);
+
         /// <summary>
         /// Builds the manifest's version and returns the environment in it; it is not switched to. The version's folder
         /// is cleared first, as one left by a stopped build may be half made.
@@ -342,14 +348,23 @@ namespace VirtualVessel.VoiceLab.Activation
 
             // Only from its source: the project keeps no copies of others' files (the user's decision, 2026-11-11).
             string part = done + ".part";
-            try
+            for (int attempt = 1; ; attempt++)
             {
-                await _downloader.DownloadAsync(component.Url, part, received, cancellationToken).ConfigureAwait(false);
-            }
-            catch (ComponentDownloadException exception)
-            {
-                // What was received stays, so trying again continues from there.
-                throw new VoiceActivationException(VoiceActivationFailure.Network, $"{component.Id} could not be downloaded: {exception.Message}");
+                try
+                {
+                    await _downloader.DownloadAsync(component.Url, part, received, cancellationToken).ConfigureAwait(false);
+                    break;
+                }
+                catch (ComponentDownloadException exception) when (attempt < DownloadAttempts)
+                {
+                    // What was received stays, so the next try continues from there.
+                    _log?.Warning($"Downloading {component.Id} stopped (try {attempt} of {DownloadAttempts}); trying again: {exception.Message}");
+                    await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ComponentDownloadException exception)
+                {
+                    throw new VoiceActivationException(VoiceActivationFailure.Network, $"{component.Id} could not be downloaded: {exception.Message}");
+                }
             }
 
             string hash = await Task.Run(() => Sha256Of(part), cancellationToken).ConfigureAwait(false);
