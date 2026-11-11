@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "version": "1",
+  "python": "3.12.2",
+  "lock": "uv.lock",
+  "components": [
+    {
+      "id": "uv",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.11.26/uv-x86_64-pc-windows-msvc.zip",
+      "sha256": "4e1278ede866be6c0bf32d2f466cc6de7a9fb399ecf20c9ce2d186e52424be47",
+      "size": 24928660,
+      "license": "MIT OR Apache-2.0",
+      "place": "environment",
+      "target": "uv",
+      "extract": "zip"
+    },
+    {
+      "id": "rvc",
+      "url": "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/81eed5e8f68b6bed1789f682fe78cdd324495afc.zip",
+      "sha256": "c0427564fbeb584d1a4805a5e71b5897132a41b9029a0fa9f417497a6df13e43",
+      "size": 821646,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rvc-81eed5e8f68b6bed1789f682fe78cdd324495afc.zip",
+      "extract": "zip",
+      "strip": 1
+    },
+    {
+      "id": "hubert-config",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/hubert_base/config.json",
+      "sha256": "0346950779dfb7f9316fa74ed846e2b8a22a08eedfdc5387b73f327cb1a4a7cf",
+      "size": 1492,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/hubert_base/config.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/hubert-config-config.json"
+    },
+    {
+      "id": "hubert-preprocessor",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/hubert_base/preprocessor_config.json",
+      "sha256": "7c1976a680fb7acc757cd36fb08eef878fa36c70b4c9d2d595df9c608bbbbf0e",
+      "size": 225,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/hubert_base/preprocessor_config.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/hubert-preprocessor-preprocessor_config.json"
+    },
+    {
+      "id": "hubert-weights",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/hubert_base/pytorch_model.bin",
+      "sha256": "cc8c20f4b90a520757260197a3ff2505705a7adbd20ad9eeaa4e1a9b38442ef5",
+      "size": 189206711,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/hubert_base/pytorch_model.bin",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/hubert-weights-pytorch_model.bin"
+    },
+    {
+      "id": "rmvpe",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/rmvpe.pt",
+      "sha256": "6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193",
+      "size": 181184272,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/rmvpe/rmvpe.pt",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rmvpe-rmvpe.pt"
+    },
+    {
+      "id": "pretrained-g",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/pretrained_v2/f0G40k.pth",
+      "sha256": "3b2c44035e782c4b14ddc0bede9e2f4a724d025cd073f736d4f43708453adfcb",
+      "size": 73106273,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/pretrained_v2/f0G40k.pth",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/pretrained-g-f0G40k.pth"
+    },
+    {
+      "id": "pretrained-d",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/pretrained_v2/f0D40k.pth",
+      "sha256": "6b6ab091e70801b28e3f41f335f2fc5f3f35c75b39ae2628d419644ec2b0fa09",
+      "size": 142875703,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/assets/pretrained_v2/f0D40k.pth",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/pretrained-d-f0D40k.pth"
+    },
+    {
+      "id": "mute",
+      "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/mute.zip",
+      "sha256": "ee948e85213e4ed2f2ba2f8dfcee810bfd0b63131d91450e920bbe1cbd0321d0",
+      "size": 312273,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc/logs",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/mute-mute.zip",
+      "extract": "zip"
+    },
+    {
+      "id": "voxcpm2-readme",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/README.md",
+      "sha256": "c18d2ffbfb2f0aec770481c967842aee6c200cde65f6b033efd892a849986fda",
+      "size": 7939,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/README.md",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-readme-README.md"
+    },
+    {
+      "id": "voxcpm2-audiovae",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/audiovae.pth",
+      "sha256": "94b5d51e107e0507d4acc976cfdadb64edd6fd06d1f751dadbf2fd1594274bf1",
+      "size": 376951122,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/audiovae.pth",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-audiovae-audiovae.pth"
+    },
+    {
+      "id": "voxcpm2-config",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/config.json",
+      "sha256": "405f0dcd92f7feba6011ed4eac5c8d4f74cba9712f07fd5cfa3063bbdd95402c",
+      "size": 4336,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/config.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-config-config.json"
+    },
+    {
+      "id": "voxcpm2-model",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/model.safetensors",
+      "sha256": "f7f964cfa9da23653baec6e6f7750719977ad944ed9f95fe52fe3a620506891d",
+      "size": 4580080592,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/model.safetensors",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-model-model.safetensors"
+    },
+    {
+      "id": "voxcpm2-special-tokens",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/special_tokens_map.json",
+      "sha256": "068594063e37662c02b21acf42ebb334ef6a74fb810e68a2368f88f08351de76",
+      "size": 1632,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/special_tokens_map.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-special-tokens-special_tokens_map.json"
+    },
+    {
+      "id": "voxcpm2-tokenization",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/tokenization_voxcpm2.py",
+      "sha256": "84489ea32b6ee0cae22ed5480cacb6df85c46624c3119be9a2021c3649a12729",
+      "size": 2895,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/tokenization_voxcpm2.py",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-tokenization-tokenization_voxcpm2.py"
+    },
+    {
+      "id": "voxcpm2-tokenizer",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/tokenizer.json",
+      "sha256": "f8984687e4a92a3503d521396d454b7d68e9fdaab2a0288eb3536c7c1aa4bc20",
+      "size": 3676772,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/tokenizer.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-tokenizer-tokenizer.json"
+    },
+    {
+      "id": "voxcpm2-tokenizer-config",
+      "url": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/tokenizer_config.json",
+      "sha256": "e78a3ebb48a0b9437efd1823b6b726c823da89e49dd8bcc90c02419d9baa772b",
+      "size": 5059,
+      "license": "Apache-2.0",
+      "place": "environment",
+      "target": "voxcpm2/tokenizer_config.json",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/voxcpm2-tokenizer-config-tokenizer_config.json"
+    },
+    {
+      "id": "template",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/fused_template_w100.sentis",
+      "sha256": "299f73684bb3107281582053ec7e9909c5169fbc15cc20e69a944603c4e9cd60",
+      "size": 111433752,
+      "license": "MIT",
+      "place": "environment",
+      "target": "template/fused_template_w100.sentis"
+    },
+    {
+      "id": "template-manifest",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/fused_template_w100.json",
+      "sha256": "05bc5a5af1b32d3e9f456410944fb69e8e885d7494f9be4d1e56c8836c442245",
+      "size": 29139,
+      "license": "MIT",
+      "place": "environment",
+      "target": "template/fused_template_w100.json"
+    },
+    {
+      "id": "shared-hubert",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/hubert_16000_anchored.sentis",
+      "sha256": "f26bedafd1d55416195dd0d34ee877cd18790cbd51c7133ee671d34072d8d067",
+      "size": 377556920,
+      "license": "MIT",
+      "place": "sharedModels",
+      "target": "hubert_16000_anchored.sentis"
+    },
+    {
+      "id": "shared-rmvpe",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rmvpe_32.sentis",
+      "sha256": "df2cda7cdaf58b3f2ad8fb48cead79ef6fe5f5913c56b06d3c88d99862c65a4a",
+      "size": 482260816,
+      "license": "MIT",
+      "place": "sharedModels",
+      "target": "rmvpe_32.sentis"
+    }
+  ]
+}

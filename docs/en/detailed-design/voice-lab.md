@@ -128,15 +128,32 @@ Saved in `Config/voice-activation.json`.
 {
   "schemaVersion": 1,
   "version": "1",
-  "uv": { "url": "...", "sha256": "..." },
   "python": "3.12.2",
-  "lock": "services/voice-lab/uv.lock",
-  "rvc": { "repository": "...", "commit": "81eed5e8f68b...", "sha256": "..." },
-  "files": [
-    { "id": "rmvpe.pt", "url": "...", "sha256": "...", "license": "MIT" }
+  "lock": "uv.lock",
+  "components": [
+    {
+      "id": "rvc",
+      "url": "https://github.com/RVC-Project/.../archive/81eed5e8f68b....zip",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rvc-81eed5e8f68b....zip",
+      "sha256": "c0427564...",
+      "size": 821646,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc",
+      "extract": "zip",
+      "strip": 1
+    }
   ]
 }
 ```
+
+It is `services/voice-lab/voice-components.json`, bundled with the app beside the scripts. `tools/voice/voice_components.py` builds it from `tools/voice/voice-components.sources.json` (sources, licenses, places) and the very files tested on the developer's PC, so the sizes and hashes are theirs. With `--release`, it gathers the files for the GitHub Release into one folder, for the user to publish.
+
+- `place`: `environment` goes into the training environment's version folder (`<version>/`), `sharedModels` into the Data Root's `VoiceModels/Shared/1/`. The HuBERT and RMVPE `.sentis` streaming uses are the latter, so streaming keeps working when the environment is deleted.
+- `target`: a relative path inside the place; for `extract` `zip`, the folder it is extracted into. `strip` drops that many leading folders from the zip's paths (the top folder of GitHub's archives).
+- `mirror`: the project's copy in its GitHub Release (for MIT and Apache-2.0 files), used when the source fails and checked against the same hash. Files the project made (the template, the shared models) have `url` pointing at the Release.
+- The app checks it when reading (`VoiceComponentManifest`): an unknown schema version is not read, URLs are https only, hashes are 64 lowercase hex digits, and `target` is relative with no `..` or drive, so the list cannot write a file anywhere.
+- Version 1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the mirror is then used.
 
 ### 6.3 Training Run
 

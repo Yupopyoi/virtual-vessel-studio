@@ -128,15 +128,32 @@ public interface IVoiceLabLibrary
 {
   "schemaVersion": 1,
   "version": "1",
-  "uv": { "url": "...", "sha256": "..." },
   "python": "3.12.2",
-  "lock": "services/voice-lab/uv.lock",
-  "rvc": { "repository": "...", "commit": "81eed5e8f68b...", "sha256": "..." },
-  "files": [
-    { "id": "rmvpe.pt", "url": "...", "sha256": "...", "license": "MIT" }
+  "lock": "uv.lock",
+  "components": [
+    {
+      "id": "rvc",
+      "url": "https://github.com/RVC-Project/.../archive/81eed5e8f68b....zip",
+      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rvc-81eed5e8f68b....zip",
+      "sha256": "c0427564...",
+      "size": 821646,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc",
+      "extract": "zip",
+      "strip": 1
+    }
   ]
 }
 ```
+
+`services/voice-lab/voice-components.json`に置き、スクリプトと一緒にアプリに同梱する。`tools/voice/voice_components.py`が、`tools/voice/voice-components.sources.json`（取得元、ライセンス、置き場所）と、開発PCで確かめたファイルそのものから作る。大きさとハッシュは、確かめたファイルの値である。`--release`を付けると、GitHub Releaseに置くファイルを1つのフォルダーに集める（利用者が公開する）。
+
+- `place`：`environment`は学習環境の版のフォルダー（`<版>/`）に、`sharedModels`はData Rootの`VoiceModels/Shared/1/`に置く。配信が使うHuBERTとRMVPEの`.sentis`は後者なので、学習環境を削除しても配信は動く。
+- `target`：置き場所の中の相対パス。`extract`が`zip`なら、展開するフォルダーである。`strip`は、zipの中のパスから先頭のフォルダーを外す数（GitHubのアーカイブの最上位のフォルダー）。
+- `mirror`：本プロジェクトのGitHub Releaseの控え（MITとApache-2.0のもの）。取得元で失敗したときに使い、同じハッシュで確かめる。本プロジェクトが作ったファイル（ひな形、共有のモデル）は、`url`がReleaseを指す。
+- アプリは読むときに確かめる（`VoiceComponentManifest`）：知らない形式の版は読まない。URLはhttpsだけ、ハッシュは小文字の16進64文字、`target`は相対で`..`やドライブを含まない。一覧がどこにでもファイルを書けることを防ぐためである。
+- 版1は21個、合計約6.1 GB（2026-11-11）。Hugging Faceのファイルは固定のrevision（`lj1995/VoiceConversionWebUI`の`e6d0c1a1…`、`openbmb/VoxCPM2`の`32279eff…`）を指し、大きいファイルのハッシュは配布元が示す値と一致した。GitHubのアーカイブのzipは、GitHubが作り直すとハッシュが変わることがある。そのときは控えから取得する。
 
 ### 6.3 Training Run
 
