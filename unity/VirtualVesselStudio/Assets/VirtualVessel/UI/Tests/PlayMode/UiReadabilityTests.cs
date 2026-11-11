@@ -117,6 +117,11 @@ namespace VirtualVessel.UI.Tests
             {
                 problems.Add($"{where}: cramped {pair}");
             }
+
+            foreach (string pair in UiChecks.UnderDivider(_root.Content))
+            {
+                problems.Add($"{where}: under a divider {pair}");
+            }
         }
     }
 }

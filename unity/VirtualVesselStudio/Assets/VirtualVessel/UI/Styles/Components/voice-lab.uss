@@ -24,10 +24,12 @@
     margin-bottom: var(--vv-space-m);
 }
 
+/* The S space above, so a row of buttons under a setting row's divider does not touch it (the user's review, 2026-11-11). */
 .vv-lab__actions {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
+    margin-top: var(--vv-space-s);
 }
 
 .vv-lab__actions > * {
@@ -122,6 +124,7 @@
 
 /* The request read back as one sentence. */
 .vv-lab__ask {
+    margin-bottom: var(--vv-space-m);
     padding: var(--vv-space-m);
     border-radius: var(--vv-radius-m);
     border-width: 1px;

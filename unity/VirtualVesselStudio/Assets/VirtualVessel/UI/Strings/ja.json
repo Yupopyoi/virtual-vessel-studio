@@ -183,7 +183,7 @@
         "lab.base.more-mood": "詳細設定",
         "lab.base.words": "言葉を追加（任意）",
         "lab.base.words-hint": "例：ふわっとした、やさしい話し方",
-        "lab.base.make": "候補を作る",
+        "lab.base.make": "声の候補を作成する",
         "lab.base.make-note": "生成には音声1本あたり約10秒かかります。また、初回は準備のため、少し長くかかります。",
         "lab.base.making": "候補を作っています",
         "lab.base.loading": "準備しています",

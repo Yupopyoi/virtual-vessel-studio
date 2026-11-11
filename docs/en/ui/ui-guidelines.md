@@ -29,7 +29,7 @@ Visual values are defined in `design-system.md`, and component specifications in
 9. Never use color alone for status. Always add a shape icon and text (`design-system.md` 9.1).
 10. When adding a new design pattern, reflect it in `design-system.md` or `components.md` and in the preview page.
 11. After implementation, check the display with screenshots or similar (system design 14.35). Major screens and large changes get a final review by the user (system design 14.36).
-12. Every text gets a color token. A class with no color left text in Unity's default dark color, unreadable on the dark background. Controls side by side have at least the S space (8px) between them. A PlayMode test opening every screen on the dark and the light background (`UiReadabilityTests`) checks both (problems the user's reviews kept finding, 2026-11-11).
+12. Every text gets a color token. A class with no color left text in Unity's default dark color, unreadable on the dark background. Controls side by side, and a divider and a control under it, have at least the S space (8px) between them. A PlayMode test opening every screen on the dark and the light background (`UiReadabilityTests`) checks both (problems the user's reviews kept finding, 2026-11-11).
 13. Keep the screen's text short. An explanation goes in a Help Hint (`components.md` 3.28), for those who want to read it (the user's request, 2026-11-11).
 
 ---
