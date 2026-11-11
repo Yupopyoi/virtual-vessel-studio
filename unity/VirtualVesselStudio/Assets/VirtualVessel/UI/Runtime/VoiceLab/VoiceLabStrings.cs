@@ -46,6 +46,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string SetupCheckOk = "lab.setup.check.ok";
         public const string SetupCheckNg = "lab.setup.check.ng";
         public const string SetupToTerms = "lab.setup.to-terms";
+        public const string SetupAgreeNote = "lab.setup.agree-note";
         public const string SetupTimeNote = "lab.setup.time-note";
         public const string SetupTermsTitle = "lab.setup.terms.title";
         public const string SetupTermsVersion = "lab.setup.terms.version";

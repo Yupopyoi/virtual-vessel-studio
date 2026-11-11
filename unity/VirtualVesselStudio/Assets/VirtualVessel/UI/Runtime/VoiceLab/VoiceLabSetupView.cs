@@ -131,6 +131,7 @@ namespace VirtualVessel.UI.VoiceLab
             ToTermsButton.clicked += () => ShowTerms(true);
             ToTermsButton.SetEnabled(false);
             CheckCard.Add(VoiceLabScreen.Actions(ToTermsButton));
+            CheckCard.Add(Ui.Text(VoiceLabStrings.SetupAgreeNote, VoiceLabScreen.NoteClass, "vv-text-body"));
             CheckCard.Add(Ui.Text(VoiceLabStrings.SetupTimeNote, VoiceLabScreen.NoteClass, "vv-text-body"));
             Add(CheckCard);
 
