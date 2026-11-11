@@ -397,7 +397,7 @@ The only ordinary setting is training length (standard or longer). Detailed valu
 | Voice design, Training Runs | `VoiceLab/` in the Data Root (6.3) |
 | Registered voices | `VoiceModels/` in the Data Root |
 
-The environment is large, so it stays out of the Data Root and out of backups. Removing it leaves registered voices working, and a screen offers to remove it.
+The environment is large, so it stays out of the Data Root and out of backups. Streaming does not use it, so removing it leaves registered voices working. The Made voices tab removes it (`IVoiceLab.RemoveEnvironmentAsync`, `VoiceLabEnvironmentRemover`; the user's request, 2026-11-11). Only an environment the app built is removed: every part of it inside one version folder of the place above. One set up elsewhere, such as a developer's, is not (CLAUDE.md 26). While anything runs in Voice Lab, it is refused with `Busy`. The settings file (`voice-lab-environment.json`) goes first, then the folder, so a half-removed environment is never taken for a working one. Afterwards Voice Lab cannot be used until the environment is built again. Activation (building it) is not made yet, so for now no removable environment exists.
 
 ## 12. Error Handling and Recovery
 

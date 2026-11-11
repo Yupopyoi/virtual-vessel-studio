@@ -18,6 +18,19 @@ namespace VirtualVessel.UI.VoiceLab
     /// How long a voice trains, chosen in STEP 3's details. Longer keeps more of the voice's texture and takes longer
     /// (Voice Lab detailed design 8.3.3); Voice Lab decides the epochs of each.
     /// </summary>
+    /// <summary>Whose training environment Voice Lab runs on, which decides whether it can be deleted here.</summary>
+    public enum VoiceLabEnvironmentState
+    {
+        /// <summary>No environment is set up.</summary>
+        None,
+
+        /// <summary>The app built it, so it can be deleted to free space.</summary>
+        AppBuilt,
+
+        /// <summary>Set up elsewhere, such as a developer's; not the app's to delete.</summary>
+        External,
+    }
+
     public enum VoiceLabTrainingLength
     {
         Short,
@@ -227,6 +240,19 @@ namespace VirtualVessel.UI.VoiceLab
         /// NotFound without the run, Invalid when it did not complete or its voice is missing.
         /// </summary>
         CrudResult<string> BuiltVoiceFolder(string runId);
+
+        /// <summary>Whose training environment this is (Voice Lab detailed design 11).</summary>
+        VoiceLabEnvironmentState EnvironmentState { get; }
+
+        /// <summary>The training environment's size in bytes, read off the main thread; 0 unless the app built it.</summary>
+        Task<long> EnvironmentSizeAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Deletes the training environment the app built, to free space; streaming and registered voices do not use
+        /// it. Voice Lab is then not set up until it is built again. A CRUD delete (system design 6.31): Busy while
+        /// something runs in Voice Lab, Invalid when the app did not build it, StorageFailed when deleting failed.
+        /// </summary>
+        Task<CrudResult> RemoveEnvironmentAsync();
     }
 
     /// <summary>Voice Lab could not do what was asked; <see cref="System.Exception.Message"/> is for developers.</summary>

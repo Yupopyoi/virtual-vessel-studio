@@ -259,6 +259,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabLibraryView.SizeText(1500), Is.EqualTo("2 KB"));
             Assert.That(VoiceLabLibraryView.SizeText(5L * 1024 * 1024 + 300 * 1024), Is.EqualTo("5.3 MB"));
             Assert.That(VoiceLabLibraryView.SizeText(39L * 1024 * 1024), Is.EqualTo("39 MB"));
+            Assert.That(VoiceLabLibraryView.SizeText(6L * 1024 * 1024 * 1024 + 300L * 1024 * 1024), Is.EqualTo("6.3 GB"));
         }
 
         [Test]

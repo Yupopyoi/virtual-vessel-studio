@@ -82,14 +82,22 @@ namespace VirtualVessel.UI.VoiceLab
 
         private const string SizeName = "size";
 
+        /// <summary>The stored data Card, where the screen adds the training environment's row.</summary>
+        public Card StorageCard => _storage;
+
         public ActionButton DeleteSamplesButton { get; }
 
         public ActionButton DeleteCandidatesButton { get; }
 
-        /// <summary>A size as the tab shows it: MB with one decimal under 10, else whole; KB under 1 MB. Pure.</summary>
+        /// <summary>A size as the tab shows it: KB under 1 MB; MB with one decimal under 10, else whole; GB with one decimal from 1 GB. Pure.</summary>
         public static string SizeText(long bytes)
         {
             const double Mb = 1024d * 1024d;
+            if (bytes >= 1024L * 1024L * 1024L)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0:0.0} GB", bytes / (Mb * 1024d));
+            }
+
             if (bytes < 1024L * 1024L)
             {
                 return string.Format(CultureInfo.InvariantCulture, "{0:0} KB", Math.Ceiling(bytes / 1024d));

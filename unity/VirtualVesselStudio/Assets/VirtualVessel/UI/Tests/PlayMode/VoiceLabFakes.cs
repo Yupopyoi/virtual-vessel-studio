@@ -68,6 +68,24 @@ namespace VirtualVessel.UI.Tests
             return BuiltFolder == null ? CrudResult<string>.Fail(CrudError.Invalid, "none") : CrudResult<string>.Success(BuiltFolder);
         }
 
+        public VoiceLabEnvironmentState EnvironmentState { get; set; } = VoiceLabEnvironmentState.External;
+
+        public long EnvironmentBytes { get; set; } = 6L * 1024 * 1024 * 1024;
+
+        public int EnvironmentRemovals { get; private set; }
+
+        public Task<long> EnvironmentSizeAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(EnvironmentState == VoiceLabEnvironmentState.AppBuilt ? EnvironmentBytes : 0L);
+        }
+
+        public Task<CrudResult> RemoveEnvironmentAsync()
+        {
+            EnvironmentRemovals++;
+            EnvironmentState = VoiceLabEnvironmentState.None;
+            return Task.FromResult(CrudResult.Success);
+        }
+
         public void CancelBuild()
         {
             BuildsCancelled++;

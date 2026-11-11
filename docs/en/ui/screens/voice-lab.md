@@ -95,6 +95,7 @@ A tab bar at the top of the screen: Make a voice (chapters 3 to 7) and Made voic
 - Empty: a line saying nothing has been made yet, with Make a voice.
 - Without a training environment the tab still lists what was made; Make again is disabled.
 - Stored data Card: rows for Samples and Voice candidates, each with its size (KB or MB) and Delete, explained in a Help Hint after the name. Each is deleted on its own after a confirmation, and Delete is disabled when there is nothing to delete (the user's request, 2026-11-11: to save space, and for testing; Voice Lab detailed design 8.6). Back in Make a voice after deleting the samples, STEP 1 offers Make the samples.
+- The same Card has a row for the Voice making environment (Python). Its size is counted off the main thread when the tab opens, showing Measuring meanwhile. Only an environment the app built can be deleted, after a confirmation; one set up elsewhere, such as a developer's, cannot, and its tooltip says why. Without an environment the row is not shown (the user's request, 2026-11-11; Voice Lab detailed design 11).
 
 ## 9. Strings
 
