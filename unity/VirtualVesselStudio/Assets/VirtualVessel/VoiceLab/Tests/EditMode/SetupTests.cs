@@ -67,6 +67,21 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(lab.EnvironmentState, Is.EqualTo(VoiceLabEnvironmentState.External), "Not built in the folder chosen for activation.");
         }
 
+        [Test]
+        public void ADevelopersOwnEnvironment_IsReady_SoNothingIsOfferedToPrepare()
+        {
+            File.WriteAllText(Path.Combine(_folder, VoiceLabService.EnvironmentFile), FakeEnvironment().ToJson());
+            VoiceLabService lab = VoiceLabService.Create(_folder, Path.Combine(_folder, "VoiceLab"), Path.Combine(_folder, "VoiceModels"), new FixedClock(), new NullLog());
+            string scripts = Path.GetFullPath(Path.Combine("..", "..", "services", "voice-lab"));
+            VoiceLabSetupService setup = VoiceLabSetupService.Create(_folder, scripts, Path.Combine(_folder, "Shared"), Path.Combine(_folder, "Logs"), lab, new FixedClock(), new NullLog());
+
+            Assert.That(setup, Is.Not.Null, "The shipped list and terms are read.");
+            Assert.That(setup.State, Is.EqualTo(VoiceLabSetupState.Ready));
+            Assert.That(setup.UpdateAvailable, Is.False);
+            Assert.That(setup.TermsVersion, Is.EqualTo(VoiceTerms.Load(scripts, "ja").Version));
+            Assert.That(VoiceLabSetupService.Create(_folder, _folder, null, null, lab, new FixedClock(), new NullLog()), Is.Null, "No list here.");
+        }
+
         // Every part an environment names, as empty files and folders; the shelf is the real one.
         private VoiceLabEnvironment FakeEnvironment()
         {

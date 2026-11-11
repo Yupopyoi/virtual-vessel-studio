@@ -98,7 +98,11 @@ namespace VirtualVessel.VoiceLab.Activation
             return new VoiceLabSetupService(activation, voiceLab, probe, Verify, scripts, log);
         }
 
-        public VoiceLabSetupState State => StateOf(_running, _activation.IsReady, _activation.CanResume, _activation.Record.State, LastFailure);
+        /// <summary>
+        /// Ready also with an environment set up outside activation, such as a developer's own: Voice Lab works, so
+        /// nothing is offered to prepare. Trying activation then needs that environment's file moved away.
+        /// </summary>
+        public VoiceLabSetupState State => StateOf(_running, _activation.IsReady || _voiceLab.Availability == VoiceLabAvailability.Ready, _activation.CanResume, _activation.Record.State, LastFailure);
 
         public VoiceLabSetupFailure LastFailure { get; private set; }
 
