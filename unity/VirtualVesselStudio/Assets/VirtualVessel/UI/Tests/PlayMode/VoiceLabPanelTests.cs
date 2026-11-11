@@ -218,10 +218,14 @@ namespace VirtualVessel.UI.Tests
             IconButton[] plays = request.Query<IconButton>().ToList().ToArray();
             Assert.That(plays.All(p => p.style.display == DisplayStyle.Flex && !p.enabledSelf), Is.True, "Shown but disabled before the samples are made, so the user sees where they will be.");
 
+            Card examples = request.Query<Card>().ToList().First(c => c.TitleKey == VoiceLabStrings.Examples);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.None), "Nothing to play, so the examples wait with the samples.");
+
             Submit(request.MakeSamplesButton);
             yield return null;
             Assert.That(_lab.SampleRuns, Is.EqualTo(1));
             Assert.That(plays.All(p => p.enabledSelf), Is.True);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.Flex));
 
             Submit(plays[0]);
             yield return null;
