@@ -17,15 +17,17 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceLabEnvironment inside = Environment(Root + @"\1.0");
 
             Assert.That(VoiceLabEnvironmentRemover.Owned(inside, Root), Is.EqualTo(Root + @"\1.0"));
+            var appScripts = new VoiceLabEnvironment(Root + @"\1.0\venv\Scripts\python.exe", @"C:\Program Files\VVS\VoiceLab\scripts", Root + @"\1.0\rvc", Root + @"\1.0\voxcpm2", Root + @"\1.0\t.sentis", Root + @"\1.0\t.json");
+            Assert.That(VoiceLabEnvironmentRemover.Owned(appScripts, Root), Is.EqualTo(Root + @"\1.0"), "The scripts come with the app, wherever it is.");
         }
 
         [Test]
         public void AnEnvironmentElsewhere_OrAcrossVersions_IsNot()
         {
             Assert.That(VoiceLabEnvironmentRemover.Owned(Environment(@"E:\VirtualVessel\voice-work"), Root), Is.Null, "A developer's environment.");
-            var mixed = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", Root + @"\2.0\scripts", Root + @"\1.0\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
+            var mixed = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", Root + @"\1.0\scripts", Root + @"\2.0\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
             Assert.That(VoiceLabEnvironmentRemover.Owned(mixed, Root), Is.Null, "Parts of two versions.");
-            var partly = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", @"E:\scripts", Root + @"\1.0\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
+            var partly = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", Root + @"\1.0\scripts", @"E:\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
             Assert.That(VoiceLabEnvironmentRemover.Owned(partly, Root), Is.Null, "A part outside.");
             Assert.That(VoiceLabEnvironmentRemover.Owned(Environment(Root + "Other"), Root), Is.Null, "A folder whose name only starts the same.");
         }

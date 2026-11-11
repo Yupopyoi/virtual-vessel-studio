@@ -33,7 +33,8 @@ namespace VirtualVessel.VoiceLab.Scripts
 
         /// <summary>
         /// The version folder under <paramref name="managedRoot"/> that holds every part of the environment, or null when
-        /// any part is outside it, or the parts are in different versions. Pure.
+        /// any part is outside it, or the parts are in different versions. The scripts are not a part: they come with the
+        /// app, wherever it is installed. Pure.
         /// </summary>
         public static string Owned(VoiceLabEnvironment environment, string managedRoot)
         {
@@ -43,7 +44,7 @@ namespace VirtualVessel.VoiceLab.Scripts
             }
 
             string root = Path.GetFullPath(managedRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            string[] parts = new[] { environment.Python, environment.Scripts, environment.Rvc, environment.VoxCpmModel, environment.Template, environment.Manifest }
+            string[] parts = new[] { environment.Python, environment.Rvc, environment.VoxCpmModel, environment.Template, environment.Manifest }
                 .Where(p => !string.IsNullOrEmpty(p)).Select(Path.GetFullPath).ToArray();
             if (parts.Length == 0 || !parts.All(p => p.StartsWith(root, StringComparison.OrdinalIgnoreCase)))
             {
