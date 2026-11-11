@@ -342,23 +342,6 @@ namespace VirtualVessel.VoiceLab.Design
             return request;
         }
 
-        // Passes progress on at once, on the thread it arrives on. Progress<T> would post it to the caller's context,
-        // and a caller waiting on that context would see it only at the end.
-        private sealed class Forward<T> : IProgress<T>
-        {
-            private readonly Action<T> _report;
-
-            public Forward(Action<T> report)
-            {
-                _report = report;
-            }
-
-            public void Report(T value)
-            {
-                _report(value);
-            }
-        }
-
         private readonly struct BuildStep
         {
             public BuildStep(TrainingState state, string script, string operation, float minutes)

@@ -171,7 +171,8 @@ namespace VirtualVessel.VoiceLab.Activation
         /// </summary>
         /// <exception cref="VoiceActivationException">It could not be built; the environment in use, if any, stays.</exception>
         /// <exception cref="OperationCanceledException">It was stopped; starting again continues it.</exception>
-        public async Task<VoiceLabEnvironment> RunAsync(Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, IProgress<VoiceActivationProgress> progress, CancellationToken cancellationToken)
+        /// <param name="beforeSwitch">Waits until the environment in use is idle, as switching removes it; null to switch at once.</param>
+        public async Task<VoiceLabEnvironment> RunAsync(Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, IProgress<VoiceActivationProgress> progress, CancellationToken cancellationToken, Func<CancellationToken, Task> beforeSwitch = null)
         {
             string version = _manifest.Version;
             if (!TermsAgreed)
@@ -206,6 +207,11 @@ namespace VirtualVessel.VoiceLab.Activation
             }
 
             progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Finishing, 0, 1));
+            if (beforeSwitch != null)
+            {
+                await beforeSwitch(cancellationToken).ConfigureAwait(false);
+            }
+
             SwitchTo(environment, folders.Root);
             Save(After(Record, VoiceActivationOutcome.Succeeded, version));
             _log?.Information($"Voice Lab's environment {version} is ready.");
