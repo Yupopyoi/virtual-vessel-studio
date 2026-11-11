@@ -47,7 +47,9 @@ def run(request, reporter):
             raise FileNotFoundError(path)
 
     # A cancelled run is stopped before it can clean up; only one training runs at a time, so what is left is stale.
+    # RVC's source archive has neither folder (Git keeps no empty ones), and RVC writes into both: they are made here.
     for kind in ("logs", os.path.join("assets", "weights")):
+        os.makedirs(os.path.join(root, kind), exist_ok=True)
         for stale in rvc.leftovers(os.listdir(os.path.join(root, kind))):
             path = os.path.join(root, kind, stale)
             shutil.rmtree(path, ignore_errors=True) if os.path.isdir(path) else os.remove(path)
