@@ -84,6 +84,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string SetupUpdateStart = "lab.setup.update.start";
         public const string SetupUpdateSize = "lab.setup.update.size";
         public const string SetupUpdateFailed = "lab.setup.update.failed";
+        public const string SetupOverall = "lab.setup.overall";
         public const string SetupLeft = "lab.setup.left";
         public const string SetupLeftUnderMinute = "lab.setup.left-under-minute";
         public const string SetupItemPretrained = "lab.setup.item.pretrained";

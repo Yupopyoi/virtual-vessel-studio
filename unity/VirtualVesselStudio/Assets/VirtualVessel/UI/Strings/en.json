@@ -154,6 +154,7 @@
         "lab.setup.update.start": "Update",
         "lab.setup.update.size": "Download: about {size}",
         "lab.setup.update.failed": "The update failed",
+        "lab.setup.overall": "{percent} overall",
         "lab.setup.left": "about {minutes} min left",
         "lab.setup.left-under-minute": "under a minute left",
         "lab.setup.item.pretrained": "RVC pretrained model",

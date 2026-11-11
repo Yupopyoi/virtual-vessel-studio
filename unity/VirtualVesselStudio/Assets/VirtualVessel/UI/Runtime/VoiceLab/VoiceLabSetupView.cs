@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
@@ -441,12 +440,19 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         /// <summary>The meter's detail: bytes while downloading, and how far the whole build is. Pure.</summary>
-        public static string ProgressDetail(VoiceLabSetupProgress progress)
+        public static string ProgressDetail(ILocalizer localizer, VoiceLabSetupProgress progress)
         {
+            // The bar is the whole build; the bytes and their own share are the download's, so the two are named apart
+            // (the user's review, 2026-11-11: "4.5 GB / 6.1 GB · 44%" read as a wrong share).
             string percent = VoiceLabView.PercentText(progress.Fraction);
-            return progress.Step == VoiceLabSetupStep.Download && progress.Total > 0
-                ? string.Format(CultureInfo.InvariantCulture, "{0} / {1} · {2}", VoiceLabLibraryView.SizeText(progress.Done), VoiceLabLibraryView.SizeText(progress.Total), percent)
-                : percent;
+            string overall = localizer?.Get(VoiceLabStrings.SetupOverall, ("percent", percent)) ?? percent;
+            if (progress.Step != VoiceLabSetupStep.Download || progress.Total <= 0)
+            {
+                return overall;
+            }
+
+            string downloaded = VoiceLabView.PercentText((float)progress.Done / progress.Total);
+            return string.Format(CultureInfo.InvariantCulture, "{0} / {1} ({2}) · {3}", VoiceLabLibraryView.SizeText(progress.Done), VoiceLabLibraryView.SizeText(progress.Total), downloaded, overall);
         }
 
         /// <summary>
@@ -821,7 +827,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _meter.LabelKey = s_stepKeys[current];
             _meter.Progress = progress.Fraction;
-            _meter.Detail = ProgressDetail(progress) + DownloadRate(progress, running);
+            _meter.Detail = ProgressDetail(UiServices.Find(this)?.Localizer, progress) + DownloadRate(progress, running);
             ShowEntries();
             StopButton.style.display = Show(running);
             StopButton.SetEnabled(_run != null);
@@ -875,7 +881,9 @@ namespace VirtualVessel.UI.VoiceLab
 
             _shownEntries = entries.Count;
             _log.style.display = entries.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            _log.schedule.Execute(() => _log.scrollOffset = new Vector2(0f, float.MaxValue));
+            // After layout, so the newest line is measured before it is scrolled to.
+            Label newest = (Label)_log[_log.childCount - 1];
+            _log.schedule.Execute(() => _log.ScrollTo(newest)).StartingIn(50);
         }
 
         private void AgreeAndRun()

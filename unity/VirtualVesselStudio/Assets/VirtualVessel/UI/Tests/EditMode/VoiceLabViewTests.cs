@@ -344,8 +344,8 @@ namespace VirtualVessel.UI.Tests
         public void TheDownload_ShowsItsBytes_AndTheOtherStepsTheirShare()
         {
             const long Gb = 1024L * 1024 * 1024;
-            Assert.That(VoiceLabSetupView.ProgressDetail(new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB · 30%"));
-            Assert.That(VoiceLabSetupView.ProgressDetail(new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
+            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB (50%) · 30%"), "The download's own share, then the whole build's.");
+            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
         }
 
         [Test]

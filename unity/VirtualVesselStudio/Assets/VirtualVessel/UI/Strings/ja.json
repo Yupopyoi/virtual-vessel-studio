@@ -154,6 +154,7 @@
         "lab.setup.update.start": "更新する",
         "lab.setup.update.size": "取得: 約 {size}",
         "lab.setup.update.failed": "更新できませんでした",
+        "lab.setup.overall": "全体 {percent}",
         "lab.setup.left": "残り約 {minutes} 分",
         "lab.setup.left-under-minute": "残り 1 分未満",
         "lab.setup.item.pretrained": "RVC の事前学習モデル",
