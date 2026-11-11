@@ -835,6 +835,27 @@ namespace VirtualVessel.UI.Tests
             Assert.That(texts.Any(t => t.Contains("空き") || t.Contains("接続済み")), Is.False, "Nothing is left in Japanese.");
         }
 
+        [UnityTest]
+        public IEnumerator ChangingTheLanguage_KeepsTheTabShown()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 140, "b.wav"));
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library, VoiceLabSetup = new FakeSetup { State = VoiceLabSetupState.Paused, TermsAgreed = true } });
+            yield return null;
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Make a voice is open.");
+
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Still only Make a voice.");
+            Assert.That(screen.Tabs.value, Is.EqualTo(VoiceLabScreen.MakeTab));
+        }
+
         private VoiceLabScreen Screen()
         {
             return (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");
