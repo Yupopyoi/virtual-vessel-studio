@@ -188,6 +188,15 @@ namespace VirtualVessel.UI.VoiceLab
         public const string LibraryEmpty = "lab.library.empty";
         public const string LibraryVoices = "lab.library.voices";
         public const string LibraryRuns = "lab.library.runs";
+        public const string Storage = "lab.library.storage";
+        public const string StorageSamples = "lab.library.storage.samples";
+        public const string StorageSamplesHelp = "lab.library.storage.samples.help";
+        public const string StorageCandidates = "lab.library.storage.candidates";
+        public const string StorageCandidatesHelp = "lab.library.storage.candidates.help";
+        public const string DeleteSamplesTitle = "lab.library.delete-samples";
+        public const string DeleteSamplesBody = "lab.library.delete-samples.body";
+        public const string DeleteCandidatesTitle = "lab.library.delete-candidates";
+        public const string DeleteCandidatesBody = "lab.library.delete-candidates.body";
         public const string Rename = "lab.library.rename";
         public const string SaveName = "lab.library.save-name";
         public const string Delete = "lab.library.delete";

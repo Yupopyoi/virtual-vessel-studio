@@ -28,8 +28,35 @@ namespace VirtualVessel.UI.VoiceLab
 
         CrudResult DeleteVoice(string voiceId);
 
+        /// <summary>The space STEP 1's samples and earlier sessions' candidates take, to show before deleting them.</summary>
+        CrudResult<VoiceLabStorageUse> StorageUse();
+
+        /// <summary>Deletes STEP 1's samples; STEP 1 can make them again. Busy while they are being made.</summary>
+        CrudResult DeleteSamples();
+
+        /// <summary>
+        /// Deletes earlier sessions' candidates and previews. Those runs were built from stay, so Make again still
+        /// finds its base, and so does this session's.
+        /// </summary>
+        CrudResult DeleteOldCandidates();
+
         /// <summary>A registered voice's folder, to try it in STEP 4. NotFound without the voice.</summary>
         CrudResult<string> VoiceFolder(string voiceId);
+    }
+
+    /// <summary>What can be deleted to free space, in bytes (Voice Lab detailed design 8.6).</summary>
+    public readonly struct VoiceLabStorageUse
+    {
+        public VoiceLabStorageUse(long samplesBytes, long candidatesBytes)
+        {
+            SamplesBytes = samplesBytes;
+            CandidatesBytes = candidatesBytes;
+        }
+
+        public long SamplesBytes { get; }
+
+        /// <summary>Earlier sessions' candidates and previews that can go.</summary>
+        public long CandidatesBytes { get; }
     }
 
     /// <summary>A Training Run as the Made voices tab shows it.</summary>

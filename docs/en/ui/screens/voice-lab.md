@@ -94,6 +94,7 @@ A tab bar at the top of the screen: Make a voice (chapters 3 to 7) and Made voic
 - Make again opens Make a voice at STEP 2 with the run's words, base, and timbre; without the base's audio it opens STEP 1 with the words and a line saying the base is gone.
 - Empty: a line saying nothing has been made yet, with Make a voice.
 - Without a training environment the tab still lists what was made; Make again is disabled.
+- Stored data Card: rows for Samples and Voice candidates, each with its size (KB or MB) and Delete, explained in a Help Hint after the name. Each is deleted on its own after a confirmation, and Delete is disabled when there is nothing to delete (the user's request, 2026-11-11: to save space, and for testing; Voice Lab detailed design 8.6). Back in Make a voice after deleting the samples, STEP 1 offers Make the samples.
 
 ## 9. Strings
 

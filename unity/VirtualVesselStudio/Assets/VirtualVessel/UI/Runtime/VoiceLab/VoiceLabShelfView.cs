@@ -207,6 +207,12 @@ namespace VirtualVessel.UI.VoiceLab
             _promptPanel.style.display = mode == PromptMode ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
+        /// <summary>Shows again whether the samples are there, such as after they were deleted in the Made voices tab.</summary>
+        public void RefreshSamples()
+        {
+            ShowSamples();
+        }
+
         public void Press(string wordId)
         {
             _picked = _shelf.Toggle(_picked, wordId);

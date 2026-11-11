@@ -217,6 +217,12 @@ namespace VirtualVessel.UI.VoiceLab
             _player.Stop();
             Tabs?.SetValueWithoutNotify(tab);
             _make.style.display = tab == MakeTab ? DisplayStyle.Flex : DisplayStyle.None;
+            if (tab == MakeTab)
+            {
+                // The samples may have been deleted in the Made voices tab.
+                _base?.RequestView.RefreshSamples();
+            }
+
             if (Library != null)
             {
                 Library.style.display = tab == MadeTab ? DisplayStyle.Flex : DisplayStyle.None;

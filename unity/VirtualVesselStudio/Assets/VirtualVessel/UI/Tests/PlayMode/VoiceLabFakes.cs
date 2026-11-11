@@ -194,6 +194,31 @@ namespace VirtualVessel.UI.Tests
             return CrudResult.Success;
         }
 
+        public VoiceLabStorageUse Use { get; set; } = new VoiceLabStorageUse(25L * 1024 * 1024, 39L * 1024 * 1024);
+
+        public int SamplesDeleted { get; private set; }
+
+        public int CandidatesDeleted { get; private set; }
+
+        public CrudResult<VoiceLabStorageUse> StorageUse()
+        {
+            return CrudResult<VoiceLabStorageUse>.Success(Use);
+        }
+
+        public CrudResult DeleteSamples()
+        {
+            SamplesDeleted++;
+            Use = new VoiceLabStorageUse(0L, Use.CandidatesBytes);
+            return CrudResult.Success;
+        }
+
+        public CrudResult DeleteOldCandidates()
+        {
+            CandidatesDeleted++;
+            Use = new VoiceLabStorageUse(Use.SamplesBytes, 0L);
+            return CrudResult.Success;
+        }
+
         /// <summary>When set, deleting a voice fails with it, as storage might.</summary>
         public CrudError DeleteFailure { get; set; }
 

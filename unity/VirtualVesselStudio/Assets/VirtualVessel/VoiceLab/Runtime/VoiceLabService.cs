@@ -61,6 +61,9 @@ namespace VirtualVessel.VoiceLab
         /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
         public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
 
+        // Read by the library from the main thread while the samples are made; set before and after, never in between.
+        private volatile bool _makingSamples;
+
         public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
 
         public VoiceLabShelf Shelf { get; }
@@ -69,6 +72,9 @@ namespace VirtualVessel.VoiceLab
         public IVoiceLabLibrary Library { get; }
 
         public VoiceLabMaking SamplesProgress => _samplesMaking.Value;
+
+        /// <summary>What runs now, so the library deletes nothing in use.</summary>
+        public VoiceLabActivity Activity => new VoiceLabActivity(_makingSamples, _designer?.SessionFolder);
 
         public VoiceLabMaking CandidatesProgress => _making.Value;
 
@@ -82,7 +88,7 @@ namespace VirtualVessel.VoiceLab
         {
             // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
             VoiceLabService created = null;
-            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None);
+            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, () => created?.Activity ?? default);
             string path = Path.Combine(configDirectory, EnvironmentFile);
             if (!File.Exists(path))
             {
@@ -130,6 +136,7 @@ namespace VirtualVessel.VoiceLab
         {
             _samplesMaking.Value = default;
             var progress = new Forward<ScriptProgress>(p => _samplesMaking.Value = ToMaking(p, "samples"));
+            _makingSamples = true;
             try
             {
                 await Run(() => _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken)).ConfigureAwait(false);
@@ -137,6 +144,7 @@ namespace VirtualVessel.VoiceLab
             }
             finally
             {
+                _makingSamples = false;
                 _samplesMaking.Value = default;
             }
         }
