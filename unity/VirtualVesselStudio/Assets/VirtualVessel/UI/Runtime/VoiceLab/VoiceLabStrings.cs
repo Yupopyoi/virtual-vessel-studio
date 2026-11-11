@@ -84,6 +84,21 @@ namespace VirtualVessel.UI.VoiceLab
         public const string SetupUpdateStart = "lab.setup.update.start";
         public const string SetupUpdateSize = "lab.setup.update.size";
         public const string SetupUpdateFailed = "lab.setup.update.failed";
+        public const string SetupLeft = "lab.setup.left";
+        public const string SetupLeftUnderMinute = "lab.setup.left-under-minute";
+        public const string SetupItemPretrained = "lab.setup.item.pretrained";
+        public const string SetupItemMute = "lab.setup.item.mute";
+        public const string SetupItemTemplate = "lab.setup.item.template";
+        public const string SetupItemShared = "lab.setup.item.shared";
+        public const string SetupLogDownload = "lab.setup.log.download";
+        public const string SetupLogUnpack = "lab.setup.log.unpack";
+        public const string SetupLogRuntime = "lab.setup.log.runtime";
+        public const string SetupLogPackages = "lab.setup.log.packages";
+        public const string SetupLogCheck = "lab.setup.log.check";
+        public const string SetupLogFinish = "lab.setup.log.finish";
+        public const string SetupLogDone = "lab.setup.log.done";
+        public const string SetupLogStopped = "lab.setup.log.stopped";
+        public const string SetupLogFailed = "lab.setup.log.failed";
 
         public const string BaseLead = "lab.base.lead";
         public const string Mood = "lab.base.mood";

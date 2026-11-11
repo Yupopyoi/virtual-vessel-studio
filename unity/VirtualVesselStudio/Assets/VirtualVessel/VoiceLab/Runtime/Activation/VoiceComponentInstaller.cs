@@ -23,15 +23,23 @@ namespace VirtualVessel.VoiceLab.Activation
         Finishing,
     }
 
-    /// <summary>Where a build is: the phase, and bytes downloaded of the total while downloading.</summary>
+    /// <summary>Where a build is: the phase, bytes downloaded of the total while downloading, and the component on.</summary>
     public readonly struct VoiceActivationProgress
     {
-        public VoiceActivationProgress(VoiceActivationPhase phase, long done, long total)
+        public VoiceActivationProgress(VoiceActivationPhase phase, long done, long total, string item = null, long itemSize = 0L)
         {
             Phase = phase;
             Done = done;
             Total = total;
+            Item = item;
+            ItemSize = itemSize;
         }
+
+        /// <summary>The component being downloaded; null in the other phases.</summary>
+        public string Item { get; }
+
+        /// <summary>Its size in bytes.</summary>
+        public long ItemSize { get; }
 
         public VoiceActivationPhase Phase { get; }
 
@@ -313,10 +321,11 @@ namespace VirtualVessel.VoiceLab.Activation
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 long before = finished;
-                var received = new Progress<long>(bytes => progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Downloading, before + Math.Min(bytes, component.Size), total)));
+                progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Downloading, before, total, component.Id, component.Size));
+                var received = new Progress<long>(bytes => progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Downloading, before + Math.Min(bytes, component.Size), total, component.Id, component.Size)));
                 files[component.Id] = await DownloadAsync(component, received, cancellationToken).ConfigureAwait(false);
                 finished += component.Size;
-                progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Downloading, finished, total));
+                progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Downloading, finished, total, component.Id, component.Size));
             }
 
             return files;

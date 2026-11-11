@@ -102,6 +102,12 @@ namespace VirtualVessel.UI.Tests
                 yield return new WaitForSeconds(SettleSeconds);
                 Collect(problems, $"lab/check/{background}");
 
+                if (setup.Log.Count == 0)
+                {
+                    setup.Log.Add(new VoiceLabSetupEntry(DateTime.Now, VoiceLabSetupEntryKind.Download, "voxcpm2-model", 4L * 1024 * 1024 * 1024));
+                    setup.Log.Add(new VoiceLabSetupEntry(DateTime.Now, VoiceLabSetupEntryKind.Failed));
+                }
+
                 setup.State = VoiceLabSetupState.Failed;
                 setup.LastFailure = VoiceLabSetupFailure.Check;
                 view.Refresh();

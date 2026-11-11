@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.ProjectData.Records;
@@ -80,6 +82,47 @@ namespace VirtualVessel.UI.VoiceLab
         }
     }
 
+    /// <summary>What an entry of the build's record says happened.</summary>
+    public enum VoiceLabSetupEntryKind
+    {
+        /// <summary>A component began downloading (or was found already downloaded).</summary>
+        Download,
+        Unpack,
+
+        /// <summary>The runtime the scripts run in is installed.</summary>
+        Runtime,
+
+        /// <summary>The packages are installed; the longest part after downloading.</summary>
+        Packages,
+        Check,
+        Finish,
+        Done,
+        Stopped,
+        Failed,
+    }
+
+    /// <summary>One line of the build's record, in the app's words (screen spec voice-lab 2.1).</summary>
+    public readonly struct VoiceLabSetupEntry
+    {
+        public VoiceLabSetupEntry(DateTime at, VoiceLabSetupEntryKind kind, string item = null, long size = 0L)
+        {
+            At = at;
+            Kind = kind;
+            Item = item;
+            Size = size;
+        }
+
+        /// <summary>Local time.</summary>
+        public DateTime At { get; }
+
+        public VoiceLabSetupEntryKind Kind { get; }
+
+        /// <summary>The component's id for a download; null otherwise.</summary>
+        public string Item { get; }
+
+        public long Size { get; }
+    }
+
     /// <summary>What this PC has, against what making voices needs (Voice Lab detailed design 8.1).</summary>
     public sealed class VoiceLabPcCheck
     {
@@ -136,6 +179,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Where the running build is. Read it as often as needed.</summary>
         VoiceLabSetupProgress Progress { get; }
+
+        /// <summary>What the builds since the app started did, oldest first; a copy.</summary>
+        IReadOnlyList<VoiceLabSetupEntry> Entries { get; }
 
         string TermsVersion { get; }
 

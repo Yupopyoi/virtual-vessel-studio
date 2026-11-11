@@ -176,6 +176,10 @@ namespace VirtualVessel.UI.Tests
 
         public string TermsVersion => "9";
 
+        public List<VoiceLabSetupEntry> Log { get; } = new List<VoiceLabSetupEntry>();
+
+        public IReadOnlyList<VoiceLabSetupEntry> Entries => Log.ToArray();
+
         public bool TermsAgreed { get; set; }
 
         public VoiceLabPcCheck Check { get; set; } = new VoiceLabPcCheck("NVIDIA GeForce RTX 4070", true, "610.88", true, @"C:\Users\me\AppData\Local", 218L * 1024 * 1024 * 1024, true, true);

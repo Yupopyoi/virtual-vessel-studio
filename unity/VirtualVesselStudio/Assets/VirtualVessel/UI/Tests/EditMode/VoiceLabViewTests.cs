@@ -377,5 +377,32 @@ namespace VirtualVessel.UI.Tests
                 Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
             }
         }
+
+        [Test]
+        public void TheDownloadsSpeed_IsTheAverageOverTheSamples_WithTheTimeLeftAtIt()
+        {
+            const long Mb = 1024L * 1024;
+            var samples = new List<(double Seconds, long Done)> { (0d, 0L), (2d, 10 * Mb), (4d, 20 * Mb) };
+            (double rate, double? left) = VoiceLabSetupView.Rate(samples, 620 * Mb);
+            Assert.That(rate, Is.EqualTo(5d * Mb).Within(1d));
+            Assert.That(left, Is.EqualTo(120d).Within(1e-6), "600 MB left at 5 MB/s.");
+
+            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L) }, 10L), Is.EqualTo((0d, (double?)null)), "One sample has no speed.");
+            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L), (2d, 5L) }, 10L).SecondsLeft, Is.Null, "Stalled.");
+            Assert.That(VoiceLabSetupView.RateText(null, 12.34 * Mb, 300d), Is.EqualTo("12.3 MB/s"));
+        }
+
+        [Test]
+        public void TheRecordsLines_NameComponentsByTheirProducts()
+        {
+            Assert.That(VoiceLabSetupView.ItemName(null, "voxcpm2-model"), Is.EqualTo("VoxCPM2"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "hubert-weights"), Is.EqualTo("HuBERT"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "rvc"), Is.EqualTo("RVC"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "template"), Is.EqualTo("template"), "Without a localizer, the id.");
+            Assert.That(VoiceLabSetupView.ItemName(null, "shared-rmvpe"), Is.EqualTo("RMVPE"));
+
+            var entry = new VoiceLabSetupEntry(new System.DateTime(2026, 11, 11, 9, 5, 7), VoiceLabSetupEntryKind.Unpack);
+            Assert.That(VoiceLabSetupView.EntryText(null, entry), Is.EqualTo("09:05:07  Unpack"));
+        }
     }
 }

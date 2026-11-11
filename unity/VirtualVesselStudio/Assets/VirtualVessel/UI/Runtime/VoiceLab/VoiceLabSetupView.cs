@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
@@ -63,6 +64,10 @@ namespace VirtualVessel.UI.VoiceLab
         public const string StepClass = UssClass + "__step";
         public const string ProblemClass = UssClass + "__problem";
         public const string ControlsClass = UssClass + "__controls";
+        public const string LogClass = UssClass + "__log";
+
+        // The speed is the average over this window, so it does not jump with each chunk.
+        private const double RateWindowSeconds = 5d;
 
         private const int RefreshMs = 250;
 
@@ -101,6 +106,10 @@ namespace VirtualVessel.UI.VoiceLab
         private CancellationTokenSource _run;
         private CancellationTokenSource _checking;
         private IVisualElementScheduledItem _refresh;
+        private readonly ScrollView _log;
+        private readonly List<(double Seconds, long Done)> _samples = new List<(double Seconds, long Done)>();
+        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+        private int _shownEntries;
         private bool _wantsTerms;
         private bool _justFinished;
         private string _termsLanguage;
@@ -180,6 +189,12 @@ namespace VirtualVessel.UI.VoiceLab
             _meter = Ui.Progress(s_stepKeys[0]);
             _meter.AddToClassList(VoiceLabScreen.GapClass);
             ProgressCard.Add(_meter);
+
+            // What is being done, line by line in the app's words (the user's request, 2026-11-11).
+            _log = new ScrollView(ScrollViewMode.Vertical);
+            _log.AddToClassList(LogClass);
+            _log.AddToClassList(VoiceLabScreen.GapClass);
+            ProgressCard.Add(_log);
             StopButton = Ui.Button(VoiceLabStrings.Stop);
             StopButton.clicked += () => _run?.Cancel();
             ResumeButton = Ui.Button(VoiceLabStrings.SetupResume, ButtonVariant.Primary);
@@ -219,6 +234,7 @@ namespace VirtualVessel.UI.VoiceLab
             PanelLifetime.OnLocaleChanged(this, () =>
             {
                 ShowCheck(LastCheck);
+                ShowEntries(rewrite: true);
                 Refresh();
             });
             RegisterCallback<DetachFromPanelEvent>(_ =>
@@ -431,6 +447,143 @@ namespace VirtualVessel.UI.VoiceLab
             return progress.Step == VoiceLabSetupStep.Download && progress.Total > 0
                 ? string.Format(CultureInfo.InvariantCulture, "{0} / {1} · {2}", VoiceLabLibraryView.SizeText(progress.Done), VoiceLabLibraryView.SizeText(progress.Total), percent)
                 : percent;
+        }
+
+        /// <summary>
+        /// The download's speed in bytes a second over the samples (seconds, bytes done), and the seconds left at that
+        /// speed; zero and null until there are two samples apart in time. Pure.
+        /// </summary>
+        public static (double BytesPerSecond, double? SecondsLeft) Rate(IReadOnlyList<(double Seconds, long Done)> samples, long total)
+        {
+            if (samples == null || samples.Count < 2)
+            {
+                return (0d, null);
+            }
+
+            (double Seconds, long Done) first = samples[0];
+            (double Seconds, long Done) last = samples[samples.Count - 1];
+            double elapsed = last.Seconds - first.Seconds;
+            if (elapsed <= 0d)
+            {
+                return (0d, null);
+            }
+
+            double rate = Math.Max(0d, (last.Done - first.Done) / elapsed);
+            return (rate, rate > 0d ? Math.Max(0d, total - last.Done) / rate : (double?)null);
+        }
+
+        /// <summary>"12.3 MB/s · about 8 min left". Pure.</summary>
+        public static string RateText(ILocalizer localizer, double bytesPerSecond, double? secondsLeft)
+        {
+            string speed = (bytesPerSecond / (1024d * 1024d)).ToString("0.0", CultureInfo.InvariantCulture) + " MB/s";
+            if (secondsLeft == null || localizer == null)
+            {
+                return speed;
+            }
+
+            int minutes = (int)Math.Ceiling(secondsLeft.Value / 60d);
+            string left = minutes <= 1
+                ? localizer.Get(VoiceLabStrings.SetupLeftUnderMinute)
+                : localizer.Get(VoiceLabStrings.SetupLeft, ("minutes", minutes.ToString(CultureInfo.InvariantCulture)));
+            return speed + " · " + left;
+        }
+
+        /// <summary>
+        /// A component's name in the record: the product's own name where it has one, else a phrase in the language, else
+        /// the id. Pure.
+        /// </summary>
+        public static string ItemName(ILocalizer localizer, string id)
+        {
+            string Get(string key, string fallback) => localizer?.Get(key) ?? fallback;
+            id ??= string.Empty;
+            if (id == "uv")
+            {
+                return "uv";
+            }
+
+            if (id == "rvc")
+            {
+                return "RVC";
+            }
+
+            if (id.StartsWith("hubert", StringComparison.Ordinal))
+            {
+                return "HuBERT";
+            }
+
+            if (id == "rmvpe")
+            {
+                return "RMVPE";
+            }
+
+            if (id.StartsWith("voxcpm2", StringComparison.Ordinal))
+            {
+                return "VoxCPM2";
+            }
+
+            if (id.StartsWith("pretrained", StringComparison.Ordinal))
+            {
+                return Get(VoiceLabStrings.SetupItemPretrained, id);
+            }
+
+            if (id == "mute")
+            {
+                return Get(VoiceLabStrings.SetupItemMute, id);
+            }
+
+            if (id.StartsWith("template", StringComparison.Ordinal))
+            {
+                return Get(VoiceLabStrings.SetupItemTemplate, id);
+            }
+
+            if (id.StartsWith("shared-", StringComparison.Ordinal))
+            {
+                string model = ItemName(null, id.Substring("shared-".Length));
+                return localizer?.Get(VoiceLabStrings.SetupItemShared, ("name", model)) ?? model;
+            }
+
+            return id;
+        }
+
+        /// <summary>"22:14:05  Downloading: VoxCPM2 (4.3 GB)": one line of the record. Pure.</summary>
+        public static string EntryText(ILocalizer localizer, VoiceLabSetupEntry entry)
+        {
+            string time = entry.At.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+            string text;
+            switch (entry.Kind)
+            {
+                case VoiceLabSetupEntryKind.Download:
+                    text = localizer?.Get(VoiceLabStrings.SetupLogDownload, ("name", ItemName(localizer, entry.Item)), ("size", VoiceLabLibraryView.SizeText(entry.Size))) ?? entry.Item;
+                    break;
+                default:
+                    text = localizer?.Get(LogKey(entry.Kind)) ?? entry.Kind.ToString();
+                    break;
+            }
+
+            return time + "  " + text;
+        }
+
+        private static string LogKey(VoiceLabSetupEntryKind kind)
+        {
+            switch (kind)
+            {
+                case VoiceLabSetupEntryKind.Unpack:
+                    return VoiceLabStrings.SetupLogUnpack;
+                case VoiceLabSetupEntryKind.Runtime:
+                    return VoiceLabStrings.SetupLogRuntime;
+                case VoiceLabSetupEntryKind.Packages:
+                    return VoiceLabStrings.SetupLogPackages;
+                case VoiceLabSetupEntryKind.Check:
+                    return VoiceLabStrings.SetupLogCheck;
+                case VoiceLabSetupEntryKind.Finish:
+                    return VoiceLabStrings.SetupLogFinish;
+                case VoiceLabSetupEntryKind.Done:
+                    return VoiceLabStrings.SetupLogDone;
+                case VoiceLabSetupEntryKind.Stopped:
+                    return VoiceLabStrings.SetupLogStopped;
+                default:
+                    return VoiceLabStrings.SetupLogFailed;
+            }
         }
 
         /// <summary>Shows activation's state again, such as when the screen opens.</summary>
@@ -668,11 +821,61 @@ namespace VirtualVessel.UI.VoiceLab
 
             _meter.LabelKey = s_stepKeys[current];
             _meter.Progress = progress.Fraction;
-            _meter.Detail = ProgressDetail(progress);
+            _meter.Detail = ProgressDetail(progress) + DownloadRate(progress, running);
+            ShowEntries();
             StopButton.style.display = Show(running);
             StopButton.SetEnabled(_run != null);
             ResumeButton.style.display = Show(!running);
             _progressNote.Key = running ? VoiceLabStrings.SetupRunningNote : VoiceLabStrings.SetupResumeNote;
+        }
+
+        // Samples the bytes done while downloading; the speed is read from the last few seconds.
+        private string DownloadRate(VoiceLabSetupProgress progress, bool running)
+        {
+            if (!running || progress.Step != VoiceLabSetupStep.Download || progress.Total <= 0)
+            {
+                _samples.Clear();
+                return string.Empty;
+            }
+
+            double now = _clock.Elapsed.TotalSeconds;
+            if (_samples.Count > 0 && progress.Done < _samples[_samples.Count - 1].Done)
+            {
+                _samples.Clear();
+            }
+
+            _samples.Add((now, progress.Done));
+            _samples.RemoveAll(sample => now - sample.Seconds > RateWindowSeconds);
+            (double rate, double? left) = Rate(_samples, progress.Total);
+            return rate > 0d ? " · " + RateText(UiServices.Find(this)?.Localizer, rate, left) : string.Empty;
+        }
+
+        // Adds the record's new lines and keeps the newest in view; a language change writes them all again.
+        private void ShowEntries(bool rewrite = false)
+        {
+            IReadOnlyList<VoiceLabSetupEntry> entries = _setup.Entries;
+            if (rewrite || entries.Count < _shownEntries)
+            {
+                _log.Clear();
+                _shownEntries = 0;
+            }
+
+            if (entries.Count == _shownEntries)
+            {
+                return;
+            }
+
+            ILocalizer localizer = UiServices.Find(this)?.Localizer;
+            for (int i = _shownEntries; i < entries.Count; i++)
+            {
+                Label line = QuietText.Of(new Label(EntryText(localizer, entries[i])));
+                line.AddToClassList("vv-mono");
+                _log.Add(line);
+            }
+
+            _shownEntries = entries.Count;
+            _log.style.display = entries.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _log.schedule.Execute(() => _log.scrollOffset = new Vector2(0f, float.MaxValue));
         }
 
         private void AgreeAndRun()

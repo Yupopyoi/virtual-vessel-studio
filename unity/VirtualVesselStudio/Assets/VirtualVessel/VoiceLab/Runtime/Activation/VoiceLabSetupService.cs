@@ -28,6 +28,8 @@ namespace VirtualVessel.VoiceLab.Activation
         private readonly string _scripts;
         private readonly ILog _log;
         private readonly Shared<VoiceLabSetupProgress> _progress = new Shared<VoiceLabSetupProgress>();
+        private readonly object _entriesGate = new object();
+        private readonly List<VoiceLabSetupEntry> _entries = new List<VoiceLabSetupEntry>();
         private volatile bool _running;
 
         /// <param name="verify">The trial run at the end of a build; null to skip it.</param>
@@ -112,6 +114,17 @@ namespace VirtualVessel.VoiceLab.Activation
 
         public VoiceLabSetupProgress Progress => _progress.Value;
 
+        public IReadOnlyList<VoiceLabSetupEntry> Entries
+        {
+            get
+            {
+                lock (_entriesGate)
+                {
+                    return _entries.ToArray();
+                }
+            }
+        }
+
         public string TermsVersion => _activation.TermsVersion;
 
         public bool TermsAgreed => _activation.TermsAgreed;
@@ -157,6 +170,32 @@ namespace VirtualVessel.VoiceLab.Activation
                 default:
                     return VoiceLabSetupStep.Check;
             }
+        }
+
+        /// <summary>The record's kind for a phase of the build. Pure.</summary>
+        public static VoiceLabSetupEntryKind KindOf(VoiceActivationPhase phase)
+        {
+            switch (phase)
+            {
+                case VoiceActivationPhase.Downloading:
+                    return VoiceLabSetupEntryKind.Download;
+                case VoiceActivationPhase.Placing:
+                    return VoiceLabSetupEntryKind.Unpack;
+                case VoiceActivationPhase.InstallingPython:
+                    return VoiceLabSetupEntryKind.Runtime;
+                case VoiceActivationPhase.InstallingPackages:
+                    return VoiceLabSetupEntryKind.Packages;
+                case VoiceActivationPhase.Verifying:
+                    return VoiceLabSetupEntryKind.Check;
+                default:
+                    return VoiceLabSetupEntryKind.Finish;
+            }
+        }
+
+        /// <summary>Whether progress starts a new line of the record: another phase, or another component. Pure.</summary>
+        public static bool StartsEntry(VoiceLabSetupEntry? last, VoiceActivationProgress progress)
+        {
+            return last == null || last.Value.Kind != KindOf(progress.Phase) || !string.Equals(last.Value.Item, progress.Item, StringComparison.Ordinal);
         }
 
         /// <summary>The screen's failure for the build's. Pure.</summary>
@@ -209,20 +248,51 @@ namespace VirtualVessel.VoiceLab.Activation
             _running = true;
             LastFailure = VoiceLabSetupFailure.None;
             _progress.Value = new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 0L, DownloadBytes);
-            var progress = new Forward<VoiceActivationProgress>(p => _progress.Value = new VoiceLabSetupProgress(StepOf(p.Phase), p.Done, p.Total));
+            var progress = new Forward<VoiceActivationProgress>(p =>
+            {
+                _progress.Value = new VoiceLabSetupProgress(StepOf(p.Phase), p.Done, p.Total);
+                Record(p);
+            });
             try
             {
                 await _activation.RunAsync(_verify, progress, cancellationToken, WaitUntilIdleAsync).ConfigureAwait(false);
                 _voiceLab.Reload();
+                Record(VoiceLabSetupEntryKind.Done);
             }
             catch (VoiceActivationException exception)
             {
                 LastFailure = FailureOf(exception.Failure);
                 _log?.Warning($"Preparing Voice Lab failed ({exception.Failure}).", exception);
+                Record(VoiceLabSetupEntryKind.Failed);
+            }
+            catch (OperationCanceledException)
+            {
+                Record(VoiceLabSetupEntryKind.Stopped);
+                throw;
             }
             finally
             {
                 _running = false;
+            }
+        }
+
+        private void Record(VoiceActivationProgress progress)
+        {
+            lock (_entriesGate)
+            {
+                VoiceLabSetupEntry? last = _entries.Count == 0 ? (VoiceLabSetupEntry?)null : _entries[_entries.Count - 1];
+                if (StartsEntry(last, progress))
+                {
+                    _entries.Add(new VoiceLabSetupEntry(DateTime.Now, KindOf(progress.Phase), progress.Item, progress.ItemSize));
+                }
+            }
+        }
+
+        private void Record(VoiceLabSetupEntryKind kind)
+        {
+            lock (_entriesGate)
+            {
+                _entries.Add(new VoiceLabSetupEntry(DateTime.Now, kind));
             }
         }
 

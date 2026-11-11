@@ -700,6 +700,13 @@ namespace VirtualVessel.UI.Tests
             Assert.That(view.StopButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
             Assert.That(view.ResumeButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
 
+            setup.Log.Add(new VoiceLabSetupEntry(new DateTime(2026, 11, 11, 22, 14, 5), VoiceLabSetupEntryKind.Download, "voxcpm2-model", 4L * 1024 * 1024 * 1024));
+            setup.Log.Add(new VoiceLabSetupEntry(new DateTime(2026, 11, 11, 22, 20, 0), VoiceLabSetupEntryKind.Unpack));
+            yield return new WaitForSeconds(0.4f);
+            List<Label> lines = view.ProgressCard.Q(className: VoiceLabSetupView.LogClass).Query<Label>().ToList();
+            Assert.That(lines.Count, Is.EqualTo(2), "The record shows each line once.");
+            Assert.That(lines[0].text, Does.StartWith("22:14:05").And.Contain("VoxCPM2"));
+
             setup.Finish(true);
             yield return null;
             yield return null;

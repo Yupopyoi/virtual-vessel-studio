@@ -50,6 +50,14 @@ namespace VirtualVessel.VoiceLab.Tests
 
             Assert.That(VoiceLabSetupService.StepOf(VoiceActivationPhase.InstallingPackages), Is.EqualTo(VoiceLabSetupStep.Install));
             Assert.That(VoiceLabSetupService.FailureOf(VoiceActivationFailure.Verify), Is.EqualTo(VoiceLabSetupFailure.Check));
+
+            // The record starts a line for another phase or another component, not for each chunk.
+            var download = new VoiceLabSetupEntry(System.DateTime.Now, VoiceLabSetupEntryKind.Download, "rvc", 10);
+            Assert.That(VoiceLabSetupService.StartsEntry(null, new VoiceActivationProgress(VoiceActivationPhase.Downloading, 0, 9, "rvc", 10)), Is.True);
+            Assert.That(VoiceLabSetupService.StartsEntry(download, new VoiceActivationProgress(VoiceActivationPhase.Downloading, 5, 9, "rvc", 10)), Is.False);
+            Assert.That(VoiceLabSetupService.StartsEntry(download, new VoiceActivationProgress(VoiceActivationPhase.Downloading, 10, 9, "uv", 3)), Is.True);
+            Assert.That(VoiceLabSetupService.StartsEntry(download, new VoiceActivationProgress(VoiceActivationPhase.Placing, 0, 21)), Is.True);
+            Assert.That(VoiceLabSetupService.KindOf(VoiceActivationPhase.InstallingPython), Is.EqualTo(VoiceLabSetupEntryKind.Runtime));
             Assert.That(new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 50, 100).Fraction, Is.EqualTo(0.3f).Within(1e-6));
         }
 
