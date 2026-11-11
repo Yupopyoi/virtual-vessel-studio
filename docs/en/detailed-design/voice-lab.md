@@ -271,7 +271,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
-- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.3-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.4-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.

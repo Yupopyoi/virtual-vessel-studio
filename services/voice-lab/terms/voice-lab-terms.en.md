@@ -1,4 +1,4 @@
-<!-- version: 0.3-draft -->
+<!-- version: 0.4-draft -->
 <!-- Draft (2026-11-11). To be reviewed by a legal professional before release (Voice Lab detailed design 8.2, 17). -->
 
 # Voice Lab Terms of Use
@@ -57,7 +57,7 @@ When publishing Output, the User shall indicate, in a manner that viewers can re
 
 ## Article 8 (Limitation of Liability)
 
-To the maximum extent permitted by law, the Developers shall not be liable for any damage incurred by the User or any third party arising from the use of, or the inability to use, the Feature.
+To the maximum extent permitted by law, the Developers shall not be liable for any damage incurred by the User or any third party arising from the use of, or the inability to use, the Feature. However, this does not apply where the damage is caused by the Developers' intent or gross negligence.
 
 ## Article 9 (Obtaining the External Components)
 
