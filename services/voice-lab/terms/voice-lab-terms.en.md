@@ -1,76 +1,100 @@
-<!-- version: 0.1-draft -->
+<!-- version: 0.2-draft -->
 <!-- Draft (2026-11-11). To be reviewed by a legal professional before release (Voice Lab detailed design 8.2, 17). -->
 
-# Voice Lab Terms of Use and Disclaimer
+# Voice Lab Terms of Use
 
-Voice Lab designs voices and makes the voice models used for voice conversion. Using Voice Lab requires agreeing to these terms. Without agreeing, every feature other than Voice Lab can still be used.
+These Terms of Use (these "Terms") set out the conditions for using Voice Lab (the "Feature"), a feature of Virtual Vessel Studio (the "Software"). The User shall use the Feature only after agreeing to these Terms.
 
-## 1. Prohibited uses
+## Article 1 (Definitions)
 
-Do not use voices made with Voice Lab, or voice conversion, for:
+In these Terms, the following terms have the meanings set out below.
 
-- impersonating another person
-- fraud or any other unlawful act
-- creating or spreading disinformation
-- reproducing another person's voice without their permission
-- infringing others' rights (portrait, publicity, copyright, and the like)
+1. "User" means any person who uses the Feature.
+2. "Output" means voice models made with the Feature, and audio generated or converted with such models.
+3. "External Components" means the software, models, and other files obtained under Article 9 to make the Feature usable.
+4. "Developers" means the developers of the Software.
 
-Do not write prompts or added words that ask to imitate a real person's voice.
+## Article 2 (Agreement)
 
-## 2. Voices used for training
+1. The User may use the Feature only after reading these Terms in full and agreeing to them.
+2. By performing the operation that starts using the Feature, the User is deemed to have agreed to these Terms.
+3. A User who does not agree to these Terms may still use the features of the Software other than the Feature.
 
-Train voice models only with:
+## Article 3 (Prohibited Acts)
 
-- your own voice
-- voices you have the right to use, including those whose speakers gave permission
-- voices Voice Lab generated
+In using the Feature, the User shall not engage in any of the following acts:
 
-When importing a recording, confirm before importing that it meets these conditions.
+1. impersonating another person;
+2. fraud or any other act that violates, or may violate, laws or regulations;
+3. creating or spreading false information;
+4. reproducing another person's voice without that person's permission;
+5. entering instructions (including prompts and added words) intended to imitate the voice of a real person;
+6. infringing the portrait rights, publicity rights, copyrights, or other rights of third parties; and
+7. any other act contrary to public order and morals, or that the Developers consider inappropriate.
 
-## 3. Disclosing AI-generated voices
+## Article 4 (Audio Used for Training)
 
-When you publish a voice you made, or audio made with voice conversion, state in a way viewers can see that the voice was generated or converted with AI.
+1. The User shall train voice models only with audio that falls under any of the following:
+   1. the User's own voice;
+   2. audio the User has the right to use (including audio whose speaker has given permission); or
+   3. audio generated with the Feature.
+2. When importing a recording, the User shall confirm, before importing it, that the recording meets the conditions of the preceding paragraph.
 
-## 4. Responsibility
+## Article 5 (Disclosure of AI-Generated Output)
 
-You are responsible for the voices you make and for what comes of using them. Before streaming or publishing, check the terms and guidelines of where you use them.
+When publishing Output, the User shall indicate, in a manner that viewers can recognize, that the audio was generated or converted with AI.
 
-## 5. No warranty and limitation of liability
+## Article 6 (User's Responsibility)
 
-Voice Lab and the external components it downloads are provided as is, without any warranty, including fitness for a particular purpose, accuracy, or continued availability. Most external components are provided under the MIT License or the Apache License 2.0, which also disclaim warranty.
+1. The User is responsible for making and using Output and for all consequences arising from them.
+2. Before streaming or publishing Output, the User shall check and comply with the terms, guidelines, and other rules of the place where it is streamed or published.
+3. If a dispute with a third party arises from the User's breach of these Terms, the User shall resolve it at the User's own responsibility and expense.
 
-To the extent the law allows, the developers of Virtual Vessel Studio are not liable for damage arising from using, or being unable to use, Voice Lab.
+## Article 7 (No Warranty)
 
-## 6. External components downloaded
+1. The Feature and the External Components are provided as is. The Developers make no warranty of any kind, express or implied, regarding the Feature and the External Components, including fitness for a particular purpose, accuracy, usefulness, continued availability, or non-infringement of third-party rights.
+2. Most External Components are provided under the MIT License or the Apache License 2.0, each of which also disclaims all warranties.
 
-To make Voice Lab usable, the following are downloaded from the internet and built on this PC. With the Python packages, it is about 13 GB in all once built. Up to about 30 GB of free space is needed while building.
+## Article 8 (Limitation of Liability)
 
-| Component | Source | License |
+To the maximum extent permitted by law, the Developers shall not be liable for any damage incurred by the User or any third party arising from the use of, or the inability to use, the Feature.
+
+## Article 9 (Obtaining the External Components)
+
+1\. To make the Feature usable, the following External Components are downloaded from the internet and set up at the location the User specifies. Once set up, they occupy about 13 GB; up to about 30 GB of free space is needed temporarily while setting up.
+
+| Name | Source | License |
 |---|---|---|
-| uv (the tool that builds it) | GitHub (astral-sh/uv) | MIT or Apache-2.0 |
+| uv (the tool used to set up) | GitHub (astral-sh/uv) | MIT or Apache-2.0 |
 | Python 3.12 | uv's distribution (python-build-standalone) | Python Software Foundation License |
 | Python packages (PyTorch and others) | PyPI and PyTorch's distribution | Each package's license |
 | RVC (Retrieval-based Voice Conversion WebUI) | GitHub | MIT |
 | RVC's pretrained models, RMVPE, HuBERT | Hugging Face (lj1995/VoiceConversionWebUI) | MIT |
 | VoxCPM2 | Hugging Face (openbmb/VoxCPM2) | Apache-2.0 |
-| The voice template and the shared models streaming uses | Virtual Vessel Studio's GitHub Release | MIT |
+| The voice template and the shared models used for streaming | Virtual Vessel Studio's GitHub Release | MIT |
 
-When a source cannot be reached, a copy kept in Virtual Vessel Studio's GitHub Release is used, after confirming it is the same file. Every file is checked against its hash after downloading, and one that does not match is not used.
+2\. If a file cannot be obtained from its source, the Software obtains the copy kept in Virtual Vessel Studio's GitHub Release, after confirming that it is the same file. Every file obtained is verified by its hash value, and any file that does not match is not used.
 
-RVC's pretrained models were trained on:
+3\. RVC's pretrained models were trained using the following data:
 
 > CSTR VCTK Corpus: English Multi-speaker Corpus for CSTR Voice Cloning Toolkit (version 0.92), Junichi Yamagishi, Christophe Veaux, Kirsten MacDonald, The Centre for Speech Technology Research (CSTR), University of Edinburgh. Creative Commons Attribution 4.0 International (CC BY 4.0).
 
-VoxCPM2's provider prohibits its use for impersonation, fraud, and disinformation, and asks that AI-generated audio be disclosed as such. Sections 1 and 3 include these conditions.
+4\. The provider of VoxCPM2 prohibits its use for impersonation, fraud, and disinformation, and requires that AI-generated audio be indicated as such. Articles 3 and 5 include these conditions.
 
-The full license texts are in Credits and licenses in the settings.
+5\. The full license text of each External Component can be viewed in Credits and licenses in the Software's settings. The User shall comply with the license of each External Component.
 
-## 7. Network and data
+## Article 10 (Network and Handling of Data)
 
-- Downloading the components needs an internet connection, and only the sources in section 6 are contacted.
-- Designing voices, making training speech, training, and voice conversion all happen on this PC. Recordings, training speech, and the voices made are not sent anywhere.
-- The built environment can be deleted from Voice Lab's Made voices. Deleting it does not affect streaming with registered voices.
+1. The Feature connects to the internet to obtain the External Components. It connects only to the sources set out in the preceding Article.
+2. Designing voices, making training audio, training, and voice conversion all take place on the User's PC. The Feature does not send recordings, training audio, or Output anywhere.
+3. The environment set up can be deleted from the Feature's Made voices. Deleting it does not affect streaming with registered voices.
 
-## 8. Changes
+## Article 11 (Changes to these Terms)
 
-These terms have a version. When they change, you are asked to agree again before making voices in Voice Lab. Streaming with registered voices does not stop.
+1. The Developers may change these Terms when they consider it necessary. These Terms carry a version.
+2. When these Terms are changed, the Software asks the User to agree to the changed Terms before the User makes voices with the Feature.
+3. Streaming with registered voices does not stop even without the agreement in the preceding paragraph.
+
+## Article 12 (Governing Law)
+
+These Terms are governed by and construed in accordance with the laws of Japan.
