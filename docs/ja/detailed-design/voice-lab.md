@@ -128,7 +128,7 @@ public interface IVoiceLabLibrary
 ```json
 {
   "schemaVersion": 1,
-  "version": "1",
+  "version": "0.1",
   "python": "3.12.2",
   "lock": "uv.lock",
   "components": [
@@ -153,7 +153,7 @@ public interface IVoiceLabLibrary
 - `target`：置き場所の中の相対パス。`extract`が`zip`なら、展開するフォルダーである。`strip`は、zipの中のパスから先頭のフォルダーを外す数（GitHubのアーカイブの最上位のフォルダー）。
 - `url`：取得元。他者のファイルは配布元だけを指し、本プロジェクトは控えを置かない（8.1）。本プロジェクトが作ったファイル（ひな形、共有のモデル）は、本プロジェクトのGitHub Releaseを指す。
 - アプリは読むときに確かめる（`VoiceComponentManifest`）：知らない形式の版は読まない。URLはhttpsだけ、ハッシュは小文字の16進64文字、`target`は相対で`..`やドライブを含まない。一覧がどこにでもファイルを書けることを防ぐためである。
-- 版1は21個、合計約6.1 GB（2026-11-11）。Hugging Faceのファイルは固定のrevision（`lj1995/VoiceConversionWebUI`の`e6d0c1a1…`、`openbmb/VoxCPM2`の`32279eff…`）を指し、大きいファイルのハッシュは配布元が示す値と一致した。GitHubのアーカイブのzipは、GitHubが作り直すとハッシュが変わることがある。そのときは定期の確認で見つけ、一覧を直す。
+- 版0.1は21個、合計約6.1 GB（2026-11-11）。Hugging Faceのファイルは固定のrevision（`lj1995/VoiceConversionWebUI`の`e6d0c1a1…`、`openbmb/VoxCPM2`の`32279eff…`）を指し、大きいファイルのハッシュは配布元が示す値と一致した。GitHubのアーカイブのzipは、GitHubが作り直すとハッシュが変わることがある。そのときは定期の確認で見つけ、一覧を直す。
 
 ### 6.3 Training Run
 

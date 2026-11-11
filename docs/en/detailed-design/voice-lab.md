@@ -128,7 +128,7 @@ Saved in `Config/voice-activation.json`.
 ```json
 {
   "schemaVersion": 1,
-  "version": "1",
+  "version": "0.1",
   "python": "3.12.2",
   "lock": "uv.lock",
   "components": [
@@ -153,7 +153,7 @@ It is `services/voice-lab/voice-components.json`, bundled with the app beside th
 - `target`: a relative path inside the place; for `extract` `zip`, the folder it is extracted into. `strip` drops that many leading folders from the zip's paths (the top folder of GitHub's archives).
 - `url`: the source. Others' files point only at where they are published; the project keeps no copies (8.1). Files the project made (the template, the shared models) point at the project's GitHub Release.
 - The app checks it when reading (`VoiceComponentManifest`): an unknown schema version is not read, URLs are https only, hashes are 64 lowercase hex digits, and `target` is relative with no `..` or drive, so the list cannot write a file anywhere.
-- Version 1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the periodic check then finds it, and the list is fixed.
+- Version 0.1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the periodic check then finds it, and the list is fixed.
 
 ### 6.3 Training Run
 

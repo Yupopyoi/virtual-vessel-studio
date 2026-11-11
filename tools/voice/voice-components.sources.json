@@ -1,8 +1,8 @@
 {
-  "version": "1",
+  "version": "0.1",
   "python": "3.12.2",
   "lock": "uv.lock",
-  "release": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/",
+  "release": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/",
   "components": [
     {
       "id": "uv",

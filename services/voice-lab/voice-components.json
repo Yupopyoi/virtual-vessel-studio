@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "1",
+  "version": "0.1",
   "python": "3.12.2",
   "lock": "uv.lock",
   "components": [
@@ -163,7 +163,7 @@
     },
     {
       "id": "template",
-      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/fused_template_w100.sentis",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/fused_template_w100.sentis",
       "sha256": "299f73684bb3107281582053ec7e9909c5169fbc15cc20e69a944603c4e9cd60",
       "size": 111433752,
       "license": "MIT",
@@ -172,7 +172,7 @@
     },
     {
       "id": "template-manifest",
-      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/fused_template_w100.json",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/fused_template_w100.json",
       "sha256": "05bc5a5af1b32d3e9f456410944fb69e8e885d7494f9be4d1e56c8836c442245",
       "size": 29139,
       "license": "MIT",
@@ -181,7 +181,7 @@
     },
     {
       "id": "shared-hubert",
-      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/hubert_16000_anchored.sentis",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/hubert_16000_anchored.sentis",
       "sha256": "f26bedafd1d55416195dd0d34ee877cd18790cbd51c7133ee671d34072d8d067",
       "size": 377556920,
       "license": "MIT",
@@ -190,7 +190,7 @@
     },
     {
       "id": "shared-rmvpe",
-      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rmvpe_32.sentis",
+      "url": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/rmvpe_32.sentis",
       "sha256": "df2cda7cdaf58b3f2ad8fb48cead79ef6fe5f5913c56b06d3c88d99862c65a4a",
       "size": 482260816,
       "license": "MIT",
