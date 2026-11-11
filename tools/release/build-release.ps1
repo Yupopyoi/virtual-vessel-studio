@@ -14,7 +14,8 @@ hand from a checkout of the tag. In order:
 4. Builds the Windows player with the build identifier v<version>+<commit>.
 5. Adds TRADEMARKS.md and the files of tools/release/license-files.json: LICENSE, NOTICE, the
    third-party licenses, and the SBOM.
-6. Adds the sample avatar tests/samples/otoha-chan.vrm as Samples/otoha-chan.vrm.
+6. Adds Voice Lab's scripts, download list, lock, and terms as VoiceLab/scripts, and the sample avatar
+   tests/samples/otoha-chan.vrm as Samples/otoha-chan.vrm.
 7. Writes VirtualVesselStudio-v<version>-win-x64.zip and SHA256SUMS.txt to build/release.
 8. With -Upload, uploads both to the draft GitHub Release of tag v<version>, creating the draft if
    the Release workflow has not. The tag must already be on GitHub; publishing stays a manual step.
@@ -120,6 +121,18 @@ foreach ($entry in $licenseFiles.PSObject.Properties)
 
 # Debug symbols and Unity's backup folders (*_DoNotShip, *_ButDontShipItWithYourGame) stay out of the package.
 Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_ButDontShipItWithYourGame$' } | Remove-Item -Recurse -Force
+
+# Voice Lab's Python scripts, its download list (voice-components.json), its lock, and its terms, which activation
+# builds the training environment from on the user's PC (Voice Lab detailed design 8.1). Tests and caches stay out.
+$voiceLab = Join-Path $repository 'servicesoice-lab'
+$voiceLabStage = Join-Path $stage 'VoiceLab\scripts'
+New-Item -ItemType Directory -Force $voiceLabStage | Out-Null
+Get-ChildItem $voiceLab -File | Where-Object { $_.Extension -in '.py', '.toml', '.lock', '.json' } | Copy-Item -Destination $voiceLabStage
+foreach ($folder in 'voicelab', 'stubs', 'terms')
+{
+    Copy-Item -Recurse (Join-Path $voiceLab $folder) (Join-Path $voiceLabStage $folder)
+}
+Get-ChildItem $voiceLabStage -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force
 
 # 6. The sample avatar, so a new user can try the app without a model of their own. Its license is
 # shipped with the other licenses (licenses/otoha-chan-LICENSE.md). A clone without Git LFS has only a

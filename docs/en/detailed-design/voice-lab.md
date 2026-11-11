@@ -118,6 +118,7 @@ Saved in `Config/voice-activation.json`.
 | `termsVersion` | The version of the terms agreed to |
 | `agreedAtUtc` | When they were agreed to |
 | `componentsVersion` | The version of the built environment |
+| `installingVersion` | The version being built; kept after a stop or failure, so the next start continues it |
 | `state` | `NotStarted`, `Installing`, `Ready`, `Failed` |
 
 ### 6.2 What to fetch
@@ -216,7 +217,7 @@ Training Run states are as in system design 13.15.
 
 ```text
 Open Voice Lab
-  ↓ Explain: what it does, size (about 8 GB, with VoxCPM2 needing more), time, an NVIDIA GPU is needed, the high hardware requirements
+  ↓ Explain: what it does, size (about 13 GB once built, up to about 30 GB while building), time, an NVIDIA GPU is needed, the high hardware requirements
 Show the terms (8.2) → agree
   ↓
 Check the PC: GPU, driver, free space, connection
@@ -235,6 +236,8 @@ Done
 
 Measured (2026-11-01, the development PC with an RTX 4070): about an hour to fetch and unpack. About 7 GB for the environment and training models, and about 1 GB for the runtime's shared models and the template, about 8 GB in all. uv's cache adds about 6 GB, so about 14 GB is needed during the build. The cache is removed afterwards. How the time divides, such as between the connection and file scanning, has not been measured. VoxCPM2's environment has not been narrowed down.
 
+Measured (2026-11-11, the same development PC, built by `VoiceComponentInstaller`): about 32 minutes from download to the end of the build (the project's four files were already downloaded). The environment is about 11.5 GB once built (venv 5.9 GB, VoxCPM2 4.7 GB, RVC and its models 0.6 GB, Python 0.1 GB, the template 0.1 GB, uv 0.07 GB), about 13 GB with the 0.8 GB of shared models streaming uses. The downloads and uv's cache were removed at the end. The largest space used during the build was not measured; with the 6.1 GB of downloads and the cache still there, it is estimated at about 30 GB, the value the terms and the screen give. The final check (making one voice) took about 5 minutes. It found that training failed because RVC's source archive has no empty folders (`assets/weights`, `logs`), so `train.py` now makes them.
+
 Because it takes long, the explanation screen gives an estimate and says it can resume after an interruption.
 
 Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
@@ -246,13 +249,27 @@ So that new users are not stopped when a source changes or disappears:
 - GitHub Actions periodically checks that every source is reachable and its hash matches.
 - The list of sources is bundled with the application, so fixing it takes an application update. If PyTorch's source removes an old version, new activation stops until that update. Streaming and built environments are not affected.
 
-Progress says things like "Preparing the environment", with no words such as Python or pip in ordinary screens (system design 4.27).
+Progress is shown as, for example, "Preparing the environment"; words such as Python and pip do not appear on normal screens (system design 4.27).
+
+#### 8.1.1 How it builds
+
+`VoiceComponentInstaller` builds it, and `VoiceLabActivation` keeps the record and switches (2026-11-11).
+
+- **Download**: each component goes to `External\VoiceLab\downloads\<sha256>`. A `.part` file continues with an HTTP Range request. When the source fails or sends a file that does not match its hash, the mirror is used. A checked file stays under its hash, so it is not downloaded again after a stop, or by the next version that has the same file.
+- **Build**: straight into the version's folder (`External\VoiceLab\<version>\`). Building elsewhere and renaming would break the absolute paths the venv records. The folder is cleared first, so nothing half made is left from a stop. Zips are extracted making sure no entry leaves its folder. The shared models streaming uses go to `VoiceModels\Shared\1\`, and one already there with the same hash is not rewritten.
+- **Python**: `uv python install <version> --install-dir <version>\python`, then `uv sync --frozen --no-dev --project <scripts>`. uv is set to put the venv in `<version>\venv` and its cache in `External\VoiceLab\cache`, to use only the Python it installed (`UV_PYTHON_PREFERENCE=only-managed`), and to copy files rather than link them, as the cache is deleted. uv runs through ExternalServices' runner, which allows only programs inside `External\VoiceLab`.
+- **Check**: the built environment makes one VoxCPM2 candidate and builds a voice from it with the shortest plan (4 lines, 1 epoch) (`VoiceActivationCheck`). It goes the same way real use does, so the GPU, the packages, RVC, and the template are proven to work together.
+- **Switch**: only after both the build and the check succeed is the environment file (`Config\voice-lab-environment.json`) written. A file for an environment a developer set up is kept as `voice-lab-environment.before-activation.json`. Then other versions' folders, the downloads, and uv's cache are removed.
+- **Failure**: it reports whether the network, a mismatched file, disk space, the build, or the check stopped it. The downloads stay, so starting again continues.
+- **Update**: when the version of the list bundled with the app differs from the environment in use, there is an update. The new version is built in another folder, so the environment in use keeps working while it builds, and if it stops or fails.
+- **Agreement**: nothing is built until the current version of the terms is agreed to.
 
 ### 8.2 Terms of use and disclaimers
 
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.1-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.
