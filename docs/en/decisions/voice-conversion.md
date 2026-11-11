@@ -638,3 +638,28 @@ Decided (user, 2026-11-11):
 - It is kept in the project's Audio Profile, on the source (`denoise`). The `denoise` in Voice's `Config/voice-settings.json` was added on a branch before any release, so it was dropped without reading it over.
 
 It runs on the capture thread, so while converting, the main thread does about 3 ms less work per 100 ms block (the 2026-11-01 measurement above).
+
+## 2026-11-11 PyTorch from its CUDA 11.8 build to its 12.8 build (cu118 → cu128)
+
+The user's question (2026-11-11): PCs have different CUDA versions installed; is that a problem?
+
+Findings:
+
+- PyTorch's CUDA builds carry the libraries CUDA needs inside the package, so the PC's CUDA Toolkit version does not matter. What matters is the NVIDIA driver's version and the GPU's generation.
+- `torch.cuda.get_arch_list()` in built environments: cu118 (2.7.1) covers sm_37 to sm_90 and has no RTX 50 series (Blackwell, sm_120). cu128 (2.7.1) covers sm_50 to sm_120, dropping only Kepler (sm_37). PyTorch removed Maxwell and Pascal from its cu128 builds in 2.8; 2.7.1 still has them.
+- Drivers needed (NVIDIA's release notes, Windows): 452.39 or later for CUDA 11.x, 528.33 or later for CUDA 12.x. The RTX 50 series itself needs 572 or later.
+- On the development PC (RTX 4070, driver 610.88), with the same scripts and models and only PyTorch changed:
+
+| | cu118 | cu128 |
+|---|---|---|
+| Check plan (4 lines, 1 epoch) | 4.9 min, 7.0 min | 9.2 min, 8.0 min |
+| One voice (150 epochs): training speech (VoxCPM2) | 7 min 04 s | 8 min 43 s |
+| Same: timbre processing | 1 min 18 s | 1 min 17 s |
+| Same: training | 8 min 22 s | 8 min 36 s |
+| Same: export | 28 s | 26 s |
+| Same: total | 17 min 12 s | 19 min 02 s |
+| venv size | 5.9 GB | 6.2 GB |
+
+The difference sits in VoxCPM2 making speech; training is about the same. Each was measured once (the check plan twice), so there is noise. With cu118, one run in four ended abnormally while VoxCPM2 loaded its model (0xC0000005); with cu128, none of three did. Too few runs to count for the decision.
+
+Decided (user, 2026-11-11): the total difference is about 2 minutes (11%), small, so cu128, with which the RTX 50 series can make voices. Activation's PC check looks at the GPU's generation (sm_50 or later) and the driver (528.33 or later) before downloading anything. Developers' environments (the venv in `voice-work`) stay cu118 and run the old build until they are rebuilt.

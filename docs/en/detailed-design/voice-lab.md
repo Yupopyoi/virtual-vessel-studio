@@ -263,6 +263,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 - **Failure**: it reports whether the network, a mismatched file, disk space, the build, or the check stopped it. The downloads stay, so starting again continues.
 - **Update**: when the version of the list bundled with the app differs from the environment in use, there is an update. The new version is built in another folder, so the environment in use keeps working while it builds, and if it stops or fails.
 - **Agreement**: nothing is built until the current version of the terms is agreed to.
+- **GPU and driver**: PyTorch is its CUDA 12.8 build (cu128). The packages carry CUDA's libraries, so the PC's CUDA Toolkit version does not matter. It needs an NVIDIA GPU of sm_50 (Maxwell) or later and a driver of 528.33 or later; the RTX 50 series works. The PC check looks at both before downloading anything (decision record 2026-11-11).
 
 ### 8.2 Terms of use and disclaimers
 

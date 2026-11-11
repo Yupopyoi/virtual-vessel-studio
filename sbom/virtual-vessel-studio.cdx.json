@@ -1083,8 +1083,8 @@
       "type": "library",
       "bom-ref": "pypi:torch",
       "name": "torch",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torch@2.7.1+cu118",
+      "version": "2.7.1+cu128",
+      "purl": "pkg:pypi/torch@2.7.1+cu128",
       "licenses": [
         {
           "license": {
@@ -1099,8 +1099,8 @@
       "type": "library",
       "bom-ref": "pypi:torchaudio",
       "name": "torchaudio",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torchaudio@2.7.1+cu118",
+      "version": "2.7.1+cu128",
+      "purl": "pkg:pypi/torchaudio@2.7.1+cu128",
       "licenses": [
         {
           "license": {
