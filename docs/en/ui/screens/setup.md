@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the audio Card (chapter 11), the voice conversion Cards (chapter 13, being designed), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the audio Card (chapter 11), the voice conversion Cards (chapter 13, being designed), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the two credits Cards (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
@@ -150,16 +150,23 @@ Keys are `setup.capture.*` for the capture Cards, `setup.tracking.*` for the tra
 
 Lists the software and assets in use from the SBOM shipped with the application (`sbom/virtual-vessel-studio.cdx.json`). The full license texts are read from the files shipped with the application (development workflow 18.1.2).
 
+There are two Cards, placed at the end of the app settings page in this order. Voice Lab's training environment alone has dozens of Python packages, and in one Card they would bury the application's own components.
+
+| Card | Title | Components listed |
+|---|---|---|
+| The app | "Credits and licenses: the app" | The application itself first, then the distributed components (`required`) in the SBOM's order |
+| Voice Lab's Python environment | "Credits and licenses: Voice Lab's Python environment" | The components not distributed but installed on the user's PC when Voice Lab's training environment is set up (`optional`), in the SBOM's order. The SBOM puts the main ones first, such as Python, RVC, its pretrained models, VoxCPM, its model, PyTorch, and uv, followed by the other packages by name (development workflow 18.1.2). Not shown when the SBOM has no `optional` components |
+
 | Row | Component | Content |
 |---|---|---|
-| Introduction | Description (Text 2) | "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with "Show full text"." |
-| A row per component | Looks like a Setting Row | The name on the left, and below it "version · supplier · license" (only what the SBOM gives; Caption, Text 3). The application itself comes first, then the distributed components in the SBOM's order, with the ones built into another indented by spacing L (24px) under it. Development-only components (`excluded`) are left out |
+| Introduction | Description (Text 2) | The app: "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with "Show full text"." Voice Lab's Python environment: "When the training environment for making voices in Voice Lab is set up, the following software and models are installed on this PC. They are not part of the app, so each one's full license text is published by its provider." |
+| A row per component | Looks like a Setting Row | The name on the left, and below it "version · supplier · license" (only what the SBOM gives; Caption, Text 3). The ones built into another are indented by spacing L (24px) under it. Development-only components (`excluded`) are in neither Card |
 | Full text | Button (Secondary) "Show full text" / "Hide full text" | Only on components whose SBOM entry names license files. Opens the full text below the row. With several files, each starts with its file name (monospace) |
 | Full text box | A scrolling box (up to 320px high, Surface 3 background, Radius S) | The full text (Caption, Text 2). It scrolls on its own so that a long notices file does not stretch the screen |
 
 - Names, versions, license names, and full texts are shown as written in the files, as text (never parsed as Rich Text), and the same in every language.
 - The SBOM is read when the screen is built; a full text when it is first opened.
-- When the SBOM cannot be read, the Card says "The credits could not be read. Try restarting the app." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
+- When the SBOM cannot be read, only the app Card is shown, and it says "The credits could not be read. Try restarting the app." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
 - Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.
 - Paths written in the SBOM are read only inside that folder (paths with `..`, absolute paths, and `\` are not read). The SBOM ships with the application, so no trust boundary is crossed, but even an edited SBOM cannot make the screen read other files.
 

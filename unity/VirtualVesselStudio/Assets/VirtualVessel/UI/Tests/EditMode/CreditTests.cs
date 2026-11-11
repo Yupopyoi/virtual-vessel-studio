@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -24,7 +25,9 @@ namespace VirtualVessel.UI.Tests
                     { ""name"": ""other"", ""value"": ""x"" } ],
                   ""components"": [ { ""name"": ""Inside"", ""licenses"": [ { ""expression"": ""BSD-3-Clause OR MIT"" } ] } ] },
                 { ""name"": ""Tool"", ""scope"": ""excluded"", ""components"": [ { ""name"": ""Tool part"", ""scope"": ""required"" } ] },
-                { ""name"": ""Font"", ""scope"": ""optional"" }
+                { ""name"": ""Font"" },
+                { ""name"": ""Runtime"", ""scope"": ""optional"", ""components"": [ { ""name"": ""Runtime part"" } ] },
+                { ""name"": ""Package"", ""scope"": ""optional"" }
             ] }";
 
         private string _directory;
@@ -43,13 +46,14 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
-        public void Parse_ListsTheApplication_ThenShippedComponents_WithWhatIsBuiltIntoThem()
+        public void Parse_ListsTheApplication_ShippedComponents_AndFetchedOnes_WithWhatIsBuiltIntoThem()
         {
             CreditCatalog catalog = CreditCatalog.Parse(Sbom);
 
             Assert.That(catalog.Application.Name, Is.EqualTo("App"));
             Assert.That(catalog.Application.LicenseFiles, Is.EqualTo(new[] { "LICENSE" }));
-            Assert.That(catalog.Components.Select(c => (c.Name, c.Depth)), Is.EqualTo(new[] { ("Plugin", 0), ("Inside", 1), ("Font", 0) }), "Development-only components and their parts are left out.");
+            Assert.That(catalog.Components.Select(c => (c.Name, c.Depth)), Is.EqualTo(new[] { ("Plugin", 0), ("Inside", 1), ("Font", 0) }), "Development-only components and their parts are left out; no scope means required.");
+            Assert.That(catalog.OnDemand.Select(c => (c.Name, c.Depth)), Is.EqualTo(new[] { ("Runtime", 0), ("Runtime part", 1), ("Package", 0) }), "Fetched components keep the SBOM's order, parts with their parent.");
 
             CreditEntry plugin = catalog.Components[0];
             Assert.That(plugin.Version, Is.EqualTo("1.2"));
@@ -140,10 +144,33 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheCards_SplitTheAppFromWhatIsFetched()
+        {
+            IReadOnlyList<CreditsCard> cards = CreditsCard.Build(new MapFiles { [CreditFiles.SbomPath] = Sbom });
+
+            Assert.That(cards.Select(card => card.Group), Is.EqualTo(new[] { CreditGroup.Application, CreditGroup.OnDemand }));
+            Assert.That(cards[0].Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "App", "Plugin", "Inside", "Font" }));
+            Assert.That(cards[1].Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "Runtime", "Runtime part", "Package" }));
+        }
+
+        [Test]
+        public void TheFetchedCard_IsLeftOut_WhenNothingIsFetched()
+        {
+            const string shippedOnly = @"{ ""bomFormat"": ""CycloneDX"", ""components"": [ { ""name"": ""Plugin"" } ] }";
+
+            Assert.That(CreditsCard.Build(new MapFiles { [CreditFiles.SbomPath] = shippedOnly }).Select(card => card.Group), Is.EqualTo(new[] { CreditGroup.Application }));
+        }
+
+        [Test]
         public void TheCard_SaysSo_WhenTheSbomCannotBeRead()
         {
-            Assert.That(new CreditsCard(new MapFiles()).Catalog, Is.Null);
-            Assert.That(new CreditsCard(new MapFiles { [CreditFiles.SbomPath] = "{ }" }).Catalog, Is.Null);
+            foreach (MapFiles files in new[] { new MapFiles(), new MapFiles { [CreditFiles.SbomPath] = "{ }" } })
+            {
+                IReadOnlyList<CreditsCard> cards = CreditsCard.Build(files);
+                Assert.That(cards.Count, Is.EqualTo(1));
+                Assert.That(cards[0].Catalog, Is.Null);
+                Assert.That(cards[0].Rows, Is.Empty);
+            }
         }
 
         [Test]
@@ -164,7 +191,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(CreditText.Split(new string('a', 20000)).Max(part => part.Length), Is.LessThanOrEqualTo(CreditText.MaxCharactersPerPart));
         }
 
-        private sealed class MapFiles : System.Collections.Generic.Dictionary<string, string>, ICreditFiles
+        private sealed class MapFiles : Dictionary<string, string>, ICreditFiles
         {
             public string ReadText(string packagePath)
             {

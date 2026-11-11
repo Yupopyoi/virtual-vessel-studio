@@ -145,7 +145,10 @@ namespace VirtualVessel.UI.Screens
 
             if (services.Credits != null)
             {
-                app.Add(new CreditsCard(services.Credits));
+                foreach (CreditsCard credits in CreditsCard.Build(services.Credits))
+                {
+                    app.Add(credits);
+                }
             }
 
             Tabs.SetValueWithoutNotify(PageOf(pageId));

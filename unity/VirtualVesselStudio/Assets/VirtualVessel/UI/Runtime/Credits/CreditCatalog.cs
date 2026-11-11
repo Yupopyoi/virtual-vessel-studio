@@ -38,26 +38,37 @@ namespace VirtualVessel.UI.Credits
 
     /// <summary>
     /// The credits read from the CycloneDX SBOM (development workflow 18.1.2): the application itself,
-    /// then every component shipped with it, each followed by the components built into it.
+    /// every component shipped with it, and every component fetched to the user's PC when a feature is
+    /// activated, such as Voice Lab's Python environment; each followed by the components built into it.
     /// </summary>
     /// <remarks>
-    /// Development-only components (scope <c>excluded</c>) and everything inside them are left out.
-    /// The SBOM's own types stay inside this class; screens see <see cref="CreditEntry"/> only.
+    /// The groups follow a top-level component's scope (<c>required</c>, which CycloneDX assumes when
+    /// none is given, and <c>optional</c>), and both keep the SBOM's order. Development-only components
+    /// (scope <c>excluded</c>) and everything inside them are left out. The SBOM's own types stay inside
+    /// this class; screens see <see cref="CreditEntry"/> only.
     /// </remarks>
     public sealed class CreditCatalog
     {
         public const string LicenseFileProperty = "virtual-vessel-studio:license-file";
 
-        public CreditCatalog(CreditEntry application, IReadOnlyList<CreditEntry> components)
+        public CreditCatalog(CreditEntry application, IReadOnlyList<CreditEntry> components, IReadOnlyList<CreditEntry> onDemand)
         {
             Application = application;
             Components = components ?? throw new ArgumentNullException(nameof(components));
+            OnDemand = onDemand ?? throw new ArgumentNullException(nameof(onDemand));
         }
 
         /// <summary>The application itself; null when the SBOM does not describe it.</summary>
         public CreditEntry Application { get; }
 
+        /// <summary>The components shipped with the application (scope <c>required</c>).</summary>
         public IReadOnlyList<CreditEntry> Components { get; }
+
+        /// <summary>
+        /// The components not shipped but fetched to the user's PC when a feature is activated (scope
+        /// <c>optional</c>), such as Voice Lab's Python environment.
+        /// </summary>
+        public IReadOnlyList<CreditEntry> OnDemand { get; }
 
         /// <summary>Reads an SBOM. Pure.</summary>
         /// <exception cref="FormatException">The text is not a CycloneDX SBOM this version can read.</exception>
@@ -76,23 +87,36 @@ namespace VirtualVessel.UI.Credits
             }
 
             SbomComponent application = document.Get<SbomComponent>("metadata.component");
-            var entries = new List<CreditEntry>();
-            AddShipped(components, 0, entries);
-            return new CreditCatalog(application?.Name == null ? null : ToEntry(application, 0), entries);
-        }
-
-        private static void AddShipped(IEnumerable<SbomComponent> components, int depth, List<CreditEntry> into)
-        {
+            var shipped = new List<CreditEntry>();
+            var onDemand = new List<CreditEntry>();
             foreach (SbomComponent component in components ?? Enumerable.Empty<SbomComponent>())
             {
-                // CycloneDX: a missing scope means required.
-                if (component?.Name == null || string.Equals(component.Scope, "excluded", StringComparison.Ordinal))
+                if (component?.Name == null || IsExcluded(component))
                 {
                     continue;
                 }
 
-                into.Add(ToEntry(component, depth));
-                AddShipped(component.Components, depth + 1, into);
+                AddWithParts(component, 0, string.Equals(component.Scope, "optional", StringComparison.Ordinal) ? onDemand : shipped);
+            }
+
+            return new CreditCatalog(application?.Name == null ? null : ToEntry(application, 0), shipped, onDemand);
+        }
+
+        // CycloneDX: a missing scope means required.
+        private static bool IsExcluded(SbomComponent component)
+        {
+            return string.Equals(component.Scope, "excluded", StringComparison.Ordinal);
+        }
+
+        private static void AddWithParts(SbomComponent component, int depth, List<CreditEntry> into)
+        {
+            into.Add(ToEntry(component, depth));
+            foreach (SbomComponent part in component.Components ?? Enumerable.Empty<SbomComponent>())
+            {
+                if (part?.Name != null && !IsExcluded(part))
+                {
+                    AddWithParts(part, depth + 1, into);
+                }
             }
         }
 
