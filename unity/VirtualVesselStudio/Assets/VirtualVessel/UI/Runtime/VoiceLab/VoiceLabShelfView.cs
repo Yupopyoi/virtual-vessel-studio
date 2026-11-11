@@ -75,6 +75,8 @@ namespace VirtualVessel.UI.VoiceLab
             _wordsPanel = new VisualElement();
             Add(_wordsPanel);
             _samplesNotice = new VisualElement();
+            // Room before the Card under it, so Make the samples does not touch it (the user's review, 2026-11-11).
+            _samplesNotice.AddToClassList(VoiceLabScreen.GapClass);
             _samplesNotice.Add(Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body"));
             _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
             _makeSamples.clicked += MakeSamples;
