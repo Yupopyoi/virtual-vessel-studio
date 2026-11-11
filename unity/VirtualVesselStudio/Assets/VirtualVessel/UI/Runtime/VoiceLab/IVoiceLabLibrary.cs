@@ -35,8 +35,9 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A Training Run as the Made voices tab shows it.</summary>
     public sealed class VoiceLabRunRecord
     {
-        public VoiceLabRunRecord(string runId, DateTimeOffset createdAt, VoiceLabBuildState state, IReadOnlyList<string> words, string freeWords, VoiceLabTimbre timbre, string comment, string baseFile, IReadOnlyList<string> voiceNames)
+        public VoiceLabRunRecord(string runId, DateTimeOffset createdAt, VoiceLabBuildState state, IReadOnlyList<string> words, string freeWords, VoiceLabTimbre timbre, string comment, string baseFile, IReadOnlyList<string> voiceNames, string prompt = null)
         {
+            Prompt = prompt ?? string.Empty;
             RunId = runId;
             CreatedAt = createdAt;
             State = state;
@@ -58,6 +59,12 @@ namespace VirtualVessel.UI.VoiceLab
         public IReadOnlyList<string> Words { get; }
 
         public string FreeWords { get; }
+
+        /// <summary>
+        /// A prompt the user wrote whole, used in place of the words (Voice Lab detailed design 8.3.1); empty when the
+        /// words make it.
+        /// </summary>
+        public string Prompt { get; }
 
         public VoiceLabTimbre Timbre { get; }
 
@@ -101,8 +108,9 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A run's choices put back to make it again: the words, and the base and timbre when the base is still there.</summary>
     public sealed class VoiceLabRemake
     {
-        public VoiceLabRemake(IReadOnlyList<string> words, string freeWords, VoiceLabCandidate candidate, VoiceLabTimbre timbre)
+        public VoiceLabRemake(IReadOnlyList<string> words, string freeWords, VoiceLabCandidate candidate, VoiceLabTimbre timbre, string prompt = null)
         {
+            Prompt = prompt ?? string.Empty;
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
             Candidate = candidate;
@@ -112,6 +120,12 @@ namespace VirtualVessel.UI.VoiceLab
         public IReadOnlyList<string> Words { get; }
 
         public string FreeWords { get; }
+
+        /// <summary>
+        /// A prompt the user wrote whole, used in place of the words (Voice Lab detailed design 8.3.1); empty when the
+        /// words make it.
+        /// </summary>
+        public string Prompt { get; }
 
         /// <summary>Null when the base's audio is gone; then only the words come back.</summary>
         public VoiceLabCandidate Candidate { get; }

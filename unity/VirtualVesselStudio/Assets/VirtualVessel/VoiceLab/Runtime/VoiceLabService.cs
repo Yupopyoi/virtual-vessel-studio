@@ -155,7 +155,7 @@ namespace VirtualVessel.VoiceLab
             IReadOnlyList<VoiceCandidate> made;
             try
             {
-                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords), count, reference, progress, cancellationToken)).ConfigureAwait(false);
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords, request.Prompt), count, reference, progress, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {
@@ -286,7 +286,7 @@ namespace VirtualVessel.VoiceLab
             }
 
             RunDesign design = run.Design ?? new RunDesign();
-            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre)));
+            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre), design.Prompt));
         }
 
         /// <summary>
@@ -307,7 +307,7 @@ namespace VirtualVessel.VoiceLab
                 new PitchSummary(design.MedianHz, design.LowHz, design.HighHz),
                 design.Instruction,
                 design.Reference,
-                new VoiceDescription(design.Words, design.FreeWords));
+                new VoiceDescription(design.Words, design.FreeWords, design.Prompt));
         }
 
         public CrudResult<string> Register(string runId, string name)

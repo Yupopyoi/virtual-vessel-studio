@@ -141,6 +141,17 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void ADesign_KeepsAWrittenPrompt_AndACopyKeepsItToo()
+        {
+            var candidate = new VoiceCandidate("candidate_7", 7, "c.wav", default, "i", null, new VoiceDescription(null, null, "A calm woman."));
+            RunDesign design = VoiceDesigner.Design(candidate, new TimbreSettings(0f, 0f, 0f, 0f));
+
+            Assert.That(design.Prompt, Is.EqualTo("A calm woman."));
+            Assert.That(design.Copy().Prompt, Is.EqualTo("A calm woman."));
+            Assert.That(VoiceLabService.FromRun(design, _ => true).Description.Prompt, Is.EqualTo("A calm woman."), "Made again from the same prompt.");
+        }
+
+        [Test]
         public void ADesign_KeepsTheWordsTheCandidateWasAskedWith()
         {
             var candidate = new VoiceCandidate("candidate_7", 7, "c.wav", default, "i", null, new VoiceDescription(new[] { "male" }, "husky"));

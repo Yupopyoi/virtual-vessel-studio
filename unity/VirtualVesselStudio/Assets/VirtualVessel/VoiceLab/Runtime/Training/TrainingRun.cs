@@ -64,6 +64,9 @@ namespace VirtualVessel.VoiceLab.Training
         /// <summary>The user's own words the candidate was asked with. Added later; older run.json files read it as none.</summary>
         public string FreeWords { get; set; } = string.Empty;
 
+        /// <summary>The prompt the user wrote in place of the words. Added later; older run.json files read it as none.</summary>
+        public string Prompt { get; set; } = string.Empty;
+
         /// <summary>The candidate's pitch: median and 5 to 95% range in Hz. Added later; older run.json files read 0 (unknown).</summary>
         public int MedianHz { get; set; }
 
@@ -86,6 +89,7 @@ namespace VirtualVessel.VoiceLab.Training
             copy.Timbre = Timbre?.Copy() ?? new TimbreValues();
             copy.Words = new List<string>(Words ?? new List<string>());
             copy.FreeWords = FreeWords ?? string.Empty;
+            copy.Prompt = Prompt ?? string.Empty;
             return copy;
         }
     }

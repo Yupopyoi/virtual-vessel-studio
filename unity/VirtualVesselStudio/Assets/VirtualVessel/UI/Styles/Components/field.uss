@@ -26,6 +26,16 @@
     --unity-selection-color: var(--vv-color-accent-line);
 }
 
+/* A multi-line field: the text wraps, and four lines show before it grows. */
+.vv-root .vv-text-input--multiline .vv-field__input > .unity-base-text-field__input {
+    min-height: 96px;
+    align-items: flex-start;
+}
+
+.vv-root .vv-text-input--multiline .vv-field__input > .unity-base-text-field__input > .unity-text-element {
+    white-space: normal;
+}
+
 .vv-root .vv-field__input:hover > .unity-base-text-field__input {
     border-color: var(--vv-color-accent-line);
 }

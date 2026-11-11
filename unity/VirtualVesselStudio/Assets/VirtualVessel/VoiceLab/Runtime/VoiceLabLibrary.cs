@@ -138,7 +138,8 @@ namespace VirtualVessel.VoiceLab
                 VoiceLabService.ToScreen(design.Timbre),
                 run.Comment,
                 ExistingFile(design.Candidate, exists),
-                voices.Where(v => v.RunId == run.RunId).Select(v => v.Name).ToArray());
+                voices.Where(v => v.RunId == run.RunId).Select(v => v.Name).ToArray(),
+                design.Prompt);
         }
 
         /// <summary>A voice as the tab shows it, with the base it was made from. Pure but for <paramref name="exists"/>.</summary>

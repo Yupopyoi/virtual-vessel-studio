@@ -71,24 +71,38 @@ namespace VirtualVessel.VoiceLab.Design
         }
     }
 
-    /// <summary>What candidates are made from: shelf word ids (voicelab/shelf.json) and the user's own words.</summary>
+    /// <summary>
+    /// What candidates are made from: shelf word ids (voicelab/shelf.json) and the user's own words, or a prompt the
+    /// user wrote whole in their place (the user's decision, 2026-11-11).
+    /// </summary>
     public sealed class VoiceDescription
     {
-        public VoiceDescription(IReadOnlyList<string> words, string freeWords)
+        public VoiceDescription(IReadOnlyList<string> words, string freeWords, string prompt = null)
         {
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
+            Prompt = prompt ?? string.Empty;
         }
 
         public IReadOnlyList<string> Words { get; }
 
         public string FreeWords { get; }
 
-        /// <summary>Writes the request's "shelf" and "words"; the script builds and checks the instruction.</summary>
+        /// <summary>The prompt the user wrote; empty when the words make it.</summary>
+        public string Prompt { get; }
+
+        /// <summary>
+        /// Writes the request's "shelf", "words", and "prompt" when there is one; the script builds or cleans the
+        /// instruction and checks it.
+        /// </summary>
         public void WriteTo(ConfigDocument document)
         {
             document.Set("shelf", new List<string>(Words));
             document.Set("words", FreeWords);
+            if (Prompt.Length > 0)
+            {
+                document.Set("prompt", Prompt);
+            }
         }
     }
 

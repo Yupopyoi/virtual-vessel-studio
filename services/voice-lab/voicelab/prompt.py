@@ -16,6 +16,9 @@ import unicodedata
 SHELF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shelf.json")
 MAX_WORDS = 200
 
+# A prompt the user writes whole, in place of the shelf (the user's decision, 2026-11-11).
+MAX_PROMPT = 500
+
 _FEMALE = {"{woman}": "woman", "{girl}": "girl", "{Her}": "Her", "{her}": "her", "{She}": "She"}
 _MALE = {"{woman}": "man", "{girl}": "boy", "{Her}": "His", "{her}": "his", "{She}": "He"}
 
@@ -34,9 +37,9 @@ def load(path=SHELF_PATH):
         return json.load(file)
 
 
-def clean_words(text):
+def clean_words(text, limit=MAX_WORDS):
     """The user's free words as they are sent: no brackets, controls, or invisible characters, spaces folded,
-    at most MAX_WORDS characters. Pure."""
+    at most `limit` characters. Pure."""
     kept = []
     for ch in text or "":
         if ch in _BRACKETS:
@@ -45,7 +48,13 @@ def clean_words(text):
         if category == "Cf":
             continue  # zero-width and direction-changing characters
         kept.append(" " if category in ("Cc", "Zl", "Zp") else ch)
-    return re.sub(r"\s+", " ", "".join(kept)).strip()[:MAX_WORDS].strip()
+    return re.sub(r"\s+", " ", "".join(kept)).strip()[:limit].strip()
+
+
+def written(text):
+    """A prompt the user wrote whole, as it is sent: cleaned as free words are, so it cannot end the instruction
+    early, at most MAX_PROMPT characters. Empty when nothing is left. Pure."""
+    return clean_words(text, MAX_PROMPT)
 
 
 def _sentence(text):

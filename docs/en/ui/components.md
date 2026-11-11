@@ -86,6 +86,7 @@ For each component, the following states are defined:
 - The text caret is drawn in Text and the selection in Accent Line. Unity's default caret is dark and could not be seen against the background (the user's report, 2026-10-31).
 - On focus: border Accent Line and a 3px Glow outside. Unity cannot draw an outer glow, so the Accent Line border alone shows focus (UI foundation detailed design 6.7).
 - A numeric field uses right-aligned tabular digits with a unit box on the right (for example `Hz`).
+- Long text (a prompt, for example) uses a multi-line Text Field (`TextInput.Multiline`): four lines high to start, wrapping. Enter adds no line break: it commits Japanese input, and the text sent keeps no line breaks.
 - On error: a 2px Error border, and below it a △ icon and the error text. The error text says what is wrong and what to do.
 
 ### 3.8 Tab
