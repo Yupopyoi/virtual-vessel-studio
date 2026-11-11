@@ -111,7 +111,7 @@
         "lab.base.prompt-hint": "ここにプロンプトを入力してください",
         "lab.base.prompt-note": "500文字まで入力可能です。括弧、改行、見えない文字は除去されます。実在の人物の声をまねる指示は行わないでください。",
         "lab.base.prompt-required": "プロンプトを入力してください",
-        "lab.base.model-note": "声の生成には VoxCPM2（OpenBMB）を使用しています。プロンプトは英語で効果を確認しています。",
+        "lab.base.model-note": "声の生成には VoxCPM2（OpenBMB）を使用しています。",
         "lab.base.words-note": "200文字まで入力可能です。括弧、改行、見えない文字は除去されます。実在の人物の声をまねる指示は行わないでください。",
         "lab.base.instruction": "実際の指示文（英語）",
         "lab.ask.sentence": "{who}が、{voice}声で、{how}話す。",
