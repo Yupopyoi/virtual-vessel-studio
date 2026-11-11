@@ -116,7 +116,7 @@
         "lab.setup.check.ok": "OK",
         "lab.setup.check.ng": "Action needed",
         "lab.setup.to-terms": "Read the terms",
-        "lab.setup.time-note": "It takes about 30 to 60 minutes. If stopped, it continues where it left off.",
+        "lab.setup.time-note": "Preparing requires agreeing to Voice Lab's terms of use. It takes about 30 to 60 minutes. If stopped, it continues where it left off.",
         "lab.setup.terms.title": "Terms and disclaimer",
         "lab.setup.terms.version": "Version {version}",
         "lab.setup.terms.missing": "The terms could not be read. Reinstall the app.",
