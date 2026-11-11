@@ -67,6 +67,32 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void NothingIsBuilt_UntilTheTermsAreAgreedTo_AndANewVersionAsksAgain()
+        {
+            VoiceLabActivation fresh = Activation(agree: false);
+            Assert.That(fresh.TermsAgreed, Is.False);
+            Assert.That(() => fresh.RunAsync(null, null, CancellationToken.None).Wait(), Throws.InstanceOf<AggregateException>().With.InnerException.InstanceOf<InvalidOperationException>());
+            Assert.That(File.Exists(Path.Combine(_config, VoiceLabService.EnvironmentFile)), Is.False);
+
+            fresh.AgreeToTerms();
+            Assert.That(fresh.TermsAgreed, Is.True);
+            Assert.That(VoiceTerms.IsAgreed(fresh.Record, "2"), Is.False, "A new version is agreed to again.");
+        }
+
+        [Test]
+        public void TheBundledTerms_HaveAVersion_InBothLanguages()
+        {
+            string scripts = Path.GetFullPath(Path.Combine("..", "..", "services", "voice-lab"));
+            VoiceTerms ja = VoiceTerms.Load(scripts, "ja");
+            VoiceTerms en = VoiceTerms.Load(scripts, "en");
+
+            Assert.That(ja.Version, Is.EqualTo(en.Version), "Both languages say the same version.");
+            Assert.That(ja.Text, Does.Contain("禁止事項"));
+            Assert.That(VoiceTerms.Load(scripts, "fr").Version, Is.EqualTo(en.Version), "Another language reads English.");
+            Assert.That(VoiceTerms.Parse("# no version"), Is.Null);
+        }
+
+        [Test]
         public void AFailedBuild_LeavesNoEnvironmentFile()
         {
             VoiceLabActivation activation = Activation(failUv: true);
@@ -77,7 +103,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That((activation.Record.State, activation.CanResume), Is.EqualTo((VoiceActivationState.Failed, true)));
         }
 
-        private VoiceLabActivation Activation(bool failUv = false)
+        private VoiceLabActivation Activation(bool failUv = false, bool agree = true)
         {
             // An empty list is not valid, so one small file stands for the components; the fake uv makes the rest.
             byte[] bytes = { 1, 2, 3 };
@@ -96,7 +122,13 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceComponentManifest manifest = VoiceComponentManifest.Parse(json, out IReadOnlyList<string> problems);
             Assert.That(problems, Is.Empty);
             var installer = new VoiceComponentInstaller(manifest, _folders, new Bytes(bytes), new Uv(failUv), null);
-            return new VoiceLabActivation(_config, manifest, _folders, installer, new FixedClock(), null);
+            var activation = new VoiceLabActivation(_config, manifest, _folders, installer, "1", new FixedClock(), null);
+            if (agree)
+            {
+                activation.AgreeToTerms();
+            }
+
+            return activation;
         }
 
         private sealed class Bytes : IComponentDownloader

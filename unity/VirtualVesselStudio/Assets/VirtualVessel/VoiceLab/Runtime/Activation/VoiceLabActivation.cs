@@ -34,10 +34,14 @@ namespace VirtualVessel.VoiceLab.Activation
         private readonly VoiceActivationFolders _folders;
         private readonly VoiceComponentInstaller _installer;
         private readonly ConfigFileStore<VoiceActivationRecord> _store;
+        private readonly ISystemClock _clock;
         private readonly ILog _log;
 
-        public VoiceLabActivation(string configDirectory, VoiceComponentManifest manifest, VoiceActivationFolders folders, VoiceComponentInstaller installer, ISystemClock clock, ILog log)
+        /// <param name="termsVersion">The version of the terms this app shows; a build needs it agreed to.</param>
+        public VoiceLabActivation(string configDirectory, VoiceComponentManifest manifest, VoiceActivationFolders folders, VoiceComponentInstaller installer, string termsVersion, ISystemClock clock, ILog log)
         {
+            TermsVersion = termsVersion ?? throw new ArgumentNullException(nameof(termsVersion));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _configDirectory = configDirectory ?? throw new ArgumentNullException(nameof(configDirectory));
             _manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
             _folders = folders ?? throw new ArgumentNullException(nameof(folders));
@@ -48,6 +52,22 @@ namespace VirtualVessel.VoiceLab.Activation
         }
 
         public VoiceActivationRecord Record { get; private set; }
+
+        /// <summary>The terms' version this app shows.</summary>
+        public string TermsVersion { get; }
+
+        /// <summary>Whether this app's terms are agreed to; a new version needs agreeing again (Voice Lab detailed design 8.2).</summary>
+        public bool TermsAgreed => VoiceTerms.IsAgreed(Record, TermsVersion);
+
+        /// <summary>Keeps that this app's terms were agreed to, and when.</summary>
+        public void AgreeToTerms()
+        {
+            VoiceActivationRecord next = Record.Clone();
+            next.TermsVersion = TermsVersion;
+            next.AgreedAtUtc = _clock.UtcNow;
+            Save(next);
+            _log?.Information($"Voice Lab's terms {TermsVersion} were agreed to.");
+        }
 
         /// <summary>The version this app would build.</summary>
         public string AvailableVersion => _manifest.Version;
@@ -102,6 +122,11 @@ namespace VirtualVessel.VoiceLab.Activation
         public async Task<VoiceLabEnvironment> RunAsync(Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, IProgress<VoiceActivationProgress> progress, CancellationToken cancellationToken)
         {
             string version = _manifest.Version;
+            if (!TermsAgreed)
+            {
+                throw new InvalidOperationException($"The terms {TermsVersion} are not agreed to; the environment is not built without them.");
+            }
+
             if (IsReady && !UpdateAvailable)
             {
                 throw new InvalidOperationException($"Version {version} is built and in use already.");
