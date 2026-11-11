@@ -308,5 +308,74 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabPlayer.HasEnded(1f), Is.True);
             Assert.That(VoiceLabPlayer.HasEnded(0.5f), Is.False);
         }
+
+        [Test]
+        public void TheSetupPage_FollowsActivation()
+        {
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.NotStarted, false, false, false), Is.EqualTo(VoiceLabSetupPage.Check));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.NotStarted, false, true, false), Is.EqualTo(VoiceLabSetupPage.Terms));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Preparing, true, true, false), Is.EqualTo(VoiceLabSetupPage.Progress), "A running build wins.");
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Paused, false, false, false), Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Failed, false, false, false), Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, true), Is.EqualTo(VoiceLabSetupPage.Done));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, false), Is.EqualTo(VoiceLabSetupPage.Update));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, false), Is.EqualTo(VoiceLabSetupPage.None));
+        }
+
+        [Test]
+        public void TheBuildsSteps_ShowDone_TheOneUnderWay_AndNotYet()
+        {
+            Assert.That(VoiceLabSetupView.StepStatusOf(0, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Success, VoiceLabStrings.SetupStepDone)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupRunning)), "Live is for streaming only.");
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Paused), Is.EqualTo((StatusKind.Warning, VoiceLabStrings.SetupPaused)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Failed), Is.EqualTo((StatusKind.Error, VoiceLabStrings.SetupFailed)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(3, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupStepLater)));
+        }
+
+        [Test]
+        public void EachFailure_SaysWhatToDo()
+        {
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.Network).Title, Is.EqualTo(VoiceLabStrings.SetupFailedNetworkTitle));
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.DiskFull).Body, Is.EqualTo(VoiceLabStrings.SetupFailedDiskBody));
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.None).Title, Is.EqualTo(VoiceLabStrings.SetupFailedSetupTitle), "A failure from before a restart.");
+        }
+
+        [Test]
+        public void TheDownload_ShowsItsBytes_AndTheOtherStepsTheirShare()
+        {
+            const long Gb = 1024L * 1024 * 1024;
+            Assert.That(VoiceLabSetupView.ProgressDetail(new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB · 30%"));
+            Assert.That(VoiceLabSetupView.ProgressDetail(new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
+        }
+
+        [Test]
+        public void TheTermsMarkdown_BecomesHeadingsItemsAndRows()
+        {
+            var blocks = VoiceLabSetupView.TermsBlocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
+
+            Assert.That(blocks, Is.EqualTo(new[]
+            {
+                (VoiceLabTermsBlockKind.Title, 0, "規約"),
+                (VoiceLabTermsBlockKind.Paragraph, 0, "前文の続き。"),
+                (VoiceLabTermsBlockKind.Heading, 0, "第1条（定義）"),
+                (VoiceLabTermsBlockKind.Item, 0, "1. 一つ目"),
+                (VoiceLabTermsBlockKind.Item, 1, "1. 入れ子"),
+                (VoiceLabTermsBlockKind.Paragraph, 0, "1. 段落の番号"),
+                (VoiceLabTermsBlockKind.Row, 0, "名称 ／ 取得元"),
+                (VoiceLabTermsBlockKind.Row, 0, "uv ／ GitHub"),
+            }));
+        }
+
+        [Test]
+        public void TheShippedTerms_ReadAsArticles_InBothLanguages()
+        {
+            foreach (string language in new[] { "ja", "en" })
+            {
+                string file = System.IO.Path.GetFullPath(System.IO.Path.Combine("..", "..", "services", "voice-lab", "terms", $"voice-lab-terms.{language}.md"));
+                var blocks = VoiceLabSetupView.TermsBlocks(System.IO.File.ReadAllText(file));
+                Assert.That(blocks.Count(b => b.Kind == VoiceLabTermsBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
+                Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
+            }
+        }
     }
 }

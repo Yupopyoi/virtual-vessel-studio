@@ -29,6 +29,7 @@ using VirtualVessel.UI.Settings;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
 using VirtualVessel.VoiceLab;
+using VirtualVessel.VoiceLab.Activation;
 using VirtualVessel.Voice;
 using VirtualVessel.Voice.Models;
 
@@ -302,6 +303,14 @@ namespace VirtualVessel.Application.Startup
                                 // Assigned in order: the library comes with Voice Lab.
                                 VoiceLab = voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")), voice),
                                 VoiceLabLibrary = voiceLab.Library,
+                                VoiceLabSetup = VoiceLabSetupService.Create(
+                                    context.ConfigDirectory,
+                                    GetVoiceLabScripts(context.Environment, UnityEngine.Application.dataPath),
+                                    Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), "Shared", "1"),
+                                    Path.Combine(GetLogDirectory(context.DataRoot, context.Environment), "voice-lab"),
+                                    voiceLab,
+                                    context.SystemClock,
+                                    logging.Provider.GetLog("VoiceLab", "Activation")),
                                 AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
@@ -373,6 +382,18 @@ namespace VirtualVessel.Application.Startup
             return environment == RuntimeEnvironment.Editor
                 ? Path.GetFullPath(Path.Combine(full, "..", "..", ".."))
                 : Path.GetDirectoryName(full);
+        }
+
+        /// <summary>
+        /// Voice Lab's scripts, download list, and terms: the repository's services/voice-lab in the Editor, VoiceLab/scripts
+        /// next to the executable in a build (tools/release/build-release.ps1). Pure.
+        /// </summary>
+        public static string GetVoiceLabScripts(RuntimeEnvironment environment, string dataPath)
+        {
+            string folder = GetCreditFolder(environment, dataPath);
+            return environment == RuntimeEnvironment.Editor
+                ? Path.Combine(folder, "services", "voice-lab")
+                : Path.Combine(folder, "VoiceLab", "scripts");
         }
 
         /// <summary>

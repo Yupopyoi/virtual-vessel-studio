@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.VoiceLab.Scripts;
@@ -36,6 +40,62 @@ namespace VirtualVessel.VoiceLab.Activation
             _scripts = scripts;
             _log = log;
             _voiceLab.EnvironmentRemoved += _activation.ForgetEnvironment;
+        }
+
+        /// <summary>
+        /// Setup as the app runs it: the download list and the terms from the scripts folder the app ships, a build in the
+        /// folder chosen for it, and the trial run at its end. Null when the list cannot be read, which leaves Voice Lab
+        /// as it is, such as a developer's own environment.
+        /// </summary>
+        /// <param name="scripts">The project's Voice Lab folder: the repository's services/voice-lab in the Editor, the app's VoiceLab/scripts in a build.</param>
+        /// <param name="sharedModels">The shared models' version folder in the data root (VoiceModels/Shared/1).</param>
+        /// <param name="logs">Where the check of the PC keeps nvidia-smi's output.</param>
+        public static VoiceLabSetupService Create(string configDirectory, string scripts, string sharedModels, string logs, VoiceLabService voiceLab, ISystemClock clock, ILog log)
+        {
+            string listFile = Path.Combine(scripts, VoiceComponentManifest.FileName);
+            if (!File.Exists(listFile))
+            {
+                log?.Warning($"Voice Lab cannot be prepared here: {listFile} is missing.");
+                return null;
+            }
+
+            VoiceComponentManifest manifest = VoiceComponentManifest.Parse(File.ReadAllText(listFile), out IReadOnlyList<string> problems);
+            if (manifest == null || problems.Count > 0)
+            {
+                log?.Warning($"Voice Lab cannot be prepared here: {listFile} is not valid ({string.Join("; ", problems)}).");
+                return null;
+            }
+
+            string termsVersion = VoiceTerms.Load(scripts, "en")?.Version;
+            if (termsVersion == null)
+            {
+                log?.Warning($"Voice Lab cannot be prepared here: its terms in {scripts} cannot be read.");
+                return null;
+            }
+
+            // App-lifetime: it is one HttpClient for every build.
+            var downloader = new HttpComponentDownloader();
+            VoiceLabActivation activation = null;
+            activation = new VoiceLabActivation(
+                configDirectory,
+                manifest,
+                sharedModels,
+                scripts,
+                folders => new VoiceComponentInstaller(manifest, folders, downloader, new ExternalProcessRunner(new[] { folders.Root }, log, clock), log),
+                termsVersion,
+                clock,
+                log);
+
+            // The trial run goes next to the build and is deleted after it.
+            Task<string> Verify(VoiceLabEnvironment environment, CancellationToken cancellationToken)
+            {
+                var runner = new ExternalProcessRunner(environment.AllowedFolders, log, clock);
+                return VoiceActivationCheck.Create(Path.Combine(activation.Folders.Root, "check"), runner, clock, log)(environment, cancellationToken);
+            }
+
+            string nvidiaSmi = VoiceLabPcProbe.DefaultNvidiaSmi;
+            var probe = new VoiceLabPcProbe(new ExternalProcessRunner(new[] { Path.GetDirectoryName(nvidiaSmi) }, log, clock), nvidiaSmi, logs, log);
+            return new VoiceLabSetupService(activation, voiceLab, probe, Verify, scripts, log);
         }
 
         public VoiceLabSetupState State => StateOf(_running, _activation.IsReady, _activation.CanResume, _activation.Record.State, LastFailure);

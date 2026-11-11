@@ -218,9 +218,9 @@ Training Run states are as in system design 13.15.
 ```text
 Open Voice Lab
   ↓ Explain: what it does, size (about 13 GB once built, up to about 30 GB while building), time, an NVIDIA GPU is needed, the high hardware requirements
-Show the terms (8.2) → agree
+Check the PC: GPU, driver, free space at the location, connection (the location can be chosen)
   ↓
-Check the PC: GPU, driver, free space, connection
+Show the terms (8.2) → agree
   ↓
 Fetch (resumable; every hash is checked)
   1. uv
@@ -239,6 +239,10 @@ Measured (2026-11-01, the development PC with an RTX 4070): about an hour to fet
 Measured (2026-11-11, the same development PC, built by `VoiceComponentInstaller`): about 32 minutes from download to the end of the build (the project's four files were already downloaded). The environment is about 11.5 GB once built (venv 5.9 GB, VoxCPM2 4.7 GB, RVC and its models 0.6 GB, Python 0.1 GB, the template 0.1 GB, uv 0.07 GB), about 13 GB with the 0.8 GB of shared models streaming uses. The downloads and uv's cache were removed at the end. The largest space used during the build was not measured; with the 6.1 GB of downloads and the cache still there, it is estimated at about 30 GB, the value the terms and the screen give. The final check (making one voice) took about 5 minutes. It found that training failed because RVC's source archive has no empty folders (`assets/weights`, `logs`), so `train.py` now makes them.
 
 Because it takes long, the explanation screen gives an estimate and says it can resume after an interruption.
+
+The PC is checked before the terms, so a PC that does not meet the conditions stops before its user has read them (the mock-up, 2026-11-11). The screen follows Voice Lab screen spec 2.1.
+
+The user chooses the location (2026-11-11), since the build can need up to about 30 GB. The build goes in `VirtualVesselStudio\External\VoiceLab` inside the chosen folder, so nothing the user keeps in that folder is deleted. The default is `%LOCALAPPDATA%`. The location is kept in the activation record (`Location` in `Config\voice-activation.json`) and cannot change while an environment is in use.
 
 Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
 
@@ -270,11 +274,11 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
-- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.1-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.2-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.
-- The same content can be read at any time from Credits and licenses in Setup.
+- The same content can be read at any time from Credits and licenses in Setup. A release ships it as `licenses/voice-lab-terms.<language>.md` (`tools/release/license-files.json`), tied to the application's SBOM entry. Voice Lab has no other place for it besides the agreement page (2026-11-11).
 - Importing a recording shows a confirmation that it is your own voice or one you hold the rights to.
 
 ### 8.3 Making a voice

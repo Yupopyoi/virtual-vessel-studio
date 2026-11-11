@@ -46,6 +46,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Voice Lab (VoiceLab), for its screen; null shows it as not set up.</summary>
         public IVoiceLab VoiceLab { get; set; }
 
+        /// <summary>Preparing Voice Lab on this PC (Voice Lab detailed design 8.1); null leaves Voice Lab as it is.</summary>
+        public IVoiceLabSetup VoiceLabSetup { get; set; }
+
         /// <summary>What Voice Lab has made, for its Made voices tab; null leaves the tab out.</summary>
         public IVoiceLabLibrary VoiceLabLibrary { get; set; }
 
