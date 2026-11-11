@@ -9,6 +9,7 @@ using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -213,6 +214,13 @@ namespace VirtualVessel.UI.VoiceLab
             Add(UpdateCard);
 
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
+
+            // The check's values and the terms are built in the language shown; they follow it when it changes.
+            PanelLifetime.OnLocaleChanged(this, () =>
+            {
+                ShowCheck(LastCheck);
+                Refresh();
+            });
             RegisterCallback<DetachFromPanelEvent>(_ =>
             {
                 _checking?.Cancel();

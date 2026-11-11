@@ -40,6 +40,30 @@ namespace VirtualVessel.UI.Binding
             return tracker;
         }
 
+        /// <summary>
+        /// Calls <paramref name="relabel"/> when the language changes while <paramref name="element"/> is on a panel, for
+        /// text built from the localizer with values in it, which <see cref="KeyedText"/> cannot follow by itself.
+        /// </summary>
+        public static IDisposable OnLocaleChanged(VisualElement element, Action relabel)
+        {
+            if (relabel == null)
+            {
+                throw new ArgumentNullException(nameof(relabel));
+            }
+
+            return WhileAttached(element, services =>
+            {
+                if (services?.Localizer == null)
+                {
+                    return DisposeAction.None;
+                }
+
+                Action<Localization.LocaleInfo> handler = _ => relabel();
+                services.Localizer.LocaleChanged += handler;
+                return new DisposeAction(() => services.Localizer.LocaleChanged -= handler);
+            });
+        }
+
         private sealed class Tracker : IDisposable
         {
             private readonly VisualElement _element;

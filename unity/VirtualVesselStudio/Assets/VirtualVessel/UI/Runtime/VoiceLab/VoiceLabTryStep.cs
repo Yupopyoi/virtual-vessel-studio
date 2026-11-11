@@ -11,6 +11,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Voice;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -71,6 +72,11 @@ namespace VirtualVessel.UI.VoiceLab
 
             _filePanel = new VisualElement();
             _fileName = PlainText();
+            PanelLifetime.OnLocaleChanged(this, () =>
+            {
+                ShowFile();
+                Refresh();
+            });
             PickButton = Ui.Button(VoiceLabStrings.TryPick);
             PickButton.clicked += PickRecording;
             _filePanel.Add(VoiceLabScreen.Actions(_fileName, PickButton));

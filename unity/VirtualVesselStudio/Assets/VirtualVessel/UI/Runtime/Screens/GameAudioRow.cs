@@ -29,6 +29,7 @@ namespace VirtualVessel.UI.Screens
             row.Add(Devices);
             Add(row);
             PanelLifetime.WhileAttached(this, Attach);
+            PanelLifetime.OnLocaleChanged(this, ShowDevices);
         }
 
         public SelectField Devices { get; }

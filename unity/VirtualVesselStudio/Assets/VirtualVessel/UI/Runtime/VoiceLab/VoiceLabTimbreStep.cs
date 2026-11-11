@@ -3,6 +3,7 @@ using System.Threading;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -115,6 +116,7 @@ namespace VirtualVessel.UI.VoiceLab
             ShowShaping(null);
             _failed.style.display = DisplayStyle.None;
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
+            PanelLifetime.OnLocaleChanged(this, Refresh);
         }
 
         public ActionButton NextButton { get; }

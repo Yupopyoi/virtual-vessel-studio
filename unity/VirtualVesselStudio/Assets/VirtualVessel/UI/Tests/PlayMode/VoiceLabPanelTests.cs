@@ -807,6 +807,27 @@ namespace VirtualVessel.UI.Tests
             Assert.That(screen.Setup.LastCheck, Is.Not.Null, "Checked again on coming back to it.");
         }
 
+        [UnityTest]
+        public IEnumerator TheChecksValues_FollowTheLanguage()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup();
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+            yield return null;
+            VoiceLabSetupView view = Screen().Setup;
+
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+            Assert.That(view.CheckCard.Query<Label>().ToList().Any(l => l.text == "接続済み"), Is.True);
+
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            List<string> texts = view.CheckCard.Query<Label>().ToList().Select(l => l.text).ToList();
+            Assert.That(texts, Does.Contain("Connected"));
+            Assert.That(texts.Any(t => t.Contains("空き") || t.Contains("接続済み")), Is.False, "Nothing is left in Japanese.");
+        }
+
         private VoiceLabScreen Screen()
         {
             return (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");
