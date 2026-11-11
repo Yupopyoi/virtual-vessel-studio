@@ -135,7 +135,6 @@ Saved in `Config/voice-activation.json`.
     {
       "id": "rvc",
       "url": "https://github.com/RVC-Project/.../archive/81eed5e8f68b....zip",
-      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rvc-81eed5e8f68b....zip",
       "sha256": "c0427564...",
       "size": 821646,
       "license": "MIT",
@@ -152,9 +151,9 @@ It is `services/voice-lab/voice-components.json`, bundled with the app beside th
 
 - `place`: `environment` goes into the training environment's version folder (`<version>/`), `sharedModels` into the Data Root's `VoiceModels/Shared/1/`. The HuBERT and RMVPE `.sentis` streaming uses are the latter, so streaming keeps working when the environment is deleted.
 - `target`: a relative path inside the place; for `extract` `zip`, the folder it is extracted into. `strip` drops that many leading folders from the zip's paths (the top folder of GitHub's archives).
-- `mirror`: the project's copy in its GitHub Release (for MIT and Apache-2.0 files), used when the source fails and checked against the same hash. Files the project made (the template, the shared models) have `url` pointing at the Release.
+- `url`: the source. Others' files point only at where they are published; the project keeps no copies (8.1). Files the project made (the template, the shared models) point at the project's GitHub Release.
 - The app checks it when reading (`VoiceComponentManifest`): an unknown schema version is not read, URLs are https only, hashes are 64 lowercase hex digits, and `target` is relative with no `..` or drive, so the list cannot write a file anywhere.
-- Version 1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the mirror is then used.
+- Version 1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the periodic check then finds it, and the list is fixed.
 
 ### 6.3 Training Run
 
@@ -246,10 +245,8 @@ The user chooses the location (2026-11-11), since the build can need up to about
 
 Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
 
-So that new users are not stopped when a source changes or disappears:
+The project keeps no copies of others' files (the user's decision, 2026-11-11): a copy is redistribution, and keeping license notices with it on the Release takes work. When a source changes or disappears:
 
-- Copies of the MIT and Apache-2.0 models and of RVC's source sit on the same GitHub Releases. When a source lacks them, the copy is used, and both are checked against the same hash. Notices stay with the copies.
-- PyPI packages, PyTorch, and CUDA have no copies. They are unlikely to disappear, and the latter are not redistributed.
 - GitHub Actions periodically checks that every source is reachable and its hash matches.
 - The list of sources is bundled with the application, so fixing it takes an application update. If PyTorch's source removes an old version, new activation stops until that update. Streaming and built environments are not affected.
 
@@ -259,7 +256,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 
 `VoiceComponentInstaller` builds it, and `VoiceLabActivation` keeps the record and switches (2026-11-11).
 
-- **Download**: each component goes to `External\VoiceLab\downloads\<sha256>`. A `.part` file continues with an HTTP Range request. When the source fails or sends a file that does not match its hash, the mirror is used. A checked file stays under its hash, so it is not downloaded again after a stop, or by the next version that has the same file.
+- **Download**: each component goes to `External\VoiceLab\downloads\<sha256>`. A `.part` file continues with an HTTP Range request. Files come only from their sources: one that cannot be reached stops as a network failure, one that does not match its hash as a damaged file. A checked file stays under its hash, so it is not downloaded again after a stop, or by the next version that has the same file.
 - **Build**: straight into the version's folder (`External\VoiceLab\<version>\`). Building elsewhere and renaming would break the absolute paths the venv records. The folder is cleared first, so nothing half made is left from a stop. Zips are extracted making sure no entry leaves its folder. The shared models streaming uses go to `VoiceModels\Shared\1\`, and one already there with the same hash is not rewritten.
 - **Python**: `uv python install <version> --install-dir <version>\python`, then `uv sync --frozen --no-dev --project <scripts>`. uv is set to put the venv in `<version>\venv` and its cache in `External\VoiceLab\cache`, to use only the Python it installed (`UV_PYTHON_PREFERENCE=only-managed`), and to copy files rather than link them, as the cache is deleted. uv runs through ExternalServices' runner, which allows only programs inside `External\VoiceLab`.
 - **Check**: the built environment makes one VoxCPM2 candidate and builds a voice from it with the shortest plan (4 lines, 1 epoch) (`VoiceActivationCheck`). It goes the same way real use does, so the GPU, the packages, RVC, and the template are proven to work together.
@@ -274,7 +271,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
-- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.2-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.3-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.

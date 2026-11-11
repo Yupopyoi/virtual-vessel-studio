@@ -43,7 +43,7 @@ namespace VirtualVessel.VoiceLab.Activation
     /// <summary>Why a build stopped, for the screen to say what to do.</summary>
     public enum VoiceActivationFailure
     {
-        /// <summary>A download did not complete from the source or the mirror; trying again continues it.</summary>
+        /// <summary>A download did not complete from its source; trying again continues it.</summary>
         Network,
 
         /// <summary>A file did not match its hash from either place; it is not used.</summary>
@@ -331,35 +331,27 @@ namespace VirtualVessel.VoiceLab.Activation
                 return done;
             }
 
+            // Only from its source: the project keeps no copies of others' files (the user's decision, 2026-11-11).
             string part = done + ".part";
-            var problems = new List<string>();
-            foreach (string url in new[] { component.Url, component.Mirror }.Where(u => u != null))
+            try
             {
-                try
-                {
-                    await _downloader.DownloadAsync(url, part, received, cancellationToken).ConfigureAwait(false);
-                }
-                catch (ComponentDownloadException exception)
-                {
-                    // What was received stays; the mirror is the same file, so it continues from there.
-                    problems.Add(exception.Message);
-                    continue;
-                }
-
-                string hash = await Task.Run(() => Sha256Of(part), cancellationToken).ConfigureAwait(false);
-                if (hash == component.Sha256)
-                {
-                    File.Move(part, done);
-                    return done;
-                }
-
-                problems.Add($"{url} did not match its hash.");
-                File.Delete(part);
+                await _downloader.DownloadAsync(component.Url, part, received, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ComponentDownloadException exception)
+            {
+                // What was received stays, so trying again continues from there.
+                throw new VoiceActivationException(VoiceActivationFailure.Network, $"{component.Id} could not be downloaded: {exception.Message}");
             }
 
-            // A file that came but was not the right one says more than a place that could not be reached.
-            bool corrupt = problems.Any(p => p.EndsWith("did not match its hash.", StringComparison.Ordinal));
-            throw new VoiceActivationException(corrupt ? VoiceActivationFailure.Corrupt : VoiceActivationFailure.Network, $"{component.Id} could not be downloaded: {string.Join(" ", problems)}");
+            string hash = await Task.Run(() => Sha256Of(part), cancellationToken).ConfigureAwait(false);
+            if (hash != component.Sha256)
+            {
+                File.Delete(part);
+                throw new VoiceActivationException(VoiceActivationFailure.Corrupt, $"{component.Id} from {component.Url} did not match its hash.");
+            }
+
+            File.Move(part, done);
+            return done;
         }
 
         private void Place(Dictionary<string, string> files, string folder, CancellationToken cancellationToken)

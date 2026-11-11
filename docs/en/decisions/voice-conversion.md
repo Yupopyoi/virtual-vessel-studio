@@ -663,3 +663,13 @@ Findings:
 The difference sits in VoxCPM2 making speech; training is about the same. Each was measured once (the check plan twice), so there is noise. With cu118, one run in four ended abnormally while VoxCPM2 loaded its model (0xC0000005); with cu128, none of three did. Too few runs to count for the decision.
 
 Decided (user, 2026-11-11): the total difference is about 2 minutes (11%), small, so cu128, with which the RTX 50 series can make voices. Activation's PC check looks at the GPU's generation (sm_50 or later) and the driver (528.33 or later) before downloading anything. Developers' environments (the venv in `voice-work`) stay cu118 and run the old build until they are rebuilt.
+
+## 2026-11-11 No copies of others' files
+
+The user's decision (2026-11-11): the copies of the MIT and Apache-2.0 models and of RVC's source on the project's GitHub Release are dropped. In the table of the 2026-11-01 decision on how the training environment is made, "Information and copies only" becomes "Information and the project's own files only".
+
+Why: a copy is redistribution, and keeping each license's notices with it on the Release takes work.
+
+The GitHub Release holds only the project's four files (the template's `.sentis` and `.json`, `hubert_16000_anchored.sentis`, `rmvpe_32.sentis`). Bundling them with the app was compared; it would make the app about 1 GB larger, so they stay on the Release.
+
+Effect: when a source disappears, or GitHub rebuilds an archive zip and its hash changes, new activation stops until an app update fixes the list of sources. Streaming and built environments are not affected. The periodic check (Voice Lab detailed design 8.1) finds it early. Article 9 of the terms no longer says copies are used (0.3-draft).

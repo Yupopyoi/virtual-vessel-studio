@@ -1,4 +1,4 @@
-<!-- version: 0.2-draft -->
+<!-- version: 0.3-draft -->
 <!-- Draft (2026-11-11). To be reviewed by a legal professional before release (Voice Lab detailed design 8.2, 17). -->
 
 # Voice Lab Terms of Use
@@ -73,7 +73,7 @@ To the maximum extent permitted by law, the Developers shall not be liable for a
 | VoxCPM2 | Hugging Face (openbmb/VoxCPM2) | Apache-2.0 |
 | The voice template and the shared models used for streaming | Virtual Vessel Studio's GitHub Release | MIT |
 
-2\. If a file cannot be obtained from its source, the Software obtains the copy kept in Virtual Vessel Studio's GitHub Release, after confirming that it is the same file. Every file obtained is verified by its hash value, and any file that does not match is not used.
+2\. The Software obtains each External Component only from its source. Every file obtained is verified by its hash value, and any file that does not match is not used.
 
 3\. RVC's pretrained models were trained using the following data:
 

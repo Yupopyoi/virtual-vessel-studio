@@ -1,7 +1,8 @@
 """Builds Voice Lab's download list, services/voice-lab/voice-components.json (Voice Lab detailed design 6.2), from
 tools/voice/voice-components.sources.json and the files as they are on the developer's PC, so every size and SHA-256
-is what was tested. With --release, it also copies the files to publish to the project's GitHub Release (the
-project's own files, and mirrors of MIT and Apache-2.0 sources) into one folder, named as the list expects.
+is what was tested. With --release, it also copies the files to publish to the project's GitHub Release into one
+folder, named as the list expects: only the project's own files, as no copies of others' files are kept (the user's
+decision, 2026-11-11).
 
 python -I tools/voice/voice_components.py --download <folder with uv.zip and rvc.zip> --rvc <RVC checkout>
     --voxcpm2 <VoxCPM2 snapshot> --sentis <folder with the templates and shared models> [--release <folder>]
@@ -37,17 +38,15 @@ def expand(text, values):
     return text
 
 
-def mirror_name(component):
-    """The file's name in the GitHub Release: the id keeps names from different sources apart. Pure."""
-    url = component["url"]
-    base = re.sub(r"\{[^}]*\}", "", url).rsplit("/", 1)[-1]
-    return base if url.startswith("{mirror}") else f"{component['id']}-{base}"
+def release_name(component):
+    """The file's name in the GitHub Release, the last part of its URL. Pure."""
+    return re.sub(r"\{[^}]*\}", "", component["url"]).rsplit("/", 1)[-1]
 
 
 def build(sources, folders, hasher=sha256_of, size_of=os.path.getsize):
     """The download list from the sources and where their local copies are. Pure but for the two readers passed in."""
     values = dict(sources.get("bases", {}))
-    values["mirror"] = sources["mirror"]
+    values["release"] = sources["release"]
     locals_ = dict(folders)
     ids = set()
     components = []
@@ -65,8 +64,6 @@ def build(sources, folders, hasher=sha256_of, size_of=os.path.getsize):
             "place": component["place"],
             "target": component["target"],
         }
-        if component.get("mirrored"):
-            entry["mirror"] = sources["mirror"] + mirror_name(component)
         for key in ("extract", "strip"):
             if key in component:
                 entry[key] = component[key]
@@ -83,8 +80,8 @@ def build(sources, folders, hasher=sha256_of, size_of=os.path.getsize):
 def release_files(sources, folders):
     """(local path, name in the Release) for every file the Release holds. Pure."""
     for component in sources["components"]:
-        if component.get("mirrored") or component["url"].startswith("{mirror}"):
-            yield expand(component["local"], dict(folders)), mirror_name(component)
+        if component["url"].startswith("{release}"):
+            yield expand(component["local"], dict(folders)), release_name(component)
 
 
 def main(argv):

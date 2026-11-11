@@ -135,7 +135,6 @@ public interface IVoiceLabLibrary
     {
       "id": "rvc",
       "url": "https://github.com/RVC-Project/.../archive/81eed5e8f68b....zip",
-      "mirror": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-1/rvc-81eed5e8f68b....zip",
       "sha256": "c0427564...",
       "size": 821646,
       "license": "MIT",
@@ -152,9 +151,9 @@ public interface IVoiceLabLibrary
 
 - `place`：`environment`は学習環境の版のフォルダー（`<版>/`）に、`sharedModels`はData Rootの`VoiceModels/Shared/1/`に置く。配信が使うHuBERTとRMVPEの`.sentis`は後者なので、学習環境を削除しても配信は動く。
 - `target`：置き場所の中の相対パス。`extract`が`zip`なら、展開するフォルダーである。`strip`は、zipの中のパスから先頭のフォルダーを外す数（GitHubのアーカイブの最上位のフォルダー）。
-- `mirror`：本プロジェクトのGitHub Releaseの控え（MITとApache-2.0のもの）。取得元で失敗したときに使い、同じハッシュで確かめる。本プロジェクトが作ったファイル（ひな形、共有のモデル）は、`url`がReleaseを指す。
+- `url`：取得元。他者のファイルは配布元だけを指し、本プロジェクトは控えを置かない（8.1）。本プロジェクトが作ったファイル（ひな形、共有のモデル）は、本プロジェクトのGitHub Releaseを指す。
 - アプリは読むときに確かめる（`VoiceComponentManifest`）：知らない形式の版は読まない。URLはhttpsだけ、ハッシュは小文字の16進64文字、`target`は相対で`..`やドライブを含まない。一覧がどこにでもファイルを書けることを防ぐためである。
-- 版1は21個、合計約6.1 GB（2026-11-11）。Hugging Faceのファイルは固定のrevision（`lj1995/VoiceConversionWebUI`の`e6d0c1a1…`、`openbmb/VoxCPM2`の`32279eff…`）を指し、大きいファイルのハッシュは配布元が示す値と一致した。GitHubのアーカイブのzipは、GitHubが作り直すとハッシュが変わることがある。そのときは控えから取得する。
+- 版1は21個、合計約6.1 GB（2026-11-11）。Hugging Faceのファイルは固定のrevision（`lj1995/VoiceConversionWebUI`の`e6d0c1a1…`、`openbmb/VoxCPM2`の`32279eff…`）を指し、大きいファイルのハッシュは配布元が示す値と一致した。GitHubのアーカイブのzipは、GitHubが作り直すとハッシュが変わることがある。そのときは定期の確認で見つけ、一覧を直す。
 
 ### 6.3 Training Run
 
@@ -246,10 +245,8 @@ PCの確認を規約より先に行う。条件を満たさないPCで、規約�
 
 取得先は配布元とする。本システムのひな形とHuBERT、RMVPEの`.sentis`は、本プロジェクトのGitHub Releaseに置く。
 
-配布元が変わったり消えたりしても新規の利用者が使えるよう、次の対策をとる。
+他者のファイルの控えは置かない（利用者の決定、2026-11-11）。控えは再配布になり、ライセンスの表記をReleaseにも付けて保つ手間がかかるためである。配布元が変わったり消えたりしたときは、次のようにする。
 
-- MITとApache-2.0のモデルとRVCのソースは、同じGitHub Releaseに控えを置く。配布元に無いときは控えから取得し、どちらも同じハッシュで確かめる。表記は控えにも残す。
-- PyPIのパッケージと、PyTorchとCUDAは控えを置かない。消える可能性が低く、後者は再配布を避けるためである。
 - GitHub Actionsで定期的に、すべての取得先に届き、ハッシュが合うことを確かめる。
 - 取得先の一覧はアプリに同梱するので、直すにはアプリの更新が要る。PyTorchの配布元が古い版を消した場合は、更新するまで新規のアクティベーションができない。配信と構築済みの環境には影響しない。
 
@@ -259,7 +256,7 @@ PCの確認を規約より先に行う。条件を満たさないPCで、規約�
 
 `VoiceComponentInstaller`が構築し、`VoiceLabActivation`が記録と切り替えを持つ（2026-11-11）。
 
-- **取得**：各部品を`External\VoiceLab\downloads\<sha256>`に置く。途中の`.part`はHTTPのRangeで続きから取得する。取得元で失敗したか、ハッシュが合わないときは控え（`mirror`）を使う。確かめたファイルはハッシュの名前で残るので、止めたあとや、同じファイルを持つ次の版では取得しない。
+- **取得**：各部品を`External\VoiceLab\downloads\<sha256>`に置く。途中の`.part`はHTTPのRangeで続きから取得する。取得元だけから取得し、届かなければネットワーク、ハッシュが合わなければファイルの不一致として止まる。確かめたファイルはハッシュの名前で残るので、止めたあとや、同じファイルを持つ次の版では取得しない。
 - **構築**：版のフォルダー（`External\VoiceLab\<版>\`）に直接作る。仮のフォルダーに作って名前を変えると、venvが記録している絶対パスが合わなくなるためである。始める前にそのフォルダーを消すので、止めたあとの作りかけは残らない。zipは、エントリーが展開先の外へ出ないことを確かめて展開する。配信が使う共有のモデルは`VoiceModels\Shared\1\`に置き、同じハッシュのものがあれば書き換えない。
 - **Python**：`uv python install <版> --install-dir <版>\python`、続けて`uv sync --frozen --no-dev --project <スクリプト>`。uvの設定で、venvを`<版>\venv`に、キャッシュを`External\VoiceLab\cache`に置き、uvが入れたPythonだけを使い（`UV_PYTHON_PREFERENCE=only-managed`）、ファイルはリンクでなく写す（キャッシュを消すため）。uvはExternalServicesの実行の部品で動かし、`External\VoiceLab`の中のプログラムだけを許す。
 - **確認**：構築した環境で、VoxCPM2の候補を1つ作り、そこから最も短い手順（4文、1エポック）で声を作る（`VoiceActivationCheck`）。実際に使うときと同じ流れを通すので、GPU、パッケージ、RVC、ひな形がそろって動くことを確かめられる。
@@ -273,7 +270,7 @@ PCの確認を規約より先に行う。条件を満たさないPCで、規約�
 
 [決定記録](../decisions/voice-conversion.md)の要件による。
 
-- 本文はアプリに同梱する。日本語と英語を持ち、版を付ける。スクリプトの隣の`terms/voice-lab-terms.<言語>.md`に置き、1行目の`<!-- version: … -->`が版である（`VoiceTerms`）。画面の言語のものがなければ英語を出す。今の版は`0.2-draft`の案で、内容を利用者と精査し、公開前に法律の専門家の確認を受ける（2026-11-11）。
+- 本文はアプリに同梱する。日本語と英語を持ち、版を付ける。スクリプトの隣の`terms/voice-lab-terms.<言語>.md`に置き、1行目の`<!-- version: … -->`が版である（`VoiceTerms`）。画面の言語のものがなければ英語を出す。今の版は`0.3-draft`の案で、内容を利用者と精査し、公開前に法律の専門家の確認を受ける（2026-11-11）。
 - アクティベーションの前に全文を表示し、同意しないと次へ進めない。
 - 同意した版と日時を保存する。
 - 版が変わったら、声を作る操作の前に再び同意を求める。登録済みの声での配信は止めない。

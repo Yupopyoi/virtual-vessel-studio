@@ -10,12 +10,12 @@ SOURCES = {
     "version": "1",
     "python": "3.12.2",
     "lock": "uv.lock",
-    "mirror": "https://example.com/release/",
+    "release": "https://example.com/release/",
     "bases": {"hf": "https://hf.example/rev/"},
     "components": [
-        {"id": "rmvpe", "url": "{hf}rmvpe.pt", "local": "{rvc}/rmvpe.pt", "license": "MIT", "mirrored": True,
+        {"id": "rmvpe", "url": "{hf}rmvpe.pt", "local": "{rvc}/rmvpe.pt", "license": "MIT",
          "place": "environment", "target": "rvc/rmvpe.pt"},
-        {"id": "template", "url": "{mirror}t.sentis", "local": "{sentis}/t.sentis", "license": "MIT",
+        {"id": "template", "url": "{release}t.sentis", "local": "{sentis}/t.sentis", "license": "MIT",
          "place": "environment", "target": "template/t.sentis"},
         {"id": "src", "url": "https://x/src.zip", "local": "{rvc}/src.zip", "license": "MIT", "place": "environment",
          "target": "rvc", "extract": "zip", "strip": 1},
@@ -31,13 +31,12 @@ class BuildTests(unittest.TestCase):
         rmvpe = listed["components"][0]
         self.assertEqual(rmvpe["url"], "https://hf.example/rev/rmvpe.pt")
         self.assertEqual(rmvpe["sha256"], "h:R/rmvpe.pt")
-        self.assertEqual(rmvpe["mirror"], "https://example.com/release/rmvpe-rmvpe.pt")
-        self.assertNotIn("mirror", listed["components"][1], "The project's own file is only in the Release.")
+        self.assertNotIn("mirror", rmvpe, "No copies of others' files are kept.")
+        self.assertEqual(listed["components"][1]["url"], "https://example.com/release/t.sentis")
         self.assertEqual((listed["components"][2]["extract"], listed["components"][2]["strip"]), ("zip", 1))
 
-    def test_the_release_holds_the_mirrors_and_the_projects_own_files(self):
-        self.assertEqual(list(voice_components.release_files(SOURCES, FOLDERS)),
-                         [("R/rmvpe.pt", "rmvpe-rmvpe.pt"), ("S/t.sentis", "t.sentis")])
+    def test_the_release_holds_only_the_projects_own_files(self):
+        self.assertEqual(list(voice_components.release_files(SOURCES, FOLDERS)), [("S/t.sentis", "t.sentis")])
 
     def test_an_unknown_placeholder_or_a_repeated_id_is_refused(self):
         with self.assertRaises(ValueError):

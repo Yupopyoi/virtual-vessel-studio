@@ -20,11 +20,10 @@ namespace VirtualVessel.VoiceLab.Activation
     /// <summary>One file to download, with where it comes from, what it must hash to, and where it goes.</summary>
     public sealed class VoiceComponent
     {
-        public VoiceComponent(string id, string url, string mirror, string sha256, long size, string license, VoiceComponentPlace place, string target, bool extract, int strip)
+        public VoiceComponent(string id, string url, string sha256, long size, string license, VoiceComponentPlace place, string target, bool extract, int strip)
         {
             Id = id;
             Url = url;
-            Mirror = mirror;
             Sha256 = sha256;
             Size = size;
             License = license;
@@ -38,9 +37,6 @@ namespace VirtualVessel.VoiceLab.Activation
 
         /// <summary>The source it is published at.</summary>
         public string Url { get; }
-
-        /// <summary>The project's copy, tried when the source fails; null for none.</summary>
-        public string Mirror { get; }
 
         /// <summary>Lowercase hex; a file that does not match is never used (system design 13.4).</summary>
         public string Sha256 { get; }
@@ -143,7 +139,6 @@ namespace VirtualVessel.VoiceLab.Activation
                 bool extract = entry.Extract == "zip";
                 int before = found.Count;
                 Check(found, IsHttps(entry.Url), $"{name}: 'url' must be https.");
-                Check(found, entry.Mirror == null || IsHttps(entry.Mirror), $"{name}: 'mirror' must be https.");
                 Check(found, entry.Sha256 != null && s_sha256.IsMatch(entry.Sha256), $"{name}: 'sha256' must be 64 lowercase hex digits.");
                 Check(found, entry.Size > 0, $"{name}: 'size' must be above 0.");
                 Check(found, !string.IsNullOrWhiteSpace(entry.License), $"{name}: 'license' is missing.");
@@ -153,7 +148,7 @@ namespace VirtualVessel.VoiceLab.Activation
                 Check(found, entry.Strip >= 0 && (extract || entry.Strip == 0), $"{name}: 'strip' is for zips, and cannot be negative.");
                 if (found.Count == before)
                 {
-                    components.Add(new VoiceComponent(entry.Id, entry.Url, entry.Mirror, entry.Sha256, entry.Size, entry.License, place.Value, entry.Target, extract, entry.Strip));
+                    components.Add(new VoiceComponent(entry.Id, entry.Url, entry.Sha256, entry.Size, entry.License, place.Value, entry.Target, extract, entry.Strip));
                 }
             }
 
@@ -195,7 +190,6 @@ namespace VirtualVessel.VoiceLab.Activation
 
             public string Url { get; set; }
 
-            public string Mirror { get; set; }
 
             public string Sha256 { get; set; }
 

@@ -89,19 +89,6 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
-        public void TheMirror_IsUsed_WhenTheSourceFailsOrSendsAnotherFile()
-        {
-            _downloader.Served.Remove("https://source/template");
-            _downloader.Served["https://mirror/template"] = _files["template"];
-            _downloader.Served["https://source/voxcpm2-config"] = Bytes("not the file");
-            _downloader.Served["https://mirror/voxcpm2-config"] = _files["voxcpm2-config"];
-
-            Installer().InstallAsync(null, null, CancellationToken.None).Wait();
-
-            Assert.That(_downloader.Requests, Does.Contain("https://mirror/template").And.Contain("https://mirror/voxcpm2-config"));
-        }
-
-        [Test]
         public void Failures_SayWhatKind()
         {
             _downloader.Served["https://source/template"] = Bytes("tampered");
@@ -156,7 +143,7 @@ namespace VirtualVessel.VoiceLab.Tests
             string Component(string id, string place, string target, bool zip = false, int strip = 0)
             {
                 string extract = zip ? ",\"extract\":\"zip\",\"strip\":" + strip : string.Empty;
-                return $"{{\"id\":\"{id}\",\"url\":\"https://source/{id}\",\"mirror\":\"https://mirror/{id}\",\"sha256\":\"{Sha(_files[id])}\",\"size\":{_files[id].Length},\"license\":\"MIT\",\"place\":\"{place}\",\"target\":\"{target}\"{extract}}}";
+                return $"{{\"id\":\"{id}\",\"url\":\"https://source/{id}\",\"sha256\":\"{Sha(_files[id])}\",\"size\":{_files[id].Length},\"license\":\"MIT\",\"place\":\"{place}\",\"target\":\"{target}\"{extract}}}";
             }
 
             string json = "{\"schemaVersion\":1,\"version\":\"1\",\"python\":\"3.12.2\",\"lock\":\"uv.lock\",\"components\":["
