@@ -25,7 +25,7 @@ namespace VirtualVessel.VoiceLab.Scripts
             OwnedFolder = ownedFolder;
         }
 
-        /// <summary>Where the app builds training environments, one folder per version.</summary>
+        /// <summary>Where the app builds training environments by default, one folder per version.</summary>
         public static string ManagedRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VirtualVesselStudio", "External", "VoiceLab");
 
         /// <summary>The environment's folder when the app built it; null for one set up elsewhere.</summary>

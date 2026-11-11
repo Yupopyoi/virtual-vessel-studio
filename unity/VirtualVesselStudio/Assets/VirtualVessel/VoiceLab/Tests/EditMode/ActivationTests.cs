@@ -22,7 +22,7 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             _folder = Path.Combine(Path.GetTempPath(), "vv-activate-" + Guid.NewGuid().ToString("N"));
             _config = Path.Combine(_folder, "Config");
-            _folders = new VoiceActivationFolders(Path.Combine(_folder, "External"), Path.Combine(_folder, "Shared"), Path.Combine(_folder, "scripts"));
+            _folders = new VoiceActivationFolders(VoiceActivationFolders.RootIn(_folder), Path.Combine(_folder, "Shared"), Path.Combine(_folder, "scripts"));
             Directory.CreateDirectory(_folders.Scripts);
         }
 
@@ -93,6 +93,23 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void TheLocation_IsAFolderThatExists_AndCannotMoveUnderAnEnvironmentInUse()
+        {
+            VoiceLabActivation activation = Activation();
+            Assert.That(activation.SetLocation(Path.Combine(_folder, "missing")).Error, Is.EqualTo(ProjectData.Records.CrudError.Invalid));
+            Assert.That(activation.SetLocation("relative").Error, Is.EqualTo(ProjectData.Records.CrudError.Invalid));
+            Assert.That(activation.SetLocation(VoiceActivationFolders.DefaultLocation).Ok, Is.True);
+            Assert.That(activation.Record.Location, Is.Null, "The default is kept as none, so it follows the user's profile.");
+            Assert.That(activation.SetLocation(_folder).Ok, Is.True);
+
+            activation.RunAsync(null, null, CancellationToken.None).Wait();
+
+            Assert.That(activation.SetLocation(Path.GetTempPath()).Error, Is.EqualTo(ProjectData.Records.CrudError.Busy));
+            activation.ForgetEnvironment();
+            Assert.That((activation.IsReady, activation.TermsAgreed, activation.Location), Is.EqualTo((false, true, _folder)), "Forgetting keeps the agreement and the place.");
+        }
+
+        [Test]
         public void AFailedBuild_LeavesNoEnvironmentFile()
         {
             VoiceLabActivation activation = Activation(failUv: true);
@@ -121,8 +138,13 @@ namespace VirtualVessel.VoiceLab.Tests
                 + "]}";
             VoiceComponentManifest manifest = VoiceComponentManifest.Parse(json, out IReadOnlyList<string> problems);
             Assert.That(problems, Is.Empty);
-            var installer = new VoiceComponentInstaller(manifest, _folders, new Bytes(bytes), new Uv(failUv), null);
-            var activation = new VoiceLabActivation(_config, manifest, _folders, installer, "1", new FixedClock(), null);
+            var activation = new VoiceLabActivation(_config, manifest, _folders.SharedModels, _folders.Scripts, f => new VoiceComponentInstaller(manifest, f, new Bytes(bytes), new Uv(failUv), null), "1", new FixedClock(), null);
+            if (!activation.IsReady)
+            {
+                Assert.That(activation.SetLocation(_folder).Ok, Is.True);
+            }
+
+            Assert.That(activation.Folders.Root, Is.EqualTo(_folders.Root), "The app's folders inside the one chosen.");
             if (agree)
             {
                 activation.AgreeToTerms();

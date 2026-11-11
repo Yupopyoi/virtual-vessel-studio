@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.VoiceLab.Scripts;
 
 namespace VirtualVessel.VoiceLab.Activation
@@ -31,21 +32,26 @@ namespace VirtualVessel.VoiceLab.Activation
 
         private readonly string _configDirectory;
         private readonly VoiceComponentManifest _manifest;
-        private readonly VoiceActivationFolders _folders;
-        private readonly VoiceComponentInstaller _installer;
+        private readonly string _sharedModels;
+        private readonly string _scripts;
+        private readonly Func<VoiceActivationFolders, VoiceComponentInstaller> _installerFor;
         private readonly ConfigFileStore<VoiceActivationRecord> _store;
         private readonly ISystemClock _clock;
         private readonly ILog _log;
 
+        /// <param name="sharedModels">The Data Root's VoiceModels/Shared/1, for the models streaming uses.</param>
+        /// <param name="scripts">The app's Python scripts, with the lock file.</param>
+        /// <param name="installerFor">Makes the installer for the folders of the chosen location.</param>
         /// <param name="termsVersion">The version of the terms this app shows; a build needs it agreed to.</param>
-        public VoiceLabActivation(string configDirectory, VoiceComponentManifest manifest, VoiceActivationFolders folders, VoiceComponentInstaller installer, string termsVersion, ISystemClock clock, ILog log)
+        public VoiceLabActivation(string configDirectory, VoiceComponentManifest manifest, string sharedModels, string scripts, Func<VoiceActivationFolders, VoiceComponentInstaller> installerFor, string termsVersion, ISystemClock clock, ILog log)
         {
             TermsVersion = termsVersion ?? throw new ArgumentNullException(nameof(termsVersion));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _configDirectory = configDirectory ?? throw new ArgumentNullException(nameof(configDirectory));
             _manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
-            _folders = folders ?? throw new ArgumentNullException(nameof(folders));
-            _installer = installer ?? throw new ArgumentNullException(nameof(installer));
+            _sharedModels = sharedModels ?? throw new ArgumentNullException(nameof(sharedModels));
+            _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
+            _installerFor = installerFor ?? throw new ArgumentNullException(nameof(installerFor));
             _log = log;
             _store = new ConfigFileStore<VoiceActivationRecord>(configDirectory, VoiceActivationRecord.FileName, VoiceActivationRecord.SchemaVersion, () => new VoiceActivationRecord(), clock);
             Record = _store.Load().Value ?? new VoiceActivationRecord();
@@ -67,6 +73,52 @@ namespace VirtualVessel.VoiceLab.Activation
             next.AgreedAtUtc = _clock.UtcNow;
             Save(next);
             _log?.Information($"Voice Lab's terms {TermsVersion} were agreed to.");
+        }
+
+        /// <summary>The folder chosen to build in; the user's local application data unless another was chosen.</summary>
+        public string Location => Record.Location ?? VoiceActivationFolders.DefaultLocation;
+
+        /// <summary>The folders a build in <see cref="Location"/> uses.</summary>
+        public VoiceActivationFolders Folders => new VoiceActivationFolders(VoiceActivationFolders.RootIn(Location), _sharedModels, _scripts);
+
+        /// <summary>
+        /// Builds in another folder from now on (the user's choice, 2026-11-11). Only before an environment is built: one in
+        /// use is deleted first and built again where wanted. What a stopped build left in the old place stays there.
+        /// Invalid for a folder that does not exist or is not a full path; Busy while an environment is in use.
+        /// </summary>
+        public CrudResult SetLocation(string folder)
+        {
+            if (IsReady)
+            {
+                return CrudResult.Fail(CrudError.Busy, "An environment is in use; delete it before building elsewhere.");
+            }
+
+            if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathRooted(folder) || !Directory.Exists(folder))
+            {
+                return CrudResult.Fail(CrudError.Invalid, $"'{folder}' is not a folder that exists.");
+            }
+
+            VoiceActivationRecord next = Record.Clone();
+            string full = Path.GetFullPath(folder);
+            next.Location = string.Equals(full.TrimEnd(Path.DirectorySeparatorChar), VoiceActivationFolders.DefaultLocation.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) ? null : full;
+            next.InstallingVersion = null;
+            next.State = VoiceActivationState.NotStarted;
+            Save(next);
+            _log?.Information($"Voice Lab's environment will be built in {VoiceActivationFolders.RootIn(Location)}.");
+            return CrudResult.Success;
+        }
+
+        /// <summary>
+        /// Forgets the environment after it was deleted, keeping the terms agreed to and the location chosen, so the next
+        /// build starts afresh.
+        /// </summary>
+        public void ForgetEnvironment()
+        {
+            VoiceActivationRecord next = Record.Clone();
+            next.ComponentsVersion = null;
+            next.InstallingVersion = null;
+            next.State = VoiceActivationState.NotStarted;
+            Save(next);
         }
 
         /// <summary>The version this app would build.</summary>
@@ -133,11 +185,13 @@ namespace VirtualVessel.VoiceLab.Activation
             }
 
             Save(After(Record, VoiceActivationOutcome.Started, version));
-            _log?.Information($"Building Voice Lab's environment {version} in {_folders.Version(version)}.");
+            VoiceActivationFolders folders = Folders;
+            VoiceComponentInstaller installer = _installerFor(folders);
+            _log?.Information($"Building Voice Lab's environment {version} in {folders.Version(version)}.");
             VoiceLabEnvironment environment;
             try
             {
-                environment = await _installer.InstallAsync(verify, progress, cancellationToken).ConfigureAwait(false);
+                environment = await installer.InstallAsync(verify, progress, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -152,15 +206,15 @@ namespace VirtualVessel.VoiceLab.Activation
             }
 
             progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Finishing, 0, 1));
-            SwitchTo(environment);
+            SwitchTo(environment, folders.Root);
             Save(After(Record, VoiceActivationOutcome.Succeeded, version));
             _log?.Information($"Voice Lab's environment {version} is ready.");
-            await Task.Run(() => _installer.CleanUp(version)).ConfigureAwait(false);
+            await Task.Run(() => installer.CleanUp(version)).ConfigureAwait(false);
             return environment;
         }
 
         // The environment file Voice Lab starts from; a developer's own (outside the app's folder) is kept aside first.
-        private void SwitchTo(VoiceLabEnvironment environment)
+        private void SwitchTo(VoiceLabEnvironment environment, string root)
         {
             Directory.CreateDirectory(_configDirectory);
             string path = Path.Combine(_configDirectory, VoiceLabService.EnvironmentFile);
@@ -168,7 +222,7 @@ namespace VirtualVessel.VoiceLab.Activation
             if (File.Exists(path) && !File.Exists(backup))
             {
                 VoiceLabEnvironment before = VoiceLabEnvironment.Parse(File.ReadAllText(path), out _);
-                if (before != null && VoiceLabEnvironmentRemover.Owned(before, _folders.Root) == null)
+                if (before != null && VoiceLabEnvironmentRemover.Owned(before, root) == null)
                 {
                     File.Copy(path, backup);
                     _log?.Information($"Kept the earlier environment file as {DeveloperBackupFile}.");

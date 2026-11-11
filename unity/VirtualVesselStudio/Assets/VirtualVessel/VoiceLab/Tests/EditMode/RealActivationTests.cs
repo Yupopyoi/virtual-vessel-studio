@@ -32,14 +32,14 @@ namespace VirtualVessel.VoiceLab.Tests
             string scripts = Path.GetFullPath(Path.Combine("..", "..", "services", "voice-lab"));
             VoiceComponentManifest manifest = VoiceComponentManifest.Parse(File.ReadAllText(Path.Combine(scripts, VoiceComponentManifest.FileName)), out IReadOnlyList<string> problems);
             Assert.That(problems, Is.Empty);
-            var folders = new VoiceActivationFolders(Path.Combine(root, "External"), Path.Combine(root, "VoiceModels", "Shared", "1"), scripts);
+            var folders = new VoiceActivationFolders(VoiceActivationFolders.RootIn(root), Path.Combine(root, "VoiceModels", "Shared", "1"), scripts);
             var clock = new UtcSystemClock();
             var log = new ConsoleLog();
             var runner = new ExternalProcessRunner(new[] { folders.Root }, log, clock);
             using var downloader = new HttpComponentDownloader();
-            var installer = new VoiceComponentInstaller(manifest, folders, downloader, runner, log);
-            var activation = new VoiceLabActivation(Path.Combine(root, "Config"), manifest, folders, installer, VoiceTerms.Load(scripts, "ja").Version, clock, log);
+            var activation = new VoiceLabActivation(Path.Combine(root, "Config"), manifest, folders.SharedModels, scripts, f => new VoiceComponentInstaller(manifest, f, downloader, runner, log), VoiceTerms.Load(scripts, "ja").Version, clock, log);
             activation.AgreeToTerms();
+            Assert.That(activation.SetLocation(root).Ok, Is.True);
             VoiceActivationPhase? shown = null;
             var progress = new Progress<VoiceActivationProgress>(p =>
             {

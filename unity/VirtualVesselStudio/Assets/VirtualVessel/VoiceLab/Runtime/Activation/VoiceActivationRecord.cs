@@ -33,6 +33,12 @@ namespace VirtualVessel.VoiceLab.Activation
 
         public VoiceActivationState State { get; set; } = VoiceActivationState.NotStarted;
 
+        /// <summary>
+        /// The folder the user chose to build in (the app adds its own folders inside it); null for the default, the
+        /// user's local application data.
+        /// </summary>
+        public string Location { get; set; }
+
         public VoiceActivationRecord Clone()
         {
             return (VoiceActivationRecord)MemberwiseClone();

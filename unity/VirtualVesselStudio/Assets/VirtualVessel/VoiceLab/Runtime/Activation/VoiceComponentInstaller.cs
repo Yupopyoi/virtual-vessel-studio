@@ -86,6 +86,18 @@ namespace VirtualVessel.VoiceLab.Activation
 
         public string Root { get; }
 
+        /// <summary>
+        /// Where environments are built inside a folder the user chose: the app's own folders within it, so nothing the
+        /// user keeps there is ever deleted with them. Pure.
+        /// </summary>
+        public static string RootIn(string location)
+        {
+            return Path.Combine(location, "VirtualVesselStudio", "External", "VoiceLab");
+        }
+
+        /// <summary>The default location, the user's local application data.</summary>
+        public static string DefaultLocation => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
         public string SharedModels { get; }
 
         public string Scripts { get; }
