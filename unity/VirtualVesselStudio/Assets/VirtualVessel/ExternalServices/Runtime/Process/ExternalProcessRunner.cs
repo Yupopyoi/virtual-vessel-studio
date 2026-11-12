@@ -82,28 +82,9 @@ namespace VirtualVessel.ExternalServices.Process
         private ExternalProcessResult Run(ExternalProcessRequest request, Action<string> onOutputLine, CancellationToken cancellationToken)
         {
             DateTimeOffset started = _clock.UtcNow;
-            string folder = Path.GetDirectoryName(Path.GetFullPath(request.LogPath));
-            Directory.CreateDirectory(folder);
-            var gate = new object();
-            using var file = new StreamWriter(request.LogPath, true, s_utf8) { AutoFlush = true };
+            using var log = new RunLog(request.LogPath);
             using var job = new JobObject();
-
-            var info = new ProcessStartInfo(request.FileName, ProcessRules.CommandLine(request.Arguments))
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = request.WorkingDirectory,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = s_utf8,
-                StandardErrorEncoding = s_utf8,
-            };
-            foreach (KeyValuePair<string, string> variable in request.Environment)
-            {
-                info.Environment[variable.Key] = variable.Value;
-            }
-
+            ProcessStartInfo info = StartInfo(request);
             string environment = ProcessRules.DescribeEnvironment(request.Environment, request.SecretVariables);
             SystemProcess process;
             try
@@ -127,34 +108,15 @@ namespace VirtualVessel.ExternalServices.Process
                     new LogProperty("workingDirectory", request.WorkingDirectory),
                     new LogProperty("environment", environment),
                 });
-                lock (gate)
-                {
-                    file.WriteLine($"[{started:O}] start {request.FileName} {info.Arguments}");
-                    file.WriteLine($"[{started:O}] environment {environment}");
-                }
+                log.Line($"[{started:O}] start {request.FileName} {info.Arguments}");
+                log.Line($"[{started:O}] environment {environment}");
 
-                var errors = new Queue<string>();
                 Thread output = Reader(process.StandardOutput, line =>
                 {
-                    lock (gate)
-                    {
-                        file.WriteLine(line);
-                    }
-
+                    log.Line(line);
                     Deliver(onOutputLine, line, id);
                 });
-                Thread error = Reader(process.StandardError, line =>
-                {
-                    lock (gate)
-                    {
-                        file.WriteLine(line);
-                        errors.Enqueue(line);
-                        if (errors.Count > ErrorLinesKept)
-                        {
-                            errors.Dequeue();
-                        }
-                    }
-                });
+                Thread error = Reader(process.StandardError, log.Error);
 
                 (bool cancelled, bool timedOut, bool stopped) = Wait(process, job, request, cancellationToken);
 
@@ -167,12 +129,8 @@ namespace VirtualVessel.ExternalServices.Process
                 int? exitCode = stopped ? (int?)null : process.ExitCode;
                 ExternalProcessState state = ProcessRules.Classify(exitCode, cancelled, timedOut);
                 DateTimeOffset ended = _clock.UtcNow;
-                string[] lastErrors;
-                lock (gate)
-                {
-                    lastErrors = errors.ToArray();
-                    file.WriteLine($"[{ended:O}] end {state}, exit code {(exitCode.HasValue ? exitCode.Value.ToString() : "none (stopped)")}{(timedOut ? ", timed out" : string.Empty)}");
-                }
+                string[] lastErrors = log.LastErrors();
+                log.Line($"[{ended:O}] end {state}, exit code {(exitCode.HasValue ? exitCode.Value.ToString() : "none (stopped)")}{(timedOut ? ", timed out" : string.Empty)}");
 
                 LogLevel level = state == ExternalProcessState.Failed ? LogLevel.Warning : LogLevel.Information;
                 _log.Write(level, $"External process {id} ended: {state}", new[]
@@ -182,6 +140,79 @@ namespace VirtualVessel.ExternalServices.Process
                     new LogProperty("seconds", Math.Round((ended - started).TotalSeconds, 1)),
                 });
                 return new ExternalProcessResult(state, exitCode, timedOut, null, started, ended, lastErrors);
+            }
+        }
+
+        // How the process starts: no shell or window, the given folder and variables, and all three streams ours.
+        private static ProcessStartInfo StartInfo(ExternalProcessRequest request)
+        {
+            var info = new ProcessStartInfo(request.FileName, ProcessRules.CommandLine(request.Arguments))
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = request.WorkingDirectory,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = s_utf8,
+                StandardErrorEncoding = s_utf8,
+            };
+            foreach (KeyValuePair<string, string> variable in request.Environment)
+            {
+                info.Environment[variable.Key] = variable.Value;
+            }
+
+            return info;
+        }
+
+        /// <summary>
+        /// A run's own log file, which both output readers write to, and the last lines of standard error, which the
+        /// result carries. One lock keeps the readers' lines whole.
+        /// </summary>
+        private sealed class RunLog : IDisposable
+        {
+            private readonly object _gate = new object();
+            private readonly StreamWriter _file;
+            private readonly Queue<string> _errors = new Queue<string>();
+
+            public RunLog(string path)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+                _file = new StreamWriter(path, true, s_utf8) { AutoFlush = true };
+            }
+
+            public void Line(string line)
+            {
+                lock (_gate)
+                {
+                    _file.WriteLine(line);
+                }
+            }
+
+            public void Error(string line)
+            {
+                lock (_gate)
+                {
+                    _file.WriteLine(line);
+                    _errors.Enqueue(line);
+                    if (_errors.Count > ErrorLinesKept)
+                    {
+                        _errors.Dequeue();
+                    }
+                }
+            }
+
+            public string[] LastErrors()
+            {
+                lock (_gate)
+                {
+                    return _errors.ToArray();
+                }
+            }
+
+            public void Dispose()
+            {
+                _file.Dispose();
             }
         }
 
