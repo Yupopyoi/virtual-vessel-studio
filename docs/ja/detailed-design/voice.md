@@ -314,7 +314,7 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 ```text
 Assets/VirtualVessel/Voice/
 ├─ Runtime/
-│  ├─ VoiceService.cs
+│  ├─ VoiceService.cs、.Loading.cs（声の読み込みと切り替え）、.Stream.cs（リアルタイムの経路）
 │  ├─ VoiceLoader.cs、VoiceWarmup.cs
 │  ├─ Conversion/   IVoiceConverter、RvcVoiceConverter、RvcDsp
 │  └─ Models/       IVoiceModelRepository、VoiceModelStore、VoiceModelLibrary、VoiceModelManifest

@@ -314,7 +314,7 @@ The order for lowering latency:
 ```text
 Assets/VirtualVessel/Voice/
 ├─ Runtime/
-│  ├─ VoiceService.cs
+│  ├─ VoiceService.cs, .Loading.cs (loading and switching voices), .Stream.cs (the real-time path)
 │  ├─ VoiceLoader.cs, VoiceWarmup.cs
 │  ├─ Conversion/   IVoiceConverter, RvcVoiceConverter, RvcDsp
 │  └─ Models/       IVoiceModelRepository, VoiceModelStore, VoiceModelLibrary, VoiceModelManifest
