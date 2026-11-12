@@ -10,7 +10,9 @@ Checks the files tracked by git:
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
   license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
   against the version pinned there, since the lock file only says "file:". A package from a Git
-  URL must pin a tag (#v1.2.3), and the SBOM records that version.
+  URL must pin a tag (#v1.2.3), and the SBOM records that version. Every package of a Python
+  component's uv.lock (services/*/uv.lock) is listed as pypi:<name> with its locked version, even
+  one that a platform marker keeps off Windows, since the lock is what the build resolves from.
 * Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
   and the SBOM entry of its package records the same download URL and SHA-256.
 * License files: tools/release/license-files.json maps each shipped license file to its source.
@@ -52,6 +54,10 @@ UNTRACKED_SOURCE_ROOTS = (
 _THIRD_PARTY_LICENSE = re.compile(r"^(OFL|LICENSE|COPYING|NOTICE)", re.IGNORECASE)
 
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
+
+_UV_LOCK = re.compile(r"^services/[^/]+/uv\.lock$")
+_LOCK_PACKAGE = re.compile(r"^\[\[package\]\]\n(.*?)(?=^\[|\Z)", re.MULTILINE | re.DOTALL)
+_LOCK_FIELD = re.compile(r'^(name|version|source) = (.*)$', re.MULTILINE)
 
 _GUID = re.compile(r"^guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 
@@ -242,6 +248,24 @@ def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Map
     return required
 
 
+def uv_lock_requirements(lock: str) -> dict[str, str | None]:
+    """The SBOM entries a uv.lock needs: pypi:<name> to its locked version.
+
+    The project itself (a virtual or editable source) is ours, not a dependency. Read without
+    tomllib, which is not in Python 3.10: uv writes each field of a package on its own line.
+    """
+    required: dict[str, str | None] = {}
+    for block in _LOCK_PACKAGE.findall(lock):
+        fields = {key: value for key, value in _LOCK_FIELD.findall(block)}
+        source = fields.get("source", "")
+        if "name" not in fields or "virtual" in source or "editable" in source:
+            continue
+        name = re.sub(r"[-_.]+", "-", fields["name"].strip('"').lower())
+        version = fields.get("version")
+        required[f"pypi:{name}"] = version.strip('"') if version else None
+    return required
+
+
 def git_tag_version(url: str) -> str | None:
     """The version a Git package URL pins with its tag (#v0.131.4 is 0.131.4), or None without one."""
     _, _, tag = url.partition("#")
@@ -296,7 +320,7 @@ def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
         elif version is not None and component.get("version") != version:
             errors.append(f"SBOM: {reference} is {component.get('version')}, but the repository uses {version}")
 
-    kinds = ("unity-package:", "asset:", "github-action:")
+    kinds = ("unity-package:", "asset:", "github-action:", "pypi:")
     for reference in sorted(components):
         if reference.startswith(kinds) and reference not in required:
             errors.append(f"SBOM: {reference} is listed but no longer used")
@@ -406,6 +430,9 @@ def run(repository: Path) -> list[str]:
     packages_lock = (repository / PACKAGES_LOCK).read_text(encoding="utf-8")
     errors += check_git_packages(packages_lock)
     required = sbom_requirements(packages_lock, tracked, workflows, pinned_packages(manifests))
+    for path in tracked:
+        if _UV_LOCK.match(path):
+            required.update(uv_lock_requirements((repository / path).read_text(encoding="utf-8")))
     if SBOM_PATH in tracked:
         sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
         errors += check_sbom(sbom, required)
