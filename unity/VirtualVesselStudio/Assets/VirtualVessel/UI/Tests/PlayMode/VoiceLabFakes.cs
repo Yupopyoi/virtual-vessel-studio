@@ -168,6 +168,8 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabSetupFailure LastFailure { get; set; }
 
+        public bool PausedForLive { get; set; }
+
         public bool UpdateAvailable { get; set; }
 
         public long DownloadBytes => 6L * 1024 * 1024 * 1024;

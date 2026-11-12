@@ -31,6 +31,8 @@ namespace VirtualVessel.VoiceLab.Activation
         private readonly object _entriesGate = new object();
         private readonly List<VoiceLabSetupEntry> _entries = new List<VoiceLabSetupEntry>();
         private volatile bool _running;
+        private volatile bool _live;
+        private CancellationTokenSource _pause;
 
         /// <param name="verify">The trial run at the end of a build; null to skip it.</param>
         public VoiceLabSetupService(VoiceLabActivation activation, VoiceLabService voiceLab, VoiceLabPcProbe probe, Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, string scripts, ILog log)
@@ -107,6 +109,21 @@ namespace VirtualVessel.VoiceLab.Activation
         public VoiceLabSetupState State => StateOf(_running, _activation.IsReady || _voiceLab.Availability == VoiceLabAvailability.Ready, _activation.CanResume, _activation.Record.State, LastFailure);
 
         public VoiceLabSetupFailure LastFailure { get; private set; }
+
+        public bool PausedForLive { get; private set; }
+
+        /// <summary>
+        /// Streaming or recording started or ended. A build running is paused when they start: downloading and the
+        /// check's voice compete with the stream for the connection and the GPU (the user's decision, 2026-11-13).
+        /// </summary>
+        public void SetLive(bool live)
+        {
+            _live = live;
+            if (live)
+            {
+                _pause?.Cancel();
+            }
+        }
 
         public bool UpdateAvailable => _activation.UpdateAvailable;
 
@@ -245,8 +262,17 @@ namespace VirtualVessel.VoiceLab.Activation
                 return;
             }
 
+            if (_live)
+            {
+                PausedForLive = true;
+                return;
+            }
+
             _running = true;
+            PausedForLive = false;
             LastFailure = VoiceLabSetupFailure.None;
+            using var pause = _pause = new CancellationTokenSource();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, pause.Token);
             _progress.Value = new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 0L, DownloadBytes);
             var progress = new Forward<VoiceActivationProgress>(p =>
             {
@@ -255,7 +281,7 @@ namespace VirtualVessel.VoiceLab.Activation
             });
             try
             {
-                await _activation.RunAsync(_verify, progress, cancellationToken, WaitUntilIdleAsync).ConfigureAwait(false);
+                await _activation.RunAsync(_verify, progress, linked.Token, WaitUntilIdleAsync).ConfigureAwait(false);
                 _voiceLab.Reload();
                 Record(VoiceLabSetupEntryKind.Done);
             }
@@ -264,6 +290,12 @@ namespace VirtualVessel.VoiceLab.Activation
                 LastFailure = FailureOf(exception.Failure);
                 _log?.Warning($"Preparing Voice Lab failed ({exception.Failure}).", exception);
                 Record(VoiceLabSetupEntryKind.Failed);
+            }
+            catch (OperationCanceledException) when (pause.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                // Paused for streaming or recording: a stop like the user's, but the screen says why.
+                PausedForLive = true;
+                Record(VoiceLabSetupEntryKind.Stopped);
             }
             catch (OperationCanceledException)
             {
@@ -279,6 +311,7 @@ namespace VirtualVessel.VoiceLab.Activation
             }
             finally
             {
+                _pause = null;
                 _running = false;
             }
         }

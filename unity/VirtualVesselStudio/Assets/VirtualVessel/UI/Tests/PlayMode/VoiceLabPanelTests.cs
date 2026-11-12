@@ -856,6 +856,66 @@ namespace VirtualVessel.UI.Tests
             Assert.That(screen.Tabs.value, Is.EqualTo(VoiceLabScreen.MakeTab));
         }
 
+        [UnityTest]
+        public IEnumerator ChangedTerms_AreAgreedToBeforeMaking_WithNothingToBuild()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(4f, 0f, 0f, 0f), "", "b.wav", new string[0]));
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, TermsAgreed = false };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library, VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.Terms), "The terms changed since they were agreed to.");
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "No making before agreeing.");
+            Assert.That(screen.Setup.BackButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Nowhere to go back to.");
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.False);
+
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            screen.Setup.AgreeToggle.value = true;
+            Submit(screen.Setup.StartButton);
+            yield return null;
+
+            Assert.That(setup.TermsAgreed, Is.True);
+            Assert.That(setup.Runs, Is.EqualTo(0), "Built already: nothing to build.");
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.True, "Made again, the library can make its runs again.");
+        }
+
+        [UnityTest]
+        public IEnumerator AfterTheEnvironmentIsDeleted_MakeAgainIsOff()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(4f, 0f, 0f, 0f), "", "b.wav", new string[0]));
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.True);
+
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.False);
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "Still on the Made voices tab.");
+        }
+
+        [UnityTest]
+        public IEnumerator ABuildPausedForStreaming_SaysSo()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { State = VoiceLabSetupState.Paused, TermsAgreed = true, PausedForLive = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+
+            Label note = Screen().Setup.ProgressCard.Query<Label>().ToList().Last();
+            Assert.That(note.text, Does.Contain("配信").Or.Contain("streaming"));
+        }
+
         private VoiceLabScreen Screen()
         {
             return (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");

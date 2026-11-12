@@ -266,6 +266,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 - **Failure**: it reports whether the network, a mismatched file, disk space, the build, or the check stopped it. The downloads stay, so starting again continues.
 - **Update**: when the version of the list bundled with the app differs from the environment in use, there is an update. The new version is built in another folder, so the environment in use keeps working while it builds, and if it stops or fails.
 - **Agreement**: nothing is built until the current version of the terms is agreed to.
+- **Streaming and recording**: when streaming or recording starts, the build pauses, since downloading and the check's voice compete with the stream for the connection and the GPU (the user's decision, 2026-11-13). So that it pauses whichever screen is open, the composition root watches streaming's and recording's states and tells `VoiceLabSetupService.SetLive`. A build does not start while they run. Continuing is the user's, with Continue once they end.
 - **GPU and driver**: PyTorch is its CUDA 12.8 build (cu128). The packages carry CUDA's libraries, so the PC's CUDA Toolkit version does not matter. It needs an NVIDIA GPU of sm_50 (Maxwell) or later and a driver of 528.33 or later; the RTX 50 series works. The PC check looks at both before downloading anything (decision record 2026-11-11).
 
 ### 8.2 Terms of use and disclaimers
@@ -276,7 +277,7 @@ Follows the requirement in the [decision record](../decisions/voice-conversion.m
 - The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.4-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
-- When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.
+- When the version changes, agreement is asked again before making a voice. Even when built, Make a voice shows the terms, and until they are agreed to, the steps and Made voices' Make again and Try cannot be used. Agreeing goes back to the steps, with nothing built. Streaming with registered voices does not stop.
 - The same content can be read at any time from Credits and licenses in Setup. A release ships it as `licenses/voice-lab-terms.<language>.md` (`tools/release/license-files.json`), tied to the application's SBOM entry. Voice Lab has no other place for it besides the agreement page (2026-11-11).
 - Importing a recording shows a confirmation that it is your own voice or one you hold the rights to.
 

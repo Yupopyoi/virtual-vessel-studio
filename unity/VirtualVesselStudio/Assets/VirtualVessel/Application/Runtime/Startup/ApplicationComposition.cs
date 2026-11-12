@@ -24,8 +24,11 @@ using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
 using VirtualVessel.VoiceLab;
@@ -303,14 +306,17 @@ namespace VirtualVessel.Application.Startup
                                 // Assigned in order: the library comes with Voice Lab.
                                 VoiceLab = voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")), voice),
                                 VoiceLabLibrary = voiceLab.Library,
-                                VoiceLabSetup = VoiceLabSetupService.Create(
-                                    context.ConfigDirectory,
-                                    GetVoiceLabScripts(context.Environment, UnityEngine.Application.dataPath),
-                                    Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), "Shared", "1"),
-                                    Path.Combine(GetLogDirectory(context.DataRoot, context.Environment), "voice-lab"),
-                                    voiceLab,
-                                    context.SystemClock,
-                                    logging.Provider.GetLog("VoiceLab", "Activation")),
+                                VoiceLabSetup = PauseWhileLive(
+                                    VoiceLabSetupService.Create(
+                                        context.ConfigDirectory,
+                                        GetVoiceLabScripts(context.Environment, UnityEngine.Application.dataPath),
+                                        Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), "Shared", "1"),
+                                        Path.Combine(GetLogDirectory(context.DataRoot, context.Environment), "voice-lab"),
+                                        voiceLab,
+                                        context.SystemClock,
+                                        logging.Provider.GetLog("VoiceLab", "Activation")),
+                                    streamingService,
+                                    recording),
                                 AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
                                 Recording = recording,
@@ -382,6 +388,24 @@ namespace VirtualVessel.Application.Startup
             return environment == RuntimeEnvironment.Editor
                 ? Path.GetFullPath(Path.Combine(full, "..", "..", ".."))
                 : Path.GetDirectoryName(full);
+        }
+
+        /// <summary>
+        /// Pauses Voice Lab's preparation while streaming or recording, whichever screen is open (Voice Lab detailed design
+        /// 8.1.1): the services' states are watched here, for the app's lifetime, not by the Voice Lab screen.
+        /// </summary>
+        private static VoiceLabSetupService PauseWhileLive(VoiceLabSetupService setup, StreamingService streaming, RecordingService recording)
+        {
+            if (setup == null)
+            {
+                return null;
+            }
+
+            void Update() => setup.SetLive(VoiceLabView.IsLive(streaming?.State.Value ?? StreamingState.Idle, recording?.State.Value ?? RecordingState.Idle));
+            streaming?.State.Subscribe(_ => Update());
+            recording?.State.Subscribe(_ => Update());
+            Update();
+            return setup;
         }
 
         /// <summary>

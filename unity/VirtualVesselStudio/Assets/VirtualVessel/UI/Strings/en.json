@@ -124,6 +124,8 @@
         "lab.setup.agree": "I have read and agree to the terms and disclaimer",
         "lab.setup.back": "Back",
         "lab.setup.start": "Agree and start",
+        "lab.setup.agree-only": "Agree",
+        "lab.setup.live-note": "Paused for streaming or recording. Press Continue once they end.",
         "lab.setup.step.download": "Downloading components",
         "lab.setup.step.unpack": "Unpacking components",
         "lab.setup.step.install": "Building the environment",

@@ -79,6 +79,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly IVoiceLab _lab;
         private readonly VisualElement _make;
         private readonly VisualElement _steps = new VisualElement();
+        private bool _libraryCanMake;
         private readonly ScreenServices _services;
         private readonly VoiceLabPlayer _player;
         private VoiceLabBaseStep _base;
@@ -134,7 +135,7 @@ namespace VirtualVessel.UI.VoiceLab
             _services = services;
             if (library != null)
             {
-                _content.Add(BuildLibrary(ready));
+                _content.Add(BuildLibrary(CanMake));
             }
 
             // The setup stays above the steps once ready, for an update and the build's progress.
@@ -154,6 +155,8 @@ namespace VirtualVessel.UI.VoiceLab
                 card.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
                 _make.Add(card);
             }
+
+            FollowCanMake();
         }
 
         /// <summary>Preparing Voice Lab on this PC; null without setup.</summary>
@@ -161,11 +164,24 @@ namespace VirtualVessel.UI.VoiceLab
 
         private bool IsMakeBuilt => Steps != null;
 
+        /// <summary>
+        /// Whether voices can be made now: an environment, and the terms of its version agreed to (Voice Lab detailed
+        /// design 8.2). The steps and the library's Make again and Try follow it.
+        /// </summary>
+        public bool CanMake => CanMakeWith(_lab?.Availability == VoiceLabAvailability.Ready, _services?.VoiceLabSetup?.TermsAgreed ?? true);
+
+        /// <summary>Whether voices can be made, from an environment being ready and the terms agreed to. Pure.</summary>
+        public static bool CanMakeWith(bool ready, bool termsAgreed)
+        {
+            return ready && termsAgreed;
+        }
+
         // What was made can be listed without a training environment; making it again cannot.
-        private VoiceLabLibraryView BuildLibrary(bool ready)
+        private VoiceLabLibraryView BuildLibrary(bool canMake)
         {
             IVoiceLab lab = _lab;
-            Library = new VoiceLabLibraryView(_services.VoiceLabLibrary, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None, _services.Voice);
+            _libraryCanMake = canMake;
+            Library = new VoiceLabLibraryView(_services.VoiceLabLibrary, _player, canMake ? Remake : (Action<string>)null, canMake ? TryVoice : (Action<string, string>)null, () => canMake && lab.BuildProgress.State != VoiceLabBuildState.None, _services.Voice);
             Library.style.display = DisplayStyle.None;
             if (lab != null)
             {
@@ -176,24 +192,34 @@ namespace VirtualVessel.UI.VoiceLab
             return Library;
         }
 
-        // The first build completed: the steps are built now, and the library can make its runs again.
+        // A first build completed, or the terms were agreed to again: the steps are built if they were not, and the
+        // steps and the library follow whether voices can be made now.
         private void OnSetUp()
         {
-            if (IsMakeBuilt || _lab == null || _lab.Availability != VoiceLabAvailability.Ready)
+            if (!IsMakeBuilt && _lab != null && _lab.Availability == VoiceLabAvailability.Ready)
             {
-                return;
-            }
-
-            BuildMake();
-            if (Library != null)
-            {
-                int at = _content.IndexOf(Library);
-                VoiceLabLibraryView old = Library;
-                _content.Insert(at, BuildLibrary(true));
-                old.RemoveFromHierarchy();
+                BuildMake();
             }
 
             ShowTab(MakeTab);
+        }
+
+        // The steps hide while voices cannot be made, such as after the environment is deleted in the Made voices tab
+        // or before changed terms are agreed to; the library is made again when that changes, as its buttons are made
+        // with its rows.
+        private void FollowCanMake()
+        {
+            bool canMake = CanMake;
+            _steps.style.display = canMake ? DisplayStyle.Flex : DisplayStyle.None;
+            if (Library != null && canMake != _libraryCanMake)
+            {
+                int at = _content.IndexOf(Library);
+                VoiceLabLibraryView old = Library;
+                bool shown = old.style.display == DisplayStyle.Flex;
+                _content.Insert(at, BuildLibrary(canMake));
+                Library.style.display = shown ? DisplayStyle.Flex : DisplayStyle.None;
+                old.RemoveFromHierarchy();
+            }
         }
 
         private void BuildMake()
@@ -282,10 +308,9 @@ namespace VirtualVessel.UI.VoiceLab
                 // The samples may have been deleted in the Made voices tab, and the environment too.
                 _base?.RequestView.RefreshSamples();
                 Setup?.Refresh();
-
-                // Hidden once the environment is deleted in the Made voices tab, until it is built again.
-                _steps.style.display = _lab?.Availability == VoiceLabAvailability.Ready ? DisplayStyle.Flex : DisplayStyle.None;
             }
+
+            FollowCanMake();
 
             if (Library != null)
             {

@@ -90,6 +90,20 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(VoiceLabSetupService.Create(_folder, _folder, null, null, lab, new FixedClock(), new NullLog()), Is.Null, "No list here.");
         }
 
+        [Test]
+        public void WhileStreamingOrRecording_ABuildDoesNotStart_AndSaysWhy()
+        {
+            VoiceLabService lab = VoiceLabService.Create(_folder, Path.Combine(_folder, "VoiceLab"), Path.Combine(_folder, "VoiceModels"), new FixedClock(), new NullLog());
+            string scripts = Path.GetFullPath(Path.Combine("..", "..", "services", "voice-lab"));
+            VoiceLabSetupService setup = VoiceLabSetupService.Create(_folder, scripts, Path.Combine(_folder, "Shared"), Path.Combine(_folder, "Logs"), lab, new FixedClock(), new NullLog());
+            setup.AgreeToTerms();
+
+            setup.SetLive(true);
+            Assert.That(setup.RunAsync(System.Threading.CancellationToken.None).Wait(5000), Is.True, "Returns at once.");
+            Assert.That(setup.PausedForLive, Is.True);
+            Assert.That(setup.State, Is.EqualTo(VoiceLabSetupState.NotStarted), "Nothing was started.");
+        }
+
         // Every part an environment names, as empty files and folders; the shelf is the real one.
         private VoiceLabEnvironment FakeEnvironment()
         {

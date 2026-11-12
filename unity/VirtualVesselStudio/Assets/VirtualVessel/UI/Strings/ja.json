@@ -124,6 +124,8 @@
         "lab.setup.agree": "利用規約と免責事項を確認し、同意します",
         "lab.setup.back": "戻る",
         "lab.setup.start": "同意して準備を始める",
+        "lab.setup.agree-only": "同意する",
+        "lab.setup.live-note": "配信・録画のため一時停止しました。終了後に「続きから再開」を押してください。",
         "lab.setup.step.download": "部品の取得",
         "lab.setup.step.unpack": "部品の展開",
         "lab.setup.step.install": "環境の構築",

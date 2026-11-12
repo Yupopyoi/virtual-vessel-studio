@@ -157,7 +157,8 @@ namespace VirtualVessel.UI.VoiceLab
             AgreeToggle.AddToClassList(VoiceLabScreen.GapClass);
             AgreeToggle.RegisterValueChangedCallback(e => StartButton.SetEnabled(e.newValue));
             TermsCard.Add(AgreeToggle);
-            ActionButton back = Ui.Button(VoiceLabStrings.SetupBack);
+            BackButton = Ui.Button(VoiceLabStrings.SetupBack);
+            ActionButton back = BackButton;
             back.clicked += () => ShowTerms(false);
             StartButton = Ui.Button(VoiceLabStrings.SetupStart, ButtonVariant.Primary);
             StartButton.clicked += AgreeAndRun;
@@ -273,14 +274,26 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>The page shown now.</summary>
         public VoiceLabSetupPage Page { get; private set; }
 
+        public ActionButton BackButton { get; }
+
+        /// <summary>
+        /// Voice Lab is built and only the terms are to agree to again: agreeing opens the steps, with nothing to build,
+        /// and there is nowhere to go back to. Pure.
+        /// </summary>
+        public static bool OnlyToAgree(VoiceLabSetupState state, bool updateAvailable)
+        {
+            return state == VoiceLabSetupState.Ready && !updateAvailable;
+        }
+
         /// <summary>The last check of the PC; null until one completed.</summary>
         public VoiceLabPcCheck LastCheck { get; private set; }
 
         /// <summary>
         /// The page for activation's state: a build running shows its progress; the terms when asked for; one stopped or
-        /// failed its progress, to continue; once ready, the first build's completion, then an update when there is one. Pure.
+        /// failed its progress, to continue; once ready, the first build's completion, then terms not agreed to (changed
+        /// since, Voice Lab detailed design 8.2), then an update when there is one. Pure.
         /// </summary>
-        public static VoiceLabSetupPage PageOf(VoiceLabSetupState state, bool updateAvailable, bool wantsTerms, bool justFinished)
+        public static VoiceLabSetupPage PageOf(VoiceLabSetupState state, bool updateAvailable, bool wantsTerms, bool justFinished, bool termsAgreed = true)
         {
             if (state == VoiceLabSetupState.Preparing)
             {
@@ -298,7 +311,12 @@ namespace VirtualVessel.UI.VoiceLab
                 case VoiceLabSetupState.Failed:
                     return VoiceLabSetupPage.Progress;
                 case VoiceLabSetupState.Ready:
-                    return justFinished ? VoiceLabSetupPage.Done : updateAvailable ? VoiceLabSetupPage.Update : VoiceLabSetupPage.None;
+                    if (justFinished)
+                    {
+                        return VoiceLabSetupPage.Done;
+                    }
+
+                    return !termsAgreed ? VoiceLabSetupPage.Terms : updateAvailable ? VoiceLabSetupPage.Update : VoiceLabSetupPage.None;
                 default:
                     return VoiceLabSetupPage.Check;
             }
@@ -596,7 +614,7 @@ namespace VirtualVessel.UI.VoiceLab
         public void Refresh()
         {
             VoiceLabSetupState state = _setup.State;
-            VoiceLabSetupPage page = PageOf(state, _setup.UpdateAvailable, _wantsTerms, _justFinished);
+            VoiceLabSetupPage page = PageOf(state, _setup.UpdateAvailable, _wantsTerms, _justFinished, _setup.TermsAgreed);
             VoiceLabSetupPage before = Page;
             Page = page;
 
@@ -615,6 +633,9 @@ namespace VirtualVessel.UI.VoiceLab
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
             if (page == VoiceLabSetupPage.Terms)
             {
+                bool onlyToAgree = OnlyToAgree(state, _setup.UpdateAvailable);
+                StartButton.TextKey = onlyToAgree ? VoiceLabStrings.SetupAgreeOnly : VoiceLabStrings.SetupStart;
+                BackButton.style.display = onlyToAgree ? DisplayStyle.None : DisplayStyle.Flex;
                 ShowTermsText(localizer);
             }
             else if (page == VoiceLabSetupPage.Progress)
@@ -834,7 +855,9 @@ namespace VirtualVessel.UI.VoiceLab
             StopButton.style.display = Show(running);
             StopButton.SetEnabled(_run != null);
             ResumeButton.style.display = Show(!running);
-            _progressNote.Key = running ? VoiceLabStrings.SetupRunningNote : VoiceLabStrings.SetupResumeNote;
+            _progressNote.Key = running ? VoiceLabStrings.SetupRunningNote
+                : _setup.PausedForLive ? VoiceLabStrings.SetupLiveNote
+                : VoiceLabStrings.SetupResumeNote;
         }
 
         // Samples the bytes done while downloading; the speed is read from the last few seconds.
@@ -897,6 +920,13 @@ namespace VirtualVessel.UI.VoiceLab
 
             _setup.AgreeToTerms();
             _wantsTerms = false;
+            if (OnlyToAgree(_setup.State, _setup.UpdateAvailable))
+            {
+                Refresh();
+                _toMake?.Invoke();
+                return;
+            }
+
             Run();
         }
 

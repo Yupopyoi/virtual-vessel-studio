@@ -171,6 +171,12 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Why the last build failed; None otherwise, and after a restart.</summary>
         VoiceLabSetupFailure LastFailure { get; }
 
+        /// <summary>
+        /// The build was paused because streaming or recording started, or a start waits for them to end (2026-11-13).
+        /// Continuing is the user's, once they have ended.
+        /// </summary>
+        bool PausedForLive { get; }
+
         /// <summary>Whether this app brings a newer environment than the one in use.</summary>
         bool UpdateAvailable { get; }
 

@@ -33,7 +33,7 @@ Activation (Voice Lab detailed design 8.1) happens in the Make a voice tab (`Voi
 | Page | When | Content |
 |---|---|---|
 | Check | Nothing built yet | One opening sentence (streaming and conversion with registered voices do not need it). Four rows: GPU, driver, location, internet connection. Each row shows its value and a Chip (OK / Action needed), with the condition in its help icon. Under a row that fails, the reason and what to do. The location row has Change (pick a folder). Read the terms can be pressed once all are met. Under it, a note that agreeing to the terms is required, and on its own line the time building the environment takes. |
-| Terms | Read the terms was pressed, or continuing or updating began after the version changed | The version and the full text (scrolling in a frame). Agree and start cannot be pressed until the agreement Toggle is on. Back. |
+| Terms | Read the terms was pressed, continuing or updating began after the version changed, or the version changed once built | The version and the full text (scrolling in a frame). Agree and start cannot be pressed until the agreement Toggle is on. Back. When built and only agreement is needed, the button is Agree and there is no Back; the steps stay hidden until then. |
 | Progress | Building, stopped, or failed | A state Chip. The four steps (downloading, unpacking, building the environment, checking it works), each with a Chip: done, running, paused, failed, or not yet. A progress bar (the whole build's share, written "44% overall"; while downloading, also the bytes and their share, the speed averaged over the last 5 seconds, and the time left at it). Under it, the record of the work (monospaced, one line each, the newest at the bottom, scrolling in its frame). Stop while building, Continue otherwise. On a failure, by its kind (network, damaged file, free space, building, check), what happened and what to do. |
 | Done | The first build completed | That the voice made in the check was not kept. Make a voice opens STEP 1. |
 | Update | Built, with a newer version | Shown above the steps. That voices can still be made while it updates, Update, and the download size. A Chip when it failed. |
@@ -41,6 +41,7 @@ Activation (Voice Lab detailed design 8.1) happens in the Make a voice tab (`Voi
 - The check runs each time the Check page opens (and when the location changes).
 - The terms are the bundled `terms/voice-lab-terms.<language>.md`, shown as headings, paragraphs, numbered items, and table rows. Credits and licenses in Setup reads the same files. So the terms are kept in one place, Voice Lab has no other place for them (2026-11-11).
 - The record has one line per component downloaded and per step, with the time and what happens in the app's words (such as "22:14:05  Downloading: VoxCPM2 (4.3 GB)", "Building: installing the packages"). Output from uv or Python is not shown as it is (system design 4.27; the user's decision, 2026-11-11). The record lasts while the app is open.
+- A build paused by streaming or recording says so.
 - The progress is read every 0.25 seconds. If the app is closed, it continues the next time it opens.
 
 ## 3. STEP 1 Pick a Base

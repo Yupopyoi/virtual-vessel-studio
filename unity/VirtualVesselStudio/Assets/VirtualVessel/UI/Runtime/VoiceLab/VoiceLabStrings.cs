@@ -54,6 +54,8 @@ namespace VirtualVessel.UI.VoiceLab
         public const string SetupAgree = "lab.setup.agree";
         public const string SetupBack = "lab.setup.back";
         public const string SetupStart = "lab.setup.start";
+        public const string SetupAgreeOnly = "lab.setup.agree-only";
+        public const string SetupLiveNote = "lab.setup.live-note";
         public const string SetupStepDownload = "lab.setup.step.download";
         public const string SetupStepUnpack = "lab.setup.step.unpack";
         public const string SetupStepInstall = "lab.setup.step.install";

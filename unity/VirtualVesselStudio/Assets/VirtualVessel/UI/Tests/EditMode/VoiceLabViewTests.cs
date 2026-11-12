@@ -320,6 +320,12 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, true), Is.EqualTo(VoiceLabSetupPage.Done));
             Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, false), Is.EqualTo(VoiceLabSetupPage.Update));
             Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, false), Is.EqualTo(VoiceLabSetupPage.None));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, false, termsAgreed: false), Is.EqualTo(VoiceLabSetupPage.Terms), "Changed terms come before making.");
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, true, termsAgreed: false), Is.EqualTo(VoiceLabSetupPage.Done));
+            Assert.That(VoiceLabSetupView.OnlyToAgree(VoiceLabSetupState.Ready, false), Is.True);
+            Assert.That(VoiceLabSetupView.OnlyToAgree(VoiceLabSetupState.Ready, true), Is.False, "An update builds after agreeing.");
+            Assert.That(VoiceLabScreen.CanMakeWith(true, false), Is.False);
+            Assert.That(VoiceLabScreen.CanMakeWith(true, true), Is.True);
         }
 
         [Test]
