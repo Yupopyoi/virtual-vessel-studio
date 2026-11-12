@@ -94,8 +94,19 @@ namespace VirtualVessel.VoiceLab.Activation
             {
                 Timeout = TimeSpan.FromSeconds(15),
             };
-            Directory.CreateDirectory(_logs);
-            ExternalProcessResult result = await _runner.RunAsync(request, line => first ??= line, cancellationToken).ConfigureAwait(false);
+            ExternalProcessResult result;
+            try
+            {
+                Directory.CreateDirectory(_logs);
+                result = await _runner.RunAsync(request, line => first ??= line, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+            {
+                // Its log could not be written; the check goes on without a GPU rather than stopping on "Checking".
+                _log?.Information($"nvidia-smi could not run: {exception.Message}");
+                return null;
+            }
+
             if (result.State != ExternalProcessState.Completed || result.ExitCode != 0)
             {
                 _log?.Information($"nvidia-smi gave no GPU ({result.State}, exit {result.ExitCode}).");
@@ -126,8 +137,10 @@ namespace VirtualVessel.VoiceLab.Activation
                 using HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 return true;
             }
-            catch (Exception exception) when (exception is HttpRequestException || exception is TaskCanceledException)
+            catch (Exception exception) when (HttpComponentDownloader.IsConnectionFailure(exception))
             {
+                // Whatever type the runtime gives a failed connection (Unity's throws WebException and IOException too):
+                // one that escaped would leave the check on "Checking" with no way on.
                 cancellationToken.ThrowIfCancellationRequested();
                 _log?.Information($"{ProbeUrl} could not be reached: {exception.Message}");
                 return false;

@@ -120,6 +120,55 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That((activation.Record.State, activation.CanResume), Is.EqualTo((VoiceActivationState.Failed, true)));
         }
 
+        [Test]
+        public void AnUnexpectedFailure_IsRecordedAsFailed_NotLeftInstalling()
+        {
+            VoiceLabActivation activation = Activation();
+
+            Assert.That(() => activation.RunAsync((environment, token) => throw new UnauthorizedAccessException("denied"), null, CancellationToken.None).Wait(), Throws.InstanceOf<AggregateException>());
+
+            // Read back from the file, as a restart would.
+            Assert.That(VoiceActivationRecord.StoreIn(_config, new FixedClock()).Load().Value.State, Is.EqualTo(VoiceActivationState.Failed), "A restart says it failed, not that it paused.");
+        }
+
+        [Test]
+        public void VoiceLabMovesToTheNewEnvironment_BeforeTheOldOneIsRemoved()
+        {
+            string old = _folders.Version("0");
+            Directory.CreateDirectory(old);
+            bool oldWasThere = false;
+
+            Activation().RunAsync(null, null, CancellationToken.None, afterSwitch: () =>
+            {
+                oldWasThere = Directory.Exists(old);
+                return Task.CompletedTask;
+            }).Wait();
+
+            Assert.That(oldWasThere, Is.True);
+            Assert.That(Directory.Exists(old), Is.False, "Removed once Voice Lab left it.");
+        }
+
+        [Test]
+        public void RemovingTheEnvironment_ForgetsIt_EvenWhenALockedFileKeepsPartOfTheFolder()
+        {
+            VoiceLabActivation activation = Activation();
+            VoiceLabEnvironment built = activation.RunAsync(null, null, CancellationToken.None).Result;
+            Directory.CreateDirectory(Path.Combine(_folders.Scripts, "voicelab"));
+            File.Copy(Path.GetFullPath(Path.Combine("..", "..", "services", "voice-lab", "voicelab", "shelf.json")), Path.Combine(_folders.Scripts, "voicelab", "shelf.json"));
+            VoiceLabService voiceLab = VoiceLabService.Create(_config, Path.Combine(_folder, "VoiceLab"), Path.Combine(_folder, "VoiceModels"), new FixedClock(), new NullLog());
+            Assert.That(voiceLab.EnvironmentState, Is.EqualTo(UI.VoiceLab.VoiceLabEnvironmentState.AppBuilt));
+            voiceLab.EnvironmentRemoved += activation.ForgetEnvironment;
+
+            ProjectData.Records.CrudResult removed;
+            using (new FileStream(built.Python, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                removed = voiceLab.RemoveEnvironmentAsync().Result;
+            }
+
+            Assert.That(removed.Error, Is.EqualTo(ProjectData.Records.CrudError.StorageFailed), "The screen still says it could not all go.");
+            Assert.That(activation.IsReady, Is.False, "Not left showing built, with no way to build it again.");
+        }
+
         private VoiceLabActivation Activation(bool failUv = false, bool agree = true)
         {
             // An empty list is not valid, so one small file stands for the components; the fake uv makes the rest.

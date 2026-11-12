@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ExternalServices.Process;
-using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Voice.Models;
@@ -153,8 +152,7 @@ namespace VirtualVessel.VoiceLab
         /// <summary>The folder chosen for activation, from its record; the default when none is kept.</summary>
         public static string ActivationLocation(string configDirectory, ISystemClock clock)
         {
-            var store = new ConfigFileStore<VoiceActivationRecord>(configDirectory, VoiceActivationRecord.FileName, VoiceActivationRecord.SchemaVersion, () => new VoiceActivationRecord(), clock);
-            return store.Load().Value?.Location ?? VoiceActivationFolders.DefaultLocation;
+            return VoiceActivationRecord.StoreIn(configDirectory, clock).Load().Value?.Location ?? VoiceActivationFolders.DefaultLocation;
         }
 
         public string SampleFile(string language, string name)
@@ -524,6 +522,13 @@ namespace VirtualVessel.VoiceLab
             if (removed.Ok)
             {
                 _log.Information($"Deleted Voice Lab's training environment in {_remover.OwnedFolder}.");
+            }
+
+            // The settings file goes first, so once it is gone Voice Lab is not set up, even if a locked file kept part
+            // of the folder: activation forgets it too, or the screen would show it built and offer no way to build it
+            // again. A new build clears the folder first.
+            if (removed.Ok || !File.Exists(Path.Combine(_configDirectory, EnvironmentFile)))
+            {
                 EnvironmentRemoved?.Invoke();
             }
 

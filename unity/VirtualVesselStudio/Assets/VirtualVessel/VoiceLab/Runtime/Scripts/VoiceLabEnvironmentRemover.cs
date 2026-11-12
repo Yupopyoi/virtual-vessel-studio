@@ -10,8 +10,8 @@ namespace VirtualVessel.VoiceLab.Scripts
     /// <summary>
     /// Deletes the training environment the app built, to free space (Voice Lab detailed design 11; the user's request,
     /// 2026-11-11). Streaming never uses it, so registered voices keep working. Only an environment wholly inside the
-    /// app's own folder (<see cref="ManagedRoot"/>) is deleted: one set up by hand elsewhere, such as a developer's, is not
-    /// the app's to delete (CLAUDE.md 26).
+    /// folder activation builds in (VoiceActivationFolders.RootIn the chosen location) is deleted: one set up by hand
+    /// elsewhere, such as a developer's, is not the app's to delete (CLAUDE.md 26).
     /// </summary>
     public sealed class VoiceLabEnvironmentRemover
     {
@@ -24,9 +24,6 @@ namespace VirtualVessel.VoiceLab.Scripts
             _environmentFile = environmentFile;
             OwnedFolder = ownedFolder;
         }
-
-        /// <summary>Where the app builds training environments by default, one folder per version.</summary>
-        public static string ManagedRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VirtualVesselStudio", "External", "VoiceLab");
 
         /// <summary>The environment's folder when the app built it; null for one set up elsewhere.</summary>
         public string OwnedFolder { get; }

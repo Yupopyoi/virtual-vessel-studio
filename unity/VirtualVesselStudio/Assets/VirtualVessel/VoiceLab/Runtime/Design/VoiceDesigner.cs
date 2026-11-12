@@ -90,10 +90,10 @@ namespace VirtualVessel.VoiceLab.Design
         private readonly string _session;
         private int _nextSeed;
 
-        /// <param name="designsFolder">Candidates and previews of this session go in a folder of their own here.</param>
         /// <summary>This session's folder of candidates and previews, which is never deleted while it runs.</summary>
         public string SessionFolder => _session;
 
+        /// <param name="designsFolder">Candidates and previews of this session go in a folder of their own here.</param>
         public VoiceDesigner(PythonScripts scripts, ITrainingRunRepository runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
         {
             _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));

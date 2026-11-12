@@ -53,7 +53,7 @@ namespace VirtualVessel.VoiceLab.Activation
             _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
             _installerFor = installerFor ?? throw new ArgumentNullException(nameof(installerFor));
             _log = log;
-            _store = new ConfigFileStore<VoiceActivationRecord>(configDirectory, VoiceActivationRecord.FileName, VoiceActivationRecord.SchemaVersion, () => new VoiceActivationRecord(), clock);
+            _store = VoiceActivationRecord.StoreIn(configDirectory, clock);
             Record = _store.Load().Value ?? new VoiceActivationRecord();
         }
 
@@ -172,7 +172,11 @@ namespace VirtualVessel.VoiceLab.Activation
         /// <exception cref="VoiceActivationException">It could not be built; the environment in use, if any, stays.</exception>
         /// <exception cref="OperationCanceledException">It was stopped; starting again continues it.</exception>
         /// <param name="beforeSwitch">Waits until the environment in use is idle, as switching removes it; null to switch at once.</param>
-        public async Task<VoiceLabEnvironment> RunAsync(Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, IProgress<VoiceActivationProgress> progress, CancellationToken cancellationToken, Func<CancellationToken, Task> beforeSwitch = null)
+        /// <param name="afterSwitch">
+        /// Moves Voice Lab onto the new environment. It runs before the old version is removed, so nothing is left
+        /// running from files being deleted; null when nothing uses the environment.
+        /// </param>
+        public async Task<VoiceLabEnvironment> RunAsync(Func<VoiceLabEnvironment, CancellationToken, Task<string>> verify, IProgress<VoiceActivationProgress> progress, CancellationToken cancellationToken, Func<CancellationToken, Task> beforeSwitch = null, Func<Task> afterSwitch = null)
         {
             string version = _manifest.Version;
             if (!TermsAgreed)
@@ -205,6 +209,14 @@ namespace VirtualVessel.VoiceLab.Activation
                 _log?.Warning($"Building Voice Lab's environment {version} failed ({exception.Failure}): {exception.Message}");
                 throw;
             }
+            catch (Exception exception)
+            {
+                // Not a kind the build names, but still a failure: left at Installing, a restart would offer to
+                // continue a build that cannot succeed instead of saying it failed.
+                Save(After(Record, VoiceActivationOutcome.Failed, version));
+                _log?.Error($"Building Voice Lab's environment {version} failed unexpectedly.", exception);
+                throw;
+            }
 
             progress?.Report(new VoiceActivationProgress(VoiceActivationPhase.Finishing, 0, 1));
             if (beforeSwitch != null)
@@ -215,6 +227,11 @@ namespace VirtualVessel.VoiceLab.Activation
             SwitchTo(environment, folders.Root);
             Save(After(Record, VoiceActivationOutcome.Succeeded, version));
             _log?.Information($"Voice Lab's environment {version} is ready.");
+            if (afterSwitch != null)
+            {
+                await afterSwitch().ConfigureAwait(false);
+            }
+
             await Task.Run(() => installer.CleanUp(version)).ConfigureAwait(false);
             return environment;
         }

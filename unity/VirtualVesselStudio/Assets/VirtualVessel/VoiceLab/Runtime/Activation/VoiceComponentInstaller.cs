@@ -337,7 +337,8 @@ namespace VirtualVessel.VoiceLab.Activation
             return files;
         }
 
-        // A file checked once is kept under its hash, so a build that stopped, or the next version sharing it, skips it.
+        // A file checked once is kept under its hash, so a build that stopped skips it. CleanUp removes the downloads
+        // after a build succeeds, as they hold several GB; the next version downloads again what it needs.
         private async Task<string> DownloadAsync(VoiceComponent component, IProgress<long> received, CancellationToken cancellationToken)
         {
             string done = Path.Combine(_folders.Downloads, component.Sha256);
@@ -395,12 +396,20 @@ namespace VirtualVessel.VoiceLab.Activation
                 else if (component.Place == VoiceComponentPlace.SharedModels)
                 {
                     // Streaming may be reading the shared models; one that is already right is left alone, and a new
-                    // one is written beside it and swapped in.
+                    // one is written beside it and swapped in with one replace, so a stop in between never leaves
+                    // streaming without the model.
                     if (!File.Exists(target) || Sha256Of(target) != component.Sha256)
                     {
-                        File.Copy(files[component.Id], target + ".part", true);
-                        File.Delete(target);
-                        File.Move(target + ".part", target);
+                        string part = target + ".part";
+                        File.Copy(files[component.Id], part, true);
+                        if (File.Exists(target))
+                        {
+                            File.Replace(part, target, null);
+                        }
+                        else
+                        {
+                            File.Move(part, target);
+                        }
                     }
                 }
                 else

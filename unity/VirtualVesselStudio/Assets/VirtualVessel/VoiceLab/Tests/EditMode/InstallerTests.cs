@@ -107,6 +107,8 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(HttpComponentDownloader.IsConnectionFailure(new IOException("reset")), Is.True);
             Assert.That(HttpComponentDownloader.IsConnectionFailure(new System.Net.Http.HttpRequestException("refused")), Is.True);
             Assert.That(HttpComponentDownloader.IsConnectionFailure(new NullReferenceException()), Is.False);
+            // ERROR_DISK_FULL: the build must say to free space, not retry the download.
+            Assert.That(HttpComponentDownloader.IsConnectionFailure(new IOException("full", unchecked((int)0x80070070))), Is.False);
         }
 
         [Test]

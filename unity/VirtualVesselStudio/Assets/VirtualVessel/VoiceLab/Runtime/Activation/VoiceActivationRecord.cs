@@ -1,4 +1,6 @@
 using System;
+using VirtualVessel.Core.Time;
+using VirtualVessel.ProjectData.Config;
 
 namespace VirtualVessel.VoiceLab.Activation
 {
@@ -19,6 +21,12 @@ namespace VirtualVessel.VoiceLab.Activation
     {
         public const int SchemaVersion = 1;
         public const string FileName = "voice-activation.json";
+
+        /// <summary>The store of this record in a config folder; one place, so its name and schema cannot drift apart.</summary>
+        public static ConfigFileStore<VoiceActivationRecord> StoreIn(string configDirectory, ISystemClock clock)
+        {
+            return new ConfigFileStore<VoiceActivationRecord>(configDirectory, FileName, SchemaVersion, () => new VoiceActivationRecord(), clock);
+        }
 
         /// <summary>The terms' version agreed to; null before agreeing.</summary>
         public string TermsVersion { get; set; }

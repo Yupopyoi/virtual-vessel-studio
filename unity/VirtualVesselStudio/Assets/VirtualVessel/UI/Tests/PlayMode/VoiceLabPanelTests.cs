@@ -777,6 +777,27 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator ChangedTerms_WithAnUpdateWaiting_OnlyAgree_ThenOfferTheUpdate()
+        {
+            Object.Destroy(_host);
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, UpdateAvailable = true, TermsAgreed = false };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabSetupView view = Screen().Setup;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Terms));
+            Assert.That(view.StartButton.TextKey, Is.EqualTo(VoiceLabStrings.SetupAgreeOnly), "Agreeing does not start the update.");
+            Assert.That(view.BackButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+
+            view.AgreeToggle.value = true;
+            Submit(view.StartButton);
+            yield return null;
+
+            Assert.That((setup.TermsAgreed, setup.Runs), Is.EqualTo((true, 0)));
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Update), "The update is the user's choice, on its own card.");
+        }
+
+        [UnityTest]
         public IEnumerator AnUpdate_IsOfferedAboveTheSteps_WhichStayUsable()
         {
             Object.Destroy(_host);

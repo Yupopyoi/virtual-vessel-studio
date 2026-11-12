@@ -129,9 +129,17 @@ namespace VirtualVessel.VoiceLab.Activation
             throw new ComponentDownloadException($"no data came for {_stall.TotalSeconds:0} s");
         }
 
-        /// <summary>Whether an exception from a download is the connection failing, rather than a bug. Pure.</summary>
+        /// <summary>
+        /// Whether an exception from a download is the connection failing, rather than a bug. A full disk is not: it
+        /// goes up as it is, so the build says to free space instead of retrying (VoiceComponentInstaller.IsDiskFull). Pure.
+        /// </summary>
         public static bool IsConnectionFailure(Exception exception)
         {
+            if (exception is IOException io && VoiceComponentInstaller.IsDiskFull(io))
+            {
+                return false;
+            }
+
             return exception is HttpRequestException || exception is IOException || exception is WebException
                 || exception is OperationCanceledException || exception is ObjectDisposedException;
         }

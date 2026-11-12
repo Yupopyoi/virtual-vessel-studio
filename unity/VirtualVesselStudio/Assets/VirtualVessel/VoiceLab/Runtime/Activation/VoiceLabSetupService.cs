@@ -279,10 +279,12 @@ namespace VirtualVessel.VoiceLab.Activation
                 _progress.Value = new VoiceLabSetupProgress(StepOf(p.Phase), p.Done, p.Total);
                 Record(p);
             });
+            // Voice Lab is used from the thread that started the build (Unity's main thread); the build's own steps
+            // run elsewhere, so the reload goes back to it.
+            SynchronizationContext caller = SynchronizationContext.Current;
             try
             {
-                await _activation.RunAsync(_verify, progress, linked.Token, WaitUntilIdleAsync).ConfigureAwait(false);
-                _voiceLab.Reload();
+                await _activation.RunAsync(_verify, progress, linked.Token, WaitUntilIdleAsync, () => RunOn(caller, _voiceLab.Reload)).ConfigureAwait(false);
                 Record(VoiceLabSetupEntryKind.Done);
             }
             catch (VoiceActivationException exception)
@@ -334,6 +336,31 @@ namespace VirtualVessel.VoiceLab.Activation
             {
                 _entries.Add(new VoiceLabSetupEntry(DateTime.Now, kind));
             }
+        }
+
+        /// <summary>Runs an action on a context and completes once it ran; at once when already there or with none.</summary>
+        public static Task RunOn(SynchronizationContext context, Action action)
+        {
+            if (context == null || context == SynchronizationContext.Current)
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
+            var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            context.Post(_ =>
+            {
+                try
+                {
+                    action();
+                    done.SetResult(true);
+                }
+                catch (Exception exception)
+                {
+                    done.SetException(exception);
+                }
+            }, null);
+            return done.Task;
         }
 
         // The update switches only once nothing runs from the environment in use, as switching removes it.

@@ -277,12 +277,12 @@ namespace VirtualVessel.UI.VoiceLab
         public ActionButton BackButton { get; }
 
         /// <summary>
-        /// Voice Lab is built and only the terms are to agree to again: agreeing opens the steps, with nothing to build,
-        /// and there is nowhere to go back to. Pure.
+        /// Voice Lab is built and the terms show because they changed, not because the user chose to build: agreeing
+        /// only agrees, and there is nowhere to go back to. An update waiting is offered after, on its own card. Pure.
         /// </summary>
-        public static bool OnlyToAgree(VoiceLabSetupState state, bool updateAvailable)
+        public static bool OnlyToAgree(VoiceLabSetupState state, bool wantsTerms)
         {
-            return state == VoiceLabSetupState.Ready && !updateAvailable;
+            return state == VoiceLabSetupState.Ready && !wantsTerms;
         }
 
         /// <summary>The last check of the PC; null until one completed.</summary>
@@ -633,7 +633,7 @@ namespace VirtualVessel.UI.VoiceLab
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
             if (page == VoiceLabSetupPage.Terms)
             {
-                bool onlyToAgree = OnlyToAgree(state, _setup.UpdateAvailable);
+                bool onlyToAgree = OnlyToAgree(state, _wantsTerms);
                 StartButton.TextKey = onlyToAgree ? VoiceLabStrings.SetupAgreeOnly : VoiceLabStrings.SetupStart;
                 BackButton.style.display = onlyToAgree ? DisplayStyle.None : DisplayStyle.Flex;
                 ShowTermsText(localizer);
@@ -918,9 +918,10 @@ namespace VirtualVessel.UI.VoiceLab
                 return;
             }
 
+            bool onlyToAgree = OnlyToAgree(_setup.State, _wantsTerms);
             _setup.AgreeToTerms();
             _wantsTerms = false;
-            if (OnlyToAgree(_setup.State, _setup.UpdateAvailable))
+            if (onlyToAgree)
             {
                 Refresh();
                 _toMake?.Invoke();
