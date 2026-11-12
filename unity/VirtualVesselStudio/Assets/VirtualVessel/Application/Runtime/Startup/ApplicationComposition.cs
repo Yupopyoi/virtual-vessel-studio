@@ -61,8 +61,8 @@ namespace VirtualVessel.Application.Startup
 
             var descriptors = new List<ApplicationServiceDescriptor>();
             var built = new Built();
-            AddLogging(descriptors, context, built);
-            AddMetrics(descriptors, context, built);
+            descriptors.AddRange(LoggingDescriptors(context, built));
+            descriptors.AddRange(MetricsDescriptors(context, built));
 
             // The project in use, opened when the first service that keeps settings is created (project
             // data detailed design 7). Only the settings folder's own files stay in Config.
@@ -70,13 +70,13 @@ namespace VirtualVessel.Application.Startup
                 ? new Lazy<OpenedProject>(() => OpenProject(context, built.Logging.Provider.GetLog("ProjectData", "Projects")))
                 : null;
 
-            AddCapture(descriptors, context, built);
-            AddAudio(descriptors, context, built);
-            AddVoice(descriptors, context, built);
-            AddVideo(descriptors, context, built);
-            AddTracking(descriptors, context, built);
-            AddAvatar(descriptors, context, built);
-            AddUi(descriptors, context, built);
+            descriptors.AddRange(CaptureDescriptors(context, built));
+            descriptors.AddRange(AudioDescriptors(context, built));
+            descriptors.AddRange(VoiceDescriptors(context, built));
+            descriptors.AddRange(VideoDescriptors(context, built));
+            descriptors.AddRange(TrackingDescriptors(context, built));
+            descriptors.AddRange(AvatarDescriptors(context, built));
+            descriptors.AddRange(UiDescriptors(context, built));
             return descriptors;
         }
 

@@ -129,8 +129,7 @@ namespace VirtualVessel.ExternalServices.Process
                 int? exitCode = stopped ? (int?)null : process.ExitCode;
                 ExternalProcessState state = ProcessRules.Classify(exitCode, cancelled, timedOut);
                 DateTimeOffset ended = _clock.UtcNow;
-                string[] lastErrors = log.LastErrors();
-                log.Line($"[{ended:O}] end {state}, exit code {(exitCode.HasValue ? exitCode.Value.ToString() : "none (stopped)")}{(timedOut ? ", timed out" : string.Empty)}");
+                string[] lastErrors = log.End($"[{ended:O}] end {state}, exit code {(exitCode.HasValue ? exitCode.Value.ToString() : "none (stopped)")}{(timedOut ? ", timed out" : string.Empty)}");
 
                 LogLevel level = state == ExternalProcessState.Failed ? LogLevel.Warning : LogLevel.Information;
                 _log.Write(level, $"External process {id} ended: {state}", new[]
@@ -202,11 +201,15 @@ namespace VirtualVessel.ExternalServices.Process
                 }
             }
 
-            public string[] LastErrors()
+            // The end line and the last errors under one lock, so an error line a late reader writes lands after "end"
+            // and is not in the result, never between them.
+            public string[] End(string line)
             {
                 lock (_gate)
                 {
-                    return _errors.ToArray();
+                    string[] errors = _errors.ToArray();
+                    _file.WriteLine(line);
+                    return errors;
                 }
             }
 

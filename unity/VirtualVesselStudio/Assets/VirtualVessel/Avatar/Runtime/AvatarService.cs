@@ -320,15 +320,22 @@ namespace VirtualVessel.Avatar
             }
 
             IAvatarModel model = await _loader.LoadAsync(_store.ModelPathOf(entry), cancellationToken);
-            IReadOnlyList<AvatarBone> missing = AvatarBones.MissingRequired(model.Rig.Has);
-            if (missing.Count > 0)
+            try
             {
-                // Not handed back, so disposed here, as the caller's cleanup did before.
-                model.Dispose();
-                throw new AvatarLoadException(AvatarProblem.MissingBones, $"The model lacks the required bones {string.Join(", ", missing)}.");
-            }
+                IReadOnlyList<AvatarBone> missing = AvatarBones.MissingRequired(model.Rig.Has);
+                if (missing.Count > 0)
+                {
+                    throw new AvatarLoadException(AvatarProblem.MissingBones, $"The model lacks the required bones {string.Join(", ", missing)}.");
+                }
 
-            return model;
+                return model;
+            }
+            catch
+            {
+                // Not handed back on any failure, so disposed here, as the caller's cleanup did before.
+                model.Dispose();
+                throw;
+            }
         }
 
         // Puts the loaded model on the stream in place of the one there, which is returned for the caller to dispose
@@ -336,9 +343,12 @@ namespace VirtualVessel.Avatar
         private IAvatarModel SwapIn(IAvatarModel model)
         {
             Place(model, _placement());
+            // The controller first: if it throws, the model on the stream and its controller are still the old pair,
+            // and the caller disposes only the new model.
+            var controller = new AvatarController(model, _mapping) { FingerTuning = _fingerTuning.Value };
             IAvatarModel old = _model;
             _model = model;
-            _controller = new AvatarController(model, _mapping) { FingerTuning = _fingerTuning.Value };
+            _controller = controller;
             return old;
         }
 
