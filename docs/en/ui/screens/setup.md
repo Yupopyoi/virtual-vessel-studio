@@ -152,6 +152,8 @@ Lists the software and assets in use from the SBOM shipped with the application 
 
 There are two Cards, placed at the end of the app settings page in this order. Voice Lab's training environment alone has dozens of Python packages, and in one Card they would bury the application's own components.
 
+Both are collapsible Cards (`components.md` 3.10) that start closed. Few people read them, and open they would fill most of the page with long lists (user decision, 2026-11-13). When the SBOM cannot be read, the Card does not collapse, so its problem shows.
+
 | Card | Title | Components listed |
 |---|---|---|
 | The app | "Credits and licenses: the app" | The application itself first, then the distributed components (`required`) in the SBOM's order |

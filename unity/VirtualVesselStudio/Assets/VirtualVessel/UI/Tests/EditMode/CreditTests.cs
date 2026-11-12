@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using UnityEngine.UIElements;
+using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Screens;
 
@@ -154,6 +156,23 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheCards_StartClosed_AndOpenFromTheirTitle()
+        {
+            IReadOnlyList<CreditsCard> cards = CreditsCard.Build(new MapFiles { [CreditFiles.SbomPath] = Sbom });
+
+            foreach (CreditsCard credits in cards)
+            {
+                Assert.That(credits.Card.Collapsible, Is.True, credits.Group.ToString());
+                Assert.That(credits.Card.Expanded, Is.False, credits.Group.ToString());
+            }
+
+            cards[0].Card.Expanded = true;
+            Assert.That(cards[0].Card.contentContainer.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            cards[0].Card.Expanded = false;
+            Assert.That(cards[0].Card.contentContainer.style.display.value, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [Test]
         public void TheFetchedCard_IsLeftOut_WhenNothingIsFetched()
         {
             const string shippedOnly = @"{ ""bomFormat"": ""CycloneDX"", ""components"": [ { ""name"": ""Plugin"" } ] }";
@@ -170,6 +189,8 @@ namespace VirtualVessel.UI.Tests
                 Assert.That(cards.Count, Is.EqualTo(1));
                 Assert.That(cards[0].Catalog, Is.Null);
                 Assert.That(cards[0].Rows, Is.Empty);
+                // The problem must show without opening anything.
+                Assert.That(Card.IsBodyShown(cards[0].Card.Collapsible, cards[0].Card.Expanded), Is.True);
             }
         }
 

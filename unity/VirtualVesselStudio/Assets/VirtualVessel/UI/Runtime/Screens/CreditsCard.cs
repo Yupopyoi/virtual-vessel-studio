@@ -36,7 +36,8 @@ namespace VirtualVessel.UI.Screens
     /// The software and assets the application uses, from the SBOM shipped with it, and the full
     /// license texts shipped next to it (docs/&lt;lang&gt;/ui/screens/setup.md 8). One Card for the
     /// application and what it ships, one for what Voice Lab fetches at activation, so neither list
-    /// buries the other.
+    /// buries the other. Both are collapsible and start closed, as few people read them; a Card
+    /// that cannot read the SBOM stays open so its problem shows.
     /// </summary>
     /// <remarks>
     /// The SBOM is read when the Cards are built; a license text when it is first shown. Every text
@@ -62,7 +63,9 @@ namespace VirtualVessel.UI.Screens
             Group = group;
             AddToClassList(UssClass);
             AddToClassList(CaptureSourceCard.UssClass);
-            Card card = Ui.Card(group == CreditGroup.OnDemand ? CreditStrings.OnDemandTitle : CreditStrings.Title);
+            Card card = Ui.Card(group == CreditGroup.OnDemand ? CreditStrings.OnDemandTitle : CreditStrings.Title, collapsible: catalog != null);
+            card.Expanded = false;
+            Card = card;
             Add(card);
 
             if (catalog == null)
@@ -83,6 +86,9 @@ namespace VirtualVessel.UI.Screens
                 }
             }
         }
+
+        /// <summary>The Card itself, which opens and closes the list.</summary>
+        public Card Card { get; }
 
         /// <summary>The credits shown; null when the SBOM could not be read.</summary>
         public CreditCatalog Catalog { get; }
