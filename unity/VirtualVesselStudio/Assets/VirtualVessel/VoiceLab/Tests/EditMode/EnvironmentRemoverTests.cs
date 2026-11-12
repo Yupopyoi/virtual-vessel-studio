@@ -24,7 +24,7 @@ namespace VirtualVessel.VoiceLab.Tests
         [Test]
         public void AnEnvironmentElsewhere_OrAcrossVersions_IsNot()
         {
-            Assert.That(VoiceLabEnvironmentRemover.Owned(Environment(@"E:\VirtualVessel\voice-work"), Root), Is.Null, "A developer's environment.");
+            Assert.That(VoiceLabEnvironmentRemover.Owned(Environment(@"D:\work\voice-work"), Root), Is.Null, "A developer's environment.");
             var mixed = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", Root + @"\1.0\scripts", Root + @"\2.0\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
             Assert.That(VoiceLabEnvironmentRemover.Owned(mixed, Root), Is.Null, "Parts of two versions.");
             var partly = new VoiceLabEnvironment(Root + @"\1.0\python\python.exe", Root + @"\1.0\scripts", @"E:\rvc", Root + @"\1.0\voxcpm", Root + @"\1.0\t.onnx", Root + @"\1.0\m.json");
