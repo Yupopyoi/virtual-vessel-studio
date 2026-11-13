@@ -43,6 +43,7 @@ namespace VirtualVessel.Application
         private Task _startTask;
         private Task _stopTask;
         private bool _quitAllowed;
+        private volatile bool _quitWhenStopped;
 
         internal ApplicationState State => _runtime?.State ?? ApplicationState.NotStarted;
 
@@ -94,6 +95,15 @@ namespace VirtualVessel.Application
 
         private void Update()
         {
+            // Quit on the frame after the shutdown finished: here it is always the main thread, and never inside
+            // wantsToQuit (see StopRuntimeAndQuitAsync).
+            if (_quitWhenStopped)
+            {
+                _quitWhenStopped = false;
+                UnityEngine.Application.Quit();
+                return;
+            }
+
             _dispatcher?.Drain(MaxDispatchedActionsPerFrame, OnDispatchedActionFailed);
             _frameLoop?.Tick(OnFrameWorkFailed);
         }
@@ -240,11 +250,14 @@ namespace VirtualVessel.Application
             }
         }
 
+        // The quit itself waits for the next Update. Called here, it was lost (2026-11-14, the quit button left the
+        // window open on an empty scene): when every service stops without waiting, this runs inside the wantsToQuit
+        // that started it, whose answer (false) cancels the quit; and a continuation off the main thread cannot quit.
         private async Task StopRuntimeAndQuitAsync()
         {
             await StopRuntimeAsync();
             _quitAllowed = true;
-            UnityEngine.Application.Quit();
+            _quitWhenStopped = true;
         }
 
         private void OnFrameWorkFailed(Exception exception)

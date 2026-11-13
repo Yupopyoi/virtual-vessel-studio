@@ -295,7 +295,7 @@ sequenceDiagram
 2. 起動に成功したServiceの`ShutdownAsync`を起動と逆順で呼ぶ。
 3. 全Serviceを`Dispose`する。
 4. Session Markerを削除する（正常終了の記録）。
-5. 状態を`Stopped`とし、改めて`Application.Quit()`を呼ぶ。
+5. 状態を`Stopped`とし、次のフレームの`Update`で改めて`Application.Quit()`を呼ぶ。終了処理の続きの中で呼ぶと、終了が取り消されて、ウィンドウが空のシーンのまま残った（2026-11-14）。すべてのServiceが待たずに止まると、続きは終了処理を始めた`wantsToQuit`の中で動き、その`false`の答えが終了を取り消すためである。また、続きがMain Thread以外で動くと、`Application.Quit()`は呼べない。
 
 画面の「終了」項目は、確認のあと`Application.Quit()`を呼び、同じ経路を通る。配信と録画もこの中で閉じる。
 
