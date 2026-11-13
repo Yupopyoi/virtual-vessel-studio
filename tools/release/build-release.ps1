@@ -124,7 +124,7 @@ Get-ChildItem $stage -Directory | Where-Object { $_.Name -match '_DoNotShip$|_Bu
 
 # Voice Lab's Python scripts, its download list (voice-components.json), its lock, and its terms, which activation
 # builds the training environment from on the user's PC (Voice Lab detailed design 8.1). Tests and caches stay out.
-$voiceLab = Join-Path $repository 'servicesoice-lab'
+$voiceLab = Join-Path $repository 'services\voice-lab'
 $voiceLabStage = Join-Path $stage 'VoiceLab\scripts'
 New-Item -ItemType Directory -Force $voiceLabStage | Out-Null
 Get-ChildItem $voiceLab -File | Where-Object { $_.Extension -in '.py', '.toml', '.lock', '.json' } | Copy-Item -Destination $voiceLabStage
