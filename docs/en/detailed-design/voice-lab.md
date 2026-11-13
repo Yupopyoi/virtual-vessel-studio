@@ -274,7 +274,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
-- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.4-draft`, is a draft to review with the user, and to have checked by a legal professional before release (2026-11-11).
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.1`, is the pre-release (v0.2.0) version reviewed with the user. Article 11 says that, as a pre-release, it is likely to change. It is to be checked by a legal professional before the full release (1.0) (user decision, 2026-11-14).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Even when built, Make a voice shows the terms, and until they are agreed to, the steps and Made voices' Make again and Try cannot be used. Agreeing goes back to the steps, with nothing built. Streaming with registered voices does not stop.
@@ -508,7 +508,7 @@ Open issues:
 - Narrowing down VoxCPM2's dependencies. `kaldiio` must be left out (decision record).
 - Checking on a truly new PC. The development PC already has drivers and so on.
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
-- The agreement screen's wording, reviewed by a legal professional before release.
+- The agreement screen's wording, to be reviewed by a legal professional before the full release (1.0). In particular Article 8 (limitation of liability): whether disclaiming liability even for slight negligence falls under the Consumer Contract Act's ban on full exemption (Article 8) or on exemptions that do not make their scope clear (the 2023 amendment), and whether a developer distributing free OSS as an individual counts as a "business" under that Act. The user chose the current wording, which takes on as little liability as possible (2026-11-14).
 - The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
 - The flow of designing a voice (8.3): how well the brightness and breathiness knobs work, the range of the age ratio, and the training-speech vowel hypothesis. "Passable" above was judged on upstream's conversion, not yet on real-time conversion.
 

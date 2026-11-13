@@ -1,5 +1,5 @@
-<!-- version: 0.4-draft -->
-<!-- Draft (2026-11-11). To be reviewed by a legal professional before release (Voice Lab detailed design 8.2, 17). -->
+<!-- version: 0.1 -->
+<!-- Pre-release (v0.2.0, 2026-11-14). To be reviewed by a legal professional before the full release (1.0) (Voice Lab detailed design 8.2, 17). -->
 
 # Voice Lab Terms of Use
 
@@ -94,6 +94,7 @@ To the maximum extent permitted by law, the Developers shall not be liable for a
 1. The Developers may change these Terms when they consider it necessary. These Terms carry a version.
 2. When these Terms are changed, the Software asks the User to agree to the changed Terms before the User makes voices with the Feature.
 3. Streaming with registered voices does not stop even without the agreement in the preceding paragraph.
+4. The Feature is provided as a pre-release, and these Terms are likely to change.
 
 ## Article 12 (Governing Law)
 
