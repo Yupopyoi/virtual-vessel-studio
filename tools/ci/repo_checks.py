@@ -6,6 +6,9 @@ Checks the files tracked by git:
   and no two .meta files share a GUID (a common result of copying or merging assets).
 * String tables: every locale file parses and has the same keys as the others.
 * Documentation: docs/ja and docs/en contain the same documents.
+* Control characters: no source or text file holds one other than tab, line feed, and carriage return.
+  A script that writes "\v" or "\b" into a path without a raw string leaves one, which reads as a path
+  that does not exist (build-release.ps1 copied nothing of Voice Lab for that reason, 2026-11-14).
 * SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
   license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
@@ -58,6 +61,11 @@ _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 _UV_LOCK = re.compile(r"^services/[^/]+/uv\.lock$")
 _LOCK_PACKAGE = re.compile(r"^\[\[package\]\]\n(.*?)(?=^\[|\Z)", re.MULTILINE | re.DOTALL)
 _LOCK_FIELD = re.compile(r'^(name|version|source) = (.*)$', re.MULTILINE)
+
+# Text files the control-character check reads; Unity's serialized assets are left to Unity.
+TEXT_EXTENSIONS = (".cs", ".ps1", ".psm1", ".py", ".md", ".json", ".toml", ".lock", ".yml", ".yaml", ".uss", ".uxml",
+                   ".asmdef", ".cpp", ".h", ".hpp", ".c", ".txt", ".html", ".css", ".js", ".cmake", ".bat", ".cmd")
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 _GUID = re.compile(r"^guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 
@@ -132,6 +140,16 @@ def check_string_tables(tables: Mapping[str, str]) -> list[str]:
         for key in sorted(everything - own):
             errors.append(f"Missing key in {path}: {key}")
 
+    return errors
+
+
+def check_control_characters(texts: Mapping[str, str]) -> list[str]:
+    """Control characters other than tab, line feed, and carriage return, by file and line. Pure."""
+    errors = []
+    for path, text in sorted(texts.items()):
+        for number, line in enumerate(text.split("\n"), 1):
+            for match in _CONTROL.finditer(line):
+                errors.append(f"{path}:{number}: control character U+{ord(match.group()):04X}")
     return errors
 
 
@@ -413,6 +431,12 @@ def run(repository: Path) -> list[str]:
         errors += check_string_tables(tables)
 
     errors += check_doc_pairs(tracked)
+    texts = {
+        p: (repository / p).read_text(encoding="utf-8", errors="replace")
+        for p in tracked
+        if p.endswith(TEXT_EXTENSIONS) and (repository / p).is_file()
+    }
+    errors += check_control_characters(texts)
 
     workflows = {
         p: (repository / p).read_text(encoding="utf-8")

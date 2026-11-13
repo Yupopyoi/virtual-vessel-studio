@@ -905,6 +905,7 @@ PR CIが失敗している変更は原則Mergeしない。
 | GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
 | 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
+| 制御文字 | ソースとテキストのファイルに、タブ、改行、復帰以外の制御文字がないこと。スクリプトがパスに`\v`等を生の文字列でなく書くと残り、存在しないパスになる（`build-release.ps1`がVoice Labのスクリプトを同梱できなくなっていた、2026-11-14） |
 | SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Action、Pythonコンポーネントの`services/*/uv.lock`にあるすべてのPackage（ロックされた版で。Windowsに入らないものも含む）が載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
 | 取得して使う依存 | `tools/deps/*.json`に、Package名、版、`https`のダウンロード先、SHA-256（モデル等の中身のHashも）があること |
 | ライセンスのファイル | `tools/release/license-files.json`が、配布物に入れるライセンスのファイルと、その元のファイルを対応づけていること。SBOMの項目が挙げるファイル（18.1.2）がすべてそこにあること。`Assets/ThirdParty`のライセンスのファイルがすべて配布されること。Gitで管理する元のファイルが存在すること |

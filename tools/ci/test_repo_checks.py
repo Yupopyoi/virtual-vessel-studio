@@ -186,6 +186,12 @@ dependencies = [
         self.assertIn("SBOM: inner needs a scope (required, optional, or excluded)", errors)
 
 
+class ControlCharacterTests(unittest.TestCase):
+    def test_a_vertical_tab_in_a_path_is_found_and_tabs_and_line_ends_are_not(self):
+        texts = {"a.ps1": "x = 'services\x0boice-lab'\r\n\tok\n", "b.md": "fine\ttext\r\n"}
+        self.assertEqual(repo_checks.check_control_characters(texts), ["a.ps1:1: control character U+000B"])
+
+
 class DocPairTests(unittest.TestCase):
     def test_pairs_pass_and_assets_are_ignored(self):
         tracked = ["docs/ja/ui/a.md", "docs/en/ui/a.md", "docs/assets/ui/styleboard.html"]
