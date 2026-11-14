@@ -50,6 +50,10 @@
     { "id": "slow", "slot": "speed", "sentence": "{She} speaks slowly and gently with natural pauses." },
     { "id": "quick", "slot": "speed", "sentence": "{She} speaks at a slightly quick but comfortable conversational pace." }
   ],
+  "lines": {
+    "ja": "今日はとてもいい天気ですね。少し散歩に出かけてみようと思います。みなさんは、休みの日は何をして過ごしていますか？",
+    "en": "It's such a nice day today. I think I'll go out for a little walk. What do you all like to do on your days off?"
+  },
   "sampleSeed": 400,
   "examples": [
     { "id": "calm-adult", "words": ["female", "p40", "lowish", "gentle", "clean", "cool", "steady"], "seeds": { "ja": 400, "en": 400 } },
