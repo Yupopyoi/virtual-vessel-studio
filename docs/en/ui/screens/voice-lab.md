@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-The screen for making the voice the user wants (system design 14.13 to 14.18). The user picks a voice close to the ideal, moves it a little at a time, makes it, and registers it. The workings (seeds, instructions, the training data, training runs) are not shown.
+The screen for making the voice the user wants (system design 14.13 to 14.18). The user picks a voice close to the ideal, moves it a little at a time, makes it, and registers it. The workings (instructions, the training data, training runs) are not shown. The seed appears only in STEP 1's details and on the candidate tiles (the user's decision, 2026-11-14).
 
 - Its identifier is `lab`, and its string keys are `nav.lab` and `lab.*`.
 - It talks to Voice Lab only through `IVoiceLab` (Voice Lab detailed design 5). Candidates and previews play through `IAudioPreview`, on the monitor only (audio detailed design 5.5).
@@ -56,6 +56,8 @@ The user starts from an example, moves it with words, and picks a candidate by e
 - The prompt used to make the voice: the picked words read back as one sentence (`lab.ask.*` and each word's phrase), with the user's words after it.
 - Add words: optional, up to 200 characters; a line says brackets, line breaks, and invisible characters are removed and imitating a real person is not allowed.
 - Candidates per round: 1, 3, 6 (default), or 12, and Make voice candidates. While they are being made, a progress bar says Getting ready while the voice model loads, then Making candidates with "2 / 6", read every 0.3 s, with Stop; the buttons are disabled.
+- Candidate details (`lab.base.details`, folded; the user's decision, 2026-11-14): Line to read (several lines, up to 200 characters, filled with the default line) and Reset to default (disabled while it is the default). One line says the line is for comparing the candidates and has nothing to do with voice conversion itself, and that brackets and line breaks are removed. Making with an empty line shows an error on the field, opens the details, and makes nothing. Seed (a number) is the first seed of the next candidates: it starts from a value that changes every session and moves on by the number made each time. One line says the same prompt, line, and seed make the same candidates again. Neither can be changed while candidates are made. Make again puts the run's line and seed back.
+- Each candidate tile shows its seed under its pitch.
 - Pressing Make voice candidates again replaces them; Make more adds as many again. Candidates are numbered in the order made.
 - The candidates Card: Candidate Tiles (`components.md` 3.27) with pitch and range in Hz, and a sort control (As made, Lowest first, Highest first). Without `IAudioPreview`, the tiles have no play button. Under them, a folded Card shows the English instruction the last candidates were made from.
 - Make candidates near this voice (enabled once a candidate is picked) adds six made with the picked one as the reference (Voice Lab detailed design 8.3.1). Their tiles say which candidate they came from ("From candidate 3"). The picked one stays picked.
