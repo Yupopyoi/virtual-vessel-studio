@@ -152,6 +152,10 @@
     margin-bottom: var(--vv-space-xs);
 }
 
+.vv-lab__held > .vv-text-body {
+    color: var(--vv-color-text);
+}
+
 .vv-lab__held > * {
     margin-right: var(--vv-space-s);
 }
