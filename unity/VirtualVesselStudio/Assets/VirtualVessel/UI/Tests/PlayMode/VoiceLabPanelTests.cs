@@ -647,6 +647,7 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.BuildStep));
             Assert.That(build.Query<StatusChip>().ToList().Any(c => c.TextKey == VoiceLabStrings.BuildOutOfMemory && c.style.display == DisplayStyle.Flex), Is.True);
+            Assert.That(build.Log.Lines.Last(), Does.EndWith(_root.Localizer.Get(VoiceLabStrings.BuildLogFailed)), "The record says how it ended.");
             Assert.That(screen.Steps.enabledSelf, Is.True, "The steps open again after a build.");
         }
 

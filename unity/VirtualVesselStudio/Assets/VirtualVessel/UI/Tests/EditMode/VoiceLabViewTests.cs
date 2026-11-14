@@ -462,6 +462,26 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheBuildRecord_WritesANewStage_ThenItsCountEveryTwentieth()
+        {
+            var training = new VoiceLabBuildProgress(VoiceLabBuildState.Training, 0.5f, 30, 600);
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Preparing, 48, training), Is.True, "A new stage.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 10, training), Is.False, "20 epochs is under a twentieth of 600.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 0, training), Is.True);
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 599, new VoiceLabBuildProgress(VoiceLabBuildState.Training, 1f, 600, 600)), Is.True, "The end of a stage.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Preprocessing, 0, new VoiceLabBuildProgress(VoiceLabBuildState.Preprocessing, 0.1f, 1, 1)), Is.False, "A count of one is a stage loading.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.None, -1, default), Is.False);
+        }
+
+        [Test]
+        public void TheBuildRecordsLine_SaysTheTimeTheStageAndItsCount()
+        {
+            var at = new System.DateTime(2026, 11, 15, 14, 20, 5);
+            Assert.That(VoiceLabBuildLog.LineText(null, at, VoiceLabBuildState.Training, 30, 600, false), Is.EqualTo("14:20:05  " + VoiceLabView.BuildStageKey(VoiceLabBuildState.Training) + "  30 / 600"));
+            Assert.That(VoiceLabBuildLog.LineText(null, at, VoiceLabBuildState.Cancelled, 0, 0, true), Is.EqualTo("14:20:05  " + VoiceLabStrings.BuildLogStopped));
+        }
+
+        [Test]
         public void TheShippedTerms_ReadAsArticles_InBothLanguages()
         {
             foreach (string language in new[] { "ja", "en" })

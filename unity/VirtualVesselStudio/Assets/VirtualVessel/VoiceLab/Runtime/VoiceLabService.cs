@@ -230,7 +230,7 @@ namespace VirtualVessel.VoiceLab
             Ensure();
             ForgetWork();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
-            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
+            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction, p.Done, p.Total));
             // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.
             using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _buildCancel.Value = cancel;

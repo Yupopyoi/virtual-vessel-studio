@@ -288,6 +288,11 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string TabMake = "lab.tab.make";
         public const string TabMade = "lab.tab.made";
+        public const string BuildLogCount = "lab.build.log.count";
+        public const string BuildLogEpochs = "lab.build.log.epochs";
+        public const string BuildLogDone = "lab.build.log.done";
+        public const string BuildLogFailed = "lab.build.log.failed";
+        public const string BuildLogStopped = "lab.build.log.stopped";
         public const string TabTerms = "lab.tab.terms";
         public const string TermsTabTitle = "lab.terms-tab.title";
         public const string TermsTabAgreed = "lab.terms-tab.agreed";

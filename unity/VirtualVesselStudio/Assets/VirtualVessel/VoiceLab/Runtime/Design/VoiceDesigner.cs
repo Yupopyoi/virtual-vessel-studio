@@ -16,16 +16,23 @@ namespace VirtualVessel.VoiceLab.Design
     /// <summary>How far building a voice is, in the states the screens show (system design 13.15).</summary>
     public readonly struct BuildProgress
     {
-        public BuildProgress(TrainingState state, float fraction)
+        public BuildProgress(TrainingState state, float fraction, int done = 0, int total = 0)
         {
             State = state;
             Fraction = fraction;
+            Done = done;
+            Total = total;
         }
 
         public TrainingState State { get; }
 
         /// <summary>The whole build, from 0 to 1.</summary>
         public float Fraction { get; }
+
+        /// <summary>The step's own count, as its script reports it: lines of speech, epochs; 0 of 0 while it loads.</summary>
+        public int Done { get; }
+
+        public int Total { get; }
     }
 
     /// <summary>How much a build makes: training epochs and lines of training speech (Voice Lab detailed design 8.3.3).</summary>
@@ -171,7 +178,7 @@ namespace VirtualVessel.VoiceLab.Design
                     BuildStep step = s_steps[i];
                     run = Keep(run.With(step.State, _clock.UtcNow));
                     int index = i;
-                    var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total, plan))));
+                    var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total, plan), p.Done, p.Total)));
                     ConfigDocument result = await _scripts.RunAsync(step.Script, step.Operation, StepRequest(index, candidate, timbre, folder, _scripts.Environment, plan), folder, scriptProgress, cancellationToken).ConfigureAwait(false);
                     Dictionary<string, string> versions = result.Get<Dictionary<string, string>>("versions");
                     if (versions != null)

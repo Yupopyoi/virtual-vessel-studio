@@ -129,16 +129,23 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A build as the screen follows it.</summary>
     public readonly struct VoiceLabBuildProgress
     {
-        public VoiceLabBuildProgress(VoiceLabBuildState state, float fraction)
+        public VoiceLabBuildProgress(VoiceLabBuildState state, float fraction, int done = 0, int total = 0)
         {
             State = state;
             Fraction = fraction;
+            Done = done;
+            Total = total;
         }
 
         public VoiceLabBuildState State { get; }
 
         /// <summary>The whole build, 0 to 1.</summary>
         public float Fraction { get; }
+
+        /// <summary>The stage's own count: lines of training speech, epochs; 0 of 0 while a stage loads.</summary>
+        public int Done { get; }
+
+        public int Total { get; }
     }
 
     /// <summary>How far making candidates is: <see cref="Done"/> of <see cref="Total"/>; a total of 0 while the voice model loads.</summary>
