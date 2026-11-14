@@ -69,6 +69,22 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void AFoldedGroupOfOne_CanBeTakenOff_ButAMainOneCannot()
+        {
+            var shelf = new VoiceLabShelf(
+                new[]
+                {
+                    new VoiceLabShelfGroup("voice", true, new[] { new VoiceLabShelfWord("female", "voice", true), new VoiceLabShelfWord("male", "voice", false) }),
+                    new VoiceLabShelfGroup("character", false, new[] { new VoiceLabShelfWord("friendly", "character", true), new VoiceLabShelfWord("shy", "character", false) }),
+                },
+                null);
+            IReadOnlyList<string> picked = shelf.Start();
+            Assert.That(picked, Is.EqualTo(new[] { "female", "friendly" }), "The screen starts with the character the base has.");
+            Assert.That(shelf.Toggle(picked, "friendly"), Is.EqualTo(new[] { "female" }), "Taken off, the character says none (the user's decision, 2026-11-14).");
+            Assert.That(shelf.Toggle(picked, "female"), Is.EqualTo(picked));
+        }
+
+        [Test]
         public void AnExample_FillsTheSlotsItLeavesOpenFromTheStart()
         {
             VoiceLabShelf shelf = Shelf();

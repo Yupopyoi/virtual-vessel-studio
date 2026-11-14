@@ -41,7 +41,8 @@ namespace VirtualVessel.VoiceLab.Design
             List<WordFields> words = document.Get("words", new List<WordFields>());
             List<GroupFields> groups = document.Get("groups", new List<GroupFields>());
             var groupOfSlot = slots.Where(s => s.Group != null).ToDictionary(s => s.Id, s => s.Group, StringComparer.Ordinal);
-            var defaults = new HashSet<string>(slots.Where(s => s.Default != null).Select(s => s.Default), StringComparer.Ordinal);
+            // A slot's default or start word is in the base the screen starts from (prompt.in_base).
+            var defaults = new HashSet<string>(slots.Select(s => s.Default ?? s.Start).Where(id => id != null), StringComparer.Ordinal);
             if (words.Any(w => w.Id == null || w.Slot == null || !groupOfSlot.ContainsKey(w.Slot)))
             {
                 problem = "A word of the shelf has no slot in a group.";
@@ -83,6 +84,9 @@ namespace VirtualVessel.VoiceLab.Design
             public string Group { get; set; }
 
             public string Default { get; set; }
+
+            /// <summary>The word the screen starts with when the slot has no default (prompt.start_picks).</summary>
+            public string Start { get; set; }
         }
 
         private sealed class WordFields

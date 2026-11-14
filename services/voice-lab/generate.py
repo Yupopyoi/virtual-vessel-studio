@@ -150,18 +150,21 @@ def reference_of(request):
 
 def sample_plan(shelf, languages):
     """Every sample to make: (language, file name, picked words, seed), in order. Pure."""
-    defaults = {slot.get("default") for slot in shelf["slots"]}
+    base = prompt.start_picks(shelf)
+    slot_of = {word["id"]: word["slot"] for word in shelf["words"]}
+    in_base = prompt.in_base(shelf)
     plan = []
     for lang in languages:
         if lang not in shelf["lines"]:
             raise protocol.BadRequest(f"No sample line for language '{lang}'.")
         for example in shelf["examples"]:
             plan.append((lang, f"example_{example['id']}.wav", example["words"], example["seeds"][lang]))
-        plan.append((lang, "base.wav", [], shelf["sampleSeed"]))
-        # A default word adds nothing to the base, so its sample is the base.
+        plan.append((lang, "base.wav", base, shelf["sampleSeed"]))
+        # A word already in the base adds nothing to it, so its sample is the base; any other replaces its slot's.
         for word in shelf["words"]:
-            if word["id"] not in defaults:
-                plan.append((lang, f"word_{word['id']}.wav", [word["id"]], shelf["sampleSeed"]))
+            if word["id"] not in in_base:
+                picked = [w for w in base if slot_of[w] != word["slot"]] + [word["id"]]
+                plan.append((lang, f"word_{word['id']}.wav", picked, shelf["sampleSeed"]))
     return plan
 
 

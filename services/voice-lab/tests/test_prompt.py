@@ -25,12 +25,30 @@ AIRY_SOFT = (
 
 
 
-def test_an_empty_pick_gives_the_natural_preset():
-    assert prompt.build(SHELF, []) == NATURAL
+START = prompt.start_picks(SHELF)
+
+
+def test_the_start_gives_the_natural_preset():
+    assert START == ["friendly"]
+    assert prompt.build(SHELF, START) == NATURAL
 
 
 def test_words_give_the_experiments_airy_soft():
-    assert prompt.build(SHELF, ["airy", "gentle"]) == AIRY_SOFT
+    assert prompt.build(SHELF, START + ["airy", "gentle"]) == AIRY_SOFT
+
+
+def test_without_a_character_the_instruction_says_none():
+    text = prompt.build(SHELF, [])
+    assert "She speaks naturally, with relaxed but attentive energy." in text
+    assert "charming" not in text
+    assert text == NATURAL.replace("She sounds naturally charming and friendly", "She speaks naturally")
+
+
+def test_every_character_word_reads_on_into_the_energy():
+    for word in (w for w in SHELF["words"] if w["slot"] == "character"):
+        text = prompt.build(SHELF, [word["id"], "gentle"])
+        assert word["sentence"].replace("{She}", "She") + ", with a calm, gentle and relaxed mood." in text
+        assert "He sounds" in prompt.build(SHELF, [word["id"], "male"])
 
 
 def test_picking_a_default_changes_nothing():
@@ -60,9 +78,9 @@ def test_a_manner_word_keeps_the_other_manner_default():
 
 
 def test_words_are_added_as_a_sentence():
-    assert prompt.build(SHELF, [], "  slightly husky ").endswith(" slightly husky.")
-    assert prompt.build(SHELF, [], "少し舌足らず。").endswith(" 少し舌足らず。")
-    assert prompt.build(SHELF, [], "   ") == NATURAL
+    assert prompt.build(SHELF, START, "  slightly husky ").endswith(" slightly husky.")
+    assert prompt.build(SHELF, START, "少し舌足らず。").endswith(" 少し舌足らず。")
+    assert prompt.build(SHELF, START, "   ") == NATURAL
 
 
 def test_free_words_cannot_close_the_instruction():
@@ -82,5 +100,6 @@ def test_every_example_is_a_valid_pick_with_seeds():
 def test_every_slot_default_is_its_own_word():
     words = {w["id"]: w for w in SHELF["words"]}
     for slot in SHELF["slots"]:
-        if slot.get("default"):
-            assert words[slot["default"]]["slot"] == slot["id"]
+        for key in ("default", "start"):
+            if slot.get(key):
+                assert words[slot[key]]["slot"] == slot["id"]

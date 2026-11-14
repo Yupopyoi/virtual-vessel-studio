@@ -38,9 +38,12 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking SamplesProgress => default;
 
+        /// <summary>Samples not made even when the others are, as for words a later version added.</summary>
+        public HashSet<string> MissingSamples { get; } = new HashSet<string>();
+
         public string SampleFile(string language, string name)
         {
-            return SamplesMade ? language + "/" + name : null;
+            return SamplesMade && !MissingSamples.Contains(name) ? language + "/" + name : null;
         }
 
         public Task MakeSamplesAsync(CancellationToken cancellationToken)

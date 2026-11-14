@@ -106,6 +106,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string BaseLead = "lab.base.lead";
         public const string Mood = "lab.base.mood";
         public const string SamplesMissing = "lab.base.samples-missing";
+        public const string SamplesPartial = "lab.base.samples-partial";
         public const string MakeSamples = "lab.base.make-samples";
         public const string MakingSamples = "lab.base.making-samples";
         public const string SamplesFailed = "lab.base.samples-failed";

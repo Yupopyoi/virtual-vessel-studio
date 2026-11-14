@@ -236,6 +236,25 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator WordsWithoutASample_AreOfferedTheirs_WhileTheExamplesStay()
+        {
+            _lab.SamplesMade = true;
+            _lab.MissingSamples.Add("word_airy.wav");
+            var baseStep = (VoiceLabBaseStep)Screen().Panel(VoiceLabScreen.BaseStep);
+            VoiceLabShelfView request = baseStep.RequestView;
+            request.RefreshSamples();
+            yield return null;
+
+            Assert.That(request.OffersSamples, Is.True, "A word a later version added has no sample yet.");
+            Card examples = request.Query<Card>().ToList().First(c => c.TitleKey == VoiceLabStrings.Examples);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.Flex), "The base is made, so the examples play.");
+
+            _lab.MissingSamples.Clear();
+            request.RefreshSamples();
+            Assert.That(request.OffersSamples, Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator CandidatesNearAPickedOne_AreAddedAndSayWhereTheyCameFrom()
         {
             VoiceLabScreen screen = Screen();

@@ -51,6 +51,15 @@ def test_samples_are_the_examples_the_base_and_each_word_that_is_not_a_default()
     assert names[:len(shelf["examples"])] == [f"example_{e['id']}.wav" for e in shelf["examples"]]
     assert "base.wav" in names and "word_male.wav" in names and "word_soft.wav" not in names
     assert {seed for _, name, _, seed in plan if name.startswith("word_")} == {shelf["sampleSeed"]}
+    assert "word_friendly.wav" not in names, "The start's character is in the base."
+
+
+def test_each_word_sample_is_the_base_with_only_that_word_changed():
+    shelf = prompt.load()
+    plan = {name: picked for _, name, picked, _ in generate.sample_plan(shelf, ["ja"])}
+    assert plan["base.wav"] == ["friendly"]
+    assert plan["word_shy.wav"] == ["shy"], "A character word replaces the start's."
+    assert plan["word_male.wav"] == ["friendly", "male"]
     with pytest.raises(protocol.BadRequest):
         generate.sample_plan(shelf, ["xx"])
 

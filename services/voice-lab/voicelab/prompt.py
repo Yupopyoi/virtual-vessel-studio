@@ -2,8 +2,10 @@
 design 8.3.1).
 
 The shelf is voicelab/shelf.json, read by Unity too. Each word fills one slot of the instruction; a slot with
-no word takes its default, so an empty pick gives the instruction VCBM's VoicePromptBuilder was tuned with,
-but for the person, which says the age the screen shows (the user's decision, 2026-11-07). The other sentences
+no word takes its default word, or its default sentence. The start (start_picks, what the screen starts with)
+gives the instruction VCBM's VoicePromptBuilder was tuned with, but for the person, which says the age the
+screen shows (the user's decision, 2026-11-07). The character slot has a start word but no default, so the user
+can take the character out (the user's decision, 2026-11-14). The other sentences
 are VCBM's, or were heard apart from their neighbours in a blind A/B test (decision record, 2026-11-07). They
 are written for a female voice; the male word swaps the person and the pronouns.
 """
@@ -61,6 +63,17 @@ def _sentence(text):
     if not text:
         return ""
     return text if text[-1] in ".!?。！？" else text + "."
+
+
+def start_picks(shelf):
+    """The words the screen starts with and the samples' base is made with: each slot's "start" word. A slot's
+    default needs no pick, as it is used anyway. Pure."""
+    return [slot["start"] for slot in shelf["slots"] if slot.get("start")]
+
+
+def in_base(shelf):
+    """The words already in the base: each slot's default and start word, whose own sample is the base. Pure."""
+    return {slot.get("default") or slot.get("start") for slot in shelf["slots"]} - {None}
 
 
 def resolve(shelf, picked):
