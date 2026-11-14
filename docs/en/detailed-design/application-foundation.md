@@ -262,6 +262,8 @@ The format of `%LOCALAPPDATA%\VirtualVesselStudio\bootstrap.json` from system de
 
 A built application runs one instance at a time (Unity's `forceSingleInstance`). Two instances would fight over the camera, the microphone, and the capture devices, write the same settings and logs, and could publish the same stream key twice.
 
+The app opens as a normal window, maximized, not as a full screen that hides the taskbar (user decision, 2026-11-14): while streaming it is used beside a browser, the chat, and the game. The window can be resized, and restored it is 1280×720. The player settings (`fullscreenMode` set to Windowed, `resizableWindow`) are not enough: Unity saves the last display mode per user and uses it next time, and earlier versions saved full screen. So at startup `ApplicationBootstrap` turns a full screen back into a window and then maximizes it (`ApplicationWindow.OpenMaximized`). In the Editor it does nothing.
+
 ```mermaid
 sequenceDiagram
     participant Unity

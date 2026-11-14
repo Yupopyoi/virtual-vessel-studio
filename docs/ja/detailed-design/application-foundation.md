@@ -262,6 +262,8 @@ Requiredとするのは、それなしでは診断も復旧もできないServic
 
 ビルドしたアプリは、同時に1つだけ起動する（Unityの`forceSingleInstance`）。2つ起動すると、カメラ、マイク、キャプチャー機器を取り合い、同じ設定とログへ書き込み、同じストリームキーで二重に配信するおそれがあるためである。
 
+アプリは通常のウィンドウとして、最大化して開く。タスクバーを隠す全画面にはしない（利用者の決定、2026-11-14）。配信中はブラウザー、コメント欄、ゲームと並べて使うためである。ウィンドウの大きさは変えられ、元に戻したときは1280×720になる。Playerの設定（`fullscreenMode`をWindowed、`resizableWindow`）だけでは足りない。Unityは利用者ごとに前回の表示モードを保存して次回に使い、以前の版は全画面を保存しているためである。そのため`ApplicationBootstrap`は起動時に、全画面ならウィンドウに戻してから最大化する（`ApplicationWindow.OpenMaximized`）。Editorでは何もしない。
+
 ```mermaid
 sequenceDiagram
     participant Unity
