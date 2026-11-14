@@ -14,6 +14,8 @@ namespace VirtualVessel.UI.VoiceLab
     {
         public const string TilesClass = VoiceLabScreen.UssClass + "__tiles";
 
+        private const long CopiedMilliseconds = 2000;
+
         private readonly IVoiceLab _lab;
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
@@ -30,6 +32,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly Segmented _count;
         private readonly VoiceLabCandidateDetails _details;
         private readonly Label _instruction;
+        private readonly ActionButton _copyInstruction;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
         private readonly Segmented _order;
@@ -98,6 +101,11 @@ namespace VirtualVessel.UI.VoiceLab
             _instruction.AddToClassList("vv-text-body");
             _instruction.AddToClassList(VoiceLabScreen.NoteClass);
             instruction.Add(_instruction);
+
+            // For the user who takes it elsewhere, such as into a prompt written whole (the user's review, 2026-11-15).
+            _copyInstruction = Ui.Button(VoiceLabStrings.InstructionCopy);
+            _copyInstruction.clicked += CopyInstruction;
+            instruction.Add(VoiceLabScreen.Actions(_copyInstruction));
             _candidatesCard.Add(instruction);
             Add(_candidatesCard);
 
@@ -130,6 +138,17 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         public string InstructionText => _instruction.text;
+
+        public ActionButton CopyInstructionButton => _copyInstruction;
+
+        private void CopyInstruction()
+        {
+            UnityEngine.GUIUtility.systemCopyBuffer = _instruction.text;
+
+            // Says it worked for a moment, then offers it again.
+            _copyInstruction.TextKey = VoiceLabStrings.InstructionCopied;
+            _copyInstruction.schedule.Execute(() => _copyInstruction.TextKey = VoiceLabStrings.InstructionCopy).StartingIn(CopiedMilliseconds);
+        }
 
         /// <summary>Says a run being made again has lost its base's audio, so a new base is picked here.</summary>
         public void ShowBaseGone(bool gone)

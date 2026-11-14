@@ -128,6 +128,8 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ModelNote = "lab.base.model-note";
         public const string WordsNote = "lab.base.words-note";
         public const string Instruction = "lab.base.instruction";
+        public const string InstructionCopy = "lab.base.instruction-copy";
+        public const string InstructionCopied = "lab.base.instruction-copied";
         public const string MoreMood = "lab.base.more-mood";
         public const string Details = "lab.base.details";
         public const string Line = "lab.base.line";

@@ -667,6 +667,22 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheInstruction_IsCopied_AndTheButtonSaysSoForAMoment()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            UnityEngine.GUIUtility.systemCopyBuffer = string.Empty;
+
+            Submit(baseStep.CopyInstructionButton);
+            Assert.That(UnityEngine.GUIUtility.systemCopyBuffer, Is.EqualTo(baseStep.InstructionText));
+            Assert.That(baseStep.CopyInstructionButton.TextKey, Is.EqualTo(VoiceLabStrings.InstructionCopied));
+            yield return new WaitForSeconds(2.2f);
+            Assert.That(baseStep.CopyInstructionButton.TextKey, Is.EqualTo(VoiceLabStrings.InstructionCopy));
+        }
+
+        [UnityTest]
         public IEnumerator AnEmptyLine_AsksNothing_AndOpensTheDetailsOnItsError()
         {
             VoiceLabScreen screen = Screen();
