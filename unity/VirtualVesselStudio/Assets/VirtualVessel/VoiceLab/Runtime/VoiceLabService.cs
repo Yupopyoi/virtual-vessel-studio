@@ -22,7 +22,7 @@ namespace VirtualVessel.VoiceLab
     /// <see cref="IVoiceLab"/> for the Voice Lab screen (Voice Lab detailed design 4, 5): the designer, the runs,
     /// and registration behind one face. Without a training environment it says so and does nothing.
     /// </summary>
-    public sealed class VoiceLabService : IVoiceLab
+    public sealed partial class VoiceLabService : IVoiceLab
     {
         /// <summary>The developer's environment file in the settings folder, until activation writes it (Voice Lab detailed design 6.4).</summary>
         public const string EnvironmentFile = "voice-lab-environment.json";
@@ -59,6 +59,7 @@ namespace VirtualVessel.VoiceLab
             _log = log;
             _random = random ?? new Random();
             Library = library;
+            _work = new WorkStore(voiceLabFolder, clock);
         }
 
         /// <summary>
@@ -227,6 +228,7 @@ namespace VirtualVessel.VoiceLab
         public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Ensure();
+            ForgetWork();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
             var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
             // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.

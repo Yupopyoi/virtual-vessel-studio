@@ -7,6 +7,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Voice.Models;
+using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Training;
 
@@ -42,7 +43,8 @@ namespace VirtualVessel.VoiceLab
         public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building, Func<VoiceLabActivity> activity = null)
         {
             var runs = new TrainingRunStore(voiceLabFolder, clock);
-            return new VoiceLabLibrary(runs, new VoiceModelStore(voiceModelsFolder, clock), clock, building, new VoiceLabStorage(voiceLabFolder, runs, activity));
+            var storage = new VoiceLabStorage(voiceLabFolder, runs, activity, () => WorkStore.KeptFiles(voiceLabFolder, clock));
+            return new VoiceLabLibrary(runs, new VoiceModelStore(voiceModelsFolder, clock), clock, building, storage);
         }
 
         public CrudResult<VoiceLabStorageUse> StorageUse()

@@ -219,6 +219,20 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Where the running <see cref="MakeCandidatesAsync"/> is. Read it as often as needed.</summary>
         VoiceLabMaking CandidatesProgress { get; }
 
+        /// <summary>
+        /// The STEP 1 and STEP 2 left unfinished, with its candidates made candidates of this session again so they can
+        /// be played and built (Voice Lab detailed design 6.6). Candidates whose audio is gone are left out. A CRUD read
+        /// (system design 6.31): NotFound when none is kept or none of its candidates is left, Invalid when Voice Lab is
+        /// not set up or the file was damaged, StorageFailed when it could not be read.
+        /// </summary>
+        CrudResult<VoiceLabWork> LoadWork();
+
+        /// <summary>Keeps the unfinished work in place of the last; a CRUD update. Invalid when Voice Lab is not set up.</summary>
+        CrudResult SaveWork(VoiceLabWork work);
+
+        /// <summary>Forgets the unfinished work; a CRUD delete that succeeds when there was none.</summary>
+        CrudResult DeleteWork();
+
         /// <exception cref="VoiceLabFailedException">The preview could not be made.</exception>
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
 

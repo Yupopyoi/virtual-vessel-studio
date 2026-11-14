@@ -102,6 +102,29 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking CandidatesProgress => default;
 
+        /// <summary>The unfinished work kept, as the file would hold it; null for none.</summary>
+        public VoiceLabWork KeptWork { get; set; }
+
+        public int WorkSaves { get; private set; }
+
+        public CrudResult<VoiceLabWork> LoadWork()
+        {
+            return KeptWork != null ? CrudResult<VoiceLabWork>.Success(KeptWork) : CrudResult<VoiceLabWork>.Fail(CrudError.NotFound, "None kept.");
+        }
+
+        public CrudResult SaveWork(VoiceLabWork work)
+        {
+            KeptWork = work;
+            WorkSaves++;
+            return CrudResult.Success;
+        }
+
+        public CrudResult DeleteWork()
+        {
+            KeptWork = null;
+            return CrudResult.Success;
+        }
+
         public List<int> Counts { get; } = new List<int>();
 
         public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
