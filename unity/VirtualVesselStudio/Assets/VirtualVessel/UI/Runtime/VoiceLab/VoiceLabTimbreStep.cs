@@ -95,6 +95,7 @@ namespace VirtualVessel.UI.VoiceLab
             _failed = Ui.Chip(StatusKind.Error, VoiceLabStrings.ShapeFailed);
             timbre.Add(_failed);
             _held = new VoiceLabHoldList(ListenTo, Restore);
+            _held.Changed += _flow.WorkChanged;
             _hold.clicked += () =>
             {
                 _held.Hold(Timbre);
@@ -186,6 +187,7 @@ namespace VirtualVessel.UI.VoiceLab
         {
             _draft.Timbre = Timbre;
             _flow.Rewind(VoiceLabScreen.TimbreStep);
+            _flow.WorkChanged();
             _failed.style.display = DisplayStyle.None;
             Refresh();
         }

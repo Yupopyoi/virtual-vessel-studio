@@ -47,6 +47,42 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabCandidateDetails.NextSeed(VoiceLabCandidateDetails.MaxSeed, 1), Is.EqualTo(0));
         }
 
+        [TestCase(false, true, 0, VoiceLabScreen.BaseStep, false, true, false)]
+        [TestCase(true, true, 0, VoiceLabScreen.BaseStep, false, false, false)]
+        [TestCase(false, false, 2, VoiceLabScreen.TimbreStep, false, false, true)]
+        [TestCase(false, false, 2, VoiceLabScreen.TryStep, false, false, false)]
+        [TestCase(false, false, 2, VoiceLabScreen.BaseStep, true, false, false)]
+        public void TheResumeNotice_OffersTheWorkOnlyBeforeThisSessionMadeAny_AndAVoiceOnlyInTheFirstSteps(bool made, bool kept, int voices, int step, bool building, bool work, bool voice)
+        {
+            Assert.That(VoiceLabResumeNotice.WhatToShow(made, kept, voices, step, building), Is.EqualTo((work, voice)));
+        }
+
+        [TestCase(VoiceLabScreen.BaseStep, false, false, VoiceLabScreen.BaseStep)]
+        [TestCase(VoiceLabScreen.TimbreStep, false, false, VoiceLabScreen.TimbreStep)]
+        [TestCase(VoiceLabScreen.BuildStep, false, false, VoiceLabScreen.TimbreStep)]
+        [TestCase(VoiceLabScreen.BuildStep, false, true, -1)]
+        [TestCase(VoiceLabScreen.BuildStep, true, false, -1)]
+        [TestCase(VoiceLabScreen.TryStep, true, false, -1)]
+        public void TheWork_IsKeptUntilBuildingBegins(int current, bool built, bool building, int expected)
+        {
+            Assert.That(VoiceLabResumeNotice.StepToKeep(current, built, building), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void VoicesNotRegistered_AreTheCompletedRunsWithoutAVoice_NewestFirst()
+        {
+            var now = System.DateTimeOffset.UtcNow;
+            var runs = new[]
+            {
+                new VoiceLabRunRecord("old", now.AddDays(-1), VoiceLabBuildState.Completed, null, "", default, "", null, null),
+                new VoiceLabRunRecord("failed", now, VoiceLabBuildState.Failed, null, "", default, "", null, null),
+                new VoiceLabRunRecord("registered", now, VoiceLabBuildState.Completed, null, "", default, "", null, new[] { "Fuwari" }),
+                new VoiceLabRunRecord("new", now, VoiceLabBuildState.Completed, null, "", default, "", null, null),
+            };
+
+            Assert.That(VoiceLabResumeNotice.UnregisteredOf(runs).Select(r => r.RunId), Is.EqualTo(new[] { "new", "old" }));
+        }
+
         [Test]
         public void Shelf_StartsWithEachPickOneGroupsDefault()
         {

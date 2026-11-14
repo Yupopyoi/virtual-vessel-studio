@@ -167,6 +167,39 @@ namespace VirtualVessel.UI.Tests
             Assert.That(problems, Is.Empty, string.Join("\n", problems));
         }
 
+        [UnityTest]
+        public IEnumerator TheResumeNotice_IsReadable_OnBothBackgrounds()
+        {
+            Object.Destroy(_host);
+            yield return null;
+            var candidate = new VoiceLabWorkCandidate(1, 0, new VoiceLabCandidate("work_1_500", "a.wav", 240, 200, 300, "calm", 500));
+            var lab = new FakeLab { KeptWork = new VoiceLabWork(VoiceLabScreen.BaseStep, null, new[] { candidate }, 0, default, null, DateTimeOffset.UtcNow) };
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, null, "", default, "", "a.wav", null));
+            library.Runs.Add(new VoiceLabRunRecord("run-2", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, null, "", default, "", "b.wav", null));
+            _host = new GameObject(nameof(UiReadabilityTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { VoiceLab = lab, VoiceLabLibrary = library }));
+            yield return null;
+            _root.Shell.Open("lab");
+            var screen = (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            Assert.That(screen.Resume.WorkCard.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(screen.Resume.VoiceCard.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+
+            var problems = new List<string>();
+            foreach (ThemeBackground background in new[] { ThemeBackground.Dark, ThemeBackground.Light })
+            {
+                _root.Settings.SetBackground(background);
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/resume/{background}");
+            }
+
+            Assert.That(problems, Is.Empty, string.Join("\n", problems));
+        }
+
         private static void Submit(VisualElement element)
         {
             using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())

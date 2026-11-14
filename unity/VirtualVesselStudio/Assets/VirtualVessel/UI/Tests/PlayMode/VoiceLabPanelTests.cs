@@ -355,6 +355,85 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheWork_IsKeptAMomentAfterItChanges_AsTheStepsStand()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Assert.That(_lab.KeptWork, Is.Null);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.Last().PickButton);
+            screen.GoTo(VoiceLabScreen.TimbreStep);
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            timbre.Restore(new VoiceLabTimbre(3f, 0f, 0f, 0f));
+            Submit(timbre.HoldButton);
+            yield return new WaitForSeconds(0.7f);
+
+            VoiceLabWork kept = _lab.KeptWork;
+            Assert.That(kept, Is.Not.Null);
+            Assert.That((kept.Step, kept.Candidates.Count, kept.Picked), Is.EqualTo((VoiceLabScreen.TimbreStep, 6, 6)));
+            Assert.That((kept.Timbre.Pitch, kept.Held.Single().Pitch), Is.EqualTo((3f, 3f)));
+            Assert.That(_lab.WorkSaves, Is.LessThan(4), "Changes close together are kept in one write.");
+            Assert.That(screen.Resume.WorkCard.style.display.value, Is.EqualTo(DisplayStyle.None), "This session holds the work itself.");
+        }
+
+        [UnityTest]
+        public IEnumerator KeptWork_IsOffered_AndContinuesWhereItStopped()
+        {
+            Object.Destroy(_host);
+            var candidates = new[]
+            {
+                new VoiceLabWorkCandidate(1, 0, new VoiceLabCandidate("work_1_500", "a.wav", 240, 200, 300, "calm", 500)),
+                new VoiceLabWorkCandidate(2, 1, new VoiceLabCandidate("work_2_501", "b.wav", 260, 200, 300, "calm", 501)),
+            };
+            var request = new VoiceLabRequest(new[] { "male" }, "husky", null, "おはよう。", 502);
+            _lab.KeptWork = new VoiceLabWork(VoiceLabScreen.TimbreStep, request, candidates, 2, new VoiceLabTimbre(2f, 1f, 0f, 0f), new[] { new VoiceLabTimbre(4f, 0f, 0f, 0f) }, DateTimeOffset.UtcNow);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview });
+            VoiceLabScreen screen = Screen();
+            yield return null;
+
+            Assert.That(screen.Resume.WorkCard.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Submit(screen.Resume.ContinueButton);
+            yield return null;
+
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TimbreStep));
+            Assert.That(baseStep.Tiles.Count(), Is.EqualTo(2));
+            Assert.That(baseStep.Tiles.Single(t => t.Picked), Is.Not.Null, "The candidate picked is picked again.");
+            Assert.That(baseStep.RequestView.Picked, Does.Contain("male"));
+            Assert.That((baseStep.Details.Line.value, baseStep.Details.FirstSeed), Is.EqualTo(("おはよう。", 502)));
+            Assert.That(timbre.Timbre.Pitch, Is.EqualTo(2f));
+            Assert.That(timbre.HeldList.Held.Single().Pitch, Is.EqualTo(4f));
+            Assert.That(screen.Resume.WorkCard.style.display.value, Is.EqualTo(DisplayStyle.None), "Continued, so no longer offered.");
+
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Assert.That(baseStep.Tiles.Count(), Is.EqualTo(6), "Make replaces the set, as a new request does.");
+        }
+
+        [UnityTest]
+        public IEnumerator AVoiceNotRegistered_IsOfferedInTheFirstSteps_AndOpensSTEP4()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-old", DateTimeOffset.UtcNow.AddDays(-1), VoiceLabBuildState.Completed, new[] { "male" }, "", default, "", "a.wav", null));
+            library.Runs.Add(new VoiceLabRunRecord("run-new", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", default, "", "b.wav", null));
+            library.Runs.Add(new VoiceLabRunRecord("run-kept", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", default, "", "c.wav", new[] { "Fuwari" }));
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "", new VoiceLabCandidate("candidate_7", "b.wav", 140, 100, 200), default);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+
+            Assert.That(screen.Resume.VoiceCard.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Submit(screen.Resume.TryButton);
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep), "The newest one is tried.");
+            Assert.That(screen.Resume.VoiceCard.style.display.value, Is.EqualTo(DisplayStyle.None), "Not over the voice being tried.");
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);

@@ -45,6 +45,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Back to STEP 1 with the later steps closed, to make another voice.</summary>
         void StartOver();
+
+        /// <summary>STEP 1 or STEP 2 changed, so the unfinished work is kept again (Voice Lab detailed design 6.6).</summary>
+        void WorkChanged();
     }
 
     /// <summary>
@@ -52,7 +55,7 @@ namespace VirtualVessel.UI.VoiceLab
     /// a base, shape its timbre, make it, try it, and register it. Finished steps can be revisited. A second
     /// tab lists what was made (screen spec 8).
     /// </summary>
-    public sealed class VoiceLabScreen : VisualElement, IScreen, IVoiceLabFlow
+    public sealed partial class VoiceLabScreen : VisualElement, IScreen, IVoiceLabFlow
     {
         public const string UssClass = "vv-lab";
         public const string PanelClass = UssClass + "__panel";
@@ -250,6 +253,7 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             GoTo(BaseStep);
+            BuildResume();
         }
 
         /// <summary>The steps of making a voice; null until Voice Lab is ready.</summary>
@@ -308,6 +312,7 @@ namespace VirtualVessel.UI.VoiceLab
                 // The samples may have been deleted in the Made voices tab, and the environment too.
                 _base?.RequestView.RefreshSamples();
                 Setup?.Refresh();
+                ShowResume(reload: true);
             }
 
             FollowCanMake();
@@ -435,10 +440,14 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 Library.Refresh();
             }
+
+            ShowResume(reload: true);
         }
 
         void IScreen.OnHidden()
         {
+            KeepWorkNow();
+
             // Samples are for this screen; one must not go on playing over another screen.
             _player?.Stop();
         }
@@ -500,6 +509,9 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _try.Leave();
             }
+
+            // The step that is open is part of the work kept.
+            WorkChanged();
         }
 
         /// <summary>STEP 4's panel; null when Voice Lab is not set up.</summary>
