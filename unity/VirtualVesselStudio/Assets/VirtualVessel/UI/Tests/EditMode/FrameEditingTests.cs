@@ -35,12 +35,12 @@ namespace VirtualVessel.UI.Tests
             screen.Add(layers);
             layers.Add(layer);
 
-            Assert.That(Screens.LiveScreen.ClearsSelection(screen, screen, canvas, layers), Is.True, "The screen's background.");
-            Assert.That(Screens.LiveScreen.ClearsSelection(text, screen, canvas, layers), Is.True, "Text on a Card.");
-            Assert.That(Screens.LiveScreen.ClearsSelection(buttonText, screen, canvas, layers), Is.False, "A control keeps it.");
-            Assert.That(Screens.LiveScreen.ClearsSelection(canvas, screen, canvas, layers), Is.False, "The canvas decides by what is under the press.");
-            Assert.That(Screens.LiveScreen.ClearsSelection(layer, screen, canvas, layers), Is.False, "The layer list selects.");
-            Assert.That(Screens.LiveScreen.ClearsSelection(null, screen, canvas, layers), Is.False);
+            Assert.That(Screens.LiveScreen.ClearsSelection(screen, canvas, layers), Is.True, "The screen's background, or around it.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(text, canvas, layers), Is.True, "Text on a Card.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(buttonText, canvas, layers), Is.False, "A control keeps it.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(canvas, canvas, layers), Is.False, "The canvas decides by what is under the press.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(layer, canvas, layers), Is.False, "The layer list selects.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(null, canvas, layers), Is.False);
         }
 
         [Test]

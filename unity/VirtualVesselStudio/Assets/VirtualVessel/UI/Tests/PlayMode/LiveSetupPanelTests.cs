@@ -15,6 +15,8 @@ using VirtualVessel.Tracking;
 using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Credits;
+using VirtualVessel.UI.Frames;
+using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
 
@@ -306,6 +308,38 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Live_APressBesideThePreview_ClearsThePlacementSelection_ButANavItemKeepsIt()
+        {
+            Object.Destroy(_host);
+            var game = new PlacedSource();
+            _host = new GameObject(nameof(LiveSetupPanelTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { StreamPreview = new BlankPreview(), FrameSources = new[] { game } }));
+            yield return null;
+            _root.Shell.Open("live");
+            yield return null;
+            yield return null;
+
+            var live = _root.Content.Q<LiveScreen>();
+            live.Canvas.Select(game);
+            IPanel panel = live.panel;
+            Rect preview = live.Preview.worldBound;
+            // Beside the preview, in the screen's margin: the place the user clicked (2026-11-15).
+            var point = new Vector2(preview.xMin - 24f, preview.center.y);
+            VisualElement beside = panel.Pick(point);
+            Assert.That(beside, Is.Not.Null);
+            PointerAt(beside, point, EventType.MouseDown);
+            Assert.That(live.Canvas.Selected, Is.Null, $"A press beside the preview clears the selection (pressed {beside.GetType().Name}).");
+
+            live.Canvas.Select(game);
+            var nav = panel.visualTree.Query<NavItem>().First();
+            Pointer(nav, EventType.MouseDown);
+            Assert.That(live.Canvas.Selected, Is.SameAs(game), "A control keeps it.");
+        }
+
+        [UnityTest]
         public IEnumerator Live_ShowsTheArmsAndHandsInView_WhileTrackingRuns()
         {
             _root.Shell.Open("live");
@@ -360,6 +394,16 @@ namespace VirtualVessel.UI.Tests
             Pointer(target, EventType.MouseUp);
         }
 
+        private static void PointerAt(VisualElement target, Vector2 position, EventType type)
+        {
+            var system = new Event { type = type, mousePosition = position, button = 0, clickCount = 1 };
+            using (EventBase evt = type == EventType.MouseDown ? PointerDownEvent.GetPooled(system) : PointerUpEvent.GetPooled(system))
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
         private static void Pointer(VisualElement target, EventType type)
         {
             var system = new Event { type = type, mousePosition = target.worldBound.center, button = 0, clickCount = 1 };
@@ -377,6 +421,40 @@ namespace VirtualVessel.UI.Tests
                 evt.target = target;
                 target.SendEvent(evt);
             }
+        }
+
+        private sealed class PlacedSource : IFrameSource
+        {
+            public string Id => "game";
+
+            public string NameKey => null;
+
+            public IReadOnlyObservable<string> DisplayName { get; } = new ObservableValue<string>("game");
+
+            public IReadOnlyObservable<bool> Visible { get; } = new ObservableValue<bool>(true);
+
+            public double SourceAspect => 16.0 / 9.0;
+
+            public Texture Video => null;
+
+            // Over the whole stream, as when the user stretched the game (2026-11-15).
+            public IReadOnlyObservable<Core.Geometry.FrameLayout> Layout { get; } = new ObservableValue<Core.Geometry.FrameLayout>(Core.Geometry.FrameLayout.Create(new Core.Geometry.NormalizedRect(0, 0, 1, 1)));
+
+            public void PreviewLayout(Core.Geometry.FrameLayout layout)
+            {
+            }
+
+            public System.Threading.Tasks.Task CommitLayoutAsync(Core.Geometry.FrameLayout layout, System.Threading.CancellationToken cancellationToken)
+            {
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        }
+
+        private sealed class BlankPreview : IStreamPreviewSource
+        {
+            public IReadOnlyObservable<Texture> Video { get; } = new ObservableValue<Texture>(null);
+
+            public IReadOnlyObservable<PreviewStats> Stats { get; } = new ObservableValue<PreviewStats>(default);
         }
 
         private sealed class FakeCredits : ICreditFiles
