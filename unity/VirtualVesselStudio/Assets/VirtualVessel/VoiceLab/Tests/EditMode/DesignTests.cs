@@ -66,7 +66,7 @@ namespace VirtualVessel.VoiceLab.Tests
             designer.MakeCandidatesAsync(mood, 6, 100, null, null, CancellationToken.None).Wait();
             designer.MakeCandidatesAsync(mood, 6, 100, null, null, CancellationToken.None).Wait();
 
-            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
+            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.ScriptArgument(0)))).ToArray();
             Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 100 }), "The screen decides the seed, also to make the same candidates again.");
             Assert.That(requests[0].Get<string>("output"), Is.Not.EqualTo(requests[1].Get<string>("output")), "Each call has its own folder, so a seed given again does not overwrite a candidate.");
             Assert.That(requests[0].Get<List<string>>("shelf"), Is.EqualTo(new[] { "male", "airy" }));
@@ -82,7 +82,7 @@ namespace VirtualVessel.VoiceLab.Tests
             designer.MakeCandidatesAsync(new VoiceDescription(null, null, "A calm woman."), 1, 100, null, null, CancellationToken.None).Wait();
             designer.MakeCandidatesAsync(new VoiceDescription(new[] { "male" }, ""), 1, 100, null, null, CancellationToken.None).Wait();
 
-            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
+            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.ScriptArgument(0)))).ToArray();
             Assert.That(requests[0].Get<string>("prompt"), Is.EqualTo("A calm woman."), "The script cleans it and uses it in place of the words.");
             Assert.That(requests[1].Contains("prompt"), Is.False, "Words alone send no prompt.");
         }
@@ -96,7 +96,7 @@ namespace VirtualVessel.VoiceLab.Tests
             VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, "", null, "おはよう。"), 1, 3, null, null, CancellationToken.None).Result.Single();
             designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 3, null, null, CancellationToken.None).Wait();
 
-            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
+            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.ScriptArgument(0)))).ToArray();
             Assert.That(requests[0].Get<string>("line"), Is.EqualTo("おはよう。"));
             Assert.That(requests[1].Contains("line"), Is.False, "Without one, the script reads the shelf's line.");
             Assert.That(VoiceDesigner.Design(made, default).Line, Is.EqualTo("おはよう。"), "Kept in run.json, to make the candidate again.");
@@ -109,8 +109,8 @@ namespace VirtualVessel.VoiceLab.Tests
             string folder = Path.Combine(_folder, "Samples");
             Designer(runner).MakeSamplesAsync(new[] { "ja" }, folder, null, CancellationToken.None).Wait();
 
-            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
-            Assert.That(runner.Requests.Single().Arguments[2], Is.EqualTo("samples"));
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().ScriptArgument(0)));
+            Assert.That(runner.Requests.Single().ScriptArgument(1), Is.EqualTo("samples"));
             Assert.That(request.Get<List<string>>("languages"), Is.EqualTo(new[] { "ja" }));
             Assert.That(request.Get<string>("output"), Is.EqualTo(folder));
         }
@@ -123,7 +123,7 @@ namespace VirtualVessel.VoiceLab.Tests
 
             VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 13, Candidate(), null, CancellationToken.None).Result.Single();
 
-            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
+            ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().ScriptArgument(0)));
             Assert.That(request.Get<string>("reference"), Is.EqualTo(Candidate().File));
             Assert.That(made.Reference, Is.EqualTo("C:/d/candidate_7.wav"));
             Assert.That(VoiceDesigner.Design(made, default).Reference, Is.EqualTo("C:/d/candidate_7.wav"), "Kept in run.json, to make the voice again.");
@@ -136,7 +136,7 @@ namespace VirtualVessel.VoiceLab.Tests
 
             VoiceCandidate made = Designer(runner).MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 1, null, null, CancellationToken.None).Result.Single();
 
-            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3])).Get<string>("reference"), Is.Null);
+            Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().ScriptArgument(0))).Get<string>("reference"), Is.Null);
             Assert.That(made.Reference, Is.Null);
         }
 

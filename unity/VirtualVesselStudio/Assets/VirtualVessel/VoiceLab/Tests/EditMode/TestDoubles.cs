@@ -9,6 +9,18 @@ using VirtualVessel.ExternalServices.Process;
 
 namespace VirtualVessel.VoiceLab.Tests
 {
+    internal static class ScriptRequests
+    {
+        /// <summary>
+        /// A script run's argument counted from the end: 0 the request file, 1 the operation, 2 the script. From the end,
+        /// so Python's options before the script (-I, -X utf8) can change.
+        /// </summary>
+        public static string ScriptArgument(this ExternalProcessRequest request, int fromEnd)
+        {
+            return request.Arguments[request.Arguments.Count - 1 - fromEnd];
+        }
+    }
+
     /// <summary>Plays back what a script would print, per script and operation, and records each request.</summary>
     internal sealed class ScriptedRunner : IExternalProcessRunner
     {
@@ -28,9 +40,8 @@ namespace VirtualVessel.VoiceLab.Tests
 
         public Task<ExternalProcessResult> RunAsync(ExternalProcessRequest request, Action<string> onOutputLine, CancellationToken cancellationToken)
         {
-            // Arguments: -I, the script's path, the operation, the request file.
-            string script = System.IO.Path.GetFileName(request.Arguments[1]);
-            string operation = request.Arguments[2];
+            string script = System.IO.Path.GetFileName(request.ScriptArgument(2));
+            string operation = request.ScriptArgument(1);
             Ran.Enqueue(script + " " + operation);
             Requests.Enqueue(request);
             foreach (string line in _lines(script, operation))

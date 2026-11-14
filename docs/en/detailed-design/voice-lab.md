@@ -389,10 +389,11 @@ Place in VoiceModels/<VoiceModelId>/
 Unity runs each script in `services/voice-lab` once, through ExternalServices' `IExternalProcessRunner` (system design 4.4). There is one environment, used for both RVC training and VoxCPM2 generation (decision record, 2026-11-03).
 
 ```text
-python -I <script>.py <operation> <request JSON file>
+python -I -X utf8 <script>.py <operation> <request JSON file>
 ```
 
 - Under `-I` the script's folder is not on the path, so each script adds its own folder (where the `voicelab` package is).
+- UTF-8 input and output is set by `-X utf8`. `-I` ignores every environment variable such as `PYTHONUTF8`, so while they set it, the output came in Windows' default code page (cp932) and Japanese in a result (the user's words in the instruction, a path with the user's folder name) was garbled (2026-11-14).
 - The request is a JSON file, so paths and text are not laid out on the command line and spaces and Japanese quoting cause no trouble.
 - Progress and results go to standard output as JSON Lines, one per line. Standard error is the log, saved in the Training Run's folder (chapter 13). What libraries print to standard output (VoxCPM2's loading messages, RVC's log) goes to standard error while an operation runs.
 - Exit codes: 0 success, 1 failure (after an `error` line), 2 a bad request.

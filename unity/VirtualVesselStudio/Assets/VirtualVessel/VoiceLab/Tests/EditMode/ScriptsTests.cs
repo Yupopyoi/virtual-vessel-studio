@@ -40,9 +40,8 @@ namespace VirtualVessel.VoiceLab.Tests
             ExternalProcessRequest request = PythonScripts.Request(s_environment, "train.py", "run", @"C:\runs\1\requests\train-run.json", @"C:\runs\1\logs\train-run.log");
 
             Assert.That(request.FileName, Is.EqualTo(s_environment.Python));
-            Assert.That(request.Arguments, Is.EqualTo(new[] { "-I", @"C:\repo\services\voice-lab\train.py", "run", @"C:\runs\1\requests\train-run.json" }));
+            Assert.That(request.Arguments, Is.EqualTo(new[] { "-I", "-X", "utf8", @"C:\repo\services\voice-lab\train.py", "run", @"C:\runs\1\requests\train-run.json" }), "UTF-8 by an option, which -I does not ignore as it does PYTHONUTF8.");
             Assert.That(request.WorkingDirectory, Is.EqualTo(s_environment.Scripts));
-            Assert.That(request.Environment["PYTHONUTF8"], Is.EqualTo("1"));
         }
 
         [Test]
