@@ -33,6 +33,8 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly Func<bool> _building;
         private readonly VisualElement _voices;
         private readonly VisualElement _runs;
+        private readonly Card _voicesCard;
+        private readonly Card _runsCard;
         private readonly Label _empty;
         private readonly StatusChip _failed;
         private readonly Card _storage;
@@ -59,15 +61,15 @@ namespace VirtualVessel.UI.VoiceLab
             _failed.style.display = DisplayStyle.None;
             Add(_failed);
 
-            Card voices = Ui.Card(VoiceLabStrings.LibraryVoices);
+            _voicesCard = Ui.Card(VoiceLabStrings.LibraryVoices);
             _voices = new VisualElement();
-            voices.Add(_voices);
-            Add(voices);
+            _voicesCard.Add(_voices);
+            Add(_voicesCard);
 
-            Card runs = Ui.Card(VoiceLabStrings.LibraryRuns, alternate: true);
+            _runsCard = Ui.Card(VoiceLabStrings.LibraryRuns, alternate: true);
             _runs = new VisualElement();
-            runs.Add(_runs);
-            Add(runs);
+            _runsCard.Add(_runs);
+            Add(_runsCard);
 
             // What can be deleted to free space (the user's request, 2026-11-11).
             _storage = Ui.Card(VoiceLabStrings.Storage);
@@ -186,8 +188,10 @@ namespace VirtualVessel.UI.VoiceLab
                 _runs.Add(RunRow(run, localizer));
             }
 
-            _voices.parent.parent.style.display = voices.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            _runs.parent.parent.style.display = runs.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            // The Cards by name: their rows' parent's parent was this view itself, so a refresh while another tab
+            // showed, as on a language change, put Made voices under Make a voice (2026-11-15).
+            _voicesCard.style.display = voices.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _runsCard.style.display = runs.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _empty.style.display = voices.Count == 0 && runs.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             ShowStorage();
         }

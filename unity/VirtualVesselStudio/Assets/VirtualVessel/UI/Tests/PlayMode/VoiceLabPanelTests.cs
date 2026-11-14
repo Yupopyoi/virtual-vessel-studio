@@ -434,6 +434,29 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator ChangingTheLanguage_KeepsMadeVoicesInTheirOwnTab()
+        {
+            // Made voices showed under Make a voice right after the language changed (the user's report, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", default, "", "b.wav", new[] { "Fuwari" }));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+
+            foreach (string language in new[] { "en", "ja" })
+            {
+                _root.Settings.SetLanguage(language);
+                yield return null;
+                yield return null;
+                VoiceLabScreen shown = Screen();
+                Assert.That(shown.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), $"After switching to {language}, Made voices stays in its tab.");
+                Assert.That(shown.Tabs.value, Is.EqualTo(VoiceLabScreen.MakeTab));
+            }
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);
