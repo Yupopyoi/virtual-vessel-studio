@@ -92,6 +92,39 @@ namespace VirtualVessel.UI.Screens
             layers.Add(Layers);
             Add(layers);
             Add(Ui.Text(LiveStrings.Hint, HintClass, "vv-text-body"));
+
+            // A video stretched over the whole stream leaves no empty place on the canvas to click, so a press on
+            // the screen's empty parts clears the selection too (the user's review, 2026-11-14). Presses on the
+            // canvas and the layer list are theirs, and a control keeps the selection, so Record does not drop it.
+            RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button == 0 && Canvas.Selected != null && ClearsSelection(evt.target as VisualElement, this, Canvas, Layers))
+                {
+                    Canvas.Select(null);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Whether a press on <paramref name="target"/> in <paramref name="screen"/> clears the placement selection:
+        /// not on a control (anything that takes focus) nor inside one of <paramref name="keep"/>. Pure.
+        /// </summary>
+        public static bool ClearsSelection(VisualElement target, VisualElement screen, params VisualElement[] keep)
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            for (VisualElement element = target; element != null && element != screen; element = element.parent)
+            {
+                if (element.focusable || Array.IndexOf(keep, element) >= 0)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public StreamPreview Preview { get; }
