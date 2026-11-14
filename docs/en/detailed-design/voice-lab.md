@@ -190,6 +190,17 @@ Voice owns registered voices (Voice detailed design 6.1). Only a completed run i
 
 Voices registered before 2026-11-08 have no `design.json`; their design is in `model.json`'s `design`. They are development voices only, so they are not moved over, and the Made voices tab cannot play their base.
 
+### 6.6 Unfinished Work
+
+STEP 1 and STEP 2 left unfinished are kept in `VoiceLab/work.json` (`WorkFile`, `schemaVersion` 1), so they can be continued after the app was closed (the user's decision, 2026-11-15). It is read and written with ProjectData's settings files (`ConfigFileStore`), and `WorkStore` reports through CRUD results (system design 6.31). One is kept; new work replaces it.
+
+- Fields: when it was kept `savedAtUtc`, the step that was open `step` (0 for STEP 1, 1 for STEP 2), how the candidates were asked for (`words`, `freeWords`, `prompt`, `line`, and the next seed `firstSeed`), the candidates `candidates` (the number on the screen `number`, the number of the one it was made near `from`, the seed, the audio file, the pitch, the instruction, the audio it was made near, and how it was asked for), the number of the one picked `picked` (0 for none), the timbre `timbre`, and the timbres held `held`.
+- The screen keeps it half a second after a change, gathering a slider's moves into one write, and when the screen is left (`VoiceLabWorkKeeper`). Nothing is kept without candidates or once building has begun; STEP 3 before building keeps STEP 2's work.
+- Reading it registers the candidates whose audio is still there as candidates of this session, under new ids (`work_<number>_<seed>`) that never meet this session's. Candidates whose audio is gone are left out, and with none left there is no work. Without the picked candidate it goes back to STEP 1.
+- Building forgets it (`IVoiceLab.BuildAsync`): the Training Run is kept from then on and is offered as a voice made but not registered. Discard on the screen forgets it too.
+- Deleting old candidates (8.6) keeps the unfinished work's candidates and the audio they were made near.
+- A damaged file is moved aside, and nothing is offered; the log says why.
+
 ## 7. State and Lifecycle
 
 ```mermaid

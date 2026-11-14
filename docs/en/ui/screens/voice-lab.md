@@ -44,6 +44,13 @@ Activation (Voice Lab detailed design 8.1) happens in the Make a voice tab (`Voi
 - A build paused by streaming or recording says so.
 - The progress is read every 0.25 seconds. If the app is closed, it continues the next time it opens.
 
+### 2.2 Continuing
+
+Above the steps of Make a voice, notices offer to continue (the user's request, 2026-11-15; Voice Lab detailed design 6.6).
+
+- Unfinished voice: when STEP 1 or STEP 2 was left unfinished last time and this session has made no candidates yet. Unfinished voice, where it stopped ("Stopped at STEP 2 Shape the timbre") and when it was kept, and that making new candidates replaces it. Continue puts back the candidates, the one picked, the words, the line and the seed, the timbre, and the timbres held, and opens that step. Discard asks, then forgets it.
+- A voice not registered yet: when a voice was made but not registered, while in STEP 1 or STEP 2 and nothing is being built. When the newest was made, and with more than one, how many more and that Made voices lists them. Continue (STEP 4) opens the newest in STEP 4.
+
 ## 3. STEP 1 Pick a Base
 
 The user starts from an example, moves it with words, and picks a candidate by ear (the user's decision, 2026-11-07). The lead says that words only give a direction: the same words sound different in each candidate.
