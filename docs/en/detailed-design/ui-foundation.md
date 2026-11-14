@@ -869,10 +869,11 @@ flowchart LR
 | Reset crop | Returns `Crop` to the whole video. The video keeps its on-screen scale and the frame grows to the whole video |
 | Bring forward / Send backward | Swaps places with the frame just in front (behind) |
 | Bring to front / Send to back | Moves it all the way to the front (back) |
+| Stop capture | Stops the video's capture (`IFrameSource.StopCapture`, as Stop on the setup screen does). Disabled for a video not captured and for a locked frame. Not undoable; capture starts again on the setup screen (the user's request, 2026-11-15) |
 
 Each menu item also shows a tooltip and its shortcut.
 
-The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring forward), `[` (send backward), `Shift+]` (bring to front), `Shift+[` (send to back), and `F` (full-screen preview).
+The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring forward), `[` (send backward), `Shift+]` (bring to front), `Shift+[` (send to back), `Del` (stop capture; not on a locked frame), and `F` (full-screen preview).
 
 ### 9.5 Commit and Runtime State
 

@@ -38,6 +38,9 @@ namespace VirtualVessel.UI.Frames
         SendBackward,
         BringToFront,
         SendToBack,
+
+        /// <summary>Stops the video's capture (Del; the user's request, 2026-11-15). Not on a locked frame.</summary>
+        StopCapture,
     }
 
     /// <summary>Where a press lands in crop mode, relative to the frame being cropped.</summary>
@@ -282,6 +285,7 @@ namespace VirtualVessel.UI.Frames
                 KeyCode.R when !shift => FrameAction.ResetCrop,
                 KeyCode.Alpha1 when shift => FrameAction.Fit,
                 KeyCode.Alpha2 when shift => FrameAction.Fill,
+                KeyCode.Delete when !shift => FrameAction.StopCapture,
                 _ => FrameAction.None,
             };
         }

@@ -29,6 +29,18 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
+            if (action == FrameAction.StopCapture)
+            {
+                // Not undoable: it is started again on the setup screen. The video hides once stopped, which clears
+                // the selection.
+                if (frame.Source.CanStopCapture)
+                {
+                    frame.Source.StopCapture();
+                }
+
+                return;
+            }
+
             CommitBursts();
             StackMove? move = StackMoveFor(action);
             if (move.HasValue)
@@ -217,6 +229,8 @@ namespace VirtualVessel.UI.Frames
                 Stack(FrameAction.SendBackward, StackMove.Backward, FrameStrings.SendBackward, FrameStrings.SendBackwardTip, "["),
                 Stack(FrameAction.BringToFront, StackMove.ToFront, FrameStrings.BringToFront, FrameStrings.BringToFrontTip, "Shift+]"),
                 Stack(FrameAction.SendToBack, StackMove.ToBack, FrameStrings.SendToBack, FrameStrings.SendToBackTip, "Shift+["),
+                MenuEntry.Separator,
+                Entry(FrameAction.StopCapture, FrameStrings.StopCapture, FrameStrings.StopCaptureTip, "Del", possible: _selected.Source.CanStopCapture),
             };
         }
     }

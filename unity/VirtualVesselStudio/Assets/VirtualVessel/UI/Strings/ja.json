@@ -291,6 +291,8 @@
         "frame.fill.tip": "縦横比を保って、配信画面を覆う大きさにします",
         "frame.center": "中央に配置",
         "frame.center.tip": "大きさを変えずに配信画面の中央へ動かします",
+        "frame.stop-capture": "取り込みを停止",
+        "frame.stop-capture.tip": "この映像の取り込みを止めます。設定の画面からもう一度開始できます",
         "frame.forward": "一つ前へ",
         "frame.forward.tip": "すぐ手前の映像と順番を入れ替えます",
         "frame.backward": "一つ後ろへ",
