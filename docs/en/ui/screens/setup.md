@@ -167,6 +167,7 @@ Both are collapsible Cards (`components.md` 3.10) that start closed. Few people 
 | Full text box | A scrolling box (up to 320px high, Surface 3 background, Radius S) | The full text (Caption, Text 2). It scrolls on its own so that a long notices file does not stretch the screen |
 
 - Names, versions, license names, and full texts are shown as written in the files, as text (never parsed as Rich Text), and the same in every language.
+- A Markdown file (`.md`) is shown without its marks, as headings, paragraphs, items, and table rows, with links as their text and address (the user's review, 2026-11-15; `MarkdownText`). Other files are shown line by line.
 - The SBOM is read when the screen is built; a full text when it is first opened.
 - When the SBOM cannot be read, only the app Card is shown, and it says "The credits could not be read. Try restarting the app." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
 - Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.

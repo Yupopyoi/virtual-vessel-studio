@@ -428,19 +428,37 @@ namespace VirtualVessel.UI.Tests
         [Test]
         public void TheTermsMarkdown_BecomesHeadingsItemsAndRows()
         {
-            var blocks = VoiceLabTermsText.Blocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
+            var blocks = MarkdownText.Blocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
 
             Assert.That(blocks, Is.EqualTo(new[]
             {
-                (VoiceLabTermsBlockKind.Title, 0, "規約"),
-                (VoiceLabTermsBlockKind.Paragraph, 0, "前文の続き。"),
-                (VoiceLabTermsBlockKind.Heading, 0, "第1条（定義）"),
-                (VoiceLabTermsBlockKind.Item, 0, "1. 一つ目"),
-                (VoiceLabTermsBlockKind.Item, 1, "1. 入れ子"),
-                (VoiceLabTermsBlockKind.Paragraph, 0, "1. 段落の番号"),
-                (VoiceLabTermsBlockKind.Row, 0, "名称 ／ 取得元"),
-                (VoiceLabTermsBlockKind.Row, 0, "uv ／ GitHub"),
+                (MarkdownBlockKind.Title, 0, "規約"),
+                (MarkdownBlockKind.Paragraph, 0, "前文の続き。"),
+                (MarkdownBlockKind.Heading, 0, "第1条（定義）"),
+                (MarkdownBlockKind.Item, 0, "1. 一つ目"),
+                (MarkdownBlockKind.Item, 1, "1. 入れ子"),
+                (MarkdownBlockKind.Paragraph, 0, "1. 段落の番号"),
+                (MarkdownBlockKind.Row, 0, "名称 ／ 取得元"),
+                (MarkdownBlockKind.Row, 0, "uv ／ GitHub"),
             }));
+        }
+
+        [Test]
+        public void ALicensesMarkdown_ReadsAsText_WithItsLinesJoinedAsTheLanguageWrites()
+        {
+            var blocks = MarkdownText.Blocks("<!--\n  a note\n-->\n# otoha-chan.vrm\n\n- Contact: <https://github.com/x>\n- See [the license](https://vrm.dev/)\n  * nested `code`\n\nThird-party components are\nsubject to their licenses.\n\n本ソフトウェアの\n機能です。\n");
+
+            Assert.That(blocks, Is.EqualTo(new[]
+            {
+                (MarkdownBlockKind.Title, 0, "otoha-chan.vrm"),
+                (MarkdownBlockKind.Item, 0, "・Contact: https://github.com/x"),
+                (MarkdownBlockKind.Item, 0, "・See the license (https://vrm.dev/)"),
+                (MarkdownBlockKind.Item, 1, "・nested code"),
+                (MarkdownBlockKind.Paragraph, 0, "Third-party components are subject to their licenses."),
+                (MarkdownBlockKind.Paragraph, 0, "本ソフトウェアの機能です。"),
+            }));
+            Assert.That(MarkdownText.IsMarkdown("licenses/a.MD"), Is.True);
+            Assert.That(MarkdownText.IsMarkdown("LICENSE"), Is.False);
         }
 
         [Test]
@@ -449,8 +467,8 @@ namespace VirtualVessel.UI.Tests
             foreach (string language in new[] { "ja", "en" })
             {
                 string file = System.IO.Path.GetFullPath(System.IO.Path.Combine("..", "..", "services", "voice-lab", "terms", $"voice-lab-terms.{language}.md"));
-                var blocks = VoiceLabTermsText.Blocks(System.IO.File.ReadAllText(file));
-                Assert.That(blocks.Count(b => b.Kind == VoiceLabTermsBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
+                var blocks = MarkdownText.Blocks(System.IO.File.ReadAllText(file));
+                Assert.That(blocks.Count(b => b.Kind == MarkdownBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
                 Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
             }
         }

@@ -257,6 +257,25 @@ namespace VirtualVessel.UI.Screens
                         continue;
                     }
 
+                    // Markdown is shown as text rather than as its marks (the user's review, 2026-11-15); each block
+                    // stays under a label's limit, as a long plain file is split.
+                    if (MarkdownText.IsMarkdown(file))
+                    {
+                        foreach ((MarkdownBlockKind kind, int indent, string block) in MarkdownText.Blocks(content))
+                        {
+                            bool heading = kind == MarkdownBlockKind.Title || kind == MarkdownBlockKind.Heading;
+                            foreach (string part in CreditText.Split(block))
+                            {
+                                Label label = PlainLabel(part, PartClass, heading ? "vv-text-body" : "vv-text-caption");
+                                label.EnableInClassList("vv-bold", heading);
+                                label.style.marginLeft = indent * 16;
+                                Text.Add(label);
+                            }
+                        }
+
+                        continue;
+                    }
+
                     foreach (string part in CreditText.Split(content))
                     {
                         Text.Add(PlainLabel(part, PartClass, "vv-text-caption"));
