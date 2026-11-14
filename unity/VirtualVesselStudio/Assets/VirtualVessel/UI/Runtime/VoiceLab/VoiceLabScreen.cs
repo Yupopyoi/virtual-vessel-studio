@@ -78,6 +78,9 @@ namespace VirtualVessel.UI.VoiceLab
         public const int MakeTab = 0;
         public const int MadeTab = 1;
 
+        /// <summary>Voice Lab's terms to read again (the user's decision, 2026-11-15); only with the setup, which has them.</summary>
+        public const int TermsTab = 2;
+
         private readonly VisualElement[] _panels = new VisualElement[5];
         private readonly IVoiceLab _lab;
         private readonly VisualElement _make;
@@ -128,7 +131,9 @@ namespace VirtualVessel.UI.VoiceLab
 
             if (library != null)
             {
-                Tabs = Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
+                Tabs = services.VoiceLabSetup != null
+                    ? Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade, VoiceLabStrings.TabTerms)
+                    : Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
                 Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
                 _content.Add(Tabs);
             }
@@ -139,6 +144,13 @@ namespace VirtualVessel.UI.VoiceLab
             if (library != null)
             {
                 _content.Add(BuildLibrary(CanMake));
+            }
+
+            if (library != null && services.VoiceLabSetup != null)
+            {
+                Terms = new VoiceLabTermsView(services.VoiceLabSetup);
+                Terms.style.display = DisplayStyle.None;
+                _content.Add(Terms);
             }
 
             // The setup stays above the steps once ready, for an update and the build's progress.
@@ -294,8 +306,11 @@ namespace VirtualVessel.UI.VoiceLab
             _content.style.display = live ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
-        /// <summary>Make a voice and Made voices; null without a library.</summary>
+        /// <summary>Make a voice, Made voices, and the terms with the setup; null without a library.</summary>
         public TabBar Tabs { get; }
+
+        /// <summary>The Terms tab; null without the setup or the library.</summary>
+        public VoiceLabTermsView Terms { get; }
 
         public VoiceLabLibraryView Library { get; private set; }
 
@@ -316,6 +331,15 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             FollowCanMake();
+
+            if (Terms != null)
+            {
+                Terms.style.display = tab == TermsTab ? DisplayStyle.Flex : DisplayStyle.None;
+                if (tab == TermsTab)
+                {
+                    Terms.Refresh();
+                }
+            }
 
             if (Library != null)
             {

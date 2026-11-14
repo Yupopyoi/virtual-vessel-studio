@@ -13,8 +13,6 @@
         "licenses/UniVRM-LICENSE.txt": "tools/release/licenses/UniVRM-LICENSE.txt",
         "licenses/UniGLTF-LICENSE.md": "unity/VirtualVesselStudio/Library/PackageCache/com.vrmc.gltf@*/LICENSE.md",
         "licenses/Newtonsoft.Json-Third-Party-Notices.md": "unity/VirtualVesselStudio/Library/PackageCache/com.unity.nuget.newtonsoft-json@*/Third Party Notices.md",
-        "licenses/RNNoise-COPYING.txt": "tools/release/licenses/RNNoise-COPYING.txt",
-        "licenses/voice-lab-terms.ja.md": "services/voice-lab/terms/voice-lab-terms.ja.md",
-        "licenses/voice-lab-terms.en.md": "services/voice-lab/terms/voice-lab-terms.en.md"
+        "licenses/RNNoise-COPYING.txt": "tools/release/licenses/RNNoise-COPYING.txt"
     }
 }

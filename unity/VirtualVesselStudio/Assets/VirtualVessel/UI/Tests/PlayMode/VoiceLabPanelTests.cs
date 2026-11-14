@@ -457,6 +457,23 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTermsTab_ShowsTheTermsAsText_AndWhetherTheyWereAgreed()
+        {
+            Object.Destroy(_host);
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = new FakeLibrary(), VoiceLabSetup = setup });
+            VoiceLabScreen screen = Screen();
+
+            screen.ShowTab(VoiceLabScreen.TermsTab);
+            yield return null;
+
+            Assert.That(screen.Terms.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(screen.Terms.Body.Query<Label>().ToList().Select(l => l.text), Is.EqualTo(new[] { "Terms", "Article 1 (Use)", "1. Use it well.", "1. A nested item.", "Name ／ Source", "uv ／ GitHub" }), "As text, without the Markdown's marks.");
+            Assert.That(screen.Terms.AgreedChip.TextKey, Is.EqualTo(VoiceLabStrings.TermsTabAgreed));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);

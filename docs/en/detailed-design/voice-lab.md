@@ -289,7 +289,7 @@ Follows the requirement in the [decision record](../decisions/voice-conversion.m
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Even when built, Make a voice shows the terms, and until they are agreed to, the steps and Made voices' Make again and Try cannot be used. Agreeing goes back to the steps, with nothing built. Streaming with registered voices does not stop.
-- The same content can be read at any time from Credits and licenses in Setup. A release ships it as `licenses/voice-lab-terms.<language>.md` (`tools/release/license-files.json`), tied to the application's SBOM entry. Voice Lab has no other place for it besides the agreement page (2026-11-11).
+- The same content can be read at any time from Voice Lab's Terms tab (Voice Lab screen 2.3). The terms are not a license, so they were taken out of Credits and licenses in Setup and of the SBOM entry (the user's decision, 2026-11-15). The files ship with the scripts in `VoiceLab/scripts/terms/`.
 - Importing a recording shows a confirmation that it is your own voice or one you hold the rights to.
 
 ### 8.3 Making a voice

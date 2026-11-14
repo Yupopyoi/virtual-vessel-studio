@@ -39,7 +39,7 @@ Activation (Voice Lab detailed design 8.1) happens in the Make a voice tab (`Voi
 | Update | Built, with a newer version | Shown above the steps. That voices can still be made while it updates, Update, and the download size. A Chip when it failed. |
 
 - The check runs each time the Check page opens (and when the location changes).
-- The terms are the bundled `terms/voice-lab-terms.<language>.md`, shown as headings, paragraphs, numbered items, and table rows. Credits and licenses in Setup reads the same files. So the terms are kept in one place, Voice Lab has no other place for them (2026-11-11).
+- The terms are the bundled `terms/voice-lab-terms.<language>.md`, shown as headings, paragraphs, numbered items, and table rows. After agreeing, the Terms tab (2.3) reads the same files. The terms are not a license, so Credits and licenses in Setup does not list them (the user's decision, 2026-11-15).
 - The record has one line per component downloaded and per step, with the time and what happens in the app's words (such as "22:14:05  Downloading: VoxCPM2 (4.3 GB)", "Building: installing the packages"). Output from uv or Python is not shown as it is (system design 4.27; the user's decision, 2026-11-11). The record lasts while the app is open.
 - A build paused by streaming or recording says so.
 - The progress is read every 0.25 seconds. If the app is closed, it continues the next time it opens.
@@ -50,6 +50,10 @@ Above the steps of Make a voice, notices offer to continue (the user's request, 
 
 - Unfinished voice: when STEP 1 or STEP 2 was left unfinished last time and this session has made no candidates yet. Unfinished voice, where it stopped ("Stopped at STEP 2 Shape the timbre") and when it was kept, and that making new candidates replaces it. Continue puts back the candidates, the one picked, the words, the line and the seed, the timbre, and the timbres held, and opens that step. Discard asks, then forgets it.
 - A voice not registered yet: when a voice was made but not registered, while in STEP 1 or STEP 2 and nothing is being built. When the newest was made, and with more than one, how many more and that Made voices lists them. Continue (STEP 4) opens the newest in STEP 4.
+
+### 2.3 The Terms Tab
+
+A Terms tab sits beside Make a voice and Made voices, when the setup parts are there (the user's decision, 2026-11-15). The Card Voice Lab terms of use shows the version, a chip saying whether they were agreed to (✓ Agreed / Not agreed), and the terms (scrolling in a frame; headings, paragraphs, numbered items, and table rows, as in 2.1), in the screen's language, read again when the language changes.
 
 ## 3. STEP 1 Pick a Base
 
