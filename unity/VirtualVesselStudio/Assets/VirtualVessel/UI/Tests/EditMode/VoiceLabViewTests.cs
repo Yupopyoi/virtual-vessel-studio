@@ -30,6 +30,23 @@ namespace VirtualVessel.UI.Tests
                 new[] { new VoiceLabExample("low-male", new[] { "male", "deep", "focused" }), new VoiceLabExample("airy", new[] { "airy" }) });
         }
 
+        [TestCase("今日は。", "今日は。", "")]
+        [TestCase("おはよう。", "今日は。", "おはよう。")]
+        [TestCase(" \n", "今日は。", null)]
+        [TestCase("", "今日は。", null)]
+        public void TheLineToSend_IsEmptyForTheDefault_AndNullWhenNothingIsLeft(string text, string defaultLine, string expected)
+        {
+            Assert.That(VoiceLabCandidateDetails.LineToSend(text, defaultLine), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TheSeed_MovesOnByTheCandidatesMade_AndStartsOverPastTheLargest()
+        {
+            Assert.That(VoiceLabCandidateDetails.NextSeed(500, 6), Is.EqualTo(506));
+            Assert.That(VoiceLabCandidateDetails.NextSeed(500, 0), Is.EqualTo(500), "Nothing made, as when stopped at once.");
+            Assert.That(VoiceLabCandidateDetails.NextSeed(VoiceLabCandidateDetails.MaxSeed, 1), Is.EqualTo(0));
+        }
+
         [Test]
         public void Shelf_StartsWithEachPickOneGroupsDefault()
         {

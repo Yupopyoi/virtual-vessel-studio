@@ -31,6 +31,7 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(shelf.Start(), Is.EquivalentTo(new[] { "female", "p20", "light", "attentive", "friendly" }));
             Assert.That(shelf.Word("soft").IsDefault, Is.True);
             Assert.That(shelf.Examples.Select(e => e.Id), Has.Member("low-calm-male"));
+            Assert.That(shelf.DefaultLine, Does.StartWith("今日はとてもいい天気ですね。"), "The Japanese line, which generate.py reads too.");
         }
 
         [Test]
@@ -63,6 +64,7 @@ namespace VirtualVessel.VoiceLab.Tests
         [TestCase("{\"schemaVersion\":2}")]
         [TestCase("not json")]
         [TestCase("{\"schemaVersion\":1,\"groups\":[{\"id\":\"g\"}],\"slots\":[],\"words\":[{\"id\":\"w\",\"slot\":\"missing\"}]}")]
+        [TestCase("{\"schemaVersion\":1,\"groups\":[],\"slots\":[],\"words\":[],\"lines\":{\"en\":\"Hello.\"}}")]
         public void AShelfThisVersionCannotRead_IsRefusedWithAReason(string json)
         {
             Assert.That(ShelfFile.Parse(json, out string problem), Is.Null);

@@ -47,26 +47,28 @@ namespace VirtualVessel.VoiceLab.Tests
                 "{\"type\":\"result\",\"instruction\":\"calm\",\"candidates\":[{\"seed\":7,\"file\":\"a.wav\",\"medianHz\":268,\"lowHz\":203,\"highHz\":338},{\"seed\":8,\"file\":\"b.wav\"}]}",
             });
 
-            IReadOnlyList<VoiceCandidate> candidates = Designer(runner, 7).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, null, null, CancellationToken.None).Result;
+            IReadOnlyList<VoiceCandidate> candidates = Designer(runner).MakeCandidatesAsync(new VoiceDescription(null, ""), 2, 7, null, null, CancellationToken.None).Result;
 
-            Assert.That(candidates.Select(c => c.Id), Is.EqualTo(new[] { "candidate_7", "candidate_8" }));
+            Assert.That(candidates.Select(c => c.Seed), Is.EqualTo(new[] { 7, 8 }));
+            Assert.That(candidates.Select(c => c.Id), Is.EqualTo(new[] { "candidate_1_7", "candidate_1_8" }));
             Assert.That(candidates[0].Pitch.MedianHz, Is.EqualTo(268));
             Assert.That(candidates[1].Pitch.MedianHz, Is.EqualTo(0));
             Assert.That(candidates[0].Instruction, Is.EqualTo("calm"));
         }
 
         [Test]
-        public void Candidates_RequestCarriesTheShelfWordsAndNextSeeds()
+        public void Candidates_RequestCarriesTheShelfWordsAndTheGivenSeed()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[]}" });
-            VoiceDesigner designer = Designer(runner, 100);
+            VoiceDesigner designer = Designer(runner);
             var mood = new VoiceDescription(new[] { "male", "airy" }, "husky");
 
-            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
-            designer.MakeCandidatesAsync(mood, 6, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, 100, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(mood, 6, 100, null, null, CancellationToken.None).Wait();
 
             ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
-            Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 106 }));
+            Assert.That(requests.Select(r => r.Get<int>("firstSeed")), Is.EqualTo(new[] { 100, 100 }), "The screen decides the seed, also to make the same candidates again.");
+            Assert.That(requests[0].Get<string>("output"), Is.Not.EqualTo(requests[1].Get<string>("output")), "Each call has its own folder, so a seed given again does not overwrite a candidate.");
             Assert.That(requests[0].Get<List<string>>("shelf"), Is.EqualTo(new[] { "male", "airy" }));
             Assert.That(requests[0].Get<string>("words"), Is.EqualTo("husky"), "The script cleans the words and builds the instruction.");
         }
@@ -75,10 +77,10 @@ namespace VirtualVessel.VoiceLab.Tests
         public void AWrittenPrompt_IsSentAsTheRequestsPrompt_AndOnlyThen()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[]}" });
-            VoiceDesigner designer = Designer(runner, 100);
+            VoiceDesigner designer = Designer(runner);
 
-            designer.MakeCandidatesAsync(new VoiceDescription(null, null, "A calm woman."), 1, null, null, CancellationToken.None).Wait();
-            designer.MakeCandidatesAsync(new VoiceDescription(new[] { "male" }, ""), 1, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(new VoiceDescription(null, null, "A calm woman."), 1, 100, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(new VoiceDescription(new[] { "male" }, ""), 1, 100, null, null, CancellationToken.None).Wait();
 
             ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
             Assert.That(requests[0].Get<string>("prompt"), Is.EqualTo("A calm woman."), "The script cleans it and uses it in place of the words.");
@@ -86,11 +88,26 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void AWrittenLine_IsSent_AndKeptInTheRun_ButTheDefaultIsNotSent()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[{\"seed\":3,\"file\":\"a.wav\"}]}" });
+            VoiceDesigner designer = Designer(runner);
+
+            VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, "", null, "おはよう。"), 1, 3, null, null, CancellationToken.None).Result.Single();
+            designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 3, null, null, CancellationToken.None).Wait();
+
+            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
+            Assert.That(requests[0].Get<string>("line"), Is.EqualTo("おはよう。"));
+            Assert.That(requests[1].Contains("line"), Is.False, "Without one, the script reads the shelf's line.");
+            Assert.That(VoiceDesigner.Design(made, default).Line, Is.EqualTo("おはよう。"), "Kept in run.json, to make the candidate again.");
+        }
+
+        [Test]
         public void Samples_RequestNamesTheLanguagesAndFolder()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"count\":27}" });
             string folder = Path.Combine(_folder, "Samples");
-            Designer(runner, 1).MakeSamplesAsync(new[] { "ja" }, folder, null, CancellationToken.None).Wait();
+            Designer(runner).MakeSamplesAsync(new[] { "ja" }, folder, null, CancellationToken.None).Wait();
 
             ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
             Assert.That(runner.Requests.Single().Arguments[2], Is.EqualTo("samples"));
@@ -102,9 +119,9 @@ namespace VirtualVessel.VoiceLab.Tests
         public void CandidatesNearAPickedOne_SendItAsTheReference_AndRememberIt()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"reference\":\"C:/d/candidate_7.wav\",\"candidates\":[{\"seed\":13,\"file\":\"c.wav\"}]}" });
-            VoiceDesigner designer = Designer(runner, 13);
+            VoiceDesigner designer = Designer(runner);
 
-            VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, Candidate(), null, CancellationToken.None).Result.Single();
+            VoiceCandidate made = designer.MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 13, Candidate(), null, CancellationToken.None).Result.Single();
 
             ConfigDocument request = ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3]));
             Assert.That(request.Get<string>("reference"), Is.EqualTo(Candidate().File));
@@ -117,7 +134,7 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[{\"seed\":1,\"file\":\"a.wav\"}]}" });
 
-            VoiceCandidate made = Designer(runner, 1).MakeCandidatesAsync(new VoiceDescription(null, ""), 1, null, null, CancellationToken.None).Result.Single();
+            VoiceCandidate made = Designer(runner).MakeCandidatesAsync(new VoiceDescription(null, ""), 1, 1, null, null, CancellationToken.None).Result.Single();
 
             Assert.That(ConfigDocument.Parse(File.ReadAllText(runner.Requests.Single().Arguments[3])).Get<string>("reference"), Is.Null);
             Assert.That(made.Reference, Is.Null);
@@ -131,7 +148,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 : new[] { "{\"type\":\"progress\",\"stage\":\"s\",\"done\":1,\"total\":2}", "{\"type\":\"result\"}" });
             var reported = new List<BuildProgress>();
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), BuildPlan.Training(600), new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
+            TrainingRun run = Designer(runner).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), BuildPlan.Training(600), new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
 
             Assert.That(runner.Ran, Is.EqualTo(new[] { "generate.py speech", "timbre.py batch", "train.py run", "export_voice.py run" }));
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed));
@@ -154,7 +171,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "train.py" ? new[] { "{\"type\":\"error\",\"code\":\"out_of_memory\",\"message\":\"GPU\"}" } : new[] { "{\"type\":\"result\"}" },
                 (script, _) => script == "train.py" ? ExternalProcessState.Failed : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Failed));
             Assert.That(run.ErrorCode, Is.EqualTo("out_of_memory"));
@@ -169,7 +186,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "generate.py" ? new[] { "{\"type\":\"result\"}" } : Array.Empty<string>(),
                 (script, _) => script == "timbre.py" ? ExternalProcessState.Cancelled : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Cancelled));
             Assert.That(run.ErrorCode, Is.EqualTo("cancelled"));
@@ -321,9 +338,9 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(VoiceModelRegistrar.ReadDesign(_folder, _clock), Is.Null);
         }
 
-        private VoiceDesigner Designer(IExternalProcessRunner runner, int firstSeed)
+        private VoiceDesigner Designer(IExternalProcessRunner runner)
         {
-            return new VoiceDesigner(new PythonScripts(_environment, runner), _runs, Path.Combine(_folder, "VoiceLab", "Designs"), _clock, new NullLog(), firstSeed);
+            return new VoiceDesigner(new PythonScripts(_environment, runner), _runs, Path.Combine(_folder, "VoiceLab", "Designs"), _clock, new NullLog());
         }
 
         private static VoiceCandidate Candidate()

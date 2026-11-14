@@ -11,11 +11,15 @@ namespace VirtualVessel.UI.VoiceLab
     /// </summary>
     public sealed class VoiceLabShelf
     {
-        public VoiceLabShelf(IReadOnlyList<VoiceLabShelfGroup> groups, IReadOnlyList<VoiceLabExample> examples)
+        public VoiceLabShelf(IReadOnlyList<VoiceLabShelfGroup> groups, IReadOnlyList<VoiceLabExample> examples, string defaultLine = null)
         {
             Groups = groups ?? Array.Empty<VoiceLabShelfGroup>();
             Examples = examples ?? Array.Empty<VoiceLabExample>();
+            DefaultLine = defaultLine ?? string.Empty;
         }
+
+        /// <summary>The line candidates read unless the user writes their own: the shelf's Japanese line.</summary>
+        public string DefaultLine { get; }
 
         public IReadOnlyList<VoiceLabShelfGroup> Groups { get; }
 
@@ -164,11 +168,28 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>What candidates are asked for: the shelf's word ids and the user's own words.</summary>
     public sealed class VoiceLabRequest
     {
-        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords, string prompt = null)
+        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords, string prompt = null, string line = null, int firstSeed = 0)
         {
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
             Prompt = prompt ?? string.Empty;
+            Line = line ?? string.Empty;
+            FirstSeed = firstSeed;
+        }
+
+        /// <summary>
+        /// The line the candidates read; empty for the shelf's (<see cref="VoiceLabShelf.DefaultLine"/>). Only the
+        /// candidates read it: it does not shape the voice that is built.
+        /// </summary>
+        public string Line { get; }
+
+        /// <summary>The first candidate's seed; the others take the seeds after it.</summary>
+        public int FirstSeed { get; }
+
+        /// <summary>This request with STEP 1's details. Pure.</summary>
+        public VoiceLabRequest With(string line, int firstSeed)
+        {
+            return new VoiceLabRequest(Words, FreeWords, Prompt, line, firstSeed);
         }
 
         public IReadOnlyList<string> Words { get; }

@@ -14,6 +14,9 @@ namespace VirtualVessel.VoiceLab.Design
     {
         public const int SchemaVersion = 1;
 
+        /// <summary>The language of the line candidates read by default (generate.py's CANDIDATE_LANGUAGE).</summary>
+        public const string CandidateLanguage = "ja";
+
         /// <summary>The shelf, or null with the reason when the file is not one this version reads. Pure.</summary>
         public static VoiceLabShelf Parse(string json, out string problem)
         {
@@ -53,8 +56,17 @@ namespace VirtualVessel.VoiceLab.Design
             var examples = document.Get("examples", new List<ExampleFields>())
                 .Select(e => new VoiceLabExample(e.Id, e.Words ?? new List<string>()))
                 .ToArray();
+
+            // The line candidates read unless the user writes their own; generate.py reads the same one.
+            Dictionary<string, string> lines = document.Get("lines", new Dictionary<string, string>());
+            if (!lines.TryGetValue(CandidateLanguage, out string line) || string.IsNullOrWhiteSpace(line))
+            {
+                problem = $"The shelf has no '{CandidateLanguage}' line for the candidates.";
+                return null;
+            }
+
             problem = null;
-            return new VoiceLabShelf(shelfGroups, examples);
+            return new VoiceLabShelf(shelfGroups, examples, line);
         }
 
         private sealed class GroupFields

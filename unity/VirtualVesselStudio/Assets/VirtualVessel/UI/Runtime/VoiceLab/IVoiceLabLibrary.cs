@@ -135,9 +135,11 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A run's choices put back to make it again: the words, and the base and timbre when the base is still there.</summary>
     public sealed class VoiceLabRemake
     {
-        public VoiceLabRemake(IReadOnlyList<string> words, string freeWords, VoiceLabCandidate candidate, VoiceLabTimbre timbre, string prompt = null)
+        public VoiceLabRemake(IReadOnlyList<string> words, string freeWords, VoiceLabCandidate candidate, VoiceLabTimbre timbre, string prompt = null, string line = null, int? seed = null)
         {
             Prompt = prompt ?? string.Empty;
+            Line = line ?? string.Empty;
+            Seed = seed;
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
             Candidate = candidate;
@@ -153,6 +155,12 @@ namespace VirtualVessel.UI.VoiceLab
         /// words make it.
         /// </summary>
         public string Prompt { get; }
+
+        /// <summary>The line the candidates read; empty for the shelf's.</summary>
+        public string Line { get; }
+
+        /// <summary>The base's seed, so STEP 1 can make it again when its audio is gone; null when unknown.</summary>
+        public int? Seed { get; }
 
         /// <summary>Null when the base's audio is gone; then only the words come back.</summary>
         public VoiceLabCandidate Candidate { get; }

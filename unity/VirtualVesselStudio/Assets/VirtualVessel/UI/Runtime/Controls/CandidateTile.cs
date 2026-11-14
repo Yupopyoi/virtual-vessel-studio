@@ -18,6 +18,9 @@ namespace VirtualVessel.UI.Controls
         public const string Pitch = "common.candidate.pitch";
         public const string Range = "common.candidate.range";
 
+        /// <summary>The seed it was made with (the user's decision, 2026-11-14).</summary>
+        public const string Seed = "common.candidate.seed";
+
         /// <summary>"From candidate {n}": the candidate this one was made near.</summary>
         public const string From = "common.candidate.from";
     }
@@ -41,7 +44,8 @@ namespace VirtualVessel.UI.Controls
         private readonly int _number;
         private int _fromNumber;
 
-        public CandidateTile(int number, int medianHz, int lowHz, int highHz)
+        /// <param name="seed">The seed it was made with, shown under its pitch; null to show none.</param>
+        public CandidateTile(int number, int medianHz, int lowHz, int highHz, int? seed = null)
         {
             _number = number;
             AddToClassList(UssClass);
@@ -64,6 +68,11 @@ namespace VirtualVessel.UI.Controls
 
             Add(Stat(CandidateTileStrings.Pitch, HzText(medianHz)));
             Add(Stat(CandidateTileStrings.Range, RangeText(lowHz, highHz)));
+            if (seed.HasValue)
+            {
+                Add(Stat(CandidateTileStrings.Seed, seed.Value.ToString(CultureInfo.InvariantCulture)));
+            }
+
             Add(Span(medianHz, lowHz, highHz));
 
             PickButton = Ui.Button(CandidateTileStrings.Pick);
