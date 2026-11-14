@@ -178,6 +178,8 @@ namespace VirtualVessel.Application
             // Cancel the first quit request, shut down asynchronously, then quit again.
             if (_stopTask == null)
             {
+                // The user asked to quit; what the shutdown leaves on screen is not worth showing.
+                ApplicationWindow.Hide();
                 _stopTask = StopRuntimeAndQuitAsync();
             }
 

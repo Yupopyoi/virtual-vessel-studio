@@ -291,7 +291,7 @@ sequenceDiagram
 
 ### 7.2 終了
 
-1. Unityの`Application.wantsToQuit`を受けて、初回は`false`を返し終了処理を開始する。
+1. Unityの`Application.wantsToQuit`を受けて、初回は`false`を返し終了処理を開始する。開始と同時にPlayerのウィンドウを隠す。終了処理はUI、アバター、ステージを片付ける間も描画を続けるため、隠さないと閉じる前に標準の空だけの画面が一瞬映る（2026-11-14）。終了処理は終了Timeoutで打ち切られるので、隠れたまま残り続けることはない。Editorではウィンドウを隠さない。
 2. 起動に成功したServiceの`ShutdownAsync`を起動と逆順で呼ぶ。
 3. 全Serviceを`Dispose`する。
 4. Session Markerを削除する（正常終了の記録）。

@@ -291,7 +291,7 @@ sequenceDiagram
 
 ### 7.2 Shutdown
 
-1. On Unity's `Application.wantsToQuit`, return `false` the first time and start shutdown.
+1. On Unity's `Application.wantsToQuit`, return `false` the first time and start shutdown. Hide the player window as it starts: frames are still drawn while the shutdown takes the UI, the avatar, and the stage down, so without this the bare default sky shows for a moment before the window closes (2026-11-14). The shutdown timeout bounds the shutdown, so the hidden process does not linger. The Editor's window is not hidden.
 2. Call `ShutdownAsync` on services that started successfully, in reverse startup order.
 3. `Dispose` all services.
 4. Delete the session marker (recording a normal exit).
