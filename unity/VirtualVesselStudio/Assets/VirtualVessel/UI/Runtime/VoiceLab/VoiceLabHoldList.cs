@@ -58,6 +58,9 @@ namespace VirtualVessel.UI.VoiceLab
             return true;
         }
 
+        /// <summary>A timbre was held or taken off, or the list was cleared.</summary>
+        public event Action Changed;
+
         public bool Hold(VoiceLabTimbre timbre)
         {
             if (!CanHold(Held, timbre))
@@ -79,6 +82,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void Show()
         {
+            Changed?.Invoke();
             _rows.Clear();
             style.display = _held.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             ILocalizer localizer = UiServices.Find(this)?.Localizer;

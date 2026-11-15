@@ -47,6 +47,42 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabCandidateDetails.NextSeed(VoiceLabCandidateDetails.MaxSeed, 1), Is.EqualTo(0));
         }
 
+        [TestCase(false, true, 0, VoiceLabScreen.BaseStep, false, true, false)]
+        [TestCase(true, true, 0, VoiceLabScreen.BaseStep, false, false, false)]
+        [TestCase(false, false, 2, VoiceLabScreen.TimbreStep, false, false, true)]
+        [TestCase(false, false, 2, VoiceLabScreen.TryStep, false, false, false)]
+        [TestCase(false, false, 2, VoiceLabScreen.BaseStep, true, false, false)]
+        public void TheResumeNotice_OffersTheWorkOnlyBeforeThisSessionMadeAny_AndAVoiceOnlyInTheFirstSteps(bool made, bool kept, int voices, int step, bool building, bool work, bool voice)
+        {
+            Assert.That(VoiceLabResumeNotice.WhatToShow(made, kept, voices, step, building), Is.EqualTo((work, voice)));
+        }
+
+        [TestCase(VoiceLabScreen.BaseStep, false, false, VoiceLabScreen.BaseStep)]
+        [TestCase(VoiceLabScreen.TimbreStep, false, false, VoiceLabScreen.TimbreStep)]
+        [TestCase(VoiceLabScreen.BuildStep, false, false, VoiceLabScreen.TimbreStep)]
+        [TestCase(VoiceLabScreen.BuildStep, false, true, -1)]
+        [TestCase(VoiceLabScreen.BuildStep, true, false, -1)]
+        [TestCase(VoiceLabScreen.TryStep, true, false, -1)]
+        public void TheWork_IsKeptUntilBuildingBegins(int current, bool built, bool building, int expected)
+        {
+            Assert.That(VoiceLabResumeNotice.StepToKeep(current, built, building), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void VoicesNotRegistered_AreTheCompletedRunsWithoutAVoice_NewestFirst()
+        {
+            var now = System.DateTimeOffset.UtcNow;
+            var runs = new[]
+            {
+                new VoiceLabRunRecord("old", now.AddDays(-1), VoiceLabBuildState.Completed, null, "", default, "", null, null),
+                new VoiceLabRunRecord("failed", now, VoiceLabBuildState.Failed, null, "", default, "", null, null),
+                new VoiceLabRunRecord("registered", now, VoiceLabBuildState.Completed, null, "", default, "", null, new[] { "Fuwari" }),
+                new VoiceLabRunRecord("new", now, VoiceLabBuildState.Completed, null, "", default, "", null, null),
+            };
+
+            Assert.That(VoiceLabResumeNotice.UnregisteredOf(runs).Select(r => r.RunId), Is.EqualTo(new[] { "new", "old" }));
+        }
+
         [Test]
         public void Shelf_StartsWithEachPickOneGroupsDefault()
         {
@@ -392,19 +428,57 @@ namespace VirtualVessel.UI.Tests
         [Test]
         public void TheTermsMarkdown_BecomesHeadingsItemsAndRows()
         {
-            var blocks = VoiceLabTermsText.Blocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
+            var blocks = MarkdownText.Blocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
 
             Assert.That(blocks, Is.EqualTo(new[]
             {
-                (VoiceLabTermsBlockKind.Title, 0, "規約"),
-                (VoiceLabTermsBlockKind.Paragraph, 0, "前文の続き。"),
-                (VoiceLabTermsBlockKind.Heading, 0, "第1条（定義）"),
-                (VoiceLabTermsBlockKind.Item, 0, "1. 一つ目"),
-                (VoiceLabTermsBlockKind.Item, 1, "1. 入れ子"),
-                (VoiceLabTermsBlockKind.Paragraph, 0, "1. 段落の番号"),
-                (VoiceLabTermsBlockKind.Row, 0, "名称 ／ 取得元"),
-                (VoiceLabTermsBlockKind.Row, 0, "uv ／ GitHub"),
+                (MarkdownBlockKind.Title, 0, "規約"),
+                (MarkdownBlockKind.Paragraph, 0, "前文の続き。"),
+                (MarkdownBlockKind.Heading, 0, "第1条（定義）"),
+                (MarkdownBlockKind.Item, 0, "1. 一つ目"),
+                (MarkdownBlockKind.Item, 1, "1. 入れ子"),
+                (MarkdownBlockKind.Paragraph, 0, "1. 段落の番号"),
+                (MarkdownBlockKind.Row, 0, "名称 ／ 取得元"),
+                (MarkdownBlockKind.Row, 0, "uv ／ GitHub"),
             }));
+        }
+
+        [Test]
+        public void ALicensesMarkdown_ReadsAsText_WithItsLinesJoinedAsTheLanguageWrites()
+        {
+            var blocks = MarkdownText.Blocks("<!--\n  a note\n-->\n# otoha-chan.vrm\n\n- Contact: <https://github.com/x>\n- See [the license](https://vrm.dev/)\n  * nested `code`\n\nThird-party components are\nsubject to their licenses.\n\n本ソフトウェアの\n機能です。\n");
+
+            Assert.That(blocks, Is.EqualTo(new[]
+            {
+                (MarkdownBlockKind.Title, 0, "otoha-chan.vrm"),
+                (MarkdownBlockKind.Item, 0, "・Contact: https://github.com/x"),
+                (MarkdownBlockKind.Item, 0, "・See the license (https://vrm.dev/)"),
+                (MarkdownBlockKind.Item, 1, "・nested code"),
+                (MarkdownBlockKind.Paragraph, 0, "Third-party components are subject to their licenses."),
+                (MarkdownBlockKind.Paragraph, 0, "本ソフトウェアの機能です。"),
+            }));
+            Assert.That(MarkdownText.IsMarkdown("licenses/a.MD"), Is.True);
+            Assert.That(MarkdownText.IsMarkdown("LICENSE"), Is.False);
+        }
+
+        [Test]
+        public void TheBuildRecord_WritesANewStage_ThenItsCountEveryTwentieth()
+        {
+            var training = new VoiceLabBuildProgress(VoiceLabBuildState.Training, 0.5f, 30, 600);
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Preparing, 48, training), Is.True, "A new stage.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 10, training), Is.False, "20 epochs is under a twentieth of 600.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 0, training), Is.True);
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Training, 599, new VoiceLabBuildProgress(VoiceLabBuildState.Training, 1f, 600, 600)), Is.True, "The end of a stage.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.Preprocessing, 0, new VoiceLabBuildProgress(VoiceLabBuildState.Preprocessing, 0.1f, 1, 1)), Is.False, "A count of one is a stage loading.");
+            Assert.That(VoiceLabBuildLog.Worth(VoiceLabBuildState.None, -1, default), Is.False);
+        }
+
+        [Test]
+        public void TheBuildRecordsLine_SaysTheTimeTheStageAndItsCount()
+        {
+            var at = new System.DateTime(2026, 11, 15, 14, 20, 5);
+            Assert.That(VoiceLabBuildLog.LineText(null, at, VoiceLabBuildState.Training, 30, 600, false), Is.EqualTo("14:20:05  " + VoiceLabView.BuildStageKey(VoiceLabBuildState.Training) + "  30 / 600"));
+            Assert.That(VoiceLabBuildLog.LineText(null, at, VoiceLabBuildState.Cancelled, 0, 0, true), Is.EqualTo("14:20:05  " + VoiceLabStrings.BuildLogStopped));
         }
 
         [Test]
@@ -413,8 +487,8 @@ namespace VirtualVessel.UI.Tests
             foreach (string language in new[] { "ja", "en" })
             {
                 string file = System.IO.Path.GetFullPath(System.IO.Path.Combine("..", "..", "services", "voice-lab", "terms", $"voice-lab-terms.{language}.md"));
-                var blocks = VoiceLabTermsText.Blocks(System.IO.File.ReadAllText(file));
-                Assert.That(blocks.Count(b => b.Kind == VoiceLabTermsBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
+                var blocks = MarkdownText.Blocks(System.IO.File.ReadAllText(file));
+                Assert.That(blocks.Count(b => b.Kind == MarkdownBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
                 Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
             }
         }

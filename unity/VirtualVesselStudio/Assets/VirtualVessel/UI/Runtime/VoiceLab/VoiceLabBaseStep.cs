@@ -131,6 +131,29 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>The line the candidates read and the seed they start at.</summary>
         public VoiceLabCandidateDetails Details => _details;
 
+        /// <summary>The candidates made, with their numbers, as the unfinished work keeps them.</summary>
+        public IReadOnlyList<VoiceLabWorkCandidate> Candidates => _candidates.ConvertAll(c => new VoiceLabWorkCandidate(c.Number, c.From, c.Candidate));
+
+        /// <summary>How the candidates are asked for now, with the line (empty for the default) and the next seed.</summary>
+        public VoiceLabRequest CurrentRequest()
+        {
+            return _request.Request().With(VoiceLabCandidateDetails.LineToSend(_details.Line.value, _lab.Shelf?.DefaultLine ?? string.Empty) ?? string.Empty, _details.FirstSeed);
+        }
+
+        /// <summary>Puts kept candidates back (Voice Lab detailed design 6.6); numbering goes on after the last.</summary>
+        public void RestoreCandidates(IReadOnlyList<VoiceLabWorkCandidate> candidates)
+        {
+            _candidates.Clear();
+            _made = 0;
+            foreach (VoiceLabWorkCandidate kept in candidates)
+            {
+                _candidates.Add((kept.Number, kept.From, kept.Candidate));
+                _made = Math.Max(_made, kept.Number);
+            }
+
+            ShowTiles();
+        }
+
         /// <summary>A run's line and seed, so its base can be made again.</summary>
         public void RestoreDetails(string line, int? seed)
         {
@@ -212,6 +235,7 @@ namespace VirtualVessel.UI.VoiceLab
                 }
 
                 _instruction.text = made.Count > 0 ? made[made.Count - 1].Instruction : _instruction.text;
+                _flow.WorkChanged();
             }
             catch (OperationCanceledException)
             {
@@ -308,6 +332,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _next.SetEnabled(true);
             _makeNear.SetEnabled(_making == null);
+            _flow.WorkChanged();
         }
     }
 }

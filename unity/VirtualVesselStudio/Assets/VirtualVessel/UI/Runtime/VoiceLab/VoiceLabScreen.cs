@@ -45,6 +45,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Back to STEP 1 with the later steps closed, to make another voice.</summary>
         void StartOver();
+
+        /// <summary>STEP 1 or STEP 2 changed, so the unfinished work is kept again (Voice Lab detailed design 6.6).</summary>
+        void WorkChanged();
     }
 
     /// <summary>
@@ -52,13 +55,16 @@ namespace VirtualVessel.UI.VoiceLab
     /// a base, shape its timbre, make it, try it, and register it. Finished steps can be revisited. A second
     /// tab lists what was made (screen spec 8).
     /// </summary>
-    public sealed class VoiceLabScreen : VisualElement, IScreen, IVoiceLabFlow
+    public sealed partial class VoiceLabScreen : VisualElement, IScreen, IVoiceLabFlow
     {
         public const string UssClass = "vv-lab";
         public const string PanelClass = UssClass + "__panel";
         public const string LeadClass = UssClass + "__lead";
         public const string ActionsClass = UssClass + "__actions";
         public const string NoteClass = UssClass + "__note";
+
+        /// <summary>A heading inside a Card, such as STEP 4's pitch.</summary>
+        public const string SubheadClass = UssClass + "__subhead";
 
         /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
         public const string GapClass = UssClass + "__gap";
@@ -74,6 +80,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const int MakeTab = 0;
         public const int MadeTab = 1;
+
+        /// <summary>Voice Lab's terms to read again (the user's decision, 2026-11-15); only with the setup, which has them.</summary>
+        public const int TermsTab = 2;
 
         private readonly VisualElement[] _panels = new VisualElement[5];
         private readonly IVoiceLab _lab;
@@ -125,7 +134,9 @@ namespace VirtualVessel.UI.VoiceLab
 
             if (library != null)
             {
-                Tabs = Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
+                Tabs = services.VoiceLabSetup != null
+                    ? Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade, VoiceLabStrings.TabTerms)
+                    : Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
                 Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
                 _content.Add(Tabs);
             }
@@ -136,6 +147,13 @@ namespace VirtualVessel.UI.VoiceLab
             if (library != null)
             {
                 _content.Add(BuildLibrary(CanMake));
+            }
+
+            if (library != null && services.VoiceLabSetup != null)
+            {
+                Terms = new VoiceLabTermsView(services.VoiceLabSetup);
+                Terms.style.display = DisplayStyle.None;
+                _content.Add(Terms);
             }
 
             // The setup stays above the steps once ready, for an update and the build's progress.
@@ -149,11 +167,14 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 BuildMake();
             }
-            else if (Setup == null)
+            else
             {
-                Card card = Ui.Card(VoiceLabStrings.NotSetUpTitle);
-                card.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
-                _make.Add(card);
+                // Without the setup parts, or when they have nothing to show (set up, but the environment cannot be
+                // used), this says so: the tab stayed empty (2026-11-15).
+                NotSetUp = Ui.Card(VoiceLabStrings.NotSetUpTitle);
+                NotSetUp.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
+                _make.Add(NotSetUp);
+                ShowNotSetUp();
             }
 
             FollowCanMake();
@@ -161,6 +182,18 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Preparing Voice Lab on this PC; null without setup.</summary>
         public VoiceLabSetupView Setup { get; }
+
+        /// <summary>Says voices cannot be made here; null once Voice Lab is ready.</summary>
+        public Card NotSetUp { get; }
+
+        private void ShowNotSetUp()
+        {
+            if (NotSetUp != null)
+            {
+                bool nothingElse = !IsMakeBuilt && (Setup == null || Setup.Page == VoiceLabSetupPage.None);
+                NotSetUp.style.display = nothingElse ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
 
         private bool IsMakeBuilt => Steps != null;
 
@@ -250,6 +283,7 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             GoTo(BaseStep);
+            BuildResume();
         }
 
         /// <summary>The steps of making a voice; null until Voice Lab is ready.</summary>
@@ -284,14 +318,18 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _player.Stop();
                 _try?.Leave();
+                _try?.StopConverting();
             }
 
             LiveLock.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
             _content.style.display = live ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
-        /// <summary>Make a voice and Made voices; null without a library.</summary>
+        /// <summary>Make a voice, Made voices, and the terms with the setup; null without a library.</summary>
         public TabBar Tabs { get; }
+
+        /// <summary>The Terms tab; null without the setup or the library.</summary>
+        public VoiceLabTermsView Terms { get; }
 
         public VoiceLabLibraryView Library { get; private set; }
 
@@ -308,9 +346,20 @@ namespace VirtualVessel.UI.VoiceLab
                 // The samples may have been deleted in the Made voices tab, and the environment too.
                 _base?.RequestView.RefreshSamples();
                 Setup?.Refresh();
+                ShowNotSetUp();
+                ShowResume(reload: true);
             }
 
             FollowCanMake();
+
+            if (Terms != null)
+            {
+                Terms.style.display = tab == TermsTab ? DisplayStyle.Flex : DisplayStyle.None;
+                if (tab == TermsTab)
+                {
+                    Terms.Refresh();
+                }
+            }
 
             if (Library != null)
             {
@@ -435,10 +484,24 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 Library.Refresh();
             }
+
+            ShowResume(reload: true);
+            if (Current == TryStep)
+            {
+                _try?.Enter();
+            }
         }
 
         void IScreen.OnHidden()
         {
+            KeepWorkNow();
+
+            // STEP 4 is not seen now: a conversion goes on, but what it makes is not played over another screen.
+            if (Current == TryStep)
+            {
+                _try?.Leave();
+            }
+
             // Samples are for this screen; one must not go on playing over another screen.
             _player?.Stop();
         }
@@ -500,6 +563,9 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _try.Leave();
             }
+
+            // The step that is open is part of the work kept.
+            WorkChanged();
         }
 
         /// <summary>STEP 4's panel; null when Voice Lab is not set up.</summary>

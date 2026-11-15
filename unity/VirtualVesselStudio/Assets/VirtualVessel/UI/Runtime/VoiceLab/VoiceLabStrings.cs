@@ -131,6 +131,17 @@ namespace VirtualVessel.UI.VoiceLab
         public const string InstructionCopy = "lab.base.instruction-copy";
         public const string InstructionCopied = "lab.base.instruction-copied";
         public const string MoreMood = "lab.base.more-mood";
+        public const string ResumeWorkTitle = "lab.resume.work.title";
+        public const string ResumeWorkBody = "lab.resume.work.body";
+        public const string ResumeContinue = "lab.resume.continue";
+        public const string ResumeDiscard = "lab.resume.discard";
+        public const string ResumeDiscardTitle = "lab.resume.discard.title";
+        public const string ResumeDiscardBody = "lab.resume.discard.body";
+        public const string ResumeDiscardConfirm = "lab.resume.discard.confirm";
+        public const string ResumeVoiceTitle = "lab.resume.voice.title";
+        public const string ResumeVoiceBody = "lab.resume.voice.body";
+        public const string ResumeVoiceMore = "lab.resume.voice.more";
+        public const string ResumeTry = "lab.resume.try";
         public const string Details = "lab.base.details";
         public const string Line = "lab.base.line";
         public const string LineReset = "lab.base.line-reset";
@@ -277,6 +288,17 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string TabMake = "lab.tab.make";
         public const string TabMade = "lab.tab.made";
+        public const string TryStopPlaying = "lab.try.stop-playing";
+        public const string TryStopConverting = "lab.try.stop-converting";
+        public const string BuildLogCount = "lab.build.log.count";
+        public const string BuildLogEpochs = "lab.build.log.epochs";
+        public const string BuildLogDone = "lab.build.log.done";
+        public const string BuildLogFailed = "lab.build.log.failed";
+        public const string BuildLogStopped = "lab.build.log.stopped";
+        public const string TabTerms = "lab.tab.terms";
+        public const string TermsTabTitle = "lab.terms-tab.title";
+        public const string TermsTabAgreed = "lab.terms-tab.agreed";
+        public const string TermsTabNotAgreed = "lab.terms-tab.not-agreed";
         public const string LibraryLead = "lab.library.lead";
         public const string LibraryEmpty = "lab.library.empty";
         public const string LibraryVoices = "lab.library.voices";

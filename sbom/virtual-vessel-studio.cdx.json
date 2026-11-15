@@ -24,14 +24,6 @@
         {
           "name": "virtual-vessel-studio:license-file",
           "value": "NOTICE"
-        },
-        {
-          "name": "virtual-vessel-studio:license-file",
-          "value": "licenses/voice-lab-terms.ja.md"
-        },
-        {
-          "name": "virtual-vessel-studio:license-file",
-          "value": "licenses/voice-lab-terms.en.md"
         }
       ]
     }

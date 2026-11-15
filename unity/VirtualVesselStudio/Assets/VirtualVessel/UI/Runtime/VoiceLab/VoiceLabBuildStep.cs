@@ -21,6 +21,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _running;
         private readonly ProgressMeter _progress;
         private readonly StatusChip _result;
+        private readonly VoiceLabBuildLog _log;
         private readonly KeyedText _note;
         private CancellationTokenSource _building;
         private IVisualElementScheduledItem _refresh;
@@ -74,6 +75,8 @@ namespace VirtualVessel.UI.VoiceLab
             StopButton.clicked += () => _building?.Cancel();
             _running.Add(VoiceLabScreen.Actions(StopButton));
             card.Add(_running);
+            _log = new VoiceLabBuildLog();
+            card.Add(_log);
             Add(card);
 
             ShowRunning(false);
@@ -117,6 +120,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton StopButton { get; }
 
+        /// <summary>The record of the build, kept until the next one.</summary>
+        public VoiceLabBuildLog Log => _log;
+
         public bool IsBuilding => _building != null;
 
         private async void Build()
@@ -129,6 +135,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _building = new CancellationTokenSource();
             _result.style.display = DisplayStyle.None;
+            _log.Start();
             ShowRunning(true);
             _flow.Lock(true);
             _refresh = schedule.Execute(Refresh).Every(RefreshMs);
@@ -153,6 +160,7 @@ namespace VirtualVessel.UI.VoiceLab
                 _building = null;
                 ShowRunning(false);
                 _flow.Lock(false);
+                _log.End(build?.State ?? VoiceLabBuildState.Failed, DateTime.Now);
             }
 
             string resultKey = VoiceLabView.BuildResultKey(build);
@@ -180,6 +188,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _progress.Progress = progress.Fraction;
             _progress.Detail = VoiceLabView.PercentText(progress.Fraction);
+            _log.Follow(progress, DateTime.Now);
         }
 
         private void ShowRunning(bool running)

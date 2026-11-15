@@ -183,8 +183,8 @@ namespace VirtualVessel.UI.Tests
             Assert.That(plugin.Shown, Is.True);
             Assert.That(plugin.Toggle.TextKey, Is.EqualTo(CreditStrings.Hide));
             List<Label> labels = plugin.Text.Query<Label>().ToList();
-            Assert.That(labels.Select(label => label.text), Is.EqualTo(new[] { "licenses/a.md", "<b>MIT</b> text", "licenses/gone.md", _root.Localizer.Get(CreditStrings.Missing) }), "Each file is named when there are several; a missing one says so.");
-            Assert.That(labels[1].enableRichText, Is.False, "License texts are shown as written.");
+            Assert.That(labels.Select(label => label.text), Is.EqualTo(new[] { "licenses/a.md", "Plugin", "<b>MIT</b> text see https://example.org/", "licenses/gone.md", _root.Localizer.Get(CreditStrings.Missing) }), "Each file is named when there are several; Markdown shows as text, not its marks; a missing one says so.");
+            Assert.That(labels[2].enableRichText, Is.False, "License texts are not read as rich text.");
 
             Submit(plugin.Toggle);
             Assert.That(plugin.Shown, Is.False);
@@ -397,7 +397,7 @@ namespace VirtualVessel.UI.Tests
                         { ""name"": ""Tool"", ""scope"": ""excluded"" },
                         { ""name"": ""Tool part"" },
                         { ""name"": ""Python"", ""scope"": ""optional"" } ] }",
-                ["licenses/a.md"] = "<b>MIT</b> text",
+                ["licenses/a.md"] = "# Plugin\n\n<b>MIT</b> text\nsee <https://example.org/>\n",
             };
 
             public string ReadText(string packagePath)

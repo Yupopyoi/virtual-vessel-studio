@@ -39,10 +39,21 @@ Activation (Voice Lab detailed design 8.1) happens in the Make a voice tab (`Voi
 | Update | Built, with a newer version | Shown above the steps. That voices can still be made while it updates, Update, and the download size. A Chip when it failed. |
 
 - The check runs each time the Check page opens (and when the location changes).
-- The terms are the bundled `terms/voice-lab-terms.<language>.md`, shown as headings, paragraphs, numbered items, and table rows. Credits and licenses in Setup reads the same files. So the terms are kept in one place, Voice Lab has no other place for them (2026-11-11).
+- The terms are the bundled `terms/voice-lab-terms.<language>.md`, shown as headings, paragraphs, numbered items, and table rows. After agreeing, the Terms tab (2.3) reads the same files. The terms are not a license, so Credits and licenses in Setup does not list them (the user's decision, 2026-11-15).
 - The record has one line per component downloaded and per step, with the time and what happens in the app's words (such as "22:14:05  Downloading: VoxCPM2 (4.3 GB)", "Building: installing the packages"). Output from uv or Python is not shown as it is (system design 4.27; the user's decision, 2026-11-11). The record lasts while the app is open.
 - A build paused by streaming or recording says so.
 - The progress is read every 0.25 seconds. If the app is closed, it continues the next time it opens.
+
+### 2.2 Continuing
+
+Above the steps of Make a voice, notices offer to continue (the user's request, 2026-11-15; Voice Lab detailed design 6.6).
+
+- Unfinished voice: when STEP 1 or STEP 2 was left unfinished last time and this session has made no candidates yet. Unfinished voice, where it stopped ("Stopped at STEP 2 Shape the timbre") and when it was kept, and that making new candidates replaces it. Continue puts back the candidates, the one picked, the words, the line and the seed, the timbre, and the timbres held, and opens that step. Discard asks, then forgets it.
+- A voice not registered yet: when a voice was made but not registered, while in STEP 1 or STEP 2 and nothing is being built. When the newest was made, and with more than one, how many more and that Made voices lists them. Continue (STEP 4) opens the newest in STEP 4.
+
+### 2.3 The Terms Tab
+
+A Terms tab sits beside Make a voice and Made voices, when the setup parts are there (the user's decision, 2026-11-15). The Card Voice Lab terms of use shows the version, a chip saying whether they were agreed to (✓ Agreed / Not agreed), and the terms (scrolling in a frame; headings, paragraphs, numbered items, and table rows, as in 2.1), in the screen's language, read again when the language changes.
 
 ## 3. STEP 1 Pick a Base
 
@@ -80,18 +91,20 @@ The user starts from an example, moves it with words, and picks a candidate by e
 - A note on the time (about 20 minutes per voice on an RTX 4070), and Start. A build does not start until Start is pressed, since it takes long.
 - A folded Details card with Training length (epochs): 150 (the default), 300, 600. The time cannot be promised, so the choices show epochs, not minutes (user's check, 2026-11-08). A line says more learns more of the voice's softness and roundness. Choosing one changes the time note above (about 20 minutes at 150, 30 at 300, 50 at 600). It cannot be changed while building (Voice Lab detailed design 8.3.3). In Unity's Editor only, a Test choice is added; choosing it, the time note says it takes minutes and the voice is not one to use (`lab.build.note.test`).
 - While building: a progress bar (`components.md` 3.15) with the stage (Making training speech, Learning the voice, Finishing) and the percent, read every 0.5 s, and Stop.
+- A record of the work: in the same monospace frame as the setup's (2.1), a line each with the time (the user's request, 2026-11-15; `VoiceLabBuildLog`). A line when a stage begins, and each time its count (lines of training speech, epochs) moves on by a twentieth of its total (for example "14:20:05  Learning the voice  30 / 600 epochs"); at the end, Done, Could not be made, or Stopped. The scripts' output is never shown as it is (system design 4.27). The record stays until the next build and is rewritten when the language changes.
 - Completed: STEP 4 opens. Failed: an error chip, with "Not enough GPU memory…" when it ran out of GPU memory. Stopped: a chip saying so. The user stays on STEP 3 and can start again.
 - The time left is not shown yet; the build reports a fraction but no estimate.
 
 ## 6. STEP 4 Try It with Your Voice
 
-Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice Lab detailed design 8.3.4). Leaving STEP 4 stops what plays and converts and puts the voice conversion back as it was before the trial (the chosen voice, on or off, the pitch settings). Voice Lab is not used while streaming or recording, so a trial never reaches the stream.
+Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice Lab detailed design 8.3.4). Leaving STEP 4 (for another step or screen) stops what plays and puts the voice conversion back as it was before the trial (the chosen voice, on or off, the pitch settings). Voice Lab is not used while streaming or recording, so a trial never reaches the stream.
 
 - Voice to try card: Recording or Microphone (Segmented).
-  - Recording: the file's name and Choose file (WAV, M4A, MP3). Original plays the recording as it is; Converted converts it with the stream's processing first; both play to the monitor only (Voice detailed design 8.5; user's decision, 2026-11-08). A progress bar shows while converting. The same recording, voice, and pitch settings play again without converting again. Stop stops playing and converting.
+  - Recording: the file's name and Choose file (WAV, M4A, MP3). Play the original plays the recording as it is; Play the converted voice converts it with the stream's processing first; both play to the monitor only (Voice detailed design 8.5; user's decision, 2026-11-08). A progress bar shows while converting. The same recording, voice, and pitch settings play again without converting again. Stop stops playing and converting.
   - Microphone: Try with the microphone runs the stream's conversion with the voice made. With the microphone's Hear off, a warning chip and "Turn Hear on" show, with a line to use headphones (user's decision, 2026-11-08).
   - A failed conversion shows an error chip (`lab.try.failed`).
-- Pitch card: Match the pitch automatically (on by default), the line "Your voice 200 Hz → this voice 285 Hz (+6)" ("not measured" before measuring), Measure again, and an Adjustment slider (-24 to +24). With recordings, the pitch measured once is used by the next conversion.
+- Converting a recording goes on after leaving STEP 4: switching steps cancelled it, and it could not be started again once back (the user's report, 2026-11-15). What it makes while unseen is not played; back in STEP 4, Play the converted voice plays it without converting again. Only a stream or a recording starting cancels it (system design 14.26).
+- The pitch sits inside the Voice to try card, followed at the bottom by Play the converted voice, Stop playing, and the conversion's progress with Stop converting (only while converting). Stopping playback and stopping a conversion are separate buttons: one Stop did both, and what it stopped was not clear (the user's review, 2026-11-15). Pitch (a subheading, with a line and space above to part it from what comes before; the user's review, 2026-11-15): Match the pitch automatically (on by default), the line "Your voice 200 Hz → this voice 285 Hz (+6)" ("not measured" before measuring), Measure again, and an Adjustment slider (-24 to +24). With recordings, the pitch measured once is used by the next conversion.
 - STEP 2 Fix the timbre, and STEP 5 Use this voice.
 
 ## 7. STEP 5 Register

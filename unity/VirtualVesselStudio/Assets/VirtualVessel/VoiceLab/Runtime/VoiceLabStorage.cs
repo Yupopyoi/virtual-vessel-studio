@@ -38,9 +38,12 @@ namespace VirtualVessel.VoiceLab
         private readonly string _designs;
         private readonly ITrainingRunRepository _runs;
         private readonly Func<VoiceLabActivity> _activity;
+        private readonly Func<IEnumerable<string>> _alsoKept;
 
-        public VoiceLabStorage(string voiceLabFolder, ITrainingRunRepository runs, Func<VoiceLabActivity> activity)
+        /// <param name="alsoKept">More files old candidates must keep: the unfinished work's (Voice Lab detailed design 6.6).</param>
+        public VoiceLabStorage(string voiceLabFolder, ITrainingRunRepository runs, Func<VoiceLabActivity> activity, Func<IEnumerable<string>> alsoKept = null)
         {
+            _alsoKept = alsoKept ?? (() => Array.Empty<string>());
             string root = voiceLabFolder ?? throw new ArgumentNullException(nameof(voiceLabFolder));
             _samples = Path.Combine(root, SamplesFolderName);
             _designs = Path.Combine(root, DesignsFolderName);
@@ -137,7 +140,7 @@ namespace VirtualVessel.VoiceLab
                 return CrudResult<IReadOnlyList<string>>.From(runs.WithoutValue);
             }
 
-            IEnumerable<string> kept = runs.Value.Select(r => r.Design).Where(d => d != null).SelectMany(d => new[] { d.Candidate, d.Reference });
+            IEnumerable<string> kept = runs.Value.Select(r => r.Design).Where(d => d != null).SelectMany(d => new[] { d.Candidate, d.Reference }).Concat(_alsoKept());
             IEnumerable<string> files = Directory.Exists(_designs) ? Directory.GetFiles(_designs, "*", SearchOption.AllDirectories) : Array.Empty<string>();
             return CrudResult<IReadOnlyList<string>>.Success(Deletable(files, kept, _activity().Session));
         }

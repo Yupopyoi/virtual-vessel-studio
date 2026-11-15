@@ -129,16 +129,23 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A build as the screen follows it.</summary>
     public readonly struct VoiceLabBuildProgress
     {
-        public VoiceLabBuildProgress(VoiceLabBuildState state, float fraction)
+        public VoiceLabBuildProgress(VoiceLabBuildState state, float fraction, int done = 0, int total = 0)
         {
             State = state;
             Fraction = fraction;
+            Done = done;
+            Total = total;
         }
 
         public VoiceLabBuildState State { get; }
 
         /// <summary>The whole build, 0 to 1.</summary>
         public float Fraction { get; }
+
+        /// <summary>The stage's own count: lines of training speech, epochs; 0 of 0 while a stage loads.</summary>
+        public int Done { get; }
+
+        public int Total { get; }
     }
 
     /// <summary>How far making candidates is: <see cref="Done"/> of <see cref="Total"/>; a total of 0 while the voice model loads.</summary>
@@ -218,6 +225,20 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Where the running <see cref="MakeCandidatesAsync"/> is. Read it as often as needed.</summary>
         VoiceLabMaking CandidatesProgress { get; }
+
+        /// <summary>
+        /// The STEP 1 and STEP 2 left unfinished, with its candidates made candidates of this session again so they can
+        /// be played and built (Voice Lab detailed design 6.6). Candidates whose audio is gone are left out. A CRUD read
+        /// (system design 6.31): NotFound when none is kept or none of its candidates is left, Invalid when Voice Lab is
+        /// not set up or the file was damaged, StorageFailed when it could not be read.
+        /// </summary>
+        CrudResult<VoiceLabWork> LoadWork();
+
+        /// <summary>Keeps the unfinished work in place of the last; a CRUD update. Invalid when Voice Lab is not set up.</summary>
+        CrudResult SaveWork(VoiceLabWork work);
+
+        /// <summary>Forgets the unfinished work; a CRUD delete that succeeds when there was none.</summary>
+        CrudResult DeleteWork();
 
         /// <exception cref="VoiceLabFailedException">The preview could not be made.</exception>
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);

@@ -326,7 +326,7 @@ namespace VirtualVessel.Application.Startup
         {
             // Made in the order they were before the composition was split: the trial, then Voice Lab, then its setup.
             VoiceTrialService trial = built.Voice == null ? null : new VoiceTrialService(context.FrameLoop, built.Voice.Library, built.Log("Voice", "Trial"));
-            VoiceLabService voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, built.Log("VoiceLab", "Design")), built.Voice);
+            VoiceLabService voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, built.Log("VoiceLab", "Design"), appScripts: GetVoiceLabScripts(context.Environment, UnityEngine.Application.dataPath)), built.Voice);
             return new ScreenServices
             {
                 StreamPreview = built.Video?.Preview,

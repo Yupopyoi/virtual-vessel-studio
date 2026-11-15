@@ -22,7 +22,7 @@ namespace VirtualVessel.VoiceLab
     /// <see cref="IVoiceLab"/> for the Voice Lab screen (Voice Lab detailed design 4, 5): the designer, the runs,
     /// and registration behind one face. Without a training environment it says so and does nothing.
     /// </summary>
-    public sealed class VoiceLabService : IVoiceLab
+    public sealed partial class VoiceLabService : IVoiceLab
     {
         /// <summary>The developer's environment file in the settings folder, until activation writes it (Voice Lab detailed design 6.4).</summary>
         public const string EnvironmentFile = "voice-lab-environment.json";
@@ -43,6 +43,7 @@ namespace VirtualVessel.VoiceLab
         private readonly string _voiceModelsFolder;
         private readonly ISystemClock _clock;
         private readonly Random _random;
+        private string _appScripts;
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         // Written by the scripts' reading threads, read by the screen on the main thread.
         private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
@@ -59,6 +60,7 @@ namespace VirtualVessel.VoiceLab
             _log = log;
             _random = random ?? new Random();
             Library = library;
+            _work = new WorkStore(voiceLabFolder, clock);
         }
 
         /// <summary>
@@ -95,12 +97,13 @@ namespace VirtualVessel.VoiceLab
         /// The service from the settings folder's environment file; one that is missing, unreadable, or points at
         /// what is not there leaves Voice Lab not set up, with the reason in the log.
         /// </summary>
-        public static VoiceLabService Create(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random = null)
+        /// <param name="appScripts">The scripts that ship with the app (VoiceLab/scripts), which an environment the app built runs.</param>
+        public static VoiceLabService Create(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random = null, string appScripts = null)
         {
             // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
             VoiceLabService created = null;
             var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, () => created?.Activity ?? default);
-            created = new VoiceLabService(configDirectory, voiceLabFolder, voiceModelsFolder, clock, log, random, library);
+            created = new VoiceLabService(configDirectory, voiceLabFolder, voiceModelsFolder, clock, log, random, library) { _appScripts = appScripts };
             created.Reload();
             return created;
         }
@@ -119,7 +122,12 @@ namespace VirtualVessel.VoiceLab
                 return;
             }
 
-            VoiceLabEnvironment environment = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
+            // What activation built is the app's to delete, and runs the app's own scripts: it lies inside the folder the
+            // user chose for it.
+            string root = VoiceActivationFolders.RootIn(ActivationLocation(_configDirectory, _clock));
+            VoiceLabEnvironment kept = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
+            string owned = VoiceLabEnvironmentRemover.Owned(kept, root);
+            VoiceLabEnvironment environment = VoiceLabEnvironment.Running(kept, owned != null, _appScripts);
             IReadOnlyList<string> problems = environment?.Problems(File.Exists, Directory.Exists) ?? new[] { problem };
             VoiceLabShelf shelf = null;
             if (problems.Count == 0)
@@ -136,9 +144,7 @@ namespace VirtualVessel.VoiceLab
                 return;
             }
 
-            // What activation built is the app's to delete: it lies inside the folder the user chose for it.
-            string root = VoiceActivationFolders.RootIn(ActivationLocation(_configDirectory, _clock));
-            _remover = new VoiceLabEnvironmentRemover(path, VoiceLabEnvironmentRemover.Owned(environment, root));
+            _remover = new VoiceLabEnvironmentRemover(path, owned);
             var runner = new ExternalProcessRunner(environment.AllowedFolders, _log.WithContext("component", "process"), _clock);
             var runs = new TrainingRunStore(_voiceLabFolder, _clock, _random);
             var voices = new VoiceModelStore(_voiceModelsFolder, _clock);
@@ -227,8 +233,9 @@ namespace VirtualVessel.VoiceLab
         public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Ensure();
+            ForgetWork();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
-            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
+            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction, p.Done, p.Total));
             // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.
             using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _buildCancel.Value = cancel;

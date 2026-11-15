@@ -102,6 +102,29 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking CandidatesProgress => default;
 
+        /// <summary>The unfinished work kept, as the file would hold it; null for none.</summary>
+        public VoiceLabWork KeptWork { get; set; }
+
+        public int WorkSaves { get; private set; }
+
+        public CrudResult<VoiceLabWork> LoadWork()
+        {
+            return KeptWork != null ? CrudResult<VoiceLabWork>.Success(KeptWork) : CrudResult<VoiceLabWork>.Fail(CrudError.NotFound, "None kept.");
+        }
+
+        public CrudResult SaveWork(VoiceLabWork work)
+        {
+            KeptWork = work;
+            WorkSaves++;
+            return CrudResult.Success;
+        }
+
+        public CrudResult DeleteWork()
+        {
+            KeptWork = null;
+            return CrudResult.Success;
+        }
+
         public List<int> Counts { get; } = new List<int>();
 
         public Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
@@ -361,12 +384,38 @@ namespace VirtualVessel.UI.Tests
 
     internal sealed class FakeTrial : IVoiceTrial
     {
+        private TaskCompletionSource<VoiceTrialResult> _held;
+
         public List<VoiceTrialRequest> Requests { get; } = new List<VoiceTrialRequest>();
+
+        /// <summary>When set, a conversion waits for <see cref="Finish"/>, and cancelling cancels it, as the real one does.</summary>
+        public bool Hold { get; set; }
+
+        public bool Cancelled { get; private set; }
 
         public Task<VoiceTrialResult> ConvertAsync(VoiceTrialRequest request, IProgress<float> progress, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Task.FromResult(new VoiceTrialResult($"converted-{Requests.Count}.wav", 200f, 285f, request.AutoPitch ? 6f + request.Adjustment : request.Adjustment));
+            var result = new VoiceTrialResult($"converted-{Requests.Count}.wav", 200f, 285f, request.AutoPitch ? 6f + request.Adjustment : request.Adjustment);
+            if (!Hold)
+            {
+                return Task.FromResult(result);
+            }
+
+            _held = new TaskCompletionSource<VoiceTrialResult>();
+            TaskCompletionSource<VoiceTrialResult> held = _held;
+            cancellationToken.Register(() =>
+            {
+                Cancelled = true;
+                held.TrySetCanceled();
+            });
+            return held.Task.ContinueWith(_ => result, cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        /// <summary>Lets the held conversion finish.</summary>
+        public void Finish()
+        {
+            _held?.TrySetResult(null);
         }
     }
 

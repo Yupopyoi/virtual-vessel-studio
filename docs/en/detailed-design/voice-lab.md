@@ -190,6 +190,17 @@ Voice owns registered voices (Voice detailed design 6.1). Only a completed run i
 
 Voices registered before 2026-11-08 have no `design.json`; their design is in `model.json`'s `design`. They are development voices only, so they are not moved over, and the Made voices tab cannot play their base.
 
+### 6.6 Unfinished Work
+
+STEP 1 and STEP 2 left unfinished are kept in `VoiceLab/work.json` (`WorkFile`, `schemaVersion` 1), so they can be continued after the app was closed (the user's decision, 2026-11-15). It is read and written with ProjectData's settings files (`ConfigFileStore`), and `WorkStore` reports through CRUD results (system design 6.31). One is kept; new work replaces it.
+
+- Fields: when it was kept `savedAtUtc`, the step that was open `step` (0 for STEP 1, 1 for STEP 2), how the candidates were asked for (`words`, `freeWords`, `prompt`, `line`, and the next seed `firstSeed`), the candidates `candidates` (the number on the screen `number`, the number of the one it was made near `from`, the seed, the audio file, the pitch, the instruction, the audio it was made near, and how it was asked for), the number of the one picked `picked` (0 for none), the timbre `timbre`, and the timbres held `held`.
+- The screen keeps it half a second after a change, gathering a slider's moves into one write, and when the screen is left (`VoiceLabWorkKeeper`). Nothing is kept without candidates or once building has begun; STEP 3 before building keeps STEP 2's work.
+- Reading it registers the candidates whose audio is still there as candidates of this session, under new ids (`work_<number>_<seed>`) that never meet this session's. Candidates whose audio is gone are left out, and with none left there is no work. Without the picked candidate it goes back to STEP 1.
+- Building forgets it (`IVoiceLab.BuildAsync`): the Training Run is kept from then on and is offered as a voice made but not registered. Discard on the screen forgets it too.
+- Deleting old candidates (8.6) keeps the unfinished work's candidates and the audio they were made near.
+- A damaged file is moved aside, and nothing is offered; the log says why.
+
 ## 7. State and Lifecycle
 
 ```mermaid
@@ -263,6 +274,7 @@ Progress is shown as, for example, "Preparing the environment"; words such as Py
 - **Python**: `uv python install <version> --install-dir <version>\python`, then `uv sync --frozen --no-dev --project <scripts>`. uv is set to put the venv in `<version>\venv` and its cache in `External\VoiceLab\cache`, to use only the Python it installed (`UV_PYTHON_PREFERENCE=only-managed`), and to copy files rather than link them, as the cache is deleted. uv runs through ExternalServices' runner, which allows only programs inside `External\VoiceLab`.
 - **Check**: the built environment makes one VoxCPM2 candidate and builds a voice from it with the shortest plan (4 lines, 1 epoch) (`VoiceActivationCheck`). It goes the same way real use does, so the GPU, the packages, RVC, and the template are proven to work together.
 - **Switch**: only after both the build and the check succeed is the environment file (`Config\voice-lab-environment.json`) written. A file for an environment a developer set up is kept as `voice-lab-environment.before-activation.json`. Voice Lab then reloads onto the new environment (`IVoiceLab.Reload`, on the thread that started the build, which is Unity's main thread), and only after that are other versions' folders, the downloads, and uv's cache removed. Removed first, Voice Lab could still start a candidate or a build on the old environment and use files being deleted.
+- **Where the scripts are**: an environment the app built (inside the activation folder) runs the scripts of the app that runs now, `VoiceLab/scripts`, not the file's `scripts` (`VoiceLabEnvironment.Running`), as the scripts ship with the app. The file keeps where the app was when it built the environment, so moving the app to another folder lost them and Voice Lab could not be used (the trial build, 2026-11-15). A developer's environment keeps the file's `scripts`. When set up but the environment cannot be used, Make a voice says voices cannot be made yet (it showed nothing).
 - **Failure**: it reports whether the network, a mismatched file, disk space, the build, or the check stopped it. An exception of none of these kinds still records `Failed`: left at `Installing`, a restart would show it paused rather than failed, and continuing would fail the same way. The downloads stay, so starting again continues.
 - **Update**: when the version of the list bundled with the app differs from the environment in use, there is an update. The new version is built in another folder, so the environment in use keeps working while it builds, and if it stops or fails.
 - **Agreement**: nothing is built until the current version of the terms is agreed to.
@@ -278,7 +290,7 @@ Follows the requirement in the [decision record](../decisions/voice-conversion.m
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
 - When the version changes, agreement is asked again before making a voice. Even when built, Make a voice shows the terms, and until they are agreed to, the steps and Made voices' Make again and Try cannot be used. Agreeing goes back to the steps, with nothing built. Streaming with registered voices does not stop.
-- The same content can be read at any time from Credits and licenses in Setup. A release ships it as `licenses/voice-lab-terms.<language>.md` (`tools/release/license-files.json`), tied to the application's SBOM entry. Voice Lab has no other place for it besides the agreement page (2026-11-11).
+- The same content can be read at any time from Voice Lab's Terms tab (Voice Lab screen 2.3). The terms are not a license, so they were taken out of Credits and licenses in Setup and of the SBOM entry (the user's decision, 2026-11-15). The files ship with the scripts in `VoiceLab/scripts/terms/`.
 - Importing a recording shows a confirmation that it is your own voice or one you hold the rights to.
 
 ### 8.3 Making a voice

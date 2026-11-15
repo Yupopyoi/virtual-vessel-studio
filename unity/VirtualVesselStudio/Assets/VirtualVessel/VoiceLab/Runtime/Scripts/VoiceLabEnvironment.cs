@@ -65,6 +65,22 @@ namespace VirtualVessel.VoiceLab.Scripts
                 document.Get<string>("voxCpmModel"), document.Get<string>("template"), document.Get<string>("manifest"));
         }
 
+        /// <summary>This environment with the scripts in <paramref name="scripts"/>. Pure.</summary>
+        public VoiceLabEnvironment WithScripts(string scripts)
+        {
+            return new VoiceLabEnvironment(Python, scripts, Rvc, VoxCpmModel, Template, Manifest);
+        }
+
+        /// <summary>
+        /// The environment to run: one the app built reads the scripts of the app that runs now, which ship with it, so
+        /// moving or updating the app keeps Voice Lab working; the file kept the folder of the app that built it, and a
+        /// trial build in another folder found nothing (2026-11-15). A developer's environment keeps its own. Pure.
+        /// </summary>
+        public static VoiceLabEnvironment Running(VoiceLabEnvironment kept, bool appBuilt, string appScripts)
+        {
+            return kept != null && appBuilt && !string.IsNullOrEmpty(appScripts) ? kept.WithScripts(appScripts) : kept;
+        }
+
         /// <summary>The settings file's JSON for this environment, as <see cref="Parse"/> reads it. Pure.</summary>
         public string ToJson()
         {

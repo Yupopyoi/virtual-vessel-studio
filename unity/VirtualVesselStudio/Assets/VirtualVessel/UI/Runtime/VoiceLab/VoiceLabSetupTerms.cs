@@ -84,12 +84,8 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             AgreeToggle.SetEnabled(true);
-            foreach ((VoiceLabTermsBlockKind kind, int indent, string block) in VoiceLabTermsText.Blocks(text))
+            foreach (Label label in MarkdownText.Labels(text, VoiceLabSetupView.TermsHeadingClass, VoiceLabSetupView.TermsItemClass))
             {
-                Label label = QuietText.Of(new Label(block));
-                label.AddToClassList(kind == VoiceLabTermsBlockKind.Title ? "vv-text-subhead" : "vv-text-body");
-                label.AddToClassList(kind == VoiceLabTermsBlockKind.Title || kind == VoiceLabTermsBlockKind.Heading ? VoiceLabSetupView.TermsHeadingClass : VoiceLabSetupView.TermsItemClass);
-                label.style.marginLeft = indent * 16;
                 _body.Add(label);
             }
         }
