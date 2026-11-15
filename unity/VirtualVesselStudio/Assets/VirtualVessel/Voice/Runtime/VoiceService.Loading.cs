@@ -65,6 +65,11 @@ namespace VirtualVessel.Voice
 
             if (!IsAttached)
             {
+                if (_muting)
+                {
+                    Discard();
+                }
+
                 return;
             }
 
@@ -84,10 +89,22 @@ namespace VirtualVessel.Voice
             }
             catch (Exception exception)
             {
-                _log?.Error("Voice conversion failed. The microphone goes back to the mix directly.", exception);
                 Failure = exception;
-                Stop();
-                _state.Set(VoiceConversionState.Failed);
+                if (MutesOnFailure(_storage.Profile.OnFailure) && _stage.IsAvailable)
+                {
+                    // The stage stays on and nothing is written: turning it off and on again would let a moment of the
+                    // microphone through in between.
+                    _log?.Error("Voice conversion failed. The microphone is kept out of the mix until it is turned off.", exception);
+                    _stream?.Abandon();
+                    _state.Set(VoiceConversionState.Failed);
+                    _muting = true;
+                }
+                else
+                {
+                    _log?.Error("Voice conversion failed. The microphone goes back to the mix directly.", exception);
+                    Stop();
+                    _state.Set(VoiceConversionState.Failed);
+                }
             }
         }
 

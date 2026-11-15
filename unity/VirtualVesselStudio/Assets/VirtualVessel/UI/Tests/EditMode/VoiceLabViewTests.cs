@@ -306,6 +306,11 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceCard.StatusOf(VoiceConversionState.Failed, true, true), Is.EqualTo((StatusKind.Error, VoiceCardStrings.StateStopped)));
             Assert.That(VoiceCard.StatusOf(VoiceConversionState.Running, false, true).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
             Assert.That(VoiceCard.StatusOf(VoiceConversionState.Off, true, false).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
+            Assert.That(VoiceCard.ShowsOn(VoiceConversionState.Failed, true), Is.True, "Muted after a failure, it shows on, so turning it off lets the own voice in.");
+            Assert.That(VoiceCard.ShowsOn(VoiceConversionState.Failed, false), Is.False);
+            Assert.That(VoiceCard.ShowsOn(VoiceConversionState.Unavailable, true), Is.True);
+            Assert.That(VoiceCard.ShowsOn(VoiceConversionState.Loading, false), Is.True);
+            Assert.That(VoiceCard.ShowsOn(VoiceConversionState.Off, true), Is.False);
             Assert.That(VoiceCard.FinalHz(200f, true, 6f, 0f), Is.EqualTo(200f * (float)System.Math.Pow(2.0, 0.5)).Within(0.01f));
             Assert.That(VoiceCard.FinalHz(200f, false, 6f, 12f), Is.EqualTo(400f).Within(0.01f), "Automatic off: the adjustment alone.");
             Assert.That(VoiceCard.FinalHz(0f, true, 6f, 0f), Is.EqualTo(0f));
