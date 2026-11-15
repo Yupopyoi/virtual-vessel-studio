@@ -10,8 +10,8 @@ namespace VirtualVessel.VoiceLab.Scripts
     /// <summary>
     /// Deletes the training environment the app built, to free space (Voice Lab detailed design 11; the user's request,
     /// 2026-11-11). Streaming never uses it, so registered voices keep working. Only an environment wholly inside the
-    /// app's own folder (<see cref="ManagedRoot"/>) is deleted: one set up by hand elsewhere, such as a developer's, is not
-    /// the app's to delete (CLAUDE.md 26).
+    /// folder activation builds in (VoiceActivationFolders.RootIn the chosen location) is deleted: one set up by hand
+    /// elsewhere, such as a developer's, is not the app's to delete (CLAUDE.md 26).
     /// </summary>
     public sealed class VoiceLabEnvironmentRemover
     {
@@ -25,15 +25,13 @@ namespace VirtualVessel.VoiceLab.Scripts
             OwnedFolder = ownedFolder;
         }
 
-        /// <summary>Where the app builds training environments, one folder per version.</summary>
-        public static string ManagedRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VirtualVesselStudio", "External", "VoiceLab");
-
         /// <summary>The environment's folder when the app built it; null for one set up elsewhere.</summary>
         public string OwnedFolder { get; }
 
         /// <summary>
         /// The version folder under <paramref name="managedRoot"/> that holds every part of the environment, or null when
-        /// any part is outside it, or the parts are in different versions. Pure.
+        /// any part is outside it, or the parts are in different versions. The scripts are not a part: they come with the
+        /// app, wherever it is installed. Pure.
         /// </summary>
         public static string Owned(VoiceLabEnvironment environment, string managedRoot)
         {
@@ -43,7 +41,7 @@ namespace VirtualVessel.VoiceLab.Scripts
             }
 
             string root = Path.GetFullPath(managedRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            string[] parts = new[] { environment.Python, environment.Scripts, environment.Rvc, environment.VoxCpmModel, environment.Template, environment.Manifest }
+            string[] parts = new[] { environment.Python, environment.Rvc, environment.VoxCpmModel, environment.Template, environment.Manifest }
                 .Where(p => !string.IsNullOrEmpty(p)).Select(Path.GetFullPath).ToArray();
             if (parts.Length == 0 || !parts.All(p => p.StartsWith(root, StringComparison.OrdinalIgnoreCase)))
             {

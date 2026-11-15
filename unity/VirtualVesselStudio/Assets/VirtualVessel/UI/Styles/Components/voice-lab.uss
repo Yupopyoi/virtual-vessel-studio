@@ -179,3 +179,74 @@
     color: var(--vv-color-text);
     -unity-font-style: bold;
 }
+
+/* Preparing Voice Lab (screen spec voice-lab 2.1). The terms scroll inside their card, so the agreement stays in view. */
+.vv-lab-setup__terms {
+    max-height: 360px;
+    padding: var(--vv-space-s) var(--vv-space-m);
+    margin-bottom: var(--vv-space-m);
+    border-width: 1px;
+    border-color: var(--vv-color-border);
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface);
+}
+
+.vv-lab-setup__terms-heading {
+    white-space: normal;
+    -unity-font-style: bold;
+    color: var(--vv-color-text);
+    margin-top: var(--vv-space-s);
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-lab-setup__terms-item {
+    white-space: normal;
+    color: var(--vv-color-text-2);
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-lab-setup__step {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-lab-setup__step > .vv-chip {
+    margin-right: var(--vv-space-s);
+}
+
+.vv-lab-setup__step > .unity-label {
+    color: var(--vv-color-text);
+}
+
+/* A check's result and its button side by side, with room between (the user's review, 2026-11-11). */
+.vv-lab-setup__controls {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-lab-setup__controls > * {
+    margin-left: var(--vv-space-s);
+}
+
+.vv-lab-setup__problem {
+    white-space: normal;
+    color: var(--vv-color-error);
+    margin-bottom: var(--vv-space-s);
+}
+
+/* The build's record, like a terminal: the newest line at the bottom, scrolling within a few lines. */
+.vv-lab-setup__log {
+    max-height: 160px;
+    padding: var(--vv-space-s) var(--vv-space-m);
+    border-width: 1px;
+    border-color: var(--vv-color-border);
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-bg);
+}
+
+.vv-lab-setup__log .unity-label {
+    color: var(--vv-color-text-2);
+    white-space: normal;
+    margin-bottom: 2px;
+}

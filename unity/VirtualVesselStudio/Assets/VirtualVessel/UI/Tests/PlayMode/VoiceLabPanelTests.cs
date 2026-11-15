@@ -463,11 +463,11 @@ namespace VirtualVessel.UI.Tests
 
             VoiceLabScreen screen = Screen();
             Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex));
-            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.None), "Voice Lab is hidden.");
+            Assert.That(screen.Q(className: VoiceLabScreen.ContentClass).style.display.value, Is.EqualTo(DisplayStyle.None), "Voice Lab is hidden.");
 
             streaming.SetState(StreamingState.Idle);
             Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.None));
-            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(screen.Q(className: VoiceLabScreen.ContentClass).style.display.value, Is.EqualTo(DisplayStyle.Flex));
 
             recording.SetState(RecordingState.Recording);
             Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Recording locks it too.");
@@ -665,6 +665,276 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(_lab.EnvironmentRemovals, Is.EqualTo(1));
             Assert.That(row.style.display.value, Is.EqualTo(DisplayStyle.None), "Gone, so its row goes too.");
+        }
+
+        [UnityTest]
+        public IEnumerator Preparing_ChecksThePc_ShowsTheTerms_Builds_AndThenOpensTheSteps()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { Lab = _lab };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = new FakeLibrary(), VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabScreen screen = Screen();
+            VoiceLabSetupView view = screen.Setup;
+            Assert.That(screen.Steps, Is.Null, "Nothing to make with yet.");
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Check));
+            Assert.That(view.LastCheck, Is.SameAs(setup.Check));
+            Assert.That(view.ToTermsButton.enabledSelf, Is.True, "This PC meets every condition.");
+            Assert.That(screen.Query<Card>().ToList().Any(c => c.TitleKey == VoiceLabStrings.NotSetUpTitle), Is.False);
+
+            Submit(view.ToTermsButton);
+            yield return null;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Terms));
+            Assert.That(view.TermsCard.Query<Label>().ToList().Any(l => l.text == "Article 1 (Use)"), Is.True, "The terms are shown in full.");
+            Assert.That(view.StartButton.enabledSelf, Is.False, "Not before agreeing.");
+            view.AgreeToggle.value = true;
+            Assert.That(view.StartButton.enabledSelf, Is.True);
+
+            Submit(view.StartButton);
+            yield return null;
+            Assert.That(setup.TermsAgreed, Is.True);
+            Assert.That(setup.Runs, Is.EqualTo(1));
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(view.StopButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(view.ResumeButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+
+            setup.Log.Add(new VoiceLabSetupEntry(new DateTime(2026, 11, 11, 22, 14, 5), VoiceLabSetupEntryKind.Download, "voxcpm2-model", 4L * 1024 * 1024 * 1024));
+            setup.Log.Add(new VoiceLabSetupEntry(new DateTime(2026, 11, 11, 22, 20, 0), VoiceLabSetupEntryKind.Unpack));
+            yield return new WaitForSeconds(0.4f);
+            List<Label> lines = view.ProgressCard.Q(className: VoiceLabSetupView.LogClass).Query<Label>().ToList();
+            Assert.That(lines.Count, Is.EqualTo(2), "The record shows each line once.");
+            Assert.That(lines[0].text, Does.StartWith("22:14:05").And.Contain("VoxCPM2"));
+
+            setup.Finish(true);
+            yield return null;
+            yield return null;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Done));
+
+            Submit(view.ToMakeButton);
+            yield return null;
+            Assert.That(screen.Steps, Is.Not.Null, "The steps are built once ready.");
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.BaseStep));
+            Assert.That(view.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Nothing left to prepare.");
+        }
+
+        [UnityTest]
+        public IEnumerator APcThatDoesNotMeetTheConditions_SaysWhat_AndKeepsTheTermsClosed()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { Check = new VoiceLabPcCheck(null, false, null, false, @"C:\Users\me\AppData\Local", 10L * 1024 * 1024 * 1024, false, true) };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabSetupView view = Screen().Setup;
+            Assert.That(view.ToTermsButton.enabledSelf, Is.False);
+            List<Label> problems = view.CheckCard.Query<Label>(className: VoiceLabSetupView.ProblemClass).ToList().Where(l => l.resolvedStyle.display == DisplayStyle.Flex).ToList();
+            Assert.That(problems.Count, Is.EqualTo(3), "The GPU, the driver, and the space; the connection is fine.");
+        }
+
+        [UnityTest]
+        public IEnumerator AStoppedBuild_Continues_AndAsksForTheTermsAgainWhenTheyChanged()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { State = VoiceLabSetupState.Paused, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+
+            VoiceLabSetupView view = Screen().Setup;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(view.ResumeButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Submit(view.ResumeButton);
+            yield return null;
+            Assert.That(setup.Runs, Is.EqualTo(1));
+
+            Submit(view.StopButton);
+            yield return null;
+            yield return null;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Progress), "Stopped again, it can continue.");
+            Assert.That(setup.State, Is.EqualTo(VoiceLabSetupState.Paused));
+
+            setup.TermsAgreed = false;
+            Submit(view.ResumeButton);
+            yield return null;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Terms), "Changed terms come first.");
+            Assert.That(setup.Runs, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator AFailedBuild_SaysWhatToDo()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { State = VoiceLabSetupState.Failed, LastFailure = VoiceLabSetupFailure.DiskFull, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+
+            VoiceLabSetupView view = Screen().Setup;
+            StatusChip title = view.ProgressCard.Query<StatusChip>().ToList().First(c => c.TextKey == VoiceLabStrings.SetupFailedDiskTitle);
+            Assert.That(title.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(title.Status, Is.EqualTo(StatusKind.Error));
+        }
+
+        [UnityTest]
+        public IEnumerator ChangedTerms_WithAnUpdateWaiting_OnlyAgree_ThenOfferTheUpdate()
+        {
+            Object.Destroy(_host);
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, UpdateAvailable = true, TermsAgreed = false };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabSetupView view = Screen().Setup;
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Terms));
+            Assert.That(view.StartButton.TextKey, Is.EqualTo(VoiceLabStrings.SetupAgreeOnly), "Agreeing does not start the update.");
+            Assert.That(view.BackButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+
+            view.AgreeToggle.value = true;
+            Submit(view.StartButton);
+            yield return null;
+
+            Assert.That((setup.TermsAgreed, setup.Runs), Is.EqualTo((true, 0)));
+            Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Update), "The update is the user's choice, on its own card.");
+        }
+
+        [UnityTest]
+        public IEnumerator AnUpdate_IsOfferedAboveTheSteps_WhichStayUsable()
+        {
+            Object.Destroy(_host);
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, UpdateAvailable = true, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Steps, Is.Not.Null);
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.Update));
+            Submit(screen.Setup.UpdateButton);
+            yield return null;
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.Progress));
+            setup.Finish(true);
+            yield return null;
+            yield return null;
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.None), "Updated; no first-build notice.");
+        }
+
+        [UnityTest]
+        public IEnumerator AfterTheEnvironmentIsDeleted_TheStepsGo_AndPreparingComesBack()
+        {
+            Object.Destroy(_host);
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = new FakeLibrary(), VoiceLabSetup = setup });
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            setup.State = VoiceLabSetupState.NotStarted;
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.Check));
+            Assert.That(screen.Setup.LastCheck, Is.Not.Null, "Checked again on coming back to it.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheChecksValues_FollowTheLanguage()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup();
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+            yield return null;
+            VoiceLabSetupView view = Screen().Setup;
+
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+            Assert.That(view.CheckCard.Query<Label>().ToList().Any(l => l.text == "接続済み"), Is.True);
+
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            List<string> texts = view.CheckCard.Query<Label>().ToList().Select(l => l.text).ToList();
+            Assert.That(texts, Does.Contain("Connected"));
+            Assert.That(texts.Any(t => t.Contains("空き") || t.Contains("接続済み")), Is.False, "Nothing is left in Japanese.");
+        }
+
+        [UnityTest]
+        public IEnumerator ChangingTheLanguage_KeepsTheTabShown()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 140, "b.wav"));
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library, VoiceLabSetup = new FakeSetup { State = VoiceLabSetupState.Paused, TermsAgreed = true } });
+            yield return null;
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Make a voice is open.");
+
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Still only Make a voice.");
+            Assert.That(screen.Tabs.value, Is.EqualTo(VoiceLabScreen.MakeTab));
+        }
+
+        [UnityTest]
+        public IEnumerator ChangedTerms_AreAgreedToBeforeMaking_WithNothingToBuild()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(4f, 0f, 0f, 0f), "", "b.wav", new string[0]));
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, TermsAgreed = false };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library, VoiceLabSetup = setup });
+            yield return null;
+
+            VoiceLabScreen screen = Screen();
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.Terms), "The terms changed since they were agreed to.");
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "No making before agreeing.");
+            Assert.That(screen.Setup.BackButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Nowhere to go back to.");
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.False);
+
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            screen.Setup.AgreeToggle.value = true;
+            Submit(screen.Setup.StartButton);
+            yield return null;
+
+            Assert.That(setup.TermsAgreed, Is.True);
+            Assert.That(setup.Runs, Is.EqualTo(0), "Built already: nothing to build.");
+            Assert.That(screen.Steps.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.True, "Made again, the library can make its runs again.");
+        }
+
+        [UnityTest]
+        public IEnumerator AfterTheEnvironmentIsDeleted_MakeAgainIsOff()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(4f, 0f, 0f, 0f), "", "b.wav", new string[0]));
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabLibrary = library });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.True);
+
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Assert.That(screen.Library.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Remake).enabledSelf, Is.False);
+            Assert.That(screen.Library.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex), "Still on the Made voices tab.");
+        }
+
+        [UnityTest]
+        public IEnumerator ABuildPausedForStreaming_SaysSo()
+        {
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { State = VoiceLabSetupState.Paused, TermsAgreed = true, PausedForLive = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, VoiceLabSetup = setup });
+
+            Label note = Screen().Setup.ProgressCard.Query<Label>().ToList().Last();
+            Assert.That(note.text, Does.Contain("配信").Or.Contain("streaming"));
         }
 
         private VoiceLabScreen Screen()

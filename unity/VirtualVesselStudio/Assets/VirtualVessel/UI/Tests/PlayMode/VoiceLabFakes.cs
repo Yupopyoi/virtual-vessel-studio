@@ -157,6 +157,100 @@ namespace VirtualVessel.UI.Tests
         }
     }
 
+    /// <summary>Preparing Voice Lab, held by the test: a build runs until <see cref="Finish"/>.</summary>
+    internal sealed class FakeSetup : IVoiceLabSetup
+    {
+        public const string Terms = "<!-- version: 9 -->\n\n# Terms\n\n## Article 1 (Use)\n\n1. Use it well.\n   1. A nested item.\n\n| Name | Source |\n|---|---|\n| uv | GitHub |\n";
+
+        private TaskCompletionSource<bool> _build;
+
+        public VoiceLabSetupState State { get; set; } = VoiceLabSetupState.NotStarted;
+
+        public VoiceLabSetupFailure LastFailure { get; set; }
+
+        public bool PausedForLive { get; set; }
+
+        public bool UpdateAvailable { get; set; }
+
+        public long DownloadBytes => 6L * 1024 * 1024 * 1024;
+
+        public VoiceLabSetupProgress Progress { get; set; } = new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 2L * 1024 * 1024 * 1024, 6L * 1024 * 1024 * 1024);
+
+        public string TermsVersion => "9";
+
+        public List<VoiceLabSetupEntry> Log { get; } = new List<VoiceLabSetupEntry>();
+
+        public IReadOnlyList<VoiceLabSetupEntry> Entries => Log.ToArray();
+
+        public bool TermsAgreed { get; set; }
+
+        public VoiceLabPcCheck Check { get; set; } = new VoiceLabPcCheck("NVIDIA GeForce RTX 4070", true, "610.88", true, @"C:\Users\me\AppData\Local", 218L * 1024 * 1024 * 1024, true, true);
+
+        public string Location { get; private set; } = @"C:\Users\me\AppData\Local";
+
+        public int Runs { get; private set; }
+
+        /// <summary>The lab that becomes ready when a build completes; null to leave it.</summary>
+        public FakeLab Lab { get; set; }
+
+        public string TermsText(string language)
+        {
+            return Terms;
+        }
+
+        public void AgreeToTerms()
+        {
+            TermsAgreed = true;
+        }
+
+        public CrudResult SetLocation(string folder)
+        {
+            Location = folder;
+            return CrudResult.Success;
+        }
+
+        public Task<VoiceLabPcCheck> CheckPcAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Check);
+        }
+
+        public async Task RunAsync(CancellationToken cancellationToken)
+        {
+            Runs++;
+            bool wasReady = State == VoiceLabSetupState.Ready;
+            State = VoiceLabSetupState.Preparing;
+            _build = new TaskCompletionSource<bool>();
+            using (cancellationToken.Register(() => _build.TrySetCanceled()))
+            {
+                try
+                {
+                    bool ok = await _build.Task;
+                    LastFailure = ok ? VoiceLabSetupFailure.None : VoiceLabSetupFailure.Network;
+                    State = ok || wasReady ? VoiceLabSetupState.Ready : VoiceLabSetupState.Failed;
+                    if (ok)
+                    {
+                        UpdateAvailable = false;
+                        if (Lab != null)
+                        {
+                            Lab.Availability = VoiceLabAvailability.Ready;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    State = wasReady ? VoiceLabSetupState.Ready : VoiceLabSetupState.Paused;
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>Ends the running build, as completed or as failed.</summary>
+        public void Finish(bool ok)
+        {
+            _build?.TrySetResult(ok);
+        }
+    }
+
     internal sealed class FakePreview : IAudioPreview
     {
         public List<string> Played { get; } = new List<string>();

@@ -48,9 +48,12 @@ if (Test-Path $target)
 }
 
 New-Item -ItemType Directory -Force $target | Out-Null
-tar -xzf $source -C $target --strip-components=1
+# The tar of Windows 10 and later, by path, as fetch-mediapipe.ps1 does: a GNU tar earlier on PATH (Git for Windows)
+# reads "E:" in a path as a remote host.
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+& $tar -xzf $source -C $target --strip-components=1
 if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the RNNoise source.' }
-tar -xzf $model -C $target
+& $tar -xzf $model -C $target
 if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the RNNoise model.' }
 Set-Content -Path $stamp -Value $manifest.commit -NoNewline
 "RNNoise $($manifest.commit) is in $target."

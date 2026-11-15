@@ -7,9 +7,11 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Core.Time;
+using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Theme;
 using VirtualVessel.UI.Voice;
+using VirtualVessel.UI.VoiceLab;
 using Object = UnityEngine.Object;
 
 namespace VirtualVessel.UI.Tests
@@ -69,6 +71,74 @@ namespace VirtualVessel.UI.Tests
         public IEnumerator EveryScreen_IsReadable_AndNotCramped_OnTheLightBackground()
         {
             yield return CheckAll(ThemeBackground.Light);
+        }
+
+        [UnityTest]
+        public IEnumerator PreparingVoiceLab_IsReadable_AndNotCramped_OnBothBackgrounds()
+        {
+            // Voice Lab not set up, on a PC that misses a condition, so the problems show too.
+            Object.Destroy(_host);
+            yield return null;
+            var setup = new FakeSetup { Check = new VoiceLabPcCheck(null, false, "610.88", true, @"C:\Users\me\AppData\Local", 218L * 1024 * 1024 * 1024, true, true) };
+            _host = new GameObject(nameof(UiReadabilityTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices
+            {
+                VoiceLab = new FakeLab { Availability = VoiceLabAvailability.NotSetUp },
+                VoiceLabLibrary = new FakeLibrary(),
+                VoiceLabSetup = setup,
+            }));
+            yield return null;
+            _root.Shell.Open("lab");
+            var view = ((VoiceLabScreen)_root.Shell.Host.GetScreen("lab")).Setup;
+            var problems = new List<string>();
+            foreach (ThemeBackground background in new[] { ThemeBackground.Dark, ThemeBackground.Light })
+            {
+                _root.Settings.SetBackground(background);
+                setup.State = VoiceLabSetupState.NotStarted;
+                view.Refresh();
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/check/{background}");
+
+                if (setup.Log.Count == 0)
+                {
+                    setup.Log.Add(new VoiceLabSetupEntry(DateTime.Now, VoiceLabSetupEntryKind.Download, "voxcpm2-model", 4L * 1024 * 1024 * 1024));
+                    setup.Log.Add(new VoiceLabSetupEntry(DateTime.Now, VoiceLabSetupEntryKind.Failed));
+                }
+
+                setup.State = VoiceLabSetupState.Failed;
+                setup.LastFailure = VoiceLabSetupFailure.Check;
+                view.Refresh();
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/failed/{background}");
+
+                // Continuing without agreeing to the terms opens them.
+                setup.TermsAgreed = false;
+                Submit(view.ResumeButton);
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/terms/{background}");
+                Submit(view.TermsCard.Query<ActionButton>().First());
+
+                setup.State = VoiceLabSetupState.Ready;
+                setup.UpdateAvailable = true;
+                setup.LastFailure = VoiceLabSetupFailure.Network;
+                view.Refresh();
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/update/{background}");
+            }
+
+            Assert.That(problems, Is.Empty, string.Join("\n", problems));
+        }
+
+        private static void Submit(VisualElement element)
+        {
+            using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
+            {
+                evt.target = element;
+                element.SendEvent(evt);
+            }
         }
 
         private IEnumerator CheckAll(ThemeBackground background)

@@ -3,6 +3,7 @@ using System.Globalization;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -71,6 +72,7 @@ namespace VirtualVessel.UI.Controls
 
             Picked = false;
             RegisterCallback<AttachToPanelEvent>(_ => RefreshNames());
+            PanelLifetime.OnLocaleChanged(this, RefreshNames);
         }
 
         public IconButton PlayButton { get; }

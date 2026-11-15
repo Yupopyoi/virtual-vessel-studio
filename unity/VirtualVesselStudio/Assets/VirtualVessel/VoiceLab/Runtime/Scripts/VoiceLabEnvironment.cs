@@ -65,6 +65,19 @@ namespace VirtualVessel.VoiceLab.Scripts
                 document.Get<string>("voxCpmModel"), document.Get<string>("template"), document.Get<string>("manifest"));
         }
 
+        /// <summary>The settings file's JSON for this environment, as <see cref="Parse"/> reads it. Pure.</summary>
+        public string ToJson()
+        {
+            ConfigDocument document = ConfigDocument.Create();
+            document.Set("python", Python);
+            document.Set("scripts", Scripts);
+            document.Set("rvc", Rvc);
+            document.Set("voxCpmModel", VoxCpmModel);
+            document.Set("template", Template);
+            document.Set("manifest", Manifest);
+            return document.ToJson();
+        }
+
         /// <summary>What is missing, given how to check files and folders; empty when it can run. Pure apart from the checks passed in.</summary>
         public IReadOnlyList<string> Problems(Func<string, bool> fileExists, Func<string, bool> folderExists)
         {

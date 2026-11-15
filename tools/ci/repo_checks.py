@@ -6,11 +6,16 @@ Checks the files tracked by git:
   and no two .meta files share a GUID (a common result of copying or merging assets).
 * String tables: every locale file parses and has the same keys as the others.
 * Documentation: docs/ja and docs/en contain the same documents.
+* Control characters: no source or text file holds one other than tab, line feed, and carriage return.
+  A script that writes "\v" or "\b" into a path without a raw string leaves one, which reads as a path
+  that does not exist (build-release.ps1 copied nothing of Voice Lab for that reason, 2026-11-14).
 * SBOM: sbom/virtual-vessel-studio.cdx.json lists every Unity package with its locked version,
   every folder of Assets/ThirdParty, and every GitHub Action the workflows use, each with a
   license and a scope. An embedded package fetched by a script (tools/deps/*.json) is checked
   against the version pinned there, since the lock file only says "file:". A package from a Git
-  URL must pin a tag (#v1.2.3), and the SBOM records that version.
+  URL must pin a tag (#v1.2.3), and the SBOM records that version. Every package of a Python
+  component's uv.lock (services/*/uv.lock) is listed as pypi:<name> with its locked version, even
+  one that a platform marker keeps off Windows, since the lock is what the build resolves from.
 * Fetched dependencies: each tools/deps manifest is well formed (an https URL, SHA-256 values),
   and the SBOM entry of its package records the same download URL and SHA-256.
 * License files: tools/release/license-files.json maps each shipped license file to its source.
@@ -52,6 +57,15 @@ UNTRACKED_SOURCE_ROOTS = (
 _THIRD_PARTY_LICENSE = re.compile(r"^(OFL|LICENSE|COPYING|NOTICE)", re.IGNORECASE)
 
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
+
+_UV_LOCK = re.compile(r"^services/[^/]+/uv\.lock$")
+_LOCK_PACKAGE = re.compile(r"^\[\[package\]\]\n(.*?)(?=^\[|\Z)", re.MULTILINE | re.DOTALL)
+_LOCK_FIELD = re.compile(r'^(name|version|source) = (.*)$', re.MULTILINE)
+
+# Text files the control-character check reads; Unity's serialized assets are left to Unity.
+TEXT_EXTENSIONS = (".cs", ".ps1", ".psm1", ".py", ".md", ".json", ".toml", ".lock", ".yml", ".yaml", ".uss", ".uxml",
+                   ".asmdef", ".cpp", ".h", ".hpp", ".c", ".txt", ".html", ".css", ".js", ".cmake", ".bat", ".cmd")
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 _GUID = re.compile(r"^guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 
@@ -126,6 +140,16 @@ def check_string_tables(tables: Mapping[str, str]) -> list[str]:
         for key in sorted(everything - own):
             errors.append(f"Missing key in {path}: {key}")
 
+    return errors
+
+
+def check_control_characters(texts: Mapping[str, str]) -> list[str]:
+    """Control characters other than tab, line feed, and carriage return, by file and line. Pure."""
+    errors = []
+    for path, text in sorted(texts.items()):
+        for number, line in enumerate(text.split("\n"), 1):
+            for match in _CONTROL.finditer(line):
+                errors.append(f"{path}:{number}: control character U+{ord(match.group()):04X}")
     return errors
 
 
@@ -242,6 +266,24 @@ def sbom_requirements(packages_lock: str, tracked: Iterable[str], workflows: Map
     return required
 
 
+def uv_lock_requirements(lock: str) -> dict[str, str | None]:
+    """The SBOM entries a uv.lock needs: pypi:<name> to its locked version.
+
+    The project itself (a virtual or editable source) is ours, not a dependency. Read without
+    tomllib, which is not in Python 3.10: uv writes each field of a package on its own line.
+    """
+    required: dict[str, str | None] = {}
+    for block in _LOCK_PACKAGE.findall(lock):
+        fields = {key: value for key, value in _LOCK_FIELD.findall(block)}
+        source = fields.get("source", "")
+        if "name" not in fields or "virtual" in source or "editable" in source:
+            continue
+        name = re.sub(r"[-_.]+", "-", fields["name"].strip('"').lower())
+        version = fields.get("version")
+        required[f"pypi:{name}"] = version.strip('"') if version else None
+    return required
+
+
 def git_tag_version(url: str) -> str | None:
     """The version a Git package URL pins with its tag (#v0.131.4 is 0.131.4), or None without one."""
     _, _, tag = url.partition("#")
@@ -296,7 +338,7 @@ def check_sbom(sbom: str, required: Mapping[str, str | None]) -> list[str]:
         elif version is not None and component.get("version") != version:
             errors.append(f"SBOM: {reference} is {component.get('version')}, but the repository uses {version}")
 
-    kinds = ("unity-package:", "asset:", "github-action:")
+    kinds = ("unity-package:", "asset:", "github-action:", "pypi:")
     for reference in sorted(components):
         if reference.startswith(kinds) and reference not in required:
             errors.append(f"SBOM: {reference} is listed but no longer used")
@@ -389,6 +431,12 @@ def run(repository: Path) -> list[str]:
         errors += check_string_tables(tables)
 
     errors += check_doc_pairs(tracked)
+    texts = {
+        p: (repository / p).read_text(encoding="utf-8", errors="replace")
+        for p in tracked
+        if p.endswith(TEXT_EXTENSIONS) and (repository / p).is_file()
+    }
+    errors += check_control_characters(texts)
 
     workflows = {
         p: (repository / p).read_text(encoding="utf-8")
@@ -406,6 +454,9 @@ def run(repository: Path) -> list[str]:
     packages_lock = (repository / PACKAGES_LOCK).read_text(encoding="utf-8")
     errors += check_git_packages(packages_lock)
     required = sbom_requirements(packages_lock, tracked, workflows, pinned_packages(manifests))
+    for path in tracked:
+        if _UV_LOCK.match(path):
+            required.update(uv_lock_requirements((repository / path).read_text(encoding="utf-8")))
     if SBOM_PATH in tracked:
         sbom = (repository / SBOM_PATH).read_text(encoding="utf-8")
         errors += check_sbom(sbom, required)

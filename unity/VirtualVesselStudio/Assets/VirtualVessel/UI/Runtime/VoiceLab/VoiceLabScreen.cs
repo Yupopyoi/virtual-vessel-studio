@@ -78,18 +78,22 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement[] _panels = new VisualElement[5];
         private readonly IVoiceLab _lab;
         private readonly VisualElement _make;
-        private readonly VoiceLabBaseStep _base;
+        private readonly VisualElement _steps = new VisualElement();
+        private bool _libraryCanMake;
+        private readonly ScreenServices _services;
         private readonly VoiceLabPlayer _player;
-        private readonly VoiceLabDraft _draft;
-        private readonly VoiceLabTimbreStep _timbre;
-        private readonly VoiceLabRegisterStep _register;
+        private VoiceLabBaseStep _base;
+        private VoiceLabDraft _draft;
+        private VoiceLabTimbreStep _timbre;
+        private VoiceLabRegisterStep _register;
         private VoiceLabTryStep _try;
         private readonly IStreamingService _streaming;
         private readonly IRecordingService _recording;
         private readonly VisualElement _content;
 
         /// <param name="services">
-        /// VoiceLab (null, or not set up, shows that voices cannot be made yet), the Made voices library, the audio
+        /// VoiceLab, and its setup that prepares it on this PC (without it, Voice Lab not set up shows that voices cannot
+        /// be made), the Made voices library, the audio
         /// preview for play buttons, streaming and recording (Voice Lab is not used while either runs), and for STEP 4
         /// the voice conversion, its trial, the file dialog, and the audio sources. Any may be null.
         /// </param>
@@ -128,54 +132,128 @@ namespace VirtualVessel.UI.VoiceLab
 
             _make = new VisualElement();
             _content.Add(_make);
+            _services = services;
             if (library != null)
             {
-                // What was made can be listed without a training environment; making it again cannot.
-                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None, services.Voice);
-                Library.style.display = DisplayStyle.None;
-                _content.Add(Library);
-                if (lab != null)
-                {
-                    EnvironmentRow = new VoiceLabEnvironmentRow(lab);
-                    Library.StorageCard.Add(EnvironmentRow);
-                }
+                _content.Add(BuildLibrary(CanMake));
             }
 
-            if (!ready)
+            // The setup stays above the steps once ready, for an update and the build's progress.
+            if (services.VoiceLabSetup != null)
+            {
+                Setup = new VoiceLabSetupView(services.VoiceLabSetup, services.FileDialog, OnSetUp);
+                _make.Add(Setup);
+            }
+
+            if (ready)
+            {
+                BuildMake();
+            }
+            else if (Setup == null)
             {
                 Card card = Ui.Card(VoiceLabStrings.NotSetUpTitle);
                 card.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
                 _make.Add(card);
-                return;
             }
 
+            FollowCanMake();
+        }
+
+        /// <summary>Preparing Voice Lab on this PC; null without setup.</summary>
+        public VoiceLabSetupView Setup { get; }
+
+        private bool IsMakeBuilt => Steps != null;
+
+        /// <summary>
+        /// Whether voices can be made now: an environment, and the terms of its version agreed to (Voice Lab detailed
+        /// design 8.2). The steps and the library's Make again and Try follow it.
+        /// </summary>
+        public bool CanMake => CanMakeWith(_lab?.Availability == VoiceLabAvailability.Ready, _services?.VoiceLabSetup?.TermsAgreed ?? true);
+
+        /// <summary>Whether voices can be made, from an environment being ready and the terms agreed to. Pure.</summary>
+        public static bool CanMakeWith(bool ready, bool termsAgreed)
+        {
+            return ready && termsAgreed;
+        }
+
+        // What was made can be listed without a training environment; making it again cannot.
+        private VoiceLabLibraryView BuildLibrary(bool canMake)
+        {
+            IVoiceLab lab = _lab;
+            _libraryCanMake = canMake;
+            Library = new VoiceLabLibraryView(_services.VoiceLabLibrary, _player, canMake ? Remake : (Action<string>)null, canMake ? TryVoice : (Action<string, string>)null, () => canMake && lab.BuildProgress.State != VoiceLabBuildState.None, _services.Voice);
+            Library.style.display = DisplayStyle.None;
+            if (lab != null)
+            {
+                EnvironmentRow = new VoiceLabEnvironmentRow(lab);
+                Library.StorageCard.Add(EnvironmentRow);
+            }
+
+            return Library;
+        }
+
+        // A first build completed, or the terms were agreed to again: the steps are built if they were not, and the
+        // steps and the library follow whether voices can be made now.
+        private void OnSetUp()
+        {
+            if (!IsMakeBuilt && _lab != null && _lab.Availability == VoiceLabAvailability.Ready)
+            {
+                BuildMake();
+            }
+
+            ShowTab(MakeTab);
+        }
+
+        // The steps hide while voices cannot be made, such as after the environment is deleted in the Made voices tab
+        // or before changed terms are agreed to; the library is made again when that changes, as its buttons are made
+        // with its rows.
+        private void FollowCanMake()
+        {
+            bool canMake = CanMake;
+            _steps.style.display = canMake ? DisplayStyle.Flex : DisplayStyle.None;
+            if (Library != null && canMake != _libraryCanMake)
+            {
+                int at = _content.IndexOf(Library);
+                VoiceLabLibraryView old = Library;
+                bool shown = old.style.display == DisplayStyle.Flex;
+                _content.Insert(at, BuildLibrary(canMake));
+                Library.style.display = shown ? DisplayStyle.Flex : DisplayStyle.None;
+                old.RemoveFromHierarchy();
+            }
+        }
+
+        private void BuildMake()
+        {
+            IVoiceLab lab = _lab;
             _draft = new VoiceLabDraft();
             VoiceLabDraft draft = _draft;
 
             Steps = new StepIndicator();
             Steps.SetSteps(VoiceLabStrings.StepBase, VoiceLabStrings.StepTimbre, VoiceLabStrings.StepBuild, VoiceLabStrings.StepTry, VoiceLabStrings.StepRegister);
             Steps.StepChosen += GoTo;
-            _make.Add(Steps);
+            _make.Add(_steps);
+            _steps.Add(Steps);
 
             _timbre = new VoiceLabTimbreStep(lab, _player, draft, this);
-            _register = new VoiceLabRegisterStep(lab, draft, this, services.Voice);
+            _register = new VoiceLabRegisterStep(lab, draft, this, _services.Voice);
             _base = new VoiceLabBaseStep(lab, _player, draft, this);
             _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;
             _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, this);
-            _try = new VoiceLabTryStep(services, lab, draft, _player, this);
+            _try = new VoiceLabTryStep(_services, lab, draft, _player, this);
             _panels[TryStep] = _try;
             _panels[RegisterStep] = _register;
             foreach (VisualElement panel in _panels)
             {
                 panel.AddToClassList(PanelClass);
-                _make.Add(panel);
+                _steps.Add(panel);
             }
 
             GoTo(BaseStep);
         }
 
-        public StepIndicator Steps { get; }
+        /// <summary>The steps of making a voice; null until Voice Lab is ready.</summary>
+        public StepIndicator Steps { get; private set; }
 
         /// <summary>Shown instead of Voice Lab while a stream or a recording runs.</summary>
         public Card LiveLock { get; }
@@ -215,10 +293,10 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Make a voice and Made voices; null without a library.</summary>
         public TabBar Tabs { get; }
 
-        public VoiceLabLibraryView Library { get; }
+        public VoiceLabLibraryView Library { get; private set; }
 
         /// <summary>The training environment's row in the stored data; null without Voice Lab.</summary>
-        public VoiceLabEnvironmentRow EnvironmentRow { get; }
+        public VoiceLabEnvironmentRow EnvironmentRow { get; private set; }
 
         public void ShowTab(int tab)
         {
@@ -227,9 +305,12 @@ namespace VirtualVessel.UI.VoiceLab
             _make.style.display = tab == MakeTab ? DisplayStyle.Flex : DisplayStyle.None;
             if (tab == MakeTab)
             {
-                // The samples may have been deleted in the Made voices tab.
+                // The samples may have been deleted in the Made voices tab, and the environment too.
                 _base?.RequestView.RefreshSamples();
+                Setup?.Refresh();
             }
+
+            FollowCanMake();
 
             if (Library != null)
             {

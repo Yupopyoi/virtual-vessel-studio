@@ -189,7 +189,7 @@ pip install ...
 
 and so on is not part of the normal usage procedure.
 
-In case a source disappears, the project's GitHub Releases also keep copies of the model weights and external OSS code whose licenses allow it, obtained with the same hashes when the source lacks them. A periodic CI job checks that sources are alive.
+Others' model weights and external OSS code are obtained only from where they are published; the project keeps no copies. Files the project made come from the project's GitHub Releases. A periodic CI job checks that sources are alive, and the list of sources is fixed when one moves (2026-11-11).
 
 ### Rationale
 

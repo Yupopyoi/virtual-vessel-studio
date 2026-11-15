@@ -118,6 +118,7 @@ Saved in `Config/voice-activation.json`.
 | `termsVersion` | The version of the terms agreed to |
 | `agreedAtUtc` | When they were agreed to |
 | `componentsVersion` | The version of the built environment |
+| `installingVersion` | The version being built; kept after a stop or failure, so the next start continues it |
 | `state` | `NotStarted`, `Installing`, `Ready`, `Failed` |
 
 ### 6.2 What to fetch
@@ -127,16 +128,32 @@ Saved in `Config/voice-activation.json`.
 ```json
 {
   "schemaVersion": 1,
-  "version": "1",
-  "uv": { "url": "...", "sha256": "..." },
+  "version": "0.1",
   "python": "3.12.2",
-  "lock": "services/voice-lab/uv.lock",
-  "rvc": { "repository": "...", "commit": "81eed5e8f68b...", "sha256": "..." },
-  "files": [
-    { "id": "rmvpe.pt", "url": "...", "sha256": "...", "license": "MIT" }
+  "lock": "uv.lock",
+  "components": [
+    {
+      "id": "rvc",
+      "url": "https://github.com/RVC-Project/.../archive/81eed5e8f68b....zip",
+      "sha256": "c0427564...",
+      "size": 821646,
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc",
+      "extract": "zip",
+      "strip": 1
+    }
   ]
 }
 ```
+
+It is `services/voice-lab/voice-components.json`, bundled with the app beside the scripts. `tools/voice/voice_components.py` builds it from `tools/voice/voice-components.sources.json` (sources, licenses, places) and the very files tested on the developer's PC, so the sizes and hashes are theirs. With `--release`, it gathers the files for the GitHub Release into one folder, for the user to publish.
+
+- `place`: `environment` goes into the training environment's version folder (`<version>/`), `sharedModels` into the Data Root's `VoiceModels/Shared/1/`. The HuBERT and RMVPE `.sentis` streaming uses are the latter, so streaming keeps working when the environment is deleted.
+- `target`: a relative path inside the place; for `extract` `zip`, the folder it is extracted into. `strip` drops that many leading folders from the zip's paths (the top folder of GitHub's archives).
+- `url`: the source. Others' files point only at where they are published; the project keeps no copies (8.1). Files the project made (the template, the shared models) point at the project's GitHub Release.
+- The app checks it when reading (`VoiceComponentManifest`): an unknown schema version is not read, URLs are https only, hashes are 64 lowercase hex digits, and `target` is relative with no `..` or drive, so the list cannot write a file anywhere.
+- Version 0.1 has 21 components, about 6.1 GB in all (2026-11-11). Hugging Face files point at fixed revisions (`e6d0c1a1…` of `lj1995/VoiceConversionWebUI`, `32279eff…` of `openbmb/VoxCPM2`), and the large files' hashes matched those the hosts publish. A GitHub archive zip can change its hash when GitHub rebuilds it; the periodic check then finds it, and the list is fixed.
 
 ### 6.3 Training Run
 
@@ -199,10 +216,10 @@ Training Run states are as in system design 13.15.
 
 ```text
 Open Voice Lab
-  ↓ Explain: what it does, size (about 8 GB, with VoxCPM2 needing more), time, an NVIDIA GPU is needed, the high hardware requirements
-Show the terms (8.2) → agree
+  ↓ Explain: what it does, size (about 13 GB once built, up to about 30 GB while building), time, an NVIDIA GPU is needed, the high hardware requirements
+Check the PC: GPU, driver, free space at the location, connection (the location can be chosen)
   ↓
-Check the PC: GPU, driver, free space, connection
+Show the terms (8.2) → agree
   ↓
 Fetch (resumable; every hash is checked)
   1. uv
@@ -218,28 +235,50 @@ Done
 
 Measured (2026-11-01, the development PC with an RTX 4070): about an hour to fetch and unpack. About 7 GB for the environment and training models, and about 1 GB for the runtime's shared models and the template, about 8 GB in all. uv's cache adds about 6 GB, so about 14 GB is needed during the build. The cache is removed afterwards. How the time divides, such as between the connection and file scanning, has not been measured. VoxCPM2's environment has not been narrowed down.
 
+Measured (2026-11-11, the same development PC, built by `VoiceComponentInstaller`): about 32 minutes from download to the end of the build (the project's four files were already downloaded). The environment is about 11.5 GB once built (venv 5.9 GB, VoxCPM2 4.7 GB, RVC and its models 0.6 GB, Python 0.1 GB, the template 0.1 GB, uv 0.07 GB), about 13 GB with the 0.8 GB of shared models streaming uses. The downloads and uv's cache were removed at the end. The largest space used during the build was not measured; with the 6.1 GB of downloads and the cache still there, it is estimated at about 30 GB, the value the terms and the screen give. The final check (making one voice) took about 5 minutes. It found that training failed because RVC's source archive has no empty folders (`assets/weights`, `logs`), so `train.py` now makes them.
+
+Measured (2026-11-11, the same development PC, prepared from the screen, PyTorch cu128): about 42 minutes from the last continue to done (downloading 24 minutes, installing Python 13 seconds, installing the packages 12 minutes 24 seconds, the check 5 minutes). Downloads ran at about 0.1 MB/s for uv from GitHub and about 4 MB/s from Hugging Face. Partway, the template's download stopped on a connection exception and never went on, because that version of the app could not treat the exception as a failure; stopped downloads are now tried again (8.1.1). After the app was restarted and the build continued, the downloaded components were still there and it went on from them. The environment is about 11.8 GB once built (venv 6.2 GB, VoxCPM2 4.7 GB, RVC and its models 0.57 GB, Python 0.14 GB, the template 0.11 GB, uv 0.07 GB), about 12.6 GB with the 0.8 GB of shared models streaming uses. The downloads and uv's cache were removed at the end.
+
 Because it takes long, the explanation screen gives an estimate and says it can resume after an interruption.
+
+The PC is checked before the terms, so a PC that does not meet the conditions stops before its user has read them (the mock-up, 2026-11-11). The screen follows Voice Lab screen spec 2.1.
+
+The user chooses the location (2026-11-11), since the build can need up to about 30 GB. The build goes in `VirtualVesselStudio\External\VoiceLab` inside the chosen folder, so nothing the user keeps in that folder is deleted. The default is `%LOCALAPPDATA%`. The location is kept in the activation record (`Location` in `Config\voice-activation.json`) and cannot change while an environment is in use.
 
 Things come from their sources. The project's template and the `.sentis` of HuBERT and RMVPE sit on the project's GitHub Releases.
 
-So that new users are not stopped when a source changes or disappears:
+The project keeps no copies of others' files (the user's decision, 2026-11-11): a copy is redistribution, and keeping license notices with it on the Release takes work. When a source changes or disappears:
 
-- Copies of the MIT and Apache-2.0 models and of RVC's source sit on the same GitHub Releases. When a source lacks them, the copy is used, and both are checked against the same hash. Notices stay with the copies.
-- PyPI packages, PyTorch, and CUDA have no copies. They are unlikely to disappear, and the latter are not redistributed.
 - GitHub Actions periodically checks that every source is reachable and its hash matches.
 - The list of sources is bundled with the application, so fixing it takes an application update. If PyTorch's source removes an old version, new activation stops until that update. Streaming and built environments are not affected.
 
-Progress says things like "Preparing the environment", with no words such as Python or pip in ordinary screens (system design 4.27).
+Progress is shown as, for example, "Preparing the environment"; words such as Python and pip do not appear on normal screens (system design 4.27).
+
+#### 8.1.1 How it builds
+
+`VoiceComponentInstaller` builds it, and `VoiceLabActivation` keeps the record and switches (2026-11-11).
+
+- **Download**: each component goes to `External\VoiceLab\downloads\<sha256>`. A `.part` file continues with an HTTP Range request. Files come only from their sources. When the connection drops, or no data comes for 60 seconds, it waits 3 seconds and continues where it stopped; a third failure stops it as a network failure. Unity's runtime does not stop a read for a cancellation, so after 60 seconds the response is closed to end the read (on 2026-11-11 a real download stopped and never went on). A full disk is not taken for a dropped connection: it stops at once as a lack of space, without trying again. A file that does not match its hash stops it as a damaged file. A checked file stays under its hash, so it is not downloaded again after a stop. The downloads are removed once a build succeeds, so the next version downloads again what it needs.
+- **Build**: straight into the version's folder (`External\VoiceLab\<version>\`). Building elsewhere and renaming would break the absolute paths the venv records. The folder is cleared first, so nothing half made is left from a stop. Zips are extracted making sure no entry leaves its folder. The shared models streaming uses go to `VoiceModels\Shared\1\`, and one already there with the same hash is not rewritten. A different one is written beside it and swapped in with one replace (`File.Replace`), so a stop in between never leaves streaming without its model.
+- **Python**: `uv python install <version> --install-dir <version>\python`, then `uv sync --frozen --no-dev --project <scripts>`. uv is set to put the venv in `<version>\venv` and its cache in `External\VoiceLab\cache`, to use only the Python it installed (`UV_PYTHON_PREFERENCE=only-managed`), and to copy files rather than link them, as the cache is deleted. uv runs through ExternalServices' runner, which allows only programs inside `External\VoiceLab`.
+- **Check**: the built environment makes one VoxCPM2 candidate and builds a voice from it with the shortest plan (4 lines, 1 epoch) (`VoiceActivationCheck`). It goes the same way real use does, so the GPU, the packages, RVC, and the template are proven to work together.
+- **Switch**: only after both the build and the check succeed is the environment file (`Config\voice-lab-environment.json`) written. A file for an environment a developer set up is kept as `voice-lab-environment.before-activation.json`. Voice Lab then reloads onto the new environment (`IVoiceLab.Reload`, on the thread that started the build, which is Unity's main thread), and only after that are other versions' folders, the downloads, and uv's cache removed. Removed first, Voice Lab could still start a candidate or a build on the old environment and use files being deleted.
+- **Failure**: it reports whether the network, a mismatched file, disk space, the build, or the check stopped it. An exception of none of these kinds still records `Failed`: left at `Installing`, a restart would show it paused rather than failed, and continuing would fail the same way. The downloads stay, so starting again continues.
+- **Update**: when the version of the list bundled with the app differs from the environment in use, there is an update. The new version is built in another folder, so the environment in use keeps working while it builds, and if it stops or fails.
+- **Agreement**: nothing is built until the current version of the terms is agreed to.
+- **Streaming and recording**: when streaming or recording starts, the build pauses, since downloading and the check's voice compete with the stream for the connection and the GPU (the user's decision, 2026-11-13). So that it pauses whichever screen is open, the composition root watches streaming's and recording's states and tells `VoiceLabSetupService.SetLive`. A build does not start while they run. Continuing is the user's, with Continue once they end.
+- **GPU and driver**: PyTorch is its CUDA 12.8 build (cu128). The packages carry CUDA's libraries, so the PC's CUDA Toolkit version does not matter. It needs an NVIDIA GPU of sm_50 (Maxwell) or later and a driver of 528.33 or later; the RTX 50 series works. The PC check looks at both before downloading anything (decision record 2026-11-11).
 
 ### 8.2 Terms of use and disclaimers
 
 Follows the requirement in the [decision record](../decisions/voice-conversion.md).
 
 - The text is bundled with the application, in Japanese and English, with a version.
+- The files are `terms/voice-lab-terms.<language>.md` beside the scripts, with the version in the first line, `<!-- version: … -->` (`VoiceTerms`); without the screen's language, English is shown. The current version, `0.1`, is the pre-release (v0.2.0) version reviewed with the user. Article 11 says that, as a pre-release, it is likely to change. It is to be checked by a legal professional before the full release (1.0) (user decision, 2026-11-14).
 - The whole text is shown before activation, and nothing proceeds without agreement.
 - The version agreed to and the time are saved.
-- When the version changes, agreement is asked again before making a voice. Streaming with registered voices does not stop.
-- The same content can be read at any time from Credits and licenses in Setup.
+- When the version changes, agreement is asked again before making a voice. Even when built, Make a voice shows the terms, and until they are agreed to, the steps and Made voices' Make again and Try cannot be used. Agreeing goes back to the steps, with nothing built. Streaming with registered voices does not stop.
+- The same content can be read at any time from Credits and licenses in Setup. A release ships it as `licenses/voice-lab-terms.<language>.md` (`tools/release/license-files.json`), tied to the application's SBOM entry. Voice Lab has no other place for it besides the agreement page (2026-11-11).
 - Importing a recording shows a confirmation that it is your own voice or one you hold the rights to.
 
 ### 8.3 Making a voice
@@ -397,7 +436,7 @@ The only ordinary setting is training length (standard or longer). Detailed valu
 | Voice design, Training Runs | `VoiceLab/` in the Data Root (6.3) |
 | Registered voices | `VoiceModels/` in the Data Root |
 
-The environment is large, so it stays out of the Data Root and out of backups. Streaming does not use it, so removing it leaves registered voices working. The Made voices tab removes it (`IVoiceLab.RemoveEnvironmentAsync`, `VoiceLabEnvironmentRemover`; the user's request, 2026-11-11). Only an environment the app built is removed: every part of it inside one version folder of the place above. One set up elsewhere, such as a developer's, is not (CLAUDE.md 26). While anything runs in Voice Lab, it is refused with `Busy`. The settings file (`voice-lab-environment.json`) goes first, then the folder, so a half-removed environment is never taken for a working one. Afterwards Voice Lab cannot be used until the environment is built again. Activation (building it) is not made yet, so for now no removable environment exists.
+The environment is large, so it stays out of the Data Root and out of backups. Streaming does not use it, so removing it leaves registered voices working. The Made voices tab removes it (`IVoiceLab.RemoveEnvironmentAsync`, `VoiceLabEnvironmentRemover`; the user's request, 2026-11-11). Only an environment the app built is removed: every part of it inside one version folder of the place above. One set up elsewhere, such as a developer's, is not (CLAUDE.md 26). While anything runs in Voice Lab, it is refused with `Busy`. The settings file (`voice-lab-environment.json`) goes first, then the folder, so a half-removed environment is never taken for a working one. Once the settings file is gone, activation forgets the environment too (`EnvironmentRemoved`), even when deleting the folder failed: otherwise the screen would show it built and offer no way to build it again. The next build clears what is left of the folder first. Afterwards Voice Lab cannot be used until the environment is built again.
 
 ## 12. Error Handling and Recovery
 
@@ -469,7 +508,7 @@ Open issues:
 - Narrowing down VoxCPM2's dependencies. `kaldiio` must be left out (decision record).
 - Checking on a truly new PC. The development PC already has drivers and so on.
 - VoxCPM2's GPU memory needs, and switching between it and RVC training.
-- The agreement screen's wording, reviewed by a legal professional before release.
+- The agreement screen's wording, to be reviewed by a legal professional before the full release (1.0). In particular Article 8 (limitation of liability): whether disclaiming liability even for slight negligence falls under the Consumer Contract Act's ban on full exemption (Article 8) or on exemptions that do not make their scope clear (the 2023 amendment), and whether a developer distributing free OSS as an individual counts as a "business" under that Act. The user chose the current wording, which takes on as little liability as possible (2026-11-14).
 - The GPU and memory voice conversion needs, decided by measuring on PCs other than the development PC.
 - The flow of designing a voice (8.3): how well the brightness and breathiness knobs work, the range of the age ratio, and the training-speech vowel hypothesis. "Passable" above was judged on upstream's conversion, not yet on real-time conversion.
 

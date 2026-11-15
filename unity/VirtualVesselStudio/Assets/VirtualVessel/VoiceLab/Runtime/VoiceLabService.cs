@@ -10,6 +10,7 @@ using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Voice.Models;
+using VirtualVessel.VoiceLab.Activation;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;
@@ -29,13 +30,19 @@ namespace VirtualVessel.VoiceLab
         private readonly object _gate = new object();
         // Null when Voice Lab is not set up, and again once its environment is deleted.
         private volatile VoiceDesigner _designer;
-        private readonly VoiceLabEnvironmentRemover _remover;
+        // What the environment file sets up; replaced together by Reload, the designer last, as it says Voice Lab is ready.
+        private VoiceLabEnvironmentRemover _remover;
+        private ITrainingRunRepository _runs;
+        private IVoiceModelRepository _voices;
+        private VoiceModelRegistrar _registrar;
+        private string _samplesFolder;
         private int _running;
-        private readonly ITrainingRunRepository _runs;
-        private readonly IVoiceModelRepository _voices;
-        private readonly VoiceModelRegistrar _registrar;
         private readonly ILog _log;
-        private readonly string _samplesFolder;
+        private readonly string _configDirectory;
+        private readonly string _voiceLabFolder;
+        private readonly string _voiceModelsFolder;
+        private readonly ISystemClock _clock;
+        private readonly Random _random;
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         // Written by the scripts' reading threads, read by the screen on the main thread.
         private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
@@ -43,17 +50,15 @@ namespace VirtualVessel.VoiceLab
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
-        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log, IVoiceLabLibrary library, VoiceLabEnvironmentRemover remover = null)
+        private VoiceLabService(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random, IVoiceLabLibrary library)
         {
-            _remover = remover;
-            Library = library;
-            _designer = designer;
-            _runs = runs;
-            _voices = voices;
-            _registrar = registrar;
-            Shelf = shelf;
-            _samplesFolder = samplesFolder;
+            _configDirectory = configDirectory;
+            _voiceLabFolder = voiceLabFolder;
+            _voiceModelsFolder = voiceModelsFolder;
+            _clock = clock;
             _log = log;
+            _random = random ?? new Random();
+            Library = library;
         }
 
         /// <summary>
@@ -70,7 +75,7 @@ namespace VirtualVessel.VoiceLab
 
         public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
 
-        public VoiceLabShelf Shelf { get; }
+        public VoiceLabShelf Shelf { get; private set; }
 
         /// <summary>What was made; there even when Voice Lab is not set up, so it can still be listed.</summary>
         public IVoiceLabLibrary Library { get; }
@@ -93,11 +98,23 @@ namespace VirtualVessel.VoiceLab
             // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
             VoiceLabService created = null;
             var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, () => created?.Activity ?? default);
-            string path = Path.Combine(configDirectory, EnvironmentFile);
+            created = new VoiceLabService(configDirectory, voiceLabFolder, voiceModelsFolder, clock, log, random, library);
+            created.Reload();
+            return created;
+        }
+
+        /// <summary>
+        /// Reads the environment file again and sets Voice Lab up from it: at start, and after activation built an
+        /// environment or one was deleted. Nothing may run in Voice Lab while it does.
+        /// </summary>
+        public void Reload()
+        {
+            _designer = null;
+            string path = Path.Combine(_configDirectory, EnvironmentFile);
             if (!File.Exists(path))
             {
-                log.Information("Voice Lab is not set up: no training environment.");
-                return created = new VoiceLabService(null, null, null, null, null, null, log, library);
+                _log.Information("Voice Lab is not set up: no training environment.");
+                return;
             }
 
             VoiceLabEnvironment environment = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
@@ -113,17 +130,29 @@ namespace VirtualVessel.VoiceLab
 
             if (problems.Count > 0)
             {
-                log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
-                return created = new VoiceLabService(null, null, null, null, null, null, log, library);
+                _log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
+                return;
             }
 
-            var remover = new VoiceLabEnvironmentRemover(path, VoiceLabEnvironmentRemover.Owned(environment, VoiceLabEnvironmentRemover.ManagedRoot));
-            var runner = new ExternalProcessRunner(environment.AllowedFolders, log.WithContext("component", "process"), clock);
-            var runs = new TrainingRunStore(voiceLabFolder, clock, random);
-            var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(voiceLabFolder, "Designs"), clock, log, (random ?? new Random()).Next(1, 1_000_000));
-            log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
-            var voices = new VoiceModelStore(voiceModelsFolder, clock);
-            return created = new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log, library, remover);
+            // What activation built is the app's to delete: it lies inside the folder the user chose for it.
+            string root = VoiceActivationFolders.RootIn(ActivationLocation(_configDirectory, _clock));
+            _remover = new VoiceLabEnvironmentRemover(path, VoiceLabEnvironmentRemover.Owned(environment, root));
+            var runner = new ExternalProcessRunner(environment.AllowedFolders, _log.WithContext("component", "process"), _clock);
+            var runs = new TrainingRunStore(_voiceLabFolder, _clock, _random);
+            var voices = new VoiceModelStore(_voiceModelsFolder, _clock);
+            _runs = runs;
+            _voices = voices;
+            _registrar = new VoiceModelRegistrar(voices, runs, _clock);
+            Shelf = shelf;
+            _samplesFolder = Path.Combine(_voiceLabFolder, "Samples");
+            _designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(_voiceLabFolder, "Designs"), _clock, _log, _random.Next(1, 1_000_000));
+            _log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
+        }
+
+        /// <summary>The folder chosen for activation, from its record; the default when none is kept.</summary>
+        public static string ActivationLocation(string configDirectory, ISystemClock clock)
+        {
+            return VoiceActivationRecord.StoreIn(configDirectory, clock).Load().Value?.Location ?? VoiceActivationFolders.DefaultLocation;
         }
 
         public string SampleFile(string language, string name)
@@ -460,6 +489,12 @@ namespace VirtualVessel.VoiceLab
             throw new VoiceLabFailedException($"Candidate {candidate?.Id} was not made in this session.");
         }
 
+        /// <summary>Whether a script runs from the environment now: a candidate, a sample, a preview, or a build.</summary>
+        public bool IsBusy => Volatile.Read(ref _running) > 0 || BuildProgress.State != VoiceLabBuildState.None;
+
+        /// <summary>After the environment was deleted, so activation forgets it.</summary>
+        public event Action EnvironmentRemoved;
+
         public VoiceLabEnvironmentState EnvironmentState => _remover == null || _designer == null
             ? VoiceLabEnvironmentState.None
             : _remover.OwnedFolder != null ? VoiceLabEnvironmentState.AppBuilt : VoiceLabEnvironmentState.External;
@@ -476,7 +511,7 @@ namespace VirtualVessel.VoiceLab
                 return CrudResult.Fail(CrudError.Invalid, "There is no training environment the app built.");
             }
 
-            if (Volatile.Read(ref _running) > 0 || BuildProgress.State != VoiceLabBuildState.None)
+            if (IsBusy)
             {
                 return CrudResult.Fail(CrudError.Busy, "Voice Lab is running a script.");
             }
@@ -489,6 +524,14 @@ namespace VirtualVessel.VoiceLab
                 _log.Information($"Deleted Voice Lab's training environment in {_remover.OwnedFolder}.");
             }
 
+            // The settings file goes first, so once it is gone Voice Lab is not set up, even if a locked file kept part
+            // of the folder: activation forgets it too, or the screen would show it built and offer no way to build it
+            // again. A new build clears the folder first.
+            if (removed.Ok || !File.Exists(Path.Combine(_configDirectory, EnvironmentFile)))
+            {
+                EnvironmentRemoved?.Invoke();
+            }
+
             return removed;
         }
 
@@ -497,47 +540,6 @@ namespace VirtualVessel.VoiceLab
             if (_designer == null)
             {
                 throw new VoiceLabFailedException("Voice Lab is not set up.");
-            }
-        }
-
-        /// <summary>A value one thread writes and another reads.</summary>
-        private sealed class Shared<T>
-        {
-            private readonly object _gate = new object();
-            private T _value;
-
-            public T Value
-            {
-                get
-                {
-                    lock (_gate)
-                    {
-                        return _value;
-                    }
-                }
-
-                set
-                {
-                    lock (_gate)
-                    {
-                        _value = value;
-                    }
-                }
-            }
-        }
-
-        private sealed class Forward<T> : IProgress<T>
-        {
-            private readonly Action<T> _report;
-
-            public Forward(Action<T> report)
-            {
-                _report = report;
-            }
-
-            public void Report(T value)
-            {
-                _report(value);
             }
         }
     }

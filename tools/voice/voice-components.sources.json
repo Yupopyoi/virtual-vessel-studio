@@ -1,0 +1,50 @@
+{
+  "version": "0.1",
+  "python": "3.12.2",
+  "lock": "uv.lock",
+  "release": "https://github.com/Yupopyoi/virtual-vessel-studio/releases/download/voice-components-v0.1/",
+  "components": [
+    {
+      "id": "uv",
+      "url": "https://github.com/astral-sh/uv/releases/download/0.11.26/uv-x86_64-pc-windows-msvc.zip",
+      "local": "{download}/uv.zip",
+      "license": "MIT OR Apache-2.0",
+      "place": "environment",
+      "target": "uv",
+      "extract": "zip"
+    },
+    {
+      "id": "rvc",
+      "url": "https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/81eed5e8f68b6bed1789f682fe78cdd324495afc.zip",
+      "local": "{download}/rvc.zip",
+      "license": "MIT",
+      "place": "environment",
+      "target": "rvc",
+      "extract": "zip",
+      "strip": 1
+    },
+    { "id": "hubert-config", "url": "{lj1995}hubert_base/config.json", "local": "{rvc}/assets/hubert_base/config.json", "license": "MIT", "place": "environment", "target": "rvc/assets/hubert_base/config.json" },
+    { "id": "hubert-preprocessor", "url": "{lj1995}hubert_base/preprocessor_config.json", "local": "{rvc}/assets/hubert_base/preprocessor_config.json", "license": "MIT", "place": "environment", "target": "rvc/assets/hubert_base/preprocessor_config.json" },
+    { "id": "hubert-weights", "url": "{lj1995}hubert_base/pytorch_model.bin", "local": "{rvc}/assets/hubert_base/pytorch_model.bin", "license": "MIT", "place": "environment", "target": "rvc/assets/hubert_base/pytorch_model.bin" },
+    { "id": "rmvpe", "url": "{lj1995}rmvpe.pt", "local": "{rvc}/assets/rmvpe/rmvpe.pt", "license": "MIT", "place": "environment", "target": "rvc/assets/rmvpe/rmvpe.pt" },
+    { "id": "pretrained-g", "url": "{lj1995}pretrained_v2/f0G40k.pth", "local": "{rvc}/assets/pretrained_v2/f0G40k.pth", "license": "MIT", "place": "environment", "target": "rvc/assets/pretrained_v2/f0G40k.pth" },
+    { "id": "pretrained-d", "url": "{lj1995}pretrained_v2/f0D40k.pth", "local": "{rvc}/assets/pretrained_v2/f0D40k.pth", "license": "MIT", "place": "environment", "target": "rvc/assets/pretrained_v2/f0D40k.pth" },
+    { "id": "mute", "url": "{lj1995}mute.zip", "local": "{rvc}/.model-downloads/mute.zip", "license": "MIT", "place": "environment", "target": "rvc/logs", "extract": "zip" },
+    { "id": "voxcpm2-readme", "url": "{voxcpm2}README.md", "local": "{voxcpm2-local}/README.md", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/README.md" },
+    { "id": "voxcpm2-audiovae", "url": "{voxcpm2}audiovae.pth", "local": "{voxcpm2-local}/audiovae.pth", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/audiovae.pth" },
+    { "id": "voxcpm2-config", "url": "{voxcpm2}config.json", "local": "{voxcpm2-local}/config.json", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/config.json" },
+    { "id": "voxcpm2-model", "url": "{voxcpm2}model.safetensors", "local": "{voxcpm2-local}/model.safetensors", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/model.safetensors" },
+    { "id": "voxcpm2-special-tokens", "url": "{voxcpm2}special_tokens_map.json", "local": "{voxcpm2-local}/special_tokens_map.json", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/special_tokens_map.json" },
+    { "id": "voxcpm2-tokenization", "url": "{voxcpm2}tokenization_voxcpm2.py", "local": "{voxcpm2-local}/tokenization_voxcpm2.py", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/tokenization_voxcpm2.py" },
+    { "id": "voxcpm2-tokenizer", "url": "{voxcpm2}tokenizer.json", "local": "{voxcpm2-local}/tokenizer.json", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/tokenizer.json" },
+    { "id": "voxcpm2-tokenizer-config", "url": "{voxcpm2}tokenizer_config.json", "local": "{voxcpm2-local}/tokenizer_config.json", "license": "Apache-2.0", "place": "environment", "target": "voxcpm2/tokenizer_config.json" },
+    { "id": "template", "url": "{release}fused_template_w100.sentis", "local": "{sentis}/fused_template_w100.sentis", "license": "MIT", "place": "environment", "target": "template/fused_template_w100.sentis" },
+    { "id": "template-manifest", "url": "{release}fused_template_w100.json", "local": "{sentis}/fused_template_w100.json", "license": "MIT", "place": "environment", "target": "template/fused_template_w100.json" },
+    { "id": "shared-hubert", "url": "{release}hubert_16000_anchored.sentis", "local": "{sentis}/hubert_16000_anchored.sentis", "license": "MIT", "place": "sharedModels", "target": "hubert_16000_anchored.sentis" },
+    { "id": "shared-rmvpe", "url": "{release}rmvpe_32.sentis", "local": "{sentis}/rmvpe_32.sentis", "license": "MIT", "place": "sharedModels", "target": "rmvpe_32.sentis" }
+  ],
+  "bases": {
+    "lj1995": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/e6d0c1a17da07c33557852f9dfa2bd44cc75737d/",
+    "voxcpm2": "https://huggingface.co/openbmb/VoxCPM2/resolve/32279effe8c19989596f05d353d1447f51d9e915/"
+  }
+}

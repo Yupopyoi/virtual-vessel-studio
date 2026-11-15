@@ -9,6 +9,7 @@ using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -50,6 +51,7 @@ namespace VirtualVessel.UI.VoiceLab
             _player = player ?? throw new ArgumentNullException(nameof(player));
             _remake = remake;
             _building = building ?? (() => false);
+            PanelLifetime.OnLocaleChanged(this, Refresh);
             Add(VoiceLabScreen.Lead(VoiceLabStrings.LibraryLead));
             _empty = Ui.Text(VoiceLabStrings.LibraryEmpty, VoiceLabScreen.NoteClass, "vv-text-body");
             Add(_empty);

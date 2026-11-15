@@ -5,6 +5,7 @@ using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -32,6 +33,7 @@ namespace VirtualVessel.UI.VoiceLab
             _rows = new VisualElement();
             Add(_rows);
             RegisterCallback<AttachToPanelEvent>(_ => Show());
+            PanelLifetime.OnLocaleChanged(this, Show);
             Show();
         }
 

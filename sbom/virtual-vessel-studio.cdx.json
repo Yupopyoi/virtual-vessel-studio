@@ -24,6 +24,14 @@
         {
           "name": "virtual-vessel-studio:license-file",
           "value": "NOTICE"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/voice-lab-terms.ja.md"
+        },
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/voice-lab-terms.en.md"
         }
       ]
     }
@@ -1083,8 +1091,8 @@
       "type": "library",
       "bom-ref": "pypi:torch",
       "name": "torch",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torch@2.7.1+cu118",
+      "version": "2.7.1+cu128",
+      "purl": "pkg:pypi/torch@2.7.1+cu128",
       "licenses": [
         {
           "license": {
@@ -1093,14 +1101,14 @@
         }
       ],
       "scope": "optional",
-      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Its Windows CUDA 11.8 wheel carries NVIDIA's CUDA libraries under NVIDIA's license."
+      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Its Windows CUDA 12.8 wheel carries NVIDIA's CUDA libraries under NVIDIA's license."
     },
     {
       "type": "library",
       "bom-ref": "pypi:torchaudio",
       "name": "torchaudio",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torchaudio@2.7.1+cu118",
+      "version": "2.7.1+cu128",
+      "purl": "pkg:pypi/torchaudio@2.7.1+cu128",
       "licenses": [
         {
           "license": {
@@ -2303,6 +2311,262 @@
       ],
       "scope": "excluded",
       "description": "Tests for services/voice-lab (dev group); not distributed."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cublas-cu12",
+      "name": "nvidia-cublas-cu12",
+      "version": "12.8.3.14",
+      "purl": "pkg:pypi/nvidia-cublas-cu12@12.8.3.14",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cuda-cupti-cu12",
+      "name": "nvidia-cuda-cupti-cu12",
+      "version": "12.8.57",
+      "purl": "pkg:pypi/nvidia-cuda-cupti-cu12@12.8.57",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cuda-nvrtc-cu12",
+      "name": "nvidia-cuda-nvrtc-cu12",
+      "version": "12.8.61",
+      "purl": "pkg:pypi/nvidia-cuda-nvrtc-cu12@12.8.61",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cuda-runtime-cu12",
+      "name": "nvidia-cuda-runtime-cu12",
+      "version": "12.8.57",
+      "purl": "pkg:pypi/nvidia-cuda-runtime-cu12@12.8.57",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cudnn-cu12",
+      "name": "nvidia-cudnn-cu12",
+      "version": "9.7.1.26",
+      "purl": "pkg:pypi/nvidia-cudnn-cu12@9.7.1.26",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cufft-cu12",
+      "name": "nvidia-cufft-cu12",
+      "version": "11.3.3.41",
+      "purl": "pkg:pypi/nvidia-cufft-cu12@11.3.3.41",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cufile-cu12",
+      "name": "nvidia-cufile-cu12",
+      "version": "1.13.0.11",
+      "purl": "pkg:pypi/nvidia-cufile-cu12@1.13.0.11",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-curand-cu12",
+      "name": "nvidia-curand-cu12",
+      "version": "10.3.9.55",
+      "purl": "pkg:pypi/nvidia-curand-cu12@10.3.9.55",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cusolver-cu12",
+      "name": "nvidia-cusolver-cu12",
+      "version": "11.7.2.55",
+      "purl": "pkg:pypi/nvidia-cusolver-cu12@11.7.2.55",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cusparse-cu12",
+      "name": "nvidia-cusparse-cu12",
+      "version": "12.5.7.53",
+      "purl": "pkg:pypi/nvidia-cusparse-cu12@12.5.7.53",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-cusparselt-cu12",
+      "name": "nvidia-cusparselt-cu12",
+      "version": "0.6.3",
+      "purl": "pkg:pypi/nvidia-cusparselt-cu12@0.6.3",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-nccl-cu12",
+      "name": "nvidia-nccl-cu12",
+      "version": "2.26.2",
+      "purl": "pkg:pypi/nvidia-nccl-cu12@2.26.2",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-nvjitlink-cu12",
+      "name": "nvidia-nvjitlink-cu12",
+      "version": "12.8.61",
+      "purl": "pkg:pypi/nvidia-nvjitlink-cu12@12.8.61",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:nvidia-nvtx-cu12",
+      "name": "nvidia-nvtx-cu12",
+      "version": "12.8.55",
+      "purl": "pkg:pypi/nvidia-nvtx-cu12@12.8.55",
+      "licenses": [
+        {
+          "license": {
+            "name": "NVIDIA Software License Agreement (proprietary)"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only (PyTorch's Linux wheel takes CUDA from these packages; its Windows wheel carries CUDA itself); the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:triton",
+      "name": "triton",
+      "version": "3.3.1",
+      "purl": "pkg:pypi/triton@3.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but for Linux only; the app targets Windows only, so it is never installed or shipped."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:hf-xet",
+      "name": "hf-xet",
+      "version": "1.8.0",
+      "purl": "pkg:pypi/hf-xet@1.8.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Voice Lab's training environment's lock (services/voice-lab/uv.lock) lists it, but behind huggingface-hub's marker platform_machine == 'amd64', which Windows does not meet, as it reports 'AMD64'; the app targets Windows only, so it is never installed or shipped."
     }
   ]
 }

@@ -308,5 +308,109 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabPlayer.HasEnded(1f), Is.True);
             Assert.That(VoiceLabPlayer.HasEnded(0.5f), Is.False);
         }
+
+        [Test]
+        public void TheSetupPage_FollowsActivation()
+        {
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.NotStarted, false, false, false), Is.EqualTo(VoiceLabSetupPage.Check));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.NotStarted, false, true, false), Is.EqualTo(VoiceLabSetupPage.Terms));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Preparing, true, true, false), Is.EqualTo(VoiceLabSetupPage.Progress), "A running build wins.");
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Paused, false, false, false), Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Failed, false, false, false), Is.EqualTo(VoiceLabSetupPage.Progress));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, true), Is.EqualTo(VoiceLabSetupPage.Done));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, false), Is.EqualTo(VoiceLabSetupPage.Update));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, false), Is.EqualTo(VoiceLabSetupPage.None));
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, false, termsAgreed: false), Is.EqualTo(VoiceLabSetupPage.Terms), "Changed terms come before making.");
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, false, false, true, termsAgreed: false), Is.EqualTo(VoiceLabSetupPage.Done));
+            Assert.That(VoiceLabSetupView.OnlyToAgree(VoiceLabSetupState.Ready, false), Is.True, "Changed terms only agree, with or without an update waiting.");
+            Assert.That(VoiceLabSetupView.OnlyToAgree(VoiceLabSetupState.Ready, true), Is.False, "The user chose to update: it builds after agreeing.");
+            Assert.That(VoiceLabSetupView.OnlyToAgree(VoiceLabSetupState.NotStarted, true), Is.False);
+            Assert.That(VoiceLabSetupView.PageOf(VoiceLabSetupState.Ready, true, false, false, termsAgreed: false), Is.EqualTo(VoiceLabSetupPage.Terms), "Agreed first; the update card comes after.");
+            Assert.That(VoiceLabScreen.CanMakeWith(true, false), Is.False);
+            Assert.That(VoiceLabScreen.CanMakeWith(true, true), Is.True);
+        }
+
+        [Test]
+        public void TheBuildsSteps_ShowDone_TheOneUnderWay_AndNotYet()
+        {
+            Assert.That(VoiceLabSetupView.StepStatusOf(0, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Success, VoiceLabStrings.SetupStepDone)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupRunning)), "Live is for streaming only.");
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Paused), Is.EqualTo((StatusKind.Warning, VoiceLabStrings.SetupPaused)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Failed), Is.EqualTo((StatusKind.Error, VoiceLabStrings.SetupFailed)));
+            Assert.That(VoiceLabSetupView.StepStatusOf(3, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupStepLater)));
+        }
+
+        [Test]
+        public void EachFailure_SaysWhatToDo()
+        {
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.Network).Title, Is.EqualTo(VoiceLabStrings.SetupFailedNetworkTitle));
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.DiskFull).Body, Is.EqualTo(VoiceLabStrings.SetupFailedDiskBody));
+            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.None).Title, Is.EqualTo(VoiceLabStrings.SetupFailedSetupTitle), "A failure from before a restart.");
+        }
+
+        [Test]
+        public void TheDownload_ShowsItsBytes_AndTheOtherStepsTheirShare()
+        {
+            const long Gb = 1024L * 1024 * 1024;
+            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB (50%) · 30%"), "The download's own share, then the whole build's.");
+            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
+        }
+
+        [Test]
+        public void TheTermsMarkdown_BecomesHeadingsItemsAndRows()
+        {
+            var blocks = VoiceLabSetupView.TermsBlocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
+
+            Assert.That(blocks, Is.EqualTo(new[]
+            {
+                (VoiceLabTermsBlockKind.Title, 0, "規約"),
+                (VoiceLabTermsBlockKind.Paragraph, 0, "前文の続き。"),
+                (VoiceLabTermsBlockKind.Heading, 0, "第1条（定義）"),
+                (VoiceLabTermsBlockKind.Item, 0, "1. 一つ目"),
+                (VoiceLabTermsBlockKind.Item, 1, "1. 入れ子"),
+                (VoiceLabTermsBlockKind.Paragraph, 0, "1. 段落の番号"),
+                (VoiceLabTermsBlockKind.Row, 0, "名称 ／ 取得元"),
+                (VoiceLabTermsBlockKind.Row, 0, "uv ／ GitHub"),
+            }));
+        }
+
+        [Test]
+        public void TheShippedTerms_ReadAsArticles_InBothLanguages()
+        {
+            foreach (string language in new[] { "ja", "en" })
+            {
+                string file = System.IO.Path.GetFullPath(System.IO.Path.Combine("..", "..", "services", "voice-lab", "terms", $"voice-lab-terms.{language}.md"));
+                var blocks = VoiceLabSetupView.TermsBlocks(System.IO.File.ReadAllText(file));
+                Assert.That(blocks.Count(b => b.Kind == VoiceLabTermsBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
+                Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
+            }
+        }
+
+        [Test]
+        public void TheDownloadsSpeed_IsTheAverageOverTheSamples_WithTheTimeLeftAtIt()
+        {
+            const long Mb = 1024L * 1024;
+            var samples = new List<(double Seconds, long Done)> { (0d, 0L), (2d, 10 * Mb), (4d, 20 * Mb) };
+            (double rate, double? left) = VoiceLabSetupView.Rate(samples, 620 * Mb);
+            Assert.That(rate, Is.EqualTo(5d * Mb).Within(1d));
+            Assert.That(left, Is.EqualTo(120d).Within(1e-6), "600 MB left at 5 MB/s.");
+
+            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L) }, 10L), Is.EqualTo((0d, (double?)null)), "One sample has no speed.");
+            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L), (2d, 5L) }, 10L).SecondsLeft, Is.Null, "Stalled.");
+            Assert.That(VoiceLabSetupView.RateText(null, 12.34 * Mb, 300d), Is.EqualTo("12.3 MB/s"));
+        }
+
+        [Test]
+        public void TheRecordsLines_NameComponentsByTheirProducts()
+        {
+            Assert.That(VoiceLabSetupView.ItemName(null, "voxcpm2-model"), Is.EqualTo("VoxCPM2"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "hubert-weights"), Is.EqualTo("HuBERT"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "rvc"), Is.EqualTo("RVC"));
+            Assert.That(VoiceLabSetupView.ItemName(null, "template"), Is.EqualTo("template"), "Without a localizer, the id.");
+            Assert.That(VoiceLabSetupView.ItemName(null, "shared-rmvpe"), Is.EqualTo("RMVPE"));
+
+            var entry = new VoiceLabSetupEntry(new System.DateTime(2026, 11, 11, 9, 5, 7), VoiceLabSetupEntryKind.Unpack);
+            Assert.That(VoiceLabSetupView.EntryText(null, entry), Is.EqualTo("09:05:07  Unpack"));
+        }
     }
 }

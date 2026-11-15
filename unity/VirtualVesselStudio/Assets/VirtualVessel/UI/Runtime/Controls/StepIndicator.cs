@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.Controls
 {
@@ -41,6 +42,7 @@ namespace VirtualVessel.UI.Controls
         {
             AddToClassList(UssClass);
             RegisterCallback<AttachToPanelEvent>(_ => RefreshNumbers());
+            PanelLifetime.OnLocaleChanged(this, RefreshNumbers);
         }
 
         /// <summary>Raised with the step's index when the user presses a step they have reached.</summary>
