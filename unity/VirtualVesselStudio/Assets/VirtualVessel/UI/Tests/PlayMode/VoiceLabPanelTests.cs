@@ -590,6 +590,29 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator AVoiceContinuedInStep4_CanBeRegistered()
+        {
+            // Continuing a voice not registered opened STEP 4, but STEP 5 asked to make it in STEP 3 (2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(1f, 2f, 0f, 0f), "", "b.wav", null));
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "", new VoiceLabCandidate("candidate_7", "b.wav", 140, 100, 200), new VoiceLabTimbre(1f, 2f, 0f, 0f));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+            Submit(screen.Resume.TryButton);
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            yield return null;
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.RegisterButton.enabledSelf, Is.True, "The run it was made from is still the one to register.");
+            Assert.That(register.BlockedNote.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
         public IEnumerator Register_ForARegisteredVoice_SaysWhyItCannotBePressed()
         {
             Object.Destroy(_host);

@@ -429,16 +429,18 @@ namespace VirtualVessel.UI.VoiceLab
                 _base.ShowBaseGone(read.Value.Candidate == null);
                 _draft.Candidate = read.Value.Candidate;
                 _draft.CandidateNumber = 0;
+                if (read.Value.Candidate != null)
+                {
+                    // Before the run is set: putting the timbre back counts as moving it, which lets go of the run as
+                    // no longer made from it, and STEP 5 then asked for the voice to be made again (2026-11-15).
+                    _timbre.Restore(read.Value.Timbre);
+                }
             }
 
             _draft.RunId = read.Ok ? runId : null;
             _draft.TryFolder = voiceFolder;
             ShowTab(MakeTab);
             GoTo(TryStep, reset: true);
-            if (read.Ok && read.Value.Candidate != null)
-            {
-                _timbre.Restore(read.Value.Timbre);
-            }
         }
 
         public int Current => Steps?.Current ?? -1;
