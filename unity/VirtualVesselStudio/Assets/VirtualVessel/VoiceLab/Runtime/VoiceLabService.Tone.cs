@@ -37,7 +37,7 @@ namespace VirtualVessel.VoiceLab
         {
             if (_runs == null || _voices == null)
             {
-                return CrudResult.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult.Fail(CrudError.Invalid, NotSetUpDetail);
             }
 
             string voiceId = VoiceIdOf(voiceFolder);

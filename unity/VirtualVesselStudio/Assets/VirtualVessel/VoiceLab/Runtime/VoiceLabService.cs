@@ -27,6 +27,9 @@ namespace VirtualVessel.VoiceLab
         /// <summary>The developer's environment file in the settings folder, until activation writes it (Voice Lab detailed design 6.4).</summary>
         public const string EnvironmentFile = "voice-lab-environment.json";
 
+        // The failure's detail for what needs a training environment.
+        private const string NotSetUpDetail = "Voice Lab is not set up.";
+
         private readonly object _gate = new object();
         // Null when Voice Lab is not set up, and again once its environment is deleted.
         private volatile VoiceDesigner _designer;
@@ -213,12 +216,9 @@ namespace VirtualVessel.VoiceLab
                 _making.Value = default;
             }
 
-            lock (_gate)
+            foreach (VoiceCandidate candidate in made)
             {
-                foreach (VoiceCandidate candidate in made)
-                {
-                    _candidates[candidate.Id] = candidate;
-                }
+                Remember(candidate);
             }
 
             return made.Select(ToScreen).ToArray();
@@ -256,7 +256,7 @@ namespace VirtualVessel.VoiceLab
         {
             if (_runs == null)
             {
-                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult<string>.Fail(CrudError.Invalid, NotSetUpDetail);
             }
 
             CrudResult<TrainingRun> run = _runs.Get(runId);
@@ -316,28 +316,19 @@ namespace VirtualVessel.VoiceLab
 
         public CrudResult<VoiceLabRemake> Remake(string runId)
         {
-            if (_designer == null)
-            {
-                return CrudResult<VoiceLabRemake>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
-            }
-
-            CrudResult<TrainingRun> read = _runs.Get(runId);
+            CrudResult<TrainingRun> read = ReadRun(runId);
             if (!read.Ok)
             {
                 return CrudResult<VoiceLabRemake>.From(read.WithoutValue);
             }
 
-            TrainingRun run = read.Value;
-            VoiceCandidate candidate = FromRun(run.Design ?? new RunDesign(), File.Exists);
+            RunDesign design = read.Value.Design ?? new RunDesign();
+            VoiceCandidate candidate = FromRun(design, File.Exists);
             if (candidate != null)
             {
-                lock (_gate)
-                {
-                    _candidates[candidate.Id] = candidate;
-                }
+                Remember(candidate);
             }
 
-            RunDesign design = run.Design ?? new RunDesign();
             return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre), design.Prompt, design.Line, design.Seed));
         }
 
@@ -364,12 +355,7 @@ namespace VirtualVessel.VoiceLab
 
         public CrudResult<string> Register(string runId, string name)
         {
-            if (_designer == null)
-            {
-                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
-            }
-
-            CrudResult<TrainingRun> run = _runs.Get(runId);
+            CrudResult<TrainingRun> run = ReadRun(runId);
             if (!run.Ok)
             {
                 return CrudResult<string>.From(run.WithoutValue);
@@ -486,6 +472,21 @@ namespace VirtualVessel.VoiceLab
                 : new VoiceLabFailedException(exception.Message, exception);
         }
 
+        // A run, for what needs Voice Lab set up.
+        private CrudResult<TrainingRun> ReadRun(string runId)
+        {
+            return _designer == null ? CrudResult<TrainingRun>.Fail(CrudError.Invalid, NotSetUpDetail) : _runs.Get(runId);
+        }
+
+        // A candidate the screen may ask for again by its ID: one made, or one put back from a run or the unfinished work.
+        private void Remember(VoiceCandidate candidate)
+        {
+            lock (_gate)
+            {
+                _candidates[candidate.Id] = candidate;
+            }
+        }
+
         private VoiceCandidate Find(VoiceLabCandidate candidate)
         {
             lock (_gate)
@@ -549,7 +550,7 @@ namespace VirtualVessel.VoiceLab
         {
             if (_designer == null)
             {
-                throw new VoiceLabFailedException("Voice Lab is not set up.");
+                throw new VoiceLabFailedException(NotSetUpDetail);
             }
         }
     }
