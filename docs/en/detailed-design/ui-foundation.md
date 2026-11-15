@@ -808,6 +808,7 @@ flowchart LR
 
 - Click to select. A selected frame shows eight handles at the corners and edges and an outline.
 - Clicking an empty area clears the selection. `Tab` selects the next frame.
+- On the live screen, a press on an empty part outside the preview (the screen's background, a Card or its text) clears the selection too. A video stretched over the whole stream leaves no empty place on the canvas, so the mouse could not clear it (the user's review, 2026-11-14). A press on a control (anything that takes focus), the canvas, or the stacking-order list does not, so starting a recording does not drop the selection (`LiveScreen.ClearsSelection`). Presses are caught on the panel's root: the margins and the header around the preview are not the live screen's, so a handler on the live screen alone missed them (2026-11-15).
 
 **Moving**
 

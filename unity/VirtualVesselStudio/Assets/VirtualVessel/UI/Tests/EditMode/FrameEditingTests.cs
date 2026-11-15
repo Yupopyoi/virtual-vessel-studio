@@ -17,6 +17,33 @@ namespace VirtualVessel.UI.Tests
         private static readonly FrameLayout s_c = FrameLayout.Create(new NormalizedRect(0.5, 0.1, 0.2, 0.2));
 
         [Test]
+        public void APressOnTheLiveScreensEmptyParts_ClearsTheSelection_ButNotOnAControlOrTheCanvas()
+        {
+            var screen = new UnityEngine.UIElements.VisualElement();
+            var card = new UnityEngine.UIElements.VisualElement();
+            var text = new UnityEngine.UIElements.Label("hint");
+            var button = new UnityEngine.UIElements.Button();
+            var buttonText = new UnityEngine.UIElements.Label("Record");
+            var canvas = new UnityEngine.UIElements.VisualElement();
+            var layers = new UnityEngine.UIElements.VisualElement();
+            var layer = new UnityEngine.UIElements.VisualElement();
+            screen.Add(card);
+            card.Add(text);
+            screen.Add(button);
+            button.Add(buttonText);
+            screen.Add(canvas);
+            screen.Add(layers);
+            layers.Add(layer);
+
+            Assert.That(Screens.LiveScreen.ClearsSelection(screen, canvas, layers), Is.True, "The screen's background, or around it.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(text, canvas, layers), Is.True, "Text on a Card.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(buttonText, canvas, layers), Is.False, "A control keeps it.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(canvas, canvas, layers), Is.False, "The canvas decides by what is under the press.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(layer, canvas, layers), Is.False, "The layer list selects.");
+            Assert.That(Screens.LiveScreen.ClearsSelection(null, canvas, layers), Is.False);
+        }
+
+        [Test]
         public void History_UndoesAndRedoesInOrder_AndANewEditClearsRedo()
         {
             var history = new FrameHistory();

@@ -92,6 +92,43 @@ namespace VirtualVessel.UI.Screens
             layers.Add(Layers);
             Add(layers);
             Add(Ui.Text(LiveStrings.Hint, HintClass, "vv-text-body"));
+
+            // A video stretched over the whole stream leaves no empty place on the canvas to click, so a press on
+            // an empty part around it clears the selection too (the user's review, 2026-11-14). Caught on the
+            // panel's root, as the margins and the header around the preview are not this screen's (a handler on
+            // the screen alone missed them, 2026-11-15). Presses on the canvas and the layer list are theirs, and a
+            // control keeps the selection, so Record or a menu item does not drop it.
+            EventCallback<PointerDownEvent> clearOutside = evt =>
+            {
+                if (evt.button == 0 && Canvas.Selected != null && ClearsSelection(evt.target as VisualElement, Canvas, Layers))
+                {
+                    Canvas.Select(null);
+                }
+            };
+            RegisterCallback<AttachToPanelEvent>(evt => evt.destinationPanel.visualTree.RegisterCallback(clearOutside));
+            RegisterCallback<DetachFromPanelEvent>(evt => evt.originPanel.visualTree.UnregisterCallback(clearOutside));
+        }
+
+        /// <summary>
+        /// Whether a press on <paramref name="target"/> clears the placement selection: not on a control (anything
+        /// that takes focus, such as a button or a menu) nor inside one of <paramref name="keep"/>. Pure.
+        /// </summary>
+        public static bool ClearsSelection(VisualElement target, params VisualElement[] keep)
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            for (VisualElement element = target; element != null; element = element.parent)
+            {
+                if (element.focusable || Array.IndexOf(keep, element) >= 0)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public StreamPreview Preview { get; }
