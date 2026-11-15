@@ -13,8 +13,7 @@ namespace VirtualVessel.UI.VoiceLab
     {
         private readonly IVoiceLabSetup _setup;
         private readonly Label _version;
-        private readonly VisualElement _body;
-        private string _language;
+        private readonly VoiceLabTermsBody _body = new VoiceLabTermsBody();
 
         /// <param name="back">Back to the check of the PC.</param>
         /// <param name="agree">Agrees, once the toggle is on.</param>
@@ -26,10 +25,7 @@ namespace VirtualVessel.UI.VoiceLab
             _version.AddToClassList(VoiceLabScreen.NoteClass);
             _version.AddToClassList("vv-text-caption");
             Card.Add(_version);
-            var scroll = new ScrollView(ScrollViewMode.Vertical);
-            scroll.AddToClassList(VoiceLabSetupView.TermsClass);
-            _body = scroll.contentContainer;
-            Card.Add(scroll);
+            Card.Add(_body.Scroll);
             AgreeToggle = Ui.Toggle(VoiceLabStrings.SetupAgree);
             AgreeToggle.AddToClassList(VoiceLabScreen.GapClass);
             AgreeToggle.RegisterValueChangedCallback(e => StartButton.SetEnabled(e.newValue));
@@ -65,29 +61,10 @@ namespace VirtualVessel.UI.VoiceLab
         {
             StartButton.TextKey = onlyToAgree ? VoiceLabStrings.SetupAgreeOnly : VoiceLabStrings.SetupStart;
             BackButton.style.display = onlyToAgree ? DisplayStyle.None : DisplayStyle.Flex;
-            string language = localizer?.Locale?.Code ?? "en";
             _version.text = localizer?.Get(VoiceLabStrings.SetupTermsVersion, ("version", _setup.TermsVersion ?? string.Empty)) ?? string.Empty;
-            if (language == _language)
-            {
-                return;
-            }
 
-            _language = language;
-            _body.Clear();
-            string text = _setup.TermsText(language);
-            if (text == null)
-            {
-                // The terms cannot be agreed to unread.
-                _body.Add(Ui.Text(VoiceLabStrings.SetupTermsMissing, VoiceLabSetupView.ProblemClass, "vv-text-body"));
-                AgreeToggle.SetEnabled(false);
-                return;
-            }
-
-            AgreeToggle.SetEnabled(true);
-            foreach (Label label in MarkdownText.Labels(text, VoiceLabSetupView.TermsHeadingClass, VoiceLabSetupView.TermsItemClass))
-            {
-                _body.Add(label);
-            }
+            // The terms cannot be agreed to unread.
+            AgreeToggle.SetEnabled(_body.Show(_setup, localizer?.Locale?.Code ?? "en"));
         }
     }
 }
