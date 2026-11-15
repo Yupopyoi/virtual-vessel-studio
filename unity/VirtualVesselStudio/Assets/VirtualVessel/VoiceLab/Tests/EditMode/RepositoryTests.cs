@@ -68,6 +68,7 @@ namespace VirtualVessel.VoiceLab.Tests
             design.MedianHz = 300;
             design.LowHz = 200;
             design.HighHz = 400;
+            design.Tone = new Voice.Models.ToneValues { Body = 2f };
 
             RunDesign copy = design.Copy();
 
@@ -80,6 +81,10 @@ namespace VirtualVessel.VoiceLab.Tests
                 {
                     Assert.That(((TimbreValues)property.GetValue(copy)).Softness, Is.EqualTo(3f));
                 }
+                else if (property.PropertyType == typeof(Voice.Models.ToneValues))
+                {
+                    Assert.That(((Voice.Models.ToneValues)property.GetValue(copy)).Body, Is.EqualTo(2f));
+                }
                 else
                 {
                     Assert.That(property.GetValue(copy), Is.EqualTo(value), property.Name);
@@ -88,6 +93,31 @@ namespace VirtualVessel.VoiceLab.Tests
 
             Assert.That(copy.Words, Is.Not.SameAs(design.Words));
             Assert.That(copy.Timbre, Is.Not.SameAs(design.Timbre));
+            Assert.That(copy.Tone, Is.Not.SameAs(design.Tone));
+        }
+
+        [Test]
+        public void TheFinishChosenInStep4_IsKeptWithTheRun_AndHandedToTheVoice()
+        {
+            var tone = new UI.Voice.VoiceTone(1f, 2f, 3f, 4f);
+            TrainingRun run = _runs.Create(Design()).Value;
+
+            TrainingRun toned = run.WithTone(Voice.Models.ToneValues.From(tone));
+            Assert.That(_runs.Save(toned).Ok, Is.True);
+
+            Assert.That(run.Design.Tone, Is.Null, "The run it came from is left as it was.");
+            Assert.That(_runs.Get(run.RunId).Value.Design.Tone.ToTone(), Is.EqualTo(tone));
+            Assert.That(Registration.VoiceModelRegistrar.Handover(toned, "Fuwari", "out").Tone, Is.EqualTo(tone), "Registering hands it to the voice.");
+            Assert.That(Registration.VoiceModelRegistrar.Handover(run, "Fuwari", "out").Tone.IsFlat, Is.True, "An older run is flat.");
+        }
+
+        [TestCase(@"C:\Voices\voice-20261104-120000-1a2b", "voice-20261104-120000-1a2b")]
+        [TestCase(@"C:\Voices\voice-20261104-120000-1a2b\", "voice-20261104-120000-1a2b")]
+        [TestCase(@"C:\Runs\20261104-120000-1a2b\output", null)]
+        [TestCase(null, null)]
+        public void AVoiceFolder_IsKnownByItsName(string folder, string voiceId)
+        {
+            Assert.That(VoiceLabService.VoiceIdOf(folder), Is.EqualTo(voiceId));
         }
 
         [Test]

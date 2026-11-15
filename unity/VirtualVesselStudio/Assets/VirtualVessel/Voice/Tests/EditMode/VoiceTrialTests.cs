@@ -9,6 +9,56 @@ namespace VirtualVessel.Voice.Tests
     public sealed class VoiceTrialTests
     {
         [Test]
+        public void TheFinish_IsAppliedToTheConvertedFile_WithoutConvertingAgain()
+        {
+            string folder = Path.Combine(Path.GetTempPath(), "vv-trial-" + System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(folder);
+            try
+            {
+                var samples = new float[4800];
+                var random = new System.Random(4);
+                for (int i = 0; i < samples.Length; i++)
+                {
+                    // Quiet enough that +6 dB stays under full scale, where the WAV would clip it.
+                    samples[i] = (float)(random.NextDouble() - 0.5) * 0.3f;
+                }
+
+                string converted = Path.Combine(folder, "trial-x.wav");
+                File.WriteAllBytes(converted, WavFile.Write(samples, 48000));
+                var trial = new VoiceTrialService(new IdleLoop(), null, null, folder);
+                var tone = new UI.Voice.VoiceTone(0f, 0f, 6f, 0f);
+
+                // Off the main thread: the trial resumes on the context it started on, which a blocking wait here would hold.
+                string finished = System.Threading.Tasks.Task.Run(() => trial.FinishAsync(converted, tone, System.Threading.CancellationToken.None)).GetAwaiter().GetResult();
+
+                Assert.That(finished, Is.Not.EqualTo(converted));
+                float[] expected = ToneFilter.Apply(WavFile.Read(File.ReadAllBytes(converted), out _), tone, 48000);
+                new PeakLimiter(48000).Process(expected);
+                Assert.That(WavFile.Read(File.ReadAllBytes(finished), out _), Is.EqualTo(expected).Within(1f / 8192f));
+                Assert.That(System.Threading.Tasks.Task.Run(() => trial.FinishAsync(converted, default, System.Threading.CancellationToken.None)).GetAwaiter().GetResult(), Is.EqualTo(converted), "A flat finish plays the conversion itself.");
+            }
+            finally
+            {
+                Directory.Delete(folder, true);
+            }
+        }
+
+        private sealed class IdleLoop : Core.Lifecycle.IFrameLoop
+        {
+            public System.IDisposable Register(System.Action tick)
+            {
+                return new Nothing();
+            }
+
+            private sealed class Nothing : System.IDisposable
+            {
+                public void Dispose()
+                {
+                }
+            }
+        }
+
+        [Test]
         public void AWrittenWav_ReadsBackAsTheSameSamples()
         {
             float[] samples = { 0f, 0.5f, -0.5f, 1f, -1f, 2f };

@@ -123,6 +123,11 @@ namespace VirtualVessel.UI.VoiceLab
             Adjustment.RegisterValueChangedCallback(_ => PitchChanged());
             source.Add(Adjustment);
 
+            // The finish after the pitch, before Converted, which plays with it (the user's decision, 2026-11-15).
+            ToneKnobs = new VoiceToneKnobs();
+            ToneKnobs.Changed += OnToneChanged;
+            source.Add(ToneKnobs);
+
             _convertPanel = new VisualElement();
             _convertPanel.AddToClassList(VoiceLabScreen.GapClass);
             ConvertedButton = Ui.Button(VoiceLabStrings.TryConverted, ButtonVariant.Primary);
@@ -185,6 +190,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ValueSlider Adjustment { get; }
 
+        /// <summary>The finish on the voice tried, kept with its run or voice.</summary>
+        public VoiceToneKnobs ToneKnobs { get; }
+
         /// <summary>The recording to try; set by the file dialog, or by tests.</summary>
         public string Recording
         {
@@ -217,6 +225,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             _folder = folder.Ok ? folder.Value : null;
             _shown = true;
+            ToneKnobs.SetTone(_lab.ToneOf(_draft.RunId, _draft.TryFolder));
             _problem.style.display = DisplayStyle.None;
             _refresh ??= schedule.Execute(Refresh).Every(RefreshMs);
             _refresh.Resume();
@@ -380,9 +389,42 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             Refresh();
+            if (!_shown)
+            {
+                return;
+            }
+
+            // The finish on the kept conversion: changing it needs no new conversion.
+            string finished;
+            try
+            {
+                finished = await _trial.FinishAsync(_converted, ToneKnobs.Tone, CancellationToken.None);
+            }
+            catch (VoiceTrialFailedException)
+            {
+                // The service logged why.
+                _problem.style.display = DisplayStyle.Flex;
+                return;
+            }
+
             if (_shown)
             {
-                await _player.PlayAsync(_converted, null);
+                await _player.PlayAsync(finished, null);
+            }
+        }
+
+        // Kept at once, with the run (and the voice when one is tried): it is what the voice will sound like.
+        private void OnToneChanged(VoiceTone tone)
+        {
+            CrudResult kept = _lab.KeepTone(_draft.RunId, _draft.TryFolder, tone);
+            if (!kept.Ok)
+            {
+                UiServices.Find(this)?.Log?.Warning($"Keeping the finish failed ({kept.Error}): {kept.Detail}");
+            }
+
+            if (OnMicrophone && _micOn && _voice != null)
+            {
+                _voice.SetTone(tone);
             }
         }
 
@@ -439,6 +481,7 @@ namespace VirtualVessel.UI.VoiceLab
             _voice.BeginTrial(_folder);
             _voice.AutoPitch = AutoPitch.value;
             _voice.Semitones = Adjustment.value;
+            _voice.SetTone(ToneKnobs.Tone);
             Refresh();
         }
 

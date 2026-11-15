@@ -97,7 +97,7 @@ Kept in `VoiceModels/<VoiceModelId>/`. They are not the training output (system 
 ```text
 VoiceModels/
 ├─ voice-<RunId>/
-│  ├─ model.json    Name, source run, registration time, median pitch, versions. Only VoiceModelStore reads and writes it
+│  ├─ model.json    Name, source run, registration time, median pitch, versions, finish (tone; 8.6). Only VoiceModelStore reads and writes it
 │  ├─ voice.json    Format version, the window and returned frame counts, median pitch
 │  ├─ voice.sentis  The generator with the trained weights written in
 │  ├─ voice.spk     The speaker vector (256 floats)
@@ -236,6 +236,16 @@ A voice's folder (a run's output just made, or a registered voice) and a recordi
 - One at a time. Cancelling while the voice loads lets it go once loaded.
 - Trying on the microphone runs the stream's conversion (`VoiceService`) with the unregistered voice by its folder (`BeginTrial`; the ID is `folder:` and the folder). It loads and switches as a registered voice does, and another folder loads again. Voice and pitch changes during the trial are not saved; `EndTrial` puts back the saved voice and pitch and the on/off state from before. If the app ends mid-trial, the saved voice is unchanged. The converted voice is heard only with the microphone's Hear on.
 - Measured (RTX 4070): a 7.4 s recording converted in 8.8 s, measuring included; the longest frame was 21 ms. The first run in the test copy stalled one frame for 5.5 s compiling shaders; once cached, it does not recur.
+
+### 8.6 The Finish and the Limiter
+
+Each voice's converted sound can be shaped (the post-processing of system design 9.9; the user's decision, 2026-11-15). The voice itself does not change.
+
+- Four bands (`VoiceTone`, each -6 to +6 dB, 0 doing nothing): body (a low shelf at 200 Hz), clarity (a bell at 500 Hz, cut as it rises toward clear), brightness (a high shelf at 4 kHz), and air (a high shelf at 10 kHz), as the RBJ audio EQ cookbook's biquads (`ToneFilter`).
+- Kept as `tone` in the voice's `model.json`; a voice without one has no finish (every voice before). Voice Lab keeps it in the run's `design.tone` and hands it to the voice on registration (Voice Lab detailed design 6.3). Setup's voice card fixes the chosen voice's finish (`IVoiceConversion.SetTone`). A trial's finish is not kept here; Voice Lab keeps it with the run or the voice.
+- Stream: applied in place to the generator's block (no copy), before it is made stereo and written to the stage, with its state running on across blocks. No look-ahead, so no latency, and no allocation while processing (CLAUDE.md 23). A change of voice or finish only retunes the coefficients.
+- Trying a recording: the conversion is kept and a separate file with the finish is made (`IVoiceTrial.FinishAsync`), so a change of finish needs no new conversion.
+- Limiter (`PeakLimiter`): a lifted band can push a loud voice over full scale and clip it in the stream or a WAV, so it follows the finish. The ceiling is about -1 dBFS; the gain drops at once on a sample above it and comes back over 80 ms, never above what the current sample allows. No look-ahead, so no latency. Always on in the stream; on a trial's finished file.
 
 ## 9. Threading and Async
 

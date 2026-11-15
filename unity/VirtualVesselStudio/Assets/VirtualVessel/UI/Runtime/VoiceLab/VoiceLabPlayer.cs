@@ -21,6 +21,10 @@ namespace VirtualVessel.UI.VoiceLab
         private IVisualElementScheduledItem _watch;
         private IconButton _button;
 
+        // Counts plays and stops, so a play still being read when it was stopped or replaced knows it.
+        private int _generation;
+        private bool _playing;
+
         public VoiceLabPlayer(IAudioPreview audio, VisualElement owner)
         {
             _audio = audio;
@@ -39,11 +43,19 @@ namespace VirtualVessel.UI.VoiceLab
                 return false;
             }
 
+            int generation = ++_generation;
             _finished = finished;
+            _playing = true;
             bool playing = await _audio.PlayAsync(file);
-            if (_finished != finished)
+            if (generation != _generation)
             {
-                // Another sample started or Stop ran while this one was being read.
+                // Stop ran while this one was being read: it is stopped now that it plays. Another sample that started
+                // meanwhile plays on.
+                if (playing && !_playing)
+                {
+                    _audio.Stop();
+                }
+
                 return playing;
             }
 
@@ -86,9 +98,14 @@ namespace VirtualVessel.UI.VoiceLab
             });
         }
 
+        /// <summary>
+        /// Stops what plays. It stopped only a sample started with a finished callback, so STEP 4's, started without one,
+        /// went on playing (the user's report, 2026-11-15).
+        /// </summary>
         public void Stop()
         {
-            if (_finished != null)
+            _generation++;
+            if (_playing)
             {
                 _audio?.Stop();
             }
@@ -112,6 +129,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void Finish()
         {
+            _playing = false;
             _watch?.Pause();
             _watch = null;
             Action finished = _finished;

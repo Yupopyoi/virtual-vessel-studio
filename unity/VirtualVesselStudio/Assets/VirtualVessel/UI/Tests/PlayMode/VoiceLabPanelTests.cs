@@ -538,6 +538,102 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheFinish_StartsFromTheRuns_IsKept_AndPlaysWithoutConvertingAgain()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var trial = new FakeTrial();
+            _lab.KeptTones["voices/voice-1"] = new UI.Voice.VoiceTone(0f, 0f, 2f, 0f);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            Assert.That(screen.Try.ToneKnobs.Tone.Brightness, Is.EqualTo(2f), "The voice's own finish.");
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(_preview.Played.Last(), Is.EqualTo("converted-1.wav+tone1"), "Played with its finish.");
+
+            screen.Try.ToneKnobs.AirKnob.value = 3f;
+            Assert.That(_lab.KeptTones["voices/voice-1"].Air, Is.EqualTo(3f), "Kept at once.");
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Count, Is.EqualTo(1), "A new finish needs no new conversion.");
+            Assert.That(trial.Finishes.Last().Air, Is.EqualTo(3f));
+        }
+
+        [UnityTest]
+        public IEnumerator StopPlaying_StopsWhatStep4Plays()
+        {
+            // STEP 4 plays without a finished callback, and Stop did not stop it (the user's report, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.OriginalButton);
+            yield return null;
+            int stops = _preview.Stops;
+
+            Submit(screen.Try.StopPlayingButton);
+
+            Assert.That(_preview.Stops, Is.GreaterThan(stops));
+        }
+
+        [UnityTest]
+        public IEnumerator AVoiceContinuedInStep4_CanBeRegistered()
+        {
+            // Continuing a voice not registered opened STEP 4, but STEP 5 asked to make it in STEP 3 (2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Runs.Add(new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, new[] { "male" }, "", new VoiceLabTimbre(1f, 2f, 0f, 0f), "", "b.wav", null));
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "", new VoiceLabCandidate("candidate_7", "b.wav", 140, 100, 200), new VoiceLabTimbre(1f, 2f, 0f, 0f));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+            Submit(screen.Resume.TryButton);
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            yield return null;
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.RegisterButton.enabledSelf, Is.True, "The run it was made from is still the one to register.");
+            Assert.That(register.BlockedNote.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
+        [UnityTest]
+        public IEnumerator Register_ForARegisteredVoice_SaysWhyItCannotBePressed()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            yield return null;
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.RegisterButton.enabledSelf, Is.False);
+            Assert.That(register.BlockedNote.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(register.BlockedNote.text, Is.EqualTo(_root.Localizer.Get(VoiceLabStrings.RegisterBlockedRegistered)));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);
@@ -577,6 +673,42 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-run-1"));
+            Assert.That(register.ShowMadeButton.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Once registered, the voices are a press away.");
+        }
+
+        [UnityTest]
+        public IEnumerator MadeVoices_KeepTheirButtonsInLine_WhateverTheNameOrUse()
+        {
+            // The buttons moved with the name's length and with In use versus Use (the user's review, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "test", "run-1", DateTimeOffset.UtcNow, 319, null));
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-2", "ぽやぽや", "run-2", DateTimeOffset.UtcNow, 285, null));
+            var voice = new FakeVoice();
+            voice.SelectVoice("voice-1");
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, Voice = voice, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            yield return null;
+
+            var tries = screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).ToList();
+            Assert.That(tries, Has.Count.EqualTo(2));
+            Assert.That(tries[1].worldBound.x, Is.EqualTo(tries[0].worldBound.x).Within(0.5f));
+        }
+
+        [UnityTest]
+        public IEnumerator SeeMadeVoices_OpensItsTab()
+        {
+            VoiceLabScreen screen = Screen();
+            Object.Destroy(_host);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = new FakeLibrary() });
+            screen = Screen();
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+
+            Submit(register.ShowMadeButton);
+
+            Assert.That(screen.Tabs.value, Is.EqualTo(VoiceLabScreen.MadeTab));
         }
 
         [UnityTest]
@@ -743,7 +875,11 @@ namespace VirtualVessel.UI.Tests
 
             ActionButton rename = view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Rename);
             Submit(rename);
-            view.Query<TextInput>().ToList().First().value = "Kirari";
+            TextInput field = view.Query<TextInput>().ToList().First();
+            Label shown = view.Query<Label>(className: VoiceLabLibraryView.VoiceNameTextClass).First();
+            Assert.That(field.parent, Is.SameAs(shown.parent), "The field opens where the name is, by the play button.");
+            Assert.That(shown.style.display.value, Is.EqualTo(DisplayStyle.None), "The field stands in for the name.");
+            field.value = "Kirari";
             Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.SaveName));
             Assert.That(library.Voices.Single().Name, Is.EqualTo("Kirari"));
 

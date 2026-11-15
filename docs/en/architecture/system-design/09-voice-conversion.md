@@ -278,6 +278,8 @@ and so on.
 
 The voice conversion settings of the RVC model itself and the final audio adjustments for streaming are managed as separate settings.
 
+What exists now is a finish per voice (a four-band EQ) followed by a limiter (the user's decision, 2026-11-15; Voice detailed design 8.6). Neither looks ahead, so neither adds latency.
+
 ### Rationale
 
 Even after the voice has been converted by RVC, final adjustments may be needed to suit the actual streaming environment and the user's voice.

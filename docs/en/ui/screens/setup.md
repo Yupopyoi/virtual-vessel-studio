@@ -350,6 +350,7 @@ A status chip at the right end of the title (Running ✓, Loading ○, Off ○, 
 | Voice | Select | The usable voices made in Voice Lab. The prototype's voice is for developers and not listed (only on the Diagnostics screen). Choosing saves it in the Voice Profile (Voice detailed design 6.2) |
 | Match the pitch automatically | Toggle, Measure again | Under the description, "Your voice 200 Hz → this voice 285 Hz (+6)"; "not measured" before measuring |
 | Pitch adjustment | Slider | -24 to +24 semitones, added to the automatic shift when that is on; the description changes with automatic on or off. Under it, "Converted pitch 317 Hz (total +8)" (user's check, 2026-11-10) |
+| Finish | Four sliders, Reset the finish | The chosen voice's body, clarity, brightness, and air (-6 to +6 dB). A change is kept with the voice and heard on the stream at once. Disabled without a voice (Voice detailed design 8.6; the user's decision, 2026-11-15) |
 
 A Help Hint after the name "Convert my voice" holds "Voice conversion uses the GPU." (the user's request, 2026-11-11: keep the screen's text short).
 

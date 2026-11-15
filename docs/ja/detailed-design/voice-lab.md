@@ -176,7 +176,7 @@ VoiceLab/
    └─ output/                   voice.sentis、voice.spk、voice.json（登録の元）
 ```
 
-`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、直接書いたプロンプト`prompt`、候補が読み上げた文`line`（空は棚の文）、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
+`run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、直接書いたプロンプト`prompt`、候補が読み上げた文`line`（空は棚の文）、STEP 4で選んだ仕上げ`tone`（Voice詳細設計8.6。登録で声へ渡す）、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
 声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、各段階の見込みの時間（150エポックの実測で、音声7分、加工1分、学習9分、書き出し1分。学習はエポック数に比例させる）の割合で、各段階の進み具合を合わせる。
 

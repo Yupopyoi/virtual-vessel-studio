@@ -76,5 +76,12 @@ namespace VirtualVessel.UI.Voice
         /// or recording that cannot be used throws <see cref="VoiceTrialFailedException"/>.
         /// </summary>
         Task<VoiceTrialResult> ConvertAsync(VoiceTrialRequest request, IProgress<float> progress, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// The converted recording with a finish, as a new file to play (Voice detailed design 8.6): only the finish is
+        /// applied, so changing it needs no new conversion.
+        /// </summary>
+        /// <exception cref="VoiceTrialFailedException">The converted file could not be read or the new one written.</exception>
+        Task<string> FinishAsync(string converted, VoiceTone tone, CancellationToken cancellationToken);
     }
 }

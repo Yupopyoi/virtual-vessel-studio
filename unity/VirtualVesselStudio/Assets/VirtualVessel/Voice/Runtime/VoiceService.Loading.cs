@@ -126,6 +126,7 @@ namespace VirtualVessel.Voice
                 _stream = stream;
                 _streamVoice = voiceId;
                 _voicePitchHz = _loadingPitchHz;
+                ApplyTone();
                 _log?.Information($"Voice conversion is ready with voice {LogName(voiceId)}: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
                 if (_wanted)
                 {
@@ -203,6 +204,7 @@ namespace VirtualVessel.Voice
             _stream.Dispose();
             _stream = _next.Take();
             ApplyPitch();
+            ApplyTone();
         }
     }
 }

@@ -54,6 +54,11 @@ namespace VirtualVessel.Voice
         private readonly VoiceLoader _loader;
         private readonly VoiceStorage _storage;
         private Trial _trial;
+
+        // The finish on what is converted (Voice detailed design 8.6), after the voice and before the stage: one filter
+        // whose state runs on from block to block, retuned when the voice or its finish changes.
+        private readonly ToneFilter _tone = new ToneFilter(default, RvcStream.DeviceRate);
+        private readonly PeakLimiter _limiter = new PeakLimiter(RvcStream.DeviceRate);
         private readonly VoiceWarmup _next = new VoiceWarmup();
         private readonly PitchMeter _meter = new PitchMeter();
         private float[] _blockPitch;
@@ -186,6 +191,34 @@ namespace VirtualVessel.Voice
             _autoPitch = _storage.Profile.AutoPitch;
             Choose(_storage.Profile.VoiceModelId);
             ApplyPitch();
+            ApplyTone();
+        }
+
+        public VoiceTone Tone => _trial != null ? _trial.Tone : _library?.ToneOf(_wantedVoice) ?? default;
+
+        public CrudResult SetTone(VoiceTone tone)
+        {
+            if (_trial != null)
+            {
+                // A trial's finish is Voice Lab's to keep, with its run.
+                _trial.Tone = tone;
+                ApplyTone();
+                return CrudResult.Success;
+            }
+
+            CrudResult kept = _library?.SetTone(_wantedVoice, tone) ?? CrudResult.Fail(CrudError.Invalid, "There is no voice library.");
+            if (kept.Ok)
+            {
+                ApplyTone();
+            }
+
+            return kept;
+        }
+
+        // The finish follows the voice that converts: the trial's while one runs, else the voice's own.
+        private void ApplyTone()
+        {
+            _tone.SetTone(_trial != null ? _trial.Tone : _library?.ToneOf(_streamVoice) ?? default);
         }
 
         private void Choose(string voiceId)
@@ -208,6 +241,9 @@ namespace VirtualVessel.Voice
             }
 
             public bool WasOn { get; }
+
+            /// <summary>The finish being tried; flat until Voice Lab gives one.</summary>
+            public VoiceTone Tone { get; set; }
         }
 
         public bool GpuAvailable => IsGpuUsable(UnityEngine.SystemInfo.supportsComputeShaders, UnityEngine.SystemInfo.graphicsDeviceType);

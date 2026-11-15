@@ -5,6 +5,7 @@ using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Binding;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -25,6 +26,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly StatusChip _result;
         private readonly ActionButton _again;
         private string _registeredRun;
+        private readonly Label _blocked;
         private readonly IVoiceConversion _voice;
 
         /// <param name="voice">The voice conversion, to use the voice right away; null leaves that out.</param>
@@ -51,6 +53,9 @@ namespace VirtualVessel.UI.VoiceLab
             UseNow.style.display = voice == null ? DisplayStyle.None : DisplayStyle.Flex;
             card.Add(UseNow);
             _result = new StatusChip(StatusKind.Success, VoiceLabStrings.Registered);
+
+            // Room above, so the result does not touch the toggle (the user's review, 2026-11-15).
+            _result.AddToClassList(VoiceLabScreen.SpacedClass);
             card.Add(_result);
             Add(card);
 
@@ -58,16 +63,28 @@ namespace VirtualVessel.UI.VoiceLab
             RegisterButton.clicked += Register;
             _again = Ui.Button(VoiceLabStrings.MakeAnother);
             _again.clicked += _flow.StartOver;
+            ShowMadeButton = Ui.Button(VoiceLabStrings.ShowMadeVoices);
+            ShowMadeButton.clicked += _flow.OpenMadeVoices;
             // Back to trying, also after registering: the run keeps the voice's files (the user's review, 2026-11-08).
             BackButton = Ui.Button(VoiceLabStrings.BackToTry);
             BackButton.clicked += () => _flow.GoTo(VoiceLabScreen.TryStep);
-            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again));
+            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again, ShowMadeButton));
+
+            // Why Register cannot be pressed: it was greyed out without a word (the user's review, 2026-11-15).
+            _blocked = QuietText.Of(new Label());
+            _blocked.AddToClassList(VoiceLabScreen.NoteClass);
+            _blocked.AddToClassList("vv-text-body");
+            Add(_blocked);
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
+            PanelLifetime.OnLocaleChanged(this, Refresh);
         }
 
         public ActionButton RegisterButton { get; }
 
         public ActionButton BackButton { get; }
+
+        /// <summary>Opens Made voices once registered, where the voice is listed.</summary>
+        public ActionButton ShowMadeButton { get; }
 
         /// <summary>Use the voice for the stream once registered.</summary>
         public SwitchToggle UseNow { get; }
@@ -84,8 +101,35 @@ namespace VirtualVessel.UI.VoiceLab
             bool registered = _draft.RunId != null && _draft.RunId == _registeredRun;
             _result.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
             _again.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
-            RegisterButton.SetEnabled(_draft.RunId != null && !registered);
+            ShowMadeButton.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
+            string blocked = BlockedKey(_draft.RunId, _draft.TryFolder, registered);
+            RegisterButton.SetEnabled(blocked == null && !registered);
+            _blocked.style.display = blocked != null ? DisplayStyle.Flex : DisplayStyle.None;
+            if (blocked != null)
+            {
+                _blocked.text = localizer?.Get(blocked) ?? blocked;
+            }
         }
+
+        /// <summary>The note on why Register cannot be pressed, or null when it can (or the voice was just registered here). Pure.</summary>
+        public static string BlockedKey(string runId, string tryFolder, bool registeredHere)
+        {
+            if (registeredHere)
+            {
+                return null;
+            }
+
+            if (tryFolder != null)
+            {
+                // A registered voice is being tried, opened from Made voices.
+                return VoiceLabStrings.RegisterBlockedRegistered;
+            }
+
+            return runId == null ? VoiceLabStrings.RegisterBlockedNoRun : null;
+        }
+
+        /// <summary>The note shown when Register cannot be pressed, for tests.</summary>
+        public Label BlockedNote => _blocked;
 
         private static VisualElement SummaryRow(string nameKey, out Label value)
         {

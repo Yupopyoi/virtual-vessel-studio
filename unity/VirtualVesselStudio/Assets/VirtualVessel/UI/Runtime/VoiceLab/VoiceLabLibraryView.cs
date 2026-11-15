@@ -22,6 +22,14 @@ namespace VirtualVessel.UI.VoiceLab
         public const string RowClass = VoiceLabScreen.UssClass + "__row";
         public const string NameClass = VoiceLabScreen.UssClass + "__name";
 
+        // A voice's row in columns of fixed width, so the buttons stay in line whatever the name, the pitch, or whether
+        // it is in use (the user's review, 2026-11-15).
+        public const string VoiceNameClass = VoiceLabScreen.UssClass + "__voice-name";
+        public const string VoiceNameTextClass = VoiceLabScreen.UssClass + "__voice-name-text";
+        public const string VoiceHzClass = VoiceLabScreen.UssClass + "__voice-hz";
+        public const string VoiceDateClass = VoiceLabScreen.UssClass + "__voice-date";
+        public const string VoiceUseClass = VoiceLabScreen.UssClass + "__voice-use";
+
         // A written prompt is shown this far in a run's one line; the run keeps it whole.
         private const int SummaryPrompt = 80;
 
@@ -242,13 +250,31 @@ namespace VirtualVessel.UI.VoiceLab
             var name = new Label(voice.Name);
             name.AddToClassList("vv-text-body");
             name.AddToClassList(NameClass);
-            row.Add(QuietText.Of(name));
-            row.Add(Note(voice.MedianHz > 0 ? CandidateTile.HzText(voice.MedianHz) : "—"));
-            row.Add(Note(DateText(voice.RegisteredAt)));
+            name.AddToClassList(VoiceNameTextClass);
+            name.tooltip = voice.Name;
 
-            TextInput rename = Ui.TextField(VoiceLabStrings.VoiceName);
+            // The name and its rename field share one slot by the play button, so renaming happens where the name is
+            // (the user's review, 2026-11-15: the field opened at the row's end, and the row wrapped).
+            var nameSlot = new VisualElement();
+            nameSlot.AddToClassList(VoiceNameClass);
+            nameSlot.Add(QuietText.Of(name));
+            row.Add(nameSlot);
+            Label hz = Note(voice.MedianHz > 0 ? CandidateTile.HzText(voice.MedianHz) : "—");
+            hz.AddToClassList(VoiceHzClass);
+            row.Add(hz);
+            Label date = Note(DateText(voice.RegisteredAt));
+            date.AddToClassList(VoiceDateClass);
+            row.Add(date);
+            var useSlot = new VisualElement();
+            useSlot.AddToClassList(VoiceUseClass);
+            row.Add(useSlot);
+
+            // No caption above the field: it stands in for the name, and its tooltip says what it is.
+            TextInput rename = Ui.TextField(null);
+            rename.TooltipKey = VoiceLabStrings.VoiceName;
             rename.MaxLength = 60;
             rename.style.display = DisplayStyle.None;
+            nameSlot.Add(rename);
             ActionButton renameButton = Ui.Button(VoiceLabStrings.Rename);
             ActionButton save = Ui.Button(VoiceLabStrings.SaveName, ButtonVariant.Primary);
             save.style.display = DisplayStyle.None;
@@ -256,9 +282,10 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 rename.value = voice.Name;
                 rename.style.display = DisplayStyle.Flex;
+                name.style.display = DisplayStyle.None;
                 save.style.display = DisplayStyle.Flex;
                 renameButton.style.display = DisplayStyle.None;
-                rename.Focus();
+                rename.FocusInput();
             };
             save.clicked += () =>
             {
@@ -278,7 +305,7 @@ namespace VirtualVessel.UI.VoiceLab
             bool inUse = IsInUse(_voice?.InUseVoiceId, voice.Id);
             if (inUse)
             {
-                row.Add(Ui.Chip(StatusKind.Success, VoiceLabStrings.InUse));
+                useSlot.Add(Ui.Chip(StatusKind.Success, VoiceLabStrings.InUse));
                 delete.SetEnabled(false);
                 delete.TooltipKey = VoiceLabStrings.DeleteInUse;
             }
@@ -290,13 +317,13 @@ namespace VirtualVessel.UI.VoiceLab
                     _voice.SelectVoice(voice.Id);
                     Refresh();
                 };
-                row.Add(use);
+                useSlot.Add(use);
             }
 
-            row.Add(rename);
-            row.Add(save);
+            // Save takes Rename's place, so the buttons around it stay where they were.
             row.Add(tryButton);
             row.Add(renameButton);
+            row.Add(save);
             row.Add(delete);
             return row;
         }

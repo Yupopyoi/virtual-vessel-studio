@@ -48,6 +48,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>STEP 1 or STEP 2 changed, so the unfinished work is kept again (Voice Lab detailed design 6.6).</summary>
         void WorkChanged();
+
+        /// <summary>Opens Made voices, as after registering a voice.</summary>
+        void OpenMadeVoices();
     }
 
     /// <summary>
@@ -65,6 +68,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>A heading inside a Card, such as STEP 4's pitch.</summary>
         public const string SubheadClass = UssClass + "__subhead";
+
+        /// <summary>Room above a part that follows a control, such as a result under a toggle.</summary>
+        public const string SpacedClass = UssClass + "__spaced";
 
         /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
         public const string GapClass = UssClass + "__gap";
@@ -429,16 +435,18 @@ namespace VirtualVessel.UI.VoiceLab
                 _base.ShowBaseGone(read.Value.Candidate == null);
                 _draft.Candidate = read.Value.Candidate;
                 _draft.CandidateNumber = 0;
+                if (read.Value.Candidate != null)
+                {
+                    // Before the run is set: putting the timbre back counts as moving it, which lets go of the run as
+                    // no longer made from it, and STEP 5 then asked for the voice to be made again (2026-11-15).
+                    _timbre.Restore(read.Value.Timbre);
+                }
             }
 
             _draft.RunId = read.Ok ? runId : null;
             _draft.TryFolder = voiceFolder;
             ShowTab(MakeTab);
             GoTo(TryStep, reset: true);
-            if (read.Ok && read.Value.Candidate != null)
-            {
-                _timbre.Restore(read.Value.Timbre);
-            }
         }
 
         public int Current => Steps?.Current ?? -1;
@@ -463,6 +471,11 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             Steps.Show(Steps.Current, Math.Min(Steps.Reached, Math.Max(lastValid, Steps.Current)));
+        }
+
+        public void OpenMadeVoices()
+        {
+            ShowTab(MadeTab);
         }
 
         public void Lock(bool locked)

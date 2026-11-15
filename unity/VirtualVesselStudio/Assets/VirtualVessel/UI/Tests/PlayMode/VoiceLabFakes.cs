@@ -102,6 +102,20 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking CandidatesProgress => default;
 
+        /// <summary>The finish kept for each run or voice folder, as the files would hold it.</summary>
+        public Dictionary<string, VoiceTone> KeptTones { get; } = new Dictionary<string, VoiceTone>();
+
+        public VoiceTone ToneOf(string runId, string voiceFolder)
+        {
+            return KeptTones.TryGetValue(voiceFolder ?? runId ?? string.Empty, out VoiceTone tone) ? tone : default;
+        }
+
+        public CrudResult KeepTone(string runId, string voiceFolder, VoiceTone tone)
+        {
+            KeptTones[voiceFolder ?? runId ?? string.Empty] = tone;
+            return CrudResult.Success;
+        }
+
         /// <summary>The unfinished work kept, as the file would hold it; null for none.</summary>
         public VoiceLabWork KeptWork { get; set; }
 
@@ -294,8 +308,11 @@ namespace VirtualVessel.UI.Tests
             return Task.FromResult(true);
         }
 
+        public int Stops { get; private set; }
+
         public void Stop()
         {
+            Stops++;
         }
     }
 
@@ -412,6 +429,14 @@ namespace VirtualVessel.UI.Tests
             return held.Task.ContinueWith(_ => result, cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
+        public List<VoiceTone> Finishes { get; } = new List<VoiceTone>();
+
+        public Task<string> FinishAsync(string converted, VoiceTone tone, CancellationToken cancellationToken)
+        {
+            Finishes.Add(tone);
+            return Task.FromResult(tone.IsFlat ? converted : $"{converted}+tone{Finishes.Count}");
+        }
+
         /// <summary>Lets the held conversion finish.</summary>
         public void Finish()
         {
@@ -431,6 +456,18 @@ namespace VirtualVessel.UI.Tests
         public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
         {
             return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Voices.ToArray());
+        }
+
+        public VoiceTone Tone { get; private set; }
+
+        /// <summary>The finishes set, in order, as the voice would keep them.</summary>
+        public List<VoiceTone> Tones { get; } = new List<VoiceTone>();
+
+        public CrudResult SetTone(VoiceTone tone)
+        {
+            Tone = tone;
+            Tones.Add(tone);
+            return CrudResult.Success;
         }
 
         private bool _wasOn;
