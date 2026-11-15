@@ -160,6 +160,12 @@ namespace VirtualVessel.UI.Tests
             Assert.That(FrameCanvasMath.CropPressAt(cropped, 0.5, 0.5), Is.EqualTo(CropPress.Window));
             Assert.That(FrameCanvasMath.CropPressAt(cropped, 0.1, 0.1), Is.EqualTo(CropPress.Video));
             Assert.That(FrameCanvasMath.CropPressAt(cropped.WithCrop(NormalizedRect.Full), 0.1, 0.1), Is.EqualTo(CropPress.Outside));
+
+            // Zoomed in four times, the whole video reaches far past the stream screen; past it is the background.
+            var zoomed = new FrameLayout(new NormalizedRect(0.25, 0.25, 0.5, 0.5), new NormalizedRect(0.375, 0.375, 0.25, 0.25));
+            Assert.That(FrameCanvasMath.CropPressAt(zoomed, 0.1, 0.1), Is.EqualTo(CropPress.Video), "The faint video on the screen.");
+            Assert.That(FrameCanvasMath.CropPressAt(zoomed, -0.1, 0.5), Is.EqualTo(CropPress.Outside), "The background beside the preview ends crop mode.");
+            Assert.That(FrameCanvasMath.CropPressAt(zoomed, 0.5, 1.05), Is.EqualTo(CropPress.Outside));
         }
 
         [Test]
