@@ -465,6 +465,8 @@
         "frame.fill.tip": "Makes the video cover the stream screen, keeping its aspect ratio",
         "frame.center": "Center",
         "frame.center.tip": "Moves the video to the center of the stream screen without resizing it",
+        "frame.stop-capture": "Stop capture",
+        "frame.stop-capture.tip": "Stops capturing this video. Start it again from Setup",
         "frame.forward": "Bring forward",
         "frame.forward.tip": "Swaps places with the video just in front",
         "frame.backward": "Send backward",

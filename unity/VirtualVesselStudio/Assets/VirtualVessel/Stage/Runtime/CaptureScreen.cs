@@ -71,6 +71,13 @@ namespace VirtualVessel.Stage
 
         public IReadOnlyObservable<FrameLayout> Layout => _layout;
 
+        public bool CanStopCapture => _source.State.Value != CaptureState.Stopped;
+
+        public void StopCapture()
+        {
+            _source.Stop();
+        }
+
         /// <summary>For tests: what the quad shows now.</summary>
         internal Transform Quad => _quad.transform;
 

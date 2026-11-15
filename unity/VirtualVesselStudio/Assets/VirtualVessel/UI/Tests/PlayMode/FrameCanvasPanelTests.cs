@@ -337,7 +337,7 @@ namespace VirtualVessel.UI.Tests
             PopupMenu menu = _canvas.Menu;
             Assert.That(menu, Is.Not.Null);
             Assert.That(_canvas.Selected, Is.SameAs(game), "Right-click selects.");
-            Assert.That(menu.Items.Count, Is.EqualTo(12));
+            Assert.That(menu.Items.Count, Is.EqualTo(13), "With Stop capture.");
             Assert.That(menu.HighlightIndex, Is.GreaterThanOrEqualTo(0), "An entry is ready for the keyboard.");
 
             // On this small test screen the menu may open over the pointer, which highlights the entry
@@ -378,9 +378,34 @@ namespace VirtualVessel.UI.Tests
                 enabled.Add(!item.ClassListContains(PopupMenu.ItemClass + "--disabled"));
             }
 
-            Assert.That(enabled, Is.EqualTo(new[] { true, true, false, false, false, false, false, false, false, false, false, false }));
+            Assert.That(enabled, Is.EqualTo(new[] { true, true, false, false, false, false, false, false, false, false, false, false, false }), "Stopping the capture is not offered on a locked frame either.");
             _canvas.Menu.Close();
             Assert.That(_canvas.Menu, Is.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator Delete_StopsTheSelectedVideosCapture_ButNotALockedOnes()
+        {
+            var game = new FakeSource("game", new NormalizedRect(0.1, 0.1, 0.4, 0.4)) { Capturing = true };
+            var locked = new FakeSource("camera", new FrameLayout(new NormalizedRect(0.5, 0.5, 0.3, 0.3), NormalizedRect.Full, locked: true)) { Capturing = true };
+            _canvas.SetSources(new[] { game, locked });
+            _canvas.Select(locked);
+            _canvas.Focus();
+            yield return null;
+
+            Key(true, KeyCode.Delete);
+            Assert.That(locked.Stops, Is.Zero, "A locked video keeps capturing.");
+
+            _canvas.Select(game);
+            _canvas.ShowMenu(At(0.3, 0.3));
+            yield return null;
+            Assert.That(_canvas.Menu.Items[_canvas.Menu.Items.Count - 1].ClassListContains(PopupMenu.ItemClass + "--disabled"), Is.False, "The menu offers to stop it.");
+            _canvas.Menu.Close();
+
+            Key(true, KeyCode.Delete);
+            Assert.That(game.Stops, Is.EqualTo(1));
+            Key(true, KeyCode.Delete);
+            Assert.That(game.Stops, Is.EqualTo(1), "Nothing more to stop.");
         }
 
         [UnityTest]
@@ -788,6 +813,18 @@ namespace VirtualVessel.UI.Tests
             public List<FrameLayout> Commits { get; } = new List<FrameLayout>();
 
             public bool Reject { get; set; }
+
+            public bool Capturing { get; set; }
+
+            public int Stops { get; private set; }
+
+            public bool CanStopCapture => Capturing;
+
+            public void StopCapture()
+            {
+                Stops++;
+                Capturing = false;
+            }
 
             public void PreviewLayout(FrameLayout layout)
             {

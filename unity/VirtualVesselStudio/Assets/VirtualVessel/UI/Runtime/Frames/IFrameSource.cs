@@ -55,5 +55,16 @@ namespace VirtualVessel.UI.Frames
         /// <c>UserFacingException</c>.
         /// </summary>
         Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Whether the video's capture runs, so the placement editor can stop it (Del and the menu; the user's request,
+        /// 2026-11-15). False for a video that is not captured.
+        /// </summary>
+        bool CanStopCapture => false;
+
+        /// <summary>Stops the video's capture, as the setup screen's Stop does; it is started again there.</summary>
+        void StopCapture()
+        {
+        }
     }
 }
