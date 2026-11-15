@@ -321,6 +321,7 @@ Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録�
 - 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。
 - 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使う声（Voice Profileの`voiceModelId`。Voice詳細設計6.2）は消せない。`VoiceLabLibrary.DeleteVoice`が`Busy`で断る。どの声が使われているかはVoiceが知っているので、組み立ての側が`VoiceLabService.VoiceInUse`で渡す。試し（Voice詳細設計8.5）は使われている声を変えない。
 - 作り直す：Runの言葉、自由入力、土台、声色をSTEP 1とSTEP 2に戻し、STEP 2を開く。土台の音声がなくなっていれば、言葉を入れたSTEP 1を開き、その旨を伝える。言葉を残す前のRun（`words`がない）は、空の棚で開く。
+- 容量の削減（利用者の要望、2026-11-11）：見本（`Samples/`）と、以前の回の候補と試聴用の音声（`Designs/<開始時刻>/`）を、それぞれ削除できる（`VoiceLabStorage`、`IVoiceLabLibrary.DeleteSamples`、`DeleteOldCandidates`）。見本は作っている間は`Busy`で断る。候補は、Runが土台と手本に使っているもの（`design.candidate`、`design.reference`）と、いま開いている回のフォルダーを残し、空になったフォルダーも消す。残すので「作り直す」は土台を見つけられる。大きさ（`StorageUse`）は、削除できるものだけを数える。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）
 
@@ -396,7 +397,7 @@ python -I <スクリプト>.py <操作> <依頼のJSONファイル>
 | 声の設計、Training Run | Data Rootの`VoiceLab/`（6.3） |
 | 登録した声 | Data Rootの`VoiceModels/` |
 
-学習環境は大きいので、Data Rootに入れず、バックアップの対象にしない。削除しても、登録した声は動く。画面から削除できるようにする。
+学習環境は大きいので、Data Rootに入れず、バックアップの対象にしない。配信は学習環境を使わないので、削除しても登録した声は動く。「作った声」のタブから削除できる（`IVoiceLab.RemoveEnvironmentAsync`、`VoiceLabEnvironmentRemover`。利用者の要望、2026-11-11）。削除するのは、すべての部分が上の場所の1つの版のフォルダーにある、アプリが構築した環境だけである。開発者の環境のように、ほかで用意した環境は削除しない（CLAUDE.md 26章）。Voice Labで何かが動いている間は`Busy`で断る。先に設定ファイル（`voice-lab-environment.json`）を消してから、フォルダーを消す。途中で失敗しても、消しかけの環境を使える環境と取り違えないためである。削除の後、Voice Labは構築し直すまで使えない。アクティベーション（環境の構築）はまだ作っていないので、今は削除できる環境が生じない。
 
 ## 12. エラーと回復
 

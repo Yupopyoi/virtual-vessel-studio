@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
@@ -95,6 +96,16 @@ namespace VirtualVessel.UI.Tests
                     if (!Shown(child))
                     {
                         continue;
+                    }
+
+                    // A control right above a bordered box, such as a Card, crowds it the same way.
+                    if (previous != null && child.resolvedStyle.borderTopWidth > 0f)
+                    {
+                        VisualElement above = IsControl(previous) ? previous : previous.Query<VisualElement>().Where(e => IsControl(e) && Shown(e)).ToList().LastOrDefault();
+                        if (above != null && child.worldBound.yMin - above.worldBound.yMax < MinimumGap - 0.5f)
+                        {
+                            found.Add($"{Name(above)} over {Name(child)}: {child.worldBound.yMin - above.worldBound.yMax:0.#}px");
+                        }
                     }
 
                     if (previous != null && previous.resolvedStyle.borderBottomWidth > 0f)

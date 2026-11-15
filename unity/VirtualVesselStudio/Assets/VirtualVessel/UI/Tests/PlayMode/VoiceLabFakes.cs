@@ -68,6 +68,24 @@ namespace VirtualVessel.UI.Tests
             return BuiltFolder == null ? CrudResult<string>.Fail(CrudError.Invalid, "none") : CrudResult<string>.Success(BuiltFolder);
         }
 
+        public VoiceLabEnvironmentState EnvironmentState { get; set; } = VoiceLabEnvironmentState.External;
+
+        public long EnvironmentBytes { get; set; } = 6L * 1024 * 1024 * 1024;
+
+        public int EnvironmentRemovals { get; private set; }
+
+        public Task<long> EnvironmentSizeAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(EnvironmentState == VoiceLabEnvironmentState.AppBuilt ? EnvironmentBytes : 0L);
+        }
+
+        public Task<CrudResult> RemoveEnvironmentAsync()
+        {
+            EnvironmentRemovals++;
+            EnvironmentState = VoiceLabEnvironmentState.None;
+            return Task.FromResult(CrudResult.Success);
+        }
+
         public void CancelBuild()
         {
             BuildsCancelled++;
@@ -191,6 +209,31 @@ namespace VirtualVessel.UI.Tests
         public CrudResult DeleteRun(string runId)
         {
             Runs.RemoveAll(r => r.RunId == runId);
+            return CrudResult.Success;
+        }
+
+        public VoiceLabStorageUse Use { get; set; } = new VoiceLabStorageUse(25L * 1024 * 1024, 39L * 1024 * 1024);
+
+        public int SamplesDeleted { get; private set; }
+
+        public int CandidatesDeleted { get; private set; }
+
+        public CrudResult<VoiceLabStorageUse> StorageUse()
+        {
+            return CrudResult<VoiceLabStorageUse>.Success(Use);
+        }
+
+        public CrudResult DeleteSamples()
+        {
+            SamplesDeleted++;
+            Use = new VoiceLabStorageUse(0L, Use.CandidatesBytes);
+            return CrudResult.Success;
+        }
+
+        public CrudResult DeleteOldCandidates()
+        {
+            CandidatesDeleted++;
+            Use = new VoiceLabStorageUse(Use.SamplesBytes, 0L);
             return CrudResult.Success;
         }
 

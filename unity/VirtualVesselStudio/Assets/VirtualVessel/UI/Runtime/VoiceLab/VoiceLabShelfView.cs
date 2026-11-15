@@ -36,6 +36,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly List<IconButton> _playButtons = new List<IconButton>();
         private readonly List<(VoiceLabExample Example, Label Words)> _exampleWords = new List<(VoiceLabExample, Label)>();
         private readonly VisualElement _samplesNotice;
+        private readonly Card _examples;
         private readonly ActionButton _makeSamples;
         private readonly VoiceLabMakingBar _samplesBusy;
         private readonly StatusChip _samplesFailed;
@@ -74,6 +75,8 @@ namespace VirtualVessel.UI.VoiceLab
             _wordsPanel = new VisualElement();
             Add(_wordsPanel);
             _samplesNotice = new VisualElement();
+            // Room before the Card under it, so Make the samples does not touch it (the user's review, 2026-11-11).
+            _samplesNotice.AddToClassList(VoiceLabScreen.GapClass);
             _samplesNotice.Add(Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body"));
             _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
             _makeSamples.clicked += MakeSamples;
@@ -85,7 +88,7 @@ namespace VirtualVessel.UI.VoiceLab
             _samplesNotice.Add(_samplesFailed);
             _wordsPanel.Add(_samplesNotice);
 
-            Card examples = Ui.Card(VoiceLabStrings.Examples);
+            Card examples = _examples = Ui.Card(VoiceLabStrings.Examples);
             var exampleList = new VisualElement();
             exampleList.AddToClassList(ExamplesClass);
             foreach (VoiceLabExample example in _shelf.Examples)
@@ -207,6 +210,12 @@ namespace VirtualVessel.UI.VoiceLab
             _promptPanel.style.display = mode == PromptMode ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
+        /// <summary>Shows again whether the samples are there, such as after they were deleted in the Made voices tab.</summary>
+        public void RefreshSamples()
+        {
+            ShowSamples();
+        }
+
         public void Press(string wordId)
         {
             _picked = _shelf.Toggle(_picked, wordId);
@@ -318,7 +327,10 @@ namespace VirtualVessel.UI.VoiceLab
                 play.TooltipKey = made ? VoiceLabStrings.PlaySample : VoiceLabStrings.SampleNotMade;
             }
 
-            _samplesNotice.style.display = SampleFile("base.wav") == null ? DisplayStyle.Flex : DisplayStyle.None;
+            // Without the samples, the examples have nothing to play, so they wait with them (the user's review, 2026-11-11).
+            bool missing = SampleFile("base.wav") == null;
+            _samplesNotice.style.display = missing ? DisplayStyle.Flex : DisplayStyle.None;
+            _examples.style.display = missing ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
         private void ShowPicks()

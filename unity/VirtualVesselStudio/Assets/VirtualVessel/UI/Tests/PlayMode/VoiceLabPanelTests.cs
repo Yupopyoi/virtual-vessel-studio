@@ -218,10 +218,14 @@ namespace VirtualVessel.UI.Tests
             IconButton[] plays = request.Query<IconButton>().ToList().ToArray();
             Assert.That(plays.All(p => p.style.display == DisplayStyle.Flex && !p.enabledSelf), Is.True, "Shown but disabled before the samples are made, so the user sees where they will be.");
 
+            Card examples = request.Query<Card>().ToList().First(c => c.TitleKey == VoiceLabStrings.Examples);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.None), "Nothing to play, so the examples wait with the samples.");
+
             Submit(request.MakeSamplesButton);
             yield return null;
             Assert.That(_lab.SampleRuns, Is.EqualTo(1));
             Assert.That(plays.All(p => p.enabledSelf), Is.True);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.Flex));
 
             Submit(plays[0]);
             yield return null;
@@ -532,7 +536,7 @@ namespace VirtualVessel.UI.Tests
             screen.ShowTab(VoiceLabScreen.MadeTab);
             yield return null;
             VoiceLabLibraryView view = screen.Library;
-            Assert.That(view.Query<ActionButton>().ToList().Count(b => b.TextKey == VoiceLabStrings.Delete), Is.EqualTo(2), "A voice row and a run row.");
+            Assert.That(view.Query<ActionButton>().ToList().Count(b => b.TextKey == VoiceLabStrings.Delete && !view.StorageCard.Contains(b)), Is.EqualTo(2), "A voice row and a run row.");
 
             ActionButton rename = view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Rename);
             Submit(rename);
@@ -611,6 +615,56 @@ namespace VirtualVessel.UI.Tests
             Assert.That(baseStep.RequestView.Prompt.value, Is.EqualTo("A calm woman."));
             var run = new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, null, "", default, "", null, null, "A calm woman.");
             Assert.That(VoiceLabLibraryView.RunSummary(run, null), Does.StartWith("A calm woman. / "));
+        }
+
+        [UnityTest]
+        public IEnumerator TheSamplesAndOldCandidates_AreDeletedApart_AfterAsking()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            VoiceLabLibraryView view = screen.Library;
+            Assert.That(view.Query<Label>().ToList().Select(l => l.text), Does.Contain("25 MB").And.Contain("39 MB"));
+
+            Submit(view.DeleteSamplesButton);
+            yield return null;
+            Assert.That(library.SamplesDeleted, Is.EqualTo(0), "Asked first.");
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+
+            Assert.That((library.SamplesDeleted, library.CandidatesDeleted), Is.EqualTo((1, 0)), "Only the samples.");
+            Assert.That(view.DeleteSamplesButton.enabledSelf, Is.False, "Nothing left to delete.");
+            Assert.That(view.DeleteCandidatesButton.enabledSelf, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator TheTrainingEnvironment_IsDeletedOnlyWhenTheAppBuiltIt()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            VoiceLabEnvironmentRow row = screen.EnvironmentRow;
+            Assert.That(row.DeleteButton.enabledSelf, Is.False, "A developer's environment is not the app's to delete.");
+            Assert.That(row.DeleteButton.TooltipKey, Is.EqualTo(VoiceLabStrings.StorageEnvironmentExternal));
+
+            _lab.EnvironmentState = VoiceLabEnvironmentState.AppBuilt;
+            row.Show();
+            yield return null;
+            Assert.That(row.Query<Label>().ToList().Select(l => l.text), Does.Contain("6.0 GB"));
+            Submit(row.DeleteButton);
+            yield return null;
+            Assert.That(_lab.EnvironmentRemovals, Is.EqualTo(0), "Asked first.");
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+
+            Assert.That(_lab.EnvironmentRemovals, Is.EqualTo(1));
+            Assert.That(row.style.display.value, Is.EqualTo(DisplayStyle.None), "Gone, so its row goes too.");
         }
 
         private VoiceLabScreen Screen()

@@ -929,7 +929,8 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 言語の標準ライブラリとOS以外に使うもの（Unity Package、フォントやモデル等の同梱Asset、Pluginに組み込むNativeのライブラリやランタイム、Python Package、外部OSS、GitHub Action、ビルドツール）は、すべて`sbom/virtual-vessel-studio.cdx.json`（CycloneDX 1.6）に記録する。
 
 - 追加、更新、削除と同じ変更でSBOMを直す。
-- 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
+- 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、配布物には含めず、機能を使えるようにするときに利用者のPCへ入れるもの（Voice Labの学習の環境）は`optional`、開発やCIだけで使うものは`excluded`とする。
+- 設定画面のクレジットは、`optional`の項目をSBOMの順に別のCardへ並べる。そのため`optional`の項目は、Python、RVC、その事前学習モデル、VoxCPM、そのモデル、PyTorch、uvのように主なものを先に置き、残りのPython Packageを名前の順に続ける。新しく加える項目も、この順に入れる。
 - Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
 - 配布物に含まれる項目には、その項目に当てはまるライセンスの全文のファイルを、Property `virtual-vessel-studio:license-file`で挙げる（値は配布物の中のパス。例：`licenses/UniGLTF-LICENSE.md`）。1つの項目に複数のファイルを挙げてよく、複数の項目が同じファイルを挙げてもよい。アプリ自身（`metadata.component`）は`LICENSE`と`NOTICE`を挙げる。
 - 挙げたファイルは`tools/release/license-files.json`に、配布物の中のパスと、リポジトリの中の元のファイルの組で書く。Gitに入らない元のファイル（Unityが展開するPackage、取得して使うPackage）は、Packageのハッシュの部分を`*`で書ける。リリースの手順（21章）は、この表のとおりにファイルを配布物へ写す。設定画面のクレジット（`docs/ja/ui/screens/setup.md` 8章）は、SBOMとこれらのファイルを読んで表示する。

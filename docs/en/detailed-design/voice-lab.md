@@ -321,6 +321,7 @@ The Made voices tab of Voice Lab (screen spec 8) lists the training runs and the
 - Rename and note: a voice's name follows the register rules (required, up to 60 characters). A run's note is up to 500 characters. Both are saved at once.
 - Delete: after a confirmation. A run being built cannot be deleted. Deleting a voice leaves its run, and deleting a run leaves the voices registered from it (each voice folder holds its own files and design). The voice used for the stream (the Voice Profile's `voiceModelId`; Voice detailed design 6.2) cannot be deleted: `VoiceLabLibrary.DeleteVoice` refuses with `Busy`. Voice knows which voice is in use, so the composition passes it in through `VoiceLabService.VoiceInUse`. A trial (Voice detailed design 8.5) does not change the voice in use.
 - Make again: the run's words, free words, base, and timbre go back into STEP 1 and STEP 2, which open at STEP 2. When the base's audio is gone, STEP 1 opens with the words and says so. A run from before the words were kept (no `words`) opens with an empty shelf.
+- Freeing space (the user's request, 2026-11-11): the samples (`Samples/`) and earlier sessions' candidates and previews (`Designs/<start time>/`) can each be deleted (`VoiceLabStorage`, `IVoiceLabLibrary.DeleteSamples`, `DeleteOldCandidates`). Deleting the samples while they are being made is refused with `Busy`. Candidates a run was built from or made near (`design.candidate`, `design.reference`) and the open session's folder stay, and folders left empty go, so Make again still finds its base. The size (`StorageUse`) counts only what can be deleted.
 
 ### 8.4 Registration (making a `.sentis` without the Editor)
 
@@ -396,7 +397,7 @@ The only ordinary setting is training length (standard or longer). Detailed valu
 | Voice design, Training Runs | `VoiceLab/` in the Data Root (6.3) |
 | Registered voices | `VoiceModels/` in the Data Root |
 
-The environment is large, so it stays out of the Data Root and out of backups. Removing it leaves registered voices working, and a screen offers to remove it.
+The environment is large, so it stays out of the Data Root and out of backups. Streaming does not use it, so removing it leaves registered voices working. The Made voices tab removes it (`IVoiceLab.RemoveEnvironmentAsync`, `VoiceLabEnvironmentRemover`; the user's request, 2026-11-11). Only an environment the app built is removed: every part of it inside one version folder of the place above. One set up elsewhere, such as a developer's, is not (CLAUDE.md 26). While anything runs in Voice Lab, it is refused with `Busy`. The settings file (`voice-lab-environment.json`) goes first, then the folder, so a half-removed environment is never taken for a working one. Afterwards Voice Lab cannot be used until the environment is built again. Activation (building it) is not made yet, so for now no removable environment exists.
 
 ## 12. Error Handling and Recovery
 

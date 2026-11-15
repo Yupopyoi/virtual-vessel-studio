@@ -27,7 +27,10 @@ namespace VirtualVessel.VoiceLab
         public const string EnvironmentFile = "voice-lab-environment.json";
 
         private readonly object _gate = new object();
-        private readonly VoiceDesigner _designer;
+        // Null when Voice Lab is not set up, and again once its environment is deleted.
+        private volatile VoiceDesigner _designer;
+        private readonly VoiceLabEnvironmentRemover _remover;
+        private int _running;
         private readonly ITrainingRunRepository _runs;
         private readonly IVoiceModelRepository _voices;
         private readonly VoiceModelRegistrar _registrar;
@@ -40,8 +43,9 @@ namespace VirtualVessel.VoiceLab
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
-        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log, IVoiceLabLibrary library)
+        private VoiceLabService(VoiceDesigner designer, ITrainingRunRepository runs, IVoiceModelRepository voices, VoiceModelRegistrar registrar, VoiceLabShelf shelf, string samplesFolder, ILog log, IVoiceLabLibrary library, VoiceLabEnvironmentRemover remover = null)
         {
+            _remover = remover;
             Library = library;
             _designer = designer;
             _runs = runs;
@@ -61,6 +65,9 @@ namespace VirtualVessel.VoiceLab
         /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
         public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
 
+        // Read by the library from the main thread while the samples are made; set before and after, never in between.
+        private volatile bool _makingSamples;
+
         public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
 
         public VoiceLabShelf Shelf { get; }
@@ -69,6 +76,9 @@ namespace VirtualVessel.VoiceLab
         public IVoiceLabLibrary Library { get; }
 
         public VoiceLabMaking SamplesProgress => _samplesMaking.Value;
+
+        /// <summary>What runs now, so the library deletes nothing in use.</summary>
+        public VoiceLabActivity Activity => new VoiceLabActivity(_makingSamples, _designer?.SessionFolder);
 
         public VoiceLabMaking CandidatesProgress => _making.Value;
 
@@ -82,7 +92,7 @@ namespace VirtualVessel.VoiceLab
         {
             // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
             VoiceLabService created = null;
-            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None);
+            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, () => created?.Activity ?? default);
             string path = Path.Combine(configDirectory, EnvironmentFile);
             if (!File.Exists(path))
             {
@@ -107,12 +117,13 @@ namespace VirtualVessel.VoiceLab
                 return created = new VoiceLabService(null, null, null, null, null, null, log, library);
             }
 
+            var remover = new VoiceLabEnvironmentRemover(path, VoiceLabEnvironmentRemover.Owned(environment, VoiceLabEnvironmentRemover.ManagedRoot));
             var runner = new ExternalProcessRunner(environment.AllowedFolders, log.WithContext("component", "process"), clock);
             var runs = new TrainingRunStore(voiceLabFolder, clock, random);
             var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(voiceLabFolder, "Designs"), clock, log, (random ?? new Random()).Next(1, 1_000_000));
             log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
             var voices = new VoiceModelStore(voiceModelsFolder, clock);
-            return created = new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log, library);
+            return created = new VoiceLabService(designer, runs, voices, new VoiceModelRegistrar(voices, runs, clock), shelf, Path.Combine(voiceLabFolder, "Samples"), log, library, remover);
         }
 
         public string SampleFile(string language, string name)
@@ -130,6 +141,7 @@ namespace VirtualVessel.VoiceLab
         {
             _samplesMaking.Value = default;
             var progress = new Forward<ScriptProgress>(p => _samplesMaking.Value = ToMaking(p, "samples"));
+            _makingSamples = true;
             try
             {
                 await Run(() => _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken)).ConfigureAwait(false);
@@ -137,6 +149,7 @@ namespace VirtualVessel.VoiceLab
             }
             finally
             {
+                _makingSamples = false;
                 _samplesMaking.Value = default;
             }
         }
@@ -408,6 +421,7 @@ namespace VirtualVessel.VoiceLab
         private async Task<T> Run<T>(Func<Task<T>> work)
         {
             Ensure();
+            Interlocked.Increment(ref _running);
             try
             {
                 return await work().ConfigureAwait(false);
@@ -415,6 +429,10 @@ namespace VirtualVessel.VoiceLab
             catch (ScriptFailedException exception)
             {
                 throw ToScreen(exception);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _running);
             }
         }
 
@@ -440,6 +458,38 @@ namespace VirtualVessel.VoiceLab
             }
 
             throw new VoiceLabFailedException($"Candidate {candidate?.Id} was not made in this session.");
+        }
+
+        public VoiceLabEnvironmentState EnvironmentState => _remover == null || _designer == null
+            ? VoiceLabEnvironmentState.None
+            : _remover.OwnedFolder != null ? VoiceLabEnvironmentState.AppBuilt : VoiceLabEnvironmentState.External;
+
+        public Task<long> EnvironmentSizeAsync(CancellationToken cancellationToken)
+        {
+            return EnvironmentState == VoiceLabEnvironmentState.AppBuilt ? _remover.SizeAsync(cancellationToken) : Task.FromResult(0L);
+        }
+
+        public async Task<CrudResult> RemoveEnvironmentAsync()
+        {
+            if (EnvironmentState != VoiceLabEnvironmentState.AppBuilt)
+            {
+                return CrudResult.Fail(CrudError.Invalid, "There is no training environment the app built.");
+            }
+
+            if (Volatile.Read(ref _running) > 0 || BuildProgress.State != VoiceLabBuildState.None)
+            {
+                return CrudResult.Fail(CrudError.Busy, "Voice Lab is running a script.");
+            }
+
+            // Nothing starts from here: every script call checks the designer first.
+            _designer = null;
+            CrudResult removed = await _remover.RemoveAsync().ConfigureAwait(false);
+            if (removed.Ok)
+            {
+                _log.Information($"Deleted Voice Lab's training environment in {_remover.OwnedFolder}.");
+            }
+
+            return removed;
         }
 
         private void Ensure()

@@ -8,24 +8,38 @@ using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.Screens
 {
-    /// <summary>String table keys of the credits Card (docs/&lt;lang&gt;/ui/screens/setup.md 8).</summary>
+    /// <summary>String table keys of the credits Cards (docs/&lt;lang&gt;/ui/screens/setup.md 8).</summary>
     [StringKeys]
     public static class CreditStrings
     {
         public const string Title = "setup.credits.title";
         public const string Intro = "setup.credits.intro";
+        public const string OnDemandTitle = "setup.credits.on-demand.title";
+        public const string OnDemandIntro = "setup.credits.on-demand.intro";
         public const string Unavailable = "setup.credits.unavailable";
         public const string Show = "setup.credits.show";
         public const string Hide = "setup.credits.hide";
         public const string Missing = "setup.credits.missing";
     }
 
+    /// <summary>Which components a credits Card lists.</summary>
+    public enum CreditGroup
+    {
+        /// <summary>The application itself and what is shipped with it.</summary>
+        Application,
+
+        /// <summary>What a feature fetches to the PC when activated: Voice Lab's Python environment.</summary>
+        OnDemand,
+    }
+
     /// <summary>
     /// The software and assets the application uses, from the SBOM shipped with it, and the full
-    /// license texts shipped next to it (docs/&lt;lang&gt;/ui/screens/setup.md 8).
+    /// license texts shipped next to it (docs/&lt;lang&gt;/ui/screens/setup.md 8). One Card for the
+    /// application and what it ships, one for what Voice Lab fetches at activation, so neither list
+    /// buries the other.
     /// </summary>
     /// <remarks>
-    /// The SBOM is read when the Card is built; a license text when it is first shown. Every text
+    /// The SBOM is read when the Cards are built; a license text when it is first shown. Every text
     /// from those files is shown as written, never parsed as markup.
     /// </remarks>
     public sealed class CreditsCard : VisualElement
@@ -41,24 +55,24 @@ namespace VirtualVessel.UI.Screens
         private readonly ICreditFiles _files;
         private readonly List<CreditRow> _rows = new List<CreditRow>();
 
-        public CreditsCard(ICreditFiles files)
+        private CreditsCard(ICreditFiles files, CreditCatalog catalog, CreditGroup group)
         {
-            _files = files ?? throw new ArgumentNullException(nameof(files));
+            _files = files;
+            Catalog = catalog;
+            Group = group;
             AddToClassList(UssClass);
             AddToClassList(CaptureSourceCard.UssClass);
-            Card card = Ui.Card(CreditStrings.Title);
+            Card card = Ui.Card(group == CreditGroup.OnDemand ? CreditStrings.OnDemandTitle : CreditStrings.Title);
             Add(card);
 
-            Catalog = Load(files);
-            if (Catalog == null)
+            if (catalog == null)
             {
                 card.Add(Ui.Text(CreditStrings.Unavailable, CaptureSourceCard.ProblemClass, "vv-text-body"));
                 return;
             }
 
-            card.Add(Ui.Text(CreditStrings.Intro, IntroClass, "vv-text-body"));
-            IEnumerable<CreditEntry> entries = Catalog.Application == null ? Catalog.Components : Catalog.Components.Prepend(Catalog.Application);
-            foreach (CreditEntry entry in entries)
+            card.Add(Ui.Text(group == CreditGroup.OnDemand ? CreditStrings.OnDemandIntro : CreditStrings.Intro, IntroClass, "vv-text-body"));
+            foreach (CreditEntry entry in EntriesOf(catalog, group))
             {
                 var row = new CreditRow(entry, this);
                 _rows.Add(row);
@@ -73,8 +87,42 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The credits shown; null when the SBOM could not be read.</summary>
         public CreditCatalog Catalog { get; }
 
+        public CreditGroup Group { get; }
+
         /// <summary>The rows in order, for tests.</summary>
         public IReadOnlyList<CreditRow> Rows => _rows;
+
+        /// <summary>
+        /// The application's Card, then the Card of what is fetched at activation when the SBOM lists
+        /// any. Only the first when the SBOM cannot be read; it says so.
+        /// </summary>
+        public static IReadOnlyList<CreditsCard> Build(ICreditFiles files)
+        {
+            if (files == null)
+            {
+                throw new ArgumentNullException(nameof(files));
+            }
+
+            CreditCatalog catalog = Load(files);
+            var cards = new List<CreditsCard> { new CreditsCard(files, catalog, CreditGroup.Application) };
+            if (catalog != null && catalog.OnDemand.Count > 0)
+            {
+                cards.Add(new CreditsCard(files, catalog, CreditGroup.OnDemand));
+            }
+
+            return cards;
+        }
+
+        /// <summary>The entries a Card lists, in order. Pure.</summary>
+        public static IEnumerable<CreditEntry> EntriesOf(CreditCatalog catalog, CreditGroup group)
+        {
+            if (group == CreditGroup.OnDemand)
+            {
+                return catalog.OnDemand;
+            }
+
+            return catalog.Application == null ? catalog.Components : catalog.Components.Prepend(catalog.Application);
+        }
 
         /// <summary>"0.16.3 · homuler · MIT": the parts the SBOM gives. Data only, so the same in every language. Pure.</summary>
         public static string Details(CreditEntry entry)

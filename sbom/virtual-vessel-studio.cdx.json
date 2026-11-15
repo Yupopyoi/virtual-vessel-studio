@@ -992,6 +992,142 @@
       "description": "GitHub Actions step used by .github/workflows; not distributed."
     },
     {
+      "type": "application",
+      "bom-ref": "voice-lab:python",
+      "supplier": {
+        "name": "Python Software Foundation"
+      },
+      "name": "Python",
+      "version": "3.12",
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "The runtime of Voice Lab's training environment, fetched by uv at activation."
+    },
+    {
+      "type": "application",
+      "bom-ref": "voice-lab:rvc",
+      "supplier": {
+        "name": "RVC-Project"
+      },
+      "name": "Retrieval-based-Voice-Conversion-WebUI",
+      "version": "81eed5e8f68b6bed1789f682fe78cdd324495afc",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "RVC v2 training, used unmodified from its source at this commit; fetched to the user's PC at activation (Voice Lab detailed design 8.1)."
+    },
+    {
+      "type": "data",
+      "bom-ref": "voice-lab:rvc-pretrained",
+      "supplier": {
+        "name": "RVC-Project"
+      },
+      "name": "RVC pretrained models (f0G40k, f0D40k, rmvpe, hubert_base)",
+      "version": "as published with RVC",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "Starting weights and feature models for training; fetched at activation with pinned hashes."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:voxcpm",
+      "name": "voxcpm",
+      "version": "2.0.3",
+      "purl": "pkg:pypi/voxcpm@2.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Installed without its declared dependencies; funasr and kaldiio stay out (decision record, 2026-11-03)."
+    },
+    {
+      "type": "data",
+      "bom-ref": "voice-lab:voxcpm2-model",
+      "supplier": {
+        "name": "OpenBMB"
+      },
+      "name": "openbmb/VoxCPM2",
+      "version": "32279effe8c19989596f05d353d1447f51d9e915",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "Voice design and training speech (Voice Lab detailed design 8.3); fetched at activation. Its model card forbids impersonation, fraud, and disinformation, and asks that AI-generated content be labeled."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:torch",
+      "name": "torch",
+      "version": "2.7.1+cu118",
+      "purl": "pkg:pypi/torch@2.7.1+cu118",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Its Windows CUDA 11.8 wheel carries NVIDIA's CUDA libraries under NVIDIA's license."
+    },
+    {
+      "type": "library",
+      "bom-ref": "pypi:torchaudio",
+      "name": "torchaudio",
+      "version": "2.7.1+cu118",
+      "purl": "pkg:pypi/torchaudio@2.7.1+cu118",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-2-Clause"
+          }
+        }
+      ],
+      "scope": "optional",
+      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application."
+    },
+    {
+      "type": "application",
+      "bom-ref": "voice-lab:uv",
+      "supplier": {
+        "name": "Astral"
+      },
+      "name": "uv",
+      "version": "pinned in voice-components.json",
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR MIT"
+        }
+      ],
+      "scope": "optional",
+      "description": "Builds Voice Lab's training environment from the lock at activation."
+    },
+    {
       "type": "library",
       "bom-ref": "pypi:absl-py",
       "name": "absl-py",
@@ -1996,38 +2132,6 @@
     },
     {
       "type": "library",
-      "bom-ref": "pypi:torch",
-      "name": "torch",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torch@2.7.1+cu118",
-      "licenses": [
-        {
-          "license": {
-            "id": "BSD-3-Clause"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Its Windows CUDA 11.8 wheel carries NVIDIA's CUDA libraries under NVIDIA's license."
-    },
-    {
-      "type": "library",
-      "bom-ref": "pypi:torchaudio",
-      "name": "torchaudio",
-      "version": "2.7.1+cu118",
-      "purl": "pkg:pypi/torchaudio@2.7.1+cu118",
-      "licenses": [
-        {
-          "license": {
-            "id": "BSD-2-Clause"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application."
-    },
-    {
-      "type": "library",
       "bom-ref": "pypi:tqdm",
       "name": "tqdm",
       "version": "4.70.1",
@@ -2122,22 +2226,6 @@
     },
     {
       "type": "library",
-      "bom-ref": "pypi:voxcpm",
-      "name": "voxcpm",
-      "version": "2.0.3",
-      "purl": "pkg:pypi/voxcpm@2.0.3",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "Voice Lab's training environment (services/voice-lab/uv.lock), installed on the user's PC at activation; not shipped with the application. Installed without its declared dependencies; funasr and kaldiio stay out (decision record, 2026-11-03)."
-    },
-    {
-      "type": "library",
       "bom-ref": "pypi:werkzeug",
       "name": "werkzeug",
       "version": "3.1.9",
@@ -2215,94 +2303,6 @@
       ],
       "scope": "excluded",
       "description": "Tests for services/voice-lab (dev group); not distributed."
-    },
-    {
-      "type": "application",
-      "bom-ref": "voice-lab:rvc",
-      "supplier": {
-        "name": "RVC-Project"
-      },
-      "name": "Retrieval-based-Voice-Conversion-WebUI",
-      "version": "81eed5e8f68b6bed1789f682fe78cdd324495afc",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "RVC v2 training, used unmodified from its source at this commit; fetched to the user's PC at activation (Voice Lab detailed design 8.1)."
-    },
-    {
-      "type": "data",
-      "bom-ref": "voice-lab:rvc-pretrained",
-      "supplier": {
-        "name": "RVC-Project"
-      },
-      "name": "RVC pretrained models (f0G40k, f0D40k, rmvpe, hubert_base)",
-      "version": "as published with RVC",
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "Starting weights and feature models for training; fetched at activation with pinned hashes."
-    },
-    {
-      "type": "data",
-      "bom-ref": "voice-lab:voxcpm2-model",
-      "supplier": {
-        "name": "OpenBMB"
-      },
-      "name": "openbmb/VoxCPM2",
-      "version": "32279effe8c19989596f05d353d1447f51d9e915",
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "Voice design and training speech (Voice Lab detailed design 8.3); fetched at activation. Its model card forbids impersonation, fraud, and disinformation, and asks that AI-generated content be labeled."
-    },
-    {
-      "type": "application",
-      "bom-ref": "voice-lab:uv",
-      "supplier": {
-        "name": "Astral"
-      },
-      "name": "uv",
-      "version": "pinned in voice-components.json",
-      "licenses": [
-        {
-          "expression": "Apache-2.0 OR MIT"
-        }
-      ],
-      "scope": "optional",
-      "description": "Builds Voice Lab's training environment from the lock at activation."
-    },
-    {
-      "type": "application",
-      "bom-ref": "voice-lab:python",
-      "supplier": {
-        "name": "Python Software Foundation"
-      },
-      "name": "Python",
-      "version": "3.12",
-      "licenses": [
-        {
-          "license": {
-            "id": "PSF-2.0"
-          }
-        }
-      ],
-      "scope": "optional",
-      "description": "The runtime of Voice Lab's training environment, fetched by uv at activation."
     }
   ]
 }

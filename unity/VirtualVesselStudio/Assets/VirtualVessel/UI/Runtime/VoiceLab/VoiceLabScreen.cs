@@ -134,6 +134,11 @@ namespace VirtualVessel.UI.VoiceLab
                 Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None, services.Voice);
                 Library.style.display = DisplayStyle.None;
                 _content.Add(Library);
+                if (lab != null)
+                {
+                    EnvironmentRow = new VoiceLabEnvironmentRow(lab);
+                    Library.StorageCard.Add(EnvironmentRow);
+                }
             }
 
             if (!ready)
@@ -212,17 +217,27 @@ namespace VirtualVessel.UI.VoiceLab
 
         public VoiceLabLibraryView Library { get; }
 
+        /// <summary>The training environment's row in the stored data; null without Voice Lab.</summary>
+        public VoiceLabEnvironmentRow EnvironmentRow { get; }
+
         public void ShowTab(int tab)
         {
             _player.Stop();
             Tabs?.SetValueWithoutNotify(tab);
             _make.style.display = tab == MakeTab ? DisplayStyle.Flex : DisplayStyle.None;
+            if (tab == MakeTab)
+            {
+                // The samples may have been deleted in the Made voices tab.
+                _base?.RequestView.RefreshSamples();
+            }
+
             if (Library != null)
             {
                 Library.style.display = tab == MadeTab ? DisplayStyle.Flex : DisplayStyle.None;
                 if (tab == MadeTab)
                 {
                     Library.Refresh();
+                    EnvironmentRow?.Show();
                 }
             }
         }

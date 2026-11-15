@@ -34,6 +34,9 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _runs;
         private readonly Label _empty;
         private readonly StatusChip _failed;
+        private readonly Card _storage;
+        private readonly SettingRow _samplesRow;
+        private readonly SettingRow _candidatesRow;
 
         /// <param name="remake">Makes a run again; null when voices cannot be made here, which disables it.</param>
         /// <param name="tryVoice">Opens STEP 4 with a run (and a registered voice's folder); null disables Try.</param>
@@ -63,6 +66,78 @@ namespace VirtualVessel.UI.VoiceLab
             _runs = new VisualElement();
             runs.Add(_runs);
             Add(runs);
+
+            // What can be deleted to free space (the user's request, 2026-11-11).
+            _storage = Ui.Card(VoiceLabStrings.Storage);
+            DeleteSamplesButton = Ui.Button(VoiceLabStrings.Delete);
+            DeleteSamplesButton.clicked += () => Delete(VoiceLabStrings.DeleteSamplesTitle, VoiceLabStrings.DeleteSamplesBody, _library.DeleteSamples, "Deleting the samples");
+            _samplesRow = StorageRow(VoiceLabStrings.StorageSamples, VoiceLabStrings.StorageSamplesHelp, DeleteSamplesButton);
+            DeleteCandidatesButton = Ui.Button(VoiceLabStrings.Delete);
+            DeleteCandidatesButton.clicked += () => Delete(VoiceLabStrings.DeleteCandidatesTitle, VoiceLabStrings.DeleteCandidatesBody, _library.DeleteOldCandidates, "Deleting old candidates");
+            _candidatesRow = StorageRow(VoiceLabStrings.StorageCandidates, VoiceLabStrings.StorageCandidatesHelp, DeleteCandidatesButton);
+            _storage.Add(_samplesRow);
+            _storage.Add(_candidatesRow);
+            Add(_storage);
+        }
+
+        private const string SizeName = "size";
+
+        /// <summary>The stored data Card, where the screen adds the training environment's row.</summary>
+        public Card StorageCard => _storage;
+
+        public ActionButton DeleteSamplesButton { get; }
+
+        public ActionButton DeleteCandidatesButton { get; }
+
+        /// <summary>A size as the tab shows it: KB under 1 MB; MB with one decimal under 10, else whole; GB with one decimal from 1 GB. Pure.</summary>
+        public static string SizeText(long bytes)
+        {
+            const double Mb = 1024d * 1024d;
+            if (bytes >= 1024L * 1024L * 1024L)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0:0.0} GB", bytes / (Mb * 1024d));
+            }
+
+            if (bytes < 1024L * 1024L)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0:0} KB", Math.Ceiling(bytes / 1024d));
+            }
+
+            double mb = bytes / Mb;
+            return string.Format(CultureInfo.InvariantCulture, mb < 10d ? "{0:0.0} MB" : "{0:0} MB", mb);
+        }
+
+        // The size goes under the name, as text this tab sets itself; a keyed label would put its key's text back on a
+        // language change.
+        private static SettingRow StorageRow(string nameKey, string helpKey, ActionButton delete)
+        {
+            SettingRow row = Ui.SettingRow(nameKey);
+            row.HelpKey = helpKey;
+            Label size = Note(string.Empty);
+            size.AddToClassList("vv-text-body");
+            size.name = SizeName;
+            row.TextArea.Add(size);
+            row.Add(delete);
+            return row;
+        }
+
+        private void ShowStorage()
+        {
+            CrudResult<VoiceLabStorageUse> use = _library.StorageUse();
+            if (!use.Ok)
+            {
+                ShowFailure("Measuring Voice Lab's storage", use.Error, use.Detail);
+            }
+
+            VoiceLabStorageUse value = use.Ok ? use.Value : default;
+            ShowSize(_samplesRow, DeleteSamplesButton, value.SamplesBytes);
+            ShowSize(_candidatesRow, DeleteCandidatesButton, value.CandidatesBytes);
+        }
+
+        private static void ShowSize(SettingRow row, ActionButton delete, long bytes)
+        {
+            row.Q<Label>(SizeName).text = SizeText(bytes);
+            delete.SetEnabled(bytes > 0);
         }
 
         private void TryVoice(VoiceLabVoiceRecord voice)
@@ -112,6 +187,7 @@ namespace VirtualVessel.UI.VoiceLab
             _voices.parent.parent.style.display = voices.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _runs.parent.parent.style.display = runs.Count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             _empty.style.display = voices.Count == 0 && runs.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            ShowStorage();
         }
 
         /// <summary>Local date and time, to the minute. Pure.</summary>

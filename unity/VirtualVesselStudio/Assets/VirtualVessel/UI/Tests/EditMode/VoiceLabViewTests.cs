@@ -253,6 +253,16 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void Sizes_AreShownInKbOrMb()
+        {
+            Assert.That(VoiceLabLibraryView.SizeText(0), Is.EqualTo("0 KB"));
+            Assert.That(VoiceLabLibraryView.SizeText(1500), Is.EqualTo("2 KB"));
+            Assert.That(VoiceLabLibraryView.SizeText(5L * 1024 * 1024 + 300 * 1024), Is.EqualTo("5.3 MB"));
+            Assert.That(VoiceLabLibraryView.SizeText(39L * 1024 * 1024), Is.EqualTo("39 MB"));
+            Assert.That(VoiceLabLibraryView.SizeText(6L * 1024 * 1024 * 1024 + 300L * 1024 * 1024), Is.EqualTo("6.3 GB"));
+        }
+
+        [Test]
         public void TheTestLength_IsOfferedInTheEditorOnly()
         {
             Assert.That(VoiceLabBuildStep.LengthKeys(true).Last(), Is.EqualTo(VoiceLabStrings.BuildLengthTest));

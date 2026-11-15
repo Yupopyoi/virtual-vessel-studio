@@ -25,10 +25,13 @@ namespace VirtualVessel.VoiceLab
         private readonly IVoiceModelRepository _voices;
         private readonly ISystemClock _clock;
         private readonly Func<bool> _building;
+        private readonly VoiceLabStorage _storage;
 
         /// <param name="building">Whether a build is running now, so an unfinished run is not deleted under it.</param>
-        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, ISystemClock clock, Func<bool> building)
+        /// <param name="storage">The samples and candidates that can be deleted; null when there are none to manage.</param>
+        public VoiceLabLibrary(ITrainingRunRepository runs, IVoiceModelRepository voices, ISystemClock clock, Func<bool> building, VoiceLabStorage storage = null)
         {
+            _storage = storage;
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _voices = voices ?? throw new ArgumentNullException(nameof(voices));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -36,9 +39,25 @@ namespace VirtualVessel.VoiceLab
         }
 
         /// <summary>The library over the Data Root's folders.</summary>
-        public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building)
+        public static VoiceLabLibrary Create(string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, Func<bool> building, Func<VoiceLabActivity> activity = null)
         {
-            return new VoiceLabLibrary(new TrainingRunStore(voiceLabFolder, clock), new VoiceModelStore(voiceModelsFolder, clock), clock, building);
+            var runs = new TrainingRunStore(voiceLabFolder, clock);
+            return new VoiceLabLibrary(runs, new VoiceModelStore(voiceModelsFolder, clock), clock, building, new VoiceLabStorage(voiceLabFolder, runs, activity));
+        }
+
+        public CrudResult<VoiceLabStorageUse> StorageUse()
+        {
+            return _storage?.Use() ?? CrudResult<VoiceLabStorageUse>.Success(default);
+        }
+
+        public CrudResult DeleteSamples()
+        {
+            return _storage?.DeleteSamples() ?? CrudResult.Success;
+        }
+
+        public CrudResult DeleteOldCandidates()
+        {
+            return _storage?.DeleteOldCandidates() ?? CrudResult.Success;
         }
 
         public CrudResult<IReadOnlyList<VoiceLabRunRecord>> ListRuns()

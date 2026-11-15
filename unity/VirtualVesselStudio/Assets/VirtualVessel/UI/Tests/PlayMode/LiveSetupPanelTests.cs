@@ -166,8 +166,11 @@ namespace VirtualVessel.UI.Tests
         {
             _root.Shell.Open("setup");
             yield return null;
-            CreditsCard credits = _root.Shell.Host.GetScreen("setup").Q<CreditsCard>();
-            Assert.That(credits.parent.Children().Last(), Is.SameAs(credits), "The credits come last.");
+            List<CreditsCard> cards = _root.Shell.Host.GetScreen("setup").Query<CreditsCard>().ToList();
+            Assert.That(cards.Select(card => card.Group), Is.EqualTo(new[] { CreditGroup.Application, CreditGroup.OnDemand }));
+            Assert.That(cards[1].parent.Children().Last(), Is.SameAs(cards[1]), "The credits come last, Voice Lab's environment after the app.");
+            Assert.That(cards[1].Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "Python" }));
+            CreditsCard credits = cards[0];
             Assert.That(credits.Rows.Select(row => row.Entry.Name), Is.EqualTo(new[] { "App", "Plugin", "Inside", "Tool part" }));
             Assert.That(credits.Rows[2].Row.ClassListContains(CreditsCard.NestedClass), Is.True, "A component built into another is indented.");
             Assert.That(credits.Rows[2].Toggle, Is.Null, "No full text, no button.");
@@ -392,7 +395,8 @@ namespace VirtualVessel.UI.Tests
                             { ""name"": ""virtual-vessel-studio:license-file"", ""value"": ""licenses/gone.md"" } ],
                           ""components"": [ { ""name"": ""Inside"" } ] },
                         { ""name"": ""Tool"", ""scope"": ""excluded"" },
-                        { ""name"": ""Tool part"" } ] }",
+                        { ""name"": ""Tool part"" },
+                        { ""name"": ""Python"", ""scope"": ""optional"" } ] }",
                 ["licenses/a.md"] = "<b>MIT</b> text",
             };
 
