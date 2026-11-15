@@ -151,9 +151,7 @@ namespace VirtualVessel.Voice
 
         public void SelectVoice(string voiceId)
         {
-            VoiceProfile profile = _storage.Profile.Clone();
-            profile.VoiceModelId = voiceId;
-            _storage.SaveProfile(profile);
+            SaveProfile(profile => profile.VoiceModelId = voiceId);
             if (_trial == null)
             {
                 Choose(voiceId);
@@ -299,9 +297,18 @@ namespace VirtualVessel.Voice
                 return;
             }
 
+            SaveProfile(profile =>
+            {
+                profile.Semitones = _semitones;
+                profile.AutoPitch = _autoPitch;
+            });
+        }
+
+        // The profile is saved as a changed copy, so what was saved last is never changed in place.
+        private void SaveProfile(Action<VoiceProfile> change)
+        {
             VoiceProfile profile = _storage.Profile.Clone();
-            profile.Semitones = _semitones;
-            profile.AutoPitch = _autoPitch;
+            change(profile);
             _storage.SaveProfile(profile);
         }
 
@@ -353,9 +360,7 @@ namespace VirtualVessel.Voice
         {
             if (_trial == null)
             {
-                VoiceProfile profile = _storage.Profile.Clone();
-                profile.Enabled = enabled;
-                _storage.SaveProfile(profile);
+                SaveProfile(profile => profile.Enabled = enabled);
             }
 
             Enable(enabled);
@@ -399,7 +404,7 @@ namespace VirtualVessel.Voice
             {
                 samples = await Task.Run(() => ReadFile(path));
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is AudioEngineException)
+            catch (Exception exception) when (IsUnreadable(exception))
             {
                 _log?.Warning($"This audio file cannot be read: {exception.Message}");
                 return false;
@@ -446,6 +451,12 @@ namespace VirtualVessel.Voice
                 _tick?.Dispose();
                 _tick = null;
             }
+        }
+
+        /// <summary>Whether an exception says an audio file could not be read or written, not a bug. Pure.</summary>
+        internal static bool IsUnreadable(Exception exception)
+        {
+            return exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is AudioEngineException;
         }
 
         // A second of silence at the end carries the last block through, whatever its length. WAV is read here,

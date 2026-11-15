@@ -64,7 +64,7 @@ namespace VirtualVessel.Voice
             {
                 recording = await Task.Run(() => VoiceService.ReadFile(request.Recording), cancellationToken).ConfigureAwait(true);
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is AudioEngineException)
+            catch (Exception exception) when (VoiceService.IsUnreadable(exception))
             {
                 throw new VoiceTrialFailedException($"The recording cannot be read: {exception.Message}", exception);
             }
@@ -87,7 +87,7 @@ namespace VirtualVessel.Voice
             try
             {
                 float[] converted = await job.Run().ConfigureAwait(true);
-                string path = await Task.Run(() => Write(converted), cancellationToken).ConfigureAwait(true);
+                string path = await Task.Run(() => Replace("trial-", converted, RvcStream.DeviceRate), cancellationToken).ConfigureAwait(true);
                 _log?.Information($"A trial converted {recording.Length / RvcStream.DeviceRate} s at {job.Semitones:+0;-0;0} semitones.");
                 return new VoiceTrialResult(path, job.UserHz, files.MedianPitchHz, job.Semitones);
             }
@@ -108,7 +108,7 @@ namespace VirtualVessel.Voice
             {
                 return await Task.Run(() => WriteFinished(converted, tone), cancellationToken).ConfigureAwait(true);
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException)
+            catch (Exception exception) when (VoiceService.IsUnreadable(exception))
             {
                 throw new VoiceTrialFailedException($"The finish could not be applied: {exception.Message}", exception);
             }
@@ -120,21 +120,7 @@ namespace VirtualVessel.Voice
             float[] samples = WavFile.Read(File.ReadAllBytes(converted), out int rate);
             float[] finished = ToneFilter.Apply(samples, tone, rate);
             new PeakLimiter(rate).Process(finished);
-            foreach (string old in Directory.GetFiles(_folder, "finished-*.wav"))
-            {
-                try
-                {
-                    File.Delete(old);
-                }
-                catch (IOException)
-                {
-                    // Still playing; it goes next time.
-                }
-            }
-
-            string path = Path.Combine(_folder, $"finished-{Guid.NewGuid():N}.wav");
-            File.WriteAllBytes(path, WavFile.Write(finished, rate));
-            return path;
+            return Replace("finished-", finished, rate);
         }
 
         /// <summary>The shift a trial converts with, and whether it must measure the user first. Pure.</summary>
@@ -144,10 +130,11 @@ namespace VirtualVessel.Voice
             return (PitchMatch.Applied(autoPitch, PitchMatch.Semitones(voiceHz, knownUserHz), adjustment), measure);
         }
 
-        private string Write(float[] samples)
+        // Writes a new file in place of the last ones of its kind. Each has its own name, as the last may still be playing.
+        private string Replace(string prefix, float[] samples, int rate)
         {
             Directory.CreateDirectory(_folder);
-            foreach (string old in Directory.GetFiles(_folder, "trial-*.wav"))
+            foreach (string old in Directory.GetFiles(_folder, prefix + "*.wav"))
             {
                 try
                 {
@@ -159,8 +146,8 @@ namespace VirtualVessel.Voice
                 }
             }
 
-            string path = Path.Combine(_folder, $"trial-{Guid.NewGuid():N}.wav");
-            File.WriteAllBytes(path, WavFile.Write(samples, RvcStream.DeviceRate));
+            string path = Path.Combine(_folder, $"{prefix}{Guid.NewGuid():N}.wav");
+            File.WriteAllBytes(path, WavFile.Write(samples, rate));
             return path;
         }
 
