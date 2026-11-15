@@ -191,6 +191,10 @@
 .vv-lab__voice-name {
     width: 200px;
     flex-shrink: 0;
+    justify-content: center;
+}
+
+.vv-lab__voice-name-text {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;

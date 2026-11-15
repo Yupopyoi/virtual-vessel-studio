@@ -875,7 +875,11 @@ namespace VirtualVessel.UI.Tests
 
             ActionButton rename = view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.Rename);
             Submit(rename);
-            view.Query<TextInput>().ToList().First().value = "Kirari";
+            TextInput field = view.Query<TextInput>().ToList().First();
+            Label shown = view.Query<Label>(className: VoiceLabLibraryView.VoiceNameTextClass).First();
+            Assert.That(field.parent, Is.SameAs(shown.parent), "The field opens where the name is, by the play button.");
+            Assert.That(shown.style.display.value, Is.EqualTo(DisplayStyle.None), "The field stands in for the name.");
+            field.value = "Kirari";
             Submit(view.Query<ActionButton>().ToList().First(b => b.TextKey == VoiceLabStrings.SaveName));
             Assert.That(library.Voices.Single().Name, Is.EqualTo("Kirari"));
 
