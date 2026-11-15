@@ -29,7 +29,7 @@ Visual values are defined in `design-system.md`, and component specifications in
 9. Never use color alone for status. Always add a shape icon and text (`design-system.md` 9.1).
 10. When adding a new design pattern, reflect it in `design-system.md` or `components.md` and in the preview page.
 11. After implementation, check the display with screenshots or similar (system design 14.35). Major screens and large changes get a final review by the user (system design 14.36).
-12. Every text gets a color token. A class with no color left text in Unity's default dark color, unreadable on the dark background. Controls side by side have at least the S space (8px) between them. A PlayMode test opening every screen on the dark and the light background (`UiReadabilityTests`) checks both (problems the user's reviews kept finding, 2026-11-11).
+12. Every text gets a color token. A class with no color left text in Unity's default dark color, unreadable on the dark background. Controls side by side, and a divider and a control under it, have at least the S space (8px) between them. A PlayMode test opening every screen on the dark and the light background (`UiReadabilityTests`) checks both (problems the user's reviews kept finding, 2026-11-11).
 13. Keep the screen's text short. An explanation goes in a Help Hint (`components.md` 3.28), for those who want to read it (the user's request, 2026-11-11).
 
 ---
@@ -52,6 +52,7 @@ Firm and concise, close to the screens of professional software (user's decision
 - Do not use 「あなた」; leave the subject out.
 - Actions use the same Sino-Japanese words: 「作成」, 「選択」, 「変更」, 「削除」, 「確認」, 「再生」. Cautions say 「〜場合があります」, requests 「〜してください」, errors 「〜できませんでした。もう一度お試しください」.
 - No invitations (「〜しましょう」) and no colloquial words (「ぴんとくる」).
+- To recommend something, write 「推奨します」, not 「おすすめです」; write 「選択する」 and 「確認する」, not 「選ぶ」 and 「確かめる」 (the user's proofreading, 2026-11-11).
 - Buttons are short verb phrases (「作り始める」, 「作成を中止して配信を開始」).
 
 Examples:
@@ -59,7 +60,7 @@ Examples:
 | Avoid | Use |
 |---|---|
 | 選んだ声で学習用の音声を作り、声を覚えさせます。 | 選択した声をもとに、声のモデルを作成します。 |
-| 声を作ったり試したりすると、GPUを大きく使い、配信や録画に影響するためです。 | 配信・録画の終了後に使用できます。 |
+| 声を作ったり試したりすると、GPUを大きく使い、配信や録画に影響するためです。 | 配信・録画の終了後に使用できるようになります。 |
 | 機械っぽく聞こえることがあります | 不自然に聞こえる場合があります |
 
 ---

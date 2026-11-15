@@ -75,7 +75,44 @@ namespace VirtualVessel.UI.Tests
             return found;
         }
 
-        /// <summary>WCAG's contrast ratio, the foreground laid over the background by its alpha. Pure.</summary>
+        /// <summary>
+        /// Controls right under a divider (an element with a bottom border, such as a setting row) with less than the S
+        /// space between the line and the control.
+        /// </summary>
+        public static List<string> UnderDivider(VisualElement root)
+        {
+            var found = new List<string>();
+            root.Query<VisualElement>().ForEach(parent =>
+            {
+                if (!Shown(parent) || parent.resolvedStyle.flexDirection != FlexDirection.Column)
+                {
+                    return;
+                }
+
+                VisualElement previous = null;
+                foreach (VisualElement child in parent.Children())
+                {
+                    if (!Shown(child))
+                    {
+                        continue;
+                    }
+
+                    if (previous != null && previous.resolvedStyle.borderBottomWidth > 0f)
+                    {
+                        VisualElement control = IsControl(child) ? child : child.Query<VisualElement>().Where(e => IsControl(e) && Shown(e)).First();
+                        if (control != null && control.worldBound.yMin - previous.worldBound.yMax < MinimumGap - 0.5f)
+                        {
+                            found.Add($"{Name(previous)} over {Name(control)}: {control.worldBound.yMin - previous.worldBound.yMax:0.#}px");
+                        }
+                    }
+
+                    previous = child;
+                }
+            });
+            return found;
+        }
+
+        /// <summary>WCAG's contrast ratio        /// <summary>WCAG's contrast ratio, the foreground laid over the background by its alpha. Pure.</summary>
         public static double Contrast(Color foreground, Color background)
         {
             Color over = Color.Lerp(background, foreground, foreground.a);
