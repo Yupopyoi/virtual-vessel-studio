@@ -58,6 +58,8 @@ namespace VirtualVessel.Application
                 return;
             }
 
+            StartCoroutine(ApplicationWindow.OpenMaximized());
+
             var systemClock = new UtcSystemClock();
             _dispatcher = new MainThreadDispatcher();
             _frameLoop = new FrameLoop();
