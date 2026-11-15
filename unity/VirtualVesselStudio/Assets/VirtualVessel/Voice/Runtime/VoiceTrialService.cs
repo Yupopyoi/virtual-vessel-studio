@@ -119,6 +119,7 @@ namespace VirtualVessel.Voice
         {
             float[] samples = WavFile.Read(File.ReadAllBytes(converted), out int rate);
             float[] finished = ToneFilter.Apply(samples, tone, rate);
+            new PeakLimiter(rate).Process(finished);
             foreach (string old in Directory.GetFiles(_folder, "finished-*.wav"))
             {
                 try

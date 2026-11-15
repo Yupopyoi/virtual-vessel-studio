@@ -33,6 +33,7 @@ namespace VirtualVessel.Voice.Tests
 
                 Assert.That(finished, Is.Not.EqualTo(converted));
                 float[] expected = ToneFilter.Apply(WavFile.Read(File.ReadAllBytes(converted), out _), tone, 48000);
+                new PeakLimiter(48000).Process(expected);
                 Assert.That(WavFile.Read(File.ReadAllBytes(finished), out _), Is.EqualTo(expected).Within(1f / 8192f));
                 Assert.That(System.Threading.Tasks.Task.Run(() => trial.FinishAsync(converted, default, System.Threading.CancellationToken.None)).GetAwaiter().GetResult(), Is.EqualTo(converted), "A flat finish plays the conversion itself.");
             }

@@ -58,6 +58,7 @@ namespace VirtualVessel.Voice
         // The finish on what is converted (Voice detailed design 8.6), after the voice and before the stage: one filter
         // whose state runs on from block to block, retuned when the voice or its finish changes.
         private readonly ToneFilter _tone = new ToneFilter(default, RvcStream.DeviceRate);
+        private readonly PeakLimiter _limiter = new PeakLimiter(RvcStream.DeviceRate);
         private readonly VoiceWarmup _next = new VoiceWarmup();
         private readonly PitchMeter _meter = new PitchMeter();
         private float[] _blockPitch;
