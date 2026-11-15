@@ -22,6 +22,13 @@ namespace VirtualVessel.UI.VoiceLab
         public const string RowClass = VoiceLabScreen.UssClass + "__row";
         public const string NameClass = VoiceLabScreen.UssClass + "__name";
 
+        // A voice's row in columns of fixed width, so the buttons stay in line whatever the name, the pitch, or whether
+        // it is in use (the user's review, 2026-11-15).
+        public const string VoiceNameClass = VoiceLabScreen.UssClass + "__voice-name";
+        public const string VoiceHzClass = VoiceLabScreen.UssClass + "__voice-hz";
+        public const string VoiceDateClass = VoiceLabScreen.UssClass + "__voice-date";
+        public const string VoiceUseClass = VoiceLabScreen.UssClass + "__voice-use";
+
         // A written prompt is shown this far in a run's one line; the run keeps it whole.
         private const int SummaryPrompt = 80;
 
@@ -242,9 +249,18 @@ namespace VirtualVessel.UI.VoiceLab
             var name = new Label(voice.Name);
             name.AddToClassList("vv-text-body");
             name.AddToClassList(NameClass);
+            name.AddToClassList(VoiceNameClass);
+            name.tooltip = voice.Name;
             row.Add(QuietText.Of(name));
-            row.Add(Note(voice.MedianHz > 0 ? CandidateTile.HzText(voice.MedianHz) : "—"));
-            row.Add(Note(DateText(voice.RegisteredAt)));
+            Label hz = Note(voice.MedianHz > 0 ? CandidateTile.HzText(voice.MedianHz) : "—");
+            hz.AddToClassList(VoiceHzClass);
+            row.Add(hz);
+            Label date = Note(DateText(voice.RegisteredAt));
+            date.AddToClassList(VoiceDateClass);
+            row.Add(date);
+            var useSlot = new VisualElement();
+            useSlot.AddToClassList(VoiceUseClass);
+            row.Add(useSlot);
 
             TextInput rename = Ui.TextField(VoiceLabStrings.VoiceName);
             rename.MaxLength = 60;
@@ -278,7 +294,7 @@ namespace VirtualVessel.UI.VoiceLab
             bool inUse = IsInUse(_voice?.InUseVoiceId, voice.Id);
             if (inUse)
             {
-                row.Add(Ui.Chip(StatusKind.Success, VoiceLabStrings.InUse));
+                useSlot.Add(Ui.Chip(StatusKind.Success, VoiceLabStrings.InUse));
                 delete.SetEnabled(false);
                 delete.TooltipKey = VoiceLabStrings.DeleteInUse;
             }
@@ -290,7 +306,7 @@ namespace VirtualVessel.UI.VoiceLab
                     _voice.SelectVoice(voice.Id);
                     Refresh();
                 };
-                row.Add(use);
+                useSlot.Add(use);
             }
 
             row.Add(rename);

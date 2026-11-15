@@ -184,6 +184,35 @@
     -unity-font-style: bold;
 }
 
+/*
+ * A voice's row in columns of fixed width, so its buttons line up from row to row whatever the name's length and
+ * whether the voice is in use (the user's review, 2026-11-15). A long name is cut with an ellipsis; its tooltip has it.
+ */
+.vv-lab__voice-name {
+    width: 200px;
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.vv-lab__voice-hz {
+    width: 72px;
+    flex-shrink: 0;
+}
+
+.vv-lab__voice-date {
+    width: 150px;
+    flex-shrink: 0;
+}
+
+.vv-lab__voice-use {
+    width: 150px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+}
+
 /* Preparing Voice Lab (screen spec voice-lab 2.1). The terms scroll inside their card, so the agreement stays in view. */
 .vv-lab-setup__terms {
     max-height: 360px;
@@ -265,4 +294,9 @@
     padding-top: var(--vv-space-m);
     border-top-width: 1px;
     border-top-color: var(--vv-color-border);
+}
+
+/* Room above a part that follows a control, such as STEP 5's result under its toggle. */
+.vv-lab__spaced {
+    margin-top: var(--vv-space-m);
 }

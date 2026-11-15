@@ -53,6 +53,9 @@ namespace VirtualVessel.UI.VoiceLab
             UseNow.style.display = voice == null ? DisplayStyle.None : DisplayStyle.Flex;
             card.Add(UseNow);
             _result = new StatusChip(StatusKind.Success, VoiceLabStrings.Registered);
+
+            // Room above, so the result does not touch the toggle (the user's review, 2026-11-15).
+            _result.AddToClassList(VoiceLabScreen.SpacedClass);
             card.Add(_result);
             Add(card);
 
@@ -60,10 +63,12 @@ namespace VirtualVessel.UI.VoiceLab
             RegisterButton.clicked += Register;
             _again = Ui.Button(VoiceLabStrings.MakeAnother);
             _again.clicked += _flow.StartOver;
+            ShowMadeButton = Ui.Button(VoiceLabStrings.ShowMadeVoices);
+            ShowMadeButton.clicked += _flow.OpenMadeVoices;
             // Back to trying, also after registering: the run keeps the voice's files (the user's review, 2026-11-08).
             BackButton = Ui.Button(VoiceLabStrings.BackToTry);
             BackButton.clicked += () => _flow.GoTo(VoiceLabScreen.TryStep);
-            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again));
+            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again, ShowMadeButton));
 
             // Why Register cannot be pressed: it was greyed out without a word (the user's review, 2026-11-15).
             _blocked = QuietText.Of(new Label());
@@ -77,6 +82,9 @@ namespace VirtualVessel.UI.VoiceLab
         public ActionButton RegisterButton { get; }
 
         public ActionButton BackButton { get; }
+
+        /// <summary>Opens Made voices once registered, where the voice is listed.</summary>
+        public ActionButton ShowMadeButton { get; }
 
         /// <summary>Use the voice for the stream once registered.</summary>
         public SwitchToggle UseNow { get; }
@@ -93,6 +101,7 @@ namespace VirtualVessel.UI.VoiceLab
             bool registered = _draft.RunId != null && _draft.RunId == _registeredRun;
             _result.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
             _again.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
+            ShowMadeButton.style.display = registered ? DisplayStyle.Flex : DisplayStyle.None;
             string blocked = BlockedKey(_draft.RunId, _draft.TryFolder, registered);
             RegisterButton.SetEnabled(blocked == null && !registered);
             _blocked.style.display = blocked != null ? DisplayStyle.Flex : DisplayStyle.None;

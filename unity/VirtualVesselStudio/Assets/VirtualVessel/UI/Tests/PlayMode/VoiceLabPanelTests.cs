@@ -673,6 +673,42 @@ namespace VirtualVessel.UI.Tests
             yield return null;
 
             Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-run-1"));
+            Assert.That(register.ShowMadeButton.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Once registered, the voices are a press away.");
+        }
+
+        [UnityTest]
+        public IEnumerator MadeVoices_KeepTheirButtonsInLine_WhateverTheNameOrUse()
+        {
+            // The buttons moved with the name's length and with In use versus Use (the user's review, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "test", "run-1", DateTimeOffset.UtcNow, 319, null));
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-2", "ぽやぽや", "run-2", DateTimeOffset.UtcNow, 285, null));
+            var voice = new FakeVoice();
+            voice.SelectVoice("voice-1");
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, Voice = voice, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            yield return null;
+
+            var tries = screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).ToList();
+            Assert.That(tries, Has.Count.EqualTo(2));
+            Assert.That(tries[1].worldBound.x, Is.EqualTo(tries[0].worldBound.x).Within(0.5f));
+        }
+
+        [UnityTest]
+        public IEnumerator SeeMadeVoices_OpensItsTab()
+        {
+            VoiceLabScreen screen = Screen();
+            Object.Destroy(_host);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = new FakeLibrary() });
+            screen = Screen();
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+
+            Submit(register.ShowMadeButton);
+
+            Assert.That(screen.Tabs.value, Is.EqualTo(VoiceLabScreen.MadeTab));
         }
 
         [UnityTest]

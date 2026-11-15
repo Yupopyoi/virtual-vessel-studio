@@ -288,6 +288,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string TabMake = "lab.tab.make";
         public const string TabMade = "lab.tab.made";
+        public const string ShowMadeVoices = "lab.register.show-made";
         public const string RegisterBlockedRegistered = "lab.register.blocked.registered";
         public const string RegisterBlockedNoRun = "lab.register.blocked.no-run";
         public const string TryStopPlaying = "lab.try.stop-playing";
