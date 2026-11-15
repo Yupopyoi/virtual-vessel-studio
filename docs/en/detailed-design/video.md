@@ -183,6 +183,7 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 ### 7.3 Coordinates of the Flat Video Layer
 
 - The Screen Camera looks along +Z from the origin, with an orthographic height of 1. Its width is the aspect ratio (1.78 for 16:9).
+- The Screen Camera's and the Avatar Camera's aspect ratios are set to the stream's size (`Size.Aspect`), as an overlay camera takes the window's shape, not its target's. Once the window kept the taskbar it was no longer 16:9, and flat videos were drawn narrower than their frames (the user's report, 2026-11-15).
 - `Root` gets a position and scale (x by the aspect ratio, y by -1) so that its top-left is (0, 0) and its bottom-right (1, 1) (`ScreenLayerMath`, pure functions).
 - `localPosition.z` sets the stacking. Stage gives videos with a larger order a smaller z.
 
