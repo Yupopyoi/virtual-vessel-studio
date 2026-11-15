@@ -92,6 +92,8 @@ namespace VirtualVessel.Video
         /// <summary>The camera that draws avatars over the flat videos; for tests.</summary>
         internal Camera AvatarCamera => _avatarCamera;
 
+        internal Camera ScreenCamera => _screenCamera;
+
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
             _layer = RequireLayer(ScreenLayerName);
@@ -172,6 +174,10 @@ namespace VirtualVessel.Video
             _screenCamera = _screenCameraObject.AddComponent<Camera>();
             _screenCamera.orthographic = true;
             _screenCamera.orthographicSize = ScreenLayerMath.OrthographicSize;
+
+            // An overlay camera takes the window's shape, not the target's. Once the window kept the taskbar it was no
+            // longer 16:9, and the flat videos were drawn narrower than their frames (the user's report, 2026-11-15).
+            _screenCamera.aspect = Size.Aspect;
             _screenCamera.nearClipPlane = 0.01f;
             _screenCamera.farClipPlane = ScreenLayerMath.RootDistance * 2f;
             _screenCamera.cullingMask = 1 << _layer;
@@ -188,6 +194,7 @@ namespace VirtualVessel.Video
             avatarCameraObject.transform.SetParent(_mainCamera.transform, false);
             _avatarCamera = avatarCameraObject.AddComponent<Camera>();
             _avatarCamera.cullingMask = 1 << _avatarLayer;
+            _avatarCamera.aspect = Size.Aspect;
             MatchMainCamera(_mainCamera, _avatarCamera);
             _avatarCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Overlay;
             return _avatarCamera;
