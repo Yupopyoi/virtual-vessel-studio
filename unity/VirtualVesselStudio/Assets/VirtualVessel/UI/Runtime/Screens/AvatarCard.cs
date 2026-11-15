@@ -156,21 +156,21 @@ namespace VirtualVessel.UI.Screens
 
             Choice = Ui.Select(null);
             Choice.RegisterValueChangedCallback(evt => _ = SelectAsync(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
-            card.Add(Row(AvatarStrings.Use, Choice));
+            card.Add(Ui.ControlRow(AvatarStrings.Use, Choice));
 
             _format = new Label();
             _format.AddToClassList(CaptureSourceCard.InfoClass);
             _format.AddToClassList("vv-text-body");
-            card.Add(Row(AvatarStrings.Format, _format));
+            card.Add(Ui.ControlRow(AvatarStrings.Format, _format));
 
             RegisterButton = Ui.Button(AvatarStrings.RegisterButton, ButtonVariant.Primary);
             RegisterButton.clicked += () => _ = RegisterAsync();
             RegisterButton.SetEnabled(files != null);
-            card.Add(Row(AvatarStrings.Register, RegisterButton));
+            card.Add(Ui.ControlRow(AvatarStrings.Register, RegisterButton));
 
             RemoveButton = Ui.Button(AvatarStrings.RemoveButton, ButtonVariant.Danger);
             RemoveButton.clicked += () => _ = RemoveAsync();
-            card.Add(Row(AvatarStrings.Remove, RemoveButton));
+            card.Add(Ui.ControlRow(AvatarStrings.Remove, RemoveButton));
 
             card.Add(Ui.Text(AvatarStrings.LicenseTitle, "vv-bold", LicenseClass + "-title"));
             _license = new VisualElement();
@@ -412,7 +412,7 @@ namespace VirtualVessel.UI.Screens
 
                 // The author's text is shown as written, never parsed as markup.
                 value.enableRichText = false;
-                SettingRow row = Row(line.NameKey, value);
+                SettingRow row = Ui.ControlRow(line.NameKey, value);
                 if (interactive && line.Url != null)
                 {
                     string url = line.Url;
@@ -555,13 +555,6 @@ namespace VirtualVessel.UI.Screens
                 _busy = false;
                 Show();
             }
-        }
-
-        private static SettingRow Row(string nameKey, VisualElement control)
-        {
-            SettingRow row = Ui.SettingRow(nameKey);
-            row.Add(control);
-            return row;
         }
     }
 }

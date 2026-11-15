@@ -38,23 +38,23 @@ namespace VirtualVessel.UI.Screens
             Language = Ui.Select(null);
             Language.SetChoices(languages.Select(locale => SelectChoice.FromText(locale.Code, locale.DisplayName)));
             Language.RegisterValueChangedCallback(evt => _settings.SetLanguage(evt.newValue));
-            card.Add(Row(ScreenStrings.Language, null, Language));
+            card.Add(Ui.ControlRow(ScreenStrings.Language, Language));
 
             Palette = Ui.Select(null);
             Palette.SetChoices(theme.PaletteIds.Select(id => SelectChoice.FromText(id, theme.GetPaletteName(id) ?? id)));
             Palette.RegisterValueChangedCallback(evt => _settings.SetPalette(evt.newValue));
-            card.Add(Row(ScreenStrings.Palette, null, Palette));
+            card.Add(Ui.ControlRow(ScreenStrings.Palette, Palette));
 
             Background = Ui.Segmented(ScreenStrings.Dark, ScreenStrings.Light);
             Background.RegisterValueChangedCallback(evt => _settings.SetBackground(evt.newValue == 1 ? ThemeBackground.Light : ThemeBackground.Dark));
-            card.Add(Row(ScreenStrings.Background, null, Background));
+            card.Add(Ui.ControlRow(ScreenStrings.Background, Background));
 
             // Six steps, and a long "Match Windows settings": dropdowns, as components.md 3.18 asks for
             // five or more choices or long labels.
             Scale = Ui.Select(null);
             Scale.SetChoices(s_scaleKeys.Select((key, index) => SelectChoice.FromKey(ScaleId(UiSettingsResolver.UiScales[index]), key)));
             Scale.RegisterValueChangedCallback(evt => _settings.SetUiScale(ParseScaleId(evt.newValue)));
-            card.Add(Row(ScreenStrings.Scale, null, Scale));
+            card.Add(Ui.ControlRow(ScreenStrings.Scale, Scale));
 
             Motion = Ui.Select(null);
             Motion.SetChoices(new[]
@@ -64,11 +64,11 @@ namespace VirtualVessel.UI.Screens
                 SelectChoice.FromKey(UiSettingsResolver.MotionOff, ScreenStrings.MotionOff),
             });
             Motion.RegisterValueChangedCallback(evt => _settings.SetReducedMotion(ParseMotionId(evt.newValue)));
-            card.Add(Row(ScreenStrings.Motion, ScreenStrings.MotionDescription, Motion));
+            card.Add(Ui.ControlRow(ScreenStrings.Motion, Motion, ScreenStrings.MotionDescription));
 
             Developer = new SwitchToggle();
             Developer.RegisterValueChangedCallback(evt => _settings.SetDeveloperMode(evt.newValue));
-            card.Add(Row(ScreenStrings.Developer, ScreenStrings.DeveloperDescription, Developer));
+            card.Add(Ui.ControlRow(ScreenStrings.Developer, Developer, ScreenStrings.DeveloperDescription));
 
             Show(settings.Current);
             RegisterCallback<AttachToPanelEvent>(_ =>
@@ -124,13 +124,6 @@ namespace VirtualVessel.UI.Screens
             Scale.SetValueWithoutNotify(ScaleId(settings.UiScale));
             Motion.SetValueWithoutNotify(UiSettingsResolver.ToText(settings.ReducedMotionMode));
             Developer.SetValueWithoutNotify(settings.DeveloperMode);
-        }
-
-        private static SettingRow Row(string nameKey, string descriptionKey, VisualElement control)
-        {
-            SettingRow row = Ui.SettingRow(nameKey, descriptionKey);
-            row.Add(control);
-            return row;
         }
     }
 }
