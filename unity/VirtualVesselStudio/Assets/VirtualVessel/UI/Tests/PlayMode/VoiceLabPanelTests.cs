@@ -492,6 +492,9 @@ namespace VirtualVessel.UI.Tests
             Submit(screen.Try.ConvertedButton);
             yield return null;
             Assert.That(screen.Try.ConvertedButton.enabledSelf, Is.False, "Converting.");
+            Assert.That(screen.Try.StopConvertingButton.parent.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Stop converting shows while converting.");
+            Submit(screen.Try.StopPlayingButton);
+            Assert.That(trial.Cancelled, Is.False, "Stop playing leaves the conversion alone.");
 
             screen.GoTo(VoiceLabScreen.RegisterStep);
             yield return null;
@@ -511,6 +514,7 @@ namespace VirtualVessel.UI.Tests
             _root.Shell.Open("lab");
             yield return null;
             Assert.That(screen.Try.ConvertedButton.enabledSelf, Is.True);
+            Assert.That(screen.Try.StopConvertingButton.parent.style.display.value, Is.EqualTo(DisplayStyle.None), "Nothing to stop once converted.");
             Submit(screen.Try.ConvertedButton);
             yield return null;
             Assert.That(trial.Requests.Count, Is.EqualTo(1), "The finished conversion plays without converting again.");

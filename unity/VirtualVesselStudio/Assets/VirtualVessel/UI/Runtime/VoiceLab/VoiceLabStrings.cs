@@ -288,6 +288,8 @@ namespace VirtualVessel.UI.VoiceLab
 
         public const string TabMake = "lab.tab.make";
         public const string TabMade = "lab.tab.made";
+        public const string TryStopPlaying = "lab.try.stop-playing";
+        public const string TryStopConverting = "lab.try.stop-converting";
         public const string BuildLogCount = "lab.build.log.count";
         public const string BuildLogEpochs = "lab.build.log.epochs";
         public const string BuildLogDone = "lab.build.log.done";

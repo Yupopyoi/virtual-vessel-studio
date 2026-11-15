@@ -39,6 +39,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VisualElement _filePanel;
         private readonly VisualElement _micPanel;
         private readonly VisualElement _convertPanel;
+        private readonly VisualElement _stopConverting;
         private readonly Label _fileName;
         private readonly ProgressMeter _converting;
         private readonly StatusChip _problem;
@@ -126,12 +127,19 @@ namespace VirtualVessel.UI.VoiceLab
             _convertPanel.AddToClassList(VoiceLabScreen.GapClass);
             ConvertedButton = Ui.Button(VoiceLabStrings.TryConverted, ButtonVariant.Primary);
             ConvertedButton.clicked += () => _ = PlayConvertedAsync();
-            ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
-            stop.clicked += StopPlaying;
-            _convertPanel.Add(VoiceLabScreen.Actions(ConvertedButton, stop));
+
+            // Stopping what plays and stopping a conversion are two buttons that say which: one Stop did both, and
+            // what it stopped was not clear (the user's review, 2026-11-15).
+            StopPlayingButton = Ui.Button(VoiceLabStrings.TryStopPlaying);
+            StopPlayingButton.clicked += () => _player.Stop();
+            _convertPanel.Add(VoiceLabScreen.Actions(ConvertedButton, StopPlayingButton));
             _converting = Ui.Progress(VoiceLabStrings.TryConverting);
             _converting.AddToClassList(VoiceLabScreen.GapClass);
             _convertPanel.Add(_converting);
+            StopConvertingButton = Ui.Button(VoiceLabStrings.TryStopConverting);
+            StopConvertingButton.clicked += StopConverting;
+            _stopConverting = VoiceLabScreen.Actions(StopConvertingButton);
+            _convertPanel.Add(_stopConverting);
             source.Add(_convertPanel);
 
             _problem = new StatusChip(StatusKind.Error, VoiceLabStrings.TryFailed);
@@ -162,6 +170,12 @@ namespace VirtualVessel.UI.VoiceLab
         public ActionButton OriginalButton { get; }
 
         public ActionButton ConvertedButton { get; }
+
+        /// <summary>Stops what plays: the original or the converted voice.</summary>
+        public ActionButton StopPlayingButton { get; }
+
+        /// <summary>Stops the conversion; shown only while converting.</summary>
+        public ActionButton StopConvertingButton { get; }
 
         public ActionButton HearButton { get; }
 
@@ -289,6 +303,7 @@ namespace VirtualVessel.UI.VoiceLab
         private void ShowConverting(bool converting)
         {
             _converting.style.display = converting ? DisplayStyle.Flex : DisplayStyle.None;
+            _stopConverting.style.display = converting ? DisplayStyle.Flex : DisplayStyle.None;
             if (converting)
             {
                 _converting.Progress = 0f;
@@ -369,12 +384,6 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 await _player.PlayAsync(_converted, null);
             }
-        }
-
-        private void StopPlaying()
-        {
-            _player.Stop();
-            _conversion?.Cancel();
         }
 
         private void PitchChanged()

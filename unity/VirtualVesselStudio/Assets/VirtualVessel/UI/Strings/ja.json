@@ -407,6 +407,8 @@
         "lab.try.file-filter": "音声ファイル（WAV、M4A、MP3）",
         "lab.try.original": "元の声を聞く",
         "lab.try.converted": "変換後の声を聞く",
+        "lab.try.stop-playing": "再生を止める",
+        "lab.try.stop-converting": "変換を止める",
         "lab.try.converting": "変換しています",
         "lab.try.failed": "変換できませんでした。ファイルを確認してください",
         "lab.try.hear-off": "マイクの「聞く」がオフです",

@@ -407,6 +407,8 @@
         "lab.try.file-filter": "Audio files (WAV, M4A, MP3)",
         "lab.try.original": "Play the original",
         "lab.try.converted": "Play the converted voice",
+        "lab.try.stop-playing": "Stop playing",
+        "lab.try.stop-converting": "Stop converting",
         "lab.try.converting": "Converting",
         "lab.try.failed": "Could not convert. Check the file",
         "lab.try.hear-off": "The microphone's Hear is off",
