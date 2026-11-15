@@ -6,6 +6,7 @@ using System.Linq;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.Records;
+using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.Voice.Models
 {
@@ -35,6 +36,9 @@ namespace VirtualVessel.Voice.Models
         CrudResult<IReadOnlyList<VoiceModelRecord>> List();
 
         CrudResult Rename(string voiceId, string name);
+
+        /// <summary>Keeps a voice's finish (Voice detailed design 8.6). NotFound without the voice.</summary>
+        CrudResult SetTone(string voiceId, VoiceTone tone);
 
         /// <summary>Deletes the voice and its files; a voice that is not there succeeds.</summary>
         CrudResult Delete(string voiceId);
@@ -155,6 +159,24 @@ namespace VirtualVessel.Voice.Models
             }, $"Renaming voice {voiceId}");
         }
 
+        public CrudResult SetTone(string voiceId, VoiceTone tone)
+        {
+            CrudResult<VoiceModelRecord> voice = Get(voiceId);
+            if (!voice.Ok)
+            {
+                return voice.WithoutValue;
+            }
+
+            return CrudResult.Run(() =>
+            {
+                // One store for the load and the save, so fields this version does not know are kept (CLAUDE.md 25).
+                ConfigFileStore<VoiceModelRecord> store = Store(voiceId);
+                VoiceModelRecord record = store.Load().Value;
+                record.Tone = ToneValues.From(tone);
+                store.Save(record);
+            }, $"Keeping the finish of voice {voiceId}");
+        }
+
         public CrudResult Delete(string voiceId)
         {
             if (!IsVoiceId(voiceId))
@@ -226,6 +248,7 @@ namespace VirtualVessel.Voice.Models
                 RegisteredAtUtc = now.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
                 MedianPitchHz = medianPitchHz,
                 Versions = new Dictionary<string, string>(voice.Versions.ToDictionary(pair => pair.Key, pair => pair.Value)),
+                Tone = voice.Tone.IsFlat ? null : ToneValues.From(voice.Tone),
             };
         }
 

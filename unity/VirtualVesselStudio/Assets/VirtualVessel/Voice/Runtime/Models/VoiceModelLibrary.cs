@@ -136,6 +136,29 @@ namespace VirtualVessel.Voice.Models
         }
 
         /// <summary>A registered voice's median pitch in Hz; 0 for the prototype's or when unknown. Reads its record.</summary>
+        /// <summary>A registered voice's finish; flat for another voice or when it cannot be read.</summary>
+        public VoiceTone ToneOf(string voiceId)
+        {
+            if (_voices == null || !VoiceModelStore.IsVoiceId(voiceId))
+            {
+                return default;
+            }
+
+            CrudResult<VoiceModelRecord> voice = _voices.Get(voiceId);
+            return voice.Ok ? voice.Value.GetTone() : default;
+        }
+
+        /// <summary>Keeps a registered voice's finish. Invalid for a voice that is not registered.</summary>
+        public CrudResult SetTone(string voiceId, VoiceTone tone)
+        {
+            if (_voices == null || !VoiceModelStore.IsVoiceId(voiceId))
+            {
+                return CrudResult.Fail(CrudError.Invalid, $"'{voiceId}' is not a registered voice.");
+            }
+
+            return _voices.SetTone(voiceId, tone);
+        }
+
         public int MedianPitchOf(string voiceId)
         {
             if (_voices == null || !VoiceModelStore.IsVoiceId(voiceId))

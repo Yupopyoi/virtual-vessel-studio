@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework;
+using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.Voice.Tests
 {

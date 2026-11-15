@@ -412,6 +412,14 @@ namespace VirtualVessel.UI.Tests
             return held.Task.ContinueWith(_ => result, cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
+        public List<VoiceTone> Finishes { get; } = new List<VoiceTone>();
+
+        public Task<string> FinishAsync(string converted, VoiceTone tone, CancellationToken cancellationToken)
+        {
+            Finishes.Add(tone);
+            return Task.FromResult(tone.IsFlat ? converted : $"{converted}+tone{Finishes.Count}");
+        }
+
         /// <summary>Lets the held conversion finish.</summary>
         public void Finish()
         {
@@ -431,6 +439,18 @@ namespace VirtualVessel.UI.Tests
         public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
         {
             return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Voices.ToArray());
+        }
+
+        public VoiceTone Tone { get; private set; }
+
+        /// <summary>The finishes set, in order, as the voice would keep them.</summary>
+        public List<VoiceTone> Tones { get; } = new List<VoiceTone>();
+
+        public CrudResult SetTone(VoiceTone tone)
+        {
+            Tone = tone;
+            Tones.Add(tone);
+            return CrudResult.Success;
         }
 
         private bool _wasOn;

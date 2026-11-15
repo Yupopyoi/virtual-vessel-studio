@@ -87,6 +87,37 @@ namespace VirtualVessel.Voice.Tests
         }
 
         [Test]
+        public void AVoicesFinish_IsKeptWithIt_AndAnOlderVoiceIsFlat()
+        {
+            var tone = new UI.Voice.VoiceTone(2f, -1f, 3f, 0f);
+            NewVoiceModel source = Voice("voice-a", "A", "{\"medianPitchHz\":280}");
+            var withTone = new NewVoiceModel(source.Id, source.Name, source.RunId, source.SourceFolder, source.Files, source.Versions, tone);
+            Assert.That(_voices.Add(withTone).Ok, Is.True);
+            Assert.That(_voices.Get("voice-a").Value.GetTone(), Is.EqualTo(tone), "Registered with the finish chosen in Voice Lab.");
+
+            var brighter = new UI.Voice.VoiceTone(2f, -1f, 5f, 1f);
+            Assert.That(_voices.SetTone("voice-a", brighter).Ok, Is.True);
+            Assert.That(_voices.Get("voice-a").Value.GetTone(), Is.EqualTo(brighter));
+            Assert.That(_voices.SetTone("voice-none", brighter).Error, Is.EqualTo(ProjectData.Records.CrudError.NotFound));
+
+            Assert.That(_voices.Add(Voice("voice-b", "B", "{}")).Ok, Is.True);
+            Assert.That(_voices.Get("voice-b").Value.GetTone().IsFlat, Is.True, "A voice without a finish is flat, as every voice was before.");
+        }
+
+        [Test]
+        public void AVoicesFinish_KeepsFieldsThisVersionDoesNotKnow()
+        {
+            string folder = _voices.FolderOf("voice-old");
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, VoiceModelStore.ModelFile),
+                "{\"schemaVersion\":1,\"id\":\"voice-old\",\"name\":\"Old\",\"registeredAtUtc\":\"2026-11-05T00:00:00.0000000Z\",\"design\":{\"seed\":7}}");
+
+            Assert.That(_voices.SetTone("voice-old", new UI.Voice.VoiceTone(1f, 0f, 0f, 0f)).Ok, Is.True);
+
+            Assert.That(File.ReadAllText(Path.Combine(folder, VoiceModelStore.ModelFile)), Does.Contain("seed"));
+        }
+
+        [Test]
         public void AVoiceRegisteredBeforeTheMove_KeepsItsDesignThroughARename()
         {
             // model.json used to hold Voice Lab's design; a field Voice does not know is kept, not dropped (CLAUDE.md 25).

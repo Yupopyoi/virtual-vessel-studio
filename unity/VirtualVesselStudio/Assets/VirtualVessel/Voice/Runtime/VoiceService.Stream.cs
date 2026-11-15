@@ -212,6 +212,8 @@ namespace VirtualVessel.Voice
 
         private void Deliver()
         {
+            // In place on the block the voice made: no copy, no allocation, and no latency (CLAUDE.md 23).
+            _tone.Process(_block);
             ToStereo(_block, _output);
             if (!_primed)
             {

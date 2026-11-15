@@ -97,6 +97,45 @@ namespace VirtualVessel.Voice
             }
         }
 
+        public async Task<string> FinishAsync(string converted, VoiceTone tone, CancellationToken cancellationToken)
+        {
+            if (tone.IsFlat)
+            {
+                return converted;
+            }
+
+            try
+            {
+                return await Task.Run(() => WriteFinished(converted, tone), cancellationToken).ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException)
+            {
+                throw new VoiceTrialFailedException($"The finish could not be applied: {exception.Message}", exception);
+            }
+        }
+
+        // The finish only: the conversion is kept, so a change of finish is heard in moments.
+        private string WriteFinished(string converted, VoiceTone tone)
+        {
+            float[] samples = WavFile.Read(File.ReadAllBytes(converted), out int rate);
+            float[] finished = ToneFilter.Apply(samples, tone, rate);
+            foreach (string old in Directory.GetFiles(_folder, "finished-*.wav"))
+            {
+                try
+                {
+                    File.Delete(old);
+                }
+                catch (IOException)
+                {
+                    // Still playing; it goes next time.
+                }
+            }
+
+            string path = Path.Combine(_folder, $"finished-{Guid.NewGuid():N}.wav");
+            File.WriteAllBytes(path, WavFile.Write(finished, rate));
+            return path;
+        }
+
         /// <summary>The shift a trial converts with, and whether it must measure the user first. Pure.</summary>
         public static (float Semitones, bool Measure) Plan(bool autoPitch, float adjustment, float knownUserHz, float voiceHz)
         {

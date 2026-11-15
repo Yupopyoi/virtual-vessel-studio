@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.Voice.Models
 {
@@ -20,13 +21,47 @@ namespace VirtualVessel.Voice.Models
         public int MedianPitchHz { get; set; }
 
         public Dictionary<string, string> Versions { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// The finish on the converted voice (Voice detailed design 6.1, 8.6). Added later; a voice without it is flat,
+        /// as every voice was before.
+        /// </summary>
+        public ToneValues Tone { get; set; }
+
+        public VoiceTone GetTone()
+        {
+            return Tone?.ToTone() ?? default;
+        }
+    }
+
+    /// <summary>A <see cref="VoiceTone"/> as model.json writes it, in dB.</summary>
+    public sealed class ToneValues
+    {
+        public float Body { get; set; }
+
+        public float Clarity { get; set; }
+
+        public float Brightness { get; set; }
+
+        public float Air { get; set; }
+
+        public static ToneValues From(VoiceTone tone)
+        {
+            return new ToneValues { Body = tone.Body, Clarity = tone.Clarity, Brightness = tone.Brightness, Air = tone.Air };
+        }
+
+        public VoiceTone ToTone()
+        {
+            return new VoiceTone(Body, Clarity, Brightness, Air);
+        }
     }
 
     /// <summary>A voice to register: its files in a folder, copied in as they are (system design 13.21).</summary>
     public sealed class NewVoiceModel
     {
-        public NewVoiceModel(string id, string name, string runId, string sourceFolder, IReadOnlyList<string> files, IReadOnlyDictionary<string, string> versions)
+        public NewVoiceModel(string id, string name, string runId, string sourceFolder, IReadOnlyList<string> files, IReadOnlyDictionary<string, string> versions, VoiceTone tone = default)
         {
+            Tone = tone;
             Id = id;
             Name = name;
             RunId = runId;
@@ -50,5 +85,8 @@ namespace VirtualVessel.Voice.Models
         public IReadOnlyList<string> Files { get; }
 
         public IReadOnlyDictionary<string, string> Versions { get; }
+
+        /// <summary>The finish chosen in Voice Lab's STEP 4, kept with the voice.</summary>
+        public VoiceTone Tone { get; }
     }
 }

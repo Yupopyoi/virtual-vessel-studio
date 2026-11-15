@@ -1,6 +1,6 @@
 using System;
 
-namespace VirtualVessel.Voice
+namespace VirtualVessel.UI.Voice
 {
     /// <summary>
     /// The finish on a converted voice (system design 9.9; Voice detailed design 8.6): four gentle filter bands, each in
@@ -19,16 +19,16 @@ namespace VirtualVessel.Voice
             Air = Clamp(air);
         }
 
-        /// <summary>Thin to full: a low shelf at <see cref="ToneFilter.BodyHz"/>.</summary>
+        /// <summary>Thin to full: a low shelf at 200 Hz.</summary>
         public float Body { get; }
 
-        /// <summary>Muffled to clear: a cut of the low middle at <see cref="ToneFilter.ClarityHz"/> as it rises.</summary>
+        /// <summary>Muffled to clear: a cut of the low middle at 500 Hz as it rises.</summary>
         public float Clarity { get; }
 
-        /// <summary>Dark to bright: a high shelf at <see cref="ToneFilter.BrightnessHz"/>.</summary>
+        /// <summary>Dark to bright: a high shelf at 4 kHz.</summary>
         public float Brightness { get; }
 
-        /// <summary>None to airy: a high shelf at <see cref="ToneFilter.AirHz"/>.</summary>
+        /// <summary>None to airy: a high shelf at 10 kHz.</summary>
         public float Air { get; }
 
         /// <summary>Whether it changes nothing, so the filter can be left out.</summary>

@@ -79,6 +79,18 @@ namespace VirtualVessel.UI.Voice
         /// <summary>The voices to choose from; reads the disk, so not every frame (system design 6.31).</summary>
         CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();
 
+        /// <summary>
+        /// The finish on the chosen voice, or on the voice being tried (Voice detailed design 8.6). It applies at once to
+        /// what is converted.
+        /// </summary>
+        VoiceTone Tone { get; }
+
+        /// <summary>
+        /// Changes the finish. The chosen registered voice keeps it (a CRUD update, system design 6.31); a trial's is
+        /// not kept here, as Voice Lab keeps it with the run.
+        /// </summary>
+        CrudResult SetTone(VoiceTone tone);
+
         /// <summary>The voice converting or loading, a trial's included; null when none is chosen or there is none. Choosing saves it in the project.</summary>
         string VoiceId { get; }
 
