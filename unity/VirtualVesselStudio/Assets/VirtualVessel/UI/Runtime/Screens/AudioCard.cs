@@ -39,7 +39,8 @@ namespace VirtualVessel.UI.Screens
         public const string OpenPrivacy = "setup.audio.open-privacy";
         public const string Monitored = "setup.audio.monitored";
         public const string MonitoredDescription = "setup.audio.monitored.description";
-        public const string HeadphonesNote = "setup.audio.monitor.headphones";
+        public const string Denoise = "setup.audio.denoise";
+        public const string DenoiseDescription = "setup.audio.denoise.description";
         public const string GameDeviceNote = "setup.audio.game-device";
         public const string Monitor = "setup.audio.monitor";
         public const string MonitorDevice = "setup.audio.monitor.device";
@@ -69,6 +70,8 @@ namespace VirtualVessel.UI.Screens
         public const string DeviceColumn = CellClass + "--device";
         public const string GainColumn = CellClass + "--gain";
         public const string ToggleColumn = CellClass + "--toggle";
+        public const string DenoiseColumn = CellClass + "--denoise";
+        public const string HelpCellClass = CellClass + "--help";
         public const string LevelColumn = CellClass + "--level";
         public const string EmptyCellClass = CellClass + "--empty";
         public const string NoteClass = UssClass + "__note";
@@ -80,7 +83,7 @@ namespace VirtualVessel.UI.Screens
         public const long DeviceIntervalMs = 5000;
 
         /// <summary>Below this width, in px, the columns do not fit: a row wraps and each control is named.</summary>
-        public const float NarrowWidth = 760f;
+        public const float NarrowWidth = 870f;
 
         private readonly IAudioService _audio;
         private readonly List<AudioSourceRow> _groups = new List<AudioSourceRow>();
@@ -102,13 +105,6 @@ namespace VirtualVessel.UI.Screens
 
             Monitor = new AudioMonitorRow(audio.Monitor);
             card.Add(Monitor.Root);
-            card.Add(Ui.Text(AudioStrings.MonitoredDescription, NoteClass, "vv-text-caption"));
-            card.Add(Ui.Text(AudioStrings.HeadphonesNote, NoteClass, "vv-text-caption"));
-            if (gameDeviceOnCapture)
-            {
-                card.Add(Ui.Text(AudioStrings.GameDeviceNote, NoteClass, "vv-text-caption"));
-            }
-
             // Recording and streaming get the sound later, to meet the avatar's motion (audio detailed design 8.5).
             Delay = Ui.Slider(null, 0, AudioSettings.MaxStreamDelayMs, "ms");
             Delay.Step = 10f;

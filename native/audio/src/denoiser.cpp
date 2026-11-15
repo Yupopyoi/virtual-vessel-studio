@@ -84,15 +84,21 @@ namespace vv::audio
         }
     }
 
-    bool Denoiser::Process(float* samples, int count)
+    bool Denoiser::Start()
     {
         if (_state == nullptr)
         {
             _state = rnnoise_create(nullptr);
-            if (_state == nullptr)
-            {
-                return false;
-            }
+        }
+
+        return _state != nullptr;
+    }
+
+    bool Denoiser::Process(float* samples, int count)
+    {
+        if (!Start())
+        {
+            return false;
         }
 
         constexpr int Kept = DelaySamples + AnalysisSamples;

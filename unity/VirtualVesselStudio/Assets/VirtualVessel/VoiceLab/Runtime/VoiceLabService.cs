@@ -9,6 +9,7 @@ using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.VoiceLab;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;
@@ -35,6 +36,7 @@ namespace VirtualVessel.VoiceLab
         private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
         // Written by the scripts' reading threads, read by the screen on the main thread.
         private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
+        private readonly Shared<CancellationTokenSource> _buildCancel = new Shared<CancellationTokenSource>();
         private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
         private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
 
@@ -49,6 +51,12 @@ namespace VirtualVessel.VoiceLab
             _samplesFolder = samplesFolder;
             _log = log;
         }
+
+        /// <summary>
+        /// Whether the test plan may run (STEP 3's Test, in Unity's Editor only). The composition sets it, since Voice Lab
+        /// does not reference the engine; off, a Test request makes the default voice.
+        /// </summary>
+        public bool AllowEditorTest { get; set; }
 
         /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
         public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
@@ -171,21 +179,87 @@ namespace VirtualVessel.VoiceLab
             return new VoiceLabPreview(preview.File, preview.Pitch.MedianHz);
         }
 
-        public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
+        public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Ensure();
             _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
             var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction));
+            // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.
+            using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _buildCancel.Value = cancel;
             try
             {
-                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), progress, cancellationToken).ConfigureAwait(false);
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), PlanOf(length, AllowEditorTest), progress, cancel.Token).ConfigureAwait(false);
                 return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
             }
             finally
             {
                 // Also when the build threw, so the screen never shows a build that is not running.
+                _buildCancel.Value = null;
                 _progress.Value = default;
             }
+        }
+
+        public CrudResult<string> BuiltVoiceFolder(string runId)
+        {
+            if (_runs == null)
+            {
+                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+            }
+
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            string output = Path.Combine(_runs.FolderOf(runId), "output");
+            return run.Value.GetState() == TrainingState.Completed && File.Exists(Path.Combine(output, "voice.sentis"))
+                ? CrudResult<string>.Success(output)
+                : CrudResult<string>.Fail(CrudError.Invalid, $"Run {runId} has no voice to try.");
+        }
+
+        public void CancelBuild()
+        {
+            try
+            {
+                _buildCancel.Value?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The build ended between reading it and cancelling it: nothing is left to stop.
+            }
+        }
+
+        /// <summary>
+        /// The epochs of a training length. 600 kept the "mochi-mochi" texture that 150 lost, by ear and by the first
+        /// harmonic's level (decision record, 2026-11-08); 150 stays the default for its time. Pure.
+        /// </summary>
+        public static int EpochsOf(VoiceLabTrainingLength length)
+        {
+            switch (length)
+            {
+                case VoiceLabTrainingLength.Normal:
+                    return 300;
+                case VoiceLabTrainingLength.Long:
+                    return 600;
+                default:
+                    return VoiceDesigner.DefaultEpochs;
+            }
+        }
+
+        /// <summary>
+        /// What a build makes for a length. The test plan is only for Unity's Editor: anywhere else it is the default,
+        /// so a voice not fit to use is never made by mistake. Pure.
+        /// </summary>
+        public static BuildPlan PlanOf(VoiceLabTrainingLength length, bool inEditor)
+        {
+            if (length == VoiceLabTrainingLength.EditorTest)
+            {
+                return inEditor ? BuildPlan.EditorTest : BuildPlan.Standard;
+            }
+
+            return BuildPlan.Training(EpochsOf(length));
         }
 
         public CrudResult<VoiceLabRemake> Remake(string runId)
@@ -236,15 +310,36 @@ namespace VirtualVessel.VoiceLab
                 new VoiceDescription(design.Words, design.FreeWords));
         }
 
-        public CrudResult Register(string runId, string name)
+        public CrudResult<string> Register(string runId, string name)
         {
             if (_designer == null)
             {
-                return CrudResult.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult<string>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
             }
 
             CrudResult<TrainingRun> run = _runs.Get(runId);
-            return run.Ok ? _registrar.Register(run.Value, name).WithoutValue : run.WithoutValue;
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            CrudResult<VoiceModelRecord> voice = _registrar.Register(run.Value, name);
+            return voice.Ok ? CrudResult<string>.Success(voice.Value.Id) : CrudResult<string>.From(voice.WithoutValue);
+        }
+
+        /// <summary>
+        /// Whether a voice is the one used for the stream, so it is not deleted (Voice Lab detailed design 8.6). The
+        /// composition gives it from Voice, which Voice Lab does not ask by itself.
+        /// </summary>
+        public Func<string, bool> VoiceInUse
+        {
+            set
+            {
+                if (Library is VoiceLabLibrary library)
+                {
+                    library.InUse = value;
+                }
+            }
         }
 
         /// <summary>A script's progress as a making bar shows it: any stage but <paramref name="stage"/> (loading the model) has no total. Pure.</summary>

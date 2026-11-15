@@ -29,7 +29,8 @@ extern "C"
 // 7: where a stage's frames wait (vv_audio_get_stage_delay).
 // 8: audio files (vv_audio_decode_file).
 // 9: a preview on the monitor bus (vv_audio_preview_play).
-#define VV_AUDIO_API_VERSION 9
+// 10: noise removal on a source as it is captured (vv_audio_set_denoise).
+#define VV_AUDIO_API_VERSION 10
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -137,6 +138,10 @@ VV_AUDIO_API int32_t vv_audio_set_device(vv_audio_engine* engine, int32_t source
 // of VV_AUDIO_DENOISE_FRAMES, from one thread.
 #define VV_AUDIO_DENOISE_FRAMES 480
 VV_AUDIO_API int32_t vv_audio_denoise(vv_audio_engine* engine, float* samples, int32_t count);
+
+// Noise removal on a source as it is captured, before any stage (audio detailed design 8.6), so it works with
+// or without voice conversion. A stereo source becomes mono while it is on. It adds about 20 ms.
+VV_AUDIO_API int32_t vv_audio_set_denoise(vv_audio_engine* engine, int32_t source, int32_t enabled);
 
 VV_AUDIO_API int32_t vv_audio_set_stage(vv_audio_engine* engine, int32_t source, int32_t enabled);
 VV_AUDIO_API int32_t vv_audio_stage_read(vv_audio_engine* engine, int32_t source, float* frames, int32_t capacity, int32_t* read);

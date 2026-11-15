@@ -1,15 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.InferenceEngine;
 using VirtualVessel.Audio;
 using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Voice;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.Voice.Rvc;
 
 namespace VirtualVessel.Voice
@@ -18,17 +20,20 @@ namespace VirtualVessel.Voice
     /// Runs <see cref="RvcStream"/> as a stage on the microphone. Inference Engine must be driven from the
     /// main thread, so each frame moves blocks along and the GPU works between frames; the mix never waits
     /// for it (audio detailed design 8.3). A prototype: developers turn it on, and it is not saved.
+    /// A chosen voice loads behind the one converting and takes over at a block's end, so the audio never
+    /// stops for a switch (system design 9.8, Voice detailed design 8.2).
     /// </summary>
     public sealed class VoiceService : IApplicationService, IVoiceConversion
     {
         public const string ServiceName = "Voice";
 
-        /// <summary>The prototype's folder under the Data Root's VoiceModels.</summary>
-        public const string PrototypeFolder = "Prototype";
-
         private const int ChannelCount = 2;
-        private const int WarmupBlocks = 3;
-        private const int ModelCount = 3;
+
+        /// <summary>Marks a voice ID that is a folder, for a voice chosen by its folder.</summary>
+        public const string FolderPrefix = "folder:";
+
+        // 48 kHz samples in one 10 ms frame of the models.
+        private const int BlockSamplesPerFrame = 480;
 
         // The stage's output comes in bursts, so the first one is put back by this much silence, which
         // every later burst inherits, to let a late burst arrive before the mix runs dry.
@@ -41,18 +46,29 @@ namespace VirtualVessel.Voice
         /// The window the models see, in 10 ms frames: 1 s only. With the user's speech before it, the user heard
         /// no gain from 2.5 s or 5.4 s, and 1 s is the lightest (decision record, 2026-11-03).
         /// </summary>
-        public const int WindowFrames = 100;
+        public const int WindowFrames = VoiceModelLibrary.WindowFrames;
 
         private readonly IAudioStage _stage;
         private readonly IFrameLoop _frameLoop;
-        private readonly string _folder;
+        private readonly VoiceModelLibrary _library;
+        private readonly VoiceLoader _loader;
+        private readonly VoiceStorage _storage;
+        private Trial _trial;
+        private readonly VoiceWarmup _next = new VoiceWarmup();
+        private readonly PitchMeter _meter = new PitchMeter();
+        private float[] _blockPitch;
+        private bool _autoPitch = true;
+
+        // The median pitch of the voice converting, and of the one loading or warming behind it.
+        private float _voicePitchHz;
+        private float _loadingPitchHz;
         private readonly ILog _log;
         private readonly ObservableValue<VoiceConversionState> _state = new ObservableValue<VoiceConversionState>(VoiceConversionState.Off);
 
         private IDisposable _tick;
-        private Task<Model[]> _loading;
-        private float[] _speaker;
         private RvcStream _stream;
+        private string _streamVoice;
+        private string _wantedVoice;
         private float[] _stereo;
         private float[] _waiting;
         private float[] _block;
@@ -70,20 +86,19 @@ namespace VirtualVessel.Voice
         private double _lastWorkMs;
         private float _semitones;
         // When each block on its way started; two can be on their way at once.
-        private readonly System.Collections.Generic.Queue<long> _startedAt = new System.Collections.Generic.Queue<long>(4);
+        private readonly Queue<long> _startedAt = new Queue<long>(4);
         private long _blocks;
         private long _dropped;
         private VoiceConversionStats _stats;
         private float[] _file;
         private string _fileName;
-        private int _loadedModels;
-        private bool _denoise;
         private int _fileRead;
         private readonly System.Diagnostics.Stopwatch _fileClock = new System.Diagnostics.Stopwatch();
 
-        /// <param name="folder">Holds the .sentis models; null or missing leaves the conversion unavailable.</param>
+        /// <param name="library">The voices; null leaves the conversion unavailable.</param>
         /// <param name="metrics">Optional; each block's work and the blocks left out, for the totals at exit.</param>
-        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, string folder, ILog log, IPerformanceMetrics metrics = null)
+        /// <param name="storage">The project's voice and this PC's measured pitch, read and saved; null keeps them in memory.</param>
+        public VoiceService(IAudioStage stage, IFrameLoop frameLoop, VoiceModelLibrary library, ILog log, IPerformanceMetrics metrics = null, VoiceStorage storage = null)
         {
             _workTimer = metrics?.Timer("Voice", "BlockWork");
             _issueTimer = metrics?.Timer("Voice", "BlockIssue");
@@ -94,9 +109,20 @@ namespace VirtualVessel.Voice
             _delayTimers = DelayParts.Select(name => metrics?.Timer("Voice", "Delay." + name)).ToArray();
             _stage = stage ?? throw new ArgumentNullException(nameof(stage));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
-            _folder = folder;
+            _library = library;
+            _loader = new VoiceLoader(library);
             _log = log;
+            _storage = storage ?? VoiceStorage.InMemory();
+            _wantedVoice = _storage.Profile.VoiceModelId;
+            _semitones = _storage.Profile.Semitones;
+            _autoPitch = _storage.Profile.AutoPitch;
+            _meter.Restore(_storage.Settings.UserPitchHz);
         }
+
+        /// <summary>The voice chosen for the stream, as saved; a trial does not change it. Voice Lab keeps it from being deleted.</summary>
+        public string InUseVoiceId => _storage.Profile.VoiceModelId;
+
+        public bool InTrial => _trial != null;
 
         public string Name => ServiceName;
 
@@ -106,29 +132,96 @@ namespace VirtualVessel.Voice
 
         private bool IsAttached => _state.Value == VoiceConversionState.Running || _state.Value == VoiceConversionState.NoMicrophone || _state.Value == VoiceConversionState.PlayingFile;
 
-        /// <summary>The generator's file for a window. Pure.</summary>
-        public static string GeneratorFile(int windowFrames)
+        public string VoiceId => _wantedVoice;
+
+        /// <summary>The voices it converts with, for a trial that converts recordings with the same ones.</summary>
+        public VoiceModelLibrary Library => _library;
+
+        public bool IsSwitching => _next.IsActive || (_loader.IsLoading && _stream != null);
+
+        public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
         {
-            return $"fused_w{windowFrames}.sentis";
+            return _library?.List() ?? CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Array.Empty<VoiceConversionVoice>());
+        }
+
+        public void SelectVoice(string voiceId)
+        {
+            VoiceProfile profile = _storage.Profile.Clone();
+            profile.VoiceModelId = voiceId;
+            _storage.SaveProfile(profile);
+            if (_trial == null)
+            {
+                Choose(voiceId);
+            }
         }
 
         /// <summary>
-        /// HuBERT's file for a window, named by the window's 16 kHz samples. It takes the speech anchor before
-        /// the window and returns the window's frames only (SpeechAnchor). Pure.
+        /// Tries a voice by its folder, such as one just made and not yet registered, on the microphone (Voice Lab
+        /// detailed design 8.3.4): the conversion turns on with it. Nothing is saved; the pitch settings changed during
+        /// the trial are the trial's own.
         /// </summary>
-        public static string FeaturesFile(int windowFrames)
+        public void BeginTrial(string folder)
         {
-            return $"hubert_{windowFrames * 160}_anchored.sentis";
+            _trial ??= new Trial(_wanted);
+            Choose(FolderPrefix + folder);
+            Enable(true);
         }
 
-        public bool Denoise
+        /// <summary>Ends a trial: the saved voice and pitch come back, and the conversion is off again if it was.</summary>
+        public void EndTrial()
         {
-            get => _denoise;
-            set => _denoise = value;
+            if (_trial == null)
+            {
+                return;
+            }
+
+            bool wasOn = _trial.WasOn;
+            _trial = null;
+            if (!wasOn)
+            {
+                Enable(false);
+            }
+
+            _semitones = _storage.Profile.Semitones;
+            _autoPitch = _storage.Profile.AutoPitch;
+            Choose(_storage.Profile.VoiceModelId);
+            ApplyPitch();
         }
 
-        // The last step, warming up, is counted as much as a model: it takes as long.
-        public float LoadProgress => _loadedModels / (ModelCount + 1f);
+        private void Choose(string voiceId)
+        {
+            _wantedVoice = voiceId;
+            if (_tick == null && _stream != null && _streamVoice != voiceId)
+            {
+                // Off, nothing is heard, so the old voice is simply let go; turning on loads the new one.
+                _stream.Dispose();
+                _stream = null;
+            }
+        }
+
+        // The state before a trial, to put back after it.
+        private sealed class Trial
+        {
+            public Trial(bool wasOn)
+            {
+                WasOn = wasOn;
+            }
+
+            public bool WasOn { get; }
+        }
+
+        public bool GpuAvailable => IsGpuUsable(UnityEngine.SystemInfo.supportsComputeShaders, UnityEngine.SystemInfo.graphicsDeviceType);
+
+        /// <summary>
+        /// Whether the GPU can run the conversion: compute shaders, and not a software device. No speed is required, as
+        /// none is known yet (setup screen 13.3; Voice detailed design 17). Pure.
+        /// </summary>
+        public static bool IsGpuUsable(bool computeShaders, UnityEngine.Rendering.GraphicsDeviceType device)
+        {
+            return computeShaders && device != UnityEngine.Rendering.GraphicsDeviceType.Null;
+        }
+
+        public float LoadProgress => _loader.Progress;
 
         public string FileName => _file == null ? null : _fileName;
 
@@ -146,10 +239,64 @@ namespace VirtualVessel.Voice
             set
             {
                 _semitones = value;
-                if (_stream != null)
-                {
-                    _stream.Semitones = value;
-                }
+                ApplyPitch();
+                SavePitch();
+            }
+        }
+
+        public bool AutoPitch
+        {
+            get => _autoPitch;
+            set
+            {
+                _autoPitch = value;
+                ApplyPitch();
+                SavePitch();
+            }
+        }
+
+        // A trial's pitch settings are its own and are not saved.
+        private void SavePitch()
+        {
+            if (_trial != null)
+            {
+                return;
+            }
+
+            VoiceProfile profile = _storage.Profile.Clone();
+            profile.Semitones = _semitones;
+            profile.AutoPitch = _autoPitch;
+            _storage.SaveProfile(profile);
+        }
+
+        public float AutoSemitones => PitchMatch.Semitones(_voicePitchHz, _meter.MedianHz);
+
+        public float UserPitchHz => _meter.MedianHz;
+
+        public float VoicePitchHz => _voicePitchHz;
+
+        public void RemeasurePitch()
+        {
+            _meter.Reset();
+            ApplyPitch();
+            SaveUserPitch(0f);
+        }
+
+        private void SaveUserPitch(float hz)
+        {
+            VoiceSettings settings = _storage.Settings.Clone();
+            settings.UserPitchHz = hz;
+            _storage.SaveSettings(settings);
+        }
+
+        // The shift the stream converts with; it applies from the next block.
+        private float AppliedSemitones => PitchMatch.Applied(_autoPitch, AutoSemitones, _semitones);
+
+        private void ApplyPitch()
+        {
+            if (_stream != null)
+            {
+                _stream.Semitones = AppliedSemitones;
             }
         }
 
@@ -187,16 +334,37 @@ namespace VirtualVessel.Voice
 
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
+            // On again if it was on when the app closed: for someone who streams with a changed voice, starting with
+            // their own voice is the worse failure (the user's decision, 2026-11-10).
+            if (_storage.Profile.Enabled)
+            {
+                Enable(true);
+            }
+
             return Task.CompletedTask;
         }
 
+        /// <summary>Turns the conversion on or off as the user chose, and saves it; a trial's on and off are not saved.</summary>
         public void SetEnabled(bool enabled)
+        {
+            if (_trial == null)
+            {
+                VoiceProfile profile = _storage.Profile.Clone();
+                profile.Enabled = enabled;
+                _storage.SaveProfile(profile);
+            }
+
+            Enable(enabled);
+        }
+
+        private void Enable(bool enabled)
         {
             _wanted = enabled;
             if (!enabled)
             {
                 _file = null;
                 Stop();
+                _next.Dispose();
                 _state.Set(VoiceConversionState.Off);
                 ReleaseTick();
                 return;
@@ -204,11 +372,17 @@ namespace VirtualVessel.Voice
 
             // Only while it is wanted: turned off, the conversion costs the frames nothing.
             _tick ??= _frameLoop.Register(Tick);
+            if (_stream != null && _streamVoice != _wantedVoice && !IsAttached)
+            {
+                _stream.Dispose();
+                _stream = null;
+            }
+
             if (_stream != null)
             {
                 Attach();
             }
-            else if (_loading == null)
+            else if (!_loader.IsLoading)
             {
                 BeginLoading();
             }
@@ -231,11 +405,11 @@ namespace VirtualVessel.Voice
             _fileName = Path.GetFileName(path);
             _fileRead = 0;
             _fileClock.Reset();
-            SetEnabled(true);
+            Enable(true);
             return true;
         }
 
-        public System.Collections.Generic.IReadOnlyList<string> FileExtensions => AudioFile.Extensions;
+        public IReadOnlyList<string> FileExtensions => AudioFile.Extensions;
 
         public void StopFile()
         {
@@ -248,55 +422,22 @@ namespace VirtualVessel.Voice
             Stop();
             _tick?.Dispose();
             _tick = null;
-            return Task.CompletedTask;
+            return _storage.FlushAsync();
         }
 
         public void Dispose()
         {
             _tick?.Dispose();
             _tick = null;
+            _next.Dispose();
             _stream?.Dispose();
             _stream = null;
-        }
-
-        /// <summary>The voice's speaker vector: 256 little-endian floats, beside its generator.</summary>
-        public static float[] ReadSpeaker(string path)
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-            var speaker = new float[bytes.Length / sizeof(float)];
-            Buffer.BlockCopy(bytes, 0, speaker, 0, speaker.Length * sizeof(float));
-            return speaker;
-        }
-
-        private static string SpeakerPath(string folder, int windowFrames)
-        {
-            return Path.Combine(folder, Path.ChangeExtension(GeneratorFile(windowFrames), ".spk"));
-        }
-
-        private static string[] ModelPaths(string folder, int windowFrames)
-        {
-            return new[]
-            {
-                Path.Combine(folder, FeaturesFile(windowFrames)),
-                Path.Combine(folder, "rmvpe_32.sentis"),
-                Path.Combine(folder, GeneratorFile(windowFrames)),
-            };
-        }
-
-        /// <summary>The crossfade at each join, in 10 ms frames; the generators are exported for it.</summary>
-        public const int Crossfade = 5;
-
-        private static RvcStreamShape Shape(int windowFrames)
-        {
-            // A 50 ms crossfade: with 20 ms the joins changed the sound every block, heard on held notes as a
-            // wobble in pitch (decision record, 2026-11-03).
-            return new RvcStreamShape(windowFrames, 10, Crossfade, 1, 2, 3, 10 + Crossfade + 1 + 2 + 3 + 24, 32);
         }
 
         // A load in progress still needs the frames to finish on the main thread.
         private void ReleaseTick()
         {
-            if (_loading == null)
+            if (!_loader.IsLoading)
             {
                 _tick?.Dispose();
                 _tick = null;
@@ -305,7 +446,7 @@ namespace VirtualVessel.Voice
 
         // A second of silence at the end carries the last block through, whatever its length. WAV is read here,
         // without the audio plugin; other formats, such as M4A from a phone, go through Windows' decoders.
-        private static float[] ReadFile(string path)
+        internal static float[] ReadFile(string path)
         {
             float[] decoded = string.Equals(Path.GetExtension(path), ".wav", StringComparison.OrdinalIgnoreCase)
                 ? WavFile.Read(File.ReadAllBytes(path), out int rate)
@@ -317,34 +458,44 @@ namespace VirtualVessel.Voice
 
         private void BeginLoading()
         {
-            if (!_stage.IsAvailable || string.IsNullOrEmpty(_folder) || !Array.TrueForAll(ModelPaths(_folder, WindowFrames), File.Exists) || !File.Exists(SpeakerPath(_folder, WindowFrames)))
+            if (_wantedVoice == null && _library != null)
             {
-                _log?.Warning($"Voice conversion is unavailable: stage {_stage.IsAvailable}, model folder '{_folder}'.");
-                _state.Set(VoiceConversionState.Unavailable);
+                CrudResult<IReadOnlyList<VoiceConversionVoice>> voices = _library.List();
+                _wantedVoice = voices.Ok ? VoiceModelLibrary.FirstUsable(voices.Value) : null;
+            }
+
+            bool switching = _stream != null;
+            VoiceModelFiles files = Locate(_wantedVoice);
+            string problem = _stage.IsAvailable ? _loader.Begin(files, _wantedVoice) : "the microphone's stage is unavailable.";
+            if (problem == null)
+            {
+                _loadingPitchHz = FolderOf(_wantedVoice) != null ? files.MedianPitchHz : _library.MedianPitchOf(_wantedVoice);
+            }
+            else
+            {
+                _log?.Warning($"Voice conversion cannot load voice '{LogName(_wantedVoice)}': {problem}");
+                if (switching)
+                {
+                    // The voice in use keeps converting.
+                    _wantedVoice = _streamVoice;
+                }
+                else
+                {
+                    _state.Set(VoiceConversionState.Unavailable);
+                }
+
                 return;
             }
 
-            _loadedModels = 0;
-            _state.Set(VoiceConversionState.Loading);
-            string[] paths = ModelPaths(_folder, WindowFrames);
-            string speaker = SpeakerPath(_folder, WindowFrames);
-            _loading = Task.Run(() =>
+            if (!switching)
             {
-                _speaker = ReadSpeaker(speaker);
-                return Array.ConvertAll(paths, LoadModel);
-            });
-        }
-
-        private Model LoadModel(string path)
-        {
-            Model model = ModelLoader.Load(path);
-            Interlocked.Increment(ref _loadedModels);
-            return model;
+                _state.Set(VoiceConversionState.Loading);
+            }
         }
 
         private void Tick()
         {
-            if (_loading != null && _loading.IsCompleted)
+            if (_loader.IsDone)
             {
                 FinishLoading();
             }
@@ -352,6 +503,15 @@ namespace VirtualVessel.Voice
             if (!IsAttached)
             {
                 return;
+            }
+
+            if (_next.IsActive)
+            {
+                _next.Step();
+            }
+            else if (!_loader.IsLoading && _wantedVoice != _streamVoice)
+            {
+                BeginLoading();
             }
 
             _state.Set(_file != null ? VoiceConversionState.PlayingFile : AttachedState(_stage.IsCapturing));
@@ -370,27 +530,40 @@ namespace VirtualVessel.Voice
 
         private void FinishLoading()
         {
-            Task<Model[]> loading = _loading;
-            _loading = null;
+            bool switching = _stream != null && IsAttached;
+            RvcStream stream = null;
+            string voiceId = _loader.LoadingVoice;
             try
             {
-                Model[] models = loading.GetAwaiter().GetResult();
-                _stream = new RvcStream(models[0], models[1], models[2], _speaker, Shape(WindowFrames), BackendType.GPUCompute, _semitones);
-                _stereo = new float[RvcStream.DeviceRate * ChannelCount];
-                _waiting = new float[RvcStream.DeviceRate];
-                _block = new float[_stream.BlockSamples];
-                _output = new float[_stream.BlockSamples * ChannelCount];
+                stream = _loader.Finish(PitchMatch.Applied(_autoPitch, PitchMatch.Semitones(_loadingPitchHz, _meter.MedianHz), _semitones), out voiceId);
+                if (switching)
+                {
+                    // Warmed a little each frame, while the voice in use keeps converting.
+                    _next.Begin(stream, voiceId);
+                    _log?.Information($"Voice {LogName(voiceId)} loaded; warming up behind voice {LogName(_streamVoice)}.");
+                    return;
+                }
+
+                _stereo ??= new float[RvcStream.DeviceRate * ChannelCount];
+                _waiting ??= new float[RvcStream.DeviceRate];
+                _block ??= new float[stream.BlockSamples];
+                _output ??= new float[stream.BlockSamples * ChannelCount];
+                _blockPitch ??= new float[stream.BlockSamples / BlockSamplesPerFrame];
 
                 // The first runs compile the shaders and take far longer than a block, so they happen
                 // here, where nobody is waiting for the audio yet.
-                var silence = new float[_stream.BlockSamples];
-                for (int i = 0; i < WarmupBlocks; i++)
+                var silence = new float[stream.BlockSamples];
+                for (int i = 0; i < VoiceWarmup.Blocks; i++)
                 {
-                    _stream.Process(silence, silence);
+                    stream.Process(silence, silence);
                     Array.Clear(silence, 0, silence.Length);
                 }
 
-                _log?.Information($"Voice conversion is ready: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
+                _stream?.Dispose();
+                _stream = stream;
+                _streamVoice = voiceId;
+                _voicePitchHz = _loadingPitchHz;
+                _log?.Information($"Voice conversion is ready with voice {LogName(voiceId)}: block {_stream.BlockSamples / 48} ms, algorithm delay {_stream.AlgorithmDelaySamples / 48} ms.");
                 if (_wanted)
                 {
                     Attach();
@@ -403,11 +576,70 @@ namespace VirtualVessel.Voice
             }
             catch (Exception exception)
             {
+                stream?.Dispose();
+                if (switching)
+                {
+                    _log?.Error($"Voice {LogName(voiceId)} could not load; voice {LogName(_streamVoice)} keeps converting.", exception);
+                    _wantedVoice = _streamVoice;
+                    return;
+                }
+
                 _log?.Error("The voice conversion models could not start.", exception);
                 _stream?.Dispose();
                 _stream = null;
                 _state.Set(VoiceConversionState.Failed);
             }
+        }
+
+        /// <summary>A voice's ID as the log shows it: the prototype's is empty, so it gets a name. Pure.</summary>
+        /// <summary>The folder a voice ID names, or null for a registered voice or the prototype's. Pure.</summary>
+        public static string FolderOf(string voiceId)
+        {
+            return voiceId != null && voiceId.StartsWith(FolderPrefix, StringComparison.Ordinal) ? voiceId.Substring(FolderPrefix.Length) : null;
+        }
+
+        // Registered voices by their ID, a voice chosen by its folder by the folder.
+        private VoiceModelFiles Locate(string voiceId)
+        {
+            if (_library == null || voiceId == null)
+            {
+                return VoiceModelFiles.Unusable("There is no voice.");
+            }
+
+            string folder = FolderOf(voiceId);
+            return folder != null ? _library.LocateFolder(folder) : _library.Locate(voiceId);
+        }
+
+        public static string LogName(string voiceId)
+        {
+            return voiceId == VoiceModelLibrary.PrototypeId ? "prototype" : voiceId ?? "none";
+        }
+
+        private void SwapIfReady()
+        {
+            if (!_next.IsWarm)
+            {
+                return;
+            }
+
+            if (_next.VoiceId != _wantedVoice)
+            {
+                // Chosen and then changed again before it was ready.
+                _next.Dispose();
+                return;
+            }
+
+            if (!_next.CanTakeOver(_stream.IsBusy))
+            {
+                return;
+            }
+
+            _log?.Information($"Voice {LogName(_next.VoiceId)} takes over from voice {LogName(_streamVoice)}.");
+            _streamVoice = _next.VoiceId;
+            _voicePitchHz = _loadingPitchHz;
+            _stream.Dispose();
+            _stream = _next.Take();
+            ApplyPitch();
         }
 
         private void Attach()
@@ -466,6 +698,7 @@ namespace VirtualVessel.Voice
                 Deliver();
             }
 
+            SwapIfReady();
             StartBlock();
             RecordDelay();
         }
@@ -499,8 +732,10 @@ namespace VirtualVessel.Voice
                     _droppedCounter?.Add(drop / block);
                 }
 
-                // The block is a whole number of the denoiser's 10 ms frames, so nothing waits for it.
-                if (_denoise)
+                // The microphone is cleaned as it is captured, if the user has it on (audio detailed design 8.6). A file
+                // in its place is cleaned here the same way, so it sounds as the microphone would. The block is a whole
+                // number of the denoiser's 10 ms frames, so nothing waits for it.
+                if (_file != null && _stage.Denoises)
                 {
                     _stage.Denoise(_waiting, block);
                 }
@@ -508,6 +743,28 @@ namespace VirtualVessel.Voice
                 _startedAt.Enqueue(System.Diagnostics.Stopwatch.GetTimestamp());
                 _stream.Start(new ReadOnlySpan<float>(_waiting, 0, block));
                 Consume(block);
+            }
+        }
+
+        // The user's pitch, from the frames of the block just delivered that no longer change, until the meter keeps
+        // its median. Its buffer is reused: this runs every block.
+        private void MeasurePitch()
+        {
+            if (_meter.IsLocked)
+            {
+                return;
+            }
+
+            _stream.CopySettledPitch(_blockPitch);
+            if (_meter.Add(_blockPitch))
+            {
+                ApplyPitch();
+            }
+
+            if (_meter.IsLocked)
+            {
+                // Kept for this PC, so the next start matches the pitch from its first block.
+                SaveUserPitch(_meter.MedianHz);
             }
         }
 
@@ -559,6 +816,7 @@ namespace VirtualVessel.Voice
 
             _stage.Write(_output, _block.Length);
             _blocks++;
+            MeasurePitch();
             long started = _startedAt.Count > 0 ? _startedAt.Dequeue() : System.Diagnostics.Stopwatch.GetTimestamp();
             double work = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             _workTimer?.Record(TimeSpan.FromMilliseconds(work));

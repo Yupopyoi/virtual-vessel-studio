@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine.UIElements;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Voice;
 
 namespace VirtualVessel.UI.Screens
@@ -17,7 +19,6 @@ namespace VirtualVessel.UI.Screens
         public const string StateOff = "diagnostics.voice.state.off";
         public const string StateLoading = "diagnostics.voice.state.loading";
         public const string StateRunning = "diagnostics.voice.state.running";
-        public const string Denoise = "diagnostics.voice.denoise";
         public const string Loading = "diagnostics.voice.loading";
         public const string PlayFile = "diagnostics.voice.play-file";
         public const string StopFile = "diagnostics.voice.stop-file";
@@ -27,6 +28,12 @@ namespace VirtualVessel.UI.Screens
         public const string StateNoMicrophone = "diagnostics.voice.state.no-microphone";
         public const string StateUnavailable = "diagnostics.voice.state.unavailable";
         public const string StateFailed = "diagnostics.voice.state.failed";
+        public const string Voice = "diagnostics.voice.voice";
+        public const string AutoPitch = "diagnostics.voice.auto-pitch";
+        public const string Remeasure = "diagnostics.voice.remeasure";
+        public const string Prototype = "diagnostics.voice.prototype";
+        public const string Unusable = "diagnostics.voice.unusable";
+        public const string Switching = "diagnostics.voice.switching";
     }
 
     /// <summary>
@@ -46,11 +53,15 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _stats;
         private readonly SwitchToggle _toggle;
         private readonly IFileDialog _files;
+        private readonly SelectField _voices;
         private readonly ActionButton _stopFile;
         private readonly ProgressMeter _progress;
         private readonly Label _file;
+        private readonly Label _pitch;
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
+        private VoiceConversionState _state;
+        private bool _switching;
 
         /// <param name="files">Picks an audio file to convert; null leaves that out.</param>
         public VoiceConversionCard(IVoiceConversion voice, IFileDialog files = null)
@@ -65,17 +76,27 @@ namespace VirtualVessel.UI.Screens
             _toggle.RegisterValueChangedCallback(evt => _voice.SetEnabled(evt.newValue));
             card.Add(_toggle);
 
+            _voices = Ui.Select(VoiceConversionStrings.Voice);
+            _voices.RegisterValueChangedCallback(evt => _voice.SelectVoice(evt.newValue));
+            card.Add(_voices);
+
+            SwitchToggle auto = Ui.Toggle(VoiceConversionStrings.AutoPitch);
+            auto.SetValueWithoutNotify(_voice.AutoPitch);
+            auto.RegisterValueChangedCallback(evt => _voice.AutoPitch = evt.newValue);
+            card.Add(auto);
+            _pitch = Text();
+            _pitch.AddToClassList("vv-text-mono");
+            card.Add(_pitch);
+            ActionButton remeasure = Ui.Button(VoiceConversionStrings.Remeasure);
+            remeasure.clicked += _voice.RemeasurePitch;
+            card.Add(remeasure);
+
             ValueSlider semitones = Ui.Slider(VoiceConversionStrings.Semitones, -SemitoneRange, SemitoneRange, null);
             semitones.Step = 1f;
             semitones.Signed = true;
             semitones.SetValueWithoutNotify(_voice.Semitones);
             semitones.RegisterValueChangedCallback(evt => _voice.Semitones = evt.newValue);
             card.Add(semitones);
-
-            SwitchToggle denoise = Ui.Toggle(VoiceConversionStrings.Denoise);
-            denoise.SetValueWithoutNotify(_voice.Denoise);
-            denoise.RegisterValueChangedCallback(evt => _voice.Denoise = evt.newValue);
-            card.Add(denoise);
 
             if (files != null)
             {
@@ -130,10 +151,41 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        /// <summary>The voice list: the prototype's under its own name, a voice this version cannot run marked so. Pure.</summary>
+        public static IReadOnlyList<SelectChoice> Choices(IReadOnlyList<VoiceConversionVoice> voices)
+        {
+            var choices = new List<SelectChoice>();
+            foreach (VoiceConversionVoice voice in voices)
+            {
+                if (string.IsNullOrEmpty(voice.Id))
+                {
+                    choices.Add(SelectChoice.FromKey(voice.Id ?? string.Empty, VoiceConversionStrings.Prototype));
+                }
+                else if (!voice.Usable)
+                {
+                    choices.Add(SelectChoice.FromKey(voice.Id, VoiceConversionStrings.Unusable));
+                }
+                else
+                {
+                    choices.Add(SelectChoice.FromText(voice.Id, voice.Name));
+                }
+            }
+
+            return choices;
+        }
+
         /// <summary>The playing file and its place; empty when none is. Pure.</summary>
         public static string FormatFile(string name, float position, float length)
         {
             return name == null ? string.Empty : string.Format(CultureInfo.InvariantCulture, "{0}  {1:F0} / {2:F0} s", name, position, length);
+        }
+
+        /// <summary>The pitch match as numbers, which read the same in every language. Pure.</summary>
+        public static string FormatPitch(float userHz, float voiceHz, float autoSemitones)
+        {
+            string user = userHz > 0f ? string.Format(CultureInfo.InvariantCulture, "{0:F0} Hz", userHz) : "? Hz";
+            string voice = voiceHz > 0f ? string.Format(CultureInfo.InvariantCulture, "{0:F0} Hz", voiceHz) : "? Hz";
+            return string.Format(CultureInfo.InvariantCulture, "{0} -> {1}  ({2:+0;-0;0})", user, voice, autoSemitones);
         }
 
         /// <summary>Numbers read the same in every language, so this needs no string table. Pure.</summary>
@@ -146,6 +198,15 @@ namespace VirtualVessel.UI.Screens
         {
             _stateSubscription = _voice.State.Subscribe(OnState);
             _refresh = schedule.Execute(Refresh).Every(RefreshMs);
+            ShowVoices();
+        }
+
+        // Read when the card is shown: voices made in Voice Lab since then appear on the next visit.
+        private void ShowVoices()
+        {
+            CrudResult<IReadOnlyList<VoiceConversionVoice>> voices = _voice.ListVoices();
+            _voices.SetChoices(Choices(voices.Ok ? voices.Value : Array.Empty<VoiceConversionVoice>()));
+            _voices.SetValueWithoutNotify(_voice.VoiceId ?? string.Empty);
         }
 
         // A Label takes the panel's default dark text unless a class gives it a color.
@@ -165,13 +226,28 @@ namespace VirtualVessel.UI.Screens
         private void Refresh()
         {
             _stats.text = FormatStats(_voice.Stats);
+            _pitch.text = FormatPitch(_voice.UserPitchHz, _voice.VoicePitchHz, _voice.AutoSemitones);
             _progress.Progress = _voice.LoadProgress;
             (float position, float length) = _voice.FileTime;
             _file.text = FormatFile(_voice.FileName, position, length);
+            bool switching = _voice.IsSwitching;
+            if (switching != _switching)
+            {
+                // Only on a change, so a message such as an unreadable file stays until the state moves on.
+                _switching = switching;
+                _stateText.Key = switching ? VoiceConversionStrings.Switching : StateKey(_state);
+            }
+
+            if (_voice.VoiceId != null && _voices.value != _voice.VoiceId)
+            {
+                // A voice that could not load leaves the one in use chosen.
+                _voices.SetValueWithoutNotify(_voice.VoiceId);
+            }
         }
 
         private void OnState(VoiceConversionState state)
         {
+            _state = state;
             _stateText.Key = StateKey(state);
             _progress.style.display = state == VoiceConversionState.Loading ? DisplayStyle.Flex : DisplayStyle.None;
             _toggle.SetValueWithoutNotify(state != VoiceConversionState.Off && state != VoiceConversionState.Failed && state != VoiceConversionState.Unavailable);

@@ -16,9 +16,10 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 | 処理の段の出し入れ（`IAudioStage`） | Audio |
 | ブロックの受け渡し、変換のオンとオフ、失敗時の扱い | Voice（`VoiceService`） |
 | 変換の処理（DSP、モデルの実行） | Voice（`RvcVoiceConverter`） |
-| 登録済みの声の一覧、検証、読み込み | Voice（`VoiceModelLibrary`） |
+| 登録済みの声の記録（追加、一覧、名前の変更、削除） | Voice（`IVoiceModelRepository`） |
+| 登録済みの声の検証、読み込み | Voice（`VoiceModelLibrary`） |
 | 声の選択、音の高さ、失敗時の扱いの保存 | ProjectData（Voice Profile） |
-| 声の作成と登録 | VoiceLab |
+| 声の作成、登録する声を渡すこと | VoiceLab |
 | 声の選択と状態の表示 | UI |
 
 ## 3. Moduleの境界
@@ -27,17 +28,23 @@ Voice Moduleは、マイクの声を登録済みの声へリアルタイムに�
 - UIは`IVoiceConversion`（UIに置くInterface）だけを見る。RVC、モデル、Inference Engineの型はUIへ出さない。
 - Inference Engineの型は`RvcVoiceConverter`の中に閉じる（方式設計9.12）。上位は`IVoiceConverter`だけを見る（方式設計9.6）。
 - Voice Labが壊れていても、登録済みの声は動く（方式設計13.23）。VoiceはVoiceLabもExternalServicesも参照しない。
+- 登録済みの声はVoiceが持つ。VoiceLabは作った声を`IVoiceModelRepository.Add`で渡し、名前の変更と削除もこれを通す。参照はVoiceLabからVoiceへの一方向である（利用者の決定、2026-11-08）。
 
 ## 4. 主なClassとInterface
 
 | Class | 種類 | 役割 |
 |---|---|---|
 | `IVoiceConversion` | Interface（UI） | 状態、選んだ声、音の高さ、オンとオフ |
-| `VoiceService` | Class | Application Service：フレームごとにブロックを進める |
+| `VoiceService` | Class | Application Service：フレームごとにブロックを進め、どの声を使うかを決める |
+| `VoiceLoader` | Class | 声のモデルをThread Poolで読み、`RvcStream`をメインスレッドで作る。HuBERTとRMVPEは使い回す（8.2） |
+| `VoiceWarmup` | Class | 次の声の下ごしらえと準備運転。差し替えてよいかを決める（8.2） |
+| `VoiceTrialService` | Class | 録音を指定の声で変換し、聞くためのファイルにする（`IVoiceTrial`。8.5） |
 | `IVoiceConverter` | Interface | 変換方式の抽象（方式設計9.6） |
 | `RvcVoiceConverter` | Class | RVC v2の実装。試作の`RvcStream` |
 | `RvcDsp` | Static Class | リサンプル、メル、F0、クロスフェード。副作用なし |
-| `VoiceModelLibrary` | Class | `VoiceModels`の一覧、検証、読み込み |
+| `IVoiceModelRepository` | Interface | 登録済みの声の記録：追加（ファイルを写す）、取得、一覧、名前の変更、削除。CRUDは方式設計6.31に従う |
+| `VoiceModelStore` | Class | その最初の実装。声ごとの`model.json` |
+| `VoiceModelLibrary` | Class | `VoiceModels`の検証、読み込み |
 | `VoiceModelManifest` | Class | `voice.json`の内容 |
 | `VoiceActivation` | Class | アクティベーションの状態を読む |
 
@@ -60,12 +67,26 @@ public interface IVoiceConverter : IDisposable
 public interface IVoiceConversion
 {
     IReadOnlyObservable<VoiceConversionState> State { get; }
-    IReadOnlyObservable<IReadOnlyList<VoiceModelInfo>> Models { get; }
-    IReadOnlyObservable<VoiceOptions> Options { get; }  // 声、音の高さ、失敗時の扱い
-    void SetOptions(VoiceOptions options);
+    CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices();  // ID、名前、高さの中央値、使えるか
+    string VoiceId { get; }                  // 選んだ声。試作の声は空文字
+    void SelectVoice(string voiceId);        // 変換中なら裏で読み込んで差し替える（8.2）
+    void BeginTrial(string folder);          // 登録前の声をマイクで試す。保存しない（8.5）
+    void EndTrial();                         // 保存した声と高さに戻す
+    string InUseVoiceId { get; }             // 配信で使う声（保存した値）。試しでは変わらない
+    bool IsSwitching { get; }                // 選んだ声を準備している間
+    float Semitones { get; set; }            // 利用者の調整。自動がオンなら自動の量に足す
+    bool AutoPitch { get; set; }             // 高さの自動合わせ（8.4）。既定はオン
+    float AutoSemitones { get; }             // 自動の量
+    float UserPitchHz { get; }               // 測った利用者の高さの中央値。測るまでは0
+    float VoicePitchHz { get; }              // 声の高さの中央値。分からないときは0
+    void RemeasurePitch();                   // 測り直す
     void SetEnabled(bool enabled);
 }
 ```
+
+- 一覧はディスクを読むので、画面を開いたときに読む（方式設計6.31）。使えない声（6.1）も一覧に出し、選べないことを示す。
+- 声を選んでいないときは、一覧の最初の使える声を使う。試作の声があれば、それが最初である。
+- 音の高さと失敗時の扱いは、Voice Profile（6.2）と一緒に足す。
 
 ## 6. Data Model
 
@@ -75,41 +96,55 @@ public interface IVoiceConversion
 
 ```text
 VoiceModels/
-├─ <VoiceModelId>/
-│  ├─ voice.json        名前、推奨の音の高さ、形式の版、由来、ハッシュ
-│  ├─ generator.sentis  学習した重みを書き込んだ生成器
-│  └─ speaker.spk       話者ベクトル（256個のfloat）
-└─ Shared/<版>/
-   ├─ hubert.sentis
-   └─ rmvpe.sentis
+├─ voice-<RunId>/
+│  ├─ model.json    名前、元のRun、登録の日時、声の高さの中央値、版。VoiceModelStoreだけが読み書きする
+│  ├─ voice.json    形式の版、窓と返すフレームの数、声の高さの中央値
+│  ├─ voice.sentis  学習した重みを書き込んだ生成器
+│  ├─ voice.spk     話者ベクトル（256個のfloat）
+│  └─ design.json   作り方。Voice Labのファイルで、Voiceは読まずに写す
+├─ Shared/1/
+│  ├─ hubert_16000_anchored.sentis
+│  └─ rmvpe_32.sentis
+└─ Prototype/        開発者が置いた試作の声と共通のモデル
 ```
 
-`voice.json`は`schemaVersion`を持つ（CLAUDE.md 25章）。`shape`に窓とブロックの値を持ち、Runtimeが対応しない形の声は「この版では使えません」と表示して、消さずに残す。
+- 追加では、隣のフォルダー（`.part`）へ写してから名前を変える。配信の側が作りかけの声を読むことはない。`voice.sentis`、`voice.spk`、`voice.json`のどれかがなければ断る（`Invalid`）。
+- `model.json`の、この版が知らない項目は消さずに書き戻す（CLAUDE.md 25章）。2026-11-08より前の声は、ここにVoice Labの`design`を持っていた。
 
-HuBERTとRMVPEは声によらず共通なので、1組だけ持つ。
+`voice.json`は`schemaVersion`を持つ（CLAUDE.md 25章）。`frames`と`returned`に窓と返すフレームの数を持ち、Runtimeが対応しない形の声は「この版では使えません」と表示して、消さずに残す。
+
+HuBERTとRMVPEは声によらず共通なので、1組だけ持つ。`Shared/1/`の`1`は書き出しの版で、生成器の形と直前の声（SpeechAnchor）に対になる。そこになければ`Prototype/`のものを使う。アクティベーション（Voice Lab詳細設計8.1）ができるまでは、`Prototype/`にしかない。
+
+`Prototype/`の声（`fused_w100.sentis`と`.spk`）は記録を持たず、一覧では「試作の声」として出る。開発中に、登録した声と比べるためのものである。
 
 ### 6.2 Voice Profile
 
-Projectの設定（方式設計6.3）。
+Projectの設定（方式設計6.3）。`Profiles/Voice/<VoiceProfileId>.json`に置き、`project.json`の`voiceProfileId`で指す。古いProjectは、開いたときに新しいVoice Profileを持つ（ほかのProfileと同じ）。
 
 | 項目 | 意味 |
 |---|---|
 | `schemaVersion` | 形式の版 |
-| `voiceModelId` | 選んだ声。無いときは未選択 |
-| `semitones` | 音の高さ。-24から24 |
-| `onFailure` | `Mute`または`PassThrough`。既定は`Mute`（12章） |
+| `voiceModelId` | 配信で使う声。無いときは未選択で、一覧の最初の使える声を使う |
+| `semitones` | 利用者の調整（半音）。-24から24。自動合わせがオンなら自動の量に足す（8.4） |
+| `autoPitch` | 高さの自動合わせ。既定はオン |
+| `enabled` | 変換がオンだったか。起動時に戻す。既定はオフ。試しのオンとオフは保存しない |
+| `onFailure` | `Mute`または`PassThrough`。既定は`Mute`（12章）。まだ作っていない（17章） |
 
-声が見つからないときも設定は消さない（CLAUDE.md 25章）。
+- 声を選ぶ、調整を変える、自動合わせを切り替えると、0.5秒待ってから保存する（`VoiceStorage`）。保存を待つ間だけフレームの処理を登録する。終了時に書き切る。
+- 試し（8.5）の間の声と高さの変更は保存しない。試しを終えると、保存した値に戻る。
+- 声が見つからないときも設定は消さない（CLAUDE.md 25章）。
 
-### 6.3 PCごとの設定（設計中）
+### 6.3 PCごとの設定
 
 GPUの負担はPCによって違うので、次はProjectでなくPCごとに持つ（利用者の決定、2026-11-03）。設定のフォルダーの`Config/voice-settings.json`に置く。`app-settings.json`（使うProjectを記録する、ProjectDataのファイル）には入れない。`ui-settings.json`と同じく、Moduleごとのファイルにする。
 
 | 項目 | 意味 |
 |---|---|
 | `schemaVersion` | 形式の版 |
-| `denoise` | ノイズ除去 |
 | `monitorVoice` | 自分に聞こえる声。`Converted`、`Original`（セットアップ画面13.3） |
+| `userPitchHz` | 測った利用者の声の高さの中央値（8.4）。0は未測定 |
+
+今あるのは`userPitchHz`で、`monitorVoice`は自分に聞こえる声（セットアップ画面13.4）と一緒に足す。利用者の声の高さは、Projectではなく使う人とPCに付くのでここに置く（利用者の要望、2026-11-08）。
 
 窓は1秒、つなぎ目の重ねは50 msに固定し、設定にしない（利用者の決定、2026-11-03）。
 
@@ -138,7 +173,7 @@ stateDiagram-v2
 
 ```text
 マイク → Audio → IAudioStage.Read → 貯める（100 ms）
-  → Start：ノイズ除去（RNNoise。声のある間は元の音を戻す）、16 kHzへ、メル、HuBERT（窓の前に利用者の直近の話し声1秒）とRMVPEをGPUへ
+  → Start：（マイクはAudioの取り込みでノイズを除いてある。Audio詳細設計8.6。音声ファイルを流すときだけ、マイクの設定に合わせてここで除く）、16 kHzへ、メル、HuBERT（窓の前に利用者の直近の話し声1秒）とRMVPEをGPUへ
   → Advance：完了したものから読む。読み出しは完了したフレームでしか読めない
   → 生成器をGPUへ
   → Advance：読む、48 kHzへ、クロスフェード
@@ -149,9 +184,58 @@ stateDiagram-v2
 
 方式設計9.8のとおり、音声の機器は止めない。新しい声を裏で読み込み、準備運転が終わってから次のブロックで差し替える。切り替えの間は前の声が動き続ける。
 
+```text
+選ぶ → 生成器と話者ベクトルをThread Poolで読む（HuBERTとRMVPEは読み込み済みのものを使う）
+  → RvcStreamを作る（メインスレッド、約40 ms）
+  → 下ごしらえ：各モデルを1層ずつ無音で実行する。1フレームに4 msまで
+  → 準備運転：無音のブロックを3つ、ふつうのブロックと同じく待たずに進める
+  → 前の声が手元のブロックを終えたら差し替え、前の声を捨てる
+```
+
+- 新しいWorkerの最初の実行は、すべての層を準備するので、1回で約300 msかかる（RTX 4070）。そのままではそのフレームが止まり、前の声のブロックが9つ捨てられた。`Worker.ScheduleIterable`で層ごとに分け、1フレームの時間に上限を置いた。
+- 準備の間に別の声を選び直すと、準備したものは使わずに捨て、選び直した声を読む。
+- 読み込めなかったときは、前の声のまま変換を続け、ログに残す。
+- オフの間に選んだ声は、次にオンにしたときに読む。
+
 ### 8.3 映像との同期
 
 変換の遅れの分、配信の映像を遅らせる（Audio詳細設計8.3、8.4）。`IAudioStage`に遅れの量を申告する口を足す。試作にはまだない。
+
+### 8.4 高さの自動合わせ
+
+声は、その声の高さで鳴らないと、声色が合っていても別の声に聞こえる（決定記録、2026-11-08）。そこで、利用者の声の高さの中央値を声の高さの中央値へ移す（Voice Lab詳細設計8.3.4）。
+
+```text
+半音 = 12・log2(声の中央値 / 利用者の中央値)  を整数に丸め、±24に収める
+かける量 = （自動がオンなら）半音 + 利用者の調整
+```
+
+- 声の中央値は、登録の記録（`model.json`の`medianPitchHz`）から読む。分からない声（試作の声）では合わせない。
+- 利用者の高さは、変換の中のRMVPEの高さを使う。別の推定はしない。生成器の`f0new`（半音を移す前の高さ）のうち、反射の補いに頼らない、確定した1ブロック分の10フレームを毎ブロック集める（`PitchMeter`）。マイクでも録音でも同じである。
+- 生成器は、声のないフレームを直前の声の高さで埋めて返す。これを数えると、文の終わりの下がった高さに中央値が引かれた（149 Hz。上流のRMVPEでは200 Hz）。埋めたフレームは直前とまったく同じ値になり、声のフレームは区間の重み付き平均なので同じ値が続かない。そこで、直前と同じ値のフレームは数えない。直すと、上流のRMVPEと同じ200 Hzになった。
+- 声のある時間が2秒たまったら合わせ始め、10秒たまったら値を保つ。後で高い音で歌っても、移す量は動かない。「測り直す」で最初から測る。
+- 測った値（10秒で固まった中央値）は、PCごとの設定（6.3）に残す。次からは、起動したときから合う。最初の1回だけ、合わせ始めるまでの約2秒は利用者の高さのまま鳴る。「測り直す」で消して測り直す。
+- 集める処理はブロックごとに動くので、バッファーを使い回し、ゴミを作らない。中央値の並べ替えは、測っている間（最初の10秒）だけである。
+
+### 8.5 録音で試す
+
+Voice LabのSTEP 4で、作った声を録音で試す（Voice Lab詳細設計8.3.4、利用者の決定、2026-11-08）。`IVoiceTrial`（UIに置くInterface）を`VoiceTrialService`が実装する。
+
+```text
+声のフォルダー（作ったばかりのRunの出力、または登録した声）と録音
+  → VoiceModelLibrary.LocateFolder：voice.jsonの形と高さの中央値を確かめる
+  → VoiceLoader：Thread Poolで読む（共通のモデルは使い回す）
+  → VoiceWarmup：下ごしらえと準備運転
+  → 1ブロックずつ変換（フレームごとに1つ。配信と同じ窓、つなぎ目、直前の声）
+  → WAV（一時フォルダー）→ 画面がIAudioPreviewでモニターだけに流す
+```
+
+- 配信の変換とは別の`RvcStream`で動かす。マイク、モニターへの返し、配信で使う声には触れない。マイクの「聞く」がオフでも聞ける。
+- 高さの自動合わせは8.4と同じ計算である。利用者の高さが分からないときは、先に一度変換して高さだけを測る（10秒の声で打ち切る）。それから合わせて変換する。
+- ノイズ除去はかからない。Audioの取り込みの処理で（Audio詳細設計8.6）、マイクの流れにしかないためである。
+- 一度に1つ。取り消すと、読み込み中の声は読み終わってから捨てる。
+- マイクで試すときは、配信と同じ変換（`VoiceService`）で、登録前の声をフォルダーで動かす（`BeginTrial`。IDは`folder:`とフォルダー）。読み込みと切り替えは登録した声と同じで、別のフォルダーなら読み直す。試しの間の声と高さの変更は保存しない。`EndTrial`で、保存した声と高さ、試す前のオンかオフかに戻す。試しの途中でアプリが終わっても、保存した声は変わらない。変換した声を聞くには、マイクの「聞く」がオンである必要がある。
+- 測定（RTX 4070）：7.4秒の録音を、高さの測定を含めて8.8秒で変換した。最も長いフレームは21 ms。テスト用のコピーで初めて動かしたときは、シェーダーのコンパイルで1フレームが5.5秒止まった。キャッシュに残った後は起きない。
 
 ## 9. Threadと非同期
 
@@ -202,8 +286,8 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 
 | 種類 | 内容 |
 |---|---|
-| EditMode | `RvcDsp`、`voice.json`の読み書きと古い形式、ライブラリの検証、状態の変化 |
-| PlayMode | 本物のモデルでの実時間のベンチマーク。読み出しの非同期はPlayModeでしか確かめられない |
+| EditMode | `RvcDsp`、`voice.json`の読み書きと古い形式、ライブラリの検証（共通のモデルの場所、形の合わない声）、差し替えの条件、状態の変化 |
+| PlayMode | 本物のモデルでの実時間のベンチマークと、変換中の声の切り替え（`VV_VOICE_MODELS`に登録した声のフォルダー）。読み出しの非同期はPlayModeでしか確かめられない |
 | ネイティブ | 処理の段のバースト、オンとオフ |
 | 手動 | 実際のマイクで聞く |
 
@@ -217,6 +301,7 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 | 1ブロックの処理 | ブロックより短い | 87 ms |
 | 発行するフレームの負担 | 下げる | 13から17 ms |
 | 取りこぼし | 0 | 199ブロックで0 |
+| 声の切り替え | 取りこぼしなし | 159ブロックで0。選んでから約1.5秒で替わる。その間のフレームは中央値4.7 ms、最長47 ms（RvcStreamを作るフレーム） |
 
 遅延を下げる順番：
 
@@ -230,8 +315,9 @@ Voice Profileと、Developer Modeの次の値。固定の値は`voice.json`の`s
 Assets/VirtualVessel/Voice/
 ├─ Runtime/
 │  ├─ VoiceService.cs
+│  ├─ VoiceLoader.cs、VoiceWarmup.cs
 │  ├─ Conversion/   IVoiceConverter、RvcVoiceConverter、RvcDsp
-│  └─ Models/       VoiceModelLibrary、VoiceModelManifest
+│  └─ Models/       IVoiceModelRepository、VoiceModelStore、VoiceModelLibrary、VoiceModelManifest
 ├─ Editor/          VoiceModelImport（開発者がひな形を作る）
 └─ Tests/
    ├─ EditMode/
@@ -251,6 +337,7 @@ Assets/VirtualVessel/Voice/
 
 未解決：
 
+- 変換できないときの扱い（`onFailure`。6.2、12章）はまだ作っていない。今は、止まるとマイクの音がそのまま混ぜ合わせに戻る（`PassThrough`と同じ）。既定の`Mute`にするには、Audioの処理の段で、出力のない間を無音にする必要がある。起動時にオンへ戻すときも、声を読み込む数秒の間は元の声が流れるので、同じ仕組みで無音にする。
 - マイクとミキサーのクロックのずれの補正。試作では補正していない。ブロック単位で数サンプルを足し引きする案がある。
 - 設定の見せ方（利用者の要望、2026-11-03）。普段は簡単に使え、窓などの詳細な設定も残す。何を優先するかで選ぶ設定（GPUを軽く、なめらかさ）は、窓1秒が音でもGPUでも一番よかったので置かない（利用者の決定、2026-11-03）。「歌唱」のような用途の名前は付けない。歌への期待や権利の話を呼び込みやすいためである。自分の耳に返す音（変換後の声、元の声、返さない）は別の設定にする。変換後の声は0.38秒遅れるので、歌うときはリズムを取りにくい。画面の設計はセットアップ画面13章（画面案は利用者の確認待ち）。
 - GPUが遅いPCの扱い。使えるGPUがないときだけ、声の変換をオンにできないようにする（利用者の決定、2026-11-03。セットアップ画面13.4）。どのGPUから使えるかの基準は置かない。必要な性能の基準がまだない。測定できたのはRTX 4070だけである。

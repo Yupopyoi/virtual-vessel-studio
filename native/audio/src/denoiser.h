@@ -20,6 +20,9 @@ namespace vv::audio
         Denoiser(const Denoiser&) = delete;
         Denoiser& operator=(const Denoiser&) = delete;
 
+        // Makes RNNoise's state now, so the first Process does not allocate. False if it cannot.
+        bool Start();
+
         // Cleans mono samples of -1 to 1 in place; count is a multiple of 480. False if it cannot start.
         bool Process(float* samples, int count);
 

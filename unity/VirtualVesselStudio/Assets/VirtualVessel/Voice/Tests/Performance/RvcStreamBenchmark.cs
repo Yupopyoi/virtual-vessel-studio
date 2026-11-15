@@ -6,6 +6,7 @@ using System.Text;
 using NUnit.Framework;
 using Unity.InferenceEngine;
 using UnityEngine;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.Voice.Rvc;
 
 namespace VirtualVessel.Voice.Tests
@@ -27,7 +28,7 @@ namespace VirtualVessel.Voice.Tests
         [TestCase("w100", VoiceService.WindowFrames, BackendType.GPUCompute)]
         public void Convert_ReportsStageTimes(string variant, int windowFrames, BackendType backend)
         {
-            Convert(variant, windowFrames, backend, HeadGuard, VoiceService.Crossfade, TailGuard, VoiceService.GeneratorFile(windowFrames));
+            Convert(variant, windowFrames, backend, HeadGuard, VoiceLoader.Crossfade, TailGuard, VoiceModelLibrary.GeneratorFile(windowFrames));
         }
 
         private static void Convert(string variant, int windowFrames, BackendType backend, int headGuard, int crossfade, int tailGuard, string generatorFile)
@@ -48,10 +49,10 @@ namespace VirtualVessel.Voice.Tests
             float[] input = WavFile.ToRate(WavFile.Read(File.ReadAllBytes(inputPath), out int inputRate), inputRate, RvcStream.DeviceRate);
             var shape = new RvcStreamShape(windowFrames, 10, crossfade, 1, headGuard, tailGuard, 10 + crossfade + 1 + headGuard + tailGuard + 24, 32);
             using var stream = new RvcStream(
-                ModelLoader.Load(Path.Combine(models, VoiceService.FeaturesFile(windowFrames))),
+                ModelLoader.Load(Path.Combine(models, VoiceModelLibrary.FeaturesFile(windowFrames))),
                 ModelLoader.Load(Path.Combine(models, "rmvpe_32.sentis")),
                 ModelLoader.Load(generator),
-                VoiceService.ReadSpeaker(Path.ChangeExtension(generator, ".spk")),
+                VoiceLoader.ReadSpeaker(Path.ChangeExtension(generator, ".spk")),
                 shape,
                 backend,
                 Semitones);

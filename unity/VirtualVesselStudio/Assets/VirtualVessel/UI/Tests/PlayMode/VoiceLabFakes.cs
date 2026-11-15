@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Audio;
+using VirtualVessel.Core.State;
 using VirtualVessel.ProjectData.Records;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Tests
@@ -51,7 +53,26 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabBuild BuildResult { get; set; } = new VoiceLabBuild("run-1", VoiceLabBuildState.Completed, false);
 
-        public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(VoiceLabBuildState.None, 0f);
+        public VoiceLabBuildProgress BuildProgress => new VoiceLabBuildProgress(BuildState, 0f);
+
+        /// <summary>What BuildProgress says; a build in progress for the live screen's guard.</summary>
+        public VoiceLabBuildState BuildState { get; set; }
+
+        public int BuildsCancelled { get; private set; }
+
+        /// <summary>What BuiltVoiceFolder gives; null fails as a run without a voice.</summary>
+        public string BuiltFolder { get; set; } = "built";
+
+        public CrudResult<string> BuiltVoiceFolder(string runId)
+        {
+            return BuiltFolder == null ? CrudResult<string>.Fail(CrudError.Invalid, "none") : CrudResult<string>.Success(BuiltFolder);
+        }
+
+        public void CancelBuild()
+        {
+            BuildsCancelled++;
+            BuildState = VoiceLabBuildState.None;
+        }
 
         public VoiceLabMaking CandidatesProgress => default;
 
@@ -89,9 +110,13 @@ namespace VirtualVessel.UI.Tests
             return source.Task;
         }
 
-        public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
+        /// <summary>The training length of the last build.</summary>
+        public VoiceLabTrainingLength BuiltLength { get; private set; }
+
+        public Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
         {
             Built.Add((candidate, timbre));
+            BuiltLength = length;
             return Task.FromResult(BuildResult);
         }
 
@@ -103,14 +128,14 @@ namespace VirtualVessel.UI.Tests
             return RemakeResult != null ? CrudResult<VoiceLabRemake>.Success(RemakeResult) : CrudResult<VoiceLabRemake>.Fail(CrudError.NotFound, "no run");
         }
 
-        public CrudResult Register(string runId, string name)
+        public CrudResult<string> Register(string runId, string name)
         {
             lock (Registered)
             {
                 Registered.Add((runId, name));
             }
 
-            return CrudResult.Success;
+            return CrudResult<string>.Success("voice-" + runId);
         }
     }
 
@@ -181,6 +206,126 @@ namespace VirtualVessel.UI.Tests
 
             Voices.RemoveAll(v => v.Id == voiceId);
             return CrudResult.Success;
+        }
+
+        public CrudResult<string> VoiceFolder(string voiceId)
+        {
+            return Voices.Exists(v => v.Id == voiceId) ? CrudResult<string>.Success("voices/" + voiceId) : CrudResult<string>.Fail(CrudError.NotFound, voiceId);
+        }
+    }
+
+    internal sealed class FakeTrial : IVoiceTrial
+    {
+        public List<VoiceTrialRequest> Requests { get; } = new List<VoiceTrialRequest>();
+
+        public Task<VoiceTrialResult> ConvertAsync(VoiceTrialRequest request, IProgress<float> progress, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new VoiceTrialResult($"converted-{Requests.Count}.wav", 200f, 285f, request.AutoPitch ? 6f + request.Adjustment : request.Adjustment));
+        }
+    }
+
+    /// <summary>The voice conversion as STEP 4 sees it: the choice, on and off, and the pitch.</summary>
+    internal sealed class FakeVoice : IVoiceConversion
+    {
+        private readonly ObservableValue<VoiceConversionState> _state = new ObservableValue<VoiceConversionState>(VoiceConversionState.Off);
+
+        public IReadOnlyObservable<VoiceConversionState> State => _state;
+
+        public List<VoiceConversionVoice> Voices { get; } = new List<VoiceConversionVoice>();
+
+        public CrudResult<IReadOnlyList<VoiceConversionVoice>> ListVoices()
+        {
+            return CrudResult<IReadOnlyList<VoiceConversionVoice>>.Success(Voices.ToArray());
+        }
+
+        private bool _wasOn;
+        private float _savedSemitones;
+        private bool _savedAuto = true;
+
+        public string VoiceId { get; private set; }
+
+        public string InUseVoiceId { get; private set; }
+
+        public bool InTrial { get; private set; }
+
+        public void SelectVoice(string voiceId)
+        {
+            InUseVoiceId = voiceId;
+            VoiceId = InTrial ? VoiceId : voiceId;
+        }
+
+        public void BeginTrial(string folder)
+        {
+            _wasOn = InTrial ? _wasOn : _state.Value != VoiceConversionState.Off;
+            InTrial = true;
+            VoiceId = "folder:" + folder;
+            SetEnabled(true);
+        }
+
+        public void EndTrial()
+        {
+            InTrial = false;
+            VoiceId = InUseVoiceId;
+            _semitones = _savedSemitones;
+            AutoPitch = _savedAuto;
+            SetEnabled(_wasOn);
+        }
+
+        public bool IsSwitching => false;
+
+        private float _semitones;
+
+        public float Semitones
+        {
+            get => _semitones;
+            set
+            {
+                _semitones = value;
+                if (!InTrial)
+                {
+                    _savedSemitones = value;
+                }
+            }
+        }
+
+        public bool AutoPitch { get; set; } = true;
+
+        public float AutoSemitones => 0f;
+
+        public float UserPitchHz => 0f;
+
+        public float VoicePitchHz => 0f;
+
+        public void RemeasurePitch()
+        {
+        }
+
+
+        public bool GpuAvailable { get; set; } = true;
+
+        public float LoadProgress => 0f;
+
+        public string FileName => null;
+
+        public (float Position, float Length) FileTime => (0f, 0f);
+
+        public VoiceConversionStats Stats => default;
+
+        public void SetEnabled(bool enabled)
+        {
+            _state.Set(enabled ? VoiceConversionState.Running : VoiceConversionState.Off);
+        }
+
+        public Task<bool> PlayFileAsync(string path)
+        {
+            return Task.FromResult(false);
+        }
+
+        public IReadOnlyList<string> FileExtensions => new[] { "wav" };
+
+        public void StopFile()
+        {
         }
     }
 }

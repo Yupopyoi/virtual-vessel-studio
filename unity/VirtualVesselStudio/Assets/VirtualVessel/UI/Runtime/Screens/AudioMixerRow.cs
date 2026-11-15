@@ -12,14 +12,16 @@ namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// One row of the audio mixer (components.md 3.25): the name and state, the device, the volume, whether it
-    /// is heard, mute, and the level, in the columns of <see cref="Columns"/>, with the problem under them.
+    /// is heard, noise removal, mute, and the level, in the columns of <see cref="Columns"/>, with the problem under
+    /// them.
     /// </summary>
     public abstract class AudioMixerRow
     {
         private readonly KeyedText _problemText;
 
         /// <param name="hear">The control of the Hear column, or null for a blank there.</param>
-        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear)
+        /// <param name="denoise">The control of the Noise removal column, or null for a blank there.</param>
+        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear, SwitchToggle denoise = null)
         {
             Root = new VisualElement();
             Root.AddToClassList(AudioCard.GroupClass);
@@ -55,7 +57,8 @@ namespace VirtualVessel.UI.Screens
             Gain.RegisterValueChangedCallback(evt => SetGain(evt.newValue));
             row.Add(Cell(AudioStrings.Gain, Gain, AudioCard.GainColumn));
 
-            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn) : EmptyCell(AudioCard.ToggleColumn));
+            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription) : EmptyCell(AudioCard.ToggleColumn));
+            row.Add(denoise != null ? Cell(AudioStrings.Denoise, denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription) : EmptyCell(AudioCard.DenoiseColumn));
 
             Mute = new SwitchToggle();
             Mute.RegisterValueChangedCallback(evt => SetMuted(evt.newValue));
@@ -96,7 +99,8 @@ namespace VirtualVessel.UI.Screens
             columns.Add(Heading(AudioStrings.Source, AudioCard.NameColumn));
             columns.Add(Heading(AudioStrings.Device, AudioCard.DeviceColumn));
             columns.Add(Heading(AudioStrings.Gain, AudioCard.GainColumn));
-            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn));
+            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription));
+            columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription));
             columns.Add(Heading(AudioStrings.Mute, AudioCard.ToggleColumn));
             columns.Add(Heading(AudioStrings.Level, AudioCard.LevelColumn));
             return columns;
@@ -140,9 +144,18 @@ namespace VirtualVessel.UI.Screens
             return problemKey;
         }
 
-        private static VisualElement Heading(string key, string column)
+        private static VisualElement Heading(string key, string column, string helpKey = null)
         {
-            return Ui.Text(key, AudioCard.CellClass, column, "vv-text-caption");
+            if (helpKey == null)
+            {
+                return Ui.Text(key, AudioCard.CellClass, column, "vv-text-caption");
+            }
+
+            VisualElement cell = NewCell(column);
+            cell.AddToClassList(AudioCard.HelpCellClass);
+            cell.Add(Ui.Text(key, "vv-text-caption"));
+            cell.Add(new HelpHint(helpKey));
+            return cell;
         }
 
         private static VisualElement NameCell(VisualElement name)
@@ -152,11 +165,25 @@ namespace VirtualVessel.UI.Screens
             return cell;
         }
 
-        // The name in a cell shows only while the columns' headings are gone (AudioCard.NarrowClass).
-        private static VisualElement Cell(string key, VisualElement control, string column)
+        // The name in a cell shows only while the columns' headings are gone (AudioCard.NarrowClass), with the heading's
+        // help hint, so the explanation stays reachable then.
+        private static VisualElement Cell(string key, VisualElement control, string column, string helpKey = null)
         {
             VisualElement cell = NewCell(column);
-            cell.Add(Ui.Text(key, AudioCard.CellLabelClass, "vv-text-caption"));
+            if (helpKey == null)
+            {
+                cell.Add(Ui.Text(key, AudioCard.CellLabelClass, "vv-text-caption"));
+            }
+            else
+            {
+                var label = new VisualElement();
+                label.AddToClassList(AudioCard.CellLabelClass);
+                label.AddToClassList(AudioCard.HelpCellClass);
+                label.Add(Ui.Text(key, "vv-text-caption"));
+                label.Add(new HelpHint(helpKey));
+                cell.Add(label);
+            }
+
             cell.Add(control);
             return cell;
         }
@@ -185,24 +212,33 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="deviceElsewhere">The device is chosen on another Card, so this row only shows it.</param>
         public AudioSourceRow(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere)
-            : this(source, systemSettings, deviceElsewhere, new SwitchToggle())
+            : this(source, systemSettings, deviceElsewhere, new SwitchToggle(), source.Role == AudioSourceRole.Microphone ? new SwitchToggle() : null)
         {
         }
 
-        private AudioSourceRow(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere, SwitchToggle monitored)
-            : base(source.Role == AudioSourceRole.Microphone ? AudioStrings.Microphone : AudioStrings.GameAudio, AudioStrings.Device, monitored)
+        // Noise removal is for a voice; the game's own sound is left as it is.
+        private AudioSourceRow(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere, SwitchToggle monitored, SwitchToggle denoise)
+            : base(source.Role == AudioSourceRole.Microphone ? AudioStrings.Microphone : AudioStrings.GameAudio, AudioStrings.Device, monitored, denoise)
         {
             _source = source;
             Monitored = monitored;
             Monitored.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithMonitored(evt.newValue)));
+            Denoise = denoise;
+            Denoise?.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithDenoise(evt.newValue)));
+            if (Denoise != null)
+            {
+                Denoise.TooltipKey = AudioStrings.DenoiseDescription;
+            }
 
             // Only when Windows denies access: the one problem the user fixes in Windows' own settings.
             PrivacyButton = Ui.Button(AudioStrings.OpenPrivacy).Bind(new UiCommand(() => systemSettings?.OpenMicrophonePrivacy()));
             PrivacyButton.AddToClassList(AudioCard.PrivacyClass);
             Root.Add(PrivacyButton);
 
-            // Disabled, not left out, so the row still says which device the sound comes from.
+            // Disabled, not left out, so the row still says which device the sound comes from; the tooltip says where
+            // it is chosen.
             Devices.SetEnabled(!deviceElsewhere);
+            Devices.TooltipKey = deviceElsewhere ? AudioStrings.GameDeviceNote : null;
             Show();
         }
 
@@ -210,6 +246,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Whether the user hears this source.</summary>
         public SwitchToggle Monitored { get; }
+
+        /// <summary>Noise removal; null for a source other than the microphone.</summary>
+        public SwitchToggle Denoise { get; }
 
         protected override string DeviceId => _source.Options.Value.DeviceId;
 
@@ -243,6 +282,7 @@ namespace VirtualVessel.UI.Screens
             string problemKey = ShowCommon(_source.State.Value, _source.Problem.Value, options.Muted, options.GainDb);
             PrivacyButton.style.display = problemKey == AudioStrings.ProblemAccessDenied ? DisplayStyle.Flex : DisplayStyle.None;
             Monitored.SetValueWithoutNotify(options.Monitored);
+            Denoise?.SetValueWithoutNotify(options.Denoise);
         }
     }
 

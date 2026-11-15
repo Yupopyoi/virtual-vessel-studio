@@ -13,7 +13,9 @@ using VirtualVessel.Audio;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 using Object = UnityEngine.Object;
 
@@ -56,7 +58,8 @@ namespace VirtualVessel.UI.Tests
 
             VoiceLabScreen screen = Screen();
             Assert.That(screen.Steps, Is.Null);
-            Assert.That(screen.Q<Card>().TitleKey, Is.EqualTo(VoiceLabStrings.NotSetUpTitle));
+            Assert.That(screen.Query<Card>().ToList().Any(c => c.TitleKey == VoiceLabStrings.NotSetUpTitle && c.resolvedStyle.display == DisplayStyle.Flex), Is.True);
+            Assert.That(screen.LiveLock.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Not live, so not locked.");
         }
 
         [UnityTest]
@@ -109,6 +112,7 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(_lab.Built.Single().Candidate.Id, Is.EqualTo("c1"));
             Assert.That(_lab.Built.Single().Timbre.Age, Is.EqualTo(4f));
+            Assert.That(_lab.BuiltLength, Is.EqualTo(VoiceLabTrainingLength.Short), "Short unless chosen in the details.");
             Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep), "A finished voice goes on to be tried.");
 
             screen.GoTo(VoiceLabScreen.RegisterStep);
@@ -265,6 +269,169 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator PressingAStepReached_OpensIt()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            screen.GoTo(VoiceLabScreen.BaseStep);
+            yield return null;
+
+            Submit(screen.Steps.Query<Button>().AtIndex(VoiceLabScreen.TimbreStep));
+            yield return null;
+
+            Assert.That(screen.Steps.Current, Is.EqualTo(VoiceLabScreen.TimbreStep));
+        }
+
+        // Builds a voice through STEP 3 and opens STEP 4.
+        private IEnumerator ToTryStep(VoiceLabScreen screen)
+        {
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            Submit(((VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep)).StartButton);
+            yield return null;
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+        }
+
+        [UnityTest]
+        public IEnumerator ARecording_IsConvertedWithTheVoiceJustMade_AndPlayedToTheMonitor()
+        {
+            Object.Destroy(_host);
+            var trial = new FakeTrial();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            VoiceLabTryStep step = screen.Try;
+            step.Recording = "me.m4a";
+            yield return null;
+
+            Submit(step.ConvertedButton);
+            yield return null;
+            Submit(step.ConvertedButton);
+            yield return null;
+
+            Assert.That(trial.Requests.Count, Is.EqualTo(1), "The same conversion plays again without converting again.");
+            Assert.That((trial.Requests[0].VoiceFolder, trial.Requests[0].Recording, trial.Requests[0].AutoPitch), Is.EqualTo(("built", "me.m4a", true)));
+            Assert.That(_preview.Played.Last(), Is.EqualTo("converted-1.wav"));
+
+            step.Adjustment.value = 2f;
+            Submit(step.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Count, Is.EqualTo(2), "A new adjustment converts again.");
+            Assert.That(trial.Requests[1].KnownUserHz, Is.EqualTo(200f), "The measured pitch is reused.");
+
+            Submit(step.OriginalButton);
+            yield return null;
+            Assert.That(_preview.Played.Last(), Is.EqualTo("me.m4a"));
+        }
+
+        [UnityTest]
+        public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var trial = new FakeTrial();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Single().VoiceFolder, Is.EqualTo("voices/voice-1"), "The registered voice, not a build.");
+        }
+
+        [UnityTest]
+        public IEnumerator Registering_UsesTheVoiceForTheStream_WhenAsked()
+        {
+            Object.Destroy(_host);
+            var voice = new FakeVoice();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.UseNow.value, Is.True, "On by default.");
+            register.NameInput.value = "Fuwari";
+
+            Submit(register.RegisterButton);
+            yield return null;
+            yield return null;
+
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-run-1"));
+        }
+
+        [UnityTest]
+        public IEnumerator MadeVoices_UseAVoice_AndKeepTheOneInUseFromDeletion()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var voice = new FakeVoice();
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.Use).First());
+            yield return null;
+
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-1"));
+            Assert.That(screen.Library.Query<StatusChip>().Where(c => c.TextKey == VoiceLabStrings.InUse).ToList(), Has.Count.EqualTo(1));
+            ActionButton delete = screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.Delete).First();
+            Assert.That(delete.enabledSelf, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator AfterRegistering_STEP4CanBeOpenedAgain()
+        {
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            register.Q<TextInput>().value = "Fuwari";
+            Submit(register.RegisterButton);
+            yield return null;
+            yield return null;
+
+            Submit(register.BackButton);
+
+            Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.TryStep));
+        }
+
+        [UnityTest]
+        public IEnumerator TheMicrophoneTrial_UsesTheVoiceJustMade_AndPutsTheConversionBack()
+        {
+            Object.Destroy(_host);
+            var voice = new FakeVoice { Semitones = 3f };
+            voice.SelectVoice("voice-old");
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, Voice = voice });
+            VoiceLabScreen screen = Screen();
+            yield return ToTryStep(screen);
+            VoiceLabTryStep step = screen.Try;
+            step.Sources.value = VoiceLabTryStep.MicrophoneSource;
+
+            step.MicToggle.value = true;
+            Assert.That((voice.VoiceId, voice.State.Value), Is.EqualTo(("folder:built", VoiceConversionState.Running)));
+            Assert.That(voice.Semitones, Is.EqualTo(0f), "STEP 4's own adjustment.");
+
+            screen.GoTo(VoiceLabScreen.TimbreStep);
+            Assert.That((voice.VoiceId, voice.State.Value, voice.Semitones), Is.EqualTo(("voice-old", VoiceConversionState.Off, 3f)), "As before the trial.");
+        }
+
+        [UnityTest]
         public IEnumerator ChangingTheTimbre_ClosesTheStepsAfterIt()
         {
             VoiceLabScreen screen = Screen();
@@ -282,19 +449,43 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator Building_WaitsWhileAStreamRuns()
+        public IEnumerator TheScreen_IsLocked_WhileStreamingOrRecording()
         {
             Object.Destroy(_host);
             var streaming = new StreamPanelTests.FakeStreaming();
+            var recording = new RecordPanelTests.FakeRecording();
             streaming.SetState(StreamingState.Live);
-            yield return Build(new ScreenServices { VoiceLab = _lab, Streaming = streaming });
+            yield return Build(new ScreenServices { VoiceLab = _lab, Streaming = streaming, Recording = recording });
 
             VoiceLabScreen screen = Screen();
-            var build = (VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep);
-            Assert.That(build.StartButton.enabledSelf, Is.False);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.None), "Voice Lab is hidden.");
 
             streaming.SetState(StreamingState.Idle);
-            Assert.That(build.StartButton.enabledSelf, Is.True);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.None));
+            Assert.That(screen.Steps.parent.parent.style.display.value, Is.EqualTo(DisplayStyle.Flex));
+
+            recording.SetState(RecordingState.Recording);
+            Assert.That(screen.LiveLock.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Recording locks it too.");
+        }
+
+        [UnityTest]
+        public IEnumerator ALongerTraining_ChosenInTheDetails_IsBuilt_AndSaysItsTime()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.First().PickButton);
+            screen.GoTo(VoiceLabScreen.BuildStep);
+            var build = (VoiceLabBuildStep)screen.Panel(VoiceLabScreen.BuildStep);
+
+            build.LengthChooser.value = (int)VoiceLabTrainingLength.Long;
+            Assert.That(build.Query<Label>().ToList().Any(l => l.text == _root.Localizer.Get(VoiceLabStrings.BuildNoteLong)), Is.True);
+            Submit(build.StartButton);
+            yield return null;
+
+            Assert.That(_lab.BuiltLength, Is.EqualTo(VoiceLabTrainingLength.Long));
         }
 
         [UnityTest]

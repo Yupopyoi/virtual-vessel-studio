@@ -25,7 +25,13 @@
     margin-right: var(--vv-space-m);
 }
 
+.vv-setting-row__heading {
+    flex-direction: row;
+    align-items: center;
+}
+
 .vv-setting-row__name {
+    flex-shrink: 1;
     color: var(--vv-color-text);
     white-space: normal;
 }
@@ -34,6 +40,20 @@
     margin-top: 2px;
     color: var(--vv-color-text-3);
     white-space: normal;
+}
+
+/* More than one control on a row, such as a button and a toggle: the S space between them (components.md 3.11). */
+.vv-setting-row__controls {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-setting-row__controls > * {
+    margin-left: var(--vv-space-s);
+}
+
+.vv-setting-row__controls > *:first-child {
+    margin-left: 0;
 }
 
 .vv-setting-row__control {

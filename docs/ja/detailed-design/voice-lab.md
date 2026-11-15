@@ -21,7 +21,8 @@
 | 学習環境の構築、確認、削除 | VoiceLab（`VoiceComponentInstaller`） |
 | 学習用の音声の管理 | VoiceLab（`DatasetStore`） |
 | 学習の実行と状態 | VoiceLab（`VoiceDesigner`、`TrainingRunStore`、`PythonScripts`） |
-| 声の登録 | VoiceLab（`VoiceModelRegistrar`） |
+| 声の登録（Voiceへ渡す） | VoiceLab（`VoiceModelRegistrar`） |
+| 登録した声の記録 | Voice（`IVoiceModelRepository`。Voice詳細設計6.1） |
 | Processの実行 | ExternalServices |
 | 登録された声の利用 | Voice |
 
@@ -31,6 +32,7 @@
 - RVCとVoxCPM2の本体は変更しない（方式設計13.3）。本システムのコードは`services/`のAdapterに置く。
 - Unityが知るのはAdapterの入出力だけで、RVCのフォルダー構成やログの形式は知らない。
 - 配信の経路はVoiceLabに依存しない。
+- 登録した声はVoiceが持つ（利用者の決定、2026-11-08）。VoiceLabはVoiceの`IVoiceModelRepository`を通して、声を渡し、名前を変え、消す。VoiceはVoiceLabを参照しない。
 
 ## 4. 主なClassとInterface
 
@@ -45,7 +47,7 @@
 | `TrainingRunStore` | Class | Training Runのフォルダーと`run.json`（6.3） |
 | `PythonScripts` | Class | Python側のスクリプトとのやり取り（8.5）。スクリプトの名前と決まりごとを知るのはここだけ |
 | `VoiceLabEnvironment` | Class | 学習環境の場所。アクティベーションができるまでは開発者が指定する（6.4） |
-| `VoiceModelRegistrar` | Class | 学習結果を声として登録する |
+| `VoiceModelRegistrar` | Class | 学習結果を、作り方（`design.json`）と一緒にVoiceへ渡す |
 | `VoiceDesigner` | Class | 声を設計する流れ（8.3）：土台の候補、声色の試聴、学習用の音声 |
 
 Python側：
@@ -73,10 +75,11 @@ public interface IVoiceLab
     // 声を設計する（8.3）
     Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken);  // near：null、または近くに作る元の候補（8.3.1）
     Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
-    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+    Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);  // 長さ：8.3.3
     VoiceLabMaking CandidatesProgress { get; }    // 候補をいくつ作ったか。モデルの読み込み中は総数なし
     VoiceLabBuildProgress BuildProgress { get; }  // 作成中の状態と割合。画面が必要なだけ読む
-    CrudResult Register(string runId, string name);
+    void CancelBuild();                           // 作成を止める。配信や録画を始めるとき（方式設計14.26）
+    CrudResult<string> Register(string runId, string name);   // 登録した声のID。すぐに使うため
 
     CrudResult<VoiceLabRemake> Remake(string runId);             // 作り直すための、Runの言葉、土台、声色（8.6）
 }
@@ -158,7 +161,7 @@ VoiceLab/
 
 `run.json`の項目：`schemaVersion`、`runId`（開始時刻と乱数：`20261104-120000-1a2b`）、`state`（方式設計13.15）、`createdAtUtc`、`updatedAtUtc`、`design`（指示文、乱数、候補の音声、手本にした音声（あれば）、声色、棚の言葉`words`、ユーザーの文章`freeWords`、土台の高さ`medianHz`、`lowHz`、`highHz`。古いRunにはなく、なしまたは0として読む）、`comment`（ユーザーのメモ）、`errorCode`と`error`（失敗と取り消しのとき）、`versions`（スクリプトが報告したtorch、voxcpm、numpyの版）。`state`は状態の名前で書く。読み書きはProjectDataの設定ファイルの部品（`ConfigFileStore`）で行う：途中で壊れない書き込み、新しい版の知らない項目の保持、壊れたファイルの退避は、ほかの設定ファイルと同じである。読めない状態の名前（新しい版のもの）は失敗とみなす。JSONの読み書きはProjectDataの部品だけが行う決まりなので、スクリプトへの依頼と出力の読み取りも`ConfigDocument`を通す。
 
-声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、実測の時間の割合（音声39%、加工6%、学習50%、書き出し5%）で各段階の進み具合を合わせる。
+声を作る段階と状態：学習用の音声（`Preparing`）→ 声色の加工（`Preprocessing`）→ 学習（`Training`）→ 書き出し（`PostProcessing`）→ `Completed`。失敗は`Failed`、取り消しは`Cancelled`として、Runを消さずに残す（方式設計13.22）。全体の進み具合は、各段階の見込みの時間（150エポックの実測で、音声7分、加工1分、学習9分、書き出し1分。学習はエポック数に比例させる）の割合で、各段階の進み具合を合わせる。
 
 ### 6.4 開発中の環境の指定
 
@@ -166,7 +169,9 @@ VoiceLab/
 
 ### 6.5 登録した声
 
-`VoiceModels/voice-<RunId>/`に、`voice.sentis`、`voice.spk`、`voice.json`と、`model.json`（`schemaVersion`、`id`、`name`、`runId`、`registeredAtUtc`、`medianPitchHz`、`design`、`versions`）を置く。登録は完了したRunだけで行う。登録した声は、名前の変更と削除ができる（8.6）。登録では、隣のフォルダーへ写してから名前を変えるので、配信の側が作りかけの声を読むことはない。Runのファイルはそのまま残る。
+登録した声はVoiceが持つ（Voice詳細設計6.1）。登録は完了したRunだけで行う。Voice Labは、Runの`output/`の`voice.sentis`、`voice.spk`、`voice.json`と、作り方の`design.json`（`RunDesign`。`schemaVersion`付き）をVoiceへ渡す。Voiceはそれを`VoiceModels/voice-<RunId>/`へ写し、`model.json`を書く。`design.json`を読むのはVoice Labだけで、「作った声」のタブで土台を聞くために使う。作り方が声と一緒にあるので、Runを消しても声の作り方は残る。登録した声は、名前の変更と削除ができる（8.6）。Runのファイルはそのまま残る。
+
+2026-11-08より前に登録した声は`design.json`を持たず、作り方は`model.json`の`design`にある。開発中の声だけなので移し替えはせず、「作った声」のタブではその声の土台を聞けない。
 
 ## 7. 状態とライフサイクル
 
@@ -255,7 +260,7 @@ PCの確認：GPU、ドライバー、空き容量、接続
 5. 登録する       ：気に入らなければ2へ戻る
 ```
 
-既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。3は1つの声で約20分（学習用の音声7.5分の生成に約7分、加工に約2分、学習に約11分。2026-11-03の実測）。
+既定の学習は150エポック。RTX 4070で7分の音声に約10分かかった。学習の長さはSTEP 3の詳細設定で選べる（8.3.3）。3は1つの声で約20分（学習用の音声7.5分の生成に約7分、加工に約2分、学習に約11分。2026-11-03の実測）。
 
 #### 8.3.1 土台を選ぶ
 
@@ -293,13 +298,15 @@ PCの確認：GPU、ドライバー、空き容量、接続
 
 - 学習用の音声は、選んだ土台を手本にしたVoxCPM2の声のコピーで作る（指示文は付けない）。そのあと8.3.2と同じ値で加工する。
 - 文の選び方：5つの母音のすべて、伸ばした母音、高めの声を含める。伸ばした「う」が「あ」に寄る問題（Voice詳細設計）は、学習用の音声の母音の不足も一因かもしれない。**未検証の仮説**である。
-- 土台の指示文、乱数、声色の値をTraining Runに残し、作り直せるようにする（6.3）。
+- 土台の指示文、乱数、声色の値、エポック数をTraining Runに残し、作り直せるようにする（6.3）。`epochs`のない`run.json`は150で作ったものである。
+- 学習の長さ：短い（150エポック、既定、約20分）、ふつう（300、約30分）、長い（600、約50分）をSTEP 3の詳細設定で選ぶ（ユーザーの決定、2026-11-08）。150では声の「もちもち感」（やわらかさ、丸み）が消え、600では戻った。耳と、第1倍音の強さ（H1−H2）で確かめた（決定記録、2026-11-08）。既定は時間を優先して150のままにする。画面の選択肢はエポック数で示す（時間は保証できないため）。
+- テスト（Unity Editorだけ）：学習用の音声を4文だけ作り、1エポック学習する（`BuildPlan.EditorTest`）。画面の確認を数分で済ませるためで、使える声にはならない（ユーザーの要望、2026-11-08。開発PCで約3分）。選択肢と、組み立ての側がVoice Labに許す設定（`AllowEditorTest`）は、どちらも`#if UNITY_EDITOR`の中にあり、配布物には入らない。許されていないときに頼まれても、既定の作り方にする。`run.json`には`speechLines`（0は全文）を残す。
 
 #### 8.3.4 自分の声で試す
 
 - アプリのリアルタイムの変換（Voice詳細設計の窓、つなぎ目の重ね、直前の声、ノイズ除去）で試す。ファイル全体を一度に変換する上流の変換は窓の問題を隠し、作った声を高く評価してしまう。伸ばした「う」と「え」は、上流の変換では正しく、リアルタイムでは崩れた。
-- 試す音声は、利用者の録音（WAV、M4A、MP3。Audio詳細設計5.4）か、マイクの声とする。
-- 変換の高さは自動で合わせる：声の登録のときに声の高さの中央値を残し、利用者の声の高さとの差から移す量を決める。Voice側の受け取り方はVoice詳細設計で決める（17章）。
+- 試す音声は、利用者の録音（WAV、M4A、MP3。Audio詳細設計5.4）か、マイクの声とする。録音は、配信と同じ処理でブロックごとに変換してからモニターだけに流す（Voice詳細設計8.5。利用者の決定、2026-11-08）。マイクの設定に関係なく聞け、元の声と交互に聞き比べられる。
+- 変換の高さは自動で合わせる：声の登録のときに声の高さの中央値を残し、利用者の声の高さとの差から移す量を決める。Voice側の受け取り方はVoice詳細設計8.4にある。
 
 ### 8.6 作った声
 
@@ -307,11 +314,11 @@ Voice Labの「作った声」のタブ（画面仕様8）で、学習の記録�
 
 **CRUDは方式設計6.31に従う。** リポジトリ、ライブラリ、`Register`、`Remake`は`CrudResult`を返し、失敗（NotFound、Invalid、Busy、StorageFailed）を知らせるだけにする。画面が対応し、失敗の種類に合わせてユーザーに伝え、説明をログに残す。ないものを消すのは成功とする。
 
-**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
+**保存はリポジトリの裏に置く。** Runと声は、`ITrainingRunRepository`（一覧、取得、作成、保存、削除）と、Voiceの`IVoiceModelRepository`（一覧、取得、追加、名前の変更、削除。Voice詳細設計6.1）だけを通して読み書きする。最初の実装は`run.json`と`model.json`を使う（6.3、6.5）。SQLite（方式設計13.12）は同じインターフェイスの別の実装にし、大きなファイルはフォルダーに残す（13.13）。そのため、サービスと画面は変わらない。リポジトリの外では、これらのファイルを読まない。
 
 - 一覧：Runと声を新しい順に並べる。Runは日時、状態、選んだ言葉、声色、メモ、そこから登録した声を見せる。声は名前、高さ、日時を見せる。どちらも、Runを作った土台を聞ける（登録した声をリアルタイムの変換で試すのは第5段階）。
 - 名前とメモ：声の名前は登録と同じ決まり（必須、60文字まで）。Runのメモは500文字まで。どちらもすぐに保存する。
-- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使っている声を消せないようにするのは、「すぐに使う」と合わせて作る。声が使われる状態はそこで初めてできるためである。
+- 削除：確認の後に消す。作っている最中のRunは消せない。声を消してもRunは残り、Runを消してもそこから登録した声は残る（声のフォルダーは自分のファイルと作り方を持つ）。配信で使う声（Voice Profileの`voiceModelId`。Voice詳細設計6.2）は消せない。`VoiceLabLibrary.DeleteVoice`が`Busy`で断る。どの声が使われているかはVoiceが知っているので、組み立ての側が`VoiceLabService.VoiceInUse`で渡す。試し（Voice詳細設計8.5）は使われている声を変えない。
 - 作り直す：Runの言葉、自由入力、土台、声色をSTEP 1とSTEP 2に戻し、STEP 2を開く。土台の音声がなくなっていれば、言葉を入れたSTEP 1を開き、その旨を伝える。言葉を残す前のRun（`words`がない）は、空の棚で開く。
 
 ### 8.4 登録（Editorなしで`.sentis`を作る）
@@ -358,7 +365,7 @@ python -I <スクリプト>.py <操作> <依頼のJSONファイル>
 |---|---|---|
 | `generate.py candidates` | 棚の言葉のIDとユーザーの文章、個数、最初の乱数、モデルの場所、出力先、任意で近くに作る手本 | 候補ごとの音声、乱数、声の高さの中央値と幅（5〜95%） |
 | `generate.py samples` | 言語、モデルの場所、出力先 | 例ごとの音声（例の乱数）、基準（言葉なし）、基準に言葉を1つだけ足したもの（1つの乱数）。作ったファイルは残す |
-| `generate.py speech` | 手本の音声、乱数の始まり、モデルの場所、出力先 | 学習用の音声の一覧と合計の長さ |
+| `generate.py speech` | 手本の音声、乱数の始まり、モデルの場所、出力先、作る文の数の上限（任意。テストの作り方だけ） | 学習用の音声の一覧と合計の長さ |
 | `timbre.py preview` | 元の音声、声色の値、出力先 | 加工した音声、声の高さの中央値 |
 | `timbre.py batch` | 元の音声のフォルダー、声色の値、出力先 | 加工した音声の一覧 |
 | `train.py run` | RVCの場所、学習用の音声のフォルダー、作業フォルダー、エポック数 | 学習した重み（`.pth`） |
@@ -463,7 +470,6 @@ services/voice-lab/
 - 同意の画面の文面。公開前に法律の専門家の確認を受ける。
 - 声の変換に必要なGPUとメモリーの値。開発PCのほかでも測って決める。
 - 声を設計する流れ（8.3）：明るさと息っぽさのつまみの効き、年齢の倍率の範囲、学習用の音声の母音の仮説を確かめる。上の「及第点」は上流の変換での評価で、リアルタイムの変換では未確認である。
-- 変換の高さの自動合わせ：声の登録に高さの中央値を持たせる形式と、Voice側での使い方（Voice詳細設計の担当）。
 
 利用者が承認したこと（2026-11-01）：
 

@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.VoiceLab
@@ -19,8 +22,14 @@ namespace VirtualVessel.UI.VoiceLab
 
         public VoiceLabTimbre Timbre { get; set; }
 
+        /// <summary>How long STEP 3 trains; short unless chosen in its details.</summary>
+        public VoiceLabTrainingLength TrainingLength { get; set; }
+
         /// <summary>The completed build to register; null until STEP 3 completes.</summary>
         public string RunId { get; set; }
+
+        /// <summary>A registered voice's folder that STEP 4 tries in place of the build's; null for the build's own.</summary>
+        public string TryFolder { get; set; }
     }
 
     /// <summary>How a step moves the flow on, or back.</summary>
@@ -51,6 +60,12 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ActionsClass = UssClass + "__actions";
         public const string NoteClass = UssClass + "__note";
 
+        /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
+        public const string GapClass = UssClass + "__gap";
+
+        /// <summary>Everything but the lock card, hidden as one while live; its parts keep the screen's gaps.</summary>
+        public const string ContentClass = UssClass + "__content";
+
         public const int BaseStep = 0;
         public const int TimbreStep = 1;
         public const int BuildStep = 2;
@@ -68,32 +83,57 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly VoiceLabDraft _draft;
         private readonly VoiceLabTimbreStep _timbre;
         private readonly VoiceLabRegisterStep _register;
+        private VoiceLabTryStep _try;
+        private readonly IStreamingService _streaming;
+        private readonly IRecordingService _recording;
+        private readonly VisualElement _content;
 
-        /// <param name="lab">Null, or not set up, shows that voices cannot be made yet.</param>
-        /// <param name="audio">Plays candidates; null leaves out the play buttons.</param>
-        /// <param name="streaming">Stops a build from starting during a stream; optional.</param>
-        /// <param name="library">What was made, for the Made voices tab; null leaves the tab out.</param>
-        public VoiceLabScreen(IVoiceLab lab, IAudioPreview audio = null, IStreamingService streaming = null, IVoiceLabLibrary library = null)
+        /// <param name="services">
+        /// VoiceLab (null, or not set up, shows that voices cannot be made yet), the Made voices library, the audio
+        /// preview for play buttons, streaming and recording (Voice Lab is not used while either runs), and for STEP 4
+        /// the voice conversion, its trial, the file dialog, and the audio sources. Any may be null.
+        /// </param>
+        public VoiceLabScreen(ScreenServices services)
         {
+            services ??= new ScreenServices();
+            IVoiceLab lab = services.VoiceLab;
+            IAudioPreview audio = services.AudioPreview;
+            IStreamingService streaming = services.Streaming;
+            IVoiceLabLibrary library = services.VoiceLabLibrary;
+            IRecordingService recording = services.Recording;
             AddToClassList(UssClass);
             _lab = lab;
+            _streaming = streaming;
+            _recording = recording;
             _player = new VoiceLabPlayer(audio, this);
             bool ready = lab != null && lab.Availability == VoiceLabAvailability.Ready;
+
+            // In place of everything while a stream or a recording runs; a build in progress was stopped or kept when
+            // it started (BuildGuardedStart).
+            LiveLock = Ui.Card(VoiceLabStrings.LiveLockTitle);
+            LiveLock.Add(Ui.Text(VoiceLabStrings.LiveLockBody, NoteClass, "vv-text-body"));
+            Add(LiveLock);
+            _content = new VisualElement();
+            _content.AddToClassList(ContentClass);
+            Add(_content);
+            ShowLock();
+            PanelLifetime.WhileAttached(this, _ => WatchLive());
+
             if (library != null)
             {
                 Tabs = Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
                 Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
-                Add(Tabs);
+                _content.Add(Tabs);
             }
 
             _make = new VisualElement();
-            Add(_make);
+            _content.Add(_make);
             if (library != null)
             {
                 // What was made can be listed without a training environment; making it again cannot.
-                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None);
+                Library = new VoiceLabLibraryView(library, _player, ready ? Remake : (Action<string>)null, ready ? TryVoice : (Action<string, string>)null, () => ready && lab.BuildProgress.State != VoiceLabBuildState.None, services.Voice);
                 Library.style.display = DisplayStyle.None;
-                Add(Library);
+                _content.Add(Library);
             }
 
             if (!ready)
@@ -113,12 +153,13 @@ namespace VirtualVessel.UI.VoiceLab
             _make.Add(Steps);
 
             _timbre = new VoiceLabTimbreStep(lab, _player, draft, this);
-            _register = new VoiceLabRegisterStep(lab, draft, this);
+            _register = new VoiceLabRegisterStep(lab, draft, this, services.Voice);
             _base = new VoiceLabBaseStep(lab, _player, draft, this);
             _panels[BaseStep] = _base;
             _panels[TimbreStep] = _timbre;
-            _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, streaming, this);
-            _panels[TryStep] = TryPanel();
+            _panels[BuildStep] = new VoiceLabBuildStep(lab, draft, this);
+            _try = new VoiceLabTryStep(services, lab, draft, _player, this);
+            _panels[TryStep] = _try;
             _panels[RegisterStep] = _register;
             foreach (VisualElement panel in _panels)
             {
@@ -130,6 +171,41 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         public StepIndicator Steps { get; }
+
+        /// <summary>Shown instead of Voice Lab while a stream or a recording runs.</summary>
+        public Card LiveLock { get; }
+
+        private bool IsLive => VoiceLabView.IsLive(_streaming?.State.Value ?? StreamingState.Idle, _recording?.State.Value ?? RecordingState.Idle);
+
+        private IDisposable WatchLive()
+        {
+            var subscriptions = new List<IDisposable>();
+            if (_streaming != null)
+            {
+                subscriptions.Add(_streaming.State.Subscribe(_ => ShowLock()));
+            }
+
+            if (_recording != null)
+            {
+                subscriptions.Add(_recording.State.Subscribe(_ => ShowLock()));
+            }
+
+            ShowLock();
+            return new DisposeAction(() => subscriptions.ForEach(s => s.Dispose()));
+        }
+
+        private void ShowLock()
+        {
+            bool live = IsLive;
+            if (live)
+            {
+                _player.Stop();
+                _try?.Leave();
+            }
+
+            LiveLock.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
+            _content.style.display = live ? DisplayStyle.None : DisplayStyle.Flex;
+        }
 
         /// <summary>Make a voice and Made voices; null without a library.</summary>
         public TabBar Tabs { get; }
@@ -169,6 +245,7 @@ namespace VirtualVessel.UI.VoiceLab
             _base.RequestView.SetPicks(remake.Words, remake.FreeWords);
             _base.ShowBaseGone(remake.Candidate == null);
             _draft.RunId = null;
+            _draft.TryFolder = null;
             ShowTab(MakeTab);
             if (remake.Candidate == null)
             {
@@ -181,6 +258,40 @@ namespace VirtualVessel.UI.VoiceLab
             _draft.CandidateNumber = 0;
             GoTo(TimbreStep, reset: true);
             _timbre.Restore(remake.Timbre);
+        }
+
+        /// <summary>
+        /// Opens STEP 4 with a voice already made (the user's review, 2026-11-08): a completed run's, or a registered
+        /// voice's by its folder. The run's words, base, and timbre come back as for making it again, so STEP 2 and
+        /// STEP 5 work from there; a registered voice whose run is gone is still tried by its folder.
+        /// </summary>
+        /// <param name="runId">The run it was made from; may be gone for a registered voice.</param>
+        /// <param name="voiceFolder">A registered voice's folder, or null to try the run's own voice.</param>
+        public void TryVoice(string runId, string voiceFolder)
+        {
+            CrudResult<VoiceLabRemake> read = runId == null ? CrudResult<VoiceLabRemake>.Fail(CrudError.NotFound, "No run.") : _lab.Remake(runId);
+            if (!read.Ok && voiceFolder == null)
+            {
+                Library?.ShowFailure("Trying run " + runId, read.Error, read.Detail);
+                return;
+            }
+
+            if (read.Ok)
+            {
+                _base.RequestView.SetPicks(read.Value.Words, read.Value.FreeWords);
+                _base.ShowBaseGone(read.Value.Candidate == null);
+                _draft.Candidate = read.Value.Candidate;
+                _draft.CandidateNumber = 0;
+            }
+
+            _draft.RunId = read.Ok ? runId : null;
+            _draft.TryFolder = voiceFolder;
+            ShowTab(MakeTab);
+            GoTo(TryStep, reset: true);
+            if (read.Ok && read.Value.Candidate != null)
+            {
+                _timbre.Restore(read.Value.Timbre);
+            }
         }
 
         public int Current => Steps?.Current ?? -1;
@@ -201,6 +312,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (lastValid < BuildStep)
             {
                 _draft.RunId = null;
+                _draft.TryFolder = null;
             }
 
             Steps.Show(Steps.Current, Math.Min(Steps.Reached, Math.Max(lastValid, Steps.Current)));
@@ -215,6 +327,7 @@ namespace VirtualVessel.UI.VoiceLab
         public void StartOver()
         {
             _draft.RunId = null;
+            _draft.TryFolder = null;
             GoTo(BaseStep, reset: true);
         }
 
@@ -280,22 +393,18 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _panels[i].style.display = i == step ? DisplayStyle.Flex : DisplayStyle.None;
             }
+
+            if (step == TryStep)
+            {
+                _try.Enter();
+            }
+            else
+            {
+                _try.Leave();
+            }
         }
 
-        // Trying a voice through the real-time conversion is the next stage (Voice Lab detailed design 8.3.4).
-        private VisualElement TryPanel()
-        {
-            var panel = new VisualElement();
-            panel.Add(Lead(VoiceLabStrings.TryLead));
-            Card card = Ui.Card(VoiceLabStrings.StepTry);
-            card.Add(Ui.Text(VoiceLabStrings.TryLater, NoteClass, "vv-text-body"));
-            panel.Add(card);
-            ActionButton back = Ui.Button(VoiceLabStrings.BackToTimbre);
-            back.clicked += () => GoTo(TimbreStep);
-            ActionButton next = Ui.Button(VoiceLabStrings.ToRegister, ButtonVariant.Primary);
-            next.clicked += () => GoTo(RegisterStep);
-            panel.Add(Actions(back, next));
-            return panel;
-        }
+        /// <summary>STEP 4's panel; null when Voice Lab is not set up.</summary>
+        public VoiceLabTryStep Try => _try;
     }
 }

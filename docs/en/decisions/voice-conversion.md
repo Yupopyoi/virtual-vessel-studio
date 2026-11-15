@@ -597,3 +597,44 @@ The words field is appended to the English instruction as written, and its place
 Japanese and English moved the voice alike: neither lowered the pitch (words do not set pitch, as before), and both made the bright one a little higher and livelier. The effects are small next to the seed's.
 
 Decided (the user, 2026-11-08): the words field takes Japanese as it is; no translation.
+
+## 2026-11-08 The voice's "mochi-mochi" quality and the training length
+
+The user tried a voice made in Voice Lab (poyapoya, 150 epochs) in the app and heard the timbre come close but its "mochi-mochi" quality go. The cause was narrowed down step by step.
+
+- The conversion was that voice: ECAPA speaker similarity 0.70 against 0.26 for the prototype's voice, 0.85 at +6 semitones. At the wrong pitch it sounds like another voice, so automatic pitch matching (8.3.4) is needed.
+- Not the real-time path: upstream's whole-file conversion lost it too (the user listened).
+- Not the way the user speaks: converting poyapoya's own speech with its own model lost it too (the user listened). The model had not learned it.
+
+The same training speech (48 files, about 7.5 minutes) was trained for 600 epochs, saving every 150, and an index was built from the training features. Six training sentences were converted and compared with the originals (`voice-work/mochi_measure.py`).
+
+| | Original | 150 | 150 + index 1.0 | 300 | 450 | 600 | 600 + index 1.0 |
+|---|---|---|---|---|---|---|---|
+| H1−H2 (dB) | 4.9 | 3.1 to 3.2 | 3.3 | 4.5 | 3.9 | 4.8 to 5.0 | 4.9 |
+| 0 to 500 Hz (of all, dB) | −3.4 | −4.1 | −3.9 | −3.4 | −4.0 | −3.3 | −3.2 |
+| 500 to 1500 Hz (of all, dB) | −3.4 | −2.7 | −2.9 | −3.2 | −2.8 | −3.3 | −3.5 |
+
+- At 150 the first harmonic weakens (H1−H2 about 1.7 dB lower) and 500 to 1500 Hz grows by comparison: the voice moves from round and soft toward forward and pressed. Jitter, shimmer, and fine pitch movement do not change.
+- At 600 it comes back. The index does little at 150. 300 and 450 go back and forth, so saved checkpoints vary.
+- The user heard 600 and 600 with the index as equally good. ECAPA similarity is about the same in every case and does not catch this difference.
+
+Decided (user, 2026-11-08): the training length is chosen in STEP 3's details (Short 150, Normal 300, Long 600), with 150 staying the default. The index is not added to the real-time conversion.
+
+This is one voice, and only 600 was checked by ear. Which length suits other voices is not known.
+
+Addendum (2026-11-08): whether a filter after the conversion can make up for it was also tried. The 150-epoch conversions got a low shelf below a point between the voice's first and second harmonics (about 1.4 times its median; +2 or +3 dB) and a gentle dip at 1 kHz (−1 dB), at the same loudness (`voice-work/mochi_filter.py`). With +2 dB and −1 dB, H1−H2 (4.9) and the band levels came out about as in the original. ECAPA similarity hardly moved on poyapoya's own sentence (0.922 → 0.925) and fell a little on the user's recording (0.850 → 0.825 to 0.841).
+
+By the user's ear, the voice did not sound different with the filters, and the "mochi-mochi" quality did not come back. It lies in a finer texture than the broad spectral shape, and longer training brings it back. Decided (user, 2026-11-08): no filter for the voice. Noise reduction with high-pass and low-pass filters stays a candidate for post-processing after the conversion (system design 9.9).
+
+## 2026-11-11 Noise removal moves from voice conversion to microphone capture
+
+The user's request (2026-11-11): noise removal helps people who stream with their own voice, without voice conversion. Until then Voice called it before converting, so it did nothing with conversion off.
+
+Decided (user, 2026-11-11):
+
+- Noise removal is processing in Audio's capture (audio detailed design 8.6): the input processing before voice conversion in system design 9.3.
+- There is one setting, on the microphone's row of the Audio Card. The Voice Conversion Card no longer has it.
+- On by default. Someone who streamed with their own voice on v0.1.2 gets it on after updating; turning it off gives the sound as before.
+- It is kept in the project's Audio Profile, on the source (`denoise`). The `denoise` in Voice's `Config/voice-settings.json` was added on a branch before any release, so it was dropped without reading it over.
+
+It runs on the capture thread, so while converting, the main thread does about 3 ms less work per 100 ms block (the 2026-11-01 measurement above).

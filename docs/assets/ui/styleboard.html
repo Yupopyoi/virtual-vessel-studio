@@ -335,6 +335,11 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .setting-row:last-child { border-bottom: 0; }
 .setting-row .name { font-weight: 500; }
 .setting-row .desc { font-size: 12px; color: var(--text-3); }
+.setting-row .controls { display: flex; align-items: center; gap: var(--space-s); }
+/* Help hint (components.md 3.28): a 16px Info icon in Text 3 after a name; its tooltip holds the explanation. */
+.help-hint { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: var(--space-xs); padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-3); vertical-align: -2px; cursor: help; }
+.help-hint:hover { color: var(--text); }
+.help-hint svg { width: 16px; height: 16px; }
 
 .notice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-m); border: 1px solid var(--border); background: var(--surface-2); }
 .notice .bullet { width: 14px; height: 14px; margin-top: 4px; }
@@ -345,7 +350,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .notice span { color: var(--text-2); font-size: 13px; }
 
 .progress { height: 8px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
-.steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.steps { display: flex; flex-wrap: wrap; gap: var(--space-s); margin: 0; padding: 0; list-style: none; }
 .step { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface-2); border-radius: var(--radius-control); padding: 6px 14px 6px 6px; color: var(--text-2); font: inherit; font-weight: 500; font-size: 13px; cursor: pointer; }
 .step .n { height: 24px; padding: 0 10px; border-radius: var(--radius-s); display: grid; place-items: center; background: var(--surface-3); font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
 .step[aria-current="step"] { color: var(--text); border-color: var(--accent-line); background: var(--tint); }
@@ -774,7 +779,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
               <select class="select" aria-label="Mic device"><option>USB Audio Interface (2ch)</option><option>Realtek Audio</option></select>
             </div>
             <div class="setting-row">
-              <div><div class="name" data-i18n="c.row2">ノイズ抑制</div><div class="desc" data-i18n="c.row2d">キーボードの音やエアコンの音を減らします</div></div>
+              <div><div class="name"><span data-i18n="c.row2">ノイズ抑制</span><button class="help-hint" aria-label="?" data-tip="tip.help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="1.2" fill="currentColor" stroke="none"/></svg></button></div><div class="desc" data-i18n="c.row2d">キーボードの音やエアコンの音を減らします</div></div>
               <div style="justify-self:end"><button class="toggle" role="switch" aria-checked="true" aria-label="Noise suppression"></button></div>
             </div>
           </div>
@@ -941,6 +946,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
       "tip.latency": ["声の変換にかかっている時間。短いほど口の動きとずれません"],
       "tip.voice": ["オフにすると地声のまま配信されます", "Ctrl+V"],
       "tip.pitch": ["声の高さを半音単位で変えます"],
+      "tip.help": ["話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます"],
       "tip.mute": ["マイクをミュート", "Ctrl+M"],
       "tip.game": ["キャプチャボードの映像と音を配信に使います"],
       "tip.sub": ["2 台目のモニターの画面を取り込みます"],
@@ -967,6 +973,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
       "tip.latency": ["Time taken to convert your voice. Shorter keeps it in sync with your mouth"],
       "tip.voice": ["When off, your natural voice is streamed", "Ctrl+V"],
       "tip.pitch": ["Changes your pitch in semitones"],
+      "tip.help": ["Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion"],
       "tip.mute": ["Mute the microphone", "Ctrl+M"],
       "tip.game": ["Use video and sound from the capture card"],
       "tip.sub": ["Bring in the screen of your second monitor"],

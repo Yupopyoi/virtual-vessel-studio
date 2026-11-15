@@ -23,6 +23,7 @@ At the top, the Step Indicator (`components.md` 3.26) with STEP 1 to STEP 5. Und
 - Changing an earlier choice (another candidate, another timbre) closes the steps after it, since they no longer hold. A voice made from an earlier choice is not registered by mistake.
 - While a voice is being made, the Step Indicator is disabled. The user can still open other screens, and the build goes on. The screen keeps its state while hidden.
 - Leaving the screen stops a sample that is playing.
+- While streaming or recording, a Card "Not available while streaming or recording", saying it can be used once they end, replaces the whole screen, tabs included (`lab.live-lock.*`; system design 14.26). Playing sound stops. When streaming and recording stop, the screen comes back.
 - Without a training environment (`Availability` is `NotSetUp`), the screen shows only a Card titled "Not ready to make voices yet" explaining it (`lab.not-set-up.*`). Activation (Voice Lab detailed design 8.1) will set it up from there.
 
 ## 3. STEP 1 Pick a Base
@@ -55,28 +56,38 @@ The user starts from an example, moves it with words, and picks a candidate by e
 ## 5. STEP 3 Make It
 
 - A note on the time (about 20 minutes per voice on an RTX 4070), and Start. A build does not start until Start is pressed, since it takes long.
+- A folded Details card with Training length (epochs): 150 (the default), 300, 600. The time cannot be promised, so the choices show epochs, not minutes (user's check, 2026-11-08). A line says more learns more of the voice's softness and roundness. Choosing one changes the time note above (about 20 minutes at 150, 30 at 300, 50 at 600). It cannot be changed while building (Voice Lab detailed design 8.3.3). In Unity's Editor only, a Test choice is added; choosing it, the time note says it takes minutes and the voice is not one to use (`lab.build.note.test`).
 - While building: a progress bar (`components.md` 3.15) with the stage (Making training speech, Learning the voice, Finishing) and the percent, read every 0.5 s, and Stop.
-- While a stream is starting or running, Start is disabled and a warning chip and a line say why (system design 14.26).
 - Completed: STEP 4 opens. Failed: an error chip, with "Not enough GPU memory…" when it ran out of GPU memory. Stopped: a chip saying so. The user stays on STEP 3 and can start again.
 - The time left is not shown yet; the build reports a fraction but no estimate.
 
 ## 6. STEP 4 Try It with Your Voice
 
-Trying a voice through the real-time conversion is the next stage (Voice Lab detailed design 8.3.4). Until then the step says so (`lab.try.later`) and has STEP 2: Back to the timbre and STEP 5: Use this voice.
+Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice Lab detailed design 8.3.4). Leaving STEP 4 stops what plays and converts and puts the voice conversion back as it was before the trial (the chosen voice, on or off, the pitch settings). Voice Lab is not used while streaming or recording, so a trial never reaches the stream.
+
+- Voice to try card: Recording or Microphone (Segmented).
+  - Recording: the file's name and Choose file (WAV, M4A, MP3). Original plays the recording as it is; Converted converts it with the stream's processing first; both play to the monitor only (Voice detailed design 8.5; user's decision, 2026-11-08). A progress bar shows while converting. The same recording, voice, and pitch settings play again without converting again. Stop stops playing and converting.
+  - Microphone: Try with the microphone runs the stream's conversion with the voice made. With the microphone's Hear off, a warning chip and "Turn Hear on" show, with a line to use headphones (user's decision, 2026-11-08).
+  - A failed conversion shows an error chip (`lab.try.failed`).
+- Pitch card: Match the pitch automatically (on by default), the line "Your voice 200 Hz → this voice 285 Hz (+6)" ("not measured" before measuring), Measure again, and an Adjustment slider (-24 to +24). With recordings, the pitch measured once is used by the next conversion.
+- STEP 2 Fix the timbre, and STEP 5 Use this voice.
 
 ## 7. STEP 5 Register
 
 - The register Card: the voice name (required, up to 60 characters), a summary of the base (candidate name and pitch) and the timbre ("Pitch +4 · Age +4 · Brightness 0 · Breathiness 0"), and a note that what it was made from is kept.
 - Register without a name shows "Enter a name" under the field.
 - Registered: a success chip, the register button disabled, and Make another, which goes back to STEP 1 keeping the mood and the candidates.
-- Use it now and the list of registered voices (system design 14.18) come with the next stage, with trying a voice.
+- STEP 4 Try it with your voice goes back to STEP 4, before or after registering, since the run keeps the voice's files (user's check, 2026-11-08).
+- Use it for the stream once registered (on by default; system design 14.18). On, the registered voice becomes the Voice Profile's voice for the stream, and the success chip says it was registered and set as the voice for the stream. Hidden without the voice conversion.
 
 ## 8. Made Voices
 
 A tab bar at the top of the screen: Make a voice (chapters 3 to 7) and Made voices (the user's decision, 2026-11-07). Each tab keeps its state while the other is open, and a build goes on in Make a voice.
 
-- Registered voices Card: one row per voice, newest first, with play (the base it was made from), its name, its pitch in Hz, the date, Rename, and Delete. Rename opens the name in a text field with the register rules (required, up to 60 characters).
-- Training runs Card: one row per run, newest first, with play (its base), the date, a status chip (Completed, Failed, Cancelled midway, Making), the words picked and the timbre as one line, the voices registered from it, a note field (up to 500 characters, saved when it loses focus), Make again, and Delete.
+- Registered voices Card: one row per voice, newest first, with play (the base it was made from), its name, its pitch in Hz, the date, Try, Rename, and Delete. Rename opens the name in a text field with the register rules (required, up to 60 characters).
+- A registered voice's row also has Use for the stream, which makes it the voice for the stream. The voice for the stream shows an In use chip in its place, and its Delete is disabled with a tooltip saying why (use another voice first; Voice Lab detailed design 8.6).
+- Training runs Card: one row per run, newest first, with play (its base), the date, a status chip (Completed, Failed, Cancelled midway, Making), the words picked and the timbre as one line, the voices registered from it, a note field (up to 500 characters, saved when it loses focus), Try (completed runs only), Make again, and Delete.
+- Try opens Make a voice's STEP 4 with that voice (user's check, 2026-11-08). The run's words, base, and timbre come back as with Make again, so STEP 2 can adjust it and STEP 5 register it. A registered voice is tried by its own folder, so it can be tried even when its run is gone. Make again still opens STEP 2.
 - Delete asks first, in a dialog that names what goes and what stays ("The voice is deleted. The run it was made from stays."). A run being made has Delete disabled with the reason.
 - Make again opens Make a voice at STEP 2 with the run's words, base, and timbre; without the base's audio it opens STEP 1 with the words and a line saying the base is gone.
 - Empty: a line saying nothing has been made yet, with Make a voice.

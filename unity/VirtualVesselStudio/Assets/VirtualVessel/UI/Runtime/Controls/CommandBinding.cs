@@ -72,7 +72,7 @@ namespace VirtualVessel.UI.Controls
             try
             {
                 UiServices services = UiServices.Find(_button);
-                if (command is IConfirmedCommand confirmed && !await ConfirmAsync(confirmed.Confirmation, services))
+                if (command is IConfirmedCommand confirmed && confirmed.Confirmation != null && !await ConfirmAsync(confirmed.Confirmation, services))
                 {
                     return;
                 }

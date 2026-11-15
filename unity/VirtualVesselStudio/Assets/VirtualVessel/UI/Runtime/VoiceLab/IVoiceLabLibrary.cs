@@ -27,6 +27,9 @@ namespace VirtualVessel.UI.VoiceLab
         CrudResult DeleteRun(string runId);
 
         CrudResult DeleteVoice(string voiceId);
+
+        /// <summary>A registered voice's folder, to try it in STEP 4. NotFound without the voice.</summary>
+        CrudResult<string> VoiceFolder(string voiceId);
     }
 
     /// <summary>A Training Run as the Made voices tab shows it.</summary>

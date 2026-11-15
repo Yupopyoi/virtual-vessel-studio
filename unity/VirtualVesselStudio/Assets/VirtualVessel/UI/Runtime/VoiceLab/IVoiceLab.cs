@@ -14,6 +14,20 @@ namespace VirtualVessel.UI.VoiceLab
         NotSetUp,
     }
 
+    /// <summary>
+    /// How long a voice trains, chosen in STEP 3's details. Longer keeps more of the voice's texture and takes longer
+    /// (Voice Lab detailed design 8.3.3); Voice Lab decides the epochs of each.
+    /// </summary>
+    public enum VoiceLabTrainingLength
+    {
+        Short,
+        Normal,
+        Long,
+
+        /// <summary>Only in Unity's Editor: a few lines and one epoch, to check the screens quickly. Not a voice to use.</summary>
+        EditorTest,
+    }
+
     /// <summary>Where building a voice is, in the states the screen shows (system design 13.15, 13.16).</summary>
     public enum VoiceLabBuildState
     {
@@ -183,7 +197,13 @@ namespace VirtualVessel.UI.VoiceLab
         Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
 
         /// <summary>Builds the voice; a failure or cancelling comes back as the build's state.</summary>
-        Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken);
+        Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Stops the build in progress, as its own Stop does; it ends as cancelled. For starting a stream or a recording,
+        /// which a build's GPU load would spoil (system design 14.26). Nothing happens when no build runs.
+        /// </summary>
+        void CancelBuild();
 
         /// <summary>Where the running build is; <see cref="VoiceLabBuildState.None"/> when none runs. Read it as often as needed.</summary>
         VoiceLabBuildProgress BuildProgress { get; }
@@ -199,7 +219,14 @@ namespace VirtualVessel.UI.VoiceLab
         /// Registers a completed build under a name, for voice conversion to use. A CRUD create (system design
         /// 6.31): NotFound without the run, Invalid for a run that did not complete, StorageFailed when copying failed.
         /// </summary>
-        CrudResult Register(string runId, string name);
+        /// <summary>Registers a completed run's voice under a name; the result is the voice's ID, to use it for the stream.</summary>
+        CrudResult<string> Register(string runId, string name);
+
+        /// <summary>
+        /// The folder of a completed run's voice, to try it before registering (Voice Lab detailed design 8.3.4).
+        /// NotFound without the run, Invalid when it did not complete or its voice is missing.
+        /// </summary>
+        CrudResult<string> BuiltVoiceFolder(string runId);
     }
 
     /// <summary>Voice Lab could not do what was asked; <see cref="System.Exception.Message"/> is for developers.</summary>

@@ -7,6 +7,7 @@ using NUnit.Framework;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.ExternalServices.Process;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Design;
 using VirtualVessel.VoiceLab.Registration;
 using VirtualVessel.VoiceLab.Scripts;
@@ -116,12 +117,14 @@ namespace VirtualVessel.VoiceLab.Tests
                 : new[] { "{\"type\":\"progress\",\"stage\":\"s\",\"done\":1,\"total\":2}", "{\"type\":\"result\"}" });
             var reported = new List<BuildProgress>();
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), new TimbreSettings(4, 4, 0, 0), BuildPlan.Training(600), new SynchronousProgress<BuildProgress>(reported.Add), CancellationToken.None).Result;
 
             Assert.That(runner.Ran, Is.EqualTo(new[] { "generate.py speech", "timbre.py batch", "train.py run", "export_voice.py run" }));
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed));
             Assert.That(run.Versions["torch"], Is.EqualTo("2.7.1"));
             Assert.That(run.Design.Timbre.Age, Is.EqualTo(4f));
+            Assert.That(run.Design.Epochs, Is.EqualTo(600), "Kept in run.json, to make the voice again.");
+            Assert.That(run.Design.SpeechLines, Is.EqualTo(0));
             Assert.That(reported.Select(p => p.Fraction), Is.Ordered);
             Assert.That(reported.Last().State, Is.EqualTo(TrainingState.Completed));
             TrainingRun stored = _runs.List().Value.Single();
@@ -137,7 +140,7 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "train.py" ? new[] { "{\"type\":\"error\",\"code\":\"out_of_memory\",\"message\":\"GPU\"}" } : new[] { "{\"type\":\"result\"}" },
                 (script, _) => script == "train.py" ? ExternalProcessState.Failed : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Failed));
             Assert.That(run.ErrorCode, Is.EqualTo("out_of_memory"));
@@ -152,17 +155,32 @@ namespace VirtualVessel.VoiceLab.Tests
                 (script, _) => script == "generate.py" ? new[] { "{\"type\":\"result\"}" } : Array.Empty<string>(),
                 (script, _) => script == "timbre.py" ? ExternalProcessState.Cancelled : ExternalProcessState.Completed);
 
-            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, null, CancellationToken.None).Result;
+            TrainingRun run = Designer(runner, 1).BuildVoiceAsync(Candidate(), default, BuildPlan.Standard, null, CancellationToken.None).Result;
 
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Cancelled));
             Assert.That(run.ErrorCode, Is.EqualTo("cancelled"));
         }
 
         [Test]
+        public void Fraction_GivesTrainingMoreOfTheBar_WhenItTrainsLonger()
+        {
+            // At 600 epochs training takes 36 of 45 minutes, so less of the bar comes before it.
+            Assert.That(VoiceDesigner.Minutes(2, BuildPlan.Training(600)), Is.EqualTo(36f).Within(1e-5));
+            Assert.That(VoiceDesigner.Minutes(0, BuildPlan.Training(600)), Is.EqualTo(7f).Within(1e-5));
+            Assert.That(VoiceDesigner.Fraction(2, 0, 600, BuildPlan.Training(600)), Is.EqualTo(8f / 45f).Within(1e-5));
+            Assert.That(VoiceDesigner.Fraction(3, 1, 1, BuildPlan.Training(600)), Is.EqualTo(1f).Within(1e-5));
+
+            // The Editor's test plan: 4 of 48 lines and one epoch, so speech and training shrink but export does not.
+            Assert.That(VoiceDesigner.Minutes(0, BuildPlan.EditorTest), Is.EqualTo(7f * 4f / 48f).Within(1e-5));
+            Assert.That(VoiceDesigner.Minutes(3, BuildPlan.EditorTest), Is.EqualTo(1f).Within(1e-5));
+        }
+
+        [Test]
         public void Fraction_RisesThroughTheStepsToOne()
         {
             Assert.That(VoiceDesigner.Fraction(0, 0, 10), Is.EqualTo(0f));
-            Assert.That(VoiceDesigner.Fraction(2, 0, 150), Is.EqualTo(0.45f).Within(1e-5));
+            // Speech 7 and timbre 1 of 18 minutes come before training at 150 epochs.
+            Assert.That(VoiceDesigner.Fraction(2, 0, 150), Is.EqualTo(8f / 18f).Within(1e-5));
             Assert.That(VoiceDesigner.Fraction(3, 3, 3), Is.EqualTo(1f).Within(1e-5));
             Assert.That(VoiceDesigner.Fraction(1, 5, 0), Is.EqualTo(VoiceDesigner.Fraction(1, 0, 1)));
         }
@@ -174,6 +192,9 @@ namespace VirtualVessel.VoiceLab.Tests
             ConfigDocument speech = VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment);
             ConfigDocument timbre = VoiceDesigner.StepRequest(1, Candidate(), new TimbreSettings(4, 0, 0, 0, 2), folder, _environment);
             ConfigDocument train = VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment);
+            Assert.That(VoiceDesigner.StepRequest(2, Candidate(), default, folder, _environment, BuildPlan.Training(600)).Get<int>("epochs"), Is.EqualTo(600));
+            Assert.That(VoiceDesigner.StepRequest(0, Candidate(), default, folder, _environment, BuildPlan.EditorTest).Get<int>("limit"), Is.EqualTo(4));
+            Assert.That(speech.Contains("limit"), Is.False, "Every line unless the plan says fewer.");
             ConfigDocument export = VoiceDesigner.StepRequest(3, Candidate(), default, folder, _environment);
 
             Assert.That(timbre.Get<string>("source"), Is.EqualTo(speech.Get<string>("output")));
@@ -246,17 +267,20 @@ namespace VirtualVessel.VoiceLab.Tests
             File.WriteAllText(Path.Combine(output, "voice.sentis"), "model");
             File.WriteAllText(Path.Combine(output, "voice.spk"), "speaker");
             File.WriteAllText(Path.Combine(output, "voice.json"), "{\"medianPitchHz\":360}");
-            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
+            var voices = new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock);
+            var registrar = new VoiceModelRegistrar(voices, _runs, _clock);
 
-            RegisteredVoice voice = registrar.Register(run, "My voice").Value;
+            VoiceModelRecord voice = registrar.Register(run, "My voice").Value;
 
+            string folder = voices.FolderOf(voice.Id);
             Assert.That(voice.MedianPitchHz, Is.EqualTo(360));
-            Assert.That(Directory.GetFiles(voice.Folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "model.json", "voice.json", "voice.sentis", "voice.spk" }));
-            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(voice.Folder, VoiceModelStore.ModelFile)));
+            Assert.That(voice.RunId, Is.EqualTo(run.RunId));
+            Assert.That(Directory.GetFiles(folder).Select(Path.GetFileName).OrderBy(n => n), Is.EqualTo(new[] { "design.json", "model.json", "voice.json", "voice.sentis", "voice.spk" }));
+            ConfigDocument model = ConfigDocument.Parse(File.ReadAllText(Path.Combine(folder, VoiceModelStore.ModelFile)));
             Assert.That(model.Get<string>("name"), Is.EqualTo("My voice"));
-            Assert.That(model.Get<int>("design.seed"), Is.EqualTo(7));
-            Assert.That(model.Get<int>("schemaVersion"), Is.EqualTo(1));
-            Assert.That(Directory.Exists(voice.Folder + ".part"), Is.False);
+            Assert.That(model.Contains("design"), Is.False, "Voice does not keep Voice Lab's design.");
+            Assert.That(VoiceModelRegistrar.ReadDesign(folder, _clock).Seed, Is.EqualTo(7));
+            Assert.That(Directory.Exists(folder + ".part"), Is.False);
         }
 
         [Test]
@@ -268,12 +292,19 @@ namespace VirtualVessel.VoiceLab.Tests
             Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
         }
 
-        [TestCase("{\"medianPitchHz\":353}", 353)]
-        [TestCase("{}", 0)]
-        [TestCase("not json", 0)]
-        public void MedianPitch_IsReadFromVoiceJson(string json, int expected)
+        [Test]
+        public void Register_RefusesARunWithoutItsVoice()
         {
-            Assert.That(VoiceModelRegistrar.MedianPitch(json), Is.EqualTo(expected));
+            TrainingRun run = _runs.Save(_runs.Create(new RunDesign()).Value.With(TrainingState.Completed, _clock.UtcNow)).Value;
+            var registrar = new VoiceModelRegistrar(new VoiceModelStore(Path.Combine(_folder, "VoiceModels"), _clock), _runs, _clock);
+
+            Assert.That(registrar.Register(run, "x").Error, Is.EqualTo(CrudError.Invalid));
+        }
+
+        [Test]
+        public void AVoiceWithoutADesign_HasNone()
+        {
+            Assert.That(VoiceModelRegistrar.ReadDesign(_folder, _clock), Is.Null);
         }
 
         private VoiceDesigner Designer(IExternalProcessRunner runner, int firstSeed)

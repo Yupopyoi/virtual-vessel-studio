@@ -180,6 +180,7 @@ namespace VirtualVessel.UI.Screens
         {
             yield return Ui.Tabs(GalleryStrings.TabAvatar, GalleryStrings.TabVoice, GalleryStrings.TabStage);
             SettingRow row = Ui.SettingRow(GalleryStrings.Noise, GalleryStrings.NoiseDescription);
+            row.HelpKey = GalleryStrings.NoiseHelp;
             row.Add(Ui.Segmented(GalleryStrings.Weak, GalleryStrings.Strong));
             yield return row;
         }

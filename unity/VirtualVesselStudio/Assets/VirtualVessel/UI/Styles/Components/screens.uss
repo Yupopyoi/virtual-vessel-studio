@@ -128,6 +128,24 @@
     width: 56px;
 }
 
+/* The Voice Card's values and notes under a row's description (setup.md 13). */
+.vv-voice-settings__note {
+    margin-top: 2px;
+    color: var(--vv-color-text-2);
+    white-space: normal;
+}
+
+/* Wider than the other toggles' columns, for its heading and help hint. */
+.vv-audio-card__cell--denoise {
+    width: 96px;
+}
+
+/* A heading, or a control's name, with its help hint after it. */
+.vv-audio-card__cell--help {
+    flex-direction: row;
+    align-items: center;
+}
+
 .vv-audio-card__cell--level {
     width: 120px;
     margin-right: 0;

@@ -1,7 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using VirtualVessel.UI.Commands;
+using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Tests
@@ -200,14 +205,72 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabView.BuildResultKey(null), Is.EqualTo(VoiceLabStrings.BuildFailed));
         }
 
-        [TestCase(StreamingState.Idle, false)]
-        [TestCase(StreamingState.Connecting, true)]
-        [TestCase(StreamingState.Live, true)]
-        [TestCase(StreamingState.Reconnecting, true)]
-        [TestCase(StreamingState.Failed, false)]
-        public void Builds_WaitWhileAStreamRuns(StreamingState state, bool streaming)
+        [TestCase(StreamingState.Idle, RecordingState.Idle, false)]
+        [TestCase(StreamingState.Connecting, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Live, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Reconnecting, RecordingState.Idle, true)]
+        [TestCase(StreamingState.Failed, RecordingState.Idle, false)]
+        [TestCase(StreamingState.Idle, RecordingState.Starting, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Recording, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Stopping, true)]
+        [TestCase(StreamingState.Idle, RecordingState.Failed, false)]
+        public void VoiceLab_IsNotUsed_WhileAStreamOrARecordingRuns(StreamingState streaming, RecordingState recording, bool live)
         {
-            Assert.That(VoiceLabView.IsStreaming(state), Is.EqualTo(streaming));
+            Assert.That(VoiceLabView.IsLive(streaming, recording), Is.EqualTo(live));
+        }
+
+        [Test]
+        public void TheVoiceCard_SaysTheState_AndTheConvertedPitch()
+        {
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Running, true, true), Is.EqualTo((StatusKind.Success, VoiceCardStrings.StateRunning)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Off, true, true), Is.EqualTo((StatusKind.Idle, VoiceCardStrings.StateOff)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Failed, true, true), Is.EqualTo((StatusKind.Error, VoiceCardStrings.StateStopped)));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Running, false, true).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
+            Assert.That(VoiceCard.StatusOf(VoiceConversionState.Off, true, false).Key, Is.EqualTo(VoiceCardStrings.StateUnavailable));
+            Assert.That(VoiceCard.FinalHz(200f, true, 6f, 0f), Is.EqualTo(200f * (float)System.Math.Pow(2.0, 0.5)).Within(0.01f));
+            Assert.That(VoiceCard.FinalHz(200f, false, 6f, 12f), Is.EqualTo(400f).Within(0.01f), "Automatic off: the adjustment alone.");
+            Assert.That(VoiceCard.FinalHz(0f, true, 6f, 0f), Is.EqualTo(0f));
+            Assert.That(VoiceCard.Choices(new[] { new VoiceConversionVoice("", null, 0, true), new VoiceConversionVoice("voice-a", "A", 0, false), new VoiceConversionVoice("voice-b", "B", 0, true) }).Select(c => c.Id), Is.EqualTo(new[] { "voice-b" }));
+        }
+
+        [Test]
+        public void TheVoiceInUse_IsTheSavedChoice()
+        {
+            Assert.That(VoiceLabLibraryView.IsInUse("voice-a", "voice-a"), Is.True);
+            Assert.That(VoiceLabLibraryView.IsInUse("voice-a", "voice-b"), Is.False);
+            Assert.That(VoiceLabLibraryView.IsInUse(null, "voice-a"), Is.False);
+        }
+
+        [Test]
+        public void STEP4_KeysAConversion_AndShowsThePitches()
+        {
+            Assert.That(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f), Is.EqualTo(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f)));
+            Assert.That(VoiceLabTryStep.ConversionKey("f", "r", true, 1f, 200f), Is.Not.EqualTo(VoiceLabTryStep.ConversionKey("f", "r", true, 0f, 200f)));
+            Assert.That(VoiceLabTryStep.Hz(285.4f), Is.EqualTo("285 Hz"));
+            Assert.That(VoiceLabTryStep.Hz(0f), Is.Null);
+            Assert.That(VoiceLabTryStep.Shift(7f), Is.EqualTo("+7"));
+            Assert.That(VoiceLabTryStep.Shift(-2f), Is.EqualTo("-2"));
+        }
+
+        [Test]
+        public void TheTestLength_IsOfferedInTheEditorOnly()
+        {
+            Assert.That(VoiceLabBuildStep.LengthKeys(true).Last(), Is.EqualTo(VoiceLabStrings.BuildLengthTest));
+            Assert.That(VoiceLabBuildStep.LengthKeys(true).Length, Is.EqualTo((int)VoiceLabTrainingLength.EditorTest + 1), "In the enum's order.");
+            Assert.That(VoiceLabBuildStep.LengthKeys(false), Does.Not.Contain(VoiceLabStrings.BuildLengthTest));
+            Assert.That(VoiceLabBuildStep.NoteKey(VoiceLabTrainingLength.EditorTest), Is.EqualTo(VoiceLabStrings.BuildNoteTest));
+        }
+
+        [Test]
+        public void StartingWhileAVoiceIsMade_AsksAboutTheBuild()
+        {
+            var usual = new ConfirmationRequest("t", "b", "c");
+            ConfirmationRequest whileBuilding = BuildGuardedStart.WhileBuildingStream();
+            Assert.That(BuildGuardedStart.ConfirmationFor(true, usual, whileBuilding), Is.SameAs(whileBuilding));
+            Assert.That(BuildGuardedStart.ConfirmationFor(false, usual, whileBuilding), Is.SameAs(usual));
+            Assert.That(BuildGuardedStart.ConfirmationFor(false, null, whileBuilding), Is.Null, "Recording starts without asking.");
+            Assert.That(BuildGuardedStart.Building(VoiceLabBuildState.None), Is.False);
+            Assert.That(BuildGuardedStart.Building(VoiceLabBuildState.Training), Is.True);
         }
 
         [Test]

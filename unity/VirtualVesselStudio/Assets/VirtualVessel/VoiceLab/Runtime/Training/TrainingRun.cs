@@ -30,6 +30,11 @@ namespace VirtualVessel.VoiceLab.Training
 
         /// <summary>Added later; older run.json files read it as 0, which is what they were made with.</summary>
         public float Softness { get; set; }
+        /// <summary>A copy to change without touching this one. Every field comes along, whatever is added later.</summary>
+        public TimbreValues Copy()
+        {
+            return (TimbreValues)MemberwiseClone();
+        }
     }
 
     /// <summary>What a voice was made from, so it can be made again (Voice Lab detailed design 8.3.3).</summary>
@@ -65,6 +70,24 @@ namespace VirtualVessel.VoiceLab.Training
         public int LowHz { get; set; }
 
         public int HighHz { get; set; }
+
+        /// <summary>How long it trained. Added later; older run.json files read 0, which were trained for 150.</summary>
+        public int Epochs { get; set; }
+
+        /// <summary>Lines of training speech it was made from; 0 for all, as every run before this was.</summary>
+        public int SpeechLines { get; set; }
+        /// <summary>
+        /// A copy to change without touching this one. Every field comes along, so one added later is not dropped on
+        /// every state change, as the softness and the reference once were and the epochs nearly were.
+        /// </summary>
+        public RunDesign Copy()
+        {
+            var copy = (RunDesign)MemberwiseClone();
+            copy.Timbre = Timbre?.Copy() ?? new TimbreValues();
+            copy.Words = new List<string>(Words ?? new List<string>());
+            copy.FreeWords = FreeWords ?? string.Empty;
+            return copy;
+        }
     }
 
     /// <summary>
@@ -186,26 +209,7 @@ namespace VirtualVessel.VoiceLab.Training
                 State = State,
                 CreatedAtUtc = CreatedAtUtc,
                 UpdatedAtUtc = UpdatedAtUtc,
-                Design = new RunDesign
-                {
-                    Instruction = Design?.Instruction,
-                    Seed = Design?.Seed ?? 0,
-                    Candidate = Design?.Candidate,
-                    Reference = Design?.Reference,
-                    Timbre = new TimbreValues
-                    {
-                        Pitch = Design?.Timbre?.Pitch ?? 0f,
-                        Age = Design?.Timbre?.Age ?? 0f,
-                        Brightness = Design?.Timbre?.Brightness ?? 0f,
-                        Breathiness = Design?.Timbre?.Breathiness ?? 0f,
-                        Softness = Design?.Timbre?.Softness ?? 0f,
-                    },
-                    Words = new List<string>(Design?.Words ?? new List<string>()),
-                    FreeWords = Design?.FreeWords ?? string.Empty,
-                    MedianHz = Design?.MedianHz ?? 0,
-                    LowHz = Design?.LowHz ?? 0,
-                    HighHz = Design?.HighHz ?? 0,
-                },
+                Design = Design?.Copy() ?? new RunDesign(),
                 ErrorCode = ErrorCode,
                 Error = Error,
                 Comment = Comment ?? string.Empty,

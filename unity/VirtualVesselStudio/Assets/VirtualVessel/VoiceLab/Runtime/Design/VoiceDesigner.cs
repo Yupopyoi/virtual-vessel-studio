@@ -28,6 +28,38 @@ namespace VirtualVessel.VoiceLab.Design
         public float Fraction { get; }
     }
 
+    /// <summary>How much a build makes: training epochs and lines of training speech (Voice Lab detailed design 8.3.3).</summary>
+    public sealed class BuildPlan
+    {
+        /// <summary>The training speech's lines; a plan that takes them all says 0.</summary>
+        public const int CorpusLines = 48;
+
+        public BuildPlan(int epochs, int speechLines)
+        {
+            Epochs = epochs;
+            SpeechLines = speechLines;
+        }
+
+        /// <summary>RVC's default and every line, as the experiment trained.</summary>
+        public static BuildPlan Standard { get; } = new BuildPlan(VoiceDesigner.DefaultEpochs, 0);
+
+        /// <summary>
+        /// For checking the screens in Unity's Editor: a few lines and one epoch, minutes instead of tens of minutes.
+        /// The voice is not one to use.
+        /// </summary>
+        public static BuildPlan EditorTest { get; } = new BuildPlan(1, 4);
+
+        public int Epochs { get; }
+
+        /// <summary>Lines of training speech; 0 for all of them.</summary>
+        public int SpeechLines { get; }
+
+        public static BuildPlan Training(int epochs)
+        {
+            return new BuildPlan(epochs, 0);
+        }
+    }
+
     /// <summary>
     /// The flow of designing a voice (Voice Lab detailed design 8.3): candidates from a description, timbre
     /// previews, and building one into a Training Run. Each step runs a script; a build runs four in turn.
@@ -35,18 +67,21 @@ namespace VirtualVessel.VoiceLab.Design
     /// </summary>
     public sealed class VoiceDesigner
     {
-        /// <summary>RVC's default, as the experiment trained (Voice Lab detailed design 8.3).</summary>
-        public const int Epochs = 150;
+        /// <summary>RVC's default, as the experiment trained (Voice Lab detailed design 8.3.3).</summary>
+        public const int DefaultEpochs = 150;
 
-        // The build's steps and their share of the time, from the measured run (decision record, 2026-11-04):
-        // speech 7 min, timbre 1 min, training 9 min, export 1 min.
+        // The build's steps and their minutes, from the measured run at 150 epochs (decision record, 2026-11-04):
+        // speech 7, timbre 1, training 9, export 1. Training grows with the epochs; the rest does not.
         private static readonly BuildStep[] s_steps =
         {
-            new BuildStep(TrainingState.Preparing, "generate.py", "speech", 0.39f),
-            new BuildStep(TrainingState.Preprocessing, "timbre.py", "batch", 0.06f),
-            new BuildStep(TrainingState.Training, "train.py", "run", 0.50f),
-            new BuildStep(TrainingState.PostProcessing, "export_voice.py", "run", 0.05f),
+            new BuildStep(TrainingState.Preparing, "generate.py", "speech", 7f),
+            new BuildStep(TrainingState.Preprocessing, "timbre.py", "batch", 1f),
+            new BuildStep(TrainingState.Training, "train.py", "run", 9f),
+            new BuildStep(TrainingState.PostProcessing, "export_voice.py", "run", 1f),
         };
+
+        private const int TrainingStep = 2;
+        private const int PostProcessingStep = 3;
 
         private readonly PythonScripts _scripts;
         private readonly ITrainingRunRepository _runs;
@@ -109,14 +144,15 @@ namespace VirtualVessel.VoiceLab.Design
         /// Builds a voice from a candidate and timbre into a new Training Run. Failures and cancelling end the run
         /// in that state and come back as the run, not as an exception (system design 13.22).
         /// </summary>
-        public async Task<TrainingRun> BuildVoiceAsync(VoiceCandidate candidate, TimbreSettings timbre, IProgress<BuildProgress> progress, CancellationToken cancellationToken)
+        /// <param name="plan">How long to train, and on how much speech: longer keeps more of the voice's texture (8.3.3).</param>
+        public async Task<TrainingRun> BuildVoiceAsync(VoiceCandidate candidate, TimbreSettings timbre, BuildPlan plan, IProgress<BuildProgress> progress, CancellationToken cancellationToken)
         {
-            CrudResult<TrainingRun> created = _runs.Create(Design(candidate, timbre));
+            CrudResult<TrainingRun> created = _runs.Create(Design(candidate, timbre, plan));
             if (!created.Ok)
             {
                 // No run to keep the failure in: it comes back as a failed run without an ID.
                 _log.Error($"Building a voice could not start: {created.Detail}");
-                return TrainingRun.Start(null, Design(candidate, timbre), _clock.UtcNow).Ended(TrainingState.Failed, "io", created.Detail, _clock.UtcNow);
+                return TrainingRun.Start(null, Design(candidate, timbre, plan), _clock.UtcNow).Ended(TrainingState.Failed, "io", created.Detail, _clock.UtcNow);
             }
 
             TrainingRun run = created.Value;
@@ -130,8 +166,8 @@ namespace VirtualVessel.VoiceLab.Design
                     BuildStep step = s_steps[i];
                     run = Keep(run.With(step.State, _clock.UtcNow));
                     int index = i;
-                    var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total))));
-                    ConfigDocument result = await _scripts.RunAsync(step.Script, step.Operation, StepRequest(index, candidate, timbre, folder, _scripts.Environment), folder, scriptProgress, cancellationToken).ConfigureAwait(false);
+                    var scriptProgress = new Forward<ScriptProgress>(p => progress?.Report(new BuildProgress(step.State, Fraction(index, p.Done, p.Total, plan))));
+                    ConfigDocument result = await _scripts.RunAsync(step.Script, step.Operation, StepRequest(index, candidate, timbre, folder, _scripts.Environment, plan), folder, scriptProgress, cancellationToken).ConfigureAwait(false);
                     Dictionary<string, string> versions = result.Get<Dictionary<string, string>>("versions");
                     if (versions != null)
                     {
@@ -194,16 +230,36 @@ namespace VirtualVessel.VoiceLab.Design
         }
 
         /// <summary>The whole build's progress from a step and its own progress. Pure.</summary>
-        public static float Fraction(int step, int done, int total)
+        public static float Fraction(int step, int done, int total, BuildPlan plan = null)
         {
+            plan ??= BuildPlan.Standard;
+            float whole = 0f;
             float before = 0f;
-            for (int i = 0; i < step; i++)
+            for (int i = 0; i < s_steps.Length; i++)
             {
-                before += s_steps[i].Share;
+                float minutes = Minutes(i, plan);
+                whole += minutes;
+                if (i < step)
+                {
+                    before += minutes;
+                }
             }
 
             float within = total > 0 ? Math.Max(0f, Math.Min(1f, done / (float)total)) : 0f;
-            return Math.Min(1f, before + (s_steps[step].Share * within));
+            return Math.Min(1f, (before + (Minutes(step, plan) * within)) / whole);
+        }
+
+        /// <summary>A step's expected minutes: training scales with the epochs, and every step with the speech's lines. Pure.</summary>
+        public static float Minutes(int step, BuildPlan plan)
+        {
+            float minutes = s_steps[step].Minutes;
+            if (step == TrainingStep)
+            {
+                minutes *= Math.Max(1, plan.Epochs) / (float)DefaultEpochs;
+            }
+
+            float lines = plan.SpeechLines > 0 ? Math.Min(plan.SpeechLines, BuildPlan.CorpusLines) : BuildPlan.CorpusLines;
+            return step == PostProcessingStep ? minutes : minutes * lines / BuildPlan.CorpusLines;
         }
 
         /// <summary>A preview's file name, one per candidate and timbre, so trying a timbre again plays the same file. Pure.</summary>
@@ -214,10 +270,13 @@ namespace VirtualVessel.VoiceLab.Design
         }
 
         /// <summary>What run.json keeps of how the voice was made. Pure.</summary>
-        public static RunDesign Design(VoiceCandidate candidate, TimbreSettings timbre)
+        public static RunDesign Design(VoiceCandidate candidate, TimbreSettings timbre, BuildPlan plan = null)
         {
+            plan ??= BuildPlan.Standard;
             return new RunDesign
             {
+                Epochs = plan.Epochs,
+                SpeechLines = plan.SpeechLines,
                 Instruction = candidate.Instruction,
                 Seed = candidate.Seed,
                 Candidate = candidate.File,
@@ -232,8 +291,9 @@ namespace VirtualVessel.VoiceLab.Design
         }
 
         /// <summary>The request of the build's step <paramref name="step"/>. Pure.</summary>
-        public static ConfigDocument StepRequest(int step, VoiceCandidate candidate, TimbreSettings timbre, string folder, VoiceLabEnvironment environment)
+        public static ConfigDocument StepRequest(int step, VoiceCandidate candidate, TimbreSettings timbre, string folder, VoiceLabEnvironment environment, BuildPlan plan = null)
         {
+            plan ??= BuildPlan.Standard;
             string speech = Path.Combine(folder, "speech");
             string edited = Path.Combine(folder, "speech-edited");
             string weights = Path.Combine(folder, "train");
@@ -244,6 +304,11 @@ namespace VirtualVessel.VoiceLab.Design
                     request.Set("reference", candidate.File);
                     request.Set("model", environment.VoxCpmModel);
                     request.Set("output", speech);
+                    if (plan.SpeechLines > 0)
+                    {
+                        request.Set("limit", plan.SpeechLines);
+                    }
+
                     break;
                 case 1:
                     request.Set("source", speech);
@@ -254,7 +319,7 @@ namespace VirtualVessel.VoiceLab.Design
                     request.Set("rvc", environment.Rvc);
                     request.Set("data", edited);
                     request.Set("work", weights);
-                    request.Set("epochs", Epochs);
+                    request.Set("epochs", plan.Epochs);
                     break;
                 case 3:
                     request.Set("weights", Path.Combine(weights, "voice.pth"));
@@ -292,12 +357,12 @@ namespace VirtualVessel.VoiceLab.Design
 
         private readonly struct BuildStep
         {
-            public BuildStep(TrainingState state, string script, string operation, float share)
+            public BuildStep(TrainingState state, string script, string operation, float minutes)
             {
                 State = state;
                 Script = script;
                 Operation = operation;
-                Share = share;
+                Minutes = minutes;
             }
 
             public TrainingState State { get; }
@@ -306,7 +371,7 @@ namespace VirtualVessel.VoiceLab.Design
 
             public string Operation { get; }
 
-            public float Share { get; }
+            public float Minutes { get; }
         }
     }
 }

@@ -30,6 +30,7 @@ using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
 using VirtualVessel.VoiceLab;
 using VirtualVessel.Voice;
+using VirtualVessel.Voice.Models;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -133,7 +134,14 @@ namespace VirtualVessel.Application.Startup
                 descriptors.Add(new ApplicationServiceDescriptor(
                     VoiceService.ServiceName,
                     ServiceCriticality.Optional,
-                    () => voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), VoiceService.PrototypeFolder), logging.Provider.GetLog("Voice", "Conversion"), metrics),
+                    () =>
+                    {
+                        ILog voiceLog = logging.Provider.GetLog("Voice", "Conversion");
+                        // The voice for the stream is the project's voice profile; the user's measured pitch is this PC's.
+                        VoiceStorage storage = VoiceStorage.Open(project.Value.ProfileDirectory(ProfileKind.Voice), project.Value.ProfileFileName(ProfileKind.Voice), context.ConfigDirectory, context.SystemClock, context.MonotonicClock, context.FrameLoop, voiceLog);
+                        string voiceModels = context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels);
+                        return voice = new VoiceService(audio.MicrophoneStage, context.FrameLoop, VoiceModelLibrary.Create(voiceModels, new VoiceModelStore(voiceModels, context.SystemClock)), voiceLog, metrics, storage);
+                    },
                     new[] { LoggingService.ServiceName, AudioService.ServiceName }));
             }
 
@@ -290,8 +298,9 @@ namespace VirtualVessel.Application.Startup
                                 Captures = capture,
                                 Audio = audio,
                                 Voice = voice,
+                                VoiceTrial = voice == null ? null : new VoiceTrialService(context.FrameLoop, voice.Library, logging.Provider.GetLog("Voice", "Trial")),
                                 // Assigned in order: the library comes with Voice Lab.
-                                VoiceLab = voiceLab = VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")),
+                                VoiceLab = voiceLab = Configure(VoiceLabService.Create(context.ConfigDirectory, context.DataRoot.GetDirectory(DataRootDirectory.VoiceLab), context.DataRoot.GetDirectory(DataRootDirectory.VoiceModels), context.SystemClock, logging.Provider.GetLog("VoiceLab", "Design")), voice),
                                 VoiceLabLibrary = voiceLab.Library,
                                 AudioPreview = audio,
                                 SystemSettings = new WindowsSystemSettings(),
@@ -376,6 +385,17 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly; built players never allow it.
+        // The voice used for the stream is Voice's to say, so Voice Lab does not delete it.
+        private static VoiceLabService Configure(VoiceLabService voiceLab, VoiceService voice)
+        {
+#if UNITY_EDITOR
+            voiceLab.AllowEditorTest = true;
+#endif
+            voiceLab.VoiceInUse = voiceId => voice != null && voice.InUseVoiceId == voiceId;
+            return voiceLab;
         }
     }
 }

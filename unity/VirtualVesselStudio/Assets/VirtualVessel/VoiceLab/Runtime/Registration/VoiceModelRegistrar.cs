@@ -1,62 +1,23 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using VirtualVessel.Core.Time;
 using VirtualVessel.ProjectData.Config;
 using VirtualVessel.ProjectData.Records;
+using VirtualVessel.Voice.Models;
 using VirtualVessel.VoiceLab.Training;
 
 namespace VirtualVessel.VoiceLab.Registration
 {
-    /// <summary>A registered voice, as the runtime will find it in VoiceModels/&lt;id&gt;/.</summary>
-    public sealed class RegisteredVoice
-    {
-        public RegisteredVoice(string id, string name, string folder, int medianPitchHz)
-        {
-            Id = id;
-            Name = name;
-            Folder = folder;
-            MedianPitchHz = medianPitchHz;
-        }
-
-        public string Id { get; }
-
-        public string Name { get; }
-
-        public string Folder { get; }
-
-        /// <summary>For matching the user's pitch (Voice Lab detailed design 8.3.4); 0 when unknown.</summary>
-        public int MedianPitchHz { get; }
-    }
-
-    /// <summary>model.json: what a registered voice is called and where it came from (Voice Lab detailed design 6.5).</summary>
-    public sealed class VoiceModelRecord
-    {
-        public const int SchemaVersion = 1;
-
-        public string Id { get; set; }
-
-        public string Name { get; set; }
-
-        public string RunId { get; set; }
-
-        public string RegisteredAtUtc { get; set; }
-
-        public int MedianPitchHz { get; set; }
-
-        public RunDesign Design { get; set; } = new RunDesign();
-
-        public Dictionary<string, string> Versions { get; set; } = new Dictionary<string, string>();
-    }
-
     /// <summary>
-    /// Copies a built voice from its Training Run into the runtime's voices (system design 13.21), so deleting
-    /// or retraining in Voice Lab never breaks a voice in use. The run's files stay where they are.
+    /// Hands a built voice from its Training Run over to Voice's registered voices (system design 13.21), so deleting
+    /// or retraining in Voice Lab never breaks a voice in use. The run's files stay where they are. How the voice was
+    /// made goes with it as design.json, which only Voice Lab reads (Voice Lab detailed design 6.5).
     /// </summary>
     public sealed class VoiceModelRegistrar
     {
-        public static readonly IReadOnlyList<string> VoiceFiles = new[] { "voice.sentis", "voice.spk", "voice.json" };
+        public const string DesignFile = "design.json";
+        public const int DesignSchemaVersion = 1;
 
         private readonly IVoiceModelRepository _voices;
         private readonly ITrainingRunRepository _runs;
@@ -71,60 +32,25 @@ namespace VirtualVessel.VoiceLab.Registration
 
         /// <summary>
         /// Creates the voice (system design 6.31): Invalid when the run did not complete or its output is missing,
-        /// StorageFailed when the files could not be copied.
+        /// StorageFailed when the files could not be written or copied.
         /// </summary>
-        public CrudResult<RegisteredVoice> Register(TrainingRun run, string name)
+        public CrudResult<VoiceModelRecord> Register(TrainingRun run, string name)
         {
             if (run.GetState() != TrainingState.Completed)
             {
-                return CrudResult<RegisteredVoice>.Fail(CrudError.Invalid, $"Run {run.RunId} is {run.State}; only a completed run can be registered.");
+                return CrudResult<VoiceModelRecord>.Fail(CrudError.Invalid, $"Run {run.RunId} is {run.State}; only a completed run can be registered.");
             }
 
             string output = Path.Combine(_runs.FolderOf(run.RunId), "output");
-            foreach (string file in VoiceFiles)
-            {
-                if (!File.Exists(Path.Combine(output, file)))
-                {
-                    return CrudResult<RegisteredVoice>.Fail(CrudError.Invalid, $"Run {run.RunId} has no {file}.");
-                }
-            }
-
-            CrudResult<RegisteredVoice> copied = CrudResult<RegisteredVoice>.Run(() => Copy(run, name, output), $"Copying run {run.RunId}'s voice");
-            if (!copied.Ok)
-            {
-                return copied;
-            }
-
-            // Recorded once the files are in place; until then the voice is not listed.
-            CrudResult added = _voices.Add(Record(copied.Value.Id, name, run, copied.Value.MedianPitchHz, _clock.UtcNow));
-            return added.Ok ? copied : CrudResult<RegisteredVoice>.From(added);
+            CrudResult written = CrudResult.Run(() => DesignStore(output, _clock).Save(run.Design ?? new RunDesign()), $"Writing run {run.RunId}'s design");
+            return written.Ok ? _voices.Add(Handover(run, name, output)) : CrudResult<VoiceModelRecord>.From(written);
         }
 
-        private RegisteredVoice Copy(TrainingRun run, string name, string output)
+        /// <summary>What Voice is given: the runtime's files and the design, from the run's output. Pure.</summary>
+        public static NewVoiceModel Handover(TrainingRun run, string name, string output)
         {
-            string id = VoiceId(run.RunId);
-            string folder = _voices.FolderOf(id);
-            // Copied into a folder beside the target and then moved, so the runtime never sees half a voice.
-            string staging = folder + ".part";
-            if (Directory.Exists(staging))
-            {
-                Directory.Delete(staging, true);
-            }
-
-            Directory.CreateDirectory(staging);
-            foreach (string file in VoiceFiles)
-            {
-                File.Copy(Path.Combine(output, file), Path.Combine(staging, file));
-            }
-
-            int medianPitch = MedianPitch(File.ReadAllText(Path.Combine(output, "voice.json")));
-            if (Directory.Exists(folder))
-            {
-                Directory.Delete(folder, true);
-            }
-
-            Directory.Move(staging, folder);
-            return new RegisteredVoice(id, name, folder, medianPitch);
+            var files = new List<string>(VoiceModelStore.RuntimeFiles) { DesignFile };
+            return new NewVoiceModel(VoiceId(run.RunId), name, run.RunId, output, files, run.Versions);
         }
 
         /// <summary>A voice's ID from the run it came from: one voice per run. Pure.</summary>
@@ -133,32 +59,24 @@ namespace VirtualVessel.VoiceLab.Registration
             return VoiceModelStore.IdPrefix + runId;
         }
 
-        /// <summary>The median pitch export_voice.py wrote in voice.json; 0 when it is not there. Pure.</summary>
-        public static int MedianPitch(string voiceJson)
+        /// <summary>
+        /// How a registered voice was made, from its folder; null when it has no design.json, such as a voice registered
+        /// before the design moved out of model.json.
+        /// </summary>
+        public static RunDesign ReadDesign(string voiceFolder, ISystemClock clock)
         {
-            try
+            if (!File.Exists(Path.Combine(voiceFolder, DesignFile)))
             {
-                return ConfigDocument.Parse(voiceJson).Get("medianPitchHz", 0);
+                return null;
             }
-            catch (FormatException)
-            {
-                return 0;
-            }
+
+            ConfigLoadResult<RunDesign> loaded = DesignStore(voiceFolder, clock).Load();
+            return loaded.Status == ConfigLoadStatus.Recovered ? null : loaded.Value;
         }
 
-        /// <summary>model.json's contents. Pure.</summary>
-        public static VoiceModelRecord Record(string id, string name, TrainingRun run, int medianPitchHz, DateTimeOffset now)
+        private static ConfigFileStore<RunDesign> DesignStore(string folder, ISystemClock clock)
         {
-            return new VoiceModelRecord
-            {
-                Id = id,
-                Name = name,
-                RunId = run.RunId,
-                RegisteredAtUtc = now.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                MedianPitchHz = medianPitchHz,
-                Design = run.Design,
-                Versions = new Dictionary<string, string>(run.Versions ?? new Dictionary<string, string>()),
-            };
+            return new ConfigFileStore<RunDesign>(folder, DesignFile, DesignSchemaVersion, () => new RunDesign(), clock);
         }
     }
 }

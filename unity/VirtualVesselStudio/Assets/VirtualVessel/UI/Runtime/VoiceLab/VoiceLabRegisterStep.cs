@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using UnityEngine.UIElements;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.VoiceLab
@@ -24,9 +25,12 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly StatusChip _result;
         private readonly ActionButton _again;
         private string _registeredRun;
+        private readonly IVoiceConversion _voice;
 
-        public VoiceLabRegisterStep(IVoiceLab lab, VoiceLabDraft draft, IVoiceLabFlow flow)
+        /// <param name="voice">The voice conversion, to use the voice right away; null leaves that out.</param>
+        public VoiceLabRegisterStep(IVoiceLab lab, VoiceLabDraft draft, IVoiceLabFlow flow, IVoiceConversion voice = null)
         {
+            _voice = voice;
             _lab = lab ?? throw new ArgumentNullException(nameof(lab));
             _draft = draft ?? throw new ArgumentNullException(nameof(draft));
             _flow = flow ?? throw new ArgumentNullException(nameof(flow));
@@ -41,6 +45,11 @@ namespace VirtualVessel.UI.VoiceLab
             card.Add(SummaryRow(VoiceLabStrings.SummaryBase, out _base));
             card.Add(SummaryRow(VoiceLabStrings.SummaryTimbre, out _timbre));
             card.Add(Ui.Text(VoiceLabStrings.RegisterNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            // On by default: a voice is made to be used (system design 14.18).
+            UseNow = Ui.Toggle(VoiceLabStrings.UseNow);
+            UseNow.SetValueWithoutNotify(true);
+            UseNow.style.display = voice == null ? DisplayStyle.None : DisplayStyle.Flex;
+            card.Add(UseNow);
             _result = new StatusChip(StatusKind.Success, VoiceLabStrings.Registered);
             card.Add(_result);
             Add(card);
@@ -49,11 +58,19 @@ namespace VirtualVessel.UI.VoiceLab
             RegisterButton.clicked += Register;
             _again = Ui.Button(VoiceLabStrings.MakeAnother);
             _again.clicked += _flow.StartOver;
-            Add(VoiceLabScreen.Actions(RegisterButton, _again));
+            // Back to trying, also after registering: the run keeps the voice's files (the user's review, 2026-11-08).
+            BackButton = Ui.Button(VoiceLabStrings.BackToTry);
+            BackButton.clicked += () => _flow.GoTo(VoiceLabScreen.TryStep);
+            Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again));
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
         }
 
         public ActionButton RegisterButton { get; }
+
+        public ActionButton BackButton { get; }
+
+        /// <summary>Use the voice for the stream once registered.</summary>
+        public SwitchToggle UseNow { get; }
 
         public TextInput NameInput => _name;
 
@@ -98,7 +115,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             RegisterButton.SetEnabled(false);
             // Copies the voice's files, which can take a moment: off the main thread.
-            CrudResult registered = await Task.Run(() => _lab.Register(runId, name));
+            CrudResult<string> registered = await Task.Run(() => _lab.Register(runId, name));
             if (!registered.Ok)
             {
                 VoiceLabScreen.ShowFailure(this, _result, "Registering run " + runId, registered.Error, registered.Detail);
@@ -107,8 +124,14 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _registeredRun = runId;
+            bool use = _voice != null && UseNow.value;
+            if (use)
+            {
+                _voice.SelectVoice(registered.Value);
+            }
+
             _result.Status = StatusKind.Success;
-            _result.TextKey = VoiceLabStrings.Registered;
+            _result.TextKey = use ? VoiceLabStrings.RegisteredAndUsed : VoiceLabStrings.Registered;
 
             Refresh();
         }

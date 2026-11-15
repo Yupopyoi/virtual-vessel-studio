@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Streaming;
 
 namespace VirtualVessel.UI.VoiceLab
@@ -236,10 +237,15 @@ namespace VirtualVessel.UI.VoiceLab
             }
         }
 
-        /// <summary>Building a voice uses the GPU heavily, so it does not start while a stream runs (system design 14.26).</summary>
-        public static bool IsStreaming(StreamingState state)
+        /// <summary>
+        /// Whether a stream or a recording is under way, when Voice Lab is not used at all: making voices loads the
+        /// GPU, and trying them would reach the stream (user's decision, 2026-11-08; system design 14.26). Pure.
+        /// </summary>
+        public static bool IsLive(StreamingState streaming, RecordingState recording)
         {
-            return state == StreamingState.Connecting || state == StreamingState.Live || state == StreamingState.Reconnecting;
+            bool streams = streaming == StreamingState.Connecting || streaming == StreamingState.Live || streaming == StreamingState.Reconnecting;
+            bool records = recording == RecordingState.Starting || recording == RecordingState.Recording || recording == RecordingState.Stopping;
+            return streams || records;
         }
 
         /// <summary>The name as it will be registered, or null when there is none.</summary>

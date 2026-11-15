@@ -12,6 +12,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.VoiceLab;
 using Object = UnityEngine.Object;
 
 namespace VirtualVessel.UI.Tests
@@ -73,6 +74,39 @@ namespace VirtualVessel.UI.Tests
             Assert.That(control.StartButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
             Assert.That(control.StopButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
             Assert.That(control.Health.text, Does.Contain("5.9"));
+        }
+
+        [UnityTest]
+        public IEnumerator GoingLive_WhileAVoiceIsMade_AsksToStopIt()
+        {
+            Object.Destroy(_host);
+            var lab = new FakeLab { BuildState = VoiceLabBuildState.Training };
+            _host = new GameObject(nameof(StreamPanelTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Streaming = _streaming, VoiceLab = lab }));
+            yield return null;
+            _streaming.SetStreamKey("key");
+            StreamControl control = Open<StreamControl>();
+            yield return null;
+
+            // Not starting keeps the build going.
+            Submit(control.StartButton);
+            yield return null;
+            Assert.That(_root.Dialogs.Current.Confirm.TextKey, Is.EqualTo(BuildGuardStrings.StreamConfirm));
+            Submit(_root.Dialogs.Current.Cancel);
+            yield return null;
+            yield return null;
+            Assert.That((_streaming.Started, lab.BuildsCancelled), Is.EqualTo((0, 0)));
+
+            // Stopping the build and going live.
+            Submit(control.StartButton);
+            yield return null;
+            Submit(_root.Dialogs.Current.Confirm);
+            yield return null;
+            yield return null;
+            Assert.That((_streaming.Started, lab.BuildsCancelled), Is.EqualTo((1, 1)));
         }
 
         [UnityTest]

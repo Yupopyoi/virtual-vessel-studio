@@ -25,6 +25,7 @@ namespace VirtualVessel.UI.Commands
     /// <summary>A command that must be confirmed before it runs from a button.</summary>
     public interface IConfirmedCommand : IUiCommand
     {
+        /// <summary>Read when the button is pressed; null runs it without asking, for a command that asks only sometimes.</summary>
         ConfirmationRequest Confirmation { get; }
     }
 

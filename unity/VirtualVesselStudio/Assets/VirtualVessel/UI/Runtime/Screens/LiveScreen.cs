@@ -54,14 +54,14 @@ namespace VirtualVessel.UI.Screens
             // Under the stream, so recording starts and stops from here (recording detailed design 18.1).
             if (services.Recording != null)
             {
-                Record = new RecordControl(services.Recording, services.Explorer);
+                Record = new RecordControl(services.Recording, services.Explorer, services.VoiceLab);
                 Add(Record);
             }
 
             // Next to recording: going live and ending the stream (streaming detailed design 18.1).
             if (services.Streaming != null)
             {
-                Stream = new StreamControl(services.Streaming);
+                Stream = new StreamControl(services.Streaming, services.VoiceLab);
                 Add(Stream);
             }
 

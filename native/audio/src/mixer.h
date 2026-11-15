@@ -3,6 +3,7 @@
 // thread, and the tests call it directly with synthetic input.
 #pragma once
 
+#include "denoiser.h"
 #include "dsp.h"
 #include "fill_tracker.h"
 #include "frame_ring.h"
@@ -64,6 +65,14 @@ namespace vv::audio
         size_t ReadStage(int id, float* frames, size_t capacity);
         void WriteStage(int id, const float* frames, size_t count);
         StageDelay GetStageDelay(int id) const;
+
+        // Noise removal on a source as it is captured (audio detailed design 8.6), before a stage, so it works with
+        // or without voice conversion. The capture thread runs it; a stereo source is mixed to mono first. False
+        // when it cannot start.
+        bool SetDenoise(int id, bool enabled);
+
+        // The mono average of stereo frames; silence for null. Changes only `mono`. Pure apart from that.
+        static void ToMono(const float* stereo, size_t frames, float* mono);
 
         // One step of the moving average the delays keep, about half a second long. Pure.
         static float Smooth(float average, float value)
@@ -132,12 +141,25 @@ namespace vv::audio
         static int64_t FrameQpc(int64_t anchorQpc, uint64_t index, int64_t frequency);
 
     private:
+        // A source's noise removal, made the first time it is turned on and kept, so the capture thread never sees
+        // it go away. Writer (capture thread) only, apart from being made.
+        struct DenoiseStage
+        {
+            Denoiser denoiser;
+            float mono[BlockFrames] = {};
+            float stereo[BlockFrames * 2] = {};
+            int pending = 0;
+        };
+
         struct Slot
         {
             bool used = false;
             std::unique_ptr<FrameRing> input;
             std::unique_ptr<FrameRing> stageInput;
             std::atomic<bool> stage{ false };
+            std::atomic<bool> denoise{ false };
+            std::unique_ptr<DenoiseStage> denoiser;
+            bool denoised = false; // Capture thread only: it has used the denoiser, so it may read the pointer.
             std::atomic<float> gain{ 1.0f };
             std::atomic<bool> muted{ false };
             std::atomic<float> send{ 1.0f };
@@ -155,6 +177,15 @@ namespace vv::audio
             float appliedOutput = 1.0f;
             float appliedMonitor = 0.0f;
         };
+
+        // Writes frames to the ring the source feeds now, counting what does not fit.
+        static void Put(Slot& slot, const float* frames, size_t count);
+
+        // Gathers the source's captured frames into 10 ms frames, cleans each, and passes them on as stereo.
+        static void WriteDenoised(Slot& slot, const float* frames, size_t count);
+
+        // Passes on what waited for a 10 ms frame when noise removal turned off, so nothing is lost.
+        static void FlushDenoise(Slot& slot);
 
         // Reads one block of a source into the scratch block, following its fill; false when it has nothing to play.
         bool ReadSource(Slot& slot);

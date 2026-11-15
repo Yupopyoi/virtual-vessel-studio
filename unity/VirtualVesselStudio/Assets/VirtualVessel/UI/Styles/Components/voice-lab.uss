@@ -1,5 +1,6 @@
 /* The Voice Lab screen (system design 14.13 to 14.18). */
 .vv-lab > *,
+.vv-lab__content > *,
 .vv-lab__panel > * {
     margin-bottom: var(--vv-space-m);
 }
@@ -8,6 +9,19 @@
 .vv-lab__note {
     white-space: normal;
     color: var(--vv-color-text-2);
+}
+
+/* Cards stacked in Voice Lab keep room between them, and a card folded inside another keeps room above it (the user's review, 2026-11-08). */
+.vv-lab .vv-card {
+    margin-bottom: var(--vv-space-m);
+}
+
+.vv-lab .vv-card .vv-card {
+    margin-top: var(--vv-space-s);
+}
+
+.vv-lab__gap {
+    margin-bottom: var(--vv-space-m);
 }
 
 .vv-lab__actions {
