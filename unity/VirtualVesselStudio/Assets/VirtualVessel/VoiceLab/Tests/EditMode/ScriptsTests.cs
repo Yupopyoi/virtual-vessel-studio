@@ -14,6 +14,19 @@ namespace VirtualVessel.VoiceLab.Tests
             @"C:\env\Scripts\python.exe", @"C:\repo\services\voice-lab", @"C:\rvc", @"C:\models\VoxCPM2", @"C:\t\fused_template_w100.sentis", @"C:\t\fused_template_w100.json");
 
         [Test]
+        public void AnEnvironmentTheAppBuilt_RunsTheScriptsOfTheAppThatRunsNow()
+        {
+            // The trial build moved to another folder and Voice Lab found no scripts (2026-11-15).
+            VoiceLabEnvironment running = VoiceLabEnvironment.Running(s_environment, appBuilt: true, @"D:\Apps\VirtualVesselStudio\VoiceLab\scripts");
+            Assert.That(running.Scripts, Is.EqualTo(@"D:\Apps\VirtualVesselStudio\VoiceLab\scripts"));
+            Assert.That(running.Python, Is.EqualTo(s_environment.Python), "Only the scripts follow the app.");
+
+            Assert.That(VoiceLabEnvironment.Running(s_environment, appBuilt: false, @"D:\Apps\x").Scripts, Is.EqualTo(s_environment.Scripts), "A developer's environment keeps its own.");
+            Assert.That(VoiceLabEnvironment.Running(s_environment, appBuilt: true, null).Scripts, Is.EqualTo(s_environment.Scripts));
+            Assert.That(VoiceLabEnvironment.Running(null, appBuilt: true, @"D:\x"), Is.Null);
+        }
+
+        [Test]
         public void ScriptLine_ReadsEachKind()
         {
             ScriptLine progress = ScriptLine.Parse("{\"type\":\"progress\",\"stage\":\"train\",\"done\":3,\"total\":150}");

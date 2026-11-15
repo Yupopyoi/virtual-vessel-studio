@@ -518,6 +518,22 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator SetUpButUnusable_SaysVoicesCannotBeMade_RatherThanShowingNothing()
+        {
+            // Activation was done, but the environment could not be used: the tab stayed empty (2026-11-15).
+            Object.Destroy(_host);
+            _lab.Availability = VoiceLabAvailability.NotSetUp;
+            var setup = new FakeSetup { State = VoiceLabSetupState.Ready, TermsAgreed = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = new FakeLibrary(), VoiceLabSetup = setup });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MakeTab);
+            yield return null;
+
+            Assert.That(screen.Setup.Page, Is.EqualTo(VoiceLabSetupPage.None), "The setup has nothing to show.");
+            Assert.That(screen.NotSetUp.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);
@@ -939,7 +955,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(view.Page, Is.EqualTo(VoiceLabSetupPage.Check));
             Assert.That(view.LastCheck, Is.SameAs(setup.Check));
             Assert.That(view.ToTermsButton.enabledSelf, Is.True, "This PC meets every condition.");
-            Assert.That(screen.Query<Card>().ToList().Any(c => c.TitleKey == VoiceLabStrings.NotSetUpTitle), Is.False);
+            Assert.That(screen.Query<Card>().ToList().Any(c => c.TitleKey == VoiceLabStrings.NotSetUpTitle && c.resolvedStyle.display == DisplayStyle.Flex), Is.False, "The setup shows instead.");
 
             Submit(view.ToTermsButton);
             yield return null;

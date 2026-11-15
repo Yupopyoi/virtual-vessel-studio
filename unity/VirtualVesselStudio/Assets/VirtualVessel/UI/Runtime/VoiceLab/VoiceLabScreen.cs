@@ -167,11 +167,14 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 BuildMake();
             }
-            else if (Setup == null)
+            else
             {
-                Card card = Ui.Card(VoiceLabStrings.NotSetUpTitle);
-                card.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
-                _make.Add(card);
+                // Without the setup parts, or when they have nothing to show (set up, but the environment cannot be
+                // used), this says so: the tab stayed empty (2026-11-15).
+                NotSetUp = Ui.Card(VoiceLabStrings.NotSetUpTitle);
+                NotSetUp.Add(Ui.Text(VoiceLabStrings.NotSetUpBody, NoteClass, "vv-text-body"));
+                _make.Add(NotSetUp);
+                ShowNotSetUp();
             }
 
             FollowCanMake();
@@ -179,6 +182,18 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>Preparing Voice Lab on this PC; null without setup.</summary>
         public VoiceLabSetupView Setup { get; }
+
+        /// <summary>Says voices cannot be made here; null once Voice Lab is ready.</summary>
+        public Card NotSetUp { get; }
+
+        private void ShowNotSetUp()
+        {
+            if (NotSetUp != null)
+            {
+                bool nothingElse = !IsMakeBuilt && (Setup == null || Setup.Page == VoiceLabSetupPage.None);
+                NotSetUp.style.display = nothingElse ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
 
         private bool IsMakeBuilt => Steps != null;
 
@@ -331,6 +346,7 @@ namespace VirtualVessel.UI.VoiceLab
                 // The samples may have been deleted in the Made voices tab, and the environment too.
                 _base?.RequestView.RefreshSamples();
                 Setup?.Refresh();
+                ShowNotSetUp();
                 ShowResume(reload: true);
             }
 
