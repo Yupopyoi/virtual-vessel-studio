@@ -25,7 +25,12 @@ namespace VirtualVessel.UI.Tests
                 new VoiceLabShelfGroup("pitch", true, new[] { new VoiceLabShelfWord("light", "pitch", true), new VoiceLabShelfWord("deep", "pitch", false) }),
                 new VoiceLabShelfGroup("quality", false, new[] { new VoiceLabShelfWord("clean", "breath", true), new VoiceLabShelfWord("airy", "breath", false) }),
             },
-            new[] { new VoiceLabExample("low", new[] { "male", "deep" }) });
+            new[] { new VoiceLabExample("low", new[] { "male", "deep" }) },
+            DefaultLine);
+
+        public const string DefaultLine = "今日はいい天気ですね。";
+
+        public int StartSeed { get; set; } = 500;
 
         public bool SamplesMade { get; set; }
 
@@ -33,9 +38,12 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking SamplesProgress => default;
 
+        /// <summary>Samples not made even when the others are, as for words a later version added.</summary>
+        public HashSet<string> MissingSamples { get; } = new HashSet<string>();
+
         public string SampleFile(string language, string name)
         {
-            return SamplesMade ? language + "/" + name : null;
+            return SamplesMade && !MissingSamples.Contains(name) ? language + "/" + name : null;
         }
 
         public Task MakeSamplesAsync(CancellationToken cancellationToken)
@@ -104,7 +112,7 @@ namespace VirtualVessel.UI.Tests
             var made = new List<VoiceLabCandidate>();
             for (int i = 0; i < count; i++, _made++)
             {
-                made.Add(new VoiceLabCandidate("c" + _made, "c" + _made + ".wav", 200 + 10 * _made, 180, 300, "instruction"));
+                made.Add(new VoiceLabCandidate("c" + _made, "c" + _made + ".wav", 200 + 10 * _made, 180, 300, "instruction", request.FirstSeed + i));
             }
 
             return Task.FromResult<IReadOnlyList<VoiceLabCandidate>>(made);

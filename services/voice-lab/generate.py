@@ -1,10 +1,10 @@
 """Makes speech with VoxCPM2 (Voice Lab detailed design 8.3.1, 8.3.3, 8.5).
 
-candidates: {"shelf": [word id], "words": str, "prompt": str (optional), "count": n, "firstSeed": n, "model": folder,
-             "output": folder, "reference": wav (optional)}
+candidates: {"shelf": [word id], "words": str, "prompt": str (optional), "line": str (optional), "count": n,
+             "firstSeed": n, "model": folder, "output": folder, "reference": wav (optional)}
             -> a voice per seed reading the same line, with its pitch, to compare by ear and by number. The
                shelf's words (voicelab/shelf.json) and the user's free words make the instruction, or a prompt the
-               user wrote whole takes their place. With a
+               user wrote whole takes their place. The line is the user's, or the shelf's Japanese one. With a
                reference, the voices are made near it: new candidates around one the user picked (8.3.1).
 samples:    {"languages": ["ja", ...], "model": folder, "output": folder}
             -> STEP 1's samples, made on the user's PC when Voice Lab is set up: each example of the shelf with
@@ -26,12 +26,12 @@ import soundfile as sf
 
 from voicelab import corpus, pitch, prompt, protocol
 
-CANDIDATE_LINE = "今日はとてもいい天気ですね。少し散歩に出かけてみようと思います。みなさんは、休みの日は何をして過ごしていますか？"
-# The line the samples read in each language the screen can show.
-SAMPLE_LINES = {
-    "ja": CANDIDATE_LINE,
-    "en": "It's such a nice day today. I think I'll go out for a little walk. What do you all like to do on your days off?",
-}
+# The lines are the shelf's "lines" (voicelab/shelf.json), which Unity reads too: the samples read the one of
+# each language the screen can show, and candidates read the Japanese one unless the user wrote their own.
+CANDIDATE_LANGUAGE = "ja"
+MAX_LINE = 200
+# The largest seed Unity can hold, as a signed 32-bit whole number.
+MAX_SEED = 2_147_483_647
 CFG = 2.0
 STEPS = 10
 
@@ -77,7 +77,10 @@ def candidates(request, reporter):
     output = protocol.require(request, "output", str)
     if not 1 <= count <= 24:
         raise protocol.BadRequest("'count' must be 1 to 24.")
+    if isinstance(first, bool) or not 0 <= first <= MAX_SEED - count:
+        raise protocol.BadRequest(f"'firstSeed' must be 0 to {MAX_SEED} less the count.")
     instruction = instruction_of(request)
+    line = line_of(request, prompt.load())
     reference = reference_of(request)
     reporter.progress("load", 0, 1)
     model = _load(protocol.require(request, "model", str))
@@ -86,12 +89,27 @@ def candidates(request, reporter):
     for i in range(count):
         reporter.progress("candidates", i, count)
         seed = first + i
-        wav = _speak(model, CANDIDATE_LINE, seed, instruction, reference)
+        wav = _speak(model, line, seed, instruction, reference)
         path = os.path.join(output, f"candidate_{seed}.wav")
         _save(path, wav, rate)
         made.append({"seed": seed, "file": path, **pitch.describe(np.asarray(wav, dtype=np.float32).reshape(-1), rate)})
     reporter.progress("candidates", count, count)
-    reporter.result(instruction=instruction, reference=reference, candidates=made, versions=_versions())
+    reporter.result(instruction=instruction, line=line, reference=reference, candidates=made, versions=_versions())
+
+
+def line_of(request, shelf):
+    """The line the candidates read: the user's own, cleaned as free words are so it cannot be taken for an
+    instruction, at most MAX_LINE characters; the shelf's when they wrote none. Checked before the model loads.
+    Pure."""
+    written = request.get("line")
+    if written is None or written == "":
+        return shelf["lines"][CANDIDATE_LANGUAGE]
+    if not isinstance(written, str):
+        raise protocol.BadRequest("'line' must be text.")
+    line = prompt.clean_words(written, MAX_LINE)
+    if not line:
+        raise protocol.BadRequest("'line' has nothing left to read once cleaned.")
+    return line
 
 
 def instruction_of(request):
@@ -132,18 +150,21 @@ def reference_of(request):
 
 def sample_plan(shelf, languages):
     """Every sample to make: (language, file name, picked words, seed), in order. Pure."""
-    defaults = {slot.get("default") for slot in shelf["slots"]}
+    base = prompt.start_picks(shelf)
+    slot_of = {word["id"]: word["slot"] for word in shelf["words"]}
+    in_base = prompt.in_base(shelf)
     plan = []
     for lang in languages:
-        if lang not in SAMPLE_LINES:
+        if lang not in shelf["lines"]:
             raise protocol.BadRequest(f"No sample line for language '{lang}'.")
         for example in shelf["examples"]:
             plan.append((lang, f"example_{example['id']}.wav", example["words"], example["seeds"][lang]))
-        plan.append((lang, "base.wav", [], shelf["sampleSeed"]))
-        # A default word adds nothing to the base, so its sample is the base.
+        plan.append((lang, "base.wav", base, shelf["sampleSeed"]))
+        # A word already in the base adds nothing to it, so its sample is the base; any other replaces its slot's.
         for word in shelf["words"]:
-            if word["id"] not in defaults:
-                plan.append((lang, f"word_{word['id']}.wav", [word["id"]], shelf["sampleSeed"]))
+            if word["id"] not in in_base:
+                picked = [w for w in base if slot_of[w] != word["slot"]] + [word["id"]]
+                plan.append((lang, f"word_{word['id']}.wav", picked, shelf["sampleSeed"]))
     return plan
 
 
@@ -159,7 +180,7 @@ def samples(request, reporter):
         reporter.progress("samples", done, len(plan))
         path = os.path.join(output, lang, name)
         if not os.path.exists(path):
-            wav = _speak(model, SAMPLE_LINES[lang], seed, prompt.build(shelf, picked))
+            wav = _speak(model, shelf["lines"][lang], seed, prompt.build(shelf, picked))
             _save(path, wav, rate)
     reporter.progress("samples", len(plan), len(plan))
     reporter.result(output=output, count=len(plan), versions=_versions())

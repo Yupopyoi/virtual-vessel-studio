@@ -80,7 +80,7 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>A candidate voice: its sample to play and its pitch to compare.</summary>
     public sealed class VoiceLabCandidate
     {
-        public VoiceLabCandidate(string id, string file, int medianHz, int lowHz, int highHz, string instruction = null)
+        public VoiceLabCandidate(string id, string file, int medianHz, int lowHz, int highHz, string instruction = null, int seed = 0)
         {
             Id = id;
             File = file;
@@ -88,7 +88,14 @@ namespace VirtualVessel.UI.VoiceLab
             LowHz = lowHz;
             HighHz = highHz;
             Instruction = instruction ?? string.Empty;
+            Seed = seed;
         }
+
+        /// <summary>
+        /// The seed it was made with, shown so the user can make it again (the user's decision, 2026-11-14). Not
+        /// unique: <see cref="Id"/> is.
+        /// </summary>
+        public int Seed { get; }
 
         /// <summary>The instruction VoxCPM2 was given, in English, for the user who wants to read it.</summary>
         public string Instruction { get; }
@@ -179,6 +186,12 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>STEP 1's words and examples; null when Voice Lab is not set up.</summary>
         VoiceLabShelf Shelf { get; }
+
+        /// <summary>
+        /// The seed STEP 1 starts at, new for each session, so candidates differ from the last session's unless the
+        /// user gives a seed.
+        /// </summary>
+        int StartSeed { get; }
 
         /// <summary>
         /// A sample's file (<see cref="VoiceLabShelf.WordSampleName"/>, <see cref="VoiceLabShelf.ExampleSampleName"/>)

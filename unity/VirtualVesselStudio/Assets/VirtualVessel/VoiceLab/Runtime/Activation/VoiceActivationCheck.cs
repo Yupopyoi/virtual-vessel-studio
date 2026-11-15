@@ -28,8 +28,8 @@ namespace VirtualVessel.VoiceLab.Activation
                 try
                 {
                     var runs = new TrainingRunStore(folder, clock);
-                    var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(folder, "Designs"), clock, log, 1);
-                    IReadOnlyList<VoiceCandidate> candidates = await designer.MakeCandidatesAsync(new VoiceDescription(null, null), 1, null, null, cancellationToken).ConfigureAwait(false);
+                    var designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(folder, "Designs"), clock, log);
+                    IReadOnlyList<VoiceCandidate> candidates = await designer.MakeCandidatesAsync(new VoiceDescription(null, null), 1, 1, null, null, cancellationToken).ConfigureAwait(false);
                     if (candidates.Count == 0)
                     {
                         return "VoxCPM2 made no candidate.";

@@ -77,6 +77,8 @@ namespace VirtualVessel.VoiceLab
 
         public VoiceLabShelf Shelf { get; private set; }
 
+        public int StartSeed { get; private set; }
+
         /// <summary>What was made; there even when Voice Lab is not set up, so it can still be listed.</summary>
         public IVoiceLabLibrary Library { get; }
 
@@ -145,7 +147,8 @@ namespace VirtualVessel.VoiceLab
             _registrar = new VoiceModelRegistrar(voices, runs, _clock);
             Shelf = shelf;
             _samplesFolder = Path.Combine(_voiceLabFolder, "Samples");
-            _designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(_voiceLabFolder, "Designs"), _clock, _log, _random.Next(1, 1_000_000));
+            _designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(_voiceLabFolder, "Designs"), _clock, _log);
+            StartSeed = _random.Next(1, 1_000_000);
             _log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
         }
 
@@ -197,7 +200,7 @@ namespace VirtualVessel.VoiceLab
             IReadOnlyList<VoiceCandidate> made;
             try
             {
-                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords, request.Prompt), count, reference, progress, cancellationToken)).ConfigureAwait(false);
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords, request.Prompt, request.Line), count, request.FirstSeed, reference, progress, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {
@@ -328,7 +331,7 @@ namespace VirtualVessel.VoiceLab
             }
 
             RunDesign design = run.Design ?? new RunDesign();
-            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre), design.Prompt));
+            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre), design.Prompt, design.Line, design.Seed));
         }
 
         /// <summary>
@@ -349,7 +352,7 @@ namespace VirtualVessel.VoiceLab
                 new PitchSummary(design.MedianHz, design.LowHz, design.HighHz),
                 design.Instruction,
                 design.Reference,
-                new VoiceDescription(design.Words, design.FreeWords, design.Prompt));
+                new VoiceDescription(design.Words, design.FreeWords, design.Prompt, design.Line));
         }
 
         public CrudResult<string> Register(string runId, string name)
@@ -429,7 +432,7 @@ namespace VirtualVessel.VoiceLab
         /// <summary>A candidate as the screen shows it. Pure.</summary>
         public static VoiceLabCandidate ToScreen(VoiceCandidate candidate)
         {
-            return new VoiceLabCandidate(candidate.Id, candidate.File, candidate.Pitch.MedianHz, candidate.Pitch.LowHz, candidate.Pitch.HighHz, candidate.Instruction);
+            return new VoiceLabCandidate(candidate.Id, candidate.File, candidate.Pitch.MedianHz, candidate.Pitch.LowHz, candidate.Pitch.HighHz, candidate.Instruction, candidate.Seed);
         }
 
         // The environment's folder name only, so the log does not hold the user's paths.

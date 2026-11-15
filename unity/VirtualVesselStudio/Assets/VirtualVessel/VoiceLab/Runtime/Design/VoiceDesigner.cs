@@ -88,25 +88,28 @@ namespace VirtualVessel.VoiceLab.Design
         private readonly ISystemClock _clock;
         private readonly ILog _log;
         private readonly string _session;
-        private int _nextSeed;
+        private int _batches;
 
         /// <summary>This session's folder of candidates and previews, which is never deleted while it runs.</summary>
         public string SessionFolder => _session;
 
         /// <param name="designsFolder">Candidates and previews of this session go in a folder of their own here.</param>
-        public VoiceDesigner(PythonScripts scripts, ITrainingRunRepository runs, string designsFolder, ISystemClock clock, ILog log, int firstSeed)
+        public VoiceDesigner(PythonScripts scripts, ITrainingRunRepository runs, string designsFolder, ISystemClock clock, ILog log)
         {
             _scripts = scripts ?? throw new ArgumentNullException(nameof(scripts));
             _runs = runs ?? throw new ArgumentNullException(nameof(runs));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _session = Path.Combine(designsFolder, clock.UtcNow.UtcDateTime.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture));
-            _nextSeed = firstSeed;
         }
 
+        /// <param name="firstSeed">The first candidate's seed; the others take the seeds after it.</param>
         /// <param name="near">A candidate to make the new ones near, or null to make them from the description alone.</param>
-        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, VoiceCandidate near, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<VoiceCandidate>> MakeCandidatesAsync(VoiceDescription description, int count, int firstSeed, VoiceCandidate near, IProgress<ScriptProgress> progress, CancellationToken cancellationToken)
         {
+            // Each call writes into a folder of its own: the user may give a seed again, and the files and the ids,
+            // which name the previews, must not meet an earlier candidate's.
+            int batch = Interlocked.Increment(ref _batches);
             ConfigDocument request = ConfigDocument.Create();
             if (near != null)
             {
@@ -115,12 +118,11 @@ namespace VirtualVessel.VoiceLab.Design
 
             description.WriteTo(request);
             request.Set("count", count);
-            request.Set("firstSeed", _nextSeed);
+            request.Set("firstSeed", firstSeed);
             request.Set("model", _scripts.Environment.VoxCpmModel);
-            request.Set("output", Path.Combine(_session, "candidates"));
-            _nextSeed += count;
+            request.Set("output", Path.Combine(_session, "candidates", batch.ToString("D3", CultureInfo.InvariantCulture)));
             ConfigDocument result = await _scripts.RunAsync("generate.py", "candidates", request, _session, progress, cancellationToken).ConfigureAwait(false);
-            return Candidates(result, description);
+            return Candidates(result, batch, description);
         }
 
         /// <summary>STEP 1's samples into <paramref name="folder"/>/&lt;language&gt;/ (generate.py samples).</summary>
@@ -218,15 +220,16 @@ namespace VirtualVessel.VoiceLab.Design
             return run;
         }
 
-        /// <summary>Candidates from generate.py's result. Pure.</summary>
-        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result, VoiceDescription description = null)
+        /// <summary>Candidates from generate.py's result for the session's <paramref name="batch"/>-th call. Pure.</summary>
+        public static IReadOnlyList<VoiceCandidate> Candidates(ConfigDocument result, int batch, VoiceDescription description = null)
         {
             string instruction = result.Get<string>("instruction");
             string reference = result.Get<string>("reference");
             var candidates = new List<VoiceCandidate>();
             foreach (CandidateFields item in result.Get("candidates", new List<CandidateFields>()))
             {
-                candidates.Add(new VoiceCandidate($"candidate_{item.Seed}", item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference, description));
+                string id = string.Format(CultureInfo.InvariantCulture, "candidate_{0}_{1}", batch, item.Seed);
+                candidates.Add(new VoiceCandidate(id, item.Seed, item.File, new PitchSummary(item.MedianHz, item.LowHz, item.HighHz), instruction, reference, description));
             }
 
             return candidates;
@@ -288,6 +291,7 @@ namespace VirtualVessel.VoiceLab.Design
                 Words = new List<string>(candidate.Description?.Words ?? Array.Empty<string>()),
                 FreeWords = candidate.Description?.FreeWords ?? string.Empty,
                 Prompt = candidate.Description?.Prompt ?? string.Empty,
+                Line = candidate.Description?.Line ?? string.Empty,
                 MedianHz = candidate.Pitch.MedianHz,
                 LowHz = candidate.Pitch.LowHz,
                 HighHz = candidate.Pitch.HighHz,

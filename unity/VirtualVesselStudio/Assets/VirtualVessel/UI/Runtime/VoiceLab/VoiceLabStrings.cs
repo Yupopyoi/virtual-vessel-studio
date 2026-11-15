@@ -106,6 +106,7 @@ namespace VirtualVessel.UI.VoiceLab
         public const string BaseLead = "lab.base.lead";
         public const string Mood = "lab.base.mood";
         public const string SamplesMissing = "lab.base.samples-missing";
+        public const string SamplesPartial = "lab.base.samples-partial";
         public const string MakeSamples = "lab.base.make-samples";
         public const string MakingSamples = "lab.base.making-samples";
         public const string SamplesFailed = "lab.base.samples-failed";
@@ -127,7 +128,16 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ModelNote = "lab.base.model-note";
         public const string WordsNote = "lab.base.words-note";
         public const string Instruction = "lab.base.instruction";
+        public const string InstructionCopy = "lab.base.instruction-copy";
+        public const string InstructionCopied = "lab.base.instruction-copied";
         public const string MoreMood = "lab.base.more-mood";
+        public const string Details = "lab.base.details";
+        public const string Line = "lab.base.line";
+        public const string LineReset = "lab.base.line-reset";
+        public const string LineNote = "lab.base.line-note";
+        public const string LineRequired = "lab.base.line-required";
+        public const string Seed = "lab.base.seed";
+        public const string SeedNote = "lab.base.seed-note";
         public const string Words = "lab.base.words";
         public const string WordsHint = "lab.base.words-hint";
         public const string Make = "lab.base.make";

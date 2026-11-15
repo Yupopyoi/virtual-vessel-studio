@@ -77,11 +77,12 @@ namespace VirtualVessel.VoiceLab.Design
     /// </summary>
     public sealed class VoiceDescription
     {
-        public VoiceDescription(IReadOnlyList<string> words, string freeWords, string prompt = null)
+        public VoiceDescription(IReadOnlyList<string> words, string freeWords, string prompt = null, string line = null)
         {
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
             Prompt = prompt ?? string.Empty;
+            Line = line ?? string.Empty;
         }
 
         public IReadOnlyList<string> Words { get; }
@@ -92,8 +93,14 @@ namespace VirtualVessel.VoiceLab.Design
         public string Prompt { get; }
 
         /// <summary>
-        /// Writes the request's "shelf", "words", and "prompt" when there is one; the script builds or cleans the
-        /// instruction and checks it.
+        /// The line the candidates read, as the user wrote it; empty for the shelf's. It does not shape the voice
+        /// that is built: only the candidates read it (the user's decision, 2026-11-14).
+        /// </summary>
+        public string Line { get; }
+
+        /// <summary>
+        /// Writes the request's "shelf", "words", and "prompt" and "line" when there are; the script builds or cleans
+        /// the instruction and the line, and checks them.
         /// </summary>
         public void WriteTo(ConfigDocument document)
         {
@@ -102,6 +109,11 @@ namespace VirtualVessel.VoiceLab.Design
             if (Prompt.Length > 0)
             {
                 document.Set("prompt", Prompt);
+            }
+
+            if (Line.Length > 0)
+            {
+                document.Set("line", Line);
             }
         }
     }
@@ -148,7 +160,10 @@ namespace VirtualVessel.VoiceLab.Design
 
         public string Id { get; }
 
-        /// <summary>Reproduces the voice only under the same environment versions.</summary>
+        /// <summary>
+        /// Reproduces the voice only under the same environment versions. Not unique: the user may make candidates
+        /// with a seed again, so <see cref="Id"/> tells them apart.
+        /// </summary>
         public int Seed { get; }
 
         public string File { get; }

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -127,6 +128,40 @@ namespace VirtualVessel.UI.Tests
                 view.Refresh();
                 yield return new WaitForSeconds(SettleSeconds);
                 Collect(problems, $"lab/update/{background}");
+            }
+
+            Assert.That(problems, Is.Empty, string.Join("\n", problems));
+        }
+
+        [UnityTest]
+        public IEnumerator VoiceLabWithCandidatesAndHeldTimbres_IsReadable_OnBothBackgrounds()
+        {
+            // Candidate tiles and held timbres appear only once made, so opening the screens did not reach them;
+            // their names and numbers were Unity's default dark color (the user's review, 2026-11-15).
+            _root.Shell.Open("lab");
+            yield return null;
+            var screen = (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Submit(baseStep.Tiles.Last().PickButton);
+            yield return null;
+            screen.GoTo(VoiceLabScreen.TimbreStep);
+            var timbre = (VoiceLabTimbreStep)screen.Panel(VoiceLabScreen.TimbreStep);
+            Submit(timbre.HoldButton);
+            yield return null;
+            Assert.That(timbre.HeldList.Held, Is.Not.Empty);
+
+            var problems = new List<string>();
+            foreach (ThemeBackground background in new[] { ThemeBackground.Dark, ThemeBackground.Light })
+            {
+                _root.Settings.SetBackground(background);
+                screen.GoTo(VoiceLabScreen.BaseStep);
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/candidates/{background}");
+                screen.GoTo(VoiceLabScreen.TimbreStep);
+                yield return new WaitForSeconds(SettleSeconds);
+                Collect(problems, $"lab/held/{background}");
             }
 
             Assert.That(problems, Is.Empty, string.Join("\n", problems));

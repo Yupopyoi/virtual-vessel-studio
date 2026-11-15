@@ -45,7 +45,7 @@ namespace VirtualVessel.VoiceLab.Tests
         {
             VoiceDesigner designer = Designer(out _, out _);
 
-            IReadOnlyList<VoiceCandidate> candidates = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result;
+            IReadOnlyList<VoiceCandidate> candidates = designer.MakeCandidatesAsync(Airy(), 1, 101, null, null, CancellationToken.None).Result;
             TimbrePreview preview = designer.PreviewTimbreAsync(candidates[0], new TimbreSettings(4, 4, 0, 0), CancellationToken.None).Result;
 
             Assert.That(candidates, Has.Count.EqualTo(1));
@@ -67,7 +67,7 @@ namespace VirtualVessel.VoiceLab.Tests
             }
 
             VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
-            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
+            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, 101, null, null, CancellationToken.None).Result[0];
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             TrainingRun run = designer.BuildVoiceAsync(candidate, default, BuildPlan.EditorTest, null, CancellationToken.None).Result;
@@ -88,7 +88,7 @@ namespace VirtualVessel.VoiceLab.Tests
             }
 
             VoiceDesigner designer = Designer(out TrainingRunStore runs, out ISystemClock clock);
-            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, null, null, CancellationToken.None).Result[0];
+            VoiceCandidate candidate = designer.MakeCandidatesAsync(Airy(), 1, 101, null, null, CancellationToken.None).Result[0];
 
             TrainingRun run = designer.BuildVoiceAsync(candidate, new TimbreSettings(4, 4, 0, 0), BuildPlan.Standard, null, CancellationToken.None).Result;
             Assert.That(run.GetState(), Is.EqualTo(TrainingState.Completed), run.Error);
@@ -106,7 +106,7 @@ namespace VirtualVessel.VoiceLab.Tests
             clock = new UtcSystemClock();
             var runner = new ExternalProcessRunner(_environment.AllowedFolders, new NullLog(), clock);
             runs = new TrainingRunStore(Path.Combine(_folder, "VoiceLab"), clock);
-            return new VoiceDesigner(new PythonScripts(_environment, runner), runs, Path.Combine(_folder, "VoiceLab", "Designs"), clock, new NullLog(), 101);
+            return new VoiceDesigner(new PythonScripts(_environment, runner), runs, Path.Combine(_folder, "VoiceLab", "Designs"), clock, new NullLog());
         }
 
         // The experiment's airy_soft (decision record, 2026-11-03).

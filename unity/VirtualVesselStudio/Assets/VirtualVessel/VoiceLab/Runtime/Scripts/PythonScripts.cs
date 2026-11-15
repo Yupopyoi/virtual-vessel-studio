@@ -113,9 +113,11 @@ namespace VirtualVessel.VoiceLab.Scripts
         /// <summary>The process request for one script run. Pure.</summary>
         public static ExternalProcessRequest Request(VoiceLabEnvironment environment, string script, string operation, string requestPath, string logPath)
         {
-            return new ExternalProcessRequest(environment.Python, new[] { "-I", Path.Combine(environment.Scripts, script), operation, requestPath }, environment.Scripts, logPath)
+            // UTF-8 by -X utf8, not by PYTHONUTF8 or PYTHONIOENCODING: -I ignores every PYTHON* variable, and the
+            // output then came in the system code page, so Japanese in a result (the user's words echoed in the
+            // instruction, a user folder's name in a path) was garbled (2026-11-14).
+            return new ExternalProcessRequest(environment.Python, new[] { "-I", "-X", "utf8", Path.Combine(environment.Scripts, script), operation, requestPath }, environment.Scripts, logPath)
             {
-                Environment = new Dictionary<string, string> { ["PYTHONUTF8"] = "1", ["PYTHONIOENCODING"] = "utf-8" },
                 CancelGrace = s_cancelGrace,
             };
         }

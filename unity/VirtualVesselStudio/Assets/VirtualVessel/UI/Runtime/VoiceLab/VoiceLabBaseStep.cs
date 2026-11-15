@@ -14,6 +14,8 @@ namespace VirtualVessel.UI.VoiceLab
     {
         public const string TilesClass = VoiceLabScreen.UssClass + "__tiles";
 
+        private const long CopiedMilliseconds = 2000;
+
         private readonly IVoiceLab _lab;
         private readonly VoiceLabPlayer _player;
         private readonly VoiceLabDraft _draft;
@@ -28,7 +30,9 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly ActionButton _next;
         private readonly VoiceLabMakingBar _busy;
         private readonly Segmented _count;
+        private readonly VoiceLabCandidateDetails _details;
         private readonly Label _instruction;
+        private readonly ActionButton _copyInstruction;
         private readonly StatusChip _failed;
         private readonly Card _candidatesCard;
         private readonly Segmented _order;
@@ -60,6 +64,8 @@ namespace VirtualVessel.UI.VoiceLab
             var countRow = Ui.SettingRow(VoiceLabStrings.Count);
             countRow.Add(_count);
             mood.Add(countRow);
+            _details = new VoiceLabCandidateDetails(lab.Shelf?.DefaultLine, lab.StartSeed);
+            mood.Add(_details);
 
             _make = Ui.Button(VoiceLabStrings.Make, ButtonVariant.Primary);
             _make.clicked += () => Make(MakeKind.New);
@@ -95,6 +101,11 @@ namespace VirtualVessel.UI.VoiceLab
             _instruction.AddToClassList("vv-text-body");
             _instruction.AddToClassList(VoiceLabScreen.NoteClass);
             instruction.Add(_instruction);
+
+            // For the user who takes it elsewhere, such as into a prompt written whole (the user's review, 2026-11-15).
+            _copyInstruction = Ui.Button(VoiceLabStrings.InstructionCopy);
+            _copyInstruction.clicked += CopyInstruction;
+            instruction.Add(VoiceLabScreen.Actions(_copyInstruction));
             _candidatesCard.Add(instruction);
             Add(_candidatesCard);
 
@@ -117,7 +128,27 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Examples, words, and the user's own words.</summary>
         public VoiceLabShelfView RequestView => _request;
 
+        /// <summary>The line the candidates read and the seed they start at.</summary>
+        public VoiceLabCandidateDetails Details => _details;
+
+        /// <summary>A run's line and seed, so its base can be made again.</summary>
+        public void RestoreDetails(string line, int? seed)
+        {
+            _details.Restore(line, seed);
+        }
+
         public string InstructionText => _instruction.text;
+
+        public ActionButton CopyInstructionButton => _copyInstruction;
+
+        private void CopyInstruction()
+        {
+            UnityEngine.GUIUtility.systemCopyBuffer = _instruction.text;
+
+            // Says it worked for a moment, then offers it again.
+            _copyInstruction.TextKey = VoiceLabStrings.InstructionCopied;
+            _copyInstruction.schedule.Execute(() => _copyInstruction.TextKey = VoiceLabStrings.InstructionCopy).StartingIn(CopiedMilliseconds);
+        }
 
         /// <summary>Says a run being made again has lost its base's audio, so a new base is picked here.</summary>
         public void ShowBaseGone(bool gone)
@@ -148,7 +179,10 @@ namespace VirtualVessel.UI.VoiceLab
                 return;
             }
 
-            if (!_request.CheckRequest())
+            // Both checks run, so every field that needs the user shows its error at once.
+            bool requestOk = _request.CheckRequest();
+            string line = _details.LineToSend();
+            if (!requestOk || line == null)
             {
                 return;
             }
@@ -157,7 +191,9 @@ namespace VirtualVessel.UI.VoiceLab
             SetBusy(true);
             try
             {
-                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(_request.Request(), VoiceLabView.CandidateCounts[_count.value], near, _making.Token);
+                VoiceLabRequest request = _request.Request().With(line, _details.FirstSeed);
+                IReadOnlyList<VoiceLabCandidate> made = await _lab.MakeCandidatesAsync(request, VoiceLabView.CandidateCounts[_count.value], near, _making.Token);
+                _details.Advance(made.Count);
                 if (kind == MakeKind.New)
                 {
                     // A new request starts a new set: the earlier candidates were for another one.
@@ -204,6 +240,7 @@ namespace VirtualVessel.UI.VoiceLab
             _busy.SetRunning(busy);
 
             _count.SetEnabled(!busy);
+            _details.SetBusy(busy);
             _make.SetEnabled(!busy);
             _makeMore.SetEnabled(!busy);
             _makeNear.SetEnabled(!busy && _draft.Candidate != null);
@@ -236,7 +273,7 @@ namespace VirtualVessel.UI.VoiceLab
             foreach (int index in VoiceLabView.Order(medians, (CandidateOrder)_order.value))
             {
                 (int number, int from, VoiceLabCandidate candidate) = _candidates[index];
-                var tile = new CandidateTile(number, candidate.MedianHz, candidate.LowHz, candidate.HighHz)
+                var tile = new CandidateTile(number, candidate.MedianHz, candidate.LowHz, candidate.HighHz, candidate.Seed)
                 {
                     Picked = ReferenceEquals(candidate, _draft.Candidate),
                     FromNumber = from,

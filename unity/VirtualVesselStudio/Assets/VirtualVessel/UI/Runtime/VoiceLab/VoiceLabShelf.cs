@@ -11,11 +11,15 @@ namespace VirtualVessel.UI.VoiceLab
     /// </summary>
     public sealed class VoiceLabShelf
     {
-        public VoiceLabShelf(IReadOnlyList<VoiceLabShelfGroup> groups, IReadOnlyList<VoiceLabExample> examples)
+        public VoiceLabShelf(IReadOnlyList<VoiceLabShelfGroup> groups, IReadOnlyList<VoiceLabExample> examples, string defaultLine = null)
         {
             Groups = groups ?? Array.Empty<VoiceLabShelfGroup>();
             Examples = examples ?? Array.Empty<VoiceLabExample>();
+            DefaultLine = defaultLine ?? string.Empty;
         }
+
+        /// <summary>The line candidates read unless the user writes their own: the shelf's Japanese line.</summary>
+        public string DefaultLine { get; }
 
         public IReadOnlyList<VoiceLabShelfGroup> Groups { get; }
 
@@ -59,7 +63,8 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>
         /// The picks after pressing a word. A word replaces the one in its slot; pressing a picked word takes it
-        /// off, except in a group that takes one word, which always keeps one. Pure.
+        /// off, except in a main group that takes one word, which always keeps one. A folded group's word can be
+        /// taken off too: the character then says none (the user's decision, 2026-11-14). Pure.
         /// </summary>
         public IReadOnlyList<string> Toggle(IReadOnlyList<string> picked, string wordId)
         {
@@ -72,7 +77,8 @@ namespace VirtualVessel.UI.VoiceLab
             var next = new List<string>(picked);
             if (next.Contains(wordId))
             {
-                if (!GroupOf(wordId).PickOne)
+                VoiceLabShelfGroup group = GroupOf(wordId);
+                if (!group.PickOne || !group.Main)
                 {
                     next.Remove(wordId);
                 }
@@ -138,7 +144,10 @@ namespace VirtualVessel.UI.VoiceLab
 
         public string Slot { get; }
 
-        /// <summary>Its slot's default: picking it changes nothing in the instruction.</summary>
+        /// <summary>
+        /// In the base the screen starts from (its slot's default or start word): its sample is the base, and the
+        /// screen starts with it picked in a group that takes one word.
+        /// </summary>
         public bool IsDefault { get; }
 
         public string LabelKey => "lab.word." + Id;
@@ -164,11 +173,28 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>What candidates are asked for: the shelf's word ids and the user's own words.</summary>
     public sealed class VoiceLabRequest
     {
-        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords, string prompt = null)
+        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords, string prompt = null, string line = null, int firstSeed = 0)
         {
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
             Prompt = prompt ?? string.Empty;
+            Line = line ?? string.Empty;
+            FirstSeed = firstSeed;
+        }
+
+        /// <summary>
+        /// The line the candidates read; empty for the shelf's (<see cref="VoiceLabShelf.DefaultLine"/>). Only the
+        /// candidates read it: it does not shape the voice that is built.
+        /// </summary>
+        public string Line { get; }
+
+        /// <summary>The first candidate's seed; the others take the seeds after it.</summary>
+        public int FirstSeed { get; }
+
+        /// <summary>This request with STEP 1's details. Pure.</summary>
+        public VoiceLabRequest With(string line, int firstSeed)
+        {
+            return new VoiceLabRequest(Words, FreeWords, Prompt, line, firstSeed);
         }
 
         public IReadOnlyList<string> Words { get; }

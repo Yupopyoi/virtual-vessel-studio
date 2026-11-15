@@ -236,6 +236,25 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator WordsWithoutASample_AreOfferedTheirs_WhileTheExamplesStay()
+        {
+            _lab.SamplesMade = true;
+            _lab.MissingSamples.Add("word_airy.wav");
+            var baseStep = (VoiceLabBaseStep)Screen().Panel(VoiceLabScreen.BaseStep);
+            VoiceLabShelfView request = baseStep.RequestView;
+            request.RefreshSamples();
+            yield return null;
+
+            Assert.That(request.OffersSamples, Is.True, "A word a later version added has no sample yet.");
+            Card examples = request.Query<Card>().ToList().First(c => c.TitleKey == VoiceLabStrings.Examples);
+            Assert.That(examples.style.display.value, Is.EqualTo(DisplayStyle.Flex), "The base is made, so the examples play.");
+
+            _lab.MissingSamples.Clear();
+            request.RefreshSamples();
+            Assert.That(request.OffersSamples, Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator CandidatesNearAPickedOne_AreAddedAndSayWhereTheyCameFrom()
         {
             VoiceLabScreen screen = Screen();
@@ -615,6 +634,80 @@ namespace VirtualVessel.UI.Tests
             Assert.That(baseStep.RequestView.Prompt.value, Is.EqualTo("A calm woman."));
             var run = new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, null, "", default, "", null, null, "A calm woman.");
             Assert.That(VoiceLabLibraryView.RunSummary(run, null), Does.StartWith("A calm woman. / "));
+        }
+
+        [UnityTest]
+        public IEnumerator TheDetails_SendTheLineAndSeed_AndTheSeedMovesOn()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            VoiceLabCandidateDetails details = baseStep.Details;
+            yield return null;
+            Assert.That(details.Card.Expanded, Is.False, "Folded until the user opens it.");
+            Assert.That(details.Line.value, Is.EqualTo(FakeLab.DefaultLine));
+            Assert.That(details.ResetLineButton.enabledSelf, Is.False, "Nothing to reset yet.");
+
+            baseStep.CountChooser.value = 1;
+            Submit(baseStep.MakeButton);
+            yield return null;
+            VoiceLabRequest first = _lab.Requests.Last();
+            Assert.That((first.Line, first.FirstSeed), Is.EqualTo(("", 500)), "The default line is not sent; the script reads the shelf's.");
+            Assert.That(details.FirstSeed, Is.EqualTo(503), "Moved on by the three made, so Make gives new voices.");
+            Assert.That(baseStep.Tiles.First().Query<Label>().ToList().Select(l => l.text), Has.Member("500"), "The tile shows its seed.");
+
+            details.Line.value = "おはよう。";
+            details.Seed.value = 500;
+            Assert.That(details.ResetLineButton.enabledSelf, Is.True);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Assert.That((_lab.Requests.Last().Line, _lab.Requests.Last().FirstSeed), Is.EqualTo(("おはよう。", 500)), "A seed given again makes the same seeds.");
+
+            Submit(details.ResetLineButton);
+            Assert.That(details.Line.value, Is.EqualTo(FakeLab.DefaultLine));
+        }
+
+        [UnityTest]
+        public IEnumerator TheInstruction_IsCopied_AndTheButtonSaysSoForAMoment()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Submit(baseStep.MakeButton);
+            yield return null;
+            UnityEngine.GUIUtility.systemCopyBuffer = string.Empty;
+
+            Submit(baseStep.CopyInstructionButton);
+            Assert.That(UnityEngine.GUIUtility.systemCopyBuffer, Is.EqualTo(baseStep.InstructionText));
+            Assert.That(baseStep.CopyInstructionButton.TextKey, Is.EqualTo(VoiceLabStrings.InstructionCopied));
+            yield return new WaitForSeconds(2.2f);
+            Assert.That(baseStep.CopyInstructionButton.TextKey, Is.EqualTo(VoiceLabStrings.InstructionCopy));
+        }
+
+        [UnityTest]
+        public IEnumerator AnEmptyLine_AsksNothing_AndOpensTheDetailsOnItsError()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            baseStep.Details.Line.value = "  ";
+            yield return null;
+
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Assert.That(_lab.Requests, Is.Empty);
+            Assert.That(baseStep.Details.Line.ErrorKey, Is.EqualTo(VoiceLabStrings.LineRequired));
+            Assert.That(baseStep.Details.Card.Expanded, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator ARunsLineAndSeed_ComeBack_ToMakeItsBaseAgain()
+        {
+            VoiceLabScreen screen = Screen();
+            _lab.RemakeResult = new VoiceLabRemake(new[] { "male" }, "", null, default, null, "おはよう。", 4242);
+
+            screen.Remake("run-1");
+            yield return null;
+
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Assert.That((baseStep.Details.Line.value, baseStep.Details.FirstSeed), Is.EqualTo(("おはよう。", 4242)));
         }
 
         [UnityTest]

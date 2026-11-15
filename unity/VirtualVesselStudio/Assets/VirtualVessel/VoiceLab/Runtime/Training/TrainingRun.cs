@@ -67,6 +67,12 @@ namespace VirtualVessel.VoiceLab.Training
         /// <summary>The prompt the user wrote in place of the words. Added later; older run.json files read it as none.</summary>
         public string Prompt { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The line the candidate read, as sent to VoxCPM2 (the user's decision, 2026-11-14). Added later; older
+        /// run.json files read it as none, and their candidates read the shelf's Japanese line.
+        /// </summary>
+        public string Line { get; set; } = string.Empty;
+
         /// <summary>The candidate's pitch: median and 5 to 95% range in Hz. Added later; older run.json files read 0 (unknown).</summary>
         public int MedianHz { get; set; }
 

@@ -36,6 +36,8 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly List<IconButton> _playButtons = new List<IconButton>();
         private readonly List<(VoiceLabExample Example, Label Words)> _exampleWords = new List<(VoiceLabExample, Label)>();
         private readonly VisualElement _samplesNotice;
+        private readonly Label _samplesNone;
+        private readonly Label _samplesSome;
         private readonly Card _examples;
         private readonly ActionButton _makeSamples;
         private readonly VoiceLabMakingBar _samplesBusy;
@@ -77,7 +79,10 @@ namespace VirtualVessel.UI.VoiceLab
             _samplesNotice = new VisualElement();
             // Room before the Card under it, so Make the samples does not touch it (the user's review, 2026-11-11).
             _samplesNotice.AddToClassList(VoiceLabScreen.GapClass);
-            _samplesNotice.Add(Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body"));
+            _samplesNone = Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body");
+            _samplesSome = Ui.Text(VoiceLabStrings.SamplesPartial, VoiceLabScreen.NoteClass, "vv-text-body");
+            _samplesNotice.Add(_samplesNone);
+            _samplesNotice.Add(_samplesSome);
             _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
             _makeSamples.clicked += MakeSamples;
             _samplesBusy = new VoiceLabMakingBar(() => _lab.SamplesProgress, VoiceLabStrings.MakingSamples, () => _samplesMaking?.Cancel());
@@ -141,6 +146,9 @@ namespace VirtualVessel.UI.VoiceLab
         public string SentenceText => _sentence.text;
 
         public ActionButton MakeSamplesButton => _makeSamples;
+
+        /// <summary>Whether making the samples is offered: none are made, or some words have none.</summary>
+        public bool OffersSamples => _samplesNotice.style.display == DisplayStyle.Flex;
 
         /// <summary>From words, or a prompt written whole.</summary>
         public Segmented Mode { get; }
@@ -328,9 +336,14 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             // Without the samples, the examples have nothing to play, so they wait with them (the user's review, 2026-11-11).
-            bool missing = SampleFile("base.wav") == null;
-            _samplesNotice.style.display = missing ? DisplayStyle.Flex : DisplayStyle.None;
-            _examples.style.display = missing ? DisplayStyle.None : DisplayStyle.Flex;
+            // Words added in a later version have none on a PC that made the others, so making them is offered too;
+            // the files already made are kept.
+            bool none = SampleFile("base.wav") == null;
+            bool some = !none && _playButtons.Any(play => SampleFile((string)play.userData) == null);
+            _samplesNotice.style.display = none || some ? DisplayStyle.Flex : DisplayStyle.None;
+            _samplesNone.style.display = none ? DisplayStyle.Flex : DisplayStyle.None;
+            _samplesSome.style.display = some ? DisplayStyle.Flex : DisplayStyle.None;
+            _examples.style.display = none ? DisplayStyle.None : DisplayStyle.Flex;
         }
 
         private void ShowPicks()

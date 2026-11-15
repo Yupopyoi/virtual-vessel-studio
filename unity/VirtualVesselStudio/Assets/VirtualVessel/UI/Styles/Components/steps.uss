@@ -64,9 +64,11 @@
     margin-bottom: 8px;
 }
 
+/* The name and the numbers say their color: without one they took Unity's default dark text (2026-11-15). */
 .vv-tile__name {
     flex-grow: 1;
     margin-left: 8px;
+    color: var(--vv-color-text);
 }
 
 .vv-tile__from {
@@ -83,6 +85,10 @@
 
 .vv-tile__stat-name {
     color: var(--vv-color-text-3);
+}
+
+.vv-tile__stat > .vv-mono {
+    color: var(--vv-color-text);
 }
 
 .vv-tile__span {
