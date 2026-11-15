@@ -111,6 +111,7 @@ Tries the voice made in STEP 3, not yet registered (system design 14.17; Voice L
 
 - The register Card: the voice name (required, up to 60 characters), a summary of the base (candidate name and pitch) and the timbre ("Pitch +4 · Age +4 · Brightness 0 · Breathiness 0"), and a note that what it was made from is kept.
 - Register without a name shows "Enter a name" under the field.
+- When Register cannot be pressed, a line under the buttons says why (the user's review, 2026-11-15; it was greyed out without a word). Trying a registered voice opened from Made voices: it is registered already and needs no registering again; rename or delete it in Made voices. No voice made: make it in STEP 3 to register it.
 - Registered: a success chip, the register button disabled, and Make another, which goes back to STEP 1 keeping the mood and the candidates.
 - STEP 4 Try it with your voice goes back to STEP 4, before or after registering, since the run keeps the voice's files (user's check, 2026-11-08).
 - Use it for the stream once registered (on by default; system design 14.18). On, the registered voice becomes the Voice Profile's voice for the stream, and the success chip says it was registered and set as the voice for the stream. Hidden without the voice conversion.

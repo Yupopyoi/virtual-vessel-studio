@@ -950,6 +950,8 @@
         "setup.face.winks.description": "オンにすると、片目だけを閉じられるようになります。顔を向けたときなどに片目が誤って閉じる場合はオフにしてください。",
         "lab.tab.make": "声を作る",
         "lab.tab.made": "作った声",
+        "lab.register.blocked.registered": "この声は登録済みのため、登録し直す必要はありません。名前の変更や削除は「作った声」から行えます。",
+        "lab.register.blocked.no-run": "STEP 3 で声を作ると、登録できるようになります。",
         "voice.tone.title": "声の仕上げ",
         "voice.tone.note": "変換したあとの声の響きを整えます。声質そのものは変わりません。配信にも同じ仕上げがかかります。",
         "voice.tone.body": "厚み",

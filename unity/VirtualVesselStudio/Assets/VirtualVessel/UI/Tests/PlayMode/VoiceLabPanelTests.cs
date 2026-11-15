@@ -567,6 +567,50 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator StopPlaying_StopsWhatStep4Plays()
+        {
+            // STEP 4 plays without a finished callback, and Stop did not stop it (the user's report, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.OriginalButton);
+            yield return null;
+            int stops = _preview.Stops;
+
+            Submit(screen.Try.StopPlayingButton);
+
+            Assert.That(_preview.Stops, Is.GreaterThan(stops));
+        }
+
+        [UnityTest]
+        public IEnumerator Register_ForARegisteredVoice_SaysWhyItCannotBePressed()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = new FakeTrial() });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            yield return null;
+            var register = (VoiceLabRegisterStep)screen.Panel(VoiceLabScreen.RegisterStep);
+            Assert.That(register.RegisterButton.enabledSelf, Is.False);
+            Assert.That(register.BlockedNote.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(register.BlockedNote.text, Is.EqualTo(_root.Localizer.Get(VoiceLabStrings.RegisterBlockedRegistered)));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);

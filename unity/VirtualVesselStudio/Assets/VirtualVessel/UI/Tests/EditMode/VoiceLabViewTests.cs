@@ -83,6 +83,16 @@ namespace VirtualVessel.UI.Tests
             Assert.That(VoiceLabResumeNotice.UnregisteredOf(runs).Select(r => r.RunId), Is.EqualTo(new[] { "new", "old" }));
         }
 
+        [TestCase("run-1", null, false, null)]
+        [TestCase("run-1", null, true, null)]
+        [TestCase(null, "voices/voice-1", false, VoiceLabStrings.RegisterBlockedRegistered)]
+        [TestCase("run-1", "voices/voice-1", false, VoiceLabStrings.RegisterBlockedRegistered)]
+        [TestCase(null, null, false, VoiceLabStrings.RegisterBlockedNoRun)]
+        public void Register_SaysWhyItCannotBePressed(string runId, string tryFolder, bool registeredHere, string expected)
+        {
+            Assert.That(VoiceLabRegisterStep.BlockedKey(runId, tryFolder, registeredHere), Is.EqualTo(expected));
+        }
+
         [Test]
         public void Shelf_StartsWithEachPickOneGroupsDefault()
         {

@@ -308,8 +308,11 @@ namespace VirtualVessel.UI.Tests
             return Task.FromResult(true);
         }
 
+        public int Stops { get; private set; }
+
         public void Stop()
         {
+            Stops++;
         }
     }
 
