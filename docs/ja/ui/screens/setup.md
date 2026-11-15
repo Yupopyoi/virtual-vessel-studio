@@ -348,7 +348,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る。前回の状態を保存し、起動時に戻す。声を変えて配信する人には、起動時にオフで地声が乗るほうが重い失敗であるため（利用者の決定、2026-11-10） |
+| 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る。オンにしてから声の準備ができるまでと、変換できないときは、マイクの音を入れない（Voice詳細設計12章）。その間もオンと表示し、声やGPUがなくても押せる。オフにすれば元の声に戻せるようにするためである。前回の状態を保存し、起動時に戻す。声を変えて配信する人には、起動時にオフで地声が乗るほうが重い失敗であるため（利用者の決定、2026-11-10） |
 | 声 | Select | Voice Labで作った、使える声。試作の声は開発者用なので出さない（診断画面にだけ出す）。選ぶとVoice Profileに保存する（Voice詳細設計6.2） |
 | 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
 | 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
@@ -358,7 +358,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 
 - 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使用できません」とその理由を出し、すべての行を無効にする（13.3）。
 - 声がないとき：Cardの先頭に「声がありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
-- 止まったとき：Cardの先頭に、止まったことと、配信と録画に元の声が流れていること、どうすればよいかを出す。変換できないときの扱い（`onFailure`）を作るまでは、止まると元の声が流れる（Voice詳細設計17章）。
+- 止まったとき、または声を読み込めないとき：Cardの先頭に、止まったことと、配信と録画にマイクの音を入れていないこと、やり直すにはオフにしてからオンにすること、オフのままなら元の声が入ることを出す（2026-11-15）。「声がありません」より先に出す。配信に入るものを伝えるためである。`onFailure`が`PassThrough`のときは、元の声が流れていることを出す。
 - 「自分に聞こえる声」（13.4）、「変換できないとき」、「利用上の注意を見る」は、後の段階で加える。音声の処理の段の変更、変換できないときの扱い、規約（Voice Lab詳細設計8.2）がそれぞれ要るためである。
 
 ### 13.2 固定した値
@@ -393,9 +393,10 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.no-gpu` | このPCでは声の変換を使用できません | Voice conversion cannot be used on this PC |
 | `setup.voice.no-gpu.body` | 声の変換にはGPUが必要です。使用できるGPUが見つかりませんでした。 | It needs a GPU, and no usable GPU was found. |
 | `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
-| `setup.voice.failed.body` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.failed.body` | 元の声が流れないよう、配信と録画にマイクの音を入れていません。やり直すには、「声を変換する」をオフにしてからオンにしてください。オフのままにすると、元の声が入ります。解決しない場合は、診断画面のログを確認してください。 | Your microphone is kept out of the stream and recordings, so your own voice does not go out. To try again, turn Convert my voice off and on. Left off, your own voice goes out. If it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.failed.body-pass-through` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.body` | オフの場合、元の声が配信と録画に入ります。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings. It starts as it was last time. |
+| `setup.voice.enabled.body` | オフの場合、元の声が配信と録画に入ります。オンにしてから声の準備ができるまでと、変換できないときは、マイクの音を入れません。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings. On, the microphone is kept out until the voice is ready, and whenever it cannot convert. It starts as it was last time. |
 | `setup.voice.voice` | 声 | Voice |
 | `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |

@@ -128,7 +128,7 @@ A project setting (system design 6.3), kept in `Profiles/Voice/<VoiceProfileId>.
 | `semitones` | The user's adjustment in semitones, -24 to 24; added to the automatic shift when that is on (8.4) |
 | `autoPitch` | Automatic pitch matching; on by default |
 | `enabled` | Whether the conversion was on, restored at start; off by default. A trial's on and off are not saved |
-| `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12). Not built yet (chapter 17) |
+| `onFailure` | `Mute` or `PassThrough`; `Mute` by default (chapter 12), also when missing or unknown. No row on the screen chooses it yet (chapter 17) |
 
 - Choosing a voice, changing the adjustment, or switching automatic matching saves after 0.5 s (`VoiceStorage`), with a frame callback only while a save waits; shutdown writes what waits.
 - Voice and pitch changes during a trial (8.5) are not saved; ending the trial puts the saved values back.
@@ -285,6 +285,14 @@ Voice Lab writes the activation state, and Voice only reads it.
 
 **The default on failure is `Mute` (the user's approval, 2026-11-01).** System design 9.13 makes it the user's setting. For someone streaming with a changed voice, their real voice going out cannot be undone, so by default it does not. It is implemented by leaving the stage on and writing nothing, which gives silence.
 
+With `Mute`, the microphone's stage stays on for as long as the conversion is on and writes no converted voice (`VoiceService.MutesMicrophone`; 2026-11-15):
+
+- From turning it on (also on again at start) until the voice is ready.
+- When it stops on an inference exception. The stage is not turned off: off and on again would let a moment of the microphone through in between.
+- When the voice cannot load, or there is no voice.
+
+Meanwhile the microphone's audio waiting in the stage is read and dropped each frame, so it is not counted as overrun. Turning the stage on again when converting starts empties what waited there, so nothing plays late. Turning the conversion off turns the stage off and lets one's own voice through, as off is the user's choice. The settings toggle shows on all this while and can be pressed even without a voice or a GPU (setup screen 13).
+
 ## 13. Logging and Diagnostics
 
 - State changes, the loaded voice's ID, the format version, and the backend are recorded.
@@ -347,7 +355,7 @@ Stages:
 
 Open issues:
 
-- What to do on failure (`onFailure`; 6.2, chapter 12) is not built yet. Now a stopped conversion lets the microphone go back to the mix as it is (as `PassThrough`). The default `Mute` needs Audio's stage to stay silent while it gives no output. Turning on again at start also lets your own voice through for the seconds the voice loads, which the same mechanism would silence.
+- What to do on failure (`onFailure`; 6.2, chapter 12) is built (2026-11-15). No row on the screen chooses `PassThrough` yet; only the Voice Profile file does. `Mute` after an inference exception is not checked on hardware (the tests go as far as turning the stage on and off).
 - Correcting clock drift between the microphone and the mix. The prototype does not. One idea is adding or removing a few samples per block.
 - How the settings are shown (the user's request, 2026-11-03). Simple to use, with the detailed settings such as the window kept. There is no choice by what comes first (Lighter GPU, Smoothness): the 1 s window was the best in sound and on the GPU (user decision, 2026-11-03). No names by use such as "singing": they invite expectations about songs and questions of rights. What the user hears of themselves (the converted voice, the original voice, or nothing) is a separate setting. The converted voice comes 0.38 s late, which makes keeping rhythm hard when singing. The screen is designed in setup screen chapter 13 (the mock-up waits for the user's review).
 - Slow GPUs. Voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03; setup screen 13.3). There is no minimum GPU. There is no required performance yet, and only the RTX 4070 has been measured.

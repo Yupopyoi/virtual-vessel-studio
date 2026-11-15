@@ -53,6 +53,8 @@ namespace VirtualVessel.Voice
 
         private void Attach()
         {
+            // Turning the stage on again empties what waited in it, so nothing captured while muted is played late.
+            _muting = false;
             _waitingSamples = 0;
             _primed = false;
             _startedAt.Clear();
@@ -62,11 +64,12 @@ namespace VirtualVessel.Voice
 
         private void Stop()
         {
-            if (IsAttached)
+            if (IsAttached || _muting)
             {
                 _stage.SetEnabled(false);
             }
 
+            _muting = false;
             _stream?.Abandon();
         }
 

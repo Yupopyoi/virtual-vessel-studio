@@ -116,6 +116,12 @@ namespace VirtualVessel.UI.Voice
         bool IsSwitching { get; }
 
         /// <summary>
+        /// Whether the microphone is kept out of the stream because the conversion is on but not converting: while a
+        /// voice loads, or when it failed or cannot load (Voice detailed design 12). Turning it off lets it in again.
+        /// </summary>
+        bool MutesMicrophone { get; }
+
+        /// <summary>
         /// The user's adjustment in semitones, added to the automatic shift while <see cref="AutoPitch"/> is on, or the
         /// whole shift while it is off.
         /// </summary>

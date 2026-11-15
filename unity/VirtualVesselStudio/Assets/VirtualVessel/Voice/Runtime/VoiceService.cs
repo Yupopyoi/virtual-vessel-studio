@@ -81,6 +81,10 @@ namespace VirtualVessel.Voice
         private int _waitingSamples;
         private bool _primed;
         private bool _wanted;
+
+        // The stage is on with nothing written, which keeps the microphone out of the mix (Voice detailed design 12).
+        private bool _muting;
+        private float[] _discard;
         private readonly PerfTimer _workTimer;
         private readonly PerfTimer _issueTimer;
         private readonly PerfCounter _droppedCounter;
@@ -128,6 +132,14 @@ namespace VirtualVessel.Voice
         public string InUseVoiceId => _storage.Profile.VoiceModelId;
 
         public bool InTrial => _trial != null;
+
+        public bool MutesMicrophone => _muting;
+
+        /// <summary>Whether a profile's failure setting keeps the microphone out of the mix; only PassThrough lets it in. Pure.</summary>
+        public static bool MutesOnFailure(string onFailure)
+        {
+            return onFailure != VoiceProfile.PassThrough;
+        }
 
         public string Name => ServiceName;
 
@@ -395,6 +407,31 @@ namespace VirtualVessel.Voice
             {
                 BeginLoading();
             }
+
+            // While the voice loads, or when it cannot, the microphone does not reach the stream: on again at start
+            // let one's own voice through for the seconds a voice loads.
+            if (!IsAttached)
+            {
+                Mute();
+            }
+        }
+
+        private void Mute()
+        {
+            if (_muting || !MutesOnFailure(_storage.Profile.OnFailure) || !_stage.IsAvailable)
+            {
+                return;
+            }
+
+            _stage.SetEnabled(true);
+            _muting = true;
+        }
+
+        // What the microphone captured while muted is let go each frame, so the stage does not count it as overrun.
+        private void Discard()
+        {
+            _discard ??= new float[RvcStream.DeviceRate * ChannelCount];
+            _stage.Read(_discard, _discard.Length / ChannelCount);
         }
 
         public async Task<bool> PlayFileAsync(string path)

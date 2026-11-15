@@ -27,6 +27,7 @@ namespace VirtualVessel.UI.Screens
         public const string NoGpuBody = "setup.voice.no-gpu.body";
         public const string Failed = "setup.voice.failed";
         public const string FailedBody = "setup.voice.failed.body";
+        public const string FailedBodyPassThrough = "setup.voice.failed.body-pass-through";
         public const string Enabled = "setup.voice.enabled";
         public const string EnabledBody = "setup.voice.enabled.body";
         public const string Voice = "setup.voice.voice";
@@ -64,6 +65,7 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _pitchLine;
         private readonly Label _finalLine;
         private readonly List<VisualElement> _rows = new List<VisualElement>();
+        private readonly SettingRow _enabledRow;
         private IDisposable _stateSubscription;
         private IVisualElementScheduledItem _refresh;
         private int _voiceCount;
@@ -91,9 +93,9 @@ namespace VirtualVessel.UI.Screens
 
             EnabledToggle = Ui.Toggle(null);
             EnabledToggle.RegisterValueChangedCallback(evt => _voice.SetEnabled(evt.newValue));
-            SettingRow enabled = Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledBody, EnabledToggle);
-            enabled.HelpKey = VoiceCardStrings.Gpu;
-            card.Add(enabled);
+            _enabledRow = Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledBody, EnabledToggle);
+            _enabledRow.HelpKey = VoiceCardStrings.Gpu;
+            card.Add(_enabledRow);
 
             VoiceChoice = Ui.Select(null);
             VoiceChoice.RegisterValueChangedCallback(evt =>
@@ -196,6 +198,20 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        /// <summary>
+        /// Whether the toggle shows on: converting or getting ready, and also stopped while the microphone is kept out,
+        /// so turning it off is what lets one's own voice through. Pure.
+        /// </summary>
+        public static bool ShowsOn(VoiceConversionState state, bool muting)
+        {
+            if (state == VoiceConversionState.Off)
+            {
+                return false;
+            }
+
+            return muting || (state != VoiceConversionState.Failed && state != VoiceConversionState.Unavailable);
+        }
+
         /// <summary>The voices a user chooses from: the registered ones; the prototype's is for developers only. Pure.</summary>
         public static IReadOnlyList<SelectChoice> Choices(IReadOnlyList<VoiceConversionVoice> voices)
         {
@@ -269,10 +285,20 @@ namespace VirtualVessel.UI.Screens
             Status.Status = kind;
             Status.TextKey = key;
 
+            bool muting = _voice.MutesMicrophone;
             bool failed = state == VoiceConversionState.Failed;
-            _notice.style.display = !gpu || !hasVoice || failed ? DisplayStyle.Flex : DisplayStyle.None;
+
+            // Kept out of the stream, the microphone's silence is said first: it is what the stream gets.
+            bool mutedStop = muting && (failed || state == VoiceConversionState.Unavailable);
+            _notice.style.display = !gpu || !hasVoice || failed || mutedStop ? DisplayStyle.Flex : DisplayStyle.None;
             _openLab.style.display = gpu && !hasVoice ? DisplayStyle.Flex : DisplayStyle.None;
-            if (!gpu)
+            if (mutedStop)
+            {
+                _noticeChip.Status = StatusKind.Error;
+                _noticeChip.TextKey = VoiceCardStrings.Failed;
+                _noticeBody.Key = VoiceCardStrings.FailedBody;
+            }
+            else if (!gpu)
             {
                 _noticeChip.Status = StatusKind.Error;
                 _noticeChip.TextKey = VoiceCardStrings.NoGpu;
@@ -288,16 +314,17 @@ namespace VirtualVessel.UI.Screens
             {
                 _noticeChip.Status = StatusKind.Error;
                 _noticeChip.TextKey = VoiceCardStrings.Failed;
-                _noticeBody.Key = VoiceCardStrings.FailedBody;
+                _noticeBody.Key = VoiceCardStrings.FailedBodyPassThrough;
             }
 
+            // The toggle stays usable while muted, also without a voice or a GPU, so it can always be turned off.
             bool usable = gpu && hasVoice;
             foreach (VisualElement row in _rows)
             {
-                row.SetEnabled(usable);
+                row.SetEnabled(usable || (row == _enabledRow && muting));
             }
 
-            EnabledToggle.SetValueWithoutNotify(state != VoiceConversionState.Off && state != VoiceConversionState.Failed && state != VoiceConversionState.Unavailable);
+            EnabledToggle.SetValueWithoutNotify(ShowsOn(state, muting));
             AdjustRow.DescriptionKey = _voice.AutoPitch ? VoiceCardStrings.AdjustBodyAuto : VoiceCardStrings.AdjustBodyManual;
 
             ILocalizer localizer = UiServices.Find(this)?.Localizer;

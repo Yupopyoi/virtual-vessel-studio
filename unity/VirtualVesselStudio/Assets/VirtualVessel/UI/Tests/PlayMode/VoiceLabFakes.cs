@@ -505,6 +505,8 @@ namespace VirtualVessel.UI.Tests
 
         public bool IsSwitching => false;
 
+        public bool MutesMicrophone => false;
+
         private float _semitones;
 
         public float Semitones

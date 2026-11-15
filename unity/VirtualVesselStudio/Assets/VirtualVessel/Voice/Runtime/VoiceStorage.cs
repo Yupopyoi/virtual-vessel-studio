@@ -26,6 +26,18 @@ namespace VirtualVessel.Voice
         /// <summary>Whether the conversion was on, to turn it on again at start. Off by default.</summary>
         public bool Enabled { get; set; }
 
+        /// <summary>Keeps the microphone out of the mix while the conversion is on but not converting.</summary>
+        public const string Mute = "Mute";
+
+        /// <summary>Lets the microphone into the mix as it is while the conversion is on but not converting.</summary>
+        public const string PassThrough = "PassThrough";
+
+        /// <summary>
+        /// What the stream gets while the conversion is on but cannot convert (Voice detailed design 6.2, 12):
+        /// <see cref="Mute"/> by default, as one's own voice going out cannot be undone. Any other value mutes too.
+        /// </summary>
+        public string OnFailure { get; set; } = Mute;
+
         public VoiceProfile Clone()
         {
             return (VoiceProfile)MemberwiseClone();
