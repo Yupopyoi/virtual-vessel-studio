@@ -91,7 +91,7 @@ namespace VirtualVessel.UI.VoiceLab
             if (!read.Ok && read.Error != CrudError.NotFound)
             {
                 // Damaged or unreadable: nothing is offered, and the log keeps why (system design 6.31).
-                UiServices.Find(this)?.Log?.Warning($"Reading the unfinished work failed ({read.Error}): {read.Detail}");
+                LogFailure(this, "Reading the unfinished work", read.Error, read.Detail);
             }
 
             return read.Ok ? read.Value : null;
@@ -103,7 +103,7 @@ namespace VirtualVessel.UI.VoiceLab
             CrudResult<IReadOnlyList<VoiceLabRunRecord>> runs = _services.VoiceLabLibrary?.ListRuns() ?? CrudResult<IReadOnlyList<VoiceLabRunRecord>>.Success(new VoiceLabRunRecord[0]);
             if (!runs.Ok)
             {
-                UiServices.Find(this)?.Log?.Warning($"Listing the made voices failed ({runs.Error}): {runs.Detail}");
+                LogFailure(this, "Listing the made voices", runs.Error, runs.Detail);
                 return new VoiceLabRunRecord[0];
             }
 
@@ -128,12 +128,8 @@ namespace VirtualVessel.UI.VoiceLab
             _keeper.Paused = true;
             try
             {
-                VoiceLabRequest request = work.Request;
-                _base.RequestView.SetPicks(request.Words, request.FreeWords, request.Prompt);
-                _base.RestoreDetails(request.Line, request.FirstSeed);
-                _base.ShowBaseGone(false);
-                _draft.RunId = null;
-                _draft.TryFolder = null;
+                _base.PutBack(work.Request, work.Request.FirstSeed, baseGone: false);
+                _draft.ForgetRun();
                 VoiceLabWorkCandidate picked = work.PickedCandidate;
                 _draft.Candidate = picked?.Candidate;
                 _draft.CandidateNumber = picked?.Number ?? 0;
@@ -180,7 +176,7 @@ namespace VirtualVessel.UI.VoiceLab
             CrudResult deleted = _lab.DeleteWork();
             if (!deleted.Ok)
             {
-                UiServices.Find(this)?.Log?.Warning($"Discarding the unfinished work failed ({deleted.Error}): {deleted.Detail}");
+                LogFailure(this, "Discarding the unfinished work", deleted.Error, deleted.Detail);
             }
 
             ShowResume(reload: true);

@@ -56,7 +56,7 @@ namespace VirtualVessel.UI.VoiceLab
             CrudResult kept = _lab.SaveWork(work);
             if (!kept.Ok)
             {
-                UiServices.Find(_owner)?.Log?.Warning($"Keeping the unfinished work failed ({kept.Error}): {kept.Detail}");
+                VoiceLabScreen.LogFailure(_owner, "Keeping the unfinished work", kept.Error, kept.Detail);
             }
         }
     }

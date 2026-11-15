@@ -136,9 +136,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private static Label Body(Card card)
         {
-            Label body = QuietText.Of(new Label());
-            body.AddToClassList("vv-text-body");
-            body.AddToClassList(VoiceLabScreen.NoteClass);
+            Label body = VoiceLabScreen.PlainNote();
             card.Add(body);
             return body;
         }

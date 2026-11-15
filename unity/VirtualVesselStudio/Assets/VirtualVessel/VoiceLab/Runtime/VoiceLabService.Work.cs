@@ -18,7 +18,7 @@ namespace VirtualVessel.VoiceLab
         {
             if (_designer == null)
             {
-                return CrudResult<VoiceLabWork>.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult<VoiceLabWork>.Fail(CrudError.Invalid, NotSetUpDetail);
             }
 
             CrudResult<WorkFile> loaded = _work.Load();
@@ -57,7 +57,7 @@ namespace VirtualVessel.VoiceLab
 
             if (_designer == null)
             {
-                return CrudResult.Fail(CrudError.Invalid, "Voice Lab is not set up.");
+                return CrudResult.Fail(CrudError.Invalid, NotSetUpDetail);
             }
 
             var kept = new List<WorkCandidate>();

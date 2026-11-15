@@ -125,8 +125,7 @@ namespace VirtualVessel.UI.VoiceLab
         {
             SettingRow row = Ui.SettingRow(nameKey);
             row.HelpKey = helpKey;
-            Label size = Note(string.Empty);
-            size.AddToClassList("vv-text-body");
+            Label size = VoiceLabScreen.PlainNote();
             size.name = SizeName;
             row.TextArea.Add(size);
             row.Add(delete);

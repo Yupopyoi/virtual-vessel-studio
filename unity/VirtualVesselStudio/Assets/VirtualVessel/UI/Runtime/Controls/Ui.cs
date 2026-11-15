@@ -51,6 +51,14 @@ namespace VirtualVessel.UI.Controls
             return new SettingRow(nameKey, descriptionKey);
         }
 
+        /// <summary>A Setting Row with its control, as most rows are made.</summary>
+        public static SettingRow ControlRow(string nameKey, VisualElement control, string descriptionKey = null)
+        {
+            SettingRow row = SettingRow(nameKey, descriptionKey);
+            row.Add(control);
+            return row;
+        }
+
         public static StatusChip Chip(StatusKind status, string textKey)
         {
             return new StatusChip(status, textKey);

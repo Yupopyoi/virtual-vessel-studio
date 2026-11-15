@@ -30,6 +30,19 @@ namespace VirtualVessel.UI.VoiceLab
 
         /// <summary>A registered voice's folder that STEP 4 tries in place of the build's; null for the build's own.</summary>
         public string TryFolder { get; set; }
+
+        /// <summary>The voice made to try and register: a run, and a registered voice's folder when one is tried.</summary>
+        public void UseRun(string runId, string tryFolder)
+        {
+            RunId = runId;
+            TryFolder = tryFolder;
+        }
+
+        /// <summary>No voice made yet for these choices.</summary>
+        public void ForgetRun()
+        {
+            UseRun(null, null);
+        }
     }
 
     /// <summary>How a step moves the flow on, or back.</summary>
@@ -114,18 +127,13 @@ namespace VirtualVessel.UI.VoiceLab
         /// </param>
         public VoiceLabScreen(ScreenServices services)
         {
-            services ??= new ScreenServices();
-            IVoiceLab lab = services.VoiceLab;
-            IAudioPreview audio = services.AudioPreview;
-            IStreamingService streaming = services.Streaming;
-            IVoiceLabLibrary library = services.VoiceLabLibrary;
-            IRecordingService recording = services.Recording;
+            _services = services ?? new ScreenServices();
+            _lab = _services.VoiceLab;
+            _streaming = _services.Streaming;
+            _recording = _services.Recording;
+            _player = new VoiceLabPlayer(_services.AudioPreview, this);
+            bool hasLibrary = _services.VoiceLabLibrary != null;
             AddToClassList(UssClass);
-            _lab = lab;
-            _streaming = streaming;
-            _recording = recording;
-            _player = new VoiceLabPlayer(audio, this);
-            bool ready = lab != null && lab.Availability == VoiceLabAvailability.Ready;
 
             // In place of everything while a stream or a recording runs; a build in progress was stopped or kept when
             // it started (BuildGuardedStart).
@@ -138,9 +146,9 @@ namespace VirtualVessel.UI.VoiceLab
             ShowLock();
             PanelLifetime.WhileAttached(this, _ => WatchLive());
 
-            if (library != null)
+            if (hasLibrary)
             {
-                Tabs = services.VoiceLabSetup != null
+                Tabs = _services.VoiceLabSetup != null
                     ? Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade, VoiceLabStrings.TabTerms)
                     : Ui.Tabs(VoiceLabStrings.TabMake, VoiceLabStrings.TabMade);
                 Tabs.RegisterValueChangedCallback(e => ShowTab(e.newValue));
@@ -149,27 +157,26 @@ namespace VirtualVessel.UI.VoiceLab
 
             _make = new VisualElement();
             _content.Add(_make);
-            _services = services;
-            if (library != null)
+            if (hasLibrary)
             {
                 _content.Add(BuildLibrary(CanMake));
             }
 
-            if (library != null && services.VoiceLabSetup != null)
+            if (hasLibrary && _services.VoiceLabSetup != null)
             {
-                Terms = new VoiceLabTermsView(services.VoiceLabSetup);
+                Terms = new VoiceLabTermsView(_services.VoiceLabSetup);
                 Terms.style.display = DisplayStyle.None;
                 _content.Add(Terms);
             }
 
             // The setup stays above the steps once ready, for an update and the build's progress.
-            if (services.VoiceLabSetup != null)
+            if (_services.VoiceLabSetup != null)
             {
-                Setup = new VoiceLabSetupView(services.VoiceLabSetup, services.FileDialog, OnSetUp);
+                Setup = new VoiceLabSetupView(_services.VoiceLabSetup, _services.FileDialog, OnSetUp);
                 _make.Add(Setup);
             }
 
-            if (ready)
+            if (IsReady)
             {
                 BuildMake();
             }
@@ -203,11 +210,13 @@ namespace VirtualVessel.UI.VoiceLab
 
         private bool IsMakeBuilt => Steps != null;
 
+        private bool IsReady => _lab?.Availability == VoiceLabAvailability.Ready;
+
         /// <summary>
         /// Whether voices can be made now: an environment, and the terms of its version agreed to (Voice Lab detailed
         /// design 8.2). The steps and the library's Make again and Try follow it.
         /// </summary>
-        public bool CanMake => CanMakeWith(_lab?.Availability == VoiceLabAvailability.Ready, _services?.VoiceLabSetup?.TermsAgreed ?? true);
+        public bool CanMake => CanMakeWith(IsReady, _services.VoiceLabSetup?.TermsAgreed ?? true);
 
         /// <summary>Whether voices can be made, from an environment being ready and the terms agreed to. Pure.</summary>
         public static bool CanMakeWith(bool ready, bool termsAgreed)
@@ -235,7 +244,7 @@ namespace VirtualVessel.UI.VoiceLab
         // steps and the library follow whether voices can be made now.
         private void OnSetUp()
         {
-            if (!IsMakeBuilt && _lab != null && _lab.Availability == VoiceLabAvailability.Ready)
+            if (!IsMakeBuilt && IsReady)
             {
                 BuildMake();
             }
@@ -392,24 +401,25 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             VoiceLabRemake remake = read.Value;
-
-            _base.RequestView.SetPicks(remake.Words, remake.FreeWords, remake.Prompt);
-            _base.RestoreDetails(remake.Line, remake.Seed);
-            _base.ShowBaseGone(remake.Candidate == null);
-            _draft.RunId = null;
-            _draft.TryFolder = null;
+            PutBackRun(remake);
+            _draft.ForgetRun();
             ShowTab(MakeTab);
             if (remake.Candidate == null)
             {
-                _draft.Candidate = null;
                 GoTo(BaseStep, reset: true);
                 return;
             }
 
-            _draft.Candidate = remake.Candidate;
-            _draft.CandidateNumber = 0;
             GoTo(TimbreStep, reset: true);
             _timbre.Restore(remake.Timbre);
+        }
+
+        // A run's words, line, seed, and base come back to STEP 1. Its timbre is put back by the caller, which knows when.
+        private void PutBackRun(VoiceLabRemake remake)
+        {
+            _base.PutBack(remake.Asked, remake.Seed, baseGone: remake.Candidate == null);
+            _draft.Candidate = remake.Candidate;
+            _draft.CandidateNumber = 0;
         }
 
         /// <summary>
@@ -430,11 +440,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             if (read.Ok)
             {
-                _base.RequestView.SetPicks(read.Value.Words, read.Value.FreeWords, read.Value.Prompt);
-                _base.RestoreDetails(read.Value.Line, read.Value.Seed);
-                _base.ShowBaseGone(read.Value.Candidate == null);
-                _draft.Candidate = read.Value.Candidate;
-                _draft.CandidateNumber = 0;
+                PutBackRun(read.Value);
                 if (read.Value.Candidate != null)
                 {
                     // Before the run is set: putting the timbre back counts as moving it, which lets go of the run as
@@ -443,8 +449,7 @@ namespace VirtualVessel.UI.VoiceLab
                 }
             }
 
-            _draft.RunId = read.Ok ? runId : null;
-            _draft.TryFolder = voiceFolder;
+            _draft.UseRun(read.Ok ? runId : null, voiceFolder);
             ShowTab(MakeTab);
             GoTo(TryStep, reset: true);
         }
@@ -466,8 +471,7 @@ namespace VirtualVessel.UI.VoiceLab
         {
             if (lastValid < BuildStep)
             {
-                _draft.RunId = null;
-                _draft.TryFolder = null;
+                _draft.ForgetRun();
             }
 
             Steps.Show(Steps.Current, Math.Min(Steps.Reached, Math.Max(lastValid, Steps.Current)));
@@ -486,8 +490,7 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>Keeps the mood and the candidates, so a similar voice is quick to make.</summary>
         public void StartOver()
         {
-            _draft.RunId = null;
-            _draft.TryFolder = null;
+            _draft.ForgetRun();
             GoTo(BaseStep, reset: true);
         }
 
@@ -526,6 +529,18 @@ namespace VirtualVessel.UI.VoiceLab
         }
 
         /// <summary>
+        /// A note whose text the caller sets itself, such as a file's name; a keyed label would put its key's text back
+        /// on a language change.
+        /// </summary>
+        internal static Label PlainNote()
+        {
+            Label label = QuietText.Of(new Label());
+            label.AddToClassList(NoteClass);
+            label.AddToClassList("vv-text-body");
+            return label;
+        }
+
+        /// <summary>
         /// Handles a CRUD failure as its caller (system design 6.31): the chip tells the user by the kind of
         /// failure, and the log keeps the detail for developers.
         /// </summary>
@@ -534,6 +549,12 @@ namespace VirtualVessel.UI.VoiceLab
             chip.Status = StatusKind.Error;
             chip.TextKey = VoiceLabView.CrudFailureKey(error);
             chip.style.display = DisplayStyle.Flex;
+            LogFailure(owner, what, error, detail);
+        }
+
+        /// <summary>Keeps a CRUD failure that the user is not told about in the developer log (system design 6.31).</summary>
+        internal static void LogFailure(VisualElement owner, string what, CrudError error, string detail)
+        {
             UiServices.Find(owner)?.Log?.Warning($"{what} failed ({error}): {detail}");
         }
 
