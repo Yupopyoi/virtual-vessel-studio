@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using UnityEngine.UIElements;
+using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
@@ -100,6 +101,7 @@ namespace VirtualVessel.UI.Screens
                 if (!string.IsNullOrEmpty(evt.newValue))
                 {
                     _voice.SelectVoice(evt.newValue);
+                    ToneKnobs.SetTone(_voice.Tone);
                 }
             });
             card.Add(Row(VoiceCardStrings.Voice, VoiceCardStrings.VoiceBody, VoiceChoice));
@@ -139,6 +141,18 @@ namespace VirtualVessel.UI.Screens
             AdjustRow = adjust;
             card.Add(adjust);
 
+            // The chosen voice's finish, to fix after it was made (the user's decision, 2026-11-15).
+            ToneKnobs = new VoiceToneKnobs();
+            ToneKnobs.Changed += tone =>
+            {
+                CrudResult kept = _voice.SetTone(tone);
+                if (!kept.Ok)
+                {
+                    UiServices.Find(this)?.Log?.Warning($"Keeping the voice's finish failed ({kept.Error}): {kept.Detail}");
+                }
+            };
+            card.Add(ToneKnobs);
+
             RegisterCallback<AttachToPanelEvent>(_ => OnAttached());
             RegisterCallback<DetachFromPanelEvent>(_ => OnDetached());
         }
@@ -154,6 +168,9 @@ namespace VirtualVessel.UI.Screens
         public ValueSlider Adjustment { get; }
 
         public SettingRow AdjustRow { get; }
+
+        /// <summary>The chosen voice's finish.</summary>
+        public VoiceToneKnobs ToneKnobs { get; }
 
         /// <summary>The header's state: what the conversion does, or why it cannot run. Pure.</summary>
         public static (StatusKind Kind, string Key) StatusOf(VoiceConversionState state, bool gpu, bool hasVoice)
@@ -228,6 +245,8 @@ namespace VirtualVessel.UI.Screens
             VoiceChoice.SetValueWithoutNotify(_voice.InUseVoiceId ?? _voice.VoiceId ?? string.Empty);
             AutoPitchToggle.SetValueWithoutNotify(_voice.AutoPitch);
             Adjustment.SetValueWithoutNotify(_voice.Semitones);
+            ToneKnobs.SetTone(_voice.Tone);
+            ToneKnobs.SetEnabled(_voiceCount > 0);
             _stateSubscription = _voice.State.Subscribe(_ => Refresh());
             _refresh = schedule.Execute(Refresh).Every(RefreshMs);
             Refresh();

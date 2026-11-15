@@ -275,6 +275,18 @@ namespace VirtualVessel.UI.VoiceLab
         /// </summary>
         CrudResult<string> BuiltVoiceFolder(string runId);
 
+        /// <summary>
+        /// The finish of the voice STEP 4 tries (Voice detailed design 8.6): a registered voice's own when
+        /// <paramref name="voiceFolder"/> is one, else the run's. Flat when neither has one.
+        /// </summary>
+        UI.Voice.VoiceTone ToneOf(string runId, string voiceFolder);
+
+        /// <summary>
+        /// Keeps the finish chosen in STEP 4: with a registered voice when <paramref name="voiceFolder"/> is one, and with
+        /// the run, which hands it to the voice it registers. A CRUD update (system design 6.31).
+        /// </summary>
+        CrudResult KeepTone(string runId, string voiceFolder, UI.Voice.VoiceTone tone);
+
         /// <summary>Whose training environment this is (Voice Lab detailed design 11).</summary>
         VoiceLabEnvironmentState EnvironmentState { get; }
 

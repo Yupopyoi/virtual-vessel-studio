@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using VirtualVessel.Voice.Models;
 
 namespace VirtualVessel.VoiceLab.Training
 {
@@ -73,6 +74,20 @@ namespace VirtualVessel.VoiceLab.Training
         /// </summary>
         public string Line { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The finish chosen in STEP 4 (Voice detailed design 8.6), handed to the voice when it is registered. Added later;
+        /// older run.json files read it as none, a flat finish.
+        /// </summary>
+        public ToneValues Tone { get; set; }
+
+        /// <summary>This design with <paramref name="tone"/>; the rest is shared, as nothing else changes. Pure.</summary>
+        public RunDesign WithTone(ToneValues tone)
+        {
+            var copy = (RunDesign)MemberwiseClone();
+            copy.Tone = tone;
+            return copy;
+        }
+
         /// <summary>The candidate's pitch: median and 5 to 95% range in Hz. Added later; older run.json files read 0 (unknown).</summary>
         public int MedianHz { get; set; }
 
@@ -96,6 +111,7 @@ namespace VirtualVessel.VoiceLab.Training
             copy.Words = new List<string>(Words ?? new List<string>());
             copy.FreeWords = FreeWords ?? string.Empty;
             copy.Prompt = Prompt ?? string.Empty;
+            copy.Tone = Tone == null ? null : ToneValues.From(Tone.ToTone());
             return copy;
         }
     }
@@ -182,6 +198,14 @@ namespace VirtualVessel.VoiceLab.Training
             TrainingRun copy = Copy();
             string trimmed = (comment ?? string.Empty).Trim();
             copy.Comment = trimmed.Length > MaxComment ? trimmed.Substring(0, MaxComment) : trimmed;
+            return copy;
+        }
+
+        /// <summary>The run with the finish chosen in STEP 4. Pure.</summary>
+        public TrainingRun WithTone(ToneValues tone)
+        {
+            TrainingRun copy = Copy();
+            copy.Design = (copy.Design ?? new RunDesign()).WithTone(tone);
             return copy;
         }
 

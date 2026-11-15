@@ -538,6 +538,35 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheFinish_StartsFromTheRuns_IsKept_AndPlaysWithoutConvertingAgain()
+        {
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var trial = new FakeTrial();
+            _lab.KeptTones["voices/voice-1"] = new UI.Voice.VoiceTone(0f, 0f, 2f, 0f);
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+
+            Assert.That(screen.Try.ToneKnobs.Tone.Brightness, Is.EqualTo(2f), "The voice's own finish.");
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(_preview.Played.Last(), Is.EqualTo("converted-1.wav+tone1"), "Played with its finish.");
+
+            screen.Try.ToneKnobs.AirKnob.value = 3f;
+            Assert.That(_lab.KeptTones["voices/voice-1"].Air, Is.EqualTo(3f), "Kept at once.");
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Count, Is.EqualTo(1), "A new finish needs no new conversion.");
+            Assert.That(trial.Finishes.Last().Air, Is.EqualTo(3f));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);

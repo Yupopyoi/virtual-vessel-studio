@@ -102,6 +102,20 @@ namespace VirtualVessel.UI.Tests
 
         public VoiceLabMaking CandidatesProgress => default;
 
+        /// <summary>The finish kept for each run or voice folder, as the files would hold it.</summary>
+        public Dictionary<string, VoiceTone> KeptTones { get; } = new Dictionary<string, VoiceTone>();
+
+        public VoiceTone ToneOf(string runId, string voiceFolder)
+        {
+            return KeptTones.TryGetValue(voiceFolder ?? runId ?? string.Empty, out VoiceTone tone) ? tone : default;
+        }
+
+        public CrudResult KeepTone(string runId, string voiceFolder, VoiceTone tone)
+        {
+            KeptTones[voiceFolder ?? runId ?? string.Empty] = tone;
+            return CrudResult.Success;
+        }
+
         /// <summary>The unfinished work kept, as the file would hold it; null for none.</summary>
         public VoiceLabWork KeptWork { get; set; }
 

@@ -50,7 +50,7 @@ namespace VirtualVessel.VoiceLab.Registration
         public static NewVoiceModel Handover(TrainingRun run, string name, string output)
         {
             var files = new List<string>(VoiceModelStore.RuntimeFiles) { DesignFile };
-            return new NewVoiceModel(VoiceId(run.RunId), name, run.RunId, output, files, run.Versions);
+            return new NewVoiceModel(VoiceId(run.RunId), name, run.RunId, output, files, run.Versions, run.Design?.Tone?.ToTone() ?? default);
         }
 
         /// <summary>A voice's ID from the run it came from: one voice per run. Pure.</summary>

@@ -310,6 +310,11 @@ namespace VirtualVessel.UI.Tests
             card.Adjustment.value = 3f;
             Assert.That(voice.Semitones, Is.EqualTo(3f));
             Assert.That(card.EnabledToggle.enabledInHierarchy, Is.True);
+
+            card.ToneKnobs.BrightnessKnob.value = 4f;
+            Assert.That(voice.Tone.Brightness, Is.EqualTo(4f), "The chosen voice keeps its finish.");
+            Submit(card.ToneKnobs.ResetButton);
+            Assert.That(voice.Tone.IsFlat, Is.True);
         }
 
         [UnityTest]
