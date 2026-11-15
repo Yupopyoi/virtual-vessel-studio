@@ -333,33 +333,33 @@ namespace VirtualVessel.UI.Tests
         [Test]
         public void TheBuildsSteps_ShowDone_TheOneUnderWay_AndNotYet()
         {
-            Assert.That(VoiceLabSetupView.StepStatusOf(0, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Success, VoiceLabStrings.SetupStepDone)));
-            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupRunning)), "Live is for streaming only.");
-            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Paused), Is.EqualTo((StatusKind.Warning, VoiceLabStrings.SetupPaused)));
-            Assert.That(VoiceLabSetupView.StepStatusOf(2, 2, VoiceLabSetupState.Failed), Is.EqualTo((StatusKind.Error, VoiceLabStrings.SetupFailed)));
-            Assert.That(VoiceLabSetupView.StepStatusOf(3, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupStepLater)));
+            Assert.That(VoiceLabSetupText.StepStatusOf(0, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Success, VoiceLabStrings.SetupStepDone)));
+            Assert.That(VoiceLabSetupText.StepStatusOf(2, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupRunning)), "Live is for streaming only.");
+            Assert.That(VoiceLabSetupText.StepStatusOf(2, 2, VoiceLabSetupState.Paused), Is.EqualTo((StatusKind.Warning, VoiceLabStrings.SetupPaused)));
+            Assert.That(VoiceLabSetupText.StepStatusOf(2, 2, VoiceLabSetupState.Failed), Is.EqualTo((StatusKind.Error, VoiceLabStrings.SetupFailed)));
+            Assert.That(VoiceLabSetupText.StepStatusOf(3, 2, VoiceLabSetupState.Preparing), Is.EqualTo((StatusKind.Idle, VoiceLabStrings.SetupStepLater)));
         }
 
         [Test]
         public void EachFailure_SaysWhatToDo()
         {
-            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.Network).Title, Is.EqualTo(VoiceLabStrings.SetupFailedNetworkTitle));
-            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.DiskFull).Body, Is.EqualTo(VoiceLabStrings.SetupFailedDiskBody));
-            Assert.That(VoiceLabSetupView.FailureKeys(VoiceLabSetupFailure.None).Title, Is.EqualTo(VoiceLabStrings.SetupFailedSetupTitle), "A failure from before a restart.");
+            Assert.That(VoiceLabSetupText.FailureKeys(VoiceLabSetupFailure.Network).Title, Is.EqualTo(VoiceLabStrings.SetupFailedNetworkTitle));
+            Assert.That(VoiceLabSetupText.FailureKeys(VoiceLabSetupFailure.DiskFull).Body, Is.EqualTo(VoiceLabStrings.SetupFailedDiskBody));
+            Assert.That(VoiceLabSetupText.FailureKeys(VoiceLabSetupFailure.None).Title, Is.EqualTo(VoiceLabStrings.SetupFailedSetupTitle), "A failure from before a restart.");
         }
 
         [Test]
         public void TheDownload_ShowsItsBytes_AndTheOtherStepsTheirShare()
         {
             const long Gb = 1024L * 1024 * 1024;
-            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB (50%) · 30%"), "The download's own share, then the whole build's.");
-            Assert.That(VoiceLabSetupView.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
+            Assert.That(VoiceLabSetupText.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Download, 3 * Gb, 6 * Gb)), Is.EqualTo("3.0 GB / 6.0 GB (50%) · 30%"), "The download's own share, then the whole build's.");
+            Assert.That(VoiceLabSetupText.ProgressDetail(null, new VoiceLabSetupProgress(VoiceLabSetupStep.Install, 0, 0)), Is.EqualTo("75%"));
         }
 
         [Test]
         public void TheTermsMarkdown_BecomesHeadingsItemsAndRows()
         {
-            var blocks = VoiceLabSetupView.TermsBlocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
+            var blocks = VoiceLabTermsText.Blocks("<!-- version: 1 -->\n<!-- note -->\n\n# 規約\n\n前文の\n続き。\n\n## 第1条（定義）\n\n1. 一つ目\n   1. 入れ子\n\n1\\. 段落の番号\n\n| 名称 | 取得元 |\n|---|---|\n| **uv** | GitHub |\n");
 
             Assert.That(blocks, Is.EqualTo(new[]
             {
@@ -380,7 +380,7 @@ namespace VirtualVessel.UI.Tests
             foreach (string language in new[] { "ja", "en" })
             {
                 string file = System.IO.Path.GetFullPath(System.IO.Path.Combine("..", "..", "services", "voice-lab", "terms", $"voice-lab-terms.{language}.md"));
-                var blocks = VoiceLabSetupView.TermsBlocks(System.IO.File.ReadAllText(file));
+                var blocks = VoiceLabTermsText.Blocks(System.IO.File.ReadAllText(file));
                 Assert.That(blocks.Count(b => b.Kind == VoiceLabTermsBlockKind.Heading), Is.EqualTo(12), $"Twelve articles in {language}.");
                 Assert.That(blocks.Any(b => b.Text.Contains("<!--") || b.Text.Contains("**") || b.Text.Contains("\\")), Is.False, language);
             }
@@ -391,26 +391,26 @@ namespace VirtualVessel.UI.Tests
         {
             const long Mb = 1024L * 1024;
             var samples = new List<(double Seconds, long Done)> { (0d, 0L), (2d, 10 * Mb), (4d, 20 * Mb) };
-            (double rate, double? left) = VoiceLabSetupView.Rate(samples, 620 * Mb);
+            (double rate, double? left) = VoiceLabSetupText.Rate(samples, 620 * Mb);
             Assert.That(rate, Is.EqualTo(5d * Mb).Within(1d));
             Assert.That(left, Is.EqualTo(120d).Within(1e-6), "600 MB left at 5 MB/s.");
 
-            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L) }, 10L), Is.EqualTo((0d, (double?)null)), "One sample has no speed.");
-            Assert.That(VoiceLabSetupView.Rate(new List<(double, long)> { (1d, 5L), (2d, 5L) }, 10L).SecondsLeft, Is.Null, "Stalled.");
-            Assert.That(VoiceLabSetupView.RateText(null, 12.34 * Mb, 300d), Is.EqualTo("12.3 MB/s"));
+            Assert.That(VoiceLabSetupText.Rate(new List<(double, long)> { (1d, 5L) }, 10L), Is.EqualTo((0d, (double?)null)), "One sample has no speed.");
+            Assert.That(VoiceLabSetupText.Rate(new List<(double, long)> { (1d, 5L), (2d, 5L) }, 10L).SecondsLeft, Is.Null, "Stalled.");
+            Assert.That(VoiceLabSetupText.RateText(null, 12.34 * Mb, 300d), Is.EqualTo("12.3 MB/s"));
         }
 
         [Test]
         public void TheRecordsLines_NameComponentsByTheirProducts()
         {
-            Assert.That(VoiceLabSetupView.ItemName(null, "voxcpm2-model"), Is.EqualTo("VoxCPM2"));
-            Assert.That(VoiceLabSetupView.ItemName(null, "hubert-weights"), Is.EqualTo("HuBERT"));
-            Assert.That(VoiceLabSetupView.ItemName(null, "rvc"), Is.EqualTo("RVC"));
-            Assert.That(VoiceLabSetupView.ItemName(null, "template"), Is.EqualTo("template"), "Without a localizer, the id.");
-            Assert.That(VoiceLabSetupView.ItemName(null, "shared-rmvpe"), Is.EqualTo("RMVPE"));
+            Assert.That(VoiceLabSetupText.ItemName(null, "voxcpm2-model"), Is.EqualTo("VoxCPM2"));
+            Assert.That(VoiceLabSetupText.ItemName(null, "hubert-weights"), Is.EqualTo("HuBERT"));
+            Assert.That(VoiceLabSetupText.ItemName(null, "rvc"), Is.EqualTo("RVC"));
+            Assert.That(VoiceLabSetupText.ItemName(null, "template"), Is.EqualTo("template"), "Without a localizer, the id.");
+            Assert.That(VoiceLabSetupText.ItemName(null, "shared-rmvpe"), Is.EqualTo("RMVPE"));
 
             var entry = new VoiceLabSetupEntry(new System.DateTime(2026, 11, 11, 9, 5, 7), VoiceLabSetupEntryKind.Unpack);
-            Assert.That(VoiceLabSetupView.EntryText(null, entry), Is.EqualTo("09:05:07  Unpack"));
+            Assert.That(VoiceLabSetupText.EntryText(null, entry), Is.EqualTo("09:05:07  Unpack"));
         }
     }
 }

@@ -118,6 +118,38 @@ namespace VirtualVessel.Application.Tests
         }
 
         [Test]
+        public void Composition_WithEverything_ListsEachServiceOnce_InStartOrder_WithItsDependencies()
+        {
+            var host = new UnityEngine.GameObject(nameof(Composition_WithEverything_ListsEachServiceOnce_InStartOrder_WithItsDependencies));
+            try
+            {
+                UnityEngine.Camera camera = host.AddComponent<UnityEngine.Camera>();
+                UiRoot ui = host.AddComponent<UiRoot>();
+                var descriptors = ApplicationComposition.Create(CreateContext(RuntimeEnvironment.Editor, ui, new FrameLoop(), camera));
+                string listed = string.Join("\n", descriptors.Select(d => $"{d.Name} {d.Criticality} [{string.Join(",", d.DependsOn)}]"));
+
+                Assert.That(listed, Is.EqualTo(string.Join("\n",
+                    "Logging Required []",
+                    "PerformanceMetrics Optional [Logging]",
+                    "Capture Optional [Logging]",
+                    "Audio Optional [Logging]",
+                    "Voice Optional [Logging,Audio]",
+                    "Video Optional [Logging]",
+                    "Recording Optional [Logging,Video]",
+                    "Streaming Optional [Logging,Video,Recording]",
+                    "Stage Optional [Logging,Capture,Video]",
+                    "Tracking Optional [Logging,Capture]",
+                    "TrackingRecordings Optional [Logging,Tracking]",
+                    "Avatar Optional [Logging,Video,Stage]",
+                    "UI Optional [Logging]")));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
         public async Task Runtime_WithAFrameLoop_StartsCapture_AndRemovesItsFrameWorkOnStop()
         {
             var frameLoop = new FrameLoop();

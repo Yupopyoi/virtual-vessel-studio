@@ -133,6 +133,20 @@ namespace VirtualVessel.Avatar.Tests
         }
 
         [Test]
+        public async Task AModelThatFailsItsCheck_IsDisposed_WhateverTheFailure()
+        {
+            _service = await StartAsync();
+            AvatarImportResult result = await _service.ImportAsync(Source(), null, CancellationToken.None);
+            await _service.SelectAsync(null, CancellationToken.None);
+            _loader.BrokenRig = true;
+
+            await _service.SelectAsync(result.Entry.Id, CancellationToken.None);
+
+            Assert.That(_loader.Last.Disposed, Is.True, "Not left in the scene.");
+            Assert.That(_service.State.Value, Is.EqualTo(AvatarState.Error));
+        }
+
+        [Test]
         public async Task RemovingTheAvatarInUse_TakesItOffTheStream_AndDeletesItsFolder()
         {
             _service = await StartAsync();
@@ -294,6 +308,11 @@ namespace VirtualVessel.Avatar.Tests
 
             public Exception Failure { get; set; }
 
+            /// <summary>Models made from now on throw when asked for a bone, as a broken rig would.</summary>
+            public bool BrokenRig { get; set; }
+
+            public FakeModel Last => _made.Count == 0 ? null : _made[_made.Count - 1];
+
             public string Format => "vrm";
 
             public IReadOnlyList<string> Extensions { get; } = new[] { ".vrm" };
@@ -305,7 +324,7 @@ namespace VirtualVessel.Avatar.Tests
                     throw Failure;
                 }
 
-                var model = new FakeModel(new AvatarModelInfo("Fake", "vrm", "1.0", false, null, null));
+                var model = new FakeModel(new AvatarModelInfo("Fake", "vrm", "1.0", false, null, null)) { BrokenRig = BrokenRig };
                 _made.Add(model);
                 return Task.FromResult<IAvatarModel>(model);
             }
@@ -336,6 +355,8 @@ namespace VirtualVessel.Avatar.Tests
 
             public bool Disposed { get; private set; }
 
+            public bool BrokenRig { get; set; }
+
             public Dictionary<AvatarBone, Quaternion> Rotations { get; } = new Dictionary<AvatarBone, Quaternion>();
 
             public Transform Root => _root.transform;
@@ -354,6 +375,11 @@ namespace VirtualVessel.Avatar.Tests
 
             public bool Has(AvatarBone bone)
             {
+                if (BrokenRig)
+                {
+                    throw new InvalidOperationException("The rig is broken.");
+                }
+
                 return true;
             }
 
