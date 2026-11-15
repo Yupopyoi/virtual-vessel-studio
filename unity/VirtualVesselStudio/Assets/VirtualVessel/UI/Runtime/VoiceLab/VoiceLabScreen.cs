@@ -63,6 +63,9 @@ namespace VirtualVessel.UI.VoiceLab
         public const string ActionsClass = UssClass + "__actions";
         public const string NoteClass = UssClass + "__note";
 
+        /// <summary>A heading inside a Card, such as STEP 4's pitch.</summary>
+        public const string SubheadClass = UssClass + "__subhead";
+
         /// <summary>Room below a part of a Card that stacks with others, as the panel gives its own parts.</summary>
         public const string GapClass = UssClass + "__gap";
 
@@ -300,6 +303,7 @@ namespace VirtualVessel.UI.VoiceLab
             {
                 _player.Stop();
                 _try?.Leave();
+                _try?.StopConverting();
             }
 
             LiveLock.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
@@ -466,11 +470,21 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             ShowResume(reload: true);
+            if (Current == TryStep)
+            {
+                _try?.Enter();
+            }
         }
 
         void IScreen.OnHidden()
         {
             KeepWorkNow();
+
+            // STEP 4 is not seen now: a conversion goes on, but what it makes is not played over another screen.
+            if (Current == TryStep)
+            {
+                _try?.Leave();
+            }
 
             // Samples are for this screen; one must not go on playing over another screen.
             _player?.Stop();

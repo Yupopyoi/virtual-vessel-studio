@@ -23,6 +23,9 @@ namespace VirtualVessel.Voice
 
         private readonly IFrameLoop _frameLoop;
         private readonly VoiceModelLibrary _library;
+        // How often a trial looks again whether a cancelled one's voice has finished loading.
+        private const int LoadWaitMilliseconds = 50;
+
         private readonly VoiceLoader _loader;
         private readonly string _folder;
         private readonly ILog _log;
@@ -64,6 +67,13 @@ namespace VirtualVessel.Voice
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is AudioEngineException)
             {
                 throw new VoiceTrialFailedException($"The recording cannot be read: {exception.Message}", exception);
+            }
+
+            // A cancelled trial's voice may still be loading; its job lets it go once loaded. Starting meanwhile threw
+            // and the trial could not be started again for a while (2026-11-15), so this one waits for it.
+            while (_loader.IsLoading)
+            {
+                await Task.Delay(LoadWaitMilliseconds, cancellationToken).ConfigureAwait(true);
             }
 
             string problem = _loader.Begin(files, "trial");

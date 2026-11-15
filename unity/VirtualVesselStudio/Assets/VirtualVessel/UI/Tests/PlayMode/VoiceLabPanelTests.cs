@@ -474,6 +474,50 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator AConversion_GoesOnWhileAnotherScreenShows_AndCanBePlayedAfter()
+        {
+            // Leaving for another screen cancelled the conversion, and it could not be started again (the user's
+            // report, 2026-11-15).
+            Object.Destroy(_host);
+            var library = new FakeLibrary();
+            library.Voices.Add(new VoiceLabVoiceRecord("voice-1", "Fuwari", "run-1", DateTimeOffset.UtcNow, 285, null));
+            var trial = new FakeTrial { Hold = true };
+            yield return Build(new ScreenServices { VoiceLab = _lab, AudioPreview = _preview, VoiceLabLibrary = library, VoiceTrial = trial });
+            VoiceLabScreen screen = Screen();
+            screen.ShowTab(VoiceLabScreen.MadeTab);
+            yield return null;
+            Submit(screen.Library.Query<ActionButton>().Where(b => b.TextKey == VoiceLabStrings.LibraryTry).First());
+            yield return null;
+            screen.Try.Recording = "me.wav";
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(screen.Try.ConvertedButton.enabledSelf, Is.False, "Converting.");
+
+            screen.GoTo(VoiceLabScreen.RegisterStep);
+            yield return null;
+            Assert.That(trial.Cancelled, Is.False, "Another step does not stop the conversion.");
+            screen.GoTo(VoiceLabScreen.TryStep);
+            yield return null;
+            Assert.That(screen.Try.ConvertedButton.enabledSelf, Is.False, "Still converting when back.");
+
+            _root.Shell.Open("live");
+            yield return null;
+            Assert.That(trial.Cancelled, Is.False, "Another screen does not stop the conversion.");
+            trial.Finish();
+            yield return null;
+            yield return null;
+            Assert.That(_preview.Played, Is.Empty, "Not played over another screen.");
+
+            _root.Shell.Open("lab");
+            yield return null;
+            Assert.That(screen.Try.ConvertedButton.enabledSelf, Is.True);
+            Submit(screen.Try.ConvertedButton);
+            yield return null;
+            Assert.That(trial.Requests.Count, Is.EqualTo(1), "The finished conversion plays without converting again.");
+            Assert.That(_preview.Played.Last(), Is.EqualTo("converted-1.wav"));
+        }
+
+        [UnityTest]
         public IEnumerator TryingFromMadeVoices_OpensSTEP4_WithThatVoice()
         {
             Object.Destroy(_host);

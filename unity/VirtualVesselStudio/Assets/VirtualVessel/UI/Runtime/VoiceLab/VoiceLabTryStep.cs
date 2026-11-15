@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
 using VirtualVessel.ProjectData.Records;
+using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Screens;
@@ -37,6 +38,7 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly IAudioService _audio;
         private readonly VisualElement _filePanel;
         private readonly VisualElement _micPanel;
+        private readonly VisualElement _convertPanel;
         private readonly Label _fileName;
         private readonly ProgressMeter _converting;
         private readonly StatusChip _problem;
@@ -53,6 +55,7 @@ namespace VirtualVessel.UI.VoiceLab
         private CancellationTokenSource _conversion;
         private IVisualElementScheduledItem _refresh;
         private bool _micOn;
+        private bool _shown;
 
         public VoiceLabTryStep(ScreenServices services, IVoiceLab lab, VoiceLabDraft draft, VoiceLabPlayer player, IVoiceLabFlow flow)
         {
@@ -82,14 +85,7 @@ namespace VirtualVessel.UI.VoiceLab
             _filePanel.Add(VoiceLabScreen.Actions(_fileName, PickButton));
             OriginalButton = Ui.Button(VoiceLabStrings.TryOriginal);
             OriginalButton.clicked += () => _ = _player.PlayAsync(_recording, null);
-            ConvertedButton = Ui.Button(VoiceLabStrings.TryConverted, ButtonVariant.Primary);
-            ConvertedButton.clicked += () => _ = PlayConvertedAsync();
-            ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
-            stop.clicked += StopPlaying;
-            _filePanel.Add(VoiceLabScreen.Actions(OriginalButton, ConvertedButton, stop));
-            _converting = Ui.Progress(VoiceLabStrings.TryConverting);
-            _converting.AddToClassList(VoiceLabScreen.GapClass);
-            _filePanel.Add(_converting);
+            _filePanel.Add(VoiceLabScreen.Actions(OriginalButton));
             source.Add(_filePanel);
 
             _micPanel = new VisualElement();
@@ -108,26 +104,40 @@ namespace VirtualVessel.UI.VoiceLab
             _micPanel.Add(_micState);
             source.Add(_micPanel);
 
-            _problem = new StatusChip(StatusKind.Error, VoiceLabStrings.TryFailed);
-            _problem.AddToClassList(VoiceLabScreen.GapClass);
-            source.Add(_problem);
-            Add(source);
-
-            Card pitch = Ui.Card(VoiceLabStrings.TryPitch);
+            // The pitch inside the voice to try, as it shapes both the file and the microphone (the user's review,
+            // 2026-11-15); Converted comes after it, last, as it converts with it.
+            Label pitchHeading = Ui.Text(VoiceLabStrings.TryPitch, "vv-text-body", "vv-bold", VoiceLabScreen.SubheadClass, VoiceLabScreen.GapClass);
+            source.Add(pitchHeading);
             AutoPitch = Ui.Toggle(VoiceLabStrings.TryAutoPitch);
             AutoPitch.SetValueWithoutNotify(true);
             AutoPitch.RegisterValueChangedCallback(_ => PitchChanged());
-            pitch.Add(AutoPitch);
+            source.Add(AutoPitch);
             _pitchLine = PlainText();
             ActionButton remeasure = Ui.Button(VoiceLabStrings.TryRemeasure);
             remeasure.clicked += Remeasure;
-            pitch.Add(VoiceLabScreen.Actions(_pitchLine, remeasure));
+            source.Add(VoiceLabScreen.Actions(_pitchLine, remeasure));
             Adjustment = Ui.Slider(VoiceLabStrings.TryAdjust, -SemitoneRange, SemitoneRange);
             Adjustment.Step = 1f;
             Adjustment.Signed = true;
             Adjustment.RegisterValueChangedCallback(_ => PitchChanged());
-            pitch.Add(Adjustment);
-            Add(pitch);
+            source.Add(Adjustment);
+
+            _convertPanel = new VisualElement();
+            _convertPanel.AddToClassList(VoiceLabScreen.GapClass);
+            ConvertedButton = Ui.Button(VoiceLabStrings.TryConverted, ButtonVariant.Primary);
+            ConvertedButton.clicked += () => _ = PlayConvertedAsync();
+            ActionButton stop = Ui.Button(VoiceLabStrings.Stop);
+            stop.clicked += StopPlaying;
+            _convertPanel.Add(VoiceLabScreen.Actions(ConvertedButton, stop));
+            _converting = Ui.Progress(VoiceLabStrings.TryConverting);
+            _converting.AddToClassList(VoiceLabScreen.GapClass);
+            _convertPanel.Add(_converting);
+            source.Add(_convertPanel);
+
+            _problem = new StatusChip(StatusKind.Error, VoiceLabStrings.TryFailed);
+            _problem.AddToClassList(VoiceLabScreen.GapClass);
+            source.Add(_problem);
+            Add(source);
 
             ActionButton back = Ui.Button(VoiceLabStrings.BackToTimbre);
             back.clicked += () => flow.GoTo(VoiceLabScreen.TimbreStep);
@@ -138,7 +148,11 @@ namespace VirtualVessel.UI.VoiceLab
             Sources.SetValueWithoutNotify(FileSource);
             ShowSource(FileSource);
             ShowConverting(false);
-            RegisterCallback<DetachFromPanelEvent>(_ => Leave());
+            RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                Leave();
+                StopConverting();
+            });
         }
 
         public Segmented Sources { get; }
@@ -181,7 +195,14 @@ namespace VirtualVessel.UI.VoiceLab
                 _convertedKey = null;
             }
 
+            if (folder.Value != _folder)
+            {
+                // A conversion for another voice is of no use now.
+                StopConverting();
+            }
+
             _folder = folder.Ok ? folder.Value : null;
+            _shown = true;
             _problem.style.display = DisplayStyle.None;
             _refresh ??= schedule.Execute(Refresh).Every(RefreshMs);
             _refresh.Resume();
@@ -189,14 +210,24 @@ namespace VirtualVessel.UI.VoiceLab
             Refresh();
         }
 
-        /// <summary>Stops what plays and converts, and puts the voice conversion back. Called when the step closes.</summary>
+        /// <summary>
+        /// Stops what plays and puts the voice conversion back; called when the step closes or the screen is left. A
+        /// file being converted goes on: leaving cancelled it, and it could not start again (the user's report,
+        /// 2026-11-15). It is kept to play from here, not played over another step or screen.
+        /// </summary>
         public void Leave()
         {
+            _shown = false;
             _player.Stop();
-            _conversion?.Cancel();
             _refresh?.Pause();
             MicToggle.SetValueWithoutNotify(false);
             EndMicrophone();
+        }
+
+        /// <summary>Cancels a conversion, as when a stream or a recording starts (system design 14.26).</summary>
+        public void StopConverting()
+        {
+            _conversion?.Cancel();
         }
 
         /// <summary>What identifies a conversion, so the same one is played again without converting again. Pure.</summary>
@@ -238,6 +269,7 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             _filePanel.style.display = source == FileSource ? DisplayStyle.Flex : DisplayStyle.None;
+            _convertPanel.style.display = source == FileSource ? DisplayStyle.Flex : DisplayStyle.None;
             _micPanel.style.display = source == MicrophoneSource ? DisplayStyle.Flex : DisplayStyle.None;
             Refresh();
         }
@@ -317,6 +349,13 @@ namespace VirtualVessel.UI.VoiceLab
                     _problem.style.display = DisplayStyle.Flex;
                     return;
                 }
+                catch (InvalidOperationException exception)
+                {
+                    // A trial already converting: the user is told it did not work, not left with nothing.
+                    _problem.style.display = DisplayStyle.Flex;
+                    UiServices.Find(this)?.Log?.Warning($"A trial conversion could not start: {exception.Message}");
+                    return;
+                }
                 finally
                 {
                     _conversion.Dispose();
@@ -326,7 +365,10 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             Refresh();
-            await _player.PlayAsync(_converted, null);
+            if (_shown)
+            {
+                await _player.PlayAsync(_converted, null);
+            }
         }
 
         private void StopPlaying()

@@ -254,3 +254,8 @@
     white-space: normal;
     margin-bottom: 2px;
 }
+
+/* A heading inside a Card (STEP 4's pitch); it says its color, as unstyled text takes Unity's dark default. */
+.vv-lab__subhead {
+    color: var(--vv-color-text);
+}
