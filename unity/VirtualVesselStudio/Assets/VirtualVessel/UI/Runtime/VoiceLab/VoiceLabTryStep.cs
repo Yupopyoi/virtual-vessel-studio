@@ -13,6 +13,7 @@ using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.VoiceLab
 {
@@ -75,7 +76,7 @@ namespace VirtualVessel.UI.VoiceLab
             source.Add(Sources);
 
             _filePanel = new VisualElement();
-            _fileName = PlainText();
+            _fileName = VoiceLabScreen.PlainNote();
             PanelLifetime.OnLocaleChanged(this, () =>
             {
                 ShowFile();
@@ -101,7 +102,7 @@ namespace VirtualVessel.UI.VoiceLab
             MicToggle.RegisterValueChangedCallback(evt => SetMicrophone(evt.newValue));
             _micPanel.Add(MicToggle);
             _micPanel.Add(Ui.Text(VoiceLabStrings.TryHeadphones, VoiceLabScreen.NoteClass, "vv-text-body"));
-            _micState = PlainText();
+            _micState = VoiceLabScreen.PlainNote();
             _micPanel.Add(_micState);
             source.Add(_micPanel);
 
@@ -113,7 +114,7 @@ namespace VirtualVessel.UI.VoiceLab
             AutoPitch.SetValueWithoutNotify(true);
             AutoPitch.RegisterValueChangedCallback(_ => PitchChanged());
             source.Add(AutoPitch);
-            _pitchLine = PlainText();
+            _pitchLine = VoiceLabScreen.PlainNote();
             ActionButton remeasure = Ui.Button(VoiceLabStrings.TryRemeasure);
             remeasure.clicked += Remeasure;
             source.Add(VoiceLabScreen.Actions(_pitchLine, remeasure));
@@ -213,13 +214,9 @@ namespace VirtualVessel.UI.VoiceLab
                 : _draft.RunId == null ? CrudResult<string>.Fail(CrudError.NotFound, "No build.") : _lab.BuiltVoiceFolder(_draft.RunId);
             if (folder.Value != _folder)
             {
+                // What was converted for another voice is of no use now, nor a conversion still going for it.
                 _converted = null;
                 _convertedKey = null;
-            }
-
-            if (folder.Value != _folder)
-            {
-                // A conversion for another voice is of no use now.
                 StopConverting();
             }
 
@@ -273,14 +270,10 @@ namespace VirtualVessel.UI.VoiceLab
 
         private bool OnMicrophone => Sources.value == MicrophoneSource;
 
-        // Text this step sets itself, such as a file's name; a keyed label would put its key's text back on a language change.
-        private static Label PlainText()
-        {
-            Label label = QuietText.Of(new Label());
-            label.AddToClassList(VoiceLabScreen.NoteClass);
-            label.AddToClassList("vv-text-body");
-            return label;
-        }
+        // The microphone goes through the voice tried now, so the pitch and the finish follow the controls at once.
+        private bool MicrophoneTrying => OnMicrophone && _micOn && _voice != null;
+
+        private ILocalizer Localizer => UiServices.Find(this)?.Localizer;
 
         private void ShowSource(int source)
         {
@@ -305,7 +298,7 @@ namespace VirtualVessel.UI.VoiceLab
             ConvertedButton.SetEnabled(idle && _recording != null && _folder != null && _trial != null && _player.Available);
             if (_recording == null)
             {
-                _fileName.text = UiServices.Find(this)?.Localizer?.Get(VoiceLabStrings.TryNoFile) ?? string.Empty;
+                _fileName.text = Localizer?.Get(VoiceLabStrings.TryNoFile) ?? string.Empty;
             }
         }
 
@@ -324,10 +317,9 @@ namespace VirtualVessel.UI.VoiceLab
 
         private async void PickRecording()
         {
-            var localizer = UiServices.Find(this)?.Localizer;
             string path = await _files.OpenAsync(new FileDialogOptions
             {
-                Filters = new[] { new FileFilter(localizer?.Get(VoiceLabStrings.TryFileFilter) ?? "Audio", _voice?.FileExtensions ?? new[] { "wav", "m4a", "mp3" }) },
+                Filters = new[] { new FileFilter(Localizer?.Get(VoiceLabStrings.TryFileFilter) ?? "Audio", _voice?.FileExtensions ?? new[] { "wav", "m4a", "mp3" }) },
             });
             if (path != null)
             {
@@ -419,10 +411,10 @@ namespace VirtualVessel.UI.VoiceLab
             CrudResult kept = _lab.KeepTone(_draft.RunId, _draft.TryFolder, tone);
             if (!kept.Ok)
             {
-                UiServices.Find(this)?.Log?.Warning($"Keeping the finish failed ({kept.Error}): {kept.Detail}");
+                VoiceLabScreen.LogFailure(this, "Keeping the finish", kept.Error, kept.Detail);
             }
 
-            if (OnMicrophone && _micOn && _voice != null)
+            if (MicrophoneTrying)
             {
                 _voice.SetTone(tone);
             }
@@ -430,7 +422,7 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void PitchChanged()
         {
-            if (OnMicrophone && _micOn && _voice != null)
+            if (MicrophoneTrying)
             {
                 _voice.AutoPitch = AutoPitch.value;
                 _voice.Semitones = Adjustment.value;
@@ -499,23 +491,20 @@ namespace VirtualVessel.UI.VoiceLab
 
         private void Refresh()
         {
-            bool mic = OnMicrophone && _voice != null;
             IAudioSource microphone = Microphone;
             _hearOff.style.display = OnMicrophone && microphone != null && !microphone.Options.Value.Monitored ? DisplayStyle.Flex : DisplayStyle.None;
             MicToggle.SetEnabled(_voice != null && _folder != null);
-            if (mic && _micOn)
-            {
-                _micState.text = UiServices.Find(this)?.Localizer?.Get(_voice.State.Value == VoiceConversionState.Loading || _voice.IsSwitching ? VoiceLabStrings.TryMicLoading : VoiceLabStrings.TryMicOn) ?? string.Empty;
-            }
-            else
-            {
-                _micState.text = UiServices.Find(this)?.Localizer?.Get(VoiceLabStrings.TryMicOff) ?? string.Empty;
-            }
+            bool live = MicrophoneTrying;
+            ILocalizer localizer = Localizer;
+            string micKey = !live ? VoiceLabStrings.TryMicOff
+                : _voice.State.Value == VoiceConversionState.Loading || _voice.IsSwitching ? VoiceLabStrings.TryMicLoading
+                : VoiceLabStrings.TryMicOn;
+            _micState.text = localizer?.Get(micKey) ?? string.Empty;
 
-            float user = mic && _micOn ? _voice.UserPitchHz : _userHz;
-            float voice = mic && _micOn ? _voice.VoicePitchHz : _voiceHz;
-            float shift = mic && _micOn ? _voice.AutoSemitones : _shift;
-            var localizer = UiServices.Find(this)?.Localizer;
+            // The microphone's pitches while it is tried, else those of the last file converted.
+            float user = live ? _voice.UserPitchHz : _userHz;
+            float voice = live ? _voice.VoicePitchHz : _voiceHz;
+            float shift = live ? _voice.AutoSemitones : _shift;
             if (localizer != null)
             {
                 string unknown = localizer.Get(VoiceLabStrings.TryPitchUnknown);

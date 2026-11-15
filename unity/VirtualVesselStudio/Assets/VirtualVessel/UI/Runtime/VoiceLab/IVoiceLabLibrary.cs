@@ -166,5 +166,8 @@ namespace VirtualVessel.UI.VoiceLab
         public VoiceLabCandidate Candidate { get; }
 
         public VoiceLabTimbre Timbre { get; }
+
+        /// <summary>What STEP 1 asked for, to put back there; the seed goes on its own, as it may be unknown.</summary>
+        public VoiceLabRequest Asked => new VoiceLabRequest(Words, FreeWords, Prompt, Line);
     }
 }

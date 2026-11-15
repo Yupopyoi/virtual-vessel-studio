@@ -25,9 +25,7 @@ namespace VirtualVessel.UI.VoiceLab
             _lab = lab ?? throw new ArgumentNullException(nameof(lab));
             Row = Ui.SettingRow(VoiceLabStrings.StorageEnvironment);
             Row.HelpKey = VoiceLabStrings.StorageEnvironmentHelp;
-            _size = QuietText.Of(new Label());
-            _size.AddToClassList(VoiceLabScreen.NoteClass);
-            _size.AddToClassList("vv-text-body");
+            _size = VoiceLabScreen.PlainNote();
             Row.TextArea.Add(_size);
             DeleteButton = Ui.Button(VoiceLabStrings.Delete);
             DeleteButton.clicked += Delete;

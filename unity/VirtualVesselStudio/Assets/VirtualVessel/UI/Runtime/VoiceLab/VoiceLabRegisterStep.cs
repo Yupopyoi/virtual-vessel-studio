@@ -71,9 +71,7 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Actions(BackButton, RegisterButton, _again, ShowMadeButton));
 
             // Why Register cannot be pressed: it was greyed out without a word (the user's review, 2026-11-15).
-            _blocked = QuietText.Of(new Label());
-            _blocked.AddToClassList(VoiceLabScreen.NoteClass);
-            _blocked.AddToClassList("vv-text-body");
+            _blocked = VoiceLabScreen.PlainNote();
             Add(_blocked);
             RegisterCallback<AttachToPanelEvent>(_ => Refresh());
             PanelLifetime.OnLocaleChanged(this, Refresh);

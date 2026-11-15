@@ -34,9 +34,7 @@ namespace VirtualVessel.UI.VoiceLab
             Add(VoiceLabScreen.Lead(VoiceLabStrings.BuildLead));
 
             Card card = Ui.Card(VoiceLabStrings.StepBuild);
-            Label note = QuietText.Of(new Label());
-            note.AddToClassList(VoiceLabScreen.NoteClass);
-            note.AddToClassList("vv-text-body");
+            Label note = VoiceLabScreen.PlainNote();
             note.AddToClassList(VoiceLabScreen.GapClass);
             _note = new KeyedText(note, value => note.text = value) { Key = NoteKey(_draft.TrainingLength) };
             card.Add(note);
@@ -166,8 +164,7 @@ namespace VirtualVessel.UI.VoiceLab
             string resultKey = VoiceLabView.BuildResultKey(build);
             if (resultKey == null)
             {
-                _draft.RunId = build.RunId;
-                _draft.TryFolder = null;
+                _draft.UseRun(build.RunId, null);
                 _flow.GoTo(VoiceLabScreen.TryStep);
                 return;
             }

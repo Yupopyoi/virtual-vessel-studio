@@ -97,9 +97,7 @@ namespace VirtualVessel.UI.VoiceLab
             // The English instruction the candidates were made from, for whoever wants to read it.
             Card instruction = Ui.Card(VoiceLabStrings.Instruction, collapsible: true);
             instruction.Expanded = false;
-            _instruction = QuietText.Of(new Label());
-            _instruction.AddToClassList("vv-text-body");
-            _instruction.AddToClassList(VoiceLabScreen.NoteClass);
+            _instruction = VoiceLabScreen.PlainNote();
             instruction.Add(_instruction);
 
             // For the user who takes it elsewhere, such as into a prompt written whole (the user's review, 2026-11-15).
@@ -154,10 +152,15 @@ namespace VirtualVessel.UI.VoiceLab
             ShowTiles();
         }
 
-        /// <summary>A run's line and seed, so its base can be made again.</summary>
-        public void RestoreDetails(string line, int? seed)
+        /// <summary>
+        /// Puts back what was asked, for a run made again or tried, or the unfinished work: the words or the prompt, the
+        /// line, the seed when known, and whether the base's audio is gone, so a new base is picked here.
+        /// </summary>
+        public void PutBack(VoiceLabRequest asked, int? seed, bool baseGone)
         {
-            _details.Restore(line, seed);
+            _request.SetPicks(asked.Words, asked.FreeWords, asked.Prompt);
+            _details.Restore(asked.Line, seed);
+            _baseGone.style.display = baseGone ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         public string InstructionText => _instruction.text;
@@ -171,12 +174,6 @@ namespace VirtualVessel.UI.VoiceLab
             // Says it worked for a moment, then offers it again.
             _copyInstruction.TextKey = VoiceLabStrings.InstructionCopied;
             _copyInstruction.schedule.Execute(() => _copyInstruction.TextKey = VoiceLabStrings.InstructionCopy).StartingIn(CopiedMilliseconds);
-        }
-
-        /// <summary>Says a run being made again has lost its base's audio, so a new base is picked here.</summary>
-        public void ShowBaseGone(bool gone)
-        {
-            _baseGone.style.display = gone ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private enum MakeKind
