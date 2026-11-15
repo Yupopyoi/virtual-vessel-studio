@@ -284,6 +284,7 @@ namespace VirtualVessel.VoiceLab.Design
                 Timbre = timbre.ToValues(),
                 Words = new List<string>(candidate.Description?.Words ?? Array.Empty<string>()),
                 FreeWords = candidate.Description?.FreeWords ?? string.Empty,
+                Prompt = candidate.Description?.Prompt ?? string.Empty,
                 MedianHz = candidate.Pitch.MedianHz,
                 LowHz = candidate.Pitch.LowHz,
                 HighHz = candidate.Pitch.HighHz,

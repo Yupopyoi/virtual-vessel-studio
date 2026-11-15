@@ -148,6 +148,11 @@ namespace VirtualVessel.UI.VoiceLab
                 return;
             }
 
+            if (!_request.CheckRequest())
+            {
+                return;
+            }
+
             _making = new CancellationTokenSource();
             SetBusy(true);
             try

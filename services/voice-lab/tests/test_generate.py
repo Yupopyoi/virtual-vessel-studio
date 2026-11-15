@@ -32,6 +32,18 @@ def test_the_shelf_and_words_make_the_instruction():
     assert generate.instruction_of({"shelf": ["male"], "words": "husky)"}).endswith(" husky.")
 
 
+def test_a_written_prompt_replaces_the_shelf_and_is_cleaned():
+    assert generate.instruction_of({"shelf": ["male"], "words": "husky", "prompt": "A calm (woman)\nspeaking."}) == "A calm woman speaking."
+
+
+def test_a_written_prompt_is_cut_at_500_characters_and_cannot_be_empty():
+    assert len(generate.instruction_of({"prompt": "a" * 600})) == prompt.MAX_PROMPT
+    with pytest.raises(protocol.BadRequest):
+        generate.instruction_of({"prompt": "()\n"})
+    with pytest.raises(protocol.BadRequest):
+        generate.instruction_of({"prompt": 3})
+
+
 def test_samples_are_the_examples_the_base_and_each_word_that_is_not_a_default():
     shelf = prompt.load()
     plan = generate.sample_plan(shelf, ["ja"])

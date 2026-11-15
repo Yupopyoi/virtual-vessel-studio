@@ -35,6 +35,13 @@ namespace VirtualVessel.UI.VoiceLab
         public const string PickOne = "lab.base.pick-one";
         public const string PickAny = "lab.base.pick-any";
         public const string Ask = "lab.base.ask";
+        public const string ModeLabel = "lab.base.mode";
+        public const string ModeWords = "lab.base.mode.words";
+        public const string ModePrompt = "lab.base.mode.prompt";
+        public const string PromptHint = "lab.base.prompt-hint";
+        public const string PromptNote = "lab.base.prompt-note";
+        public const string PromptRequired = "lab.base.prompt-required";
+        public const string ModelNote = "lab.base.model-note";
         public const string WordsNote = "lab.base.words-note";
         public const string Instruction = "lab.base.instruction";
         public const string MoreMood = "lab.base.more-mood";

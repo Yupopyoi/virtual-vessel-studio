@@ -573,6 +573,46 @@ namespace VirtualVessel.UI.Tests
             Assert.That(screen.Current, Is.EqualTo(VoiceLabScreen.BaseStep), "Without the base, STEP 1 opens with the words.");
         }
 
+        [UnityTest]
+        public IEnumerator APromptWrittenWhole_IsAskedWith_InPlaceOfTheWords()
+        {
+            VoiceLabScreen screen = Screen();
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            VoiceLabShelfView request = baseStep.RequestView;
+            request.Mode.value = VoiceLabShelfView.PromptMode;
+            yield return null;
+            Assert.That(request.Prompt.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(request.WordButton("male").worldBound.height, Is.EqualTo(0f).Or.NaN, "The shelf is hidden.");
+
+            Submit(baseStep.MakeButton);
+            yield return null;
+            Assert.That(_lab.Requests, Is.Empty, "Nothing is asked with an empty prompt.");
+            Assert.That(request.Prompt.ErrorKey, Is.EqualTo(VoiceLabStrings.PromptRequired));
+
+            request.Prompt.value = "A calm woman in her twenties.";
+            Submit(baseStep.MakeButton);
+            yield return null;
+            VoiceLabRequest asked = _lab.Requests.Single();
+            Assert.That((asked.Prompt, asked.Words.Count, asked.IsWritten), Is.EqualTo(("A calm woman in her twenties.", 0, true)));
+            Assert.That(request.Prompt.ErrorKey, Is.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator ARunMadeFromAWrittenPrompt_OpensWithIt()
+        {
+            VoiceLabScreen screen = Screen();
+            _lab.RemakeResult = new VoiceLabRemake(null, "", null, default, "A calm woman.");
+
+            screen.Remake("run-1");
+            yield return null;
+
+            var baseStep = (VoiceLabBaseStep)screen.Panel(VoiceLabScreen.BaseStep);
+            Assert.That(baseStep.RequestView.Mode.value, Is.EqualTo(VoiceLabShelfView.PromptMode));
+            Assert.That(baseStep.RequestView.Prompt.value, Is.EqualTo("A calm woman."));
+            var run = new VoiceLabRunRecord("run-1", DateTimeOffset.UtcNow, VoiceLabBuildState.Completed, null, "", default, "", null, null, "A calm woman.");
+            Assert.That(VoiceLabLibraryView.RunSummary(run, null), Does.StartWith("A calm woman. / "));
+        }
+
         private VoiceLabScreen Screen()
         {
             return (VoiceLabScreen)_root.Shell.Host.GetScreen("lab");

@@ -72,6 +72,20 @@ namespace VirtualVessel.VoiceLab.Tests
         }
 
         [Test]
+        public void AWrittenPrompt_IsSentAsTheRequestsPrompt_AndOnlyThen()
+        {
+            var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"instruction\":\"x\",\"candidates\":[]}" });
+            VoiceDesigner designer = Designer(runner, 100);
+
+            designer.MakeCandidatesAsync(new VoiceDescription(null, null, "A calm woman."), 1, null, null, CancellationToken.None).Wait();
+            designer.MakeCandidatesAsync(new VoiceDescription(new[] { "male" }, ""), 1, null, null, CancellationToken.None).Wait();
+
+            ConfigDocument[] requests = runner.Requests.Select(r => ConfigDocument.Parse(File.ReadAllText(r.Arguments[3]))).ToArray();
+            Assert.That(requests[0].Get<string>("prompt"), Is.EqualTo("A calm woman."), "The script cleans it and uses it in place of the words.");
+            Assert.That(requests[1].Contains("prompt"), Is.False, "Words alone send no prompt.");
+        }
+
+        [Test]
         public void Samples_RequestNamesTheLanguagesAndFolder()
         {
             var runner = new ScriptedRunner((_, __) => new[] { "{\"type\":\"result\",\"count\":27}" });

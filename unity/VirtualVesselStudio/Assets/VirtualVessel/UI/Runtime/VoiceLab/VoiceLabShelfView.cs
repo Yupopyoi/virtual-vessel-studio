@@ -11,8 +11,9 @@ namespace VirtualVessel.UI.VoiceLab
 {
     /// <summary>
     /// STEP 1's request (system design 14.14, Voice Lab detailed design 8.3.1): examples to start from, the
-    /// shelf of words each with a sample, the request read back as one sentence, and the user's own words.
-    /// Samples are made on this PC; until they are, the screen offers to make them and plays nothing.
+    /// shelf of words each with a sample, the request read back as one sentence, and the user's own words; or a
+    /// prompt the user writes whole in their place (the user's decision, 2026-11-11). Samples are made on this PC;
+    /// until they are, the screen offers to make them and plays nothing.
     /// </summary>
     public sealed class VoiceLabShelfView : VisualElement
     {
@@ -20,6 +21,10 @@ namespace VirtualVessel.UI.VoiceLab
         public const string WordClass = VoiceLabScreen.UssClass + "__word";
         public const string ExamplesClass = VoiceLabScreen.UssClass + "__examples";
         public const string AskClass = VoiceLabScreen.UssClass + "__ask";
+        public const string AskHeadingClass = VoiceLabScreen.UssClass + "__ask-heading";
+        public const int WordsMode = 0;
+        public const int PromptMode = 1;
+        public const int MaxPrompt = 500;
 
         // The language samples are played in when the screen's has none (VoiceLabService.SampleLanguages).
         private const string SampleFallbackLanguage = "ja";
@@ -36,6 +41,8 @@ namespace VirtualVessel.UI.VoiceLab
         private readonly StatusChip _samplesFailed;
         private readonly Label _sentence;
         private readonly TextInput _words;
+        private readonly VisualElement _wordsPanel;
+        private readonly VisualElement _promptPanel;
         private CancellationTokenSource _samplesMaking;
         private ILocalizer _localizer;
         private IReadOnlyList<string> _picked;
@@ -47,6 +54,25 @@ namespace VirtualVessel.UI.VoiceLab
             _shelf = lab.Shelf ?? new VoiceLabShelf(null, null);
             _picked = _shelf.Start();
 
+            SettingRow modeRow = Ui.SettingRow(VoiceLabStrings.ModeLabel);
+            Mode = Ui.Segmented(VoiceLabStrings.ModeWords, VoiceLabStrings.ModePrompt);
+            Mode.RegisterValueChangedCallback(evt => ShowMode(evt.newValue));
+            modeRow.Add(Mode);
+            Add(modeRow);
+
+            _promptPanel = new VisualElement();
+            _promptPanel.Add(AskHeading());
+            Prompt = Ui.TextField(null);
+            Prompt.Multiline = true;
+            Prompt.PlaceholderKey = VoiceLabStrings.PromptHint;
+            Prompt.MaxLength = MaxPrompt;
+            Prompt.RegisterValueChangedCallback(_ => Prompt.ErrorKey = null);
+            _promptPanel.Add(Prompt);
+            _promptPanel.Add(Ui.Text(VoiceLabStrings.PromptNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Add(_promptPanel);
+
+            _wordsPanel = new VisualElement();
+            Add(_wordsPanel);
             _samplesNotice = new VisualElement();
             _samplesNotice.Add(Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body"));
             _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
@@ -57,7 +83,7 @@ namespace VirtualVessel.UI.VoiceLab
             _samplesNotice.Add(VoiceLabScreen.Actions(_makeSamples));
             _samplesNotice.Add(_samplesBusy);
             _samplesNotice.Add(_samplesFailed);
-            Add(_samplesNotice);
+            _wordsPanel.Add(_samplesNotice);
 
             Card examples = Ui.Card(VoiceLabStrings.Examples);
             var exampleList = new VisualElement();
@@ -69,7 +95,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             examples.Add(Ui.Text(VoiceLabStrings.ExamplesNote, VoiceLabScreen.NoteClass, "vv-text-body"));
             examples.Add(exampleList);
-            Add(examples);
+            _wordsPanel.Add(examples);
 
             Card words = Ui.Card(VoiceLabStrings.Shelf, alternate: true);
             words.Add(Ui.Text(VoiceLabStrings.ShelfNote, VoiceLabScreen.NoteClass, "vv-text-body"));
@@ -81,22 +107,24 @@ namespace VirtualVessel.UI.VoiceLab
             }
 
             words.Add(more);
-            Add(words);
+            _wordsPanel.Add(words);
 
             var ask = new VisualElement();
             ask.AddToClassList(AskClass);
-            ask.Add(Ui.Text(VoiceLabStrings.Ask, VoiceLabScreen.NoteClass, "vv-text-body"));
+            ask.Add(AskHeading());
             _sentence = QuietText.Of(new Label());
             _sentence.AddToClassList("vv-text-body");
             ask.Add(_sentence);
-            Add(ask);
+            _wordsPanel.Add(ask);
 
             _words = Ui.TextField(VoiceLabStrings.Words);
             _words.PlaceholderKey = VoiceLabStrings.WordsHint;
             _words.MaxLength = 200;
             _words.RegisterValueChangedCallback(_ => Refresh());
-            Add(_words);
-            Add(Ui.Text(VoiceLabStrings.WordsNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            _wordsPanel.Add(_words);
+            _wordsPanel.Add(Ui.Text(VoiceLabStrings.WordsNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Mode.SetValueWithoutNotify(WordsMode);
+            ShowMode(WordsMode);
 
             RegisterCallback<AttachToPanelEvent>(OnAttach);
             RegisterCallback<DetachFromPanelEvent>(OnDetach);
@@ -111,6 +139,12 @@ namespace VirtualVessel.UI.VoiceLab
 
         public ActionButton MakeSamplesButton => _makeSamples;
 
+        /// <summary>From words, or a prompt written whole.</summary>
+        public Segmented Mode { get; }
+
+        /// <summary>The prompt the user writes whole.</summary>
+        public TextInput Prompt { get; }
+
         public ActionButton WordButton(string wordId)
         {
             return _wordButtons.TryGetValue(wordId, out ActionButton button) ? button : null;
@@ -119,7 +153,21 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>What candidates are asked for now.</summary>
         public VoiceLabRequest Request()
         {
-            return new VoiceLabRequest(_picked, _words.value?.Trim());
+            return Mode.value == PromptMode
+                ? new VoiceLabRequest(null, null, Prompt.value?.Trim())
+                : new VoiceLabRequest(_picked, _words.value?.Trim());
+        }
+
+        /// <summary>Whether there is something to ask with; an empty prompt is marked on its field.</summary>
+        public bool CheckRequest()
+        {
+            if (Mode.value != PromptMode || !string.IsNullOrWhiteSpace(Prompt.value))
+            {
+                return true;
+            }
+
+            Prompt.ErrorKey = VoiceLabStrings.PromptRequired;
+            return false;
         }
 
         /// <summary>Starts from an example: its words go on the shelf.</summary>
@@ -129,12 +177,34 @@ namespace VirtualVessel.UI.VoiceLab
             ShowPicks();
         }
 
-        /// <summary>Puts a run's words back (Voice Lab detailed design 8.6); words the shelf no longer has are left out.</summary>
-        public void SetPicks(IReadOnlyList<string> words, string freeWords)
+        /// <summary>
+        /// Puts a run's words back (Voice Lab detailed design 8.6); words the shelf no longer has are left out. A run
+        /// made from a written prompt opens with that prompt.
+        /// </summary>
+        public void SetPicks(IReadOnlyList<string> words, string freeWords, string prompt = null)
         {
             _picked = _shelf.FromExample(new VoiceLabExample(string.Empty, words));
             _words.value = freeWords ?? string.Empty;
+            Prompt.value = prompt ?? string.Empty;
+            Mode.value = string.IsNullOrEmpty(prompt) ? WordsMode : PromptMode;
             ShowPicks();
+        }
+
+        // The prompt's name, with what makes the voices behind a help hint (the user's request, 2026-11-11).
+        private static VisualElement AskHeading()
+        {
+            var heading = new VisualElement();
+            heading.AddToClassList(AskHeadingClass);
+            heading.Add(Ui.Text(VoiceLabStrings.Ask, VoiceLabScreen.NoteClass, "vv-text-body"));
+            heading.Add(new HelpHint(VoiceLabStrings.ModelNote));
+            return heading;
+        }
+
+        private void ShowMode(int mode)
+        {
+            _player.Stop();
+            _wordsPanel.style.display = mode == WordsMode ? DisplayStyle.Flex : DisplayStyle.None;
+            _promptPanel.style.display = mode == PromptMode ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         public void Press(string wordId)

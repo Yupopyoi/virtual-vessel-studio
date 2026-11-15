@@ -242,7 +242,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             VoiceLabRemake remake = read.Value;
 
-            _base.RequestView.SetPicks(remake.Words, remake.FreeWords);
+            _base.RequestView.SetPicks(remake.Words, remake.FreeWords, remake.Prompt);
             _base.ShowBaseGone(remake.Candidate == null);
             _draft.RunId = null;
             _draft.TryFolder = null;
@@ -278,7 +278,7 @@ namespace VirtualVessel.UI.VoiceLab
 
             if (read.Ok)
             {
-                _base.RequestView.SetPicks(read.Value.Words, read.Value.FreeWords);
+                _base.RequestView.SetPicks(read.Value.Words, read.Value.FreeWords, read.Value.Prompt);
                 _base.ShowBaseGone(read.Value.Candidate == null);
                 _draft.Candidate = read.Value.Candidate;
                 _draft.CandidateNumber = 0;

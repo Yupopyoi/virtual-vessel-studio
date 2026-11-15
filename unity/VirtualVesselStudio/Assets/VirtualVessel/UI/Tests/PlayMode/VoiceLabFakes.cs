@@ -176,7 +176,7 @@ namespace VirtualVessel.UI.Tests
         {
             int i = Runs.FindIndex(r => r.RunId == runId);
             VoiceLabRunRecord r0 = Runs[i];
-            Runs[i] = new VoiceLabRunRecord(r0.RunId, r0.CreatedAt, r0.State, r0.Words, r0.FreeWords, r0.Timbre, comment, r0.BaseFile, r0.VoiceNames);
+            Runs[i] = new VoiceLabRunRecord(r0.RunId, r0.CreatedAt, r0.State, r0.Words, r0.FreeWords, r0.Timbre, comment, r0.BaseFile, r0.VoiceNames, r0.Prompt);
             return CrudResult.Success;
         }
 

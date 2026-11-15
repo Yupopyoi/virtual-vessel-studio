@@ -21,6 +21,9 @@ namespace VirtualVessel.UI.VoiceLab
         public const string RowClass = VoiceLabScreen.UssClass + "__row";
         public const string NameClass = VoiceLabScreen.UssClass + "__name";
 
+        // A written prompt is shown this far in a run's one line; the run keeps it whole.
+        private const int SummaryPrompt = 80;
+
         private readonly IVoiceLabLibrary _library;
         private readonly VoiceLabPlayer _player;
         private readonly Action<string> _remake;
@@ -120,6 +123,13 @@ namespace VirtualVessel.UI.VoiceLab
         /// <summary>The run's words and timbre in one line, the words by their labels. Pure.</summary>
         public static string RunSummary(VoiceLabRunRecord run, ILocalizer localizer)
         {
+            if (!string.IsNullOrEmpty(run.Prompt))
+            {
+                string shown = run.Prompt.Length > SummaryPrompt ? run.Prompt.Substring(0, SummaryPrompt) + "…" : run.Prompt;
+                string quoted = localizer?.Get(VoiceLabStrings.QuotedWords, ("words", shown)) ?? shown;
+                return quoted + " / " + VoiceLabView.TimbreSummary(localizer, run.Timbre);
+            }
+
             IEnumerable<string> words = run.Words.Select(id => KeyedText.Resolve(localizer, "lab.word." + id));
             string free = string.IsNullOrWhiteSpace(run.FreeWords) ? null : localizer?.Get(VoiceLabStrings.QuotedWords, ("words", run.FreeWords.Trim())) ?? run.FreeWords.Trim();
             string asked = string.Join(" · ", words.Concat(free == null ? Array.Empty<string>() : new[] { free }));

@@ -164,14 +164,23 @@ namespace VirtualVessel.UI.VoiceLab
     /// <summary>What candidates are asked for: the shelf's word ids and the user's own words.</summary>
     public sealed class VoiceLabRequest
     {
-        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords)
+        public VoiceLabRequest(IReadOnlyList<string> words, string freeWords, string prompt = null)
         {
             Words = words ?? Array.Empty<string>();
             FreeWords = freeWords ?? string.Empty;
+            Prompt = prompt ?? string.Empty;
         }
 
         public IReadOnlyList<string> Words { get; }
 
         public string FreeWords { get; }
+
+        /// <summary>
+        /// A prompt the user wrote whole, used in place of the words (Voice Lab detailed design 8.3.1); empty when the
+        /// words make it.
+        /// </summary>
+        public string Prompt { get; }
+
+        public bool IsWritten => Prompt.Length > 0;
     }
 }

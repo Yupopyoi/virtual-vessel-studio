@@ -132,6 +132,13 @@
     background-color: var(--vv-color-surface);
 }
 
+/* The prompt's name and its help hint on one line. */
+.vv-lab__ask-heading {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--vv-space-xs);
+}
+
 .vv-lab__ask > .vv-text-body {
     white-space: normal;
     color: var(--vv-color-text);

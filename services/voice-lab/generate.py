@@ -1,9 +1,10 @@
 """Makes speech with VoxCPM2 (Voice Lab detailed design 8.3.1, 8.3.3, 8.5).
 
-candidates: {"shelf": [word id], "words": str, "count": n, "firstSeed": n, "model": folder, "output": folder,
-             "reference": wav (optional)}
+candidates: {"shelf": [word id], "words": str, "prompt": str (optional), "count": n, "firstSeed": n, "model": folder,
+             "output": folder, "reference": wav (optional)}
             -> a voice per seed reading the same line, with its pitch, to compare by ear and by number. The
-               shelf's words (voicelab/shelf.json) and the user's free words make the instruction. With a
+               shelf's words (voicelab/shelf.json) and the user's free words make the instruction, or a prompt the
+               user wrote whole takes their place. With a
                reference, the voices are made near it: new candidates around one the user picked (8.3.1).
 samples:    {"languages": ["ja", ...], "model": folder, "output": folder}
             -> STEP 1's samples, made on the user's PC when Voice Lab is set up: each example of the shelf with
@@ -94,8 +95,17 @@ def candidates(request, reporter):
 
 
 def instruction_of(request):
-    """The instruction for the request's shelf words and free words, checked before the model loads. Pure but
-    for reading shelf.json."""
+    """The instruction for the request's shelf words and free words, or the prompt the user wrote in their place,
+    checked before the model loads. Pure but for reading shelf.json."""
+    written = request.get("prompt")
+    if written is not None and written != "":
+        if not isinstance(written, str):
+            raise protocol.BadRequest("'prompt' must be text.")
+        instruction = prompt.written(written)
+        if not instruction:
+            raise protocol.BadRequest("'prompt' has nothing left to send once cleaned.")
+        return instruction
+
     picked = request.get("shelf", [])
     words = request.get("words", "")
     if not isinstance(picked, list) or not all(isinstance(word, str) for word in picked):
