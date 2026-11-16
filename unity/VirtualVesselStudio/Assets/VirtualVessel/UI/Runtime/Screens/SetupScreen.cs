@@ -1,5 +1,6 @@
 using System;
 using UnityEngine.UIElements;
+using VirtualVessel.Audio.Clips;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
@@ -98,11 +99,17 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
-        // The microphone and the game's audio; the voice conversion under the microphone, since it converts it (setup
-        // screen 13).
+        // The sources' mixer, then BGM and SE, then the voice conversion, since it converts the microphone (setup screen
+        // 11, 14, 13).
         private static void FillAudio(VisualElement page, ScreenServices services, bool gameAudioOnVideo)
         {
             AddOr(page, services.Audio != null, () => new AudioCard(services.Audio, services.SystemSettings, gameAudioOnVideo), AudioStrings.Unavailable);
+            if (services.Audio != null && services.AudioClips != null)
+            {
+                page.Add(new AudioClipCard(AudioClipKind.Bgm, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
+                page.Add(new AudioClipCard(AudioClipKind.SoundEffect, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
+            }
+
             if (services.Audio != null && services.Voice != null)
             {
                 page.Add(new VoiceCard(services.Voice));

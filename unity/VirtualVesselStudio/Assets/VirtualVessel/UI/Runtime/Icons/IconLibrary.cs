@@ -43,6 +43,14 @@ namespace VirtualVessel.UI.Icons
         Play,
 
         Stop,
+
+        /// <summary>A note: BGM.</summary>
+        Music,
+        MusicOff,
+
+        /// <summary>A speaker: sound effects.</summary>
+        Speaker,
+        SpeakerOff,
     }
 
     /// <summary>One part of an icon: a line drawn with the text color, or a filled area.</summary>
@@ -96,6 +104,10 @@ namespace VirtualVessel.UI.Icons
             [IconName.Quit] = new[] { "M12 3v9", "M6.5 6.5a8 8 0 1 0 11 0" },
             [IconName.Play] = new[] { "fill:M8 5v14l11-7Z" },
             [IconName.Stop] = new[] { "fill:M7 7h10v10H7Z" },
+            [IconName.Music] = new[] { "M9 18V5l11-2v13", "M3 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z", "M14 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z" },
+            [IconName.MusicOff] = new[] { "M9 18V5l11-2v13", "M3 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z", "M14 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z", "M3 3l18 18" },
+            [IconName.Speaker] = new[] { "M11 5L6 9H3v6h3l5 4Z", "M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" },
+            [IconName.SpeakerOff] = new[] { "M11 5L6 9H3v6h3l5 4Z", "M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13", "M3 3l18 18" },
         };
 
         // Declared after Sources: static initializers run in source order.

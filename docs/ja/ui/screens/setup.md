@@ -16,7 +16,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 | ページ | Key | Card |
 |---|---|---|
 | 映像 | `setup.page.video` | 映像の取り込み（ゲーム画面、サブモニター） |
-| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、声の変換（13章、設計中） |
+| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、BGM、効果音（14章）、声の変換（13章） |
 | アバター | `setup.page.avatar` | アバター（5章）、トラッキング（4章）、表情の調整（9章。アバターを使えるときだけ） |
 | 配信・録画 | `setup.page.output` | 録画（10章。録画を使えないときは「録画は使えません。」の一文）、配信（12章）
 | アプリ | `setup.page.app` | アプリの設定、クレジットとライセンス（8章） |
@@ -239,7 +239,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 
 ## 11. 音声のCard
 
-`IAudioService`（Audio）をミキサーの形で表示する（`AudioCard`、`components.md` 3.25）。音の元（マイク、ゲームの音声）とモニターを1行ずつ、同じ列に並べる。音の元が増えても、1行ずつ増えるだけで済む。詳細はAudio詳細設計18章。
+`IAudioService`（Audio）をミキサーの形で表示する（`AudioCard`、`components.md` 3.25）。音の元（マイク、ゲームの音声、BGM、効果音）とモニターを1行ずつ、同じ列に並べる。BGMと効果音は機器を持たず、デバイスの列は空ける（14章）。音の元が増えても、1行ずつ増えるだけで済む。詳細はAudio詳細設計18章。
 
 | 行 | 内容 |
 |---|---|
@@ -263,6 +263,8 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
 | `setup.audio.microphone` | マイク | Microphone |
 | `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.music` | BGM | BGM |
+| `setup.audio.sound-effect` | 効果音 | Sound effects |
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
@@ -409,3 +411,56 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
 | `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
+
+## 14. BGMと効果音のCard
+
+「音声」のページの、音声のCard（11章）の下に、BGMのCardと効果音のCardを置く（BGM・SE詳細設計。2026-11-17）。登録したファイルを1行ずつ、表（`components.md` 3.24）の形で並べる。
+
+| 列 | 内容 |
+|---|---|
+| 再生 | Icon Button。BGMは押すと配信と録画で再生し、再生中は停止の形（■）に変わる。効果音は押すたびに頭から鳴らし、重ねて鳴る。読み込みが済むまでは無効で、ツールチップで読み込み中と伝える |
+| 名前 | 残りの幅を使い、収まらなければ「…」で省略し、ツールチップで全体を出す。BGMは再生中に「再生中」、再生できないときに「再生できません」のStatus Chipを名前の後に出す（形と文字で示す） |
+| 長さ | 分:秒、等幅、右寄せ。ファイルが長さを持たないときは空ける |
+| ループ | BGMだけ。Toggle。既定はオン。変更は次の再生から。説明は見出しの後のHelp Hint |
+| 音量 | Slider、-60〜+12 dB。そのファイルの音量で、ミキサーのBGMと効果音の行の音量とは別。再生中のBGMには、その場で反映する |
+| 操作 | 「名前を変更」（名前のあった場所で入力欄に替わり、「保存」になる。1〜60文字）、「削除」（確認のダイアログの後。元のファイルは残る）。再生中のBGMの「削除」は無効にし、ツールチップで理由を出す |
+
+- Cardの下に「ファイルを追加…」を置く。ファイルの選択の画面ではWAVとMP3を選べる。選んだファイルを確かめ、登録できないときはCardの下にその理由を出す（形式が違う、読み込めない、効果音が30秒を超える、保存できない）。名前はファイルの名前で登録し、後から変更できる。
+- 効果音のCardのタイトルの右端に「効果音を停止」を置き、鳴っている効果音をすべて止める。
+- 登録がないときは、何を追加すればよいかの一文を出す。
+- ミキサー（11章）には、BGMと効果音の行が加わる。機器を持たないので、デバイスの列は空ける。ノイズ除去の列も空ける。「聞く」は既定でオン。
+- ライブ画面の音声の表示（`live.md`）にも、BGMと効果音が加わる。BGMは音符、効果音はスピーカーの形のアイコンで、ミュート中は斜線が入る。
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.bgm.title` | BGM | BGM |
+| `setup.se.title` | 効果音 | Sound effects |
+| `setup.clips.name` | 名前 | Name |
+| `setup.clips.length` | 長さ | Length |
+| `setup.clips.loop` | ループ | Loop |
+| `setup.clips.loop.description` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
+| `setup.clips.gain` | 音量 | Volume |
+| `setup.clips.add` | ファイルを追加… | Add a file… |
+| `setup.clips.rename` | 名前を変更 | Rename |
+| `setup.clips.save` | 保存 | Save |
+| `setup.clips.delete` | 削除 | Delete |
+| `setup.clips.name.required` | 名前を入力してください | Enter a name |
+| `setup.clips.filter` | 音声ファイル | Audio files |
+| `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |
+| `setup.bgm.stop` | このBGMを停止します。 | Stops this BGM. |
+| `setup.bgm.playing` | 再生中 | Playing |
+| `setup.bgm.failed` | 再生できません | Cannot play |
+| `setup.bgm.empty` | BGMはまだ登録されていません。WAVかMP3のファイルを追加してください。 | No BGM yet. Add a WAV or MP3 file. |
+| `setup.bgm.delete.title` | BGMの削除 | Delete the BGM |
+| `setup.bgm.delete.body` | このBGMを削除します。追加した元のファイルは削除されません。 | This BGM is deleted. The file it was added from is not. |
+| `setup.se.play` | この効果音を配信と録画で再生します。 | Plays this sound effect on the stream and in recordings. |
+| `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
+| `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
+| `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
+| `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
+| `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |
+| `setup.clips.problem.unsupported` | WAVかMP3のファイルを選択してください。 | Choose a WAV or MP3 file. |
+| `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
+| `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
+| `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |

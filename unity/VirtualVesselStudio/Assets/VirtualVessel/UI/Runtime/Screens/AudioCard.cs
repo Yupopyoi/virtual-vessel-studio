@@ -7,6 +7,7 @@ using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
 
 namespace VirtualVessel.UI.Screens
@@ -46,10 +47,49 @@ namespace VirtualVessel.UI.Screens
         public const string MonitorDevice = "setup.audio.monitor.device";
         public const string Delay = "setup.audio.delay";
         public const string DelayDescription = "setup.audio.delay.description";
+        public const string Music = "setup.audio.music";
+        public const string SoundEffect = "setup.audio.sound-effect";
         public const string LiveMicrophone = "live.audio.microphone";
         public const string LiveGameAudio = "live.audio.game";
+        public const string LiveMusic = "live.audio.music";
+        public const string LiveSoundEffect = "live.audio.sound-effect";
         public const string LiveMute = "live.audio.mute";
         public const string LiveUnmute = "live.audio.unmute";
+
+        /// <summary>A source's name in the mixer. Pure.</summary>
+        public static string NameOf(AudioSourceRole role)
+        {
+            return role switch
+            {
+                AudioSourceRole.Microphone => Microphone,
+                AudioSourceRole.Music => Music,
+                AudioSourceRole.SoundEffect => SoundEffect,
+                _ => GameAudio,
+            };
+        }
+
+        /// <summary>A source's name on the live screen. Pure.</summary>
+        public static string LiveNameOf(AudioSourceRole role)
+        {
+            return role switch
+            {
+                AudioSourceRole.Microphone => LiveMicrophone,
+                AudioSourceRole.Music => LiveMusic,
+                AudioSourceRole.SoundEffect => LiveSoundEffect,
+                _ => LiveGameAudio,
+            };
+        }
+
+        /// <summary>A source's icon on the live screen, crossed out when muted: its shape says it, not its color. Pure.</summary>
+        public static IconName IconOf(AudioSourceRole role, bool muted)
+        {
+            return role switch
+            {
+                AudioSourceRole.Music => muted ? IconName.MusicOff : IconName.Music,
+                AudioSourceRole.SoundEffect => muted ? IconName.SpeakerOff : IconName.Speaker,
+                _ => muted ? IconName.MicOff : IconName.Mic,
+            };
+        }
     }
 
     /// <summary>

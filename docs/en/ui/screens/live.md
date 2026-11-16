@@ -29,7 +29,7 @@ It has the stream preview, starting and stopping a recording, the sound going in
 | Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage) |
 | Streaming | Status Chip (3.13) and Buttons (3.1); `StreamControl` | Under the record control; `IStreamingService` (Streaming). What each state shows and the confirmations to start and end: streaming detailed design 18.1. Left out without streaming |
 | Recording | Status Chip (3.13) and Buttons (3.1); `RecordControl` | Right under the preview; `IRecordingService` (Video). What each state shows, the confirmation to stop, and the saved file: recording detailed design 18.1. Left out without recording |
-| Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The mute button toggles, and muted shows the crossed-out microphone (by shape). The meter is -60 to 0 dB. Left out without audio |
+| Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The microphone, the game audio, BGM, then sound effects. The mute button toggles, and muted shows its icon crossed out (by shape: a note for BGM, a speaker for sound effects, a microphone for the others). The meter is -60 to 0 dB. Left out without audio |
 | In view | Status Chips (3.13), one per arm and hand | Under the preview, while tracking runs: which of the person's arms and hands the camera sees, by the person's own sides, as the avatar uses them (`LimbStatusRow`, refreshed every 0.2 s). An arm is seen with its shoulder, elbow, and wrist seen and in the image, or without only the elbow (check); partly without the wrist (warning, "wrist not seen"); otherwise not in view (outline). A hand is seen when the hand tracking finds it. The user asked to see why an arm or a hand rests (2026-10-25) |
 | Stacking order | Layer List (3.20) in a Card | Below the preview; the video in front is at the top |
 | How to edit | Description (Text 2) | "Drag a video to move it and drag its corners to resize it. Right-click for more." |
@@ -116,6 +116,8 @@ Pressing Go live or Record while Voice Lab is making a voice shows, in place of 
 | `live.record.problem.audio` | 音声なしで録画しています。 | Recording without audio. |
 | `live.audio.microphone` | マイク | Mic |
 | `live.audio.game` | ゲーム | Game |
+| `live.audio.music` | BGM | BGM |
+| `live.audio.sound-effect` | 効果音 | SE |
 | `live.audio.mute` | ミュート | Mute |
 | `live.audio.unmute` | ミュートを解除 | Unmute |
 | `stage.screen.game` | ゲーム画面 | Game screen |

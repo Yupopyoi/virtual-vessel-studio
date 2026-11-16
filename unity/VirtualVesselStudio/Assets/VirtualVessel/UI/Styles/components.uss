@@ -31,3 +31,4 @@
 @import url("Components/gallery.uss");
 @import url("Components/steps.uss");
 @import url("Components/voice-lab.uss");
+@import url("Components/clips.uss");
