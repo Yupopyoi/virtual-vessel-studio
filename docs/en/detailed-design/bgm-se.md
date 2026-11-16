@@ -143,7 +143,7 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 
 1. The UI passes `PlayBgmCommand` a `SingleTrack` of the chosen track.
 2. `BgmPlayer` takes the first track from `Next` and gives the native deck the file's path, the loop, and the track's volume.
-3. The deck's decoding thread opens the file with Media Foundation, converts it to 48 kHz float stereo, and writes about 2 seconds ahead into the ring, topping it up before it runs short.
+3. The deck's decoding thread opens the file with Media Foundation, converts it to 48 kHz float stereo, and writes about 1.5 seconds ahead into the ring (about 2.7 seconds), topping it up before it runs short. Mono goes to both sides, and three or more channels keep their front left and right. The plugin converts the rate by 4-point Hermite interpolation (2026-11-16): Media Foundation is asked for the sample format only, and the rate and channels come as the file has them. The converter keeps its state through a track, so reading in pieces, or going back to the start for a loop, leaves no seam. A 1 kHz tone at 44.1 kHz came out within 0.0004.
 4. Every 10 ms the mix thread reads one block from the ring and adds it to the buses as the BGM source, with its volume, mute, and sends. It never reads the file.
 5. A looped track goes back to its start on the decoding thread and goes on writing, so no silence comes at the seam.
 6. When a track not looped ends, the deck says so. `BgmPlayer` calls `Next` and plays the next track if there is one, or goes `Idle`.
@@ -239,6 +239,5 @@ To be added later, and where (without rework):
 
 Open issues:
 
-- Whether Media Foundation or the plugin converts to 48 kHz; decided during implementation by comparing sound and load.
 - Limits on the number of SE and their memory.
 - Lowering BGM under the voice (ducking), if the user asks for it.

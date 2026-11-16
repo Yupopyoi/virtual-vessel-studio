@@ -30,7 +30,9 @@ extern "C"
 // 8: audio files (vv_audio_decode_file).
 // 9: a preview on the monitor bus (vv_audio_preview_play).
 // 10: noise removal on a source as it is captured (vv_audio_set_denoise).
-#define VV_AUDIO_API_VERSION 10
+// 11: BGM and SE players as sources (vv_audio_add_player_source, vv_audio_bgm_*, vv_audio_effect_*), and probing
+//     a file (vv_audio_probe_file).
+#define VV_AUDIO_API_VERSION 11
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -195,6 +197,55 @@ VV_AUDIO_API int32_t vv_audio_preview_play(vv_audio_engine* engine, const float*
 VV_AUDIO_API int32_t vv_audio_preview_stop(vv_audio_engine* engine);
 // Frames played and the length, at the mix's rate; both 0 when nothing plays.
 VV_AUDIO_API int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
+
+// BGM and SE (BGM and SE detailed design): a source that plays from a player instead of a device. It has the same
+// gain, mute, sends, and status as a device's source; it has no device to choose.
+#define VV_AUDIO_PLAYER_BGM 0
+#define VV_AUDIO_PLAYER_SOUND_EFFECTS 1
+VV_AUDIO_API int32_t vv_audio_add_player_source(vv_audio_engine* engine, int32_t player, int32_t* source);
+
+// What a file holds, without decoding it all: its length at the mix's rate (0 when the file does not say), and its
+// own rate and channels. Needs no engine, from any thread. error gets the failing HRESULT, or 0.
+typedef struct vv_audio_file_info
+{
+    int64_t frames;
+    int32_t rate;
+    int32_t channels;
+} vv_audio_file_info;
+VV_AUDIO_API int32_t vv_audio_probe_file(const wchar_t* path, vv_audio_file_info* info, int32_t* error);
+
+// BGM: one track at a time, decoded a little ahead on the deck's own thread, so its length does not matter. Play
+// fades out what plays and starts the file from its beginning; generation names this play in the status.
+#define VV_AUDIO_BGM_IDLE 0
+#define VV_AUDIO_BGM_STARTING 1
+#define VV_AUDIO_BGM_PLAYING 2
+#define VV_AUDIO_BGM_STOPPING 3
+#define VV_AUDIO_BGM_FAILED 4
+typedef struct vv_audio_bgm_status
+{
+    int32_t state;
+    int32_t error;                // The HRESULT when it failed, or 0.
+    int64_t generation;           // Of the last play.
+    int64_t finished_generation;  // Of the last track that played to its end (not looped).
+    int64_t played_frames;        // Of the current track.
+    int64_t length_frames;        // Of the current track; 0 when the file does not say.
+    int64_t underruns;
+} vv_audio_bgm_status;
+VV_AUDIO_API int32_t vv_audio_bgm_play(vv_audio_engine* engine, const wchar_t* path, int32_t loop, float gain_db, int64_t* generation);
+VV_AUDIO_API int32_t vv_audio_bgm_stop(vv_audio_engine* engine);
+// The track's own volume, apart from the BGM source's: applied at once, without a click.
+VV_AUDIO_API int32_t vv_audio_bgm_set_gain(vv_audio_engine* engine, float gain_db);
+VV_AUDIO_API int32_t vv_audio_bgm_get_status(vv_audio_engine* engine, vv_audio_bgm_status* status);
+
+// SE: decoded whole when loaded (from any thread but the mix's), then played at once, overlapping.
+#define VV_AUDIO_MAX_EFFECT_SECONDS 30
+#define VV_AUDIO_MAX_EFFECTS 64
+VV_AUDIO_API int32_t vv_audio_effect_load(vv_audio_engine* engine, const wchar_t* path, int32_t* effect, int64_t* frames, int32_t* error);
+VV_AUDIO_API int32_t vv_audio_effect_unload(vv_audio_engine* engine, int32_t effect);
+VV_AUDIO_API int32_t vv_audio_effect_play(vv_audio_engine* engine, int32_t effect, float gain_db);
+VV_AUDIO_API int32_t vv_audio_effect_stop_all(vv_audio_engine* engine);
+// Voices taken from effects still playing when too many play at once.
+VV_AUDIO_API int32_t vv_audio_effect_stolen(vv_audio_engine* engine, int64_t* stolen);
 
 #ifdef __cplusplus
 }

@@ -108,7 +108,7 @@ namespace VirtualVessel.Audio
     public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 10;
+        private const int ApiVersion = 11;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
