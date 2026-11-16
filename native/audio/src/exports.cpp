@@ -499,16 +499,27 @@ extern "C"
 
     int32_t vv_audio_get_source_status(vv_audio_engine* engine, int32_t source, vv_audio_source_status* status)
     {
-        if (engine == nullptr || status == nullptr || !engine->mixer.Used(source) || !engine->sources[source])
+        if (engine == nullptr || status == nullptr || !engine->mixer.Used(source))
         {
             return VV_AUDIO_NOT_FOUND;
         }
 
-        const vv::audio::DeviceLoop& device = engine->sources[source]->Loop();
+        // A player has no device to open or lose: it is always running, playing or not.
         vv::audio::SourceCounters counters = engine->mixer.TakeCounters(source);
-        status->state = device.State();
-        status->problem = device.Problem();
-        status->last_error = device.LastError();
+        if (engine->sources[source])
+        {
+            const vv::audio::DeviceLoop& device = engine->sources[source]->Loop();
+            status->state = device.State();
+            status->problem = device.Problem();
+            status->last_error = device.LastError();
+        }
+        else
+        {
+            status->state = VV_AUDIO_SOURCE_RUNNING;
+            status->problem = VV_AUDIO_PROBLEM_NONE;
+            status->last_error = 0;
+        }
+
         status->peak_db = vv::audio::LinearToDb(counters.peak);
         status->overruns = counters.overruns;
         status->underruns = counters.underruns;

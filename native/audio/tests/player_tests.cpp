@@ -352,6 +352,17 @@ namespace
         int64_t first = 0;
         int32_t read = mixer.ReadStream(out.data(), BlockFrames, static_cast<int64_t>(5) * BlockFrames, &first);
         Check(read == BlockFrames && std::fabs(out[100] - 0.25f) < 1e-4f, "a player reaches the stream bus");
+
+        // Through the engine: a player source has no device and is always running.
+        vv_audio_engine* engine = nullptr;
+        vv_audio_create(&engine);
+        int32_t player = -1;
+        Check(vv_audio_add_player_source(engine, VV_AUDIO_PLAYER_SOUND_EFFECTS, &player) == VV_AUDIO_OK, "a player source is added");
+        vv_audio_source_status status = {};
+        Check(vv_audio_get_source_status(engine, player, &status) == VV_AUDIO_OK && status.state == VV_AUDIO_SOURCE_RUNNING, "and runs without a device");
+        Check(vv_audio_bgm_play(engine, L"x.mp3", 0, 0.0f, &first) == VV_AUDIO_NOT_FOUND, "BGM needs its source");
+        Check(vv_audio_remove_source(engine, player) == VV_AUDIO_OK, "a player source is removed");
+        vv_audio_destroy(engine);
     }
 
     std::wstring WriteWav(const wchar_t* name, int rate, int channels, int frames, float frequency)
