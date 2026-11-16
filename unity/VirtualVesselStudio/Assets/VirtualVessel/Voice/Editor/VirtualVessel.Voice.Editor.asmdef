@@ -1,0 +1,19 @@
+{
+    "name": "VirtualVessel.Voice.Editor",
+    "rootNamespace": "VirtualVessel.Voice.Editor",
+    "references": [
+        "VirtualVessel.Voice",
+        "Unity.InferenceEngine"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

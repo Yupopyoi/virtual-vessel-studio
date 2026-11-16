@@ -8,7 +8,8 @@ namespace VirtualVessel.ProjectData.Config
     /// <summary>
     /// A settings file's contents as a tree of named values, given to migrations so that they can
     /// rename, move, or remove fields without knowing the JSON library. <see cref="Parse"/> also reads
-    /// bundled read-only data, such as UI string tables, without exposing the JSON library.
+    /// bundled read-only data, such as UI string tables, and <see cref="Create"/> with <see cref="ToJson"/>
+    /// builds JSON for other programs (Voice Lab's requests), without exposing the JSON library.
     /// </summary>
     /// <remarks>
     /// Paths use dots for nesting, such as <c>"audio.inputDevice"</c>. Values are JSON primitives,
@@ -21,6 +22,18 @@ namespace VirtualVessel.ProjectData.Config
         internal ConfigDocument(JObject root)
         {
             _root = root ?? throw new ArgumentNullException(nameof(root));
+        }
+
+        /// <summary>An empty object, to build JSON for another program without knowing the JSON library.</summary>
+        public static ConfigDocument Create()
+        {
+            return new ConfigDocument(new JObject());
+        }
+
+        /// <summary>The document as indented JSON text.</summary>
+        public string ToJson()
+        {
+            return _root.ToString(Formatting.Indented);
         }
 
         /// <summary>Reads a JSON object from text.</summary>

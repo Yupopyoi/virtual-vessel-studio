@@ -1,0 +1,557 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using VirtualVessel.Core.Time;
+using VirtualVessel.Diagnostics.Logging;
+using VirtualVessel.ExternalServices.Process;
+using VirtualVessel.ProjectData.Records;
+using VirtualVessel.UI.VoiceLab;
+using VirtualVessel.Voice.Models;
+using VirtualVessel.VoiceLab.Activation;
+using VirtualVessel.VoiceLab.Design;
+using VirtualVessel.VoiceLab.Registration;
+using VirtualVessel.VoiceLab.Scripts;
+using VirtualVessel.VoiceLab.Training;
+
+namespace VirtualVessel.VoiceLab
+{
+    /// <summary>
+    /// <see cref="IVoiceLab"/> for the Voice Lab screen (Voice Lab detailed design 4, 5): the designer, the runs,
+    /// and registration behind one face. Without a training environment it says so and does nothing.
+    /// </summary>
+    public sealed partial class VoiceLabService : IVoiceLab
+    {
+        /// <summary>The developer's environment file in the settings folder, until activation writes it (Voice Lab detailed design 6.4).</summary>
+        public const string EnvironmentFile = "voice-lab-environment.json";
+
+        // The failure's detail for what needs a training environment.
+        private const string NotSetUpDetail = "Voice Lab is not set up.";
+
+        private readonly object _gate = new object();
+        // Null when Voice Lab is not set up, and again once its environment is deleted.
+        private volatile VoiceDesigner _designer;
+        // What the environment file sets up; replaced together by Reload, the designer last, as it says Voice Lab is ready.
+        private VoiceLabEnvironmentRemover _remover;
+        private ITrainingRunRepository _runs;
+        private IVoiceModelRepository _voices;
+        private VoiceModelRegistrar _registrar;
+        private string _samplesFolder;
+        private int _running;
+        private readonly ILog _log;
+        private readonly string _configDirectory;
+        private readonly string _voiceLabFolder;
+        private readonly string _voiceModelsFolder;
+        private readonly ISystemClock _clock;
+        private readonly Random _random;
+        private string _appScripts;
+        private readonly Dictionary<string, VoiceCandidate> _candidates = new Dictionary<string, VoiceCandidate>();
+        // Written by the scripts' reading threads, read by the screen on the main thread.
+        private readonly Shared<VoiceLabBuildProgress> _progress = new Shared<VoiceLabBuildProgress>();
+        private readonly Shared<CancellationTokenSource> _buildCancel = new Shared<CancellationTokenSource>();
+        private readonly Shared<VoiceLabMaking> _making = new Shared<VoiceLabMaking>();
+        private readonly Shared<VoiceLabMaking> _samplesMaking = new Shared<VoiceLabMaking>();
+
+        private VoiceLabService(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random, IVoiceLabLibrary library)
+        {
+            _configDirectory = configDirectory;
+            _voiceLabFolder = voiceLabFolder;
+            _voiceModelsFolder = voiceModelsFolder;
+            _clock = clock;
+            _log = log;
+            _random = random ?? new Random();
+            Library = library;
+            _work = new WorkStore(voiceLabFolder, clock);
+        }
+
+        /// <summary>
+        /// Whether the test plan may run (STEP 3's Test, in Unity's Editor only). The composition sets it, since Voice Lab
+        /// does not reference the engine; off, a Test request makes the default voice.
+        /// </summary>
+        public bool AllowEditorTest { get; set; }
+
+        /// <summary>The languages samples are made in. Only Japanese for now; the files are kept per language so others can follow.</summary>
+        public static IReadOnlyList<string> SampleLanguages { get; } = new[] { "ja" };
+
+        // Read by the library from the main thread while the samples are made; set before and after, never in between.
+        private volatile bool _makingSamples;
+
+        public VoiceLabAvailability Availability => _designer != null ? VoiceLabAvailability.Ready : VoiceLabAvailability.NotSetUp;
+
+        public VoiceLabShelf Shelf { get; private set; }
+
+        public int StartSeed { get; private set; }
+
+        /// <summary>What was made; there even when Voice Lab is not set up, so it can still be listed.</summary>
+        public IVoiceLabLibrary Library { get; }
+
+        public VoiceLabMaking SamplesProgress => _samplesMaking.Value;
+
+        /// <summary>What runs now, so the library deletes nothing in use.</summary>
+        public VoiceLabActivity Activity => new VoiceLabActivity(_makingSamples, _designer?.SessionFolder);
+
+        public VoiceLabMaking CandidatesProgress => _making.Value;
+
+        public VoiceLabBuildProgress BuildProgress => _progress.Value;
+
+        /// <summary>
+        /// The service from the settings folder's environment file; one that is missing, unreadable, or points at
+        /// what is not there leaves Voice Lab not set up, with the reason in the log.
+        /// </summary>
+        /// <param name="appScripts">The scripts that ship with the app (VoiceLab/scripts), which an environment the app built runs.</param>
+        public static VoiceLabService Create(string configDirectory, string voiceLabFolder, string voiceModelsFolder, ISystemClock clock, ILog log, Random random = null, string appScripts = null)
+        {
+            // The library asks the service whether a build runs, so an unfinished run is not deleted under it.
+            VoiceLabService created = null;
+            var library = VoiceLabLibrary.Create(voiceLabFolder, voiceModelsFolder, clock, () => created != null && created.BuildProgress.State != VoiceLabBuildState.None, () => created?.Activity ?? default);
+            created = new VoiceLabService(configDirectory, voiceLabFolder, voiceModelsFolder, clock, log, random, library) { _appScripts = appScripts };
+            created.Reload();
+            return created;
+        }
+
+        /// <summary>
+        /// Reads the environment file again and sets Voice Lab up from it: at start, and after activation built an
+        /// environment or one was deleted. Nothing may run in Voice Lab while it does.
+        /// </summary>
+        public void Reload()
+        {
+            _designer = null;
+            string path = Path.Combine(_configDirectory, EnvironmentFile);
+            if (!File.Exists(path))
+            {
+                _log.Information("Voice Lab is not set up: no training environment.");
+                return;
+            }
+
+            // What activation built is the app's to delete, and runs the app's own scripts: it lies inside the folder the
+            // user chose for it.
+            string root = VoiceActivationFolders.RootIn(ActivationLocation(_configDirectory, _clock));
+            VoiceLabEnvironment kept = VoiceLabEnvironment.Parse(File.ReadAllText(path), out string problem);
+            string owned = VoiceLabEnvironmentRemover.Owned(kept, root);
+            VoiceLabEnvironment environment = VoiceLabEnvironment.Running(kept, owned != null, _appScripts);
+            IReadOnlyList<string> problems = environment?.Problems(File.Exists, Directory.Exists) ?? new[] { problem };
+            VoiceLabShelf shelf = null;
+            if (problems.Count == 0)
+            {
+                string shelfPath = Path.Combine(environment.Scripts, "voicelab", "shelf.json");
+                string shelfProblem = "The scripts have no voicelab/shelf.json.";
+                shelf = File.Exists(shelfPath) ? ShelfFile.Parse(File.ReadAllText(shelfPath), out shelfProblem) : null;
+                problems = shelf == null ? new[] { shelfProblem } : problems;
+            }
+
+            if (problems.Count > 0)
+            {
+                _log.Warning($"Voice Lab is not set up: {string.Join("; ", problems)}");
+                return;
+            }
+
+            _remover = new VoiceLabEnvironmentRemover(path, owned);
+            var runner = new ExternalProcessRunner(environment.AllowedFolders, _log.WithContext("component", "process"), _clock);
+            var runs = new TrainingRunStore(_voiceLabFolder, _clock, _random);
+            var voices = new VoiceModelStore(_voiceModelsFolder, _clock);
+            _runs = runs;
+            _voices = voices;
+            _registrar = new VoiceModelRegistrar(voices, runs, _clock);
+            Shelf = shelf;
+            _samplesFolder = Path.Combine(_voiceLabFolder, "Samples");
+            _designer = new VoiceDesigner(new PythonScripts(environment, runner), runs, Path.Combine(_voiceLabFolder, "Designs"), _clock, _log);
+            StartSeed = _random.Next(1, 1_000_000);
+            _log.Information($"Voice Lab is ready with the environment in {EnvironmentFolderName(environment)}.");
+        }
+
+        /// <summary>The folder chosen for activation, from its record; the default when none is kept.</summary>
+        public static string ActivationLocation(string configDirectory, ISystemClock clock)
+        {
+            return VoiceActivationRecord.StoreIn(configDirectory, clock).Load().Value?.Location ?? VoiceActivationFolders.DefaultLocation;
+        }
+
+        public string SampleFile(string language, string name)
+        {
+            if (_samplesFolder == null || !IsPlainName(language) || !IsPlainName(name))
+            {
+                return null;
+            }
+
+            string path = Path.Combine(_samplesFolder, language, name);
+            return File.Exists(path) ? path : null;
+        }
+
+        public async Task MakeSamplesAsync(CancellationToken cancellationToken)
+        {
+            _samplesMaking.Value = default;
+            var progress = new Forward<ScriptProgress>(p => _samplesMaking.Value = ToMaking(p, "samples"));
+            _makingSamples = true;
+            try
+            {
+                await Run(() => _designer.MakeSamplesAsync(SampleLanguages, _samplesFolder, progress, cancellationToken)).ConfigureAwait(false);
+                _log.Information("Made Voice Lab's samples.");
+            }
+            finally
+            {
+                _makingSamples = false;
+                _samplesMaking.Value = default;
+            }
+        }
+
+        /// <summary>A file or folder name with no path in it, so a sample is only ever read from the samples folder. Pure.</summary>
+        public static bool IsPlainName(string name)
+        {
+            return !string.IsNullOrEmpty(name) && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name != "." && name != "..";
+        }
+
+        public async Task<IReadOnlyList<VoiceLabCandidate>> MakeCandidatesAsync(VoiceLabRequest request, int count, VoiceLabCandidate near, CancellationToken cancellationToken)
+        {
+            VoiceCandidate reference = near != null ? Find(near) : null;
+            _making.Value = default;
+            var progress = new Forward<ScriptProgress>(p => _making.Value = ToMaking(p, "candidates"));
+            IReadOnlyList<VoiceCandidate> made;
+            try
+            {
+                made = await Run(() => _designer.MakeCandidatesAsync(new VoiceDescription(request.Words, request.FreeWords, request.Prompt, request.Line), count, request.FirstSeed, reference, progress, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                _making.Value = default;
+            }
+
+            foreach (VoiceCandidate candidate in made)
+            {
+                Remember(candidate);
+            }
+
+            return made.Select(ToScreen).ToArray();
+        }
+
+        public async Task<VoiceLabPreview> PreviewAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, CancellationToken cancellationToken)
+        {
+            TimbrePreview preview = await Run(() => _designer.PreviewTimbreAsync(Find(candidate), ToSettings(timbre), cancellationToken)).ConfigureAwait(false);
+            return new VoiceLabPreview(preview.File, preview.Pitch.MedianHz);
+        }
+
+        public async Task<VoiceLabBuild> BuildAsync(VoiceLabCandidate candidate, VoiceLabTimbre timbre, VoiceLabTrainingLength length, CancellationToken cancellationToken)
+        {
+            Ensure();
+            ForgetWork();
+            _progress.Value = new VoiceLabBuildProgress(VoiceLabBuildState.Preparing, 0f);
+            var progress = new Forward<BuildProgress>(p => _progress.Value = new VoiceLabBuildProgress(ToScreen(p.State), p.Fraction, p.Done, p.Total));
+            // Linked, so the screen's Stop and CancelBuild from elsewhere end the same build.
+            using var cancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _buildCancel.Value = cancel;
+            try
+            {
+                TrainingRun run = await _designer.BuildVoiceAsync(Find(candidate), ToSettings(timbre), PlanOf(length, AllowEditorTest), progress, cancel.Token).ConfigureAwait(false);
+                return new VoiceLabBuild(run.RunId, ToScreen(run.GetState()), run.ErrorCode == "out_of_memory");
+            }
+            finally
+            {
+                // Also when the build threw, so the screen never shows a build that is not running.
+                _buildCancel.Value = null;
+                _progress.Value = default;
+            }
+        }
+
+        public CrudResult<string> BuiltVoiceFolder(string runId)
+        {
+            if (_runs == null)
+            {
+                return CrudResult<string>.Fail(CrudError.Invalid, NotSetUpDetail);
+            }
+
+            CrudResult<TrainingRun> run = _runs.Get(runId);
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            string output = Path.Combine(_runs.FolderOf(runId), "output");
+            return run.Value.GetState() == TrainingState.Completed && File.Exists(Path.Combine(output, "voice.sentis"))
+                ? CrudResult<string>.Success(output)
+                : CrudResult<string>.Fail(CrudError.Invalid, $"Run {runId} has no voice to try.");
+        }
+
+        public void CancelBuild()
+        {
+            try
+            {
+                _buildCancel.Value?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The build ended between reading it and cancelling it: nothing is left to stop.
+            }
+        }
+
+        /// <summary>
+        /// The epochs of a training length. 600 kept the "mochi-mochi" texture that 150 lost, by ear and by the first
+        /// harmonic's level (decision record, 2026-11-08); 150 stays the default for its time. Pure.
+        /// </summary>
+        public static int EpochsOf(VoiceLabTrainingLength length)
+        {
+            switch (length)
+            {
+                case VoiceLabTrainingLength.Normal:
+                    return 300;
+                case VoiceLabTrainingLength.Long:
+                    return 600;
+                default:
+                    return VoiceDesigner.DefaultEpochs;
+            }
+        }
+
+        /// <summary>
+        /// What a build makes for a length. The test plan is only for Unity's Editor: anywhere else it is the default,
+        /// so a voice not fit to use is never made by mistake. Pure.
+        /// </summary>
+        public static BuildPlan PlanOf(VoiceLabTrainingLength length, bool inEditor)
+        {
+            if (length == VoiceLabTrainingLength.EditorTest)
+            {
+                return inEditor ? BuildPlan.EditorTest : BuildPlan.Standard;
+            }
+
+            return BuildPlan.Training(EpochsOf(length));
+        }
+
+        public CrudResult<VoiceLabRemake> Remake(string runId)
+        {
+            CrudResult<TrainingRun> read = ReadRun(runId);
+            if (!read.Ok)
+            {
+                return CrudResult<VoiceLabRemake>.From(read.WithoutValue);
+            }
+
+            RunDesign design = read.Value.Design ?? new RunDesign();
+            VoiceCandidate candidate = FromRun(design, File.Exists);
+            if (candidate != null)
+            {
+                Remember(candidate);
+            }
+
+            return CrudResult<VoiceLabRemake>.Success(new VoiceLabRemake(design.Words, design.FreeWords, candidate == null ? null : ToScreen(candidate), ToScreen(design.Timbre), design.Prompt, design.Line, design.Seed));
+        }
+
+        /// <summary>
+        /// The run's base as a candidate again, with the words it was asked with; null when its audio is gone.
+        /// Pure but for <paramref name="exists"/>.
+        /// </summary>
+        public static VoiceCandidate FromRun(RunDesign design, Func<string, bool> exists)
+        {
+            if (string.IsNullOrEmpty(design.Candidate) || !exists(design.Candidate))
+            {
+                return null;
+            }
+
+            return new VoiceCandidate(
+                $"candidate_{design.Seed}",
+                design.Seed,
+                design.Candidate,
+                new PitchSummary(design.MedianHz, design.LowHz, design.HighHz),
+                design.Instruction,
+                design.Reference,
+                new VoiceDescription(design.Words, design.FreeWords, design.Prompt, design.Line));
+        }
+
+        public CrudResult<string> Register(string runId, string name)
+        {
+            CrudResult<TrainingRun> run = ReadRun(runId);
+            if (!run.Ok)
+            {
+                return CrudResult<string>.From(run.WithoutValue);
+            }
+
+            CrudResult<VoiceModelRecord> voice = _registrar.Register(run.Value, name);
+            return voice.Ok ? CrudResult<string>.Success(voice.Value.Id) : CrudResult<string>.From(voice.WithoutValue);
+        }
+
+        /// <summary>
+        /// Whether a voice is the one used for the stream, so it is not deleted (Voice Lab detailed design 8.6). The
+        /// composition gives it from Voice, which Voice Lab does not ask by itself.
+        /// </summary>
+        public Func<string, bool> VoiceInUse
+        {
+            set
+            {
+                if (Library is VoiceLabLibrary library)
+                {
+                    library.InUse = value;
+                }
+            }
+        }
+
+        /// <summary>A script's progress as a making bar shows it: any stage but <paramref name="stage"/> (loading the model) has no total. Pure.</summary>
+        public static VoiceLabMaking ToMaking(ScriptProgress progress, string stage)
+        {
+            return progress.Stage == stage ? new VoiceLabMaking(progress.Done, progress.Total) : default;
+        }
+
+        /// <summary>A training state as the screen shows it. Pure.</summary>
+        public static VoiceLabBuildState ToScreen(TrainingState state)
+        {
+            switch (state)
+            {
+                case TrainingState.Preparing:
+                    return VoiceLabBuildState.Preparing;
+                case TrainingState.Preprocessing:
+                    return VoiceLabBuildState.Preprocessing;
+                case TrainingState.Training:
+                    return VoiceLabBuildState.Training;
+                case TrainingState.PostProcessing:
+                    return VoiceLabBuildState.PostProcessing;
+                case TrainingState.Completed:
+                    return VoiceLabBuildState.Completed;
+                case TrainingState.Cancelled:
+                    return VoiceLabBuildState.Cancelled;
+                case TrainingState.Pending:
+                    return VoiceLabBuildState.Preparing;
+                default:
+                    return VoiceLabBuildState.Failed;
+            }
+        }
+
+        /// <summary>A run's timbre as the screen shows it; a missing one is no change. Pure.</summary>
+        public static VoiceLabTimbre ToScreen(TimbreValues timbre)
+        {
+            return timbre == null ? default : new VoiceLabTimbre(timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
+        }
+
+        /// <summary>The screen's timbre as the designer takes it. Pure.</summary>
+        public static TimbreSettings ToSettings(VoiceLabTimbre timbre)
+        {
+            return new TimbreSettings(timbre.Pitch, timbre.Age, timbre.Brightness, timbre.Breathiness, timbre.Softness);
+        }
+
+        /// <summary>A candidate as the screen shows it. Pure.</summary>
+        public static VoiceLabCandidate ToScreen(VoiceCandidate candidate)
+        {
+            return new VoiceLabCandidate(candidate.Id, candidate.File, candidate.Pitch.MedianHz, candidate.Pitch.LowHz, candidate.Pitch.HighHz, candidate.Instruction, candidate.Seed);
+        }
+
+        // The environment's folder name only, so the log does not hold the user's paths.
+        private static string EnvironmentFolderName(VoiceLabEnvironment environment)
+        {
+            return Path.GetFileName(VoiceLabEnvironment.EnvironmentFolder(environment.Python));
+        }
+
+        private async Task Run(Func<Task> work)
+        {
+            await Run(async () =>
+            {
+                await work().ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+        }
+
+        private async Task<T> Run<T>(Func<Task<T>> work)
+        {
+            Ensure();
+            Interlocked.Increment(ref _running);
+            try
+            {
+                return await work().ConfigureAwait(false);
+            }
+            catch (ScriptFailedException exception)
+            {
+                throw ToScreen(exception);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _running);
+            }
+        }
+
+        /// <summary>
+        /// What the screen is told of a script that did not finish. A stopped script is a cancel, not a failure:
+        /// the screen stops a preview when another is asked for, and must not show it as failed. Pure.
+        /// </summary>
+        public static Exception ToScreen(ScriptFailedException exception)
+        {
+            return exception.Code == "cancelled"
+                ? new OperationCanceledException(exception.Message, exception)
+                : new VoiceLabFailedException(exception.Message, exception);
+        }
+
+        // A run, for what needs Voice Lab set up.
+        private CrudResult<TrainingRun> ReadRun(string runId)
+        {
+            return _designer == null ? CrudResult<TrainingRun>.Fail(CrudError.Invalid, NotSetUpDetail) : _runs.Get(runId);
+        }
+
+        // A candidate the screen may ask for again by its ID: one made, or one put back from a run or the unfinished work.
+        private void Remember(VoiceCandidate candidate)
+        {
+            lock (_gate)
+            {
+                _candidates[candidate.Id] = candidate;
+            }
+        }
+
+        private VoiceCandidate Find(VoiceLabCandidate candidate)
+        {
+            lock (_gate)
+            {
+                if (candidate != null && _candidates.TryGetValue(candidate.Id, out VoiceCandidate found))
+                {
+                    return found;
+                }
+            }
+
+            throw new VoiceLabFailedException($"Candidate {candidate?.Id} was not made in this session.");
+        }
+
+        /// <summary>Whether a script runs from the environment now: a candidate, a sample, a preview, or a build.</summary>
+        public bool IsBusy => Volatile.Read(ref _running) > 0 || BuildProgress.State != VoiceLabBuildState.None;
+
+        /// <summary>After the environment was deleted, so activation forgets it.</summary>
+        public event Action EnvironmentRemoved;
+
+        public VoiceLabEnvironmentState EnvironmentState => _remover == null || _designer == null
+            ? VoiceLabEnvironmentState.None
+            : _remover.OwnedFolder != null ? VoiceLabEnvironmentState.AppBuilt : VoiceLabEnvironmentState.External;
+
+        public Task<long> EnvironmentSizeAsync(CancellationToken cancellationToken)
+        {
+            return EnvironmentState == VoiceLabEnvironmentState.AppBuilt ? _remover.SizeAsync(cancellationToken) : Task.FromResult(0L);
+        }
+
+        public async Task<CrudResult> RemoveEnvironmentAsync()
+        {
+            if (EnvironmentState != VoiceLabEnvironmentState.AppBuilt)
+            {
+                return CrudResult.Fail(CrudError.Invalid, "There is no training environment the app built.");
+            }
+
+            if (IsBusy)
+            {
+                return CrudResult.Fail(CrudError.Busy, "Voice Lab is running a script.");
+            }
+
+            // Nothing starts from here: every script call checks the designer first.
+            _designer = null;
+            CrudResult removed = await _remover.RemoveAsync().ConfigureAwait(false);
+            if (removed.Ok)
+            {
+                _log.Information($"Deleted Voice Lab's training environment in {_remover.OwnedFolder}.");
+            }
+
+            // The settings file goes first, so once it is gone Voice Lab is not set up, even if a locked file kept part
+            // of the folder: activation forgets it too, or the screen would show it built and offer no way to build it
+            // again. A new build clears the folder first.
+            if (removed.Ok || !File.Exists(Path.Combine(_configDirectory, EnvironmentFile)))
+            {
+                EnvironmentRemoved?.Invoke();
+            }
+
+            return removed;
+        }
+
+        private void Ensure()
+        {
+            if (_designer == null)
+            {
+                throw new VoiceLabFailedException(NotSetUpDetail);
+            }
+        }
+    }
+}

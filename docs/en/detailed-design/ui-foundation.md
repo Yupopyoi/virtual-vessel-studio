@@ -130,7 +130,7 @@ Using UI Toolkit as is has the following problems. The shared components and sur
 | Shared components | VisualElement | The parts in `components.md` (Chapter 6) |
 | `MediaFrame` / `FrameCanvas` | VisualElement | Placement editing and cropping (Chapter 9) |
 | `FrameLayout` / `FrameEditMath` | Struct / static class (Core) | Placement data and editing math |
-| `AppShell` | VisualElement | Navigation, screen area, and version (7.7) |
+| `AppShell` | VisualElement | Navigation, screen area, Quit item, and version (7.7) |
 | `ScreenHost` | VisualElement | Screen switching (7.7) |
 | `ScreenDefinition` / `IScreen` | Class / Interface | What a screen registers, and shown/hidden notifications (7.7) |
 | `DeveloperModeService` | Class | Switches Developer Mode and propagates it to related functions |
@@ -232,6 +232,7 @@ A command registered as a `DangerCommand` shows the confirmation dialog automati
 - If another confirmation is requested while one is open, it is shown after the first closes. A canceled `CancellationToken` acts as "Cancel".
 - A button shows its busy state as soon as it is pressed, so a second dialog does not open while the first is waiting for an answer.
 - If `UiServices` has no confirmation dialog, a `DangerCommand` does not run and an Error is recorded in the developer log, so that an action that is hard to undo never runs without confirmation.
+- `IConfirmedCommand.Confirmation` is read when the button is pressed; null runs the command without asking. This is for commands that ask only sometimes, such as starting a recording, which asks only while Voice Lab makes a voice (`BuildGuardedStart`).
 
 ### 6.5 Style
 
@@ -524,7 +525,7 @@ The delay and the position numbers are current defaults and may change. The numb
 
 **First screens**
 
-Live and Setup follow their screen specifications (`docs/en/ui/screens/live.md`, `setup.md`): Live has the stream preview and placement editing, Setup the capture Cards and the App settings. Until its specification exists, Voice Lab shows only its heading and "This screen is on its way".
+Live and Setup follow their screen specifications (`docs/en/ui/screens/live.md`, `setup.md`): Live has the stream preview and placement editing, Setup the capture Cards and the App settings. Voice Lab follows `docs/en/ui/screens/voice-lab.md`: making a voice in numbered steps.
 
 - The composition passes what they need together in `UiRootContext.Screens` (`ScreenServices`): `IStreamPreviewSource` (Video), the list of `IFrameSource` and `IStageLighting` (Stage), `ICaptureSources` (Capture), `ITrackingSource` and `ITrackingRecordings` (Tracking), `IAvatarService` (Avatar), `IFileDialog`, and `ICreditFiles`. Anything missing stays `null`, and that part says it is unavailable or is left out.
 - A new service for the screens is added once to `ScreenServices` and passed only to the Cards that use it. Before, it was a new parameter of `UiRootContext` and of `SetupScreen` in turn, so each new service brought pass-through changes in four places (2026-10-21).
@@ -807,6 +808,7 @@ flowchart LR
 
 - Click to select. A selected frame shows eight handles at the corners and edges and an outline.
 - Clicking an empty area clears the selection. `Tab` selects the next frame.
+- On the live screen, a press on an empty part outside the preview (the screen's background, a Card or its text) clears the selection too. A video stretched over the whole stream leaves no empty place on the canvas, so the mouse could not clear it (the user's review, 2026-11-14). A press on a control (anything that takes focus), the canvas, or the stacking-order list does not, so starting a recording does not drop the selection (`LiveScreen.ClearsSelection`). Presses are caught on the panel's root: the margins and the header around the preview are not the live screen's, so a handler on the live screen alone missed them (2026-11-15).
 
 **Moving**
 
@@ -832,7 +834,7 @@ flowchart LR
 - Turning the mouse wheel over a selected frame zooms the video inside without changing the frame size, centered on the pointer.
 - A zoomed video can be panned by dragging with the middle button, or by dragging while holding `Space`.
 - To crop edges, switch to "crop mode". It can be switched with the mode switch at the top left of the preview, the `C` key, a double-click on the frame, or the right-click menu. A double-click while cropping returns to layout mode, the same way it entered. A double-click is two presses on the same frame within 0.5 seconds and 6px (`FrameCanvasMath.IsDoubleClick`). The platform click count is not used, because it also counts a single press right after a press elsewhere, such as on the mode switch.
-- In crop mode the frame being cropped wins over frames in front of it, and a press on its faint whole video keeps crop mode, so the mode never changes back by surprise (`FrameCanvasMath.CropPressAt`).
+- In crop mode the frame being cropped wins over frames in front of it, and a press on its faint whole video keeps crop mode, so the mode never changes back by surprise (`FrameCanvasMath.CropPressAt`). The whole video counts only on the stream screen: a zoomed video reaching past it held the background around the preview too, so pressing outside could not end crop mode (the user's review, 2026-11-15).
 - In crop mode, dragging a handle crops that edge. Dragging inside the frame leaves the video still and moves the crop window (the frame) over it (`FrameEditMath.MoveCropWindow`). `Enter`, `Esc`, or switching again returns to layout mode and keeps the selection. A press outside the video clears the selection and so ends crop mode, the same as a press outside in layout mode.
 - Selecting another frame always returns to layout mode, so a click never lands in a mode that was chosen for a different frame.
 - The crop range never goes outside the video.
@@ -868,10 +870,11 @@ flowchart LR
 | Reset crop | Returns `Crop` to the whole video. The video keeps its on-screen scale and the frame grows to the whole video |
 | Bring forward / Send backward | Swaps places with the frame just in front (behind) |
 | Bring to front / Send to back | Moves it all the way to the front (back) |
+| Stop capture | Stops the video's capture (`IFrameSource.StopCapture`, as Stop on the setup screen does). Disabled for a video not captured and for a locked frame. Not undoable; capture starts again on the setup screen (the user's request, 2026-11-15) |
 
 Each menu item also shows a tooltip and its shortcut.
 
-The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring forward), `[` (send backward), `Shift+]` (bring to front), `Shift+[` (send to back), and `F` (full-screen preview).
+The main shortcuts are `H` (flip), `L` (lock), `O` (allow outside), `C` (crop mode), `R` (reset crop), `Shift+1` (fit), `Shift+2` (fill), `Shift+C` (center), `]` (bring forward), `[` (send backward), `Shift+]` (bring to front), `Shift+[` (send to back), `Del` (stop capture; not on a locked frame), and `F` (full-screen preview).
 
 ### 9.5 Commit and Runtime State
 
@@ -1129,6 +1132,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText (setup.md chapter 8)   VirtualVessel.UI.Credits
+   │  ├─ VoiceLab/          IVoiceLab, VoiceLabScreen and its steps, VoiceLabView (screens/voice-lab.md)   VirtualVessel.UI.VoiceLab
    │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, FaceCover, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss (imports the USS of each part), Components/ USS of each part

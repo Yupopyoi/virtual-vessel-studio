@@ -92,20 +92,12 @@ namespace VirtualVessel.Video
         /// <summary>The camera that draws avatars over the flat videos; for tests.</summary>
         internal Camera AvatarCamera => _avatarCamera;
 
+        internal Camera ScreenCamera => _screenCamera;
+
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
-            _layer = LayerMask.NameToLayer(ScreenLayerName);
-            if (_layer < 0)
-            {
-                throw new InvalidOperationException($"The layer '{ScreenLayerName}' is missing from the project's tags and layers.");
-            }
-
-            _avatarLayer = LayerMask.NameToLayer(AvatarLayerName);
-            if (_avatarLayer < 0)
-            {
-                throw new InvalidOperationException($"The layer '{AvatarLayerName}' is missing from the project's tags and layers.");
-            }
-
+            _layer = RequireLayer(ScreenLayerName);
+            _avatarLayer = RequireLayer(AvatarLayerName);
             if (Size.Width <= 0 || Size.Height <= 0)
             {
                 throw new InvalidOperationException($"The stream size {Size} is not valid.");
@@ -115,6 +107,41 @@ namespace VirtualVessel.Video
             _target = new RenderTexture(Size.Width, Size.Height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { name = "StreamRenderTarget" };
             _target.Create();
 
+            UniversalAdditionalCameraData mainData = TakeMainCamera();
+            mainData.cameraStack.Add(CreateScreenCamera());
+            mainData.cameraStack.Add(CreateAvatarCamera());
+            CreateWindowCamera();
+
+            _root = new GameObject("StreamScreens") { layer = _layer };
+            (Vector3 position, Vector3 scale) = ScreenLayerMath.RootPlacement(Size.Aspect);
+            _root.transform.SetPositionAndRotation(position, Quaternion.identity);
+            _root.transform.localScale = scale;
+
+            UnityEngine.Application.targetFrameRate = _settings.TargetFrameRate;
+            QualitySettings.vSyncCount = 0;
+            _video.Value = _target;
+            _meter = StreamFrameMeter.Start(_clock.GetTimestamp());
+            _stats.Value = new PreviewStats(0, _settings.TargetFrameRate, Size.Width, Size.Height, null);
+            _tick = _frameLoop.Register(Tick);
+            _log?.Information($"Video started: {Size} at {_settings.TargetFrameRate} fps, color space {QualitySettings.activeColorSpace}, target {_target.format} sRGB.");
+            return Task.CompletedTask;
+        }
+
+        private static int RequireLayer(string name)
+        {
+            int layer = LayerMask.NameToLayer(name);
+            if (layer < 0)
+            {
+                throw new InvalidOperationException($"The layer '{name}' is missing from the project's tags and layers.");
+            }
+
+            return layer;
+        }
+
+        // The Main Camera draws the stage into the stream target, leaving the flat videos' and avatars' layers to their
+        // cameras; what it had is kept, to give back when Video stops.
+        private UniversalAdditionalCameraData TakeMainCamera()
+        {
             _originalCullingMask = _mainCamera.cullingMask;
             _originalClearFlags = _mainCamera.clearFlags;
             _originalBackground = _mainCamera.backgroundColor;
@@ -136,35 +163,47 @@ namespace VirtualVessel.Video
             _mainCamera.backgroundColor = _settings.BackgroundColor;
             UniversalAdditionalCameraData mainData = _mainCamera.GetUniversalAdditionalCameraData();
             mainData.renderType = CameraRenderType.Base;
+            return mainData;
+        }
 
-            // The screen camera stays at the origin, not under the Main Camera, so flat videos keep
-            // their place when the Main Camera moves (video detailed design 7.2).
+        // The screen camera stays at the origin, not under the Main Camera, so flat videos keep their place when the
+        // Main Camera moves (video detailed design 7.2).
+        private Camera CreateScreenCamera()
+        {
             _screenCameraObject = new GameObject("StreamScreenCamera");
             _screenCamera = _screenCameraObject.AddComponent<Camera>();
             _screenCamera.orthographic = true;
             _screenCamera.orthographicSize = ScreenLayerMath.OrthographicSize;
+
+            // An overlay camera takes the window's shape, not the target's. Once the window kept the taskbar it was no
+            // longer 16:9, and the flat videos were drawn narrower than their frames (the user's report, 2026-11-15).
+            _screenCamera.aspect = Size.Aspect;
             _screenCamera.nearClipPlane = 0.01f;
             _screenCamera.farClipPlane = ScreenLayerMath.RootDistance * 2f;
             _screenCamera.cullingMask = 1 << _layer;
-            UniversalAdditionalCameraData screenData = _screenCamera.GetUniversalAdditionalCameraData();
-            screenData.renderType = CameraRenderType.Overlay;
-            mainData.cameraStack.Add(_screenCamera);
+            _screenCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Overlay;
+            return _screenCamera;
+        }
 
-            // The avatar camera rides on the Main Camera, so the avatar is seen from where the stage
-            // is, but drawn after the flat videos so it stays in front of them. An overlay camera clears
-            // depth by default (URP sets it only in the inspector), so the stage's depth never hides
-            // the avatar (video detailed design 7.2).
+        // The avatar camera rides on the Main Camera, so the avatar is seen from where the stage is, but drawn after the
+        // flat videos so it stays in front of them. An overlay camera clears depth by default (URP sets it only in the
+        // inspector), so the stage's depth never hides the avatar (video detailed design 7.2).
+        private Camera CreateAvatarCamera()
+        {
             var avatarCameraObject = new GameObject("AvatarCamera");
             avatarCameraObject.transform.SetParent(_mainCamera.transform, false);
             _avatarCamera = avatarCameraObject.AddComponent<Camera>();
             _avatarCamera.cullingMask = 1 << _avatarLayer;
+            _avatarCamera.aspect = Size.Aspect;
             MatchMainCamera(_mainCamera, _avatarCamera);
-            UniversalAdditionalCameraData avatarData = _avatarCamera.GetUniversalAdditionalCameraData();
-            avatarData.renderType = CameraRenderType.Overlay;
-            mainData.cameraStack.Add(_avatarCamera);
+            _avatarCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Overlay;
+            return _avatarCamera;
+        }
 
-            // The Main Camera now draws into the stream target, so nothing would draw the window and
-            // the UI, which is drawn on top of the window, would not show. This camera only clears it.
+        // The Main Camera now draws into the stream target, so nothing would draw the window and the UI, which is drawn
+        // on top of the window, would not show. This camera only clears it.
+        private void CreateWindowCamera()
+        {
             _windowCameraObject = new GameObject("WindowCamera");
             Camera windowCamera = _windowCameraObject.AddComponent<Camera>();
             windowCamera.cullingMask = 0;
@@ -172,20 +211,6 @@ namespace VirtualVessel.Video
             windowCamera.backgroundColor = Color.black;
             windowCamera.depth = _mainCamera.depth + 1;
             windowCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Base;
-
-            _root = new GameObject("StreamScreens") { layer = _layer };
-            (Vector3 position, Vector3 scale) = ScreenLayerMath.RootPlacement(Size.Aspect);
-            _root.transform.SetPositionAndRotation(position, Quaternion.identity);
-            _root.transform.localScale = scale;
-
-            UnityEngine.Application.targetFrameRate = _settings.TargetFrameRate;
-            QualitySettings.vSyncCount = 0;
-            _video.Value = _target;
-            _meter = StreamFrameMeter.Start(_clock.GetTimestamp());
-            _stats.Value = new PreviewStats(0, _settings.TargetFrameRate, Size.Width, Size.Height, null);
-            _tick = _frameLoop.Register(Tick);
-            _log?.Information($"Video started: {Size} at {_settings.TargetFrameRate} fps, color space {QualitySettings.activeColorSpace}, target {_target.format} sRGB.");
-            return Task.CompletedTask;
         }
 
         public Task ShutdownAsync(CancellationToken cancellationToken)

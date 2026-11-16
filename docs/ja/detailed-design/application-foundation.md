@@ -262,6 +262,8 @@ Requiredとするのは、それなしでは診断も復旧もできないServic
 
 ビルドしたアプリは、同時に1つだけ起動する（Unityの`forceSingleInstance`）。2つ起動すると、カメラ、マイク、キャプチャー機器を取り合い、同じ設定とログへ書き込み、同じストリームキーで二重に配信するおそれがあるためである。
 
+アプリは通常のウィンドウとして、最大化して開く。タスクバーを隠す全画面にはしない（利用者の決定、2026-11-14）。配信中はブラウザー、コメント欄、ゲームと並べて使うためである。ウィンドウの大きさは変えられ、元に戻したときは1280×720になる。Playerの設定（`fullscreenMode`をWindowed、`resizableWindow`）だけでは足りない。Unityは利用者ごとに前回の表示モードを保存して次回に使い、以前の版は全画面を保存しているためである。そのため`ApplicationBootstrap`は起動時に、全画面ならウィンドウに戻してから最大化する（`ApplicationWindow.OpenMaximized`）。Unityは最初の数Frameでウィンドウを出して大きさを決めるため、それより前の最大化は取り消され、1280×720のままになった（2026-11-15）。そのため、数Frame描いてから最大化し、最大化が保たれたかを確かめて、保たれるまで（約2秒まで）やり直す。Editorでは何もしない。
+
 ```mermaid
 sequenceDiagram
     participant Unity
@@ -291,11 +293,13 @@ sequenceDiagram
 
 ### 7.2 終了
 
-1. Unityの`Application.wantsToQuit`を受けて、初回は`false`を返し終了処理を開始する。
+1. Unityの`Application.wantsToQuit`を受けて、初回は`false`を返し終了処理を開始する。開始と同時にPlayerのウィンドウを隠す。終了処理はUI、アバター、ステージを片付ける間も描画を続けるため、隠さないと閉じる前に標準の空だけの画面が一瞬映る（2026-11-14）。終了処理は終了Timeoutで打ち切られるので、隠れたまま残り続けることはない。Editorではウィンドウを隠さない。
 2. 起動に成功したServiceの`ShutdownAsync`を起動と逆順で呼ぶ。
 3. 全Serviceを`Dispose`する。
 4. Session Markerを削除する（正常終了の記録）。
-5. 状態を`Stopped`とし、改めて`Application.Quit()`を呼ぶ。
+5. 状態を`Stopped`とし、次のフレームの`Update`で改めて`Application.Quit()`を呼ぶ。終了処理の続きの中で呼ぶと、終了が取り消されて、ウィンドウが空のシーンのまま残った（2026-11-14）。すべてのServiceが待たずに止まると、続きは終了処理を始めた`wantsToQuit`の中で動き、その`false`の答えが終了を取り消すためである。また、続きがMain Thread以外で動くと、`Application.Quit()`は呼べない。
+
+画面の「終了」項目は、確認のあと`Application.Quit()`を呼び、同じ経路を通る。配信と録画もこの中で閉じる。
 
 終了処理全体にTimeoutを設け、超過した場合は残りの処理を中断して終了する。Timeoutが発生したServiceは記録する。
 

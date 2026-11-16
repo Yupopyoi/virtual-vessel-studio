@@ -42,6 +42,18 @@ namespace vv::audio
             return _driftCorrections.load();
         }
 
+        // The average fill of the device's buffer, in frames: how long a frame waits there.
+        float BufferWait() const
+        {
+            return _bufferWait.load();
+        }
+
+        // What Windows reports the device adds after the buffer, in frames.
+        int32_t DeviceLatency() const
+        {
+            return _deviceLatency.load();
+        }
+
     private:
         HRESULT Play(const std::wstring& deviceId, uint64_t version);
 
@@ -52,6 +64,8 @@ namespace vv::audio
         FillTracker _fill;
         std::atomic<int64_t> _underruns{ 0 };
         std::atomic<int64_t> _driftCorrections{ 0 };
+        std::atomic<float> _bufferWait{ 0.0f };
+        std::atomic<int32_t> _deviceLatency{ 0 };
         DeviceLoop _loop;
     };
 }

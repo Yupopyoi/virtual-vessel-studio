@@ -3,3 +3,20 @@
     height: 18px;
     flex-shrink: 0;
 }
+
+/* Help hint (components.md 3.28): a 16px Info icon in Text 3 after a name, Text on hover. */
+.vv-help-hint {
+    flex-shrink: 0;
+    margin-left: var(--vv-space-xs);
+    color: var(--vv-color-text-3);
+    border-radius: 8px;
+}
+
+.vv-help-hint > .vv-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.vv-help-hint:hover {
+    color: var(--vv-color-text);
+}

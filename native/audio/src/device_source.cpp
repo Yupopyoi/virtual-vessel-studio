@@ -41,6 +41,8 @@ namespace vv::audio
             hr = E_POINTER;
         }
 
+        REFERENCE_TIME latency = 0;
+        _deviceLatency = SUCCEEDED(hr) && SUCCEEDED(client->GetStreamLatency(&latency)) ? ReferenceTimeToFrames(latency, SampleRate) : 0;
         if (SUCCEEDED(hr))
         {
             hr = client->Start();

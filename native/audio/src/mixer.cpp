@@ -37,8 +37,13 @@ namespace vv::audio
             if (!slot.used)
             {
                 slot.input = std::make_unique<FrameRing>(InputFrames);
+                slot.stageInput = std::make_unique<FrameRing>(InputFrames);
                 slot.gain = 1.0f;
                 slot.muted = false;
+                slot.stage = false;
+                slot.denoise = false;
+                slot.denoiser.reset();
+                slot.denoised = false;
                 slot.send = 1.0f;
                 slot.monitorSend = 0.0f;
                 slot.overruns = 0;
@@ -72,6 +77,153 @@ namespace vv::audio
     }
 
     void Mixer::Write(int id, const float* frames, size_t count)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        Slot& slot = _slots[id];
+        if (slot.denoise.load(std::memory_order_acquire))
+        {
+            slot.denoised = true;
+            WriteDenoised(slot, frames, count);
+            return;
+        }
+
+        if (slot.denoised)
+        {
+            FlushDenoise(slot);
+            slot.denoised = false;
+        }
+
+        Put(slot, frames, count);
+    }
+
+    void Mixer::Put(Slot& slot, const float* frames, size_t count)
+    {
+        FrameRing& target = slot.stage.load() ? *slot.stageInput : *slot.input;
+        size_t written = target.Write(frames, count);
+        if (written < count)
+        {
+            slot.overruns += static_cast<int64_t>(count - written);
+        }
+    }
+
+    void Mixer::ToMono(const float* stereo, size_t frames, float* mono)
+    {
+        for (size_t i = 0; i < frames; i++)
+        {
+            mono[i] = stereo == nullptr ? 0.0f : (stereo[i * Channels] + stereo[i * Channels + 1]) * 0.5f;
+        }
+    }
+
+    void Mixer::WriteDenoised(Slot& slot, const float* frames, size_t count)
+    {
+        DenoiseStage& stage = *slot.denoiser;
+        size_t at = 0;
+        while (at < count)
+        {
+            size_t take = std::min(count - at, static_cast<size_t>(BlockFrames - stage.pending));
+            ToMono(frames == nullptr ? nullptr : frames + at * Channels, take, stage.mono + stage.pending);
+            stage.pending += static_cast<int>(take);
+            at += take;
+            if (stage.pending < BlockFrames)
+            {
+                break;
+            }
+
+            // Started when it was turned on, so this does not fail; if it ever did, the frame passes as it is.
+            stage.denoiser.Process(stage.mono, BlockFrames);
+            for (int i = 0; i < BlockFrames; i++)
+            {
+                stage.stereo[i * Channels] = stage.mono[i];
+                stage.stereo[i * Channels + 1] = stage.mono[i];
+            }
+
+            Put(slot, stage.stereo, BlockFrames);
+            stage.pending = 0;
+        }
+    }
+
+    void Mixer::FlushDenoise(Slot& slot)
+    {
+        DenoiseStage* stage = slot.denoiser.get();
+        if (stage == nullptr || stage->pending == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < stage->pending; i++)
+        {
+            stage->stereo[i * Channels] = stage->mono[i];
+            stage->stereo[i * Channels + 1] = stage->mono[i];
+        }
+
+        Put(slot, stage->stereo, static_cast<size_t>(stage->pending));
+        stage->pending = 0;
+    }
+
+    bool Mixer::SetDenoise(int id, bool enabled)
+    {
+        if (!Used(id))
+        {
+            return false;
+        }
+
+        Slot& slot = _slots[id];
+        if (enabled && slot.denoiser == nullptr)
+        {
+            // Made here, under the engine's lock, so the capture thread never allocates. The capture thread reads
+            // the pointer only after it sees the flag, which is stored after it.
+            auto stage = std::make_unique<DenoiseStage>();
+            if (!stage->denoiser.Start())
+            {
+                return false;
+            }
+
+            slot.denoiser = std::move(stage);
+        }
+
+        slot.denoise.store(enabled, std::memory_order_release);
+        return true;
+    }
+
+    void Mixer::SetStage(int id, bool enabled)
+    {
+        if (!Used(id))
+        {
+            return;
+        }
+
+        // The stage stops writing before it turns off, and starts a block after it turns on, so the
+        // input ring keeps a single writer. What waited for the stage is not played late.
+        Slot& slot = _slots[id];
+        slot.stage = enabled;
+        slot.stageInput->Read(nullptr, slot.stageInput->Available());
+        slot.stageInputWait = 0.0f;
+        slot.stageOutputWait = 0.0f;
+    }
+
+    StageDelay Mixer::GetStageDelay(int id) const
+    {
+        StageDelay delay;
+        if (Used(id))
+        {
+            delay.stageInput = _slots[id].stageInputWait.load();
+            delay.stageOutput = _slots[id].stageOutputWait.load();
+        }
+
+        delay.monitor = _monitorWait.load();
+        return delay;
+    }
+
+    size_t Mixer::ReadStage(int id, float* frames, size_t capacity)
+    {
+        return Used(id) ? _slots[id].stageInput->Read(frames, capacity) : 0;
+    }
+
+    void Mixer::WriteStage(int id, const float* frames, size_t count)
     {
         if (!Used(id))
         {
@@ -131,7 +283,7 @@ namespace vv::audio
 
     bool Mixer::ReadSource(Slot& slot)
     {
-        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames);
+        FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames, !slot.stage.load());
         if (step.ranDry)
         {
             // What is left is let go, and the source waits to fill up again, so it does not stutter.
@@ -164,6 +316,21 @@ namespace vv::audio
     {
         std::fill(_block.begin(), _block.end(), 0.0f);
         std::fill(_monitorBlock.begin(), _monitorBlock.end(), 0.0f);
+
+        // Sampled before this block moves anything, when a stage's output is at its fullest and the monitor at
+        // its emptiest, so half a block corrects each. Other threads fill and empty the rings out of step with
+        // the mix, so every 10 ms is a fair sample of the time between.
+        constexpr float HalfBlock = BlockFrames / 2.0f;
+        _monitorWait = Smooth(_monitorWait.load(), static_cast<float>(_monitor.Available()) + HalfBlock);
+        for (Slot& slot : _slots)
+        {
+            if (slot.used && slot.stage.load())
+            {
+                slot.stageInputWait = Smooth(slot.stageInputWait.load(), static_cast<float>(slot.stageInput->Available()));
+                slot.stageOutputWait = Smooth(slot.stageOutputWait.load(), static_cast<float>(slot.input->Available()) - HalfBlock);
+            }
+        }
+
         for (Slot& slot : _slots)
         {
             if (!slot.used || !ReadSource(slot))
@@ -195,6 +362,16 @@ namespace vv::audio
             for (size_t i = 0; i < _block.size(); i++)
             {
                 _block[i] += _scratch[i];
+            }
+        }
+
+        if (_previewPosition < _preview.size())
+        {
+            _previewPosition += AddPreview(_monitorBlock.data(), BlockFrames, Channels, _preview, _previewPosition);
+            _previewPlayed = static_cast<int64_t>(_previewPosition);
+            if (_previewPosition >= _preview.size())
+            {
+                StopPreview();
             }
         }
 
@@ -289,6 +466,37 @@ namespace vv::audio
     {
         _monitorGain = DbToLinear(ClampGainDb(gainDb));
         _monitorMuted = muted;
+    }
+
+    void Mixer::PlayPreview(std::vector<float> samples)
+    {
+        _preview = std::move(samples);
+        _previewPosition = 0;
+        _previewPlayed = 0;
+        _previewLength = static_cast<int64_t>(_preview.size());
+    }
+
+    void Mixer::StopPreview()
+    {
+        _preview.clear();
+        _preview.shrink_to_fit();
+        _previewPosition = 0;
+        _previewPlayed = 0;
+        _previewLength = 0;
+    }
+
+    size_t Mixer::AddPreview(float* block, size_t frames, int channels, const std::vector<float>& preview, size_t position)
+    {
+        size_t take = position < preview.size() ? std::min(frames, preview.size() - position) : 0;
+        for (size_t i = 0; i < take; i++)
+        {
+            for (int c = 0; c < channels; c++)
+            {
+                block[(i * channels) + c] += preview[position + i];
+            }
+        }
+
+        return take;
     }
 
     float Mixer::TakeMonitorPeak()

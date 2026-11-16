@@ -91,7 +91,7 @@ namespace VirtualVessel.UI.Screens
         private readonly IAvatarService _avatars;
         private readonly IStreamPreviewSource _stream;
         private readonly IStageLighting _lighting;
-        private readonly Label _noVideo;
+        private Label _noVideo;
         private readonly ValueSlider[] _sliders = new ValueSlider[FaceTuning.PartCount];
         private readonly ProgressMeter[] _meters = new ProgressMeter[FaceTuning.PartCount];
 
@@ -107,8 +107,25 @@ namespace VirtualVessel.UI.Screens
             Add(card);
             card.Add(Ui.Text(FaceTuningStrings.Intro, IntroClass, "vv-text-body"));
 
-            // The whole stream, enlarged and shifted inside a frame that hides the rest. Layout, not the
-            // image's UV rectangle, does the cropping: a changed UV rectangle was not redrawn.
+            _lighting = lighting;
+
+            // The stream beside the sliders, so the avatar stays in view while any part is tuned; on a narrow window
+            // the sliders wrap below it.
+            var layout = new VisualElement();
+            layout.AddToClassList(LayoutClass);
+            layout.Add(BuildPicture(lighting != null));
+            layout.Add(BuildParts());
+            card.Add(layout);
+
+            PanelLifetime.WhileAttached(this, _ => Attach());
+        }
+
+        // The whole stream, enlarged and shifted inside a frame that hides the rest. Layout, not the image's UV
+        // rectangle, does the cropping: a changed UV rectangle was not redrawn. The face sits higher or lower, and
+        // looks larger or smaller, with the avatar; the user moves and zooms the picture to it. Not saved: it is only
+        // for looking while tuning.
+        private VisualElement BuildPicture(bool withLight)
+        {
             Frame = new VisualElement { pickingMode = PickingMode.Ignore };
             Frame.AddToClassList(PreviewClass);
             Preview = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
@@ -117,46 +134,36 @@ namespace VirtualVessel.UI.Screens
             Frame.Add(Preview);
             Frame.Add(_noVideo);
             Place(Preview, Crop(DefaultPictureHeight, DefaultZoom));
-            // The stream beside the sliders, so the avatar stays in view while any part is tuned; on a
-            // narrow window the sliders wrap below it.
-            var layout = new VisualElement();
-            layout.AddToClassList(LayoutClass);
-            var parts = new VisualElement();
-            parts.AddToClassList(PartsClass);
-            // The face sits higher or lower, and looks larger or smaller, with the avatar; the user moves
-            // and zooms the picture to it. Not saved: it is only for looking while tuning.
             var picture = new VisualElement();
             picture.AddToClassList(PictureClass);
-            PictureHeight = Ui.Slider(FaceTuningStrings.PictureHeight, 0f, 100f, "%");
-            PictureHeight.Step = 5f;
+            PictureHeight = Percent(FaceTuningStrings.PictureHeight, 0f, 100f, 5f, value => Place(Preview, Crop(value, PictureZoom.value)));
             PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
-            PictureHeight.RegisterValueChangedCallback(evt => Place(Preview, Crop(evt.newValue, PictureZoom.value)));
-            PictureZoom = Ui.Slider(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, "%");
-            PictureZoom.Step = 10f;
+            PictureZoom = Percent(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, 10f, value => Place(Preview, Crop(PictureHeight.value, value)));
             PictureZoom.SetValueWithoutNotify(DefaultZoom);
-            PictureZoom.RegisterValueChangedCallback(evt => Place(Preview, Crop(PictureHeight.value, evt.newValue)));
             picture.Add(Frame);
             picture.Add(PictureHeight);
             picture.Add(PictureZoom);
 
-            // The light is the stage's and changes the stream too, so it is saved; it sits by the
-            // picture because a washed-out face is seen there.
-            _lighting = lighting;
-            if (lighting != null)
+            // The light is the stage's and changes the stream too, so it is saved; it sits by the picture because a
+            // washed-out face is seen there.
+            if (withLight)
             {
-                Light = Ui.Slider(FaceTuningStrings.Light, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, "%");
-                Light.Step = 5f;
-                Light.RegisterValueChangedCallback(evt => _lighting.SetIntensity(evt.newValue / PercentPerUnit));
+                Light = Percent(FaceTuningStrings.Light, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, 5f, value => _lighting.SetIntensity(value / PercentPerUnit));
                 picture.Add(Light);
                 picture.Add(Ui.Text(FaceTuningStrings.LightDescription, LightNoteClass, "vv-text-caption"));
             }
 
-            layout.Add(picture);
-            layout.Add(parts);
-            card.Add(layout);
+            return picture;
+        }
 
-            // Winks are easily misread, so the user chooses whether one eye may close alone; the wink
-            // slider only matters while it may.
+        // The face's parts with their live meters, the fingers, and reset.
+        private VisualElement BuildParts()
+        {
+            var parts = new VisualElement();
+            parts.AddToClassList(PartsClass);
+
+            // Winks are easily misread, so the user chooses whether one eye may close alone; the wink slider only
+            // matters while it may.
             WinksToggle = new SwitchToggle();
             WinksToggle.RegisterValueChangedCallback(evt => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.WithWinks(evt.newValue)));
             SettingRow winks = Ui.SettingRow(FaceTuningStrings.Winks, FaceTuningStrings.WinksDescription);
@@ -168,9 +175,7 @@ namespace VirtualVessel.UI.Screens
                 var part = (FaceTuningPart)i;
                 var block = new VisualElement();
                 block.AddToClassList(PartClass);
-                ValueSlider slider = Ui.Slider(s_partKeys[i], FaceTuning.Min * PercentPerUnit, FaceTuning.Max * PercentPerUnit, "%");
-                slider.Step = 10f;
-                slider.RegisterValueChangedCallback(evt => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.With(part, evt.newValue / PercentPerUnit)));
+                ValueSlider slider = Percent(s_partKeys[i], FaceTuning.Min * PercentPerUnit, FaceTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.With(part, value / PercentPerUnit)));
                 ProgressMeter meter = Ui.Progress(null);
                 block.Add(slider);
                 block.Add(meter);
@@ -180,13 +185,9 @@ namespace VirtualVessel.UI.Screens
             }
 
             // The stream beside them shows the hands too, with the picture's height and zoom.
-            Fingers = Ui.Slider(FaceTuningStrings.Fingers, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, "%");
-            Fingers.Step = 10f;
-            Fingers.RegisterValueChangedCallback(evt => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithBend(evt.newValue / PercentPerUnit)));
+            Fingers = Percent(FaceTuningStrings.Fingers, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithBend(value / PercentPerUnit)));
             parts.Add(Fingers);
-            Thumb = Ui.Slider(FaceTuningStrings.Thumb, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, "%");
-            Thumb.Step = 10f;
-            Thumb.RegisterValueChangedCallback(evt => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithThumb(evt.newValue / PercentPerUnit)));
+            Thumb = Percent(FaceTuningStrings.Thumb, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithThumb(value / PercentPerUnit)));
             parts.Add(Thumb);
             parts.Add(Ui.Text(FaceTuningStrings.FingersDescription, FingersNoteClass, "vv-text-caption"));
 
@@ -199,21 +200,29 @@ namespace VirtualVessel.UI.Screens
             SettingRow resetRow = Ui.SettingRow(FaceTuningStrings.Reset);
             resetRow.Add(ResetButton);
             parts.Add(resetRow);
+            return parts;
+        }
 
-            PanelLifetime.WhileAttached(this, _ => Attach());
+        // A slider in percent, in steps, that calls changed with each new value.
+        private static ValueSlider Percent(string labelKey, float low, float high, float step, Action<float> changed)
+        {
+            ValueSlider slider = Ui.Slider(labelKey, low, high, "%");
+            slider.Step = step;
+            slider.RegisterValueChangedCallback(evt => changed(evt.newValue));
+            return slider;
         }
 
         /// <summary>How strongly the four fingers bend, in percent.</summary>
-        public ValueSlider Fingers { get; }
+        public ValueSlider Fingers { get; private set; }
 
         /// <summary>How strongly the thumb bends, in percent.</summary>
-        public ValueSlider Thumb { get; }
+        public ValueSlider Thumb { get; private set; }
 
         /// <summary>The stream, to watch the avatar while tuning.</summary>
-        public Image Preview { get; }
+        public Image Preview { get; private set; }
 
         /// <summary>The 16:9 frame the enlarged stream is seen through.</summary>
-        public VisualElement Frame { get; }
+        public VisualElement Frame { get; private set; }
 
         /// <summary>The slider of each <see cref="FaceTuningPart"/>, in percent.</summary>
         public IReadOnlyList<ValueSlider> Sliders => _sliders;
@@ -222,19 +231,19 @@ namespace VirtualVessel.UI.Screens
         public IReadOnlyList<ProgressMeter> Meters => _meters;
 
         /// <summary>Whether one eye may close alone.</summary>
-        public SwitchToggle WinksToggle { get; }
+        public SwitchToggle WinksToggle { get; private set; }
 
         /// <summary>Puts every part back to the default.</summary>
-        public ActionButton ResetButton { get; }
+        public ActionButton ResetButton { get; private set; }
 
         /// <summary>Which height of the stream the picture shows, 0 (bottom) to 100% (top).</summary>
-        public ValueSlider PictureHeight { get; }
+        public ValueSlider PictureHeight { get; private set; }
 
         /// <summary>How much the picture enlarges the stream, in percent.</summary>
-        public ValueSlider PictureZoom { get; }
+        public ValueSlider PictureZoom { get; private set; }
 
         /// <summary>The stage light's scale in percent; null without the stage.</summary>
-        public ValueSlider Light { get; }
+        public ValueSlider Light { get; private set; }
 
         /// <summary>
         /// Where the whole stream goes, in percent of the frame, so that the frame shows

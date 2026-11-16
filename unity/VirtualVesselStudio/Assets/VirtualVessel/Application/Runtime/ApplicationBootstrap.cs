@@ -43,6 +43,7 @@ namespace VirtualVessel.Application
         private Task _startTask;
         private Task _stopTask;
         private bool _quitAllowed;
+        private volatile bool _quitWhenStopped;
 
         internal ApplicationState State => _runtime?.State ?? ApplicationState.NotStarted;
 
@@ -56,6 +57,8 @@ namespace VirtualVessel.Application
                 Destroy(gameObject);
                 return;
             }
+
+            StartCoroutine(ApplicationWindow.OpenMaximized());
 
             var systemClock = new UtcSystemClock();
             _dispatcher = new MainThreadDispatcher();
@@ -81,6 +84,11 @@ namespace VirtualVessel.Application
                 _mainCamera);
 
             UnityEngine.Application.wantsToQuit += OnWantsToQuit;
+            if (_uiRoot != null)
+            {
+                _uiRoot.QuitConfirmed += Quit;
+            }
+
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
 #endif
@@ -89,6 +97,15 @@ namespace VirtualVessel.Application
 
         private void Update()
         {
+            // Quit on the frame after the shutdown finished: here it is always the main thread, and never inside
+            // wantsToQuit (see StopRuntimeAndQuitAsync).
+            if (_quitWhenStopped)
+            {
+                _quitWhenStopped = false;
+                UnityEngine.Application.Quit();
+                return;
+            }
+
             _dispatcher?.Drain(MaxDispatchedActionsPerFrame, OnDispatchedActionFailed);
             _frameLoop?.Tick(OnFrameWorkFailed);
         }
@@ -119,6 +136,11 @@ namespace VirtualVessel.Application
         private void OnDestroy()
         {
             UnityEngine.Application.wantsToQuit -= OnWantsToQuit;
+            if (_uiRoot != null)
+            {
+                _uiRoot.QuitConfirmed -= Quit;
+            }
+
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
 #endif
@@ -158,6 +180,8 @@ namespace VirtualVessel.Application
             // Cancel the first quit request, shut down asynchronously, then quit again.
             if (_stopTask == null)
             {
+                // The user asked to quit; what the shutdown leaves on screen is not worth showing.
+                ApplicationWindow.Hide();
                 _stopTask = StopRuntimeAndQuitAsync();
             }
 
@@ -230,11 +254,14 @@ namespace VirtualVessel.Application
             }
         }
 
+        // The quit itself waits for the next Update. Called here, it was lost (2026-11-14, the quit button left the
+        // window open on an empty scene): when every service stops without waiting, this runs inside the wantsToQuit
+        // that started it, whose answer (false) cancels the quit; and a continuation off the main thread cannot quit.
         private async Task StopRuntimeAndQuitAsync()
         {
             await StopRuntimeAsync();
             _quitAllowed = true;
-            UnityEngine.Application.Quit();
+            _quitWhenStopped = true;
         }
 
         private void OnFrameWorkFailed(Exception exception)

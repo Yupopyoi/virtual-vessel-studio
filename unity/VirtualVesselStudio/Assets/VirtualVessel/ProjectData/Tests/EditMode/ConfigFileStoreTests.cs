@@ -306,6 +306,21 @@ namespace VirtualVessel.ProjectData.Tests
         }
 
         [Test]
+        public void ConfigDocument_Create_BuildsJsonForAnotherProgram()
+        {
+            ConfigDocument document = ConfigDocument.Create();
+            document.Set("count", 6);
+            document.Set("timbre.pitch", 4.5f);
+            document.Set("output", @"C:\runs\a b");
+
+            ConfigDocument back = ConfigDocument.Parse(document.ToJson());
+
+            Assert.That(back.Get<int>("count"), Is.EqualTo(6));
+            Assert.That(back.Get<float>("timbre.pitch"), Is.EqualTo(4.5f));
+            Assert.That(back.Get<string>("output"), Is.EqualTo(@"C:\runs\a b"));
+        }
+
+        [Test]
         public void ConfigDocument_GetSetRemoveRename()
         {
             var document = new ConfigDocument(JObject.Parse("{ \"a\": { \"b\": 3 }, \"s\": \"x\" }"));

@@ -154,7 +154,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -172,7 +173,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-`docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`には、完成した方式設計書を配置する。
+`docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`には、完成した方式設計書を章ごとに配置する。同じ場所の`system-design.md`が目次である。章番号と節番号は他の文書から参照されるため、変更しない。
 
 本書は、`docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`として配置する。
 
@@ -231,6 +232,15 @@ feature/… fix/… docs/…    feature/…             developへ戻す
 ```
 
 - 緊急の修正は`main`から`hotfix/<name>`を作り、`main`へのPull RequestでReleaseしたうえで、`develop`へも戻す（`main`から`develop`へのPull Request）。
+
+### トラッキングの統合Branch
+
+トラッキング、アバターの動き、手の作業は、`feature/tracking`に集める（利用者の決定、2026-10-31）。細かい調整が続くため、落ち着くまで`develop`から分けておくためである。
+
+- 作業Branchは`feature/tracking`から作り、Pull Requestの宛先も`feature/tracking`とする
+- 他のModuleの作業はこれまでどおり`develop`を使う
+- `feature/tracking`を`develop`へ入れる時期は利用者が決める
+- `feature/tracking`が`develop`より遅れているときは、作業を始める前に`develop`を取り込むかを確認する
 
 ## 6.2 Branch命名
 
@@ -586,7 +596,7 @@ Capture Moduleの実装を開始します。
 以下を確認してください。
 
 - CLAUDE.md
-- docs/ja/architecture/system-design.md
+- docs/ja/architecture/system-design/ の関係する章
 - 関係する既存コード
 - GameCaptureのBenchmark / Prototype
 - SubScreenCaptureのBenchmark / Prototype
@@ -895,7 +905,8 @@ PR CIが失敗している変更は原則Mergeしない。
 | GUIDの重複 | 2つの`.meta`が同じGUIDを持たないこと（Assetのコピーやマージで起きやすい） |
 | 文字列表 | 各言語のJSONが読めること、すべての言語で同じKeyがそろっていること |
 | 文書の日英対応 | `docs/ja`と`docs/en`に同じ文書がそろっていること |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Actionが載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
+| 制御文字 | ソースとテキストのファイルに、タブ、改行、復帰以外の制御文字がないこと。スクリプトがパスに`\v`等を生の文字列でなく書くと残り、存在しないパスになる（`build-release.ps1`がVoice Labのスクリプトを同梱できなくなっていた、2026-11-14） |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json`に、すべてのUnity Package（ロックされた版で）、`Assets/ThirdParty`の各フォルダー、Workflowが使うGitHub Action、Pythonコンポーネントの`services/*/uv.lock`にあるすべてのPackage（ロックされた版で。Windowsに入らないものも含む）が載っていること。各項目に版、ライセンス、範囲（`required`／`excluded`）があること。取得して使う依存（`tools/deps/*.json`、Embedded Package）は、そこに固定した版で載り、SBOMのダウンロード先とSHA-256が一致すること |
 | 取得して使う依存 | `tools/deps/*.json`に、Package名、版、`https`のダウンロード先、SHA-256（モデル等の中身のHashも）があること |
 | ライセンスのファイル | `tools/release/license-files.json`が、配布物に入れるライセンスのファイルと、その元のファイルを対応づけていること。SBOMの項目が挙げるファイル（18.1.2）がすべてそこにあること。`Assets/ThirdParty`のライセンスのファイルがすべて配布されること。Gitで管理する元のファイルが存在すること |
 
@@ -919,8 +930,9 @@ Native Pluginは、C++のソースをGitで管理し、ビルドしたDLLはGit�
 言語の標準ライブラリとOS以外に使うもの（Unity Package、フォントやモデル等の同梱Asset、Pluginに組み込むNativeのライブラリやランタイム、Python Package、外部OSS、GitHub Action、ビルドツール）は、すべて`sbom/virtual-vessel-studio.cdx.json`（CycloneDX 1.6）に記録する。
 
 - 追加、更新、削除と同じ変更でSBOMを直す。
-- 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、開発やCIだけで使うものは`excluded`とする。
-- Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Actionの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
+- 各項目に版、ライセンス、範囲を書く。配布物に含まれるものは`required`、配布物には含めず、機能を使えるようにするときに利用者のPCへ入れるもの（Voice Labの学習の環境）は`optional`、開発やCIだけで使うものは`excluded`とする。
+- 設定画面のクレジットは、`optional`の項目をSBOMの順に別のCardへ並べる。そのため`optional`の項目は、Python、RVC、その事前学習モデル、VoxCPM、そのモデル、PyTorch、uvのように主なものを先に置き、残りのPython Packageを名前の順に続ける。新しく加える項目も、この順に入れる。
+- Repository checks（18.1.1）が、Unity Package、`Assets/ThirdParty`、GitHub Action、`uv.lock`のPython Packageの抜けや古い項目を検出する。それ以外（Nativeのランタイム、ツール等）は、追加した人が書く。
 - 配布物に含まれる項目には、その項目に当てはまるライセンスの全文のファイルを、Property `virtual-vessel-studio:license-file`で挙げる（値は配布物の中のパス。例：`licenses/UniGLTF-LICENSE.md`）。1つの項目に複数のファイルを挙げてよく、複数の項目が同じファイルを挙げてもよい。アプリ自身（`metadata.component`）は`LICENSE`と`NOTICE`を挙げる。
 - 挙げたファイルは`tools/release/license-files.json`に、配布物の中のパスと、リポジトリの中の元のファイルの組で書く。Gitに入らない元のファイル（Unityが展開するPackage、取得して使うPackage）は、Packageのハッシュの部分を`*`で書ける。リリースの手順（21章）は、この表のとおりにファイルを配布物へ写す。設定画面のクレジット（`docs/ja/ui/screens/setup.md` 8章）は、SBOMとこれらのファイルを読んで表示する。
 - Unity Package（Unity Companion License等）、Unity本体、Microsoft C/C++ Runtimeのように、配布に全文の同梱を求めないものは、ファイルを挙げずにライセンスの名前だけを載せる。

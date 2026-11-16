@@ -52,6 +52,7 @@ namespace VirtualVessel.UI.Screens
         public const string TabStage = "gallery.tab.stage";
         public const string Noise = "gallery.noise";
         public const string NoiseDescription = "gallery.noise-description";
+        public const string NoiseHelp = "gallery.noise-help";
         public const string Weak = "gallery.weak";
         public const string Strong = "gallery.strong";
         public const string ShowInfo = "gallery.show-info";
@@ -67,6 +68,10 @@ namespace VirtualVessel.UI.Screens
         public const string DialogBody = "gallery.dialog-body";
         public const string DialogConfirm = "gallery.dialog-confirm";
         public const string OpenMenu = "gallery.open-menu";
+        public const string Steps = "gallery.steps";
+        public const string StepBase = "gallery.step-base";
+        public const string StepTone = "gallery.step-tone";
+        public const string StepBuild = "gallery.step-build";
     }
 }
 #endif

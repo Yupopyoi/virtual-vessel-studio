@@ -240,7 +240,7 @@ The stream controls sit next to the record control.
 | Reconnecting | A status chip "Reconnecting" (the warning shape) and "■ End stream" |
 | Failed | A status chip with the problem and what to do, and "● Go live" again |
 
-- Going live asks first: "Go live? Depending on your YouTube settings, it may be public at once." with "Go live" and "Cancel". A stray start would be public, so unlike recording it is confirmed.
+- Going live asks first: "Go live? Depending on your YouTube settings, it may go public immediately." with "Go live" and "Cancel". A stray start would be public, so unlike recording it is confirmed.
 - Ending is a Danger action, run only after a confirmation: "End the stream?" with "End stream" (Danger) and "Cancel".
 - While live, the actual bitrate is shown small, with a warning when the connection cannot keep up.
 

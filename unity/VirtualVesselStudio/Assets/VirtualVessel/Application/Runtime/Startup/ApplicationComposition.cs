@@ -24,10 +24,17 @@ using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Video;
 using VirtualVessel.Video.Recording;
+using VirtualVessel.VoiceLab;
+using VirtualVessel.VoiceLab.Activation;
+using VirtualVessel.Voice;
+using VirtualVessel.Voice.Models;
 
 namespace VirtualVessel.Application.Startup
 {
@@ -53,241 +60,23 @@ namespace VirtualVessel.Application.Startup
             }
 
             var descriptors = new List<ApplicationServiceDescriptor>();
-
-            // Logging starts first and stops last so that every other service's lifecycle is recorded.
-            // Services added later keep the created instance in a local, receive its Provider in their
-            // factories, and list LoggingService.ServiceName in their dependencies.
-            ApplicationLoggingService logging = null;
-            descriptors.Add(new ApplicationServiceDescriptor(
-                LoggingService.ServiceName,
-                ServiceCriticality.Required,
-                () => logging = CreateLogging(context)));
-
-            // Metrics come right after logging so that they stop before it and their totals reach the log.
-            // Services that measure will keep this instance in a local, as with logging, and pass it
-            // to their factories as IPerformanceMetrics.
-            PerformanceMetricsService metrics = null;
-            descriptors.Add(new ApplicationServiceDescriptor(
-                PerformanceMetricsService.ServiceName,
-                ServiceCriticality.Optional,
-                () => metrics = new PerformanceMetricsService(
-                    CreatePerformanceSettings(context.Environment),
-                    context.MonotonicClock,
-                    context.SystemClock,
-                    logging.Provider.GetLog("Diagnostics", "Performance")),
-                new[] { LoggingService.ServiceName }));
+            var built = new Built();
+            descriptors.AddRange(LoggingDescriptors(context, built));
+            descriptors.AddRange(MetricsDescriptors(context, built));
 
             // The project in use, opened when the first service that keeps settings is created (project
             // data detailed design 7). Only the settings folder's own files stay in Config.
-            Lazy<OpenedProject> project = context.ConfigDirectory != null
-                ? new Lazy<OpenedProject>(() => OpenProject(context, logging.Provider.GetLog("ProjectData", "Projects")))
+            built.Project = context.ConfigDirectory != null
+                ? new Lazy<OpenedProject>(() => OpenProject(context, built.Logging.Provider.GetLog("ProjectData", "Projects")))
                 : null;
 
-            // Capture is Optional: without a capture board or a monitor everything else keeps working
-            // (capture detailed design 7.1). Its sources are updated every frame, so it needs the frame
-            // loop, which tests without frames leave out.
-            CaptureService capture = null;
-            if (context.FrameLoop != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    CaptureService.ServiceName,
-                    ServiceCriticality.Optional,
-                    // The settings are the project's capture profile (project data detailed design 6);
-                    // without a settings folder nothing is saved.
-                    () => capture = project != null
-                        ? CaptureService.Create(
-                            CaptureService.CreateStore(project.Value.ProfileDirectory(ProfileKind.Capture), context.SystemClock, project.Value.ProfileFileName(ProfileKind.Capture)),
-                            context.FrameLoop,
-                            context.MonotonicClock,
-                            metrics,
-                            logging.Provider.GetLog("Capture", "Sources"))
-                        : CaptureService.Create(
-                            new CaptureSettings(),
-                            context.FrameLoop,
-                            context.MonotonicClock,
-                            metrics,
-                            logging.Provider.GetLog("Capture", "Sources")),
-                    new[] { LoggingService.ServiceName }));
-            }
-
-            // Audio captures the microphone and the game's audio and mixes them for recording (audio detailed
-            // design 7), before Video so its stream bus is there for recording. Optional: without the plugin
-            // or a device everything else runs, and recordings are video only.
-            AudioService audio = null;
-            if (context.FrameLoop != null && project != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    AudioService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => audio = CreateAudio(context, project.Value, metrics, logging.Provider.GetLog("Audio", "Sources")),
-                    new[] { LoggingService.ServiceName }));
-            }
-
-            // Video renders the stream with the persistent scene's Main Camera (video detailed design
-            // 7.1). Optional: without it there is no stream video, and everything else runs.
-            VideoService video = null;
-            StageService stage = null;
-            RecordingService recording = null;
-            StreamingService streamingService = null;
-            if (context.MainCamera != null && context.FrameLoop != null)
-            {
-                // The project's streaming profile gives the stream video its size and the recordings
-                // their encoding (recording detailed design 10), so it is read before Video starts.
-                Lazy<(RecordingSettings Value, ConfigSaveScheduler<RecordingSettings> Saves)> streaming = new Lazy<(RecordingSettings, ConfigSaveScheduler<RecordingSettings>)>(
-                    () => LoadStreaming(context, project?.Value, logging.Provider.GetLog("Video", "Recording")));
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    VideoService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => video = new VideoService(
-                        VideoSettingsOf(streaming.Value.Value),
-                        context.MainCamera,
-                        context.FrameLoop,
-                        context.MonotonicClock,
-                        metrics,
-                        logging.Provider.GetLog("Video", "Stream")),
-                    new[] { LoggingService.ServiceName }));
-
-                // Recording reads the stream video back and encodes it (recording detailed design 7).
-                // Optional: without the encoder plugin or its service everything else runs. After Video,
-                // so a recording in progress is finished before the stream video stops.
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    RecordingService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => recording = new RecordingService(
-                        streaming.Value.Value,
-                        streaming.Value.Saves,
-                        video.Size,
-                        context.FrameLoop,
-                        context.MonotonicClock,
-                        RecordingEnvironment.Native(video.Video, context.MonotonicClock, () => RecordingAudioOf(audio)),
-                        metrics,
-                        logging.Provider.GetLog("Video", "Recording")),
-                    new[] { LoggingService.ServiceName, VideoService.ServiceName }));
-
-                // Streaming reads the stream video back as NV12 and sends it (streaming detailed design 7).
-                // Optional, like recording; a stream in progress disconnects before the stream video stops.
-                // Its settings share the profile's file, so Recording writes them.
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    StreamingService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => streamingService = new StreamingService(
-                        streaming.Value.Value.Stream,
-                        settings => recording?.SaveStream(settings),
-                        video.Size,
-                        streaming.Value.Value.FrameRate,
-                        streaming.Value.Value.AudioBitrate,
-                        context.FrameLoop,
-                        context.MonotonicClock,
-                        new WindowsCredentialStore(),
-                        StreamingEnvironment.Native(video.Video, context.MonotonicClock, () => StreamingAudioOf(audio)),
-                        metrics,
-                        logging.Provider.GetLog("Streaming", "Service")),
-                    new[] { LoggingService.ServiceName, VideoService.ServiceName, RecordingService.ServiceName }));
-
-                // Stage puts the capture videos on the stream screen (Stage detailed design 7), so it
-                // needs both; when either does not start, the host does not create it.
-                if (context.ConfigDirectory != null)
-                {
-                    descriptors.Add(new ApplicationServiceDescriptor(
-                        StageService.ServiceName,
-                        ServiceCriticality.Optional,
-                        () => stage = new StageService(
-                            capture,
-                            video,
-                            context.FrameLoop,
-                            StageService.CreateStore(project.Value.Directory, context.SystemClock),
-                            context.MonotonicClock,
-                            logging.Provider.GetLog("Stage", "Screens")),
-                        new[] { LoggingService.ServiceName, CaptureService.ServiceName, VideoService.ServiceName }));
-                }
-            }
-
-            // Tracking runs on the tracking camera, one of the capture sources (tracking detailed design
-            // 5.3). Optional: without it the avatar keeps its rest pose and everything else runs.
-            TrackingService tracking = null;
-            if (context.FrameLoop != null && context.ConfigDirectory != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    TrackingService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => tracking = CreateTracking(context, project.Value, capture, metrics, logging.Provider.GetLog("Tracking", "Source")),
-                    new[] { LoggingService.ServiceName, CaptureService.ServiceName }));
-            }
-
-            // Developers' recordings of tracking (tracking detailed design 12), in the Data Root's Cache.
-            // After Tracking, so it stops first and closes a recording in progress.
-            TrackingRecordings recordings = null;
-            if (context.FrameLoop != null && context.ConfigDirectory != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    TrackingRecordings.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => recordings = new TrackingRecordings(
-                        tracking,
-                        Path.Combine(context.DataRoot.GetDirectory(DataRootDirectory.Cache), TrackingRecordings.FolderName),
-                        () => context.SystemClock.UtcNow.UtcDateTime,
-                        () => context.MonotonicClock.GetTimestamp() / (double)context.MonotonicClock.Frequency,
-                        logging.Provider.GetLog("Tracking", "Recordings")),
-                    new[] { LoggingService.ServiceName, TrackingService.ServiceName }));
-            }
-
-            // Avatar puts the chosen avatar on the stream (avatar detailed design 8.1): on Video's avatar
-            // layer at Stage's spawn point, so it needs both. Optional: without it the stream has no avatar.
-            AvatarService avatar = null;
-            if (context.MainCamera != null && context.FrameLoop != null && context.ConfigDirectory != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    AvatarService.ServiceName,
-                    ServiceCriticality.Optional,
-                    // Tracking, when it started, was created just before: its frame work runs first each frame.
-                    () => avatar = CreateAvatar(context, project.Value, video, stage, tracking, metrics, logging.Provider.GetLog("Avatar", "Avatars")),
-                    new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName }));
-            }
-
-            // The UI comes last so that it is built after every service it shows has started, and it
-            // stops first. It is Optional: without a UI the bootstrap shows the startup problem screen.
-            if (context.UiRoot != null && context.ConfigDirectory != null)
-            {
-                descriptors.Add(new ApplicationServiceDescriptor(
-                    UiApplicationService.ServiceName,
-                    ServiceCriticality.Optional,
-                    () => new UiApplicationService(
-                        context.UiRoot,
-                        new UiRootContext(
-                            context.ConfigDirectory,
-                            context.MonotonicClock,
-                            context.SystemClock,
-                            context.MainThreadDispatcher,
-                            logging.Provider.GetLog("UI", "Root"),
-                            SystemMotionPreference.PrefersReducedMotion(),
-                            context.BuildInfo.ApplicationVersion,
-                            metrics,
-
-                            // Detailed metrics follow Developer Mode once the UI is up (performance metrics detailed design 7.1).
-                            DeveloperModeReceivers(metrics, recordings),
-
-                            // The live and setup screens (docs/<lang>/ui/screens/). Services that are not
-                            // there leave their part of the screens saying so.
-                            new ScreenServices
-                            {
-                                StreamPreview = video?.Preview,
-                                FrameSources = stage?.Screens,
-                                Captures = capture,
-                                Audio = audio,
-                                SystemSettings = new WindowsSystemSettings(),
-                                Recording = recording,
-                                Streaming = streamingService,
-                                Explorer = new WindowsFileExplorer(),
-                                Tracking = tracking,
-                                TrackingRecordings = recordings,
-                                Avatars = avatar,
-                                FileDialog = new WindowsFileDialog(),
-                                Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, logging.Provider.GetLog("UI", "Credits")),
-                                Lighting = stage,
-                            })),
-                    new[] { LoggingService.ServiceName }));
-            }
-
+            descriptors.AddRange(CaptureDescriptors(context, built));
+            descriptors.AddRange(AudioDescriptors(context, built));
+            descriptors.AddRange(VoiceDescriptors(context, built));
+            descriptors.AddRange(VideoDescriptors(context, built));
+            descriptors.AddRange(TrackingDescriptors(context, built));
+            descriptors.AddRange(AvatarDescriptors(context, built));
+            descriptors.AddRange(UiDescriptors(context, built));
             return descriptors;
         }
 
@@ -347,6 +136,36 @@ namespace VirtualVessel.Application.Startup
         }
 
         /// <summary>
+        /// Pauses Voice Lab's preparation while streaming or recording, whichever screen is open (Voice Lab detailed design
+        /// 8.1.1): the services' states are watched here, for the app's lifetime, not by the Voice Lab screen.
+        /// </summary>
+        private static VoiceLabSetupService PauseWhileLive(VoiceLabSetupService setup, StreamingService streaming, RecordingService recording)
+        {
+            if (setup == null)
+            {
+                return null;
+            }
+
+            void Update() => setup.SetLive(VoiceLabView.IsLive(streaming?.State.Value ?? StreamingState.Idle, recording?.State.Value ?? RecordingState.Idle));
+            streaming?.State.Subscribe(_ => Update());
+            recording?.State.Subscribe(_ => Update());
+            Update();
+            return setup;
+        }
+
+        /// <summary>
+        /// Voice Lab's scripts, download list, and terms: the repository's services/voice-lab in the Editor, VoiceLab/scripts
+        /// next to the executable in a build (tools/release/build-release.ps1). Pure.
+        /// </summary>
+        public static string GetVoiceLabScripts(RuntimeEnvironment environment, string dataPath)
+        {
+            string folder = GetCreditFolder(environment, dataPath);
+            return environment == RuntimeEnvironment.Editor
+                ? Path.Combine(folder, "services", "voice-lab")
+                : Path.Combine(folder, "VoiceLab", "scripts");
+        }
+
+        /// <summary>
         /// Detailed metrics default to on in the Editor and off in built applications until the
         /// Developer Mode setting exists (performance metrics detailed design 7.1).
         /// </summary>
@@ -356,6 +175,17 @@ namespace VirtualVessel.Application.Startup
             {
                 DetailedEnabled = environment == RuntimeEnvironment.Editor,
             };
+        }
+
+        // STEP 3's Test plan runs only in Unity's Editor, for checking the screens quickly; built players never allow it.
+        // The voice used for the stream is Voice's to say, so Voice Lab does not delete it.
+        private static VoiceLabService Configure(VoiceLabService voiceLab, VoiceService voice)
+        {
+#if UNITY_EDITOR
+            voiceLab.AllowEditorTest = true;
+#endif
+            voiceLab.VoiceInUse = voiceId => voice != null && voice.InUseVoiceId == voiceId;
+            return voiceLab;
         }
     }
 }

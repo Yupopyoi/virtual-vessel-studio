@@ -11,11 +11,11 @@
 Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and content creation. It brings 3D avatars, tracking, video capture, and stages together in one app, with no separate tools to set up.
 
 > [!NOTE]
-> **v0.1.2 is an early preview.** You can move a VRM avatar with a webcam, arrange captured videos on the stream screen, mix the audio, and stream to YouTube or record. Voice conversion is not included yet (see [Known limitations](#known-limitations)).
+> **v0.2.0 is an early preview.** You can move a VRM avatar with a webcam, arrange captured videos on the stream screen, mix the audio, and stream to YouTube or record. From v0.2.0, you can make a voice of your own in Voice Lab and change your voice in real time while streaming (see [Known limitations](#known-limitations)).
 
 ## Contents
 
-- [What you can do in v0.1.2](#what-you-can-do-in-v012)
+- [What you can do in v0.2.0](#what-you-can-do-in-v020)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Sample avatar: Otoha-chan](#sample-avatar-otoha-chan)
@@ -27,7 +27,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - [For developers](#for-developers)
 - [License](#license)
 
-## What you can do in v0.1.2
+## What you can do in v0.2.0
 
 - **Sample avatar:** Otoha-chan (音葉ちゃん) comes with the app, so you can try it without a model of your own.
 - **Avatar:** register a VRM model (VRM 1.0, or VRM 0.x converted when loaded), and check the terms of use its author set.
@@ -38,8 +38,11 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - **Live screen:**
   - see the stream video;
   - move and resize the videos on it;
+  - stop a video's capture with the Del key or its menu;
   - see which of your arms and hands the camera sees.
 - **Audio:** mix your microphone and the game's audio, hear the game yourself, and delay the audio to match the avatar.
+- **Voice conversion** (from v0.2.0): change your microphone's voice in real time into a voice made in Voice Lab, for the stream and recordings. The pitch matches your own automatically, and you can adjust the voice's finish (body, clarity, brightness, air). While it gets ready, or when it cannot convert, your microphone is kept out so your own voice does not go out.
+- **Voice Lab** (from v0.2.0): make voice candidates from words or a mood, shape the timbre, build a voice model, and register it. You can try a voice with your own voice before registering it. The first time, the app prepares the environment for making voices on this PC (agreeing to its terms is required).
 - **Streaming:** stream to YouTube, or another RTMP(S) server, with AV1 or H.264. The connection comes back by itself if it drops.
 - **Recording:** record the stream video and audio to a file, while streaming or on its own.
 - **Japanese and English UI**, dark and light themes, and a UI scale setting.
@@ -52,6 +55,11 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - For streaming: an internet connection with upload speed to spare (more than 6 Mbit/s for the default bitrate)
 - Optional: a microphone; a capture board, for a game screen; a second monitor
 - Recommended for streaming and recording: a GPU with a hardware video encoder. AV1 needs one that encodes AV1.
+- Voice conversion: runs on the GPU; checked on an RTX 4070.
+- Making voices in Voice Lab:
+  - an NVIDIA GPU (GeForce GTX 900 series or later) with driver 528.33 or later;
+  - about 13 GB where the environment goes (up to about 30 GB free for a while as it is built);
+  - an internet connection (about 30 to 60 minutes to build the environment, and about 20 minutes per voice; both on an RTX 4070).
 
 ## Install
 
@@ -59,7 +67,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 2. (Optional) Check the download against `SHA256SUMS.txt` on the same page:
 
    ```powershell
-   Get-FileHash .\VirtualVesselStudio-v0.1.2-win-x64.zip -Algorithm SHA256
+   Get-FileHash .\VirtualVesselStudio-v0.2.0-win-x64.zip -Algorithm SHA256
    ```
 
 3. Extract the ZIP to a folder you can write to, such as `Documents\VirtualVesselStudio`. Keep all files together.
@@ -129,7 +137,20 @@ Settings are saved automatically. Tracking starts again the next time you open t
 2. Choose your microphone, and set the level of each source in the mixer.
 3. The game's audio comes from the capture board. Its row is under **Capture (game screen)** on the **Video** page, which also picks a matching device for you.
 
-### 6. Stream or record
+### 6. Make a voice and use it (optional)
+
+1. Open **Voice Lab** on the left. The first time, after a check of the PC and agreeing to the terms, it prepares the environment for making voices.
+2. On the **Make a voice** tab, go through STEP 1 to 5.
+   - STEP 1: pick words or a mood, make voice candidates, and pick one as the base.
+   - STEP 2: shape the timbre with sliders such as pitch and age.
+   - STEP 3: make the voice model. You can use the other screens meanwhile.
+   - STEP 4: try it on your own voice, from a recorded file or the microphone. The voice's finish is adjusted here too.
+   - STEP 5: name it and register it.
+3. On the **Audio** page of **Settings**, turn on **Convert my voice** under **Voice conversion** and choose the voice.
+
+The **Made voices** tab lists the voices and how they were made. Voice Lab cannot be used while streaming or recording.
+
+### 7. Stream or record
 
 1. Open the **Streaming and recording** page of **Settings**.
 2. To stream, click **Register…** in **Streaming** and paste the stream key from YouTube Studio. The key is kept in Windows Credential Manager, and is not shown again.
@@ -151,7 +172,10 @@ Depending on your YouTube settings, a stream may be public at once.
 
 | Limitation | Issue |
 | --- | --- |
-| Real-time voice conversion, and BGM and sound effects, are not included yet | — |
+| BGM and sound effects are not included yet | — |
+| The converted voice arrives about 0.4 s after your own. What you hear yourself cannot be chosen yet | — |
+| Making voices in Voice Lab needs an NVIDIA GPU. Voice conversion is not checked on GPUs other than an RTX 4070 | — |
+| Voice Lab's terms are a pre-release version (0.1) and are likely to change | — |
 | Finger strength is one setting for each person; it is not kept per model | [#67](https://github.com/Yupopyoi/virtual-vessel-studio/issues/67) |
 | The app is not code-signed, and it does not check for updates | [#81](https://github.com/Yupopyoi/virtual-vessel-studio/issues/81) |
 
@@ -173,7 +197,8 @@ See all [open issues](https://github.com/Yupopyoi/virtual-vessel-studio/issues).
 ## Uninstall
 
 1. Delete the folder you extracted the app to.
-2. To delete your settings, registered avatars, and logs as well, delete `%LOCALAPPDATA%\VirtualVesselStudio`. Your original `.vrm` files are not inside it.
+2. To delete your settings, registered avatars, made voices, and logs as well, delete `%LOCALAPPDATA%\VirtualVesselStudio`. Your original `.vrm` files are not inside it.
+3. If you prepared Voice Lab's environment, delete **Voice making environment (Python)** on Voice Lab's **Made voices** tab first. After the app is gone, delete `VirtualVesselStudio` inside the folder you chose for the environment.
 
 ## For developers
 

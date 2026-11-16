@@ -46,9 +46,6 @@ namespace VirtualVessel.UI.Screens
         public SetupScreen(ScreenServices services, VisualElement appSettings, string pageId = null, Action<string> pageChanged = null)
         {
             services ??= new ScreenServices();
-            ICaptureSources captures = services.Captures;
-            ITrackingSource tracking = services.Tracking;
-            IAvatarService avatars = services.Avatars;
             AddToClassList(UssClass);
 
             Tabs = Ui.Tabs(SetupPageStrings.Video, SetupPageStrings.Audio, SetupPageStrings.Avatar, SetupPageStrings.Output, SetupPageStrings.App);
@@ -60,87 +57,11 @@ namespace VirtualVessel.UI.Screens
                 Add(_pages[i]);
             }
 
-            VisualElement video = _pages[VideoPage];
-            VisualElement audio = _pages[AudioPage];
-            VisualElement avatar = _pages[AvatarPage];
-            VisualElement output = _pages[OutputPage];
-            VisualElement app = _pages[AppPage];
-            if (captures == null)
-            {
-                video.Add(Ui.Text(CaptureStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-            else
-            {
-                foreach (IVideoCaptureSource source in captures.Sources)
-                {
-                    // The tracking camera is set up in the tracking Card, which uses it.
-                    if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
-                    {
-                        GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && services.Audio != null ? new GameAudioRow(services.Audio) : null;
-                        video.Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), gameAudio));
-                    }
-                }
-            }
-
-            if (services.Audio != null)
-            {
-                audio.Add(new AudioCard(services.Audio, services.SystemSettings, video.Q<GameAudioRow>() != null));
-            }
-            else
-            {
-                audio.Add(Ui.Text(AudioStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-
-            if (avatars != null)
-            {
-                avatar.Add(new AvatarCard(avatars, services.FileDialog));
-            }
-            else
-            {
-                avatar.Add(Ui.Text(AvatarStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-
-            if (tracking != null && captures?.Find(CaptureService.TrackingCameraId) is ICaptureDeviceSource camera)
-            {
-                avatar.Add(new TrackingCard(tracking, camera));
-            }
-            else
-            {
-                avatar.Add(Ui.Text(TrackingStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-
-            if (avatars != null)
-            {
-                avatar.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
-            }
-
-            if (services.Recording != null)
-            {
-                output.Add(new RecordingCard(services.Recording, services.FileDialog, services.Explorer));
-            }
-            else
-            {
-                output.Add(Ui.Text(RecordingCardStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-
-            if (services.Streaming != null)
-            {
-                output.Add(new StreamingCard(services.Streaming));
-            }
-            else
-            {
-                output.Add(Ui.Text(StreamingCardStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
-            }
-
-            if (appSettings != null)
-            {
-                app.Add(appSettings);
-            }
-
-            if (services.Credits != null)
-            {
-                app.Add(new CreditsCard(services.Credits));
-            }
+            FillVideo(_pages[VideoPage], services);
+            FillAudio(_pages[AudioPage], services, _pages[VideoPage].Q<GameAudioRow>() != null);
+            FillAvatar(_pages[AvatarPage], services);
+            FillOutput(_pages[OutputPage], services);
+            FillApp(_pages[AppPage], services, appSettings);
 
             Tabs.SetValueWithoutNotify(PageOf(pageId));
             ShowPage(Tabs.value);
@@ -149,6 +70,77 @@ namespace VirtualVessel.UI.Screens
                 ShowPage(evt.newValue);
                 pageChanged?.Invoke(s_pageIds[evt.newValue]);
             });
+        }
+
+        // A Card for a service, or a note that the service is not there.
+        private static void AddOr(VisualElement page, bool available, Func<VisualElement> card, string unavailableKey)
+        {
+            page.Add(available ? card() : Ui.Text(unavailableKey, PlaceholderScreen.NoteClass, "vv-text-body"));
+        }
+
+        // The capture sources; the tracking camera is set up in the tracking Card, which uses it.
+        private static void FillVideo(VisualElement page, ScreenServices services)
+        {
+            ICaptureSources captures = services.Captures;
+            if (captures == null)
+            {
+                page.Add(Ui.Text(CaptureStrings.Unavailable, PlaceholderScreen.NoteClass, "vv-text-body"));
+                return;
+            }
+
+            foreach (IVideoCaptureSource source in captures.Sources)
+            {
+                if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
+                {
+                    GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && services.Audio != null ? new GameAudioRow(services.Audio) : null;
+                    page.Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), gameAudio));
+                }
+            }
+        }
+
+        // The microphone and the game's audio; the voice conversion under the microphone, since it converts it (setup
+        // screen 13).
+        private static void FillAudio(VisualElement page, ScreenServices services, bool gameAudioOnVideo)
+        {
+            AddOr(page, services.Audio != null, () => new AudioCard(services.Audio, services.SystemSettings, gameAudioOnVideo), AudioStrings.Unavailable);
+            if (services.Audio != null && services.Voice != null)
+            {
+                page.Add(new VoiceCard(services.Voice));
+            }
+        }
+
+        private static void FillAvatar(VisualElement page, ScreenServices services)
+        {
+            IAvatarService avatars = services.Avatars;
+            AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog), AvatarStrings.Unavailable);
+            ICaptureDeviceSource camera = services.Captures?.Find(CaptureService.TrackingCameraId) as ICaptureDeviceSource;
+            AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
+            if (avatars != null)
+            {
+                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
+            }
+        }
+
+        private static void FillOutput(VisualElement page, ScreenServices services)
+        {
+            AddOr(page, services.Recording != null, () => new RecordingCard(services.Recording, services.FileDialog, services.Explorer), RecordingCardStrings.Unavailable);
+            AddOr(page, services.Streaming != null, () => new StreamingCard(services.Streaming), StreamingCardStrings.Unavailable);
+        }
+
+        private static void FillApp(VisualElement page, ScreenServices services, VisualElement appSettings)
+        {
+            if (appSettings != null)
+            {
+                page.Add(appSettings);
+            }
+
+            if (services.Credits != null)
+            {
+                foreach (CreditsCard credits in CreditsCard.Build(services.Credits))
+                {
+                    page.Add(credits);
+                }
+            }
         }
 
         /// <summary>The tabs; the value is the open page.</summary>

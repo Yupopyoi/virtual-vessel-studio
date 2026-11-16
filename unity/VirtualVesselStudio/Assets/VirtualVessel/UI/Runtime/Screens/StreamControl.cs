@@ -8,6 +8,7 @@ using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Streaming;
+using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -89,7 +90,8 @@ namespace VirtualVessel.UI.Screens
         private readonly KeyedText _problemText;
         private UiServices _services;
 
-        public StreamControl(IStreamingService streaming)
+        /// <param name="voiceLab">Optional; while it makes a voice, going live asks to stop that first.</param>
+        public StreamControl(IStreamingService streaming, IVoiceLab voiceLab = null)
         {
             _streaming = streaming ?? throw new ArgumentNullException(nameof(streaming));
             AddToClassList(UssClass);
@@ -99,9 +101,11 @@ namespace VirtualVessel.UI.Screens
             buttons.AddToClassList(RecordControl.ButtonsClass);
             Chip = Ui.Chip(StatusKind.Live, StreamStrings.Live);
             buttons.Add(Chip);
-            StartButton = Ui.Button(StreamStrings.Start, ButtonVariant.Primary).Bind(new DangerCommand(
+            StartButton = Ui.Button(StreamStrings.Start, ButtonVariant.Primary).Bind(new BuildGuardedStart(
                 new UiCommand(_streaming.Start, _disabled),
-                new ConfirmationRequest(StreamStrings.ConfirmStartTitle, StreamStrings.ConfirmStartBody, StreamStrings.ConfirmStart)));
+                new ConfirmationRequest(StreamStrings.ConfirmStartTitle, StreamStrings.ConfirmStartBody, StreamStrings.ConfirmStart),
+                BuildGuardedStart.WhileBuildingStream(),
+                voiceLab));
             buttons.Add(StartButton);
             StopButton = Ui.Button(StreamStrings.Stop, ButtonVariant.Danger).Bind(new DangerCommand(
                 new UiCommand(_streaming.Stop),

@@ -178,7 +178,7 @@ namespace VirtualVessel.UI.Tests
 
             shell.Items[2].Focus();
             Key(shell.Items[2], KeyCode.DownArrow);
-            Assert.That(shell.Items[0].focusController.focusedElement, Is.SameAs(shell.Items[2]), "The hidden Diagnostics item is skipped.");
+            Assert.That(shell.Items[0].focusController.focusedElement, Is.SameAs(shell.QuitItem), "The hidden Diagnostics item is skipped.");
         }
 
         private AppShell Shell()
@@ -460,7 +460,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(gallery.Sections.Keys, Is.EquivalentTo(new[]
             {
                 GalleryStrings.Buttons, GalleryStrings.Tooltips, GalleryStrings.Toggles, GalleryStrings.Status, GalleryStrings.Fields,
-                GalleryStrings.Tabs, GalleryStrings.Notices, GalleryStrings.Dialog, GalleryStrings.Menu, GalleryStrings.Table,
+                GalleryStrings.Tabs, GalleryStrings.Notices, GalleryStrings.Dialog, GalleryStrings.Menu, GalleryStrings.Steps, GalleryStrings.Table,
             }));
 
             foreach (ActionButton button in gallery.Sections[GalleryStrings.Notices].Query<ActionButton>().ToList())

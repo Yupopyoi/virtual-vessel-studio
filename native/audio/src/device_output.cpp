@@ -80,6 +80,9 @@ namespace vv::audio
             hr = client->GetBufferSize(&bufferFrames);
         }
 
+        REFERENCE_TIME latency = 0;
+        _deviceLatency = SUCCEEDED(hr) && SUCCEEDED(client->GetStreamLatency(&latency)) ? ReferenceTimeToFrames(latency, SampleRate) : 0;
+
         // What waited with no device to play on is stale; the user hears from now on.
         _mixer.DiscardMonitor();
         _fill = FillTracker();
@@ -100,6 +103,10 @@ namespace vv::audio
             UINT32 padding = 0;
             hr = client->GetCurrentPadding(&padding);
             UINT32 room = SUCCEEDED(hr) ? bufferFrames - padding : 0;
+
+            // The buffer drains evenly from padding + room to the next wake's padding, so on average it holds
+            // padding + room / 2.
+            _bufferWait = Mixer::Smooth(_bufferWait.load(), static_cast<float>(padding) + room / 2.0f);
             if (room == 0)
             {
                 continue;

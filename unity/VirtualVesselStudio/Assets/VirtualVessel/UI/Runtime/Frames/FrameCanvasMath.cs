@@ -38,6 +38,9 @@ namespace VirtualVessel.UI.Frames
         SendBackward,
         BringToFront,
         SendToBack,
+
+        /// <summary>Stops the video's capture (Del; the user's request, 2026-11-15). Not on a locked frame.</summary>
+        StopCapture,
     }
 
     /// <summary>Where a press lands in crop mode, relative to the frame being cropped.</summary>
@@ -133,7 +136,9 @@ namespace VirtualVessel.UI.Frames
         /// <summary>
         /// What a press in crop mode lands on. The frame being cropped wins over frames in front of it,
         /// and the faint whole video around it still belongs to it, so a click there never leaves crop
-        /// mode by surprise.
+        /// mode by surprise. Only on the stream screen, where the faint video is drawn: a zoomed video
+        /// reaching past it held the background around the preview too, so nothing outside could end crop
+        /// mode (the user's review, 2026-11-15).
         /// </summary>
         public static CropPress CropPressAt(FrameLayout cropped, double x, double y)
         {
@@ -142,7 +147,8 @@ namespace VirtualVessel.UI.Frames
                 return CropPress.Window;
             }
 
-            return Contains(FrameEditMath.VideoPlacement(cropped), x, y) ? CropPress.Video : CropPress.Outside;
+            bool onScreen = Contains(NormalizedRect.Full, x, y);
+            return onScreen && Contains(FrameEditMath.VideoPlacement(cropped), x, y) ? CropPress.Video : CropPress.Outside;
         }
 
         public static bool Contains(NormalizedRect rect, double x, double y)
@@ -282,6 +288,7 @@ namespace VirtualVessel.UI.Frames
                 KeyCode.R when !shift => FrameAction.ResetCrop,
                 KeyCode.Alpha1 when shift => FrameAction.Fit,
                 KeyCode.Alpha2 when shift => FrameAction.Fill,
+                KeyCode.Delete when !shift => FrameAction.StopCapture,
                 _ => FrameAction.None,
             };
         }

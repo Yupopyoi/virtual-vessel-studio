@@ -38,6 +38,8 @@ function Invoke-Tool([string] $Tool, [string[]] $Arguments)
     }
 }
 
+& (Join-Path $PSScriptRoot '../deps/fetch-rnnoise.ps1')
+
 Invoke-Tool 'cmake' @('-S', $source, '-B', $build, '-A', 'x64')
 Invoke-Tool 'cmake' @('--build', $build, '--config', $Configuration)
 if (-not $SkipTests)

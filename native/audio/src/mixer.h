@@ -3,6 +3,7 @@
 // thread, and the tests call it directly with synthetic input.
 #pragma once
 
+#include "denoiser.h"
 #include "dsp.h"
 #include "fill_tracker.h"
 #include "frame_ring.h"
@@ -29,6 +30,22 @@ namespace vv::audio
         float peak = 0.0f; // Linear; the highest since the last TakeCounters.
     };
 
+    // Where a preview is: frames played and its length, both 0 when none plays.
+    struct PreviewPosition
+    {
+        int64_t played = 0;
+        int64_t length = 0;
+    };
+
+    // How long a staged source's frames wait in the mix's rings, in frames (audio detailed design 8.3). Each
+    // is the average fill, sampled every block, so by Little's law it is the average wait there.
+    struct StageDelay
+    {
+        float stageInput = 0.0f;  // Captured, waiting for the stage to read it.
+        float stageOutput = 0.0f; // Written by the stage, waiting for the mix.
+        float monitor = 0.0f;     // Mixed, waiting for the monitor output.
+    };
+
     class Mixer
     {
     public:
@@ -41,6 +58,27 @@ namespace vv::audio
 
         // The writer side of a source's input: the capture thread, or a test.
         void Write(int id, const float* frames, size_t count);
+
+        // A processing stage on a source (audio detailed design 8.3). While it is on, capture goes to the
+        // stage's ring instead of the mix, and what the stage writes takes its place.
+        void SetStage(int id, bool enabled);
+        size_t ReadStage(int id, float* frames, size_t capacity);
+        void WriteStage(int id, const float* frames, size_t count);
+        StageDelay GetStageDelay(int id) const;
+
+        // Noise removal on a source as it is captured (audio detailed design 8.6), before a stage, so it works with
+        // or without voice conversion. The capture thread runs it; a stereo source is mixed to mono first. False
+        // when it cannot start.
+        bool SetDenoise(int id, bool enabled);
+
+        // The mono average of stereo frames; silence for null. Changes only `mono`. Pure apart from that.
+        static void ToMono(const float* stereo, size_t frames, float* mono);
+
+        // One step of the moving average the delays keep, about half a second long. Pure.
+        static float Smooth(float average, float value)
+        {
+            return average + (value - average) * 0.02f;
+        }
 
         void SetGain(int id, float gainDb, bool muted);
         void SetSend(int id, int bus, float sendDb);
@@ -75,6 +113,19 @@ namespace vv::audio
         // The monitor bus's peak since the last call, linear, after its gain.
         float TakeMonitorPeak();
 
+        // A preview on the monitor bus only, never the stream: Voice Lab's samples (audio detailed design 5.5).
+        // Mono at SampleRate; playing replaces what plays. Called under the engine's lock, like the sources.
+        void PlayPreview(std::vector<float> samples);
+        void StopPreview();
+        PreviewPosition GetPreviewPosition() const
+        {
+            return PreviewPosition{ _previewPlayed.load(), _previewLength.load() };
+        }
+
+        // Adds mono preview samples from `position` to every channel of a block, as far as they go, and returns
+        // how many frames it took. Changes only the block passed in. Pure apart from that.
+        static size_t AddPreview(float* block, size_t frames, int channels, const std::vector<float>& preview, size_t position);
+
         // The stream tap (vv_audio_stream_tap.read). Each reader keeps its own place and has one thread.
         int32_t ReadStream(float* out, int32_t frames, int64_t untilQpc, int64_t* firstQpc, int reader = 0);
 
@@ -90,10 +141,25 @@ namespace vv::audio
         static int64_t FrameQpc(int64_t anchorQpc, uint64_t index, int64_t frequency);
 
     private:
+        // A source's noise removal, made the first time it is turned on and kept, so the capture thread never sees
+        // it go away. Writer (capture thread) only, apart from being made.
+        struct DenoiseStage
+        {
+            Denoiser denoiser;
+            float mono[BlockFrames] = {};
+            float stereo[BlockFrames * 2] = {};
+            int pending = 0;
+        };
+
         struct Slot
         {
             bool used = false;
             std::unique_ptr<FrameRing> input;
+            std::unique_ptr<FrameRing> stageInput;
+            std::atomic<bool> stage{ false };
+            std::atomic<bool> denoise{ false };
+            std::unique_ptr<DenoiseStage> denoiser;
+            bool denoised = false; // Capture thread only: it has used the denoiser, so it may read the pointer.
             std::atomic<float> gain{ 1.0f };
             std::atomic<bool> muted{ false };
             std::atomic<float> send{ 1.0f };
@@ -102,6 +168,8 @@ namespace vv::audio
             std::atomic<int64_t> underruns{ 0 };
             std::atomic<int64_t> driftCorrections{ 0 };
             std::atomic<float> peak{ 0.0f };
+            std::atomic<float> stageInputWait{ 0.0f };
+            std::atomic<float> stageOutputWait{ 0.0f };
 
             // Mix thread only.
             FillTracker fill;
@@ -109,6 +177,15 @@ namespace vv::audio
             float appliedOutput = 1.0f;
             float appliedMonitor = 0.0f;
         };
+
+        // Writes frames to the ring the source feeds now, counting what does not fit.
+        static void Put(Slot& slot, const float* frames, size_t count);
+
+        // Gathers the source's captured frames into 10 ms frames, cleans each, and passes them on as stereo.
+        static void WriteDenoised(Slot& slot, const float* frames, size_t count);
+
+        // Passes on what waited for a 10 ms frame when noise removal turned off, so nothing is lost.
+        static void FlushDenoise(Slot& slot);
 
         // Reads one block of a source into the scratch block, following its fill; false when it has nothing to play.
         bool ReadSource(Slot& slot);
@@ -130,6 +207,13 @@ namespace vv::audio
         std::atomic<bool> _monitorMuted{ false };
         float _appliedMonitorGain = 1.0f;
         std::atomic<float> _monitorPeak{ 0.0f };
+        std::atomic<float> _monitorWait{ 0.0f };
+
+        // The preview: replaced whole under the engine's lock, read by the mix under the same lock.
+        std::vector<float> _preview;
+        size_t _previewPosition = 0;
+        std::atomic<int64_t> _previewPlayed{ 0 };
+        std::atomic<int64_t> _previewLength{ 0 };
 
         // The stream bus: overwritten in a circle, so with no reader it simply keeps the last seconds.
         std::vector<float> _bus;

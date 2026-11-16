@@ -8,6 +8,15 @@ namespace VirtualVessel.UI.Tests
     /// <summary>Hit testing and display decisions of the placement editor; input on a panel is in the PlayMode tests.</summary>
     public sealed class FrameCanvasMathTests
     {
+        [Test]
+        public void Delete_StopsTheCapture_ButNotWithShiftOrCtrl()
+        {
+            Assert.That(FrameCanvasMath.ActionFor(KeyCode.Delete, '\0', false, false), Is.EqualTo(FrameAction.StopCapture));
+            Assert.That(FrameCanvasMath.ActionFor(KeyCode.Delete, '\0', true, false), Is.EqualTo(FrameAction.None));
+            Assert.That(FrameCanvasMath.ActionFor(KeyCode.Delete, '\0', false, true), Is.EqualTo(FrameAction.None));
+            Assert.That(FrameCanvasMath.AllowedWhenLocked(FrameAction.StopCapture), Is.False);
+        }
+
         // A frame at 25%–75% × 25%–75% of a 400 × 200 px stream area: corners at (100, 50) and (300, 150).
         private static readonly NormalizedRect s_frame = new NormalizedRect(0.25, 0.25, 0.5, 0.5);
 

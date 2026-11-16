@@ -29,12 +29,16 @@ Changes must preserve the architecture, module boundaries, runtime requirements,
 
 Before making a substantial change, read the relevant project documentation.
 
-The primary architecture document is:
+The primary architecture document is split into one file per chapter. Each `system-design.md` is its table of contents:
 
 ```text
 docs/ja/architecture/system-design.md
 docs/en/architecture/system-design.md
+docs/ja/architecture/system-design/
+docs/en/architecture/system-design/
 ```
+
+Chapter and section numbers are referenced from other documents and code comments. Do not renumber them.
 
 The development workflow is:
 
@@ -470,7 +474,7 @@ End users must not be required to:
 - resolve Python dependencies,
 - understand Python environment structure.
 
-Production distribution should use build-generated runtime packages.
+Production distribution should use build-generated runtime packages, except where the architecture builds a component on the user's PC. Voice Lab's training environment is built at activation from a manifest and lock with pinned hashes, without user involvement (system design 13.4).
 
 Conceptually:
 
@@ -1101,6 +1105,8 @@ Do not turn recoverable errors into application crashes when a module can safely
 
 Always consider resource cleanup after failure.
 
+Operations that create, read, update, or delete records (CRUD) follow system design 6.31: they return `CrudResult` / `CrudResult<T>` and only report a failure; the caller decides how to handle it (show, log, retry, recover). Exceptions in CRUD are for bugs only.
+
 ---
 
 # 22. Testing Rules
@@ -1327,6 +1333,8 @@ The repository has two long-lived branches (development workflow 6.1):
 Do not perform normal feature development directly on `main` or `develop`.
 
 Before starting implementation work, create or switch to a dedicated short-lived task branch created from `develop`. Its Pull Request targets `develop`.
+
+The exception is `feature/tracking`, an integration branch for tracking, avatar motion, and hand work (development workflow 6.1). These change in many small steps, so they stay apart from `develop` until they settle. Task branches for this work are created from `feature/tracking` and their Pull Requests target it. The user decides when it goes into `develop`.
 
 Pull Requests into `main` are only:
 
@@ -1831,7 +1839,7 @@ A new dependency, bundled component, or model must have a license that allows di
 
 Do not add copyleft (GPL, AGPL) or non-commercial-only dependencies without explicit user approval.
 
-Every third-party component is recorded in the SBOM, `sbom/virtual-vessel-studio.cdx.json` (CycloneDX), in the same change that adds, updates, or removes it. This covers anything beyond the language standard libraries and the operating system: Unity packages, bundled assets such as fonts and models, native libraries and runtimes linked into plugins, Python packages, external OSS, GitHub Actions, and build tools. Each entry has a version, a license, and a scope (`required` when distributed, `excluded` when used only for development). The repository checks fail when a Unity package, an `Assets/ThirdParty` folder, or a GitHub Action is missing or stale.
+Every third-party component is recorded in the SBOM, `sbom/virtual-vessel-studio.cdx.json` (CycloneDX), in the same change that adds, updates, or removes it. This covers anything beyond the language standard libraries and the operating system: Unity packages, bundled assets such as fonts and models, native libraries and runtimes linked into plugins, Python packages, external OSS, GitHub Actions, and build tools. Each entry has a version, a license, and a scope (`required` when distributed, `excluded` when used only for development). The repository checks fail when a Unity package, an `Assets/ThirdParty` folder, a GitHub Action, or a package of a `services/*/uv.lock` is missing or stale.
 
 The name "Virtual Vessel Studio" and its logos are covered by `TRADEMARKS.md`, not by the code license.
 

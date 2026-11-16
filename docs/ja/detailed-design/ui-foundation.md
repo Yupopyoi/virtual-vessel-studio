@@ -130,7 +130,7 @@ UI Toolkitをそのまま使うと、次の問題がある。共通Componentと�
 | 共通Component | VisualElement | `components.md`の各部品（6章） |
 | `MediaFrame` / `FrameCanvas` | VisualElement | 配置編集と切り抜き（9章） |
 | `FrameLayout` / `FrameEditMath` | Struct / Static Class（Core） | 配置データと編集の計算 |
-| `AppShell` | VisualElement | ナビゲーションと画面の領域、版の表示（7.7） |
+| `AppShell` | VisualElement | ナビゲーションと画面の領域、終了の項目、版の表示（7.7） |
 | `ScreenHost` | VisualElement | 画面の切り替え（7.7） |
 | `ScreenDefinition` / `IScreen` | Class / Interface | 画面の登録内容と、表示・非表示の通知（7.7） |
 | `DeveloperModeService` | Class | Developer Modeの切り替えと関連機能への反映 |
@@ -232,6 +232,7 @@ bool confirmed = await _dialogs.ConfirmAsync(
 - 表示中に別の確認が求められた場合は、前のDialogが閉じてから順に表示する。`CancellationToken`が取り消された場合は「キャンセル」と同じ扱いとする。
 - ボタンは押されるとすぐ実行中の表示になるため、確認を待つ間に2つ目のDialogは開かない。
 - `UiServices`に確認Dialogがない場合、`DangerCommand`は実行せず、開発者向けLogにErrorを記録する。取り消しにくい操作を確認なしで実行しないためである。
+- `IConfirmedCommand.Confirmation`は押したときに読む。nullなら確認せずに実行する。時によって確認するCommand（Voice Labの作成中にだけ尋ねる録画の開始、`BuildGuardedStart`）のためである。
 
 ### 6.5 Style
 
@@ -524,7 +525,7 @@ public interface IUiCommand
 
 **最初に作る画面**
 
-ライブとセットアップは、画面の仕様（`docs/ja/ui/screens/live.md`、`setup.md`）に従う。ライブは配信プレビューと配置編集、セットアップは映像の取り込みのCardとアプリの設定を置く。Voice Labは、画面の仕様ができるまで、見出しと「この画面は準備中です」だけを表示する。
+ライブとセットアップは、画面の仕様（`docs/ja/ui/screens/live.md`、`setup.md`）に従う。ライブは配信プレビューと配置編集、セットアップは映像の取り込みのCardとアプリの設定を置く。Voice Labは`docs/ja/ui/screens/voice-lab.md`に従い、段階に分けて声を作る。
 
 - 必要な相手は、Compositionが`UiRootContext.Screens`（`ScreenServices`）にまとめて渡す：`IStreamPreviewSource`（Video）、`IFrameSource`の一覧と`IStageLighting`（Stage）、`ICaptureSources`（Capture）、`ITrackingSource`と`ITrackingRecordings`（Tracking）、`IAvatarService`（Avatar）、`IFileDialog`、`ICreditFiles`。ないものは`null`のままにし、その部分は「使えません」と表示するか、置かない。
 - 画面に新しい相手を足すときは、`ScreenServices`に1つ足し、使うCardへ渡すだけにする。以前は`UiRootContext`と`SetupScreen`の引数を順に足しており、相手を1つ足すたびに受け渡しだけの変更が4か所に出た（2026-10-21）。
@@ -807,6 +808,7 @@ flowchart LR
 
 - クリックで選択する。選択した枠には、角と辺に8つのハンドルと外枠を表示する。
 - 何もない場所をクリックすると選択を外す。`Tab`で次の枠を選択する。
+- ライブ画面では、プレビューの外の何もない部分（画面の背景、Cardや説明の文字）を押しても選択を外す。映像を画面いっぱいに広げると、Canvasに何もない場所がなくなり、マウスでは外せなかったためである（利用者の確認、2026-11-14）。ボタンなどの操作部品（Focusを受けるもの）、Canvas、重なり順の一覧を押したときは外さない。録画の開始などで選択が消えないようにするためである（`LiveScreen.ClearsSelection`）。押下はパネルの根で受ける。プレビューの周りの余白と見出しはライブ画面の要素ではないため、ライブ画面だけで受けると届かなかった（2026-11-15）。
 
 **移動**
 
@@ -832,7 +834,7 @@ flowchart LR
 - 選択した枠の上でMouse Wheelを回すと、枠の大きさを変えずに中の映像を拡大・縮小する。Pointerの位置を中心に拡大する。
 - 拡大している映像は、中ボタンでドラッグするか、`Space`を押しながらドラッグすると、見る位置を動かせる。
 - 辺を切り取るときは「切り抜きモード」に切り替える。切り替えは、プレビュー左上のモード切り替え、`C`キー、枠のダブルクリック、右クリックMenuのいずれでも行える。切り抜き中にダブルクリックすると配置モードに戻る（入り方と戻り方をそろえる）。ダブルクリックは、同じ枠の上を0.5秒以内・6px以内で2回押したときとする（`FrameCanvasMath.IsDoubleClick`）。OSのクリック回数は、モード切り替えなど別の場所を押した直後の1回も数えるため使わない。
-- 切り抜きモードでは、切り抜き中の枠が手前の枠より優先され、薄く表示した映像全体の上を押しても切り抜きモードのままとする。意図せず配置モードに戻らないようにするためである（`FrameCanvasMath.CropPressAt`）。
+- 切り抜きモードでは、切り抜き中の枠が手前の枠より優先され、薄く表示した映像全体の上を押しても切り抜きモードのままとする。意図せず配置モードに戻らないようにするためである（`FrameCanvasMath.CropPressAt`）。ただし映像全体とみなすのは配信画面の中だけとする。拡大した映像が配信画面からはみ出すと、プレビューの周りの背景まで映像の上とみなされ、外を押しても切り抜きモードを終えられなかったためである（利用者の確認、2026-11-15）。
 - 切り抜きモードでは、ハンドルのドラッグでその辺を切り取る。枠の内側のドラッグでは、映像は動かさず、切り抜く範囲（枠）を映像の上で動かす（`FrameEditMath.MoveCropWindow`）。`Enter`、`Esc`、もう一度の切り替えで配置モードへ戻る。このとき選択は残す。映像の外を押した場合は、配置モードで外を押したときと同じく選択を外し、切り抜きモードも終える。
 - 別の枠を選ぶと、必ず配置モードに戻る。クリックしたときに、ほかの枠のために選んだモードが続かないようにするためである。
 - 切り抜きの範囲は映像の外へ出ない。
@@ -868,10 +870,11 @@ flowchart LR
 | 切り抜きを元に戻す | `Crop`を映像全体に戻す。映像の画面上の大きさは保ち、枠を映像全体まで広げる |
 | 一つ前へ／一つ後ろへ | すぐ手前（奥）の枠と順番を入れ替える |
 | 最前面へ／最背面へ | いちばん手前（奥）に移す |
+| 取り込みを停止 | その映像の取り込みを止める（`IFrameSource.StopCapture`。設定の画面の停止と同じ）。取り込んでいない映像とロック中の枠では押せない。元に戻す・やり直すの対象にはせず、再開は設定の画面で行う（利用者の要望、2026-11-15） |
 
 Menuの各項目にもTooltipとショートカットを表示する。
 
-主なショートカットは次のとおりとする。`H`（左右反転）、`L`（ロック）、`O`（はみ出し許可）、`C`（切り抜きモード）、`R`（切り抜きを元に戻す）、`Shift+1`（画面に合わせる）、`Shift+2`（画面いっぱいに広げる）、`Shift+C`（中央に配置）、`]`（一つ前へ）、`[`（一つ後ろへ）、`Shift+]`（最前面へ）、`Shift+[`（最背面へ）、`F`（プレビューの全画面）。
+主なショートカットは次のとおりとする。`H`（左右反転）、`L`（ロック）、`O`（はみ出し許可）、`C`（切り抜きモード）、`R`（切り抜きを元に戻す）、`Shift+1`（画面に合わせる）、`Shift+2`（画面いっぱいに広げる）、`Shift+C`（中央に配置）、`]`（一つ前へ）、`[`（一つ後ろへ）、`Shift+]`（最前面へ）、`Shift+[`（最背面へ）、`Del`（取り込みを停止。ロック中は止めない）、`F`（プレビューの全画面）。
 
 ### 9.5 確定とRuntime Stateの関係
 
@@ -1129,6 +1132,7 @@ Assets/VirtualVessel/
    │  ├─ Theme/             ThemeService, FontService, FontSet, ThemeAssets, ThemeSettings
    │  ├─ Localization/      ILocalizer, Localizer, StringTemplate, StringTable, LocaleInfo, CommonStrings
    │  ├─ Credits/           CreditCatalog, CreditEntry, ICreditFiles, CreditFiles, CreditText（setup.md 8章）   VirtualVessel.UI.Credits
+   │  ├─ VoiceLab/          IVoiceLab、VoiceLabScreenと各段階、VoiceLabView（screens/voice-lab.md）   VirtualVessel.UI.VoiceLab
    │  ├─ Screens/           AppShell, ScreenHost, ScreenDefinition, IScreen, ScreenNavigation, ScreenStrings, PlaceholderScreen, ScreenServices, AppSettingsCard, CreditsCard, FaceTuningCard, DiagnosticsScreen, TrackingRecordingsCard, SkeletonCard, SkeletonView, SkeletonProjection, FaceCover, DiagnosticsFormat, ComponentGalleryScreen   VirtualVessel.UI.Screens
    │  └─ Settings/          UiSettings, UiSettingsResolver, UiSettingsService, UiSettingsPeek, SaveDebounce, SystemMotionPreference, DeveloperModeService   VirtualVessel.UI.Settings
    ├─ Styles/               components.uss（各部品のUSSを読み込む）、Components/各部品のUSS

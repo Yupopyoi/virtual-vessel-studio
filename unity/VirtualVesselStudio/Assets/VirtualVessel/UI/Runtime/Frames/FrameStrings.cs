@@ -36,6 +36,8 @@ namespace VirtualVessel.UI.Frames
         public const string FillTip = "frame.fill.tip";
         public const string Center = "frame.center";
         public const string CenterTip = "frame.center.tip";
+        public const string StopCapture = "frame.stop-capture";
+        public const string StopCaptureTip = "frame.stop-capture.tip";
         public const string BringForward = "frame.forward";
         public const string BringForwardTip = "frame.forward.tip";
         public const string SendBackward = "frame.backward";

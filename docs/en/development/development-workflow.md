@@ -152,7 +152,8 @@ virtual-vessel-studio/
 ├─ docs/
 │  ├─ ja/
 │  │  ├─ architecture/
-│  │  │  └─ system-design.md
+│  │  │  ├─ system-design.md
+│  │  │  └─ system-design/
 │  │  ├─ detailed-design/
 │  │  ├─ development/
 │  │  │  └─ development-workflow.md
@@ -170,7 +171,7 @@ virtual-vessel-studio/
    └─ performance/
 ```
 
-The completed system design is placed at `docs/ja/architecture/system-design.md` / `docs/en/architecture/system-design.md`.
+The completed system design is placed, one file per chapter, in `docs/ja/architecture/system-design/` / `docs/en/architecture/system-design/`. `system-design.md` beside each directory is the table of contents. Chapter and section numbers are referenced by other documents and do not change.
 
 This document is placed at `docs/ja/development/development-workflow.md` / `docs/en/development/development-workflow.md`.
 
@@ -229,6 +230,15 @@ feature/… fix/… docs/…    feature/…             back to develop
 ```
 
 - An urgent fix starts from `main` as `hotfix/<name>`, is released through a pull request into `main`, and is then brought back into `develop` (a pull request from `main` into `develop`).
+
+### Tracking integration branch
+
+Tracking, avatar motion, and hand work is gathered on `feature/tracking` (the user's decision, 2026-10-31). This work changes in many small steps, so it stays apart from `develop` until it settles.
+
+- Work branches start from `feature/tracking`, and their pull requests target `feature/tracking`
+- Work on other modules uses `develop` as before
+- The user decides when `feature/tracking` goes into `develop`
+- When `feature/tracking` is behind `develop`, confirm whether to bring `develop` in before starting work
 
 ## 6.2 Branch Naming
 
@@ -580,7 +590,7 @@ Do not change any code yet.
 Please check the following:
 
 - CLAUDE.md
-- docs/en/architecture/system-design.md
+- the relevant chapters of docs/en/architecture/system-design/
 - related existing code
 - GameCapture benchmark / prototype
 - SubScreenCapture benchmark / prototype
@@ -887,7 +897,8 @@ For now only light checks that need no Unity run (part of Phase 2). GitHub Actio
 | Duplicate GUIDs | No two `.meta` files share a GUID (common after copying or merging assets) |
 | String tables | Each locale's JSON parses, and every locale has the same keys |
 | Japanese and English docs | `docs/ja` and `docs/en` contain the same documents |
-| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, and every GitHub Action the workflows use, each with a version, a license, and a scope (`required` / `excluded`). Fetched dependencies (`tools/deps/*.json`, embedded packages) are listed at the version pinned there, with the same download URL and SHA-256 |
+| Control characters | No source or text file holds a control character other than tab, line feed, and carriage return. A script that writes `\v` or the like into a path without a raw string leaves one, and the path no longer exists (`build-release.ps1` could not ship Voice Lab's scripts for that reason, 2026-11-14) |
+| SBOM | `sbom/virtual-vessel-studio.cdx.json` lists every Unity package (at its locked version), every folder of `Assets/ThirdParty`, every GitHub Action the workflows use, and every package in a Python component's `services/*/uv.lock` (at its locked version, including those that never install on Windows), each with a version, a license, and a scope (`required` / `excluded`). Fetched dependencies (`tools/deps/*.json`, embedded packages) are listed at the version pinned there, with the same download URL and SHA-256 |
 | Fetched dependencies | Each `tools/deps/*.json` has a package name, a version, an `https` download URL, and SHA-256 values (also for contents such as models) |
 | License files | `tools/release/license-files.json` maps each license file shipped in the package to its source file. Every file an SBOM entry names (18.1.2) is in it, every license file of `Assets/ThirdParty` is shipped, and the sources kept in Git exist |
 
@@ -911,8 +922,9 @@ Native plugins keep their C++ sources in Git, and the built DLLs are not committ
 Everything used beyond the language standard libraries and the operating system (Unity packages, bundled assets such as fonts and models, native libraries and runtimes built into plugins, Python packages, external OSS, GitHub Actions, and build tools) is recorded in `sbom/virtual-vessel-studio.cdx.json` (CycloneDX 1.6).
 
 - The SBOM is updated in the same change that adds, updates, or removes a component.
-- Each entry has a version, a license, and a scope: `required` for what is distributed, `excluded` for what is used only in development and CI.
-- The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, and GitHub Actions. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
+- Each entry has a version, a license, and a scope: `required` for what is distributed, `optional` for what is not distributed but installed on the user's PC when a feature is set up (Voice Lab's training environment), and `excluded` for what is used only in development and CI.
+- The credits on the settings screen list the `optional` entries in a Card of their own, in the SBOM's order. So the `optional` entries put the main ones first, such as Python, RVC, its pretrained models, VoxCPM, its model, PyTorch, and uv, followed by the other Python packages by name. New entries are inserted in this order too.
+- The repository checks (18.1.1) find missing and stale Unity packages, `Assets/ThirdParty` folders, GitHub Actions, and Python packages of a `uv.lock`. Other entries (native runtimes, tools, and so on) are written by whoever adds them.
 - A distributed entry names the files holding the full license texts that apply to it, with the property `virtual-vessel-studio:license-file` (the value is the path in the package, such as `licenses/UniGLTF-LICENSE.md`). An entry may name several files, and several entries may name the same file. The application itself (`metadata.component`) names `LICENSE` and `NOTICE`.
 - Those files are listed in `tools/release/license-files.json` as pairs of the path in the package and the source file in the repository. A source outside Git (a package Unity resolves, or a fetched package) may write the package hash as `*`. The release procedure (chapter 21) copies the files as listed. The credits on the settings screen (`docs/en/ui/screens/setup.md` chapter 8) read the SBOM and these files.
 - Entries whose terms do not ask for the full text to be shipped, such as Unity packages (Unity Companion License and others), the Unity engine, and the Microsoft C/C++ runtime, name no files and show only the license name.

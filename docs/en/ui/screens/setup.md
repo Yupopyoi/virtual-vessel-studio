@@ -4,7 +4,7 @@
 
 The screen for preparing devices and settings before streaming. It also shows the credits of the software in use.
 
-It has the capture Cards, the audio Card (chapter 11), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the credits Card (chapter 8). Other settings are added with their features.
+It has the capture Cards, the audio Card (chapter 11), the voice conversion Cards (chapter 13, being designed), the tracking Card, the avatar Card, the face tuning Card (chapter 9), the recording Card (chapter 10), the app settings Card (UI foundation detailed design 7.7), and the two credits Cards (chapter 8). Other settings are added with their features.
 
 - The screen is named "Settings" (Japanese 設定) in the navigation and its heading, since it holds the app settings and the credits as well as device setup.
 - Its identifier (`setup`), its string keys (`nav.setup`, `setup.*`), and its name in the documents (the setup screen) stay. The identifier is saved as `lastScreen` in `ui-settings.json`, so changing it would lose the screen to return to.
@@ -16,7 +16,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | Page | Key | Cards |
 |---|---|---|
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
-| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available.") |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), voice conversion (chapter 13, being designed) |
 | Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
 | Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards do not collapse. With pages, closing them to keep the screen short is no longer needed.
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -76,7 +76,7 @@ Shows `ITrackingSource` (Tracking) and the tracking camera (Capture's `camera`) 
 | Tracking | Success | Tracking |
 | No one in view | Warning | No one in view. Explanation: "Sit in front of the camera so your face and upper body are in view." |
 | A camera must be chosen | Warning | Waiting for the camera. Explanation: "Choose the webcam to track with in Camera." |
-| Camera not found | Warning | Waiting for the camera. Explanation: "The camera is not found. It is found again when you connect it." |
+| Camera not found | Warning | Waiting for the camera. Explanation: "The camera is not found. Connect it and it is found again automatically." |
 | The game screen's camera | Error | Cannot track. Explanation: "The game screen capture uses this camera. Choose another camera." |
 | Failed | Error | Cannot track. Explanation: "The camera could not open or tracking could not start. Check that no other app is using the camera." |
 
@@ -134,9 +134,9 @@ Shape, color, and text are always combined (`design-system.md` 3.4).
 | A device must be chosen | Warning | Stopped. Explanation: "Choose the capture board under Device. A camera is never opened by itself, so a webcam does not show you by mistake." |
 | Starting | Idle | Starting |
 | Waiting for video | Idle | Waiting for video |
-| No signal | Warning | Waiting for video. Explanation: "No video is arriving. Check the game device's power and cable." |
+| No signal | Warning | Waiting for video. Explanation: "No video is arriving. Check the game device's power and cable connection." |
 | Capturing | Success | Capturing |
-| Device not found | Warning | Device not found; still looking. Explanation: "It is found again by itself when connected." |
+| Device not found | Warning | Device not found; still looking. Explanation: "Connect the device and it is found again automatically." |
 | The tracking camera | Error | Could not capture. Explanation: "Tracking uses this camera. Choose another device." |
 | Failed | Error | Could not capture. Explanation: "Another app may be using the device." |
 
@@ -150,16 +150,26 @@ Keys are `setup.capture.*` for the capture Cards, `setup.tracking.*` for the tra
 
 Lists the software and assets in use from the SBOM shipped with the application (`sbom/virtual-vessel-studio.cdx.json`). The full license texts are read from the files shipped with the application (development workflow 18.1.2).
 
+There are two Cards, placed at the end of the app settings page in this order. Voice Lab's training environment alone has dozens of Python packages, and in one Card they would bury the application's own components.
+
+Both are collapsible Cards (`components.md` 3.10) that start closed. Few people read them, and open they would fill most of the page with long lists (user decision, 2026-11-13). When the SBOM cannot be read, the Card does not collapse, so its problem shows.
+
+| Card | Title | Components listed |
+|---|---|---|
+| The app | "Credits and licenses: the app" | The application itself first, then the distributed components (`required`) in the SBOM's order |
+| Voice Lab's Python environment | "Credits and licenses: Voice Lab's Python environment" | The components not distributed but installed on the user's PC when Voice Lab's training environment is set up (`optional`), in the SBOM's order. The SBOM puts the main ones first, such as Python, RVC, its pretrained models, VoxCPM, its model, PyTorch, and uv, followed by the other packages by name (development workflow 18.1.2). Not shown when the SBOM has no `optional` components |
+
 | Row | Component | Content |
 |---|---|---|
-| Introduction | Description (Text 2) | "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with "Show full text"." |
-| A row per component | Looks like a Setting Row | The name on the left, and below it "version · supplier · license" (only what the SBOM gives; Caption, Text 3). The application itself comes first, then the distributed components in the SBOM's order, with the ones built into another indented by spacing L (24px) under it. Development-only components (`excluded`) are left out |
+| Introduction | Description (Text 2) | The app: "Virtual Vessel Studio uses the following software and assets. Where the full license text is included, open it with "Show full text"." Voice Lab's Python environment: "When the training environment for making voices in Voice Lab is set up, the following software and models are installed on this PC. They are not part of the app, so each one's full license text is published by its provider." |
+| A row per component | Looks like a Setting Row | The name on the left, and below it "version · supplier · license" (only what the SBOM gives; Caption, Text 3). The ones built into another are indented by spacing L (24px) under it. Development-only components (`excluded`) are in neither Card |
 | Full text | Button (Secondary) "Show full text" / "Hide full text" | Only on components whose SBOM entry names license files. Opens the full text below the row. With several files, each starts with its file name (monospace) |
 | Full text box | A scrolling box (up to 320px high, Surface 3 background, Radius S) | The full text (Caption, Text 2). It scrolls on its own so that a long notices file does not stretch the screen |
 
 - Names, versions, license names, and full texts are shown as written in the files, as text (never parsed as Rich Text), and the same in every language.
+- A Markdown file (`.md`) is shown without its marks, as headings, paragraphs, items, and table rows, with links as their text and address (the user's review, 2026-11-15; `MarkdownText`). Other files are shown line by line.
 - The SBOM is read when the screen is built; a full text when it is first opened.
-- When the SBOM cannot be read, the Card says "The credits could not be read. Reinstalling the app may fix this." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
+- When the SBOM cannot be read, only the app Card is shown, and it says "The credits could not be read. Try restarting the app." instead of the rows. A missing file shows "The full license text is missing." in its box. The developer log records the file's path and the reason.
 - Where the files are read: in a built application, the executable's folder (`licenses/` and so on); in the Editor, the repository files that `tools/release/license-files.json` names as their sources.
 - Paths written in the SBOM are read only inside that folder (paths with `..`, absolute paths, and `\` are not read). The SBOM ships with the application, so no trust boundary is crossed, but even an edited SBOM cannot make the screen read other files.
 
@@ -169,7 +179,7 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 
 | Row | Component | Content |
 |---|---|---|
-| Introduction | Description (Text 2) | "With tracking running, watch the avatar while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
+| Introduction | Description (Text 2) | "With tracking running, watch the avatar's movement while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
 | Video | Image (384×216, 16:9) | The middle of the stream, enlarged so the expression can be seen. "No video" when there is none |
 | Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the stream is shown (0% the bottom, 100% the top). 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
 | Zoom | Slider (100 to 400%, steps of 10%), under the picture height | How much the stream is enlarged. 100% shows the whole stream; 220% at first. It zooms about the stream's horizontal middle and never shows past the stream's edges. The face's size depends on the avatar, so the user sets it (user's request, 2026-10-21). Not saved |
@@ -235,12 +245,13 @@ Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a 
 | Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
 | Volume | Slider, -60 to +12 dB |
 | Hear | Toggle; not on the monitor's row |
+| Noise removal | Toggle, on the microphone's row only. On by default, and it works without voice conversion too (the user's decision, 2026-11-11; audio detailed design 8.6). Saved in the project's Audio Profile |
 | Mute | Toggle |
 | Level | Level Meter, -60 to 0 dB |
 
-Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Under the table, the notes and the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
+Under a row, only when there is a problem, what happened and what to do; when microphone access is denied, "Open microphone privacy settings". Hear and Noise removal are explained in Help Hints after their column headings (components.md 3.28), not in lines under the table (the user's request, 2026-11-11). That the game audio's device is chosen on the Video page is the tooltip of its disabled device choice. Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms, 300 ms by default; audio detailed design 8.5).
 
-- When the Card is narrower than 760 px, the column headings hide, rows wrap, and each control carries its name.
+- When the Card is narrower than 870 px, the column headings hide, rows wrap, and each control carries its name.
 - Devices are listed again every 5 seconds while the Card is shown.
 - The microphone starts on Windows' default input device on first use; the game audio starts on "None" (choose the capture board's audio; choosing its video device does this, section 3).
 
@@ -253,7 +264,7 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
-| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選ぶと、同じ機器の音声を自動で選びます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
+| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
 | `setup.audio.gain` | 音量 | Volume |
@@ -266,13 +277,14 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
-| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有をやめてください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
+| `setup.audio.problem.in-use` | ほかのアプリがこのデバイスを専有しています。そのアプリを閉じるか、そのアプリの設定で専有を解除してください。 | Another application is using this device exclusively. Close it, or turn off exclusive use in its settings. |
 | `setup.audio.problem.access-denied` | Windowsの設定で、マイクへのアクセスが許可されていません。「マイクのプライバシー設定を開く」から、デスクトップアプリのアクセスを許可してください。 | Windows does not allow access to the microphone. Open the microphone privacy settings and allow desktop apps to access it. |
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
-| `setup.audio.monitored.description` | 「聞く」をオンにすると、「モニター」の出力先から聞こえます。配信と録画には関係しません。 | Turn on Hear to play a source on the monitor output. This does not change the stream or recordings. |
-| `setup.audio.monitor.headphones` | ヘッドホンをおすすめします。スピーカーだと、マイクに音が入ることがあります。 | Headphones are recommended: speakers can leak into the microphone. |
+| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンの使用を推奨します。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
+| `setup.audio.denoise` | ノイズ除去 | Noise removal |
+| `setup.audio.denoise.description` | 話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
 | `setup.audio.monitor.device` | 出力先 | Output |
@@ -294,16 +306,16 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.streaming.url` | サーバーのURL | Server URL |
 | `setup.streaming.url.description` | YouTubeは既定のままで使えます。rtmp:// か rtmps:// で始まるURLです。 | YouTube works with the default. The URL starts with rtmp:// or rtmps://. |
 | `setup.streaming.url.placeholder` | rtmps://example.com/live | rtmps://example.com/live |
-| `setup.streaming.url.invalid` | rtmp:// か rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
-| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。使えるなら rtmps:// にしてください。 | rtmp:// is not encrypted, and neither is the stream key sent over it. Use rtmps:// if you can. |
+| `setup.streaming.url.invalid` | rtmp:// または rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。rtmps:// を使用することを推奨します。 | rtmp:// is not encrypted, and neither is the stream key sent over it. rtmps:// is recommended. |
 | `setup.streaming.key` | ストリームキー | Stream key |
-| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。プロジェクトのファイルには入らず、他のPCでは登録し直します。 | Kept in Windows Credential Manager. It is not in project files, and is registered again on another PC. |
+| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。 | Saved in Windows Credential Manager. |
 | `setup.streaming.key.registered` | 登録済み | Registered |
 | `setup.streaming.key.not-registered` | 未登録 | Not registered |
 | `setup.streaming.key.register` | 登録… | Register… |
 | `setup.streaming.key.remove` | 削除 | Remove |
 | `setup.streaming.key.dialog.title` | ストリームキーの登録 | Register the stream key |
-| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを貼り付けてください。登録した後は表示されません。 | Paste the stream key from YouTube Studio. It is not shown again once registered. |
+| `setup.streaming.key.dialog.body` | YouTube Studioのストリームキーを入力してください。 | Enter the stream key from YouTube Studio. |
 | `setup.streaming.key.dialog.field` | ストリームキー | Stream key |
 | `setup.streaming.key.dialog.confirm` | 登録 | Register |
 | `setup.streaming.key.failed` | 登録できませんでした。もう一度試してください。 | It could not be registered. Please try again. |
@@ -311,13 +323,87 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.streaming.key.remove.body` | 配信するには、もう一度登録が必要です。 | You will need to register it again to stream. |
 | `setup.streaming.key.remove.confirm` | 削除 | Remove |
 | `setup.streaming.codec` | 形式 | Format |
-| `setup.streaming.codec.description` | AV1がおすすめです。同じビットレートできれいに映ります。うまく配信できないときは、H.264を選んでください。 | AV1 is recommended: it looks better at the same bitrate. Choose H.264 if the stream does not work. |
-| `setup.streaming.codec.no-av1` | このPCのGPUか配信先がAV1に対応していないため、H.264で配信します。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
+| `setup.streaming.codec.description` | AV1を推奨します。同じビットレートできれいに映ります。配信が正常に行えない場合は、H.264を選択してください。 | AV1 is recommended: it looks better at the same bitrate. If the stream does not work properly, choose H.264. |
+| `setup.streaming.codec.no-av1` | このPCのGPU、または配信先がAV1に対応していないため、H.264で配信を行います。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
 | `setup.streaming.codec.av1` | AV1 | AV1 |
 | `setup.streaming.codec.h264` | H.264 | H.264 |
 | `setup.streaming.bitrate` | 映像のビットレート | Video bitrate |
-| `setup.streaming.bitrate.description` | 1080p 30 fpsなら6 Mbpsがおすすめです。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
+| `setup.streaming.bitrate.description` | 1080p 30 fpsならば、6 Mbpsを推奨します。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
 | `setup.streaming.test` | 接続テスト | Connection test |
-| `setup.streaming.test.description` | サーバーに接続できるかを確かめます。配信は始まりません。 | Checks that the server can be reached. No stream starts. |
+| `setup.streaming.test.description` | サーバーに接続可能であるかを確かめます。配信は開始しません。 | Checks that the server can be reached. The stream does not start. |
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
+
+## 13. The Voice Conversion Card
+
+Shows `IVoiceConversion` (Voice) (`VoiceCard`). It goes on the Audio page, under the Audio Card: it is processing on the microphone, so it sits on the microphone's page. Mock-up: https://claude.ai/artifact/4XQ54BFpSmHzcqtrfq6G4R (reviewed by the user, 2026-11-10)
+
+It should be usable with simple settings alone (the user's request, 2026-11-03). With the window fixed at 1 s, noise removal was the only detailed setting left, and it moved to the Audio Card (chapter 11), so it is one Card (13.2).
+
+### 13.1 The Voice Conversion Card
+
+A status chip at the right end of the title (Running ✓, Loading ○, Off ○, Unavailable ×, Stopped ×).
+
+| Row | Control | What it does |
+|---|---|---|
+| Convert my voice | Toggle | Off, your own voice goes to the stream and recordings as it is. On, the microphone is kept out until the voice is ready and whenever it cannot convert (Voice detailed design 12); it shows on meanwhile and can be pressed even without a voice or a GPU, so turning it off always brings your own voice back. Saved and restored at start: for someone streaming with a changed voice, starting off and sending their own voice is the worse failure (user's decision, 2026-11-10) |
+| Voice | Select | The usable voices made in Voice Lab. The prototype's voice is for developers and not listed (only on the Diagnostics screen). Choosing saves it in the Voice Profile (Voice detailed design 6.2) |
+| Match the pitch automatically | Toggle, Measure again | Under the description, "Your voice 200 Hz → this voice 285 Hz (+6)"; "not measured" before measuring |
+| Pitch adjustment | Slider | -24 to +24 semitones, added to the automatic shift when that is on; the description changes with automatic on or off. Under it, "Converted pitch 317 Hz (total +8)" (user's check, 2026-11-10) |
+| Finish | Four sliders, Reset the finish | The chosen voice's body, clarity, brightness, and air (-6 to +6 dB). A change is kept with the voice and heard on the stream at once. Disabled without a voice (Voice detailed design 8.6; the user's decision, 2026-11-15) |
+
+A Help Hint after the name "Convert my voice" holds "Voice conversion uses the GPU." (the user's request, 2026-11-11: keep the screen's text short).
+
+- Without a usable GPU: the Card starts with "Voice conversion cannot be used on this PC" and why, and every row is disabled (13.3).
+- Without a voice: the Card starts with "No voice" and "Open Voice Lab", and the other rows are disabled.
+- Stopped, or the voice cannot load: the Card starts with what stopped, that the microphone is kept out of the stream and recordings, that turning it off and on tries again, and that left off your own voice goes out (2026-11-15). It comes before "No voice", as it says what the stream gets. With `onFailure` set to `PassThrough`, it says your own voice goes out.
+- What you hear (13.4), If conversion stops, and Read the notes on use come later: they need a change to the audio stage, the failure behavior, and the terms (Voice Lab detailed design 8.2).
+
+### 13.2 Fixed Values
+
+The window (how much HuBERT and the generator see at once) is fixed at 1 s and is not a choice (user decision, 2026-11-03). With the user's speech before the window, the user heard no difference with 2.5 s or 5.4 s, and 1 s is the lightest on the GPU (Voice detailed design chapter 17). There is no simple choice by what comes first (Lighter GPU, Smoothness) either: no combination has a reason to be chosen.
+
+The overlap at joins is 50 ms only, not a choice (user decision, 2026-11-03). A choice would need two generators and two templates for every voice.
+
+### 13.3 PCs Without Enough GPU
+
+A PC without enough GPU should not use this feature (the user's remark, 2026-11-03). Which GPUs are enough is not known, so voice conversion cannot be turned on only when there is no usable GPU (user decision, 2026-11-03): when the GPU cannot compute (no compute shaders, or software rendering).
+
+There is no Expected delay row. With the window and the overlap fixed, the delay is always about 0.38 s, so it does not help choose (the user's judgment, 2026-11-03).
+
+### 13.4 What You Hear
+
+The converted voice is heard about 0.38 s late, which makes rhythm hard when singing (Voice detailed design chapter 17). With My own, the monitor gets the microphone as it is, and the stream and recordings get the converted voice. It needs a change to Audio's processing stage, so it comes in a separate step (audio detailed design 8.3).
+
+### 13.5 Strings
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.voice.title` | 声の変換 | Voice conversion |
+| `setup.voice.state.running` | 動作中 | Running |
+| `setup.voice.state.loading` | 準備中 | Loading |
+| `setup.voice.state.off` | オフ | Off |
+| `setup.voice.state.unavailable` | 使用不可 | Unavailable |
+| `setup.voice.state.stopped` | 停止 | Stopped |
+| `setup.voice.no-voice` | 声がありません | No voice |
+| `setup.voice.no-voice.body` | Voice Labで声を作成すると、変換先の声を選択できるようになります。 | Make a voice in Voice Lab to choose the voice to convert to. |
+| `setup.voice.open-lab` | Voice Labを開く | Open Voice Lab |
+| `setup.voice.no-gpu` | このPCでは声の変換を使用できません | Voice conversion cannot be used on this PC |
+| `setup.voice.no-gpu.body` | 声の変換にはGPUが必要です。使用できるGPUが見つかりませんでした。 | It needs a GPU, and no usable GPU was found. |
+| `setup.voice.failed` | 声の変換が停止しました | Voice conversion stopped |
+| `setup.voice.failed.body` | 元の声が流れないよう、配信と録画にマイクの音を入れていません。やり直すには、「声を変換する」をオフにしてからオンにしてください。オフのままにすると、元の声が入ります。解決しない場合は、診断画面のログを確認してください。 | Your microphone is kept out of the stream and recordings, so your own voice does not go out. To try again, turn Convert my voice off and on. Left off, your own voice goes out. If it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.failed.body-pass-through` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
+| `setup.voice.enabled` | 声を変換する | Convert my voice |
+| `setup.voice.enabled.body` | オフの場合、元の声が配信と録画に入ります。オンにしてから声の準備ができるまでと、変換できないときは、マイクの音を入れません。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings. On, the microphone is kept out until the voice is ready, and whenever it cannot convert. It starts as it was last time. |
+| `setup.voice.voice` | 声 | Voice |
+| `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
+| `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |
+| `setup.voice.auto-pitch.body` | 自分の声の高さを測定し、選択した声の高さに合わせます。 | Measures your voice and moves it to the chosen voice's pitch. |
+| `setup.voice.pitch-match` | 自分の声 {user} → この声 {voice}（{shift}） | Your voice {user} → this voice {voice} ({shift}) |
+| `setup.voice.unmeasured` | 測定前 | not measured |
+| `setup.voice.remeasure` | 測り直す | Measure again |
+| `setup.voice.adjust` | 高さの調整 | Pitch adjustment |
+| `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
+| `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
+| `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |

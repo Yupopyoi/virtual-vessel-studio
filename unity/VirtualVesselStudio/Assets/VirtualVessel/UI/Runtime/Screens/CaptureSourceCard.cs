@@ -105,7 +105,7 @@ namespace VirtualVessel.UI.Screens
                     _source.Stop();
                 }
             });
-            card.Add(Row(CaptureStrings.Capture, Capture));
+            card.Add(Ui.ControlRow(CaptureStrings.Capture, Capture));
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt =>
@@ -113,7 +113,7 @@ namespace VirtualVessel.UI.Screens
                 _audio?.VideoChanged(NameOf(evt.previousValue), NameOf(evt.newValue));
                 _source.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue);
             });
-            card.Add(Row(CaptureStrings.Device, Devices));
+            card.Add(Ui.ControlRow(CaptureStrings.Device, Devices));
             if (audio != null)
             {
                 card.Add(audio);
@@ -121,7 +121,7 @@ namespace VirtualVessel.UI.Screens
 
             ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
             refresh.clicked += RefreshDevices;
-            card.Add(Row(CaptureStrings.Refresh, refresh));
+            card.Add(Ui.ControlRow(CaptureStrings.Refresh, refresh));
 
             FlipHorizontal = FlipToggle(card, CaptureStrings.FlipHorizontal, CaptureFlip.Horizontal);
             FlipVertical = FlipToggle(card, CaptureStrings.FlipVertical, CaptureFlip.Vertical);
@@ -129,7 +129,7 @@ namespace VirtualVessel.UI.Screens
             {
                 Pointer = new SwitchToggle();
                 Pointer.RegisterValueChangedCallback(evt => pointer.SetDrawPointer(evt.newValue));
-                card.Add(Row(CaptureStrings.Pointer, Pointer));
+                card.Add(Ui.ControlRow(CaptureStrings.Pointer, Pointer));
             }
 
             Info = new Label();
@@ -252,15 +252,8 @@ namespace VirtualVessel.UI.Screens
         {
             var toggle = new SwitchToggle();
             toggle.RegisterValueChangedCallback(evt => _source.SetFlip(evt.newValue ? _source.Flip.Value | part : _source.Flip.Value & ~part));
-            card.Add(Row(nameKey, toggle));
+            card.Add(Ui.ControlRow(nameKey, toggle));
             return toggle;
-        }
-
-        private static SettingRow Row(string nameKey, VisualElement control)
-        {
-            SettingRow row = Ui.SettingRow(nameKey);
-            row.Add(control);
-            return row;
         }
 
         private sealed class Subscriptions : IDisposable

@@ -23,7 +23,20 @@
 
     /* Unity's default caret is dark and cannot be seen on these fields (the user's report, 2026-10-31). */
     --unity-cursor-color: var(--vv-color-text);
-    --unity-selection-color: var(--vv-color-accent-line);
+
+    /* See-through, since Unity draws the selection over the text: in opaque Accent Line, a name selected whole as the
+       rename field opened could not be read (the user's report, 2026-11-15). */
+    --unity-selection-color: var(--vv-color-primary-wash);
+}
+
+/* A multi-line field: the text wraps, and four lines show before it grows. */
+.vv-root .vv-text-input--multiline .vv-field__input > .unity-base-text-field__input {
+    min-height: 96px;
+    align-items: flex-start;
+}
+
+.vv-root .vv-text-input--multiline .vv-field__input > .unity-base-text-field__input > .unity-text-element {
+    white-space: normal;
 }
 
 .vv-root .vv-field__input:hover > .unity-base-text-field__input {

@@ -165,6 +165,20 @@ namespace VirtualVessel.UI.Controls
         }
 
         [UxmlAttribute("max-length")]
+        /// <summary>
+        /// Wraps long text over several lines, for text such as a prompt (components.md 3.6). Enter still adds no line
+        /// break: it commits Japanese input, and what is sent has no line breaks anyway.
+        /// </summary>
+        public bool Multiline
+        {
+            get => _field.multiline;
+            set
+            {
+                _field.multiline = value;
+                EnableInClassList(UssClass + "--multiline", value);
+            }
+        }
+
         public int MaxLength
         {
             get => _field.maxLength;

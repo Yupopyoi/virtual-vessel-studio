@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualVessel.Core.Lifecycle;
@@ -16,7 +17,7 @@ namespace VirtualVessel.Audio
     /// project's audio profile in the engine, follows their states and levels every tenth of a second, and
     /// saves the user's changes. Optional: without it there is no sound, and everything else runs.
     /// </summary>
-    public sealed class AudioService : IApplicationService, IAudioService
+    public sealed class AudioService : IApplicationService, IAudioService, IAudioPreview
     {
         public const string ServiceName = "Audio";
 
@@ -72,11 +73,69 @@ namespace VirtualVessel.Audio
 
         public TimeSpan StreamLatency => _engine?.StreamLatency ?? TimeSpan.Zero;
 
+        public float? Progress
+        {
+            get
+            {
+                if (!(_engine is IAudioPreviewEngine engine))
+                {
+                    return null;
+                }
+
+                (long played, long length) = engine.GetPreviewPosition();
+                return PreviewProgress(played, length);
+            }
+        }
+
+        public async Task<bool> PlayAsync(string path)
+        {
+            if (!(_engine is IAudioPreviewEngine engine))
+            {
+                return false;
+            }
+
+            float[] samples;
+            int rate = 0;
+            try
+            {
+                // Continues off the main thread: the engine's preview calls take its own lock and are safe from any thread.
+                samples = await Task.Run(() => AudioFile.ReadMono(path, out rate)).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is InvalidDataException || exception is AudioEngineException || exception is IOException || exception is UnauthorizedAccessException)
+            {
+                _log?.Warning($"This preview cannot be played: {exception.Message}");
+                return false;
+            }
+
+            // The engine may have stopped while the file was read.
+            if (_engine is IAudioPreviewEngine current && current == engine)
+            {
+                engine.PlayPreview(samples, rate);
+                return true;
+            }
+
+            return false;
+        }
+
+        public void Stop()
+        {
+            (_engine as IAudioPreviewEngine)?.StopPreview();
+        }
+
+        /// <summary>How far a preview is, from the engine's frames; null when nothing plays. Pure.</summary>
+        public static float? PreviewProgress(long played, long length)
+        {
+            return length > 0 ? Math.Min(1f, Math.Max(0f, played / (float)length)) : (float?)null;
+        }
+
         public AudioStreamTap RecordingTap => _engine?.RecordingTap ?? default;
 
         public AudioStreamTap StreamingTap => _engine?.StreamingTap ?? default;
 
         public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
+
+        /// <summary>The stage on the microphone; ask after this service has started.</summary>
+        public IAudioStage MicrophoneStage => new MicrophoneStageAccess(this);
 
         public static ConfigFileStore<AudioSettings> CreateStore(string directory, ISystemClock clock, string fileName = AudioSettings.FileName)
         {
@@ -254,6 +313,16 @@ namespace VirtualVessel.Audio
             _engine.SetGain(engineSource, options.GainDb, options.Muted);
             _engine.SetStreamSend(engineSource, options.StreamSendDb);
             _engine.SetMonitorSend(engineSource, options.MonitorSendDb);
+            SetDenoise(engineSource, options.Denoise);
+        }
+
+        private void SetDenoise(int engineSource, bool denoise)
+        {
+            if (_engine != null && !_engine.SetDenoise(engineSource, denoise))
+            {
+                // The source plays as it is; nothing else depends on it.
+                _log?.Warning("Noise removal could not start; the source plays without it.");
+            }
         }
 
         private void Changed(Source source, AudioSourceOptions previous, AudioSourceOptions options)
@@ -267,6 +336,12 @@ namespace VirtualVessel.Audio
             _engine?.SetGain(source.Engine, options.GainDb, options.Muted);
             _engine?.SetStreamSend(source.Engine, options.StreamSendDb);
             _engine?.SetMonitorSend(source.Engine, options.MonitorSendDb);
+            if (previous.Denoise != options.Denoise)
+            {
+                SetDenoise(source.Engine, options.Denoise);
+                _log?.Information($"Audio source {source.Role}: noise removal {(options.Denoise ? "on" : "off")}.");
+            }
+
             _settings = WithSource(_settings, source.Id, options);
             _saves?.Changed(_settings.Clone());
         }
@@ -298,6 +373,54 @@ namespace VirtualVessel.Audio
             }
 
             return next;
+        }
+
+        private sealed class MicrophoneStageAccess : IAudioStage
+        {
+            private readonly AudioService _service;
+
+            public MicrophoneStageAccess(AudioService service)
+            {
+                _service = service;
+            }
+
+            public bool IsAvailable => Engine != null && Microphone != null;
+
+            public bool IsCapturing => IsAvailable && Microphone.State.Value == AudioSourceState.Running;
+
+            private IAudioStageEngine Engine => _service._engine as IAudioStageEngine;
+
+            private Source Microphone => _service._sources.Find(source => source.Role == AudioSourceRole.Microphone);
+
+            public void SetEnabled(bool enabled)
+            {
+                if (IsAvailable)
+                {
+                    Engine.SetStage(Microphone.Engine, enabled);
+                }
+            }
+
+            public bool Denoises => Microphone?.Options.Value.Denoise ?? false;
+
+            public void Denoise(float[] samples, int count)
+            {
+                Engine?.Denoise(samples, count);
+            }
+
+            public int Read(float[] frames, int capacity)
+            {
+                return IsAvailable ? Engine.ReadStage(Microphone.Engine, frames, capacity) : 0;
+            }
+
+            public void Write(float[] frames, int count)
+            {
+                if (IsAvailable)
+                {
+                    Engine.WriteStage(Microphone.Engine, frames, count);
+                }
+            }
+
+            public AudioStageDelay Delay => IsAvailable ? Engine.GetStageDelay(Microphone.Engine) : default;
         }
 
         private sealed class MonitorOutput : IAudioMonitor

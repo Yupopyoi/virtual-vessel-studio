@@ -111,6 +111,44 @@ typedef struct vv_audio_stream_tap
 - マネージドのコードは`vv_audio_get_stream_tap`でこれを受け取り、素朴な値としてエンコーダーへ渡す。Videoは音声のDLLにリンクしない。録画と配信は、バス上の位置を別々に持つ読み出し口をそれぞれ使う（`VV_AUDIO_READER_*`、API version 3）。
 - 読むのは一度に1つ（録画。配信は、エンコードした同じ音声を共有する）。
 
+### 5.4 音声ファイルの読み込み
+
+```c
+// 音声ファイル全体をMedia Foundationでデコードし、ファイルのままのレートのモノラルfloatにする。
+int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+void vv_audio_clip_free(vv_audio_clip* clip);
+```
+
+- M4A（AAC）、MP3、WAVなど、Windowsがデコードできる形式を読む（API version 8）。デコーダーはWindowsのものを使い、プラグインはコーデックを持たない（方式設計：Windows標準の機能を基本とする）。
+- エンジンは要らず、どのスレッドからでも呼べる。マネージドでは静的な`AudioFile.ReadMono`を、メインスレッドの外から呼ぶ。読めないときは`InvalidDataException`、プラグインがないか古いときは`AudioEngineException`。
+- 長さは`VV_AUDIO_MAX_FILE_SECONDS`（600秒）まで。誤って長いファイルを選んでも、メモリーを使い切らないためである。
+- Media Foundationは遅延読み込みにする。Media FoundationのないWindows（NエディションでMedia Feature Packがないとき）でもエンジンは動き、ファイルの読み込みだけが`VV_AUDIO_UNREADABLE`になる。
+- 今の使い道は、診断画面の声の変換（試作）の「音声ファイルを流す」（スマートフォンで録ったM4Aなど）。WAVはそこではVoiceの`WavFile`が読み、プラグインを通さない。後でBGMとSEのファイルの再生（4章の`AudioSourceInput`）にも使う。
+
+### 5.5 ユーザーだけに聞かせる再生
+
+```c
+// モノラルのサンプルをモニター用のバスだけに流す。配信には流さない。流すと前のものと入れ替わり、終わりで止まる。
+int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate);
+int32_t vv_audio_preview_stop(vv_audio_engine* engine);
+int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
+```
+
+```csharp
+public interface IAudioPreview
+{
+    Task<bool> PlayAsync(string path);   // ファイルはメインスレッドの外で読む。読めないか流せないときはfalse
+    void Stop();
+    float? Progress { get; }             // 0から1。流していないときはnull
+}
+```
+
+- Voice Labの候補や声色の試聴のように、ユーザーだけが聞く音に使う（方式設計14.14、14.15）。配信中でも、配信と録画には入らない。
+- モニター用のバスのリミッターの前で混ぜる。モニターの音量とミュートが効く（API version 9）。
+- 一度に1つ。別のものを流すと入れ替わる。サンプルはエンジンのレートに変換し、エンジンのロックの外でコピーする。ロックを取るのは入れ替えだけなので、オーディオスレッドはコピーを待たない。
+- `IAudioPreview`は`AudioService`が実装し、ファイルを`AudioFile.ReadMono`（5.4）で読む。プラグインがないときはfalseを返す。
+
 ## 6. Data Model
 
 - 内部の形式：48kHz、32bit float、ステレオ。モノラルの音の元は両方のチャンネルに写す。
@@ -141,6 +179,9 @@ typedef struct vv_audio_stream_tap
 - マネージドの処理の段は、遅れの量とブロックの大きさを申告する。エンジンは、音の元の入力のリングバッファーをそれに渡し、出力を別のリングバッファーから受け取る。どちらも48kHz floatである。
 - 処理の段の仕事（RVCではGPUでのInference Engine）は、Unityの中で自分の予定で動く。エンジンはブロックを出し入れするだけなので、遅い処理の段が混ぜ合わせを止めることはない。出力が遅れたときは、その音の元を無音にして数える。
 - 処理の段を外すと、音の元はそのまま通しに戻る。機器は開き直さない（方式設計9.3、9.8）。
+- `vv_audio_get_stage_delay`（API 7）は、処理の段の音がマイクからモニターまでの間で待つ時間を返す。リングバッファー（処理の段の入力と出力、モニター）と出力の機器のバッファーは、平均の量を約0.5秒の移動平均で持つ。リトルの法則により、平均の量がそこでの平均の待ち時間になる。機器自身の遅れはWindowsの報告値（`GetStreamLatency`）である。USBやBluetooth、変換器の遅れは含まない。
+
+試作の結果は[決定記録](../decisions/voice-conversion.md)にある。`vv_audio_set_stage`が音の元の取り込みを処理の段へ回し、`vv_audio_stage_read`と`vv_audio_stage_write`で出し入れする。
 
 ### 8.4 音の元どうしの時刻合わせ
 
@@ -156,10 +197,19 @@ typedef struct vv_audio_stream_tap
 - 録画中に変えると、バスの時刻が跳ぶ。エンコーダーは、隙間を無音で埋めるか、重なりを書かない（録画詳細設計8.1）。
 - アバターの遅れを測って自動で設定することは、未解決の課題とする（#100）。
 
+### 8.6 ノイズ除去
+
+- マイクの声から、話していない間のキーボードやマウスなどの音を抑える（RNNoise。決定記録2026-11-01）。声の変換を使わずに地声で配信する人にも要るので、声の変換の前の処理（方式設計9.3）として、取り込みの中で動かす（利用者の決定、2026-11-11）。それまではVoiceが変換の前に呼んでいたため、変換がオフのときは効かなかった。
+- 取り込みのスレッドが、機器から受け取ったFrameを10 msごとにまとめてモノラルにし、ノイズを除いてから、混ぜ合わせか処理の段の入力へ渡す（`vv_audio_set_denoise`、API version 10）。機器の1回の量が10 msでなくても、余りは次に回す。モノラルにするのは、声のための処理で、RNNoiseがモノラルを扱うためである。
+- 遅れは約20〜30 ms（RNNoiseの20 msと、10 msにまとめる間の待ち）。処理の段の遅れ（`vv_audio_get_stage_delay`）には含めない。配信の音声の遅延（8.5）の300 msに比べて小さいためである。
+- 既定はマイクでオン、ほかの音の元にはない（利用者の決定、2026-11-11）。ゲームの音声は声ではなく、RNNoiseは音楽や効果音を雑音として削るためである。
+- RNNoiseの状態は、初めてオンにしたときに、エンジンのLockの中で作る。取り込みのスレッドはAllocationをしない（9章）。オフにすると、10 msにまとめるのを待っていたFrameをそのまま渡す。
+- 声の変換が音声ファイルをマイクの代わりに流すとき（診断画面）は、マイクの設定がオンなら、Voiceがファイルに同じノイズ除去をかける（`IAudioStage.Denoises`、`Denoise`）。マイクと同じ聞こえ方にするためである。
+
 ## 9. Thread
 
 - 機器の音の元ごとに1つの取り込みのスレッド、1つのモニターの出力のスレッドと、1つの混ぜ合わせのスレッド。ネイティブで、標準より高い優先度（MMCSSの「Audio」）。Allocation、待つ間のLock、ログの記録はせず、数を数えるだけとする。
-- マネージドの処理の段はUnityの中で動き、これらのスレッドでは動かさない（8.3）。
+- マネージドの処理の段はUnityの中で動き、これらのスレッドでは動かさない（8.3）。ノイズ除去（8.6）はネイティブで、取り込みのスレッドで動く。1つの10 msのFrameに約0.3 ms（決定記録2026-11-01の、100 msのブロックで中央値3.2 ms）。
 - マネージドは、メインスレッドから100msごとにレベルと状態を読む。
 
 ## 10. 設定
@@ -170,7 +220,7 @@ typedef struct vv_audio_stream_tap
 {
   "schemaVersion": 1,
   "sources": [
-    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0, "monitor": -120 } },
+    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "denoise": true, "sends": { "stream": 0, "monitor": -120 } },
     { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0, "monitor": 0 } }
   ],
   "monitor": { "deviceId": "...", "gainDb": 0, "muted": false },
@@ -181,6 +231,7 @@ typedef struct vv_audio_stream_tap
 - 音の元は一覧なので、BGM、SE、2本目のマイクも形式を変えずに足せる。知らない用途の音の元は残し、鳴らさない。ファイルの最上位の知らない項目は残す（CLAUDE.md 25章）。音の元の中の知らない項目は、今は残らない。
 - JSONは-infを書けないため、送りの-120dB以下を「なし」とする。
 - `streamDelayMs`（8.5）は、Schema version 1のまま手順なしで加えた。ない古いファイルは300として読む。
+- 音の元の`denoise`（8.6）も、Schema version 1のまま手順なしで加えた。ない古いファイルは、マイクをオン、ほかをオフとして読む。
 - `monitor`と送りの`monitor`も、Schema version 1のまま手順なしで加えた。`monitor`がないファイルはWindowsの既定の出力の機器で始め、送りがない音の元はゲームの音声だけを聞く。`deviceId`がnullなら、利用者が「なし」を選んだので既定に戻さない。
 - マイクは、初めて使うときにWindowsの既定の入力の機器とする。ゲームの音声には既定がない（キャプチャーボードを選ぶ必要がある）。
 - `ProfileKind`に`Audio`を加える。
@@ -208,8 +259,8 @@ typedef struct vv_audio_stream_tap
 
 | 種類 | 対象 |
 |---|---|
-| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ、モニターのバス（別の送りと音量、遅らせないこと） |
-| EditMode | 偽のエンジンでの`AudioService`：Profileからの音の元、足し引き、機器の消失と復帰、設定と移行 |
+| ネイティブ（ctest） | 合成の信号での混ぜ合わせ：音量、ミュート、送りの量、ピークの抑制、ずれの補正、リングバッファー、読み出し口の時刻、遅れのある処理の段とほかの音の元の時刻合わせ、モニターのバス（別の送りと音量、遅らせないこと）。音声ファイル：書き出したWAVのレートとモノラルへの混ぜ合わせ、ないファイル |
+| EditMode | 偽のエンジンでの`AudioService`：Profileからの音の元、足し引き、機器の消失と復帰、設定と移行。`AudioFile`（プラグインがなければ飛ばす） |
 | 実機（手動） | 実際のマイクとキャプチャーボード：レベル、抜き差し、録画の同期（録画詳細設計14章） |
 
 ## 15. 性能
@@ -221,12 +272,12 @@ typedef struct vv_audio_stream_tap
 ## 16. Folder / Namespace
 
 ```text
-native/audio/include/vv_audio.h        公開のC API（version 4：読み手ごとのタップ）
+native/audio/include/vv_audio.h        公開のC API（version 8：音声ファイル）
 native/audio/src/                      mixer（混ぜ合わせ、バス、読み出し口。スレッドも機器も持たない）、frame_ring、fill_tracker（2つの時計の間の溜まり）、
                                        dsp（音量、リミッター）、device_loop（機器のスレッド、WASAPIの共有モード）、device_source（取り込み）、
-                                       device_output（モニターの再生）、exports（エンジンと混ぜ合わせのスレッド）
+                                       device_output（モニターの再生）、audio_file（Media Foundationでのファイルの読み込み）、exports（エンジンと混ぜ合わせのスレッド）
 native/audio/tests/                    合成の信号での混ぜ合わせ、ずれ、時刻。このPCの機器（CIでは飛ばす）
-Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）
+Audio/Runtime/                         IAudioService、AudioService、AudioSettings、NativeAudioEngine（IAudioEngine）、AudioFile、IAudioPreview
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip（ライブ画面）
 ```
@@ -252,10 +303,11 @@ UI/Runtime/Screens/                    AudioCard（設定画面）、AudioStrip�
 | デバイス | Select（先頭に「なし」）。選んだ機器が抜かれているときは「接続されていないデバイス」として残す。ゲームの音声は無効にして機器の名前だけを見せる（下記） |
 | 音量 | Slider、-60〜+12dB、1dB刻み |
 | 聞く | Toggle。モニターのバスへの送りを切り替える。量の調整は、必要になったときに加える |
+| ノイズ除去 | Toggle（8.6）。マイクの行だけ。ほかの行は空ける |
 | ミュート | Toggle |
 | レベル | Level Meter（components 3.5）。-60dB（空）〜0dB（満） |
 
-行の下に、取り込みと同じく、何が起きたかと対処を出す。Windowsがマイクへのアクセスを許可していないときは、「マイクのプライバシー設定を開く」Button（`ms-settings:privacy-microphone`）。表の下に、配信・録画の音声の遅延（Slider、0〜1000ms、10ms刻み。8.5）を置く。
+行の下に、取り込みと同じく、何が起きたかと対処を出す。Windowsがマイクへのアクセスを許可していないときは、「マイクのプライバシー設定を開く」Button（`ms-settings:privacy-microphone`）。「聞く」と「ノイズ除去」の説明は、列の見出しの後のHelp Hint（components 3.28）に置く。表の下に、配信・録画の音声の遅延（Slider、0〜1000ms、10ms刻み。8.5）を置く。
 
 - Cardを表示している間、機器を5秒ごとに数え直し、つないだ機器が選べるようになる。
 - ゲームの音声のデバイスは、ゲーム画面の映像の取り込みのCardで選ぶ（`GameAudioRow`）。そのCardがないときだけ、音声のCardで選ぶ。映像と音声は同じキャプチャーボードから来るので、映像の機器を選ぶ場所で一緒に決められるようにする（利用者の要望、2026-10-31）。映像の機器を選ぶと、その名前を含む入力の機器を選ぶ（空白や記号、大文字小文字は見ない）。Windowsは、キャプチャーボードの音声に「デジタル オーディオ インターフェイス (MiraBox Capture)」のように機器の名前を付けるためである。音声の機器が未選択か、前の映像の機器に対応していたときだけ変え、利用者が別に選んだ機器は残す。CaptureとAudioを直接つながないよう、この対応づけはUIが持つ。

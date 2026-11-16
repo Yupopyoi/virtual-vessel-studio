@@ -262,6 +262,8 @@ The format of `%LOCALAPPDATA%\VirtualVesselStudio\bootstrap.json` from system de
 
 A built application runs one instance at a time (Unity's `forceSingleInstance`). Two instances would fight over the camera, the microphone, and the capture devices, write the same settings and logs, and could publish the same stream key twice.
 
+The app opens as a normal window, maximized, not as a full screen that hides the taskbar (user decision, 2026-11-14): while streaming it is used beside a browser, the chat, and the game. The window can be resized, and restored it is 1280×720. The player settings (`fullscreenMode` set to Windowed, `resizableWindow`) are not enough: Unity saves the last display mode per user and uses it next time, and earlier versions saved full screen. So at startup `ApplicationBootstrap` turns a full screen back into a window and then maximizes it (`ApplicationWindow.OpenMaximized`). Unity shows and sizes the window during the first frames, which undid an earlier maximize and left it at 1280×720 (2026-11-15), so the maximize waits for frames to be drawn, checks that it held, and tries again until it does (for about two seconds). In the Editor it does nothing.
+
 ```mermaid
 sequenceDiagram
     participant Unity
@@ -291,11 +293,13 @@ sequenceDiagram
 
 ### 7.2 Shutdown
 
-1. On Unity's `Application.wantsToQuit`, return `false` the first time and start shutdown.
+1. On Unity's `Application.wantsToQuit`, return `false` the first time and start shutdown. Hide the player window as it starts: frames are still drawn while the shutdown takes the UI, the avatar, and the stage down, so without this the bare default sky shows for a moment before the window closes (2026-11-14). The shutdown timeout bounds the shutdown, so the hidden process does not linger. The Editor's window is not hidden.
 2. Call `ShutdownAsync` on services that started successfully, in reverse startup order.
 3. `Dispose` all services.
 4. Delete the session marker (recording a normal exit).
-5. Set the state to `Stopped` and call `Application.Quit()` again.
+5. Set the state to `Stopped` and call `Application.Quit()` again in the next frame's `Update`. Called in the shutdown's own continuation, the quit was cancelled and the window stayed open on an empty scene (2026-11-14): when every service stops without waiting, the continuation runs inside the `wantsToQuit` that began the shutdown, whose answer `false` cancels the quit, and a continuation off the main thread cannot call `Application.Quit()`.
+
+The Quit item in the UI calls `Application.Quit()` after its confirmation and takes the same path. Streams and recordings are closed here too.
 
 A timeout is set for the whole shutdown; if exceeded, the remaining processing is abandoned and the application exits. Services that timed out are recorded.
 

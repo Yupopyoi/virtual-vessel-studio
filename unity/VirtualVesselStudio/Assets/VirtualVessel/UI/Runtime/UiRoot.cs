@@ -11,6 +11,7 @@ using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.ProjectData.Config;
+using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
@@ -20,6 +21,7 @@ using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
 using VirtualVessel.UI.Theme;
 using VirtualVessel.UI.Tooltips;
+using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI
 {
@@ -120,6 +122,11 @@ namespace VirtualVessel.UI
         private DeveloperModeService _developerMode;
         private float _uiScale = 1f;
         private bool _limited;
+        private ScreenServices _screens;
+        private bool _quitAsked;
+
+        /// <summary>Raised after the user confirms quitting; the bootstrap runs the normal shutdown.</summary>
+        public event Action QuitConfirmed;
 
         public UiAssets Assets => _assets;
 
@@ -203,6 +210,8 @@ namespace VirtualVessel.UI
                 _scope.Add(Content);
                 _developerMode = new DeveloperModeService(settings, context.DeveloperModeReceivers, _log);
                 Shell = new AppShell(CreateScreens(settings, context), context.ApplicationVersion, _log);
+                Shell.QuitRequested += OnQuitRequested;
+                _screens = context.Screens;
                 Content.Add(Shell);
 
                 // Added after the content so that they draw above every screen.
@@ -271,6 +280,35 @@ namespace VirtualVessel.UI
             {
                 Teardown();
                 throw;
+            }
+        }
+
+        private async void OnQuitRequested()
+        {
+            // Stays set after a confirmation: the shutdown is already on its way.
+            if (_quitAsked)
+            {
+                return;
+            }
+
+            _quitAsked = true;
+            bool confirmed = false;
+            try
+            {
+                bool streaming = _screens.Streaming != null && QuitConfirmation.WouldEnd(_screens.Streaming.State.Value);
+                bool recording = _screens.Recording != null && QuitConfirmation.WouldEnd(_screens.Recording.State.Value);
+                ConfirmationRequest request = QuitConfirmation.Request(streaming, recording);
+                confirmed = await Dialogs.ConfirmAsync(request.TitleKey, request.BodyKey, request.ConfirmKey, QuitConfirmation.Style(streaming, recording));
+            }
+            catch (Exception exception)
+            {
+                _log?.Error("The quit confirmation failed.", exception);
+            }
+
+            _quitAsked = confirmed;
+            if (confirmed)
+            {
+                QuitConfirmed?.Invoke();
             }
         }
 
@@ -455,8 +493,8 @@ namespace VirtualVessel.UI
             {
                 new ScreenDefinition("live", IconName.Live, ScreenStrings.Live, ScreenStrings.LiveTip, () => new LiveScreen(context.Screens)),
                 new ScreenDefinition("setup", IconName.Setup, ScreenStrings.Setup, ScreenStrings.SetupTip, () => new SetupScreen(context.Screens, new AppSettingsCard(settings, _localizer.Locales, _assets.Theme), settings.LastSetupPage, settings.SetLastSetupPage)),
-                new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new PlaceholderScreen()),
-                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId)), developerOnly: true),
+                new ScreenDefinition("lab", IconName.Lab, ScreenStrings.Lab, ScreenStrings.LabTip, () => new VoiceLabScreen(context.Screens)),
+                new ScreenDefinition("diagnostics", IconName.Diagnostics, ScreenStrings.Diagnostics, ScreenStrings.DiagnosticsTip, () => new DiagnosticsScreen(metrics, context.Screens.TrackingRecordings, context.Screens.Tracking, context.Screens.Avatars, context.Screens.Captures?.Find(CaptureService.TrackingCameraId), voice: context.Screens.Voice, files: context.Screens.FileDialog), developerOnly: true),
             };
 #if UNITY_EDITOR
             // A tool for building the UI, not part of the application: only in the Unity Editor.

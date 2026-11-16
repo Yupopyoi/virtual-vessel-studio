@@ -14,6 +14,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Voice;
 using Object = UnityEngine.Object;
 
 namespace VirtualVessel.UI.Tests
@@ -175,6 +176,31 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator Explanations_AreBehindHelpHints_NotLinesUnderTheTable()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            List<string> hints = card.Query<HelpHint>().ToList().Select(h => h.TooltipKey).Where(k => k != null).Distinct().ToList();
+
+            Assert.That(hints, Is.EquivalentTo(new[] { AudioStrings.MonitoredDescription, AudioStrings.DenoiseDescription }));
+            Assert.That(card.Query<HelpHint>().ToList().Where(h => h.TooltipKey != null).All(h => h.focusable), Is.True, "Reachable from the keyboard.");
+            Assert.That(card.Query<Label>().ToList().Where(l => l.ClassListContains(AudioCard.NoteClass)), Is.Empty, "No notes under the table.");
+        }
+
+        [UnityTest]
+        public IEnumerator NoiseRemoval_IsOnTheMicrophonesRow_Only()
+        {
+            AudioCard card = OpenCard();
+            yield return null;
+            Assert.That(card.Groups[1].Denoise, Is.Null, "The game is left as it is.");
+            card.Groups[0].Denoise.value = true;
+
+            Assert.That(_audio.Microphone.Options.Value.Denoise, Is.True);
+            card.Groups[0].Denoise.value = false;
+            Assert.That(_audio.Microphone.Options.Value.Denoise, Is.False);
+        }
+
+        [UnityTest]
         public IEnumerator AProblem_SaysWhatToDo_AndDeniedAccessOpensWindowsSettings()
         {
             AudioCard card = OpenCard();
@@ -252,6 +278,63 @@ namespace VirtualVessel.UI.Tests
             Assert.That(AudioCard.Choices(devices, "a", "Not connected").Count, Is.EqualTo(2));
         }
 
+        // The setup screen again, with the voice conversion beside the audio.
+        private IEnumerator WithVoice(FakeVoice voice)
+        {
+            Object.Destroy(_host);
+            yield return null;
+            _host = new GameObject(nameof(AudioPanelTests));
+            _host.AddComponent<UIDocument>();
+            _root = _host.AddComponent<UiRoot>();
+            _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Audio = _audio, SystemSettings = _settings, Voice = voice }));
+            yield return null;
+            OpenCard();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator TheVoiceCard_ChoosesTheVoiceForTheStream_AndShowsTheConvertedPitch()
+        {
+            var voice = new FakeVoice();
+            voice.Voices.Add(new VoiceConversionVoice("", null, 0, true));
+            voice.Voices.Add(new VoiceConversionVoice("voice-a", "Poyapoya", 285, true));
+            voice.Voices.Add(new VoiceConversionVoice("voice-b", "Fuwari", 353, true));
+            yield return WithVoice(voice);
+            VoiceCard card = _root.Content.Q<VoiceCard>();
+
+            Assert.That(card.VoiceChoice.Choices.Select(c => c.Id), Is.EqualTo(new[] { "voice-a", "voice-b" }), "The prototype's voice is for developers.");
+            card.VoiceChoice.value = "voice-b";
+            Assert.That(voice.InUseVoiceId, Is.EqualTo("voice-b"));
+
+            card.Adjustment.value = 3f;
+            Assert.That(voice.Semitones, Is.EqualTo(3f));
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.True);
+
+            card.ToneKnobs.BrightnessKnob.value = 4f;
+            Assert.That(voice.Tone.Brightness, Is.EqualTo(4f), "The chosen voice keeps its finish.");
+            Submit(card.ToneKnobs.ResetButton);
+            Assert.That(voice.Tone.IsFlat, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator TheVoiceCard_WithoutAVoiceOrAGpu_SaysWhy_AndCannotBeTurnedOn()
+        {
+            var voice = new FakeVoice();
+            yield return WithVoice(voice);
+            VoiceCard card = _root.Content.Q<VoiceCard>();
+            Assert.That((card.Status.Status, card.Status.TextKey), Is.EqualTo((StatusKind.Error, VoiceCardStrings.StateUnavailable)));
+            Assert.That(card.Query<ActionButton>().Where(b => b.TextKey == VoiceCardStrings.OpenLab).First().resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.False);
+
+            var noGpu = new FakeVoice { GpuAvailable = false };
+            noGpu.Voices.Add(new VoiceConversionVoice("voice-a", "Poyapoya", 285, true));
+            yield return WithVoice(noGpu);
+            card = _root.Content.Q<VoiceCard>();
+            Assert.That(card.EnabledToggle.enabledInHierarchy, Is.False);
+            Assert.That(card.Query<StatusChip>().Where(c => c.TextKey == VoiceCardStrings.NoGpu).ToList().Count, Is.EqualTo(1));
+        }
+
         private AudioCard OpenCard()
         {
             _root.Shell.Open("setup");
@@ -286,7 +369,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeSource : IAudioSource
+        internal sealed class FakeSource : IAudioSource
         {
             private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Off);
             private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
@@ -325,7 +408,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeMonitor : IAudioMonitor
+        internal sealed class FakeMonitor : IAudioMonitor
         {
             private readonly ObservableValue<AudioSourceState> _state = new ObservableValue<AudioSourceState>(AudioSourceState.Running);
             private readonly ObservableValue<AudioProblem> _problem = new ObservableValue<AudioProblem>(AudioProblem.None);
@@ -345,7 +428,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeAudio : IAudioService
+        internal sealed class FakeAudio : IAudioService
         {
             private readonly ObservableValue<IReadOnlyList<AudioDevice>> _devices = new ObservableValue<IReadOnlyList<AudioDevice>>(new[]
             {
@@ -391,7 +474,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeSettings : ISystemSettings
+        internal sealed class FakeSettings : ISystemSettings
         {
             public int Opened { get; private set; }
 

@@ -61,6 +61,7 @@ For each component, the following states are defined:
 - A 6px track. The part up to the value is Primary; the rest is Surface 3.
 - The thumb is an 18px circle (fill Knob, edge Primary). Knob is light on dark backgrounds and white-ish on light ones, so the thumb does not look heavy on light.
 - The current value is shown nearby as a number (Numeric or tabular digits) with its unit (for example `−12 dB`, `+4`).
+- A slider over a few choices in order, whose numbers would mean nothing, stops only on them and shows the chosen one's name instead of a number (for example Voice Lab's mood).
 
 ### 3.5 Level Meter
 
@@ -82,9 +83,10 @@ For each component, the following states are defined:
 - Background Background, 1px border, Radius S, label above (Caption-like, Text 2).
 - Example text (placeholder) is shown in Text 3, so it reads as an example and not as an entered value. It goes away when the field is focused. Left in view, the first characters typed were shown as the example, with the caret where the example ended (the user's report, 2026-10-25). The space before and after the text belongs to the text element, not the box: Unity drew an empty field's caret at the box's inner edge, ignoring the box's padding, so the first click put it left of where the text then started (the user's video, 2026-10-25). A one-line field does not take Enter: Unity moved the caret to the start on Enter, so after Japanese input committed a word with Enter, what was typed next went in near the start (the user's report, 2026-10-25).
 - A Text Field takes Japanese input (IME). Unity's `TextField` keeps the word being composed in its text; on commit it replaces that with the first character and adds the rest in the same frame, but leaves the caret at the composition's end. So the second character stayed behind the others: "こんにちは" became "こにちはん" (the user's log, 2026-10-31; #74). Moving the caret did not change where characters went. The committed characters themselves arrive in order, so `TextInput` rebuilds the text from them when the last one arrives, before the frame is drawn (`ImeCommit`).
-- The text caret is drawn in Text and the selection in Accent Line. Unity's default caret is dark and could not be seen against the background (the user's report, 2026-10-31).
+- The text caret is drawn in Text and the selection in Primary Wash, which is see-through. Unity's default caret is dark and could not be seen against the background (the user's report, 2026-10-31). Unity draws the selection over the text, so in opaque Accent Line a name selected whole could not be read (the user's report, 2026-11-15).
 - On focus: border Accent Line and a 3px Glow outside. Unity cannot draw an outer glow, so the Accent Line border alone shows focus (UI foundation detailed design 6.7).
 - A numeric field uses right-aligned tabular digits with a unit box on the right (for example `Hz`).
+- Long text (a prompt, for example) uses a multi-line Text Field (`TextInput.Multiline`): four lines high to start, wrapping. Enter adds no line break: it commits Japanese input, and the text sent keeps no line breaks.
 - On error: a 2px Error border, and below it a △ icon and the error text. The error text says what is wrong and what to do.
 
 ### 3.8 Tab
@@ -98,6 +100,8 @@ For each component, the following states are defined:
 - Rows are separated by a 1px divider.
 - The control fits in 260px. Segmented items have short names ("Standard", "AV1"), and anything more goes in the description. A value too long for it, such as a folder's path, goes under the description (`SettingRow.TextArea`) instead of on the right, and wraps there, so every row's control lines up.
 - Values are in Text, more readable than the description.
+- What only some need to read goes in a Help Hint after the name (3.28, `SettingRow.HelpKey`), not in more lines of description.
+- More than one control on a row (a button and a toggle, for example) has the S space (8px) between them (`SettingRow.ControlsClass`).
 - On narrow screens the control moves below the description. The name and description keep at least 240px: UI Toolkit breaks the line by the minimum width, not by the basis alone, so without it the text was squeezed beside the control, one character a line.
 
 ### 3.10 Card
@@ -155,6 +159,7 @@ For each component, the following states are defined:
 - Selected: background Tint, text Text, a 3px Accent Line at the left edge.
 - Each item has a tooltip describing the screen's role.
 - Operated with Tab and Enter. The Up and Down keys also move between items.
+- **Quit** sits at the bottom, above the version. It is not a screen, so it never shows as selected. Pressing it opens a confirmation dialog (3.11). The confirm button is normally Primary; while streaming or recording, the body says what ends and the dialog is Danger (Cancel gets focus).
 
 ### 3.17 Preview
 
@@ -229,13 +234,39 @@ The frame for editing the placement of a video (game screen, second monitor, and
 
 ### 3.25 Mixer
 
-- A row per source, in shared columns: the source (name and state), the device, the volume, hear, mute, and the level. The column headings are Caption, Text 3.
+- A row per source, in shared columns: the source (name and state), the device, the volume, hear, noise removal, mute, and the level. The column headings are Caption, Text 3.
 - 1 px Border lines between rows. The device column takes the remaining width; the others have fixed widths.
 - A problem's explanation appears under its row, only when there is one.
 - An option that cannot be used is disabled, not removed, so columns line up and the value shows. A column a row has no option for stays blank.
 - Without enough width, the column headings hide, rows wrap, and each control carries its name.
+- A column's explanation is a Help Hint (3.28) after its heading, not lines under the table. With the headings hidden, it follows the name each control carries.
+
+### 3.26 Step Indicator
+
+- Shows where the user is in work split into steps (for example, Voice Lab's flow for making a voice, system design 14.13).
+- Each step shows its number, "STEP 1" (monospace, caption), and its name inside a frame with Radius Control corners (the number with Radius S). Steps sit in a row and wrap when narrow.
+- The current step: Accent Line frame, Tint background, Primary behind the number. Finished steps: the success color behind the number. Steps not reached: Text 2.
+- Finished steps can be pressed to go back. The current step carries `aria-current="step"`. Color is not the only cue: the current step also differs in frame and background.
+- Buttons that move on name the step they lead to (for example, "STEP 2: Shape the timbre").
+
+### 3.27 Candidate Tile
+
+- A frame for comparing several candidates and choosing one (for example, Voice Lab's STEP 1, system design 14.14). At least 200px wide, as many per row as fit.
+- At the top: a play icon button (3.2) and the candidate's name; the chosen one has a status chip (3.13, ✓ and "Picked"). A candidate made near another says so under its name in a caption ("From candidate 3").
+- In the middle: numbers (pitch, pitch range, and the seed when given; monospace) and the range drawn as a band on a shared scale. Every candidate uses the same scale so they compare.
+- At the bottom: a Pick this voice button (Secondary).
+- The chosen candidate has an Accent Line frame and a Tint background.
+- A sort control (Segmented, 3.18) may sit above.
 
 ---
+
+### 3.28 Help Hint
+
+- A 16px Info icon after a name or a column heading, in Text 3, Text on hover, XS (4px) after the name.
+- Its tooltip (3.12) explains the item. It is not about an action, so it may be more than one sentence, but at most three, within the 260px width.
+- It takes keyboard focus, and shows the tooltip on focus too.
+- It keeps the screen short (the user's request, 2026-11-11). What the user must read to avoid a mistake (losing data, for example) is written on the screen, not hidden here.
+- Why a control is disabled goes in that control's tooltip (3.12), not in a Help Hint.
 
 ## 4. Adding a Component
 

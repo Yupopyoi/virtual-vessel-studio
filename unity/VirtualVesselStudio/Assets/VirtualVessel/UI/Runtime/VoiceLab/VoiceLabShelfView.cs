@@ -1,0 +1,398 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using UnityEngine.UIElements;
+using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Icons;
+using VirtualVessel.UI.Localization;
+
+namespace VirtualVessel.UI.VoiceLab
+{
+    /// <summary>
+    /// STEP 1's request (system design 14.14, Voice Lab detailed design 8.3.1): examples to start from, the
+    /// shelf of words each with a sample, the request read back as one sentence, and the user's own words; or a
+    /// prompt the user writes whole in their place (the user's decision, 2026-11-11). Samples are made on this PC;
+    /// until they are, the screen offers to make them and plays nothing.
+    /// </summary>
+    public sealed class VoiceLabShelfView : VisualElement
+    {
+        public const string WordsClass = VoiceLabScreen.UssClass + "__words";
+        public const string WordClass = VoiceLabScreen.UssClass + "__word";
+        public const string ExamplesClass = VoiceLabScreen.UssClass + "__examples";
+        public const string AskClass = VoiceLabScreen.UssClass + "__ask";
+        public const string AskHeadingClass = VoiceLabScreen.UssClass + "__ask-heading";
+        public const int WordsMode = 0;
+        public const int PromptMode = 1;
+        public const int MaxPrompt = 500;
+
+        // The language samples are played in when the screen's has none (VoiceLabService.SampleLanguages).
+        private const string SampleFallbackLanguage = "ja";
+
+        private readonly IVoiceLab _lab;
+        private readonly VoiceLabPlayer _player;
+        private readonly VoiceLabShelf _shelf;
+        private readonly Dictionary<string, ActionButton> _wordButtons = new Dictionary<string, ActionButton>(StringComparer.Ordinal);
+        private readonly List<IconButton> _playButtons = new List<IconButton>();
+        private readonly List<(VoiceLabExample Example, Label Words)> _exampleWords = new List<(VoiceLabExample, Label)>();
+        private readonly VisualElement _samplesNotice;
+        private readonly Label _samplesNone;
+        private readonly Label _samplesSome;
+        private readonly Card _examples;
+        private readonly ActionButton _makeSamples;
+        private readonly VoiceLabMakingBar _samplesBusy;
+        private readonly StatusChip _samplesFailed;
+        private readonly Label _sentence;
+        private readonly TextInput _words;
+        private readonly VisualElement _wordsPanel;
+        private readonly VisualElement _promptPanel;
+        private CancellationTokenSource _samplesMaking;
+        private ILocalizer _localizer;
+        private IReadOnlyList<string> _picked;
+
+        public VoiceLabShelfView(IVoiceLab lab, VoiceLabPlayer player)
+        {
+            _lab = lab ?? throw new ArgumentNullException(nameof(lab));
+            _player = player ?? throw new ArgumentNullException(nameof(player));
+            _shelf = lab.Shelf ?? new VoiceLabShelf(null, null);
+            _picked = _shelf.Start();
+
+            SettingRow modeRow = Ui.SettingRow(VoiceLabStrings.ModeLabel);
+            Mode = Ui.Segmented(VoiceLabStrings.ModeWords, VoiceLabStrings.ModePrompt);
+            Mode.RegisterValueChangedCallback(evt => ShowMode(evt.newValue));
+            modeRow.Add(Mode);
+            Add(modeRow);
+
+            _promptPanel = new VisualElement();
+            _promptPanel.Add(AskHeading());
+            Prompt = Ui.TextField(null);
+            Prompt.Multiline = true;
+            Prompt.PlaceholderKey = VoiceLabStrings.PromptHint;
+            Prompt.MaxLength = MaxPrompt;
+            Prompt.RegisterValueChangedCallback(_ => Prompt.ErrorKey = null);
+            _promptPanel.Add(Prompt);
+            _promptPanel.Add(Ui.Text(VoiceLabStrings.PromptNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Add(_promptPanel);
+
+            _wordsPanel = new VisualElement();
+            Add(_wordsPanel);
+            _samplesNotice = new VisualElement();
+            // Room before the Card under it, so Make the samples does not touch it (the user's review, 2026-11-11).
+            _samplesNotice.AddToClassList(VoiceLabScreen.GapClass);
+            _samplesNone = Ui.Text(VoiceLabStrings.SamplesMissing, VoiceLabScreen.NoteClass, "vv-text-body");
+            _samplesSome = Ui.Text(VoiceLabStrings.SamplesPartial, VoiceLabScreen.NoteClass, "vv-text-body");
+            _samplesNotice.Add(_samplesNone);
+            _samplesNotice.Add(_samplesSome);
+            _makeSamples = Ui.Button(VoiceLabStrings.MakeSamples);
+            _makeSamples.clicked += MakeSamples;
+            _samplesBusy = new VoiceLabMakingBar(() => _lab.SamplesProgress, VoiceLabStrings.MakingSamples, () => _samplesMaking?.Cancel());
+            _samplesFailed = Ui.Chip(StatusKind.Error, VoiceLabStrings.SamplesFailed);
+            _samplesFailed.style.display = DisplayStyle.None;
+            _samplesNotice.Add(VoiceLabScreen.Actions(_makeSamples));
+            _samplesNotice.Add(_samplesBusy);
+            _samplesNotice.Add(_samplesFailed);
+            _wordsPanel.Add(_samplesNotice);
+
+            Card examples = _examples = Ui.Card(VoiceLabStrings.Examples);
+            var exampleList = new VisualElement();
+            exampleList.AddToClassList(ExamplesClass);
+            foreach (VoiceLabExample example in _shelf.Examples)
+            {
+                exampleList.Add(ExampleRow(example));
+            }
+
+            examples.Add(Ui.Text(VoiceLabStrings.ExamplesNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            examples.Add(exampleList);
+            _wordsPanel.Add(examples);
+
+            Card words = Ui.Card(VoiceLabStrings.Shelf, alternate: true);
+            words.Add(Ui.Text(VoiceLabStrings.ShelfNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Card more = Ui.Card(VoiceLabStrings.MoreMood, collapsible: true);
+            more.Expanded = false;
+            foreach (VoiceLabShelfGroup group in _shelf.Groups)
+            {
+                (group.Main ? words : more).Add(GroupRow(group));
+            }
+
+            words.Add(more);
+            _wordsPanel.Add(words);
+
+            var ask = new VisualElement();
+            ask.AddToClassList(AskClass);
+            ask.Add(AskHeading());
+            _sentence = QuietText.Of(new Label());
+            _sentence.AddToClassList("vv-text-body");
+            ask.Add(_sentence);
+            _wordsPanel.Add(ask);
+
+            _words = Ui.TextField(VoiceLabStrings.Words);
+            _words.PlaceholderKey = VoiceLabStrings.WordsHint;
+            _words.MaxLength = 200;
+            _words.RegisterValueChangedCallback(_ => Refresh());
+            _wordsPanel.Add(_words);
+            _wordsPanel.Add(Ui.Text(VoiceLabStrings.WordsNote, VoiceLabScreen.NoteClass, "vv-text-body"));
+            Mode.SetValueWithoutNotify(WordsMode);
+            ShowMode(WordsMode);
+
+            RegisterCallback<AttachToPanelEvent>(OnAttach);
+            RegisterCallback<DetachFromPanelEvent>(OnDetach);
+            ShowPicks();
+            ShowSamples();
+        }
+
+        /// <summary>The words picked, in the shelf's order.</summary>
+        public IReadOnlyList<string> Picked => _picked;
+
+        public string SentenceText => _sentence.text;
+
+        public ActionButton MakeSamplesButton => _makeSamples;
+
+        /// <summary>Whether making the samples is offered: none are made, or some words have none.</summary>
+        public bool OffersSamples => _samplesNotice.style.display == DisplayStyle.Flex;
+
+        /// <summary>From words, or a prompt written whole.</summary>
+        public Segmented Mode { get; }
+
+        /// <summary>The prompt the user writes whole.</summary>
+        public TextInput Prompt { get; }
+
+        public ActionButton WordButton(string wordId)
+        {
+            return _wordButtons.TryGetValue(wordId, out ActionButton button) ? button : null;
+        }
+
+        /// <summary>What candidates are asked for now.</summary>
+        public VoiceLabRequest Request()
+        {
+            return Mode.value == PromptMode
+                ? new VoiceLabRequest(null, null, Prompt.value?.Trim())
+                : new VoiceLabRequest(_picked, _words.value?.Trim());
+        }
+
+        /// <summary>Whether there is something to ask with; an empty prompt is marked on its field.</summary>
+        public bool CheckRequest()
+        {
+            if (Mode.value != PromptMode || !string.IsNullOrWhiteSpace(Prompt.value))
+            {
+                return true;
+            }
+
+            Prompt.ErrorKey = VoiceLabStrings.PromptRequired;
+            return false;
+        }
+
+        /// <summary>Starts from an example: its words go on the shelf.</summary>
+        public void PickExample(VoiceLabExample example)
+        {
+            _picked = _shelf.FromExample(example);
+            ShowPicks();
+        }
+
+        /// <summary>
+        /// Puts a run's words back (Voice Lab detailed design 8.6); words the shelf no longer has are left out. A run
+        /// made from a written prompt opens with that prompt.
+        /// </summary>
+        public void SetPicks(IReadOnlyList<string> words, string freeWords, string prompt = null)
+        {
+            _picked = _shelf.FromExample(new VoiceLabExample(string.Empty, words));
+            _words.value = freeWords ?? string.Empty;
+            Prompt.value = prompt ?? string.Empty;
+            Mode.value = string.IsNullOrEmpty(prompt) ? WordsMode : PromptMode;
+            ShowPicks();
+        }
+
+        // The prompt's name, with what makes the voices behind a help hint (the user's request, 2026-11-11).
+        private static VisualElement AskHeading()
+        {
+            var heading = new VisualElement();
+            heading.AddToClassList(AskHeadingClass);
+            heading.Add(Ui.Text(VoiceLabStrings.Ask, VoiceLabScreen.NoteClass, "vv-text-body"));
+            heading.Add(new HelpHint(VoiceLabStrings.ModelNote));
+            return heading;
+        }
+
+        private void ShowMode(int mode)
+        {
+            _player.Stop();
+            _wordsPanel.style.display = mode == WordsMode ? DisplayStyle.Flex : DisplayStyle.None;
+            _promptPanel.style.display = mode == PromptMode ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        /// <summary>Shows again whether the samples are there, such as after they were deleted in the Made voices tab.</summary>
+        public void RefreshSamples()
+        {
+            ShowSamples();
+        }
+
+        public void Press(string wordId)
+        {
+            _picked = _shelf.Toggle(_picked, wordId);
+            ShowPicks();
+        }
+
+        private VisualElement ExampleRow(VoiceLabExample example)
+        {
+            var row = new VisualElement();
+            row.AddToClassList(VoiceLabScreen.UssClass + "__example");
+            IconButton play = PlayButton(VoiceLabShelf.ExampleSampleName(example), example.NameKey);
+            ActionButton pick = Ui.Button(example.NameKey);
+            pick.clicked += () => PickExample(example);
+            var words = QuietText.Of(new Label());
+            words.AddToClassList(VoiceLabScreen.NoteClass);
+            _exampleWords.Add((example, words));
+            row.Add(play);
+            row.Add(pick);
+            row.Add(words);
+            return row;
+        }
+
+        private VisualElement GroupRow(VoiceLabShelfGroup group)
+        {
+            SettingRow row = Ui.SettingRow(group.NameKey, group.PickOne ? VoiceLabStrings.PickOne : VoiceLabStrings.PickAny);
+            var words = new VisualElement();
+            words.AddToClassList(WordsClass);
+            foreach (VoiceLabShelfWord word in group.Words)
+            {
+                var chip = new VisualElement();
+                chip.AddToClassList(WordClass);
+                ActionButton button = Ui.Button(word.LabelKey);
+                button.clicked += () => Press(word.Id);
+                _wordButtons.Add(word.Id, button);
+                chip.Add(button);
+                chip.Add(PlayButton(VoiceLabShelf.WordSampleName(word), word.LabelKey));
+                words.Add(chip);
+            }
+
+            row.Add(words);
+            return row;
+        }
+
+        private IconButton PlayButton(string sampleName, string nameKey)
+        {
+            IconButton play = Ui.IconButton(IconName.Play).WithTooltip(VoiceLabStrings.PlaySample);
+            play.userData = sampleName;
+            play.clicked += () => _player.Toggle(play, SampleFile(sampleName));
+            _playButtons.Add(play);
+            return play;
+        }
+
+        private string SampleFile(string name)
+        {
+            string language = _localizer?.Locale.Code;
+            return (language != null ? _lab.SampleFile(language, name) : null) ?? _lab.SampleFile(SampleFallbackLanguage, name);
+        }
+
+        private async void MakeSamples()
+        {
+            if (_samplesMaking != null)
+            {
+                return;
+            }
+
+            _samplesMaking = new CancellationTokenSource();
+            _samplesFailed.style.display = DisplayStyle.None;
+            SetSamplesBusy(true);
+            try
+            {
+                await _lab.MakeSamplesAsync(_samplesMaking.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (VoiceLabFailedException)
+            {
+                // The service has logged why.
+                _samplesFailed.style.display = DisplayStyle.Flex;
+            }
+            finally
+            {
+                _samplesMaking.Dispose();
+                _samplesMaking = null;
+                SetSamplesBusy(false);
+                ShowSamples();
+            }
+        }
+
+        private void SetSamplesBusy(bool busy)
+        {
+            _makeSamples.SetEnabled(!busy);
+            _samplesBusy.SetRunning(busy);
+        }
+
+        /// <summary>
+        /// Play buttons are always shown, so the user sees where samples will be; one without its sample is
+        /// disabled and says how to get it (the user's review, 2026-11-07). The offer to make them shows while
+        /// the base is missing.
+        /// </summary>
+        private void ShowSamples()
+        {
+            bool canPlay = _player.Available;
+            foreach (IconButton play in _playButtons)
+            {
+                bool made = SampleFile((string)play.userData) != null;
+                play.style.display = canPlay ? DisplayStyle.Flex : DisplayStyle.None;
+                play.SetEnabled(made);
+                play.TooltipKey = made ? VoiceLabStrings.PlaySample : VoiceLabStrings.SampleNotMade;
+            }
+
+            // Without the samples, the examples have nothing to play, so they wait with them (the user's review, 2026-11-11).
+            // Words added in a later version have none on a PC that made the others, so making them is offered too;
+            // the files already made are kept.
+            bool none = SampleFile("base.wav") == null;
+            bool some = !none && _playButtons.Any(play => SampleFile((string)play.userData) == null);
+            _samplesNotice.style.display = none || some ? DisplayStyle.Flex : DisplayStyle.None;
+            _samplesNone.style.display = none ? DisplayStyle.Flex : DisplayStyle.None;
+            _samplesSome.style.display = some ? DisplayStyle.Flex : DisplayStyle.None;
+            _examples.style.display = none ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
+        private void ShowPicks()
+        {
+            foreach (KeyValuePair<string, ActionButton> item in _wordButtons)
+            {
+                // Picked words are filled, so the state shows by shape and weight as well as color.
+                item.Value.Variant = _picked.Contains(item.Key) ? ButtonVariant.Primary : ButtonVariant.Secondary;
+            }
+
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            Func<string, string> text = key => KeyedText.Resolve(_localizer, key);
+            _sentence.text = VoiceLabView.AskSentence(_shelf, _picked, _words?.value, text);
+            foreach ((VoiceLabExample example, Label words) in _exampleWords)
+            {
+                words.text = string.Join(" · ", example.Words.Select(id => _shelf.Word(id)).Where(w => w != null).Select(w => text(w.LabelKey)));
+            }
+        }
+
+        private void OnAttach(AttachToPanelEvent evt)
+        {
+            _localizer = UiServices.Find(this)?.Localizer;
+            if (_localizer != null)
+            {
+                _localizer.LocaleChanged += OnLocaleChanged;
+            }
+
+            Refresh();
+            ShowSamples();
+        }
+
+        private void OnDetach(DetachFromPanelEvent evt)
+        {
+            if (_localizer != null)
+            {
+                _localizer.LocaleChanged -= OnLocaleChanged;
+            }
+
+            _player.Stop();
+        }
+
+        private void OnLocaleChanged(LocaleInfo locale)
+        {
+            Refresh();
+            ShowSamples();
+        }
+    }
+}

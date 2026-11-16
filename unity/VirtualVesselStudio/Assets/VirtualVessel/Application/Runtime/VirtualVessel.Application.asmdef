@@ -14,7 +14,9 @@
         "VirtualVessel.Tracking.MediaPipe",
         "VirtualVessel.UI",
         "VirtualVessel.Streaming",
-        "VirtualVessel.Video"
+        "VirtualVessel.Video",
+        "VirtualVessel.Voice",
+        "VirtualVessel.VoiceLab"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

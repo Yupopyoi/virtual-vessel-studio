@@ -96,6 +96,33 @@ namespace VirtualVessel.Video.Tests
             Assert.That(camera.cullingMask & (1 << _video.AvatarLayer), Is.Zero, "Only the avatar camera draws avatars.");
         }
 
+        [UnityTest]
+        public IEnumerator AFlatVideo_AtTheRightEdge_ReachesTheEdge_WhateverTheWindowShape()
+        {
+            // The layer's cameras took the window's shape, not the stream's: with the window no longer 16:9 (the
+            // taskbar kept), a video placed at the edge was drawn short of it (the user's report, 2026-11-15).
+            GameObject quad = Quad(_video.Screens.Layer, Color.green);
+            quad.transform.SetParent(_video.Screens.Root, false);
+            quad.transform.localPosition = new Vector3(0.95f, 0.5f, 0f);
+            quad.transform.localScale = new Vector3(0.1f, 1f, 1f);
+
+            yield return null;
+            yield return null;
+
+            Color32[] pixels = ReadBack((RenderTexture)_video.Video.Value);
+            Color32 edge = pixels[(18 * 64) + 63];
+            Color32 before = pixels[(18 * 64) + 56];
+            Assert.That((edge.r, edge.g, edge.b), Is.EqualTo(((byte)0, (byte)255, (byte)0)), "The video reaches the last column.");
+            Assert.That((before.r, before.g, before.b), Is.EqualTo(((byte)255, (byte)0, (byte)0)), "And starts where it was placed.");
+        }
+
+        [Test]
+        public void TheLayerCameras_TakeTheStreamsShape_NotTheWindows()
+        {
+            Assert.That(_video.ScreenCamera.aspect, Is.EqualTo(64f / 36f).Within(1e-4f));
+            Assert.That(_video.AvatarCamera.aspect, Is.EqualTo(64f / 36f).Within(1e-4f));
+        }
+
         [Test]
         public void TheStreamTarget_IsTheConfiguredSize_AndShownToThePreview()
         {

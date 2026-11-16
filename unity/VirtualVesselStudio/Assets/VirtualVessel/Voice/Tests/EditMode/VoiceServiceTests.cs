@@ -1,0 +1,76 @@
+using NUnit.Framework;
+using VirtualVessel.Audio;
+using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Voice;
+
+namespace VirtualVessel.Voice.Tests
+{
+    public sealed class VoiceServiceTests
+    {
+        [TestCase(4800, 4800, 2, 0)]
+        [TestCase(9600, 4800, 2, 0)]
+        [TestCase(9601, 4800, 2, 4800)]
+        [TestCase(20000, 4800, 2, 14400)]
+        public void SamplesToDrop_KeepsTheWaitBounded(int waiting, int block, int maxBlocks, int expected)
+        {
+            Assert.That(VoiceService.SamplesToDrop(waiting, block, maxBlocks), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void DelayMs_AddsEveryPlaceTheAudioWaits()
+        {
+            var outside = new AudioStageDelay(10, 5, 50, 5, 25, 15);
+            var parts = new double[VoiceService.DelayParts.Length];
+
+            VoiceService.DelayMs(outside, 2400, 70, 2928, parts);
+
+            Assert.That(parts, Is.EqualTo(new double[] { 10, 5, 50, 70, 61, 50, 5, 25, 15, 291 }).Within(1e-9));
+        }
+
+        [Test]
+        public void ToMono_AveragesTheChannels()
+        {
+            float[] stereo = { 1f, 0f, 0.5f, 0.5f };
+            var mono = new float[2];
+
+            VoiceService.ToMono(stereo, mono);
+
+            Assert.That(mono, Is.EqualTo(new[] { 0.5f, 0.5f }));
+        }
+
+        [Test]
+        public void ToStereo_CopiesToBothChannels()
+        {
+            float[] mono = { 0.25f, -0.5f };
+            var stereo = new float[4];
+
+            VoiceService.ToStereo(mono, stereo);
+
+            Assert.That(stereo, Is.EqualTo(new[] { 0.25f, 0.25f, -0.5f, -0.5f }));
+        }
+
+        [Test]
+        public void FormatFile_ShowsThePlace_OrNothing()
+        {
+            Assert.That(VoiceConversionCard.FormatFile("a.wav", 3f, 60f), Is.EqualTo("a.wav  3 / 60 s"));
+            Assert.That(VoiceConversionCard.FormatFile(null, 0f, 0f), Is.Empty);
+        }
+
+        [TestCase(true, VoiceConversionState.Running)]
+        [TestCase(false, VoiceConversionState.NoMicrophone)]
+        public void AttachedState_SaysRunningOnlyWithAVoice(bool capturing, VoiceConversionState expected)
+        {
+            Assert.That(VoiceService.AttachedState(capturing), Is.EqualTo(expected));
+        }
+
+        [TestCase(VoiceConversionState.PlayingFile, VoiceConversionStrings.StatePlayingFile)]
+        [TestCase(VoiceConversionState.NoMicrophone, VoiceConversionStrings.StateNoMicrophone)]
+        [TestCase(VoiceConversionState.Off, VoiceConversionStrings.StateOff)]
+        [TestCase(VoiceConversionState.Running, VoiceConversionStrings.StateRunning)]
+        [TestCase(VoiceConversionState.Failed, VoiceConversionStrings.StateFailed)]
+        public void Card_NamesEachState(VoiceConversionState state, string key)
+        {
+            Assert.That(VoiceConversionCard.StateKey(state), Is.EqualTo(key));
+        }
+    }
+}

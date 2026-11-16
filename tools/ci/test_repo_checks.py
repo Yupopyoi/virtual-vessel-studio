@@ -97,6 +97,38 @@ class SbomTests(unittest.TestCase):
         self.assertIn("SBOM: missing github-action:actions/checkout@v4", errors)
         self.assertIn("SBOM: asset:Old is listed but no longer used", errors)
 
+    UV_LOCK = """version = 1
+
+[[package]]
+name = "Hf_Xet"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://x/hf_xet.whl" },
+]
+
+[[package]]
+name = "triton"
+version = "3.3.1"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "voice-lab-rvc"
+version = "0.0.1"
+source = { virtual = "." }
+dependencies = [
+    { name = "triton", marker = "sys_platform == 'linux'" },
+]
+"""
+
+    def test_uv_lock_lists_every_package_but_the_project(self):
+        self.assertEqual(repo_checks.uv_lock_requirements(self.UV_LOCK), {"pypi:hf-xet": "1.8.0", "pypi:triton": "3.3.1"})
+
+    def test_a_locked_package_missing_from_the_sbom_or_no_longer_locked(self):
+        sbom = self.sbom(self.component("pypi:hf-xet", "1.8.0", "excluded"), self.component("pypi:old", "1", "excluded"))
+        errors = repo_checks.check_sbom(sbom, repo_checks.uv_lock_requirements(self.UV_LOCK))
+        self.assertEqual(errors, ["SBOM: missing pypi:triton", "SBOM: pypi:old is listed but no longer used"])
+
     def test_an_embedded_package_needs_the_pinned_version(self):
         lock = '{"dependencies": {"com.example.plugin": {"version": "file:com.example.plugin", "source": "embedded"}}}'
         pinned = repo_checks.pinned_packages(['{"package": "com.example.plugin", "version": "1.2.3", "url": "u"}', '{"other": 1}'])
@@ -152,6 +184,12 @@ class SbomTests(unittest.TestCase):
         errors = repo_checks.check_sbom(self.sbom(parent), {})
         self.assertIn("SBOM: inner has no license", errors)
         self.assertIn("SBOM: inner needs a scope (required, optional, or excluded)", errors)
+
+
+class ControlCharacterTests(unittest.TestCase):
+    def test_a_vertical_tab_in_a_path_is_found_and_tabs_and_line_ends_are_not(self):
+        texts = {"a.ps1": "x = 'services\x0boice-lab'\r\n\tok\n", "b.md": "fine\ttext\r\n"}
+        self.assertEqual(repo_checks.check_control_characters(texts), ["a.ps1:1: control character U+000B"])
 
 
 class DocPairTests(unittest.TestCase):

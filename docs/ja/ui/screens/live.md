@@ -51,11 +51,13 @@
 
 配置編集の操作は、UI基盤詳細設計9.3、9.4に従う。キーボードだけでも、Tabで枠を選び、矢印キーで動かせる。
 
+Voice Labで声を作っている間に「配信を開始」か「録画を開始」を押すと、ふだんの確認の代わりに、作成を止めるかを尋ねる確認Dialogを出す（`live.voice-lab-busy.*`。方式設計14.26）。「作成を中止して配信を開始」（または録画）で作成を止めてから始め、「キャンセル」では始めずに作成を続ける。録画はふだんは確認なしで始まり、このときだけ尋ねる。
+
 ## 5. 文字列
 
 | Key | 日本語 | English |
 |---|---|---|
-| `live.layers` | 重なり順 | Stacking order |
+| `live.layers` | パネルの重なり順 | Panel stacking order |
 | `live.hint` | 映像はドラッグで移動、角のドラッグで大きさを変えられます。右クリックでメニューを開きます。 | Drag a video to move it and drag its corners to resize it. Right-click for more. |
 | `live.limbs` | 映っている部分 | In view |
 | `live.limbs.left-arm.seen` | 左腕 | Left arm |
@@ -72,19 +74,19 @@
 | `live.stream.connecting` | 接続しています… | Connecting… |
 | `live.stream.ending` | 配信を終了しています… | Ending the stream… |
 | `live.stream.stop` | ■ 配信を終了 | ■ End stream |
-| `live.stream.busy` | 配信の開始か終了の途中です。終わるまでお待ちください。 | The stream is starting or ending. Please wait until it finishes. |
+| `live.stream.busy` | 配信開始または終了の途中です。処理が終了するまでお待ちください。 | The stream is starting or ending. Please wait until it finishes. |
 | `live.stream.no-key` | セットアップ画面の「配信」で、ストリームキーを登録してください。 | Register the stream key under Streaming on the setup screen. |
 | `live.stream.live` | LIVE | LIVE |
 | `live.stream.reconnecting` | 再接続中 | Reconnecting |
 | `live.stream.failed` | 配信の問題 | Stream problem |
 | `live.stream.confirm-start.title` | 配信を開始しますか？ | Go live? |
-| `live.stream.confirm-start.body` | YouTubeの設定によっては、すぐに公開されます。 | Depending on your YouTube settings, it may be public at once. |
+| `live.stream.confirm-start.body` | YouTubeの設定によっては、即座に公開されます。 | Depending on your YouTube settings, it may go public immediately. |
 | `live.stream.confirm-start.start` | 配信を開始 | Go live |
 | `live.stream.confirm-stop.title` | 配信を終了しますか？ | End the stream? |
-| `live.stream.confirm-stop.body` | 配信が止まります。録画は続きます。 | The stream stops. Recording goes on. |
+| `live.stream.confirm-stop.body` | 配信が停止します（録画は継続）。 | The stream stops (recording continues). |
 | `live.stream.confirm-stop.stop` | 配信を終了 | End stream |
 | `live.stream.bitrate` | 実際のビットレート：{rate} Mbps | Actual bitrate: {rate} Mbps |
-| `live.stream.slow` | 回線が追いついていません。設定のビットレートを下げてください。 | The connection cannot keep up. Lower the bitrate in the settings. |
+| `live.stream.slow` | 回線速度が追いついていません。設定のビットレートを下げてください。 | The connection speed cannot keep up. Lower the bitrate in the settings. |
 | `live.stream.problem.no-key` | ストリームキーが登録されていません。セットアップ画面の「配信」で登録してください。 | No stream key is registered. Register it under Streaming on the setup screen. |
 | `live.stream.problem.unreachable` | サーバーに接続できません。インターネット接続とURLを確認してください。 | The server cannot be reached. Check the internet connection and the URL. |
 | `live.stream.problem.rejected` | 配信が拒否されました。YouTube Studioでストリームキーを確認してください。 | The stream was refused. Check the stream key in YouTube Studio. |
@@ -95,12 +97,17 @@
 | `live.record.starting` | 録画を開始しています… | Starting recording… |
 | `live.record.finishing` | ファイルを保存しています… | Saving the file… |
 | `live.record.stop` | ■ 録画を停止 | ■ Stop recording |
-| `live.record.busy` | 録画の開始か停止の途中です。終わるまでお待ちください。 | Recording is starting or stopping. Please wait until it finishes. |
+| `live.record.busy` | 録画開始または停止の途中です。処理が終了するまでお待ちください。 | Recording is starting or stopping. Please wait until it finishes. |
 | `live.record.recording` | 録画中 | REC |
 | `live.record.failed` | 録画の問題 | Recording problem |
 | `live.record.confirm.title` | 録画を停止しますか？ | Stop recording? |
-| `live.record.confirm.body` | ここまでのファイルは保存されます。 | The file so far is saved. |
+| `live.record.confirm.body` | これまでの録画内容は保存されます。 | What has been recorded so far is saved. |
 | `live.record.confirm.stop` | 録画を停止 | Stop recording |
+| `live.voice-lab-busy.title` | Voice Labで声を作成中です | Voice Lab is making a voice |
+| `live.voice-lab-busy.stream-body` | 配信を開始すると、声の作成は中止されます。 | Going live now cancels making the voice. |
+| `live.voice-lab-busy.stream-confirm` | 作成を中止して配信を開始 | Cancel it and go live |
+| `live.voice-lab-busy.record-body` | 録画を開始すると、声の作成は中止されます。 | Recording now cancels making the voice. |
+| `live.voice-lab-busy.record-confirm` | 作成を中止して録画を開始 | Cancel it and record |
 | `live.record.saved` | 保存しました: {name} | Saved: {name} |
 | `live.record.open-folder` | フォルダーを開く | Open folder |
 | `live.record.problem.folder` | 録画フォルダーに書き込めません。設定画面の「録画」で別のフォルダーを選んでください。 | The recording folder cannot be written. Choose another folder under Recording on the setup screen. |

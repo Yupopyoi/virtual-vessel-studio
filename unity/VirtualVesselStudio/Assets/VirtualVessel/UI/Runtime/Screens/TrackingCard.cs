@@ -79,75 +79,7 @@ namespace VirtualVessel.UI.Screens
             _load.AddToClassList("vv-text-mono");
             card.Add(_load);
 
-            Track = new SwitchToggle();
-            Track.RegisterValueChangedCallback(evt =>
-            {
-                if (evt.newValue)
-                {
-                    _tracking.Start();
-                }
-                else
-                {
-                    _tracking.Stop();
-                }
-            });
-            card.Add(Row(TrackingStrings.Track, Track));
-
-            MirrorToggle = new SwitchToggle();
-            MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
-            card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
-
-            // Full body is shown so users know it is coming, and cannot be chosen yet (tracking detailed design 6.5).
-            Range = Ui.Segmented(TrackingStrings.RangeUpper, TrackingStrings.RangeFull);
-            Range.SetItemEnabled(1, false);
-            SettingRow range = Ui.SettingRow(TrackingStrings.Range, TrackingStrings.RangeDescription);
-            range.Add(Range);
-            card.Add(range);
-
-            // A part turned off is not inferred, which lowers the load (tracking detailed design 6.5).
-            FaceToggle = Ui.Toggle(TrackingStrings.Face);
-            BodyToggle = Ui.Toggle(TrackingStrings.Body);
-            HandsToggle = Ui.Toggle(TrackingStrings.Hands);
-            var parts = new VisualElement();
-            parts.AddToClassList(TogglesClass);
-            foreach (SwitchToggle toggle in new[] { FaceToggle, BodyToggle, HandsToggle })
-            {
-                toggle.RegisterValueChangedCallback(_ => _tracking.SetOptions(_tracking.Options.Value.WithRegions(RegionsOf(FaceToggle.value, BodyToggle.value, HandsToggle.value))));
-                parts.Add(toggle);
-            }
-
-            SettingRow partsRow = Ui.SettingRow(TrackingStrings.Parts, TrackingStrings.PartsDescription);
-            partsRow.Add(parts);
-            card.Add(partsRow);
-
-            // The camera sees depth poorly; 2D keeps only what it sees well (tracking detailed design 8.6).
-            Depth = Ui.Segmented(TrackingStrings.Depth3D, TrackingStrings.Depth2D);
-            Depth.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(evt.newValue == 1 ? BodyDepth.Flat : BodyDepth.Tracked)));
-            SettingRow depth = Ui.SettingRow(TrackingStrings.Depth, TrackingStrings.DepthDescription);
-            depth.Add(Depth);
-            card.Add(depth);
-
-            // Fast and steady trade against each other; the user picks a level (tracking detailed design 8.2).
-            Speed = Ui.Slider(null, SmoothingLevel.Min, SmoothingLevel.Max);
-            Speed.Step = 1f;
-            Speed.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(LevelOf(evt.newValue))));
-            SettingRow speed = Ui.SettingRow(TrackingStrings.Speed, TrackingStrings.SpeedDescription);
-            speed.Add(Speed);
-            card.Add(speed);
-
-            Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull);
-            Model.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithPoseModel((PoseModel)evt.newValue)));
-            SettingRow model = Ui.SettingRow(TrackingStrings.Model, TrackingStrings.ModelDescription);
-            model.Add(Model);
-            card.Add(model);
-
-            Devices = Ui.Select(null);
-            Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
-            card.Add(Row(TrackingStrings.Camera, Devices));
-
-            ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
-            refresh.clicked += RefreshDevices;
-            card.Add(Row(CaptureStrings.Refresh, refresh));
+            AddOptions(card);
 
             PanelLifetime.WhileAttached(this, services => Attach(services?.Localizer));
         }
@@ -157,34 +89,34 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The problem's explanation as shown, for tests.</summary>
         public string ProblemKey => _problemText.Key;
 
-        public SwitchToggle Track { get; }
+        public SwitchToggle Track { get; private set; }
 
         /// <summary>Shows the camera image as in a mirror; the avatar follows the same setting.</summary>
-        public SwitchToggle MirrorToggle { get; }
+        public SwitchToggle MirrorToggle { get; private set; }
 
         /// <summary>The body in depth (3D, 0) or only across and up (2D, 1).</summary>
-        public Segmented Depth { get; }
+        public Segmented Depth { get; private set; }
 
         /// <summary>The smoothing level, 1 (steadiest) to 10 (fastest).</summary>
-        public ValueSlider Speed { get; }
+        public ValueSlider Speed { get; private set; }
 
         /// <summary>What moves: the upper body (0); full body (1) is coming soon and cannot be chosen.</summary>
-        public Segmented Range { get; }
+        public Segmented Range { get; private set; }
 
-        public SwitchToggle FaceToggle { get; }
+        public SwitchToggle FaceToggle { get; private set; }
 
-        public SwitchToggle BodyToggle { get; }
+        public SwitchToggle BodyToggle { get; private set; }
 
         /// <summary>Both hands and their fingers.</summary>
-        public SwitchToggle HandsToggle { get; }
+        public SwitchToggle HandsToggle { get; private set; }
 
         /// <summary>The Pose model by <see cref="PoseModel"/>: light (0) or standard (1).</summary>
-        public Segmented Model { get; }
+        public Segmented Model { get; private set; }
 
         /// <summary>The load line as shown, for tests.</summary>
         public string LoadText => _load.text;
 
-        public SelectField Devices { get; }
+        public SelectField Devices { get; private set; }
 
         public Image Preview { get; }
 
@@ -343,9 +275,73 @@ namespace VirtualVessel.UI.Screens
             _noVideo.style.display = texture == null ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        private static SettingRow Row(string nameKey, VisualElement control)
+        // The tracking's options, each a setting row that sets the tracking's options as it changes.
+        private void AddOptions(Card card)
         {
-            SettingRow row = Ui.SettingRow(nameKey);
+            Track = new SwitchToggle();
+            Track.RegisterValueChangedCallback(evt =>
+            {
+                if (evt.newValue)
+                {
+                    _tracking.Start();
+                }
+                else
+                {
+                    _tracking.Stop();
+                }
+            });
+            card.Add(Row(TrackingStrings.Track, Track));
+
+            MirrorToggle = new SwitchToggle();
+            MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
+            card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
+
+            // Full body is shown so users know it is coming, and cannot be chosen yet (tracking detailed design 6.5).
+            Range = Ui.Segmented(TrackingStrings.RangeUpper, TrackingStrings.RangeFull);
+            Range.SetItemEnabled(1, false);
+            card.Add(Row(TrackingStrings.Range, Range, TrackingStrings.RangeDescription));
+
+            // A part turned off is not inferred, which lowers the load (tracking detailed design 6.5).
+            FaceToggle = Ui.Toggle(TrackingStrings.Face);
+            BodyToggle = Ui.Toggle(TrackingStrings.Body);
+            HandsToggle = Ui.Toggle(TrackingStrings.Hands);
+            var parts = new VisualElement();
+            parts.AddToClassList(TogglesClass);
+            foreach (SwitchToggle toggle in new[] { FaceToggle, BodyToggle, HandsToggle })
+            {
+                toggle.RegisterValueChangedCallback(_ => _tracking.SetOptions(_tracking.Options.Value.WithRegions(RegionsOf(FaceToggle.value, BodyToggle.value, HandsToggle.value))));
+                parts.Add(toggle);
+            }
+
+            card.Add(Row(TrackingStrings.Parts, parts, TrackingStrings.PartsDescription));
+
+            // The camera sees depth poorly; 2D keeps only what it sees well (tracking detailed design 8.6).
+            Depth = Ui.Segmented(TrackingStrings.Depth3D, TrackingStrings.Depth2D);
+            Depth.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(evt.newValue == 1 ? BodyDepth.Flat : BodyDepth.Tracked)));
+            card.Add(Row(TrackingStrings.Depth, Depth, TrackingStrings.DepthDescription));
+
+            // Fast and steady trade against each other; the user picks a level (tracking detailed design 8.2).
+            Speed = Ui.Slider(null, SmoothingLevel.Min, SmoothingLevel.Max);
+            Speed.Step = 1f;
+            Speed.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(LevelOf(evt.newValue))));
+            card.Add(Row(TrackingStrings.Speed, Speed, TrackingStrings.SpeedDescription));
+
+            Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull);
+            Model.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithPoseModel((PoseModel)evt.newValue)));
+            card.Add(Row(TrackingStrings.Model, Model, TrackingStrings.ModelDescription));
+
+            Devices = Ui.Select(null);
+            Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
+            card.Add(Row(TrackingStrings.Camera, Devices));
+
+            ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
+            refresh.clicked += RefreshDevices;
+            card.Add(Row(CaptureStrings.Refresh, refresh));
+        }
+
+        private static SettingRow Row(string nameKey, VisualElement control, string descriptionKey = null)
+        {
+            SettingRow row = Ui.SettingRow(nameKey, descriptionKey);
             row.Add(control);
             return row;
         }

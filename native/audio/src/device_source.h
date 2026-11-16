@@ -5,6 +5,7 @@
 #include "device_loop.h"
 #include "mixer.h"
 
+#include <atomic>
 #include <string>
 
 namespace vv::audio
@@ -28,11 +29,18 @@ namespace vv::audio
             return _loop;
         }
 
+        // What Windows reports the device adds before its packets, in frames.
+        int32_t DeviceLatency() const
+        {
+            return _deviceLatency.load();
+        }
+
     private:
         HRESULT Capture(const std::wstring& deviceId, uint64_t version);
 
         Mixer& _mixer;
         int _id;
+        std::atomic<int32_t> _deviceLatency{ 0 };
         DeviceLoop _loop;
     };
 }

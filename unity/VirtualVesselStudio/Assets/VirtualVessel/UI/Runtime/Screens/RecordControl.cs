@@ -10,6 +10,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.VoiceLab;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -85,7 +86,8 @@ namespace VirtualVessel.UI.Screens
         private readonly KeyedText _problemText;
         private UiServices _services;
 
-        public RecordControl(IRecordingService recording, IFileExplorer explorer)
+        /// <param name="voiceLab">Optional; while it makes a voice, recording asks to stop that first.</param>
+        public RecordControl(IRecordingService recording, IFileExplorer explorer, IVoiceLab voiceLab = null)
         {
             _recording = recording ?? throw new ArgumentNullException(nameof(recording));
             _explorer = explorer;
@@ -95,7 +97,7 @@ namespace VirtualVessel.UI.Screens
             buttons.AddToClassList(ButtonsClass);
             Chip = Ui.Chip(StatusKind.Live, RecordStrings.Recording);
             buttons.Add(Chip);
-            StartButton = Ui.Button(RecordStrings.Start).Bind(new UiCommand(_recording.Start, _busy));
+            StartButton = Ui.Button(RecordStrings.Start).Bind(new BuildGuardedStart(new UiCommand(_recording.Start, _busy), null, BuildGuardedStart.WhileBuildingRecording(), voiceLab));
             buttons.Add(StartButton);
             StopButton = Ui.Button(RecordStrings.Stop, ButtonVariant.Danger).Bind(new DangerCommand(
                 new UiCommand(_recording.Stop),

@@ -111,6 +111,44 @@ typedef struct vv_audio_stream_tap
 - Managed code gets it from `vv_audio_get_stream_tap` and passes it to the encoder as plain values; Video never links to the audio DLL. Recording and streaming each have a tap with its own place on the bus (`VV_AUDIO_READER_*`, API version 3).
 - One reader at a time (recording; streaming shares the same encoded audio).
 
+### 5.4 Reading Audio Files
+
+```c
+// Decodes a whole audio file with Media Foundation to mono floats at the file's own rate.
+int32_t vv_audio_decode_file(const wchar_t* path, vv_audio_clip** clip, int32_t* rate, int64_t* count, int32_t* error);
+int32_t vv_audio_clip_read(const vv_audio_clip* clip, float* samples, int64_t capacity);
+void vv_audio_clip_free(vv_audio_clip* clip);
+```
+
+- It reads M4A (AAC), MP3, WAV, and the other formats Windows can decode (API version 8). Windows' own decoders do the work, so the plugin carries no codec (system design: Windows' built-in features first).
+- It needs no engine and may be called from any thread. Managed code calls the static `AudioFile.ReadMono` off the main thread; it throws `InvalidDataException` for a file it cannot read and `AudioEngineException` when the plugin is missing or older.
+- Files are read up to `VV_AUDIO_MAX_FILE_SECONDS` (600 s), so a long file chosen by mistake cannot use up the memory.
+- Media Foundation is delay-loaded. On Windows without it (an N edition without the Media Feature Pack) the engine still runs, and only reading a file gives `VV_AUDIO_UNREADABLE`.
+- For now it serves Play an audio file in voice conversion (prototype) on the Diagnostics screen, such as an M4A recorded on a phone. There, WAV is read by Voice's `WavFile`, without the plugin. Later it also serves playing BGM and sound effect files (`AudioSourceInput` in chapter 4).
+
+### 5.5 Previews to the User
+
+```c
+// Plays mono samples on the monitor bus only, never the stream. Playing replaces what plays; it stops at the end.
+int32_t vv_audio_preview_play(vv_audio_engine* engine, const float* samples, int64_t count, int32_t rate);
+int32_t vv_audio_preview_stop(vv_audio_engine* engine);
+int32_t vv_audio_preview_position(vv_audio_engine* engine, int64_t* played, int64_t* length);
+```
+
+```csharp
+public interface IAudioPreview
+{
+    Task<bool> PlayAsync(string path);   // Reads the file off the main thread; false when it cannot be read or played
+    void Stop();
+    float? Progress { get; }             // 0 to 1; null when nothing plays
+}
+```
+
+- For samples only the user should hear, such as Voice Lab's candidates and timbre previews (system design 14.14, 14.15). They are not heard on the stream or in recordings, even while a stream runs.
+- The preview is mixed into the monitor bus before the monitor's limiter, so the monitor volume and mute apply to it (API version 9).
+- One at a time; playing another replaces it. The samples are resampled to the engine's rate and copied outside the engine's lock; only the swap takes the lock, so the audio thread does not wait for the copy.
+- `AudioService` implements `IAudioPreview` and reads the file with `AudioFile.ReadMono` (5.4). Without the plugin it returns false.
+
 ## 6. Data Models
 
 - Format inside: 48 kHz, 32-bit float, stereo. A mono source is copied to both channels.
@@ -141,6 +179,9 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - A managed stage declares its latency and block size. The engine gives it a ring buffer of its source's input and takes its output from another, both 48 kHz float.
 - The stage's work (for RVC, Inference Engine on the GPU) runs on its own schedule in Unity; the engine only copies blocks in and out, so a slow stage never stalls the mix: if its output is late, the engine plays silence for that source and counts it.
 - Removing a stage connects the source straight through again, without reopening the device (system design 9.3, 9.8).
+- `vv_audio_get_stage_delay` (API 7) reports how long a stage's audio waits between the microphone and the monitor. For the rings (the stage's input and output, the monitor) and the output device's buffer it keeps the average fill, a moving average over about half a second; by Little's law the average fill is the average wait there. The devices' own latency is what Windows reports (`GetStreamLatency`). USB, Bluetooth, and the converters are not included.
+
+The prototype's results are in the [decision record](../decisions/voice-conversion.md). `vv_audio_set_stage` turns a source's capture to the stage, and `vv_audio_stage_read` and `vv_audio_stage_write` move the audio.
 
 ### 8.4 Aligning Sources in Time
 
@@ -156,10 +197,19 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - A change while recording shows as a jump in the bus's times; the encoder fills it with silence or leaves out the overlap (recording detailed design 8.1).
 - Measuring the avatar's delay and setting it automatically is an open issue (#100).
 
+### 8.6 Noise Removal
+
+- It reduces keyboard, mouse, and other sounds in the microphone while the user is not speaking (RNNoise; decision record 2026-11-01). People who stream with their own voice, without voice conversion, need it too, so it runs in capture, as the processing before conversion (system design 9.3) (the user's decision, 2026-11-11). Before, Voice called it before converting, so it did nothing with conversion off.
+- The capture thread gathers the frames from the device into 10 ms frames, makes them mono, removes the noise, and passes them to the mix or to the stage's input (`vv_audio_set_denoise`, API version 10). When the device's packets are not 10 ms, the rest waits for the next. It is mono because it is processing for a voice and RNNoise works in mono.
+- It adds about 20 to 30 ms (RNNoise's 20 ms, and the wait to gather 10 ms). This is not part of the stage's delay (`vv_audio_get_stage_delay`): it is small next to the 300 ms stream audio delay (8.5).
+- On by default for the microphone, and not on other sources (the user's decision, 2026-11-11): the game audio is not a voice, and RNNoise cuts music and sound effects as noise.
+- RNNoise's state is made under the engine's lock the first time it is turned on; the capture thread does not allocate (9). Turned off, the frames waiting to make up 10 ms are passed on as they are.
+- When voice conversion plays an audio file in place of the microphone (Diagnostics), Voice cleans the file the same way when the microphone's setting is on (`IAudioStage.Denoises`, `Denoise`), so it sounds as the microphone would.
+
 ## 9. Threading
 
 - One capture thread per device source and one mix thread, native, at above-normal priority (MMCSS "Audio"). No allocation, no lock held while waiting, and no logging on them; counters only.
-- Managed stages run in Unity, never on those threads (8.3).
+- Managed stages run in Unity, never on those threads (8.3). Noise removal (8.6) is native and runs on the capture thread: about 0.3 ms per 10 ms frame (decision record 2026-11-01: a median of 3.2 ms per 100 ms block).
 - Managed reads levels and states from the main thread every 100 ms.
 
 ## 10. Configuration
@@ -170,7 +220,7 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 {
   "schemaVersion": 1,
   "sources": [
-    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "sends": { "stream": 0, "monitor": -120 } },
+    { "id": "...", "role": "microphone", "deviceId": "...", "gainDb": 0, "muted": false, "denoise": true, "sends": { "stream": 0, "monitor": -120 } },
     { "id": "...", "role": "gameAudio", "deviceId": null, "gainDb": -6, "muted": false, "sends": { "stream": 0, "monitor": 0 } }
   ],
   "monitor": { "deviceId": "...", "gainDb": 0, "muted": false },
@@ -181,6 +231,7 @@ Devices run on clocks of their own; their drift (a few samples a second) is abso
 - Sources are a list, so BGM, SE, and more microphones are added without changing the format. A source of a role this version does not know is kept and not played; unknown fields at the top of the file are kept (CLAUDE.md 25). Unknown fields inside a source are not kept yet.
 - JSON cannot hold -inf, so a send of -120 dB or below is none.
 - `streamDelayMs` (8.5) was added in schema version 1 without a step: a file without it reads as 300.
+- A source's `denoise` (8.6) was also added in schema version 1 without a step: a file without it reads as on for the microphone and off for the others.
 - `monitor` and the `monitor` send were added the same way. A file without `monitor` starts on Windows' default output, and a source without the send is heard only if it is the game audio. A `deviceId` of null is the user's choice of none, and stays.
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
 - `ProfileKind` gains `Audio`.
@@ -208,8 +259,8 @@ Settings only (10). No audio is stored by this module; recordings are written by
 
 | Kind | Target |
 |---|---|
-| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others |
-| EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration |
+| Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others. Audio files: a written WAV's rate and mono mix, and a missing file |
+| EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration. `AudioFile` (skipped without the plugin) |
 | Hardware (manual) | A real microphone and capture board: levels, unplugging, the recording's sync (recording detailed design 14) |
 
 ## 15. Performance
@@ -221,12 +272,12 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 4: a tap per reader)
+native/audio/include/vv_audio.h        The C API (version 8: audio files)
 native/audio/src/                      mixer (the mix, the buses, the tap; no threads or devices), frame_ring, fill_tracker (a ring between two clocks),
                                        dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
-                                       device_output (the monitor's playback), exports (the engine and its mix thread)
+                                       device_output (the monitor's playback), audio_file (reading files with Media Foundation), exports (the engine and its mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
-Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine)
+Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine), AudioFile, IAudioPreview
 Audio/Tests/EditMode/
 UI/Runtime/Screens/                    AudioCard (setup screen), AudioStrip (live screen)
 ```
@@ -252,10 +303,11 @@ A Card on the setup screen's Audio page. As a mixer, it has a row each for the s
 | Device | Select ("None" first). A chosen device that is unplugged stays as "A device not connected now". The game audio's is disabled and only shows the device's name (below) |
 | Volume | Slider, -60 to +12 dB in 1 dB steps |
 | Hear | Toggle switching the send to the monitor bus. Setting the amount can come when it is needed |
+| Noise removal | Toggle (8.6), on the microphone's row only; the other rows leave it blank |
 | Mute | Toggle |
 | Level | Level Meter (components 3.5), -60 dB (empty) to 0 dB (full) |
 
-Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
+Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Hear and Noise removal are explained in Help Hints after their headings (components 3.28). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
 - The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.

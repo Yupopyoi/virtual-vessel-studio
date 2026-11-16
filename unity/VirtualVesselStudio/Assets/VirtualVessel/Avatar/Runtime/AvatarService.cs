@@ -245,11 +245,7 @@ namespace VirtualVessel.Avatar
         {
             if (avatarId == null)
             {
-                CancelLoad();
-                Unload();
-                SetCurrent(null);
-                _state.Value = AvatarState.None;
-                _problem.Value = AvatarProblem.None;
+                Deselect();
                 return;
             }
 
@@ -275,39 +271,15 @@ namespace VirtualVessel.Avatar
             IAvatarModel model = null;
             try
             {
-                if (!entry.IsUsable)
-                {
-                    throw new AvatarLoadException(AvatarProblem.LoadFailed, "Its avatar-profile.json or model could not be read.");
-                }
-
-                model = await _loader.LoadAsync(_store.ModelPathOf(entry), load.Token);
-                IReadOnlyList<AvatarBone> missing = AvatarBones.MissingRequired(model.Rig.Has);
-                if (missing.Count > 0)
-                {
-                    throw new AvatarLoadException(AvatarProblem.MissingBones, $"The model lacks the required bones {string.Join(", ", missing)}.");
-                }
-
+                model = await LoadModelAsync(entry, load.Token);
                 if (generation != _generation || _lifetime.IsCancellationRequested)
                 {
                     return;
                 }
 
-                Place(model, _placement());
-                IAvatarModel old = _model;
-                _model = model;
-                _controller = new AvatarController(model, _mapping) { FingerTuning = _fingerTuning.Value };
+                IAvatarModel old = SwapIn(model);
                 model = null;
-                old?.Dispose();
-                SetCurrent(avatarId);
-                _state.Value = AvatarState.Ready;
-                _problem.Value = AvatarProblem.None;
-
-                TimeSpan took = _clock.GetElapsed(started, _clock.GetTimestamp());
-                _loadTimer?.Record(took);
-                _loadFrameTimer?.Record(_longestLoadingFrame);
-                _log?.Information($"Avatar {avatarId} is on the stream: {entry.Profile.Format} {entry.Profile.FormatVersion}{(entry.Profile.Converted ? " (converted)" : string.Empty)}, loaded in {took.TotalSeconds:F2} s, longest frame {_longestLoadingFrame.TotalMilliseconds:F0} ms.");
-                LogMissingParts(avatarId, _model);
-                _log?.Information($"Avatar {avatarId} moves its face {(_controller.Expressions.Profile != null ? $"part by part ({_controller.Expressions.Profile.Name} shapes)" : "by whole-face expressions")}.");
+                OnStream(avatarId, entry, old, started);
             }
             catch (OperationCanceledException) when (load.IsCancellationRequested)
             {
@@ -315,22 +287,7 @@ namespace VirtualVessel.Avatar
             }
             catch (Exception exception)
             {
-                AvatarProblem problem = AvatarImporter.ProblemOf(exception);
-                _log?.Warning($"Avatar {avatarId} could not be loaded: {problem}.", exception);
-                if (generation == _generation)
-                {
-                    // A failed swap keeps the avatar on the stream (avatar detailed design 12).
-                    _problem.Value = problem;
-                    if (_model == null)
-                    {
-                        SetCurrent(avatarId);
-                        _state.Value = AvatarState.Error;
-                    }
-                    else
-                    {
-                        _state.Value = AvatarState.Ready;
-                    }
-                }
+                ShowLoadFailure(avatarId, generation, exception);
             }
             finally
             {
@@ -342,6 +299,94 @@ namespace VirtualVessel.Avatar
                 }
 
                 load.Dispose();
+            }
+        }
+
+        private void Deselect()
+        {
+            CancelLoad();
+            Unload();
+            SetCurrent(null);
+            _state.Value = AvatarState.None;
+            _problem.Value = AvatarProblem.None;
+        }
+
+        // Reads the model and checks it has the bones Avatar needs; throws AvatarLoadException when it cannot be used.
+        private async Task<IAvatarModel> LoadModelAsync(AvatarEntry entry, CancellationToken cancellationToken)
+        {
+            if (!entry.IsUsable)
+            {
+                throw new AvatarLoadException(AvatarProblem.LoadFailed, "Its avatar-profile.json or model could not be read.");
+            }
+
+            IAvatarModel model = await _loader.LoadAsync(_store.ModelPathOf(entry), cancellationToken);
+            try
+            {
+                IReadOnlyList<AvatarBone> missing = AvatarBones.MissingRequired(model.Rig.Has);
+                if (missing.Count > 0)
+                {
+                    throw new AvatarLoadException(AvatarProblem.MissingBones, $"The model lacks the required bones {string.Join(", ", missing)}.");
+                }
+
+                return model;
+            }
+            catch
+            {
+                // Not handed back on any failure, so disposed here, as the caller's cleanup did before.
+                model.Dispose();
+                throw;
+            }
+        }
+
+        // Puts the loaded model on the stream in place of the one there, which is returned for the caller to dispose
+        // once it owns the new one.
+        private IAvatarModel SwapIn(IAvatarModel model)
+        {
+            Place(model, _placement());
+            // The controller first: if it throws, the model on the stream and its controller are still the old pair,
+            // and the caller disposes only the new model.
+            var controller = new AvatarController(model, _mapping) { FingerTuning = _fingerTuning.Value };
+            IAvatarModel old = _model;
+            _model = model;
+            _controller = controller;
+            return old;
+        }
+
+        // Disposes the model taken off the stream, and records how loading went.
+        private void OnStream(string avatarId, AvatarEntry entry, IAvatarModel old, long started)
+        {
+            old?.Dispose();
+            SetCurrent(avatarId);
+            _state.Value = AvatarState.Ready;
+            _problem.Value = AvatarProblem.None;
+
+            TimeSpan took = _clock.GetElapsed(started, _clock.GetTimestamp());
+            _loadTimer?.Record(took);
+            _loadFrameTimer?.Record(_longestLoadingFrame);
+            _log?.Information($"Avatar {avatarId} is on the stream: {entry.Profile.Format} {entry.Profile.FormatVersion}{(entry.Profile.Converted ? " (converted)" : string.Empty)}, loaded in {took.TotalSeconds:F2} s, longest frame {_longestLoadingFrame.TotalMilliseconds:F0} ms.");
+            LogMissingParts(avatarId, _model);
+            _log?.Information($"Avatar {avatarId} moves its face {(_controller.Expressions.Profile != null ? $"part by part ({_controller.Expressions.Profile.Name} shapes)" : "by whole-face expressions")}.");
+        }
+
+        // A failed swap keeps the avatar on the stream (avatar detailed design 12); with none, the choice shows an error.
+        private void ShowLoadFailure(string avatarId, int generation, Exception exception)
+        {
+            AvatarProblem problem = AvatarImporter.ProblemOf(exception);
+            _log?.Warning($"Avatar {avatarId} could not be loaded: {problem}.", exception);
+            if (generation != _generation)
+            {
+                return;
+            }
+
+            _problem.Value = problem;
+            if (_model == null)
+            {
+                SetCurrent(avatarId);
+                _state.Value = AvatarState.Error;
+            }
+            else
+            {
+                _state.Value = AvatarState.Ready;
             }
         }
 

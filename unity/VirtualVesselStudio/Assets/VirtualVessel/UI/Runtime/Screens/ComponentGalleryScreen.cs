@@ -68,6 +68,7 @@ namespace VirtualVessel.UI.Screens
             Section(GalleryStrings.Notices, Notices(), _columns[1]);
             Section(GalleryStrings.Dialog, Dialogs(), _columns[0]);
             Section(GalleryStrings.Menu, Menus(), _columns[1]);
+            Section(GalleryStrings.Steps, Steps(), _columns[0]);
             Section(GalleryStrings.Table, Table(), this);
         }
 
@@ -135,6 +136,19 @@ namespace VirtualVessel.UI.Screens
             yield return Row(new KeyHint("Ctrl+M"), new KeyHint("F"), new KeyHint("Esc"));
         }
 
+        private static IEnumerable<VisualElement> Steps()
+        {
+            var steps = new StepIndicator();
+            steps.SetSteps(GalleryStrings.StepBase, GalleryStrings.StepTone, GalleryStrings.StepBuild);
+            steps.Show(1, 1);
+            steps.StepChosen += index => steps.Show(index, steps.Reached);
+            yield return steps;
+
+            var picked = new CandidateTile(1, 268, 203, 338) { Picked = true };
+            var other = new CandidateTile(2, 241, 0, 0);
+            yield return Row(picked, other);
+        }
+
         private static IEnumerable<VisualElement> Fields()
         {
             TextInput title = Ui.TextField(GalleryStrings.Title);
@@ -166,6 +180,7 @@ namespace VirtualVessel.UI.Screens
         {
             yield return Ui.Tabs(GalleryStrings.TabAvatar, GalleryStrings.TabVoice, GalleryStrings.TabStage);
             SettingRow row = Ui.SettingRow(GalleryStrings.Noise, GalleryStrings.NoiseDescription);
+            row.HelpKey = GalleryStrings.NoiseHelp;
             row.Add(Ui.Segmented(GalleryStrings.Weak, GalleryStrings.Strong));
             yield return row;
         }
