@@ -52,11 +52,15 @@
 public interface IAudioClipLibrary
 {
     CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind);
+    CrudResult<AudioClipRecord> Get(string id);
+    // 登録できるか、できないならなぜか（形式、読めない、SEが長すぎる）。利用者への表示に使う。
+    Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // ファイルを写し、読めるかと長さを確かめる。重いのでメインスレッドの外で呼ぶ。
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
-    CrudResult Delete(string id);
+    CrudResult Delete(string id);                // 流しているBGMはBusy
     IReadOnlyList<string> FileExtensions { get; } // 最初の版は wav、mp3
+    event Action<AudioClipKind> Changed;          // 追加、変更、削除の後。プレイヤーが追う
 }
 
 public interface IBgmPlayer
@@ -75,11 +79,14 @@ public interface IBgmSequence
 
 public interface ISoundEffectPlayer
 {
-    void Play(string id);  // 重ねて鳴らす。読み込みが済んでいなければ、済んだときに鳴らさず、数えてログに残す
+    void Play(string id);  // 重ねて鳴らす。読み込みが済んでいなければ鳴らさず、ログに残す
     void StopAll();
+    bool IsReady(string id);
 }
 ```
 
+- `CheckAsync`は、`AddAsync`が`Invalid`を返す理由を利用者に伝えるためにある。CRUDの結果（`CrudResult`）は失敗の種類しか持たないためである（方式設計6.31）。
+- 流しているBGMは、デッキのスレッドがファイルを開いているので、消せない（`Busy`）。削除のボタンを押せなくし、理由を出す。SEは読み込んだ後はファイルを開いていないので、いつでも消せる。消すと、SEのプレイヤーがエンジンから外す。
 - `BgmCue`は、曲のIDと、その曲をループするかを持つ。最初の版の`SingleTrack`は、選んだ曲を1つ返し、その曲のループの設定に従う。プレイリストとシャッフルは、`IBgmSequence`の新しい実装として加える（17章）。プレイヤーとネイティブのデッキは変えない。
 - 再生の操作は、配信中に音声の仕組みを作り直さない（方式設計12.11）。音の元とバスは、起動時から持ち続ける。
 
@@ -115,7 +122,7 @@ Audio/
 
 - 元のファイルは変えずに写す。再生のたびにデコードする。変換した写しを持つと、MP3が約10倍の大きさのWAVになるためである。
 - 追加は、隣のフォルダー（`.part`）へ写してから名前を変える。作りかけを一覧に出さないためである（VoiceModelStoreと同じ）。
-- `loop`はBGMだけが使う。SEのファイルには書かない。
+- `loop`はBGMだけが使う。SEは`false`のままで、使わない（設定のファイルはnullも書くため、省けない）。
 - この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
 - `name`は1〜60文字。同じ名前を許す（IDで区別する）。
 
@@ -135,6 +142,7 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 - `AudioService`は、起動時にBGMとSEの音の元をミキサーに作る。ネイティブのデッキとSEのボイスは、エンジンと一緒に作り、終了時に一緒に止める。
 - SEは、起動後にメインスレッドの外で、登録したものを全部デコードしてネイティブへ渡す。追加したときは、そのSEだけを渡す。削除したときは外す。
 - BGMの状態：`Idle` →（Play）`Starting`（先読み）→ `Playing` →（Stop、または終わってSequenceが何も返さない）`Stopping`（フェード）→ `Idle`。読めないときは`Failed`。
+- BGMのプレイヤーは、曲がある間だけ毎フレームの処理を持ち、0.1秒ごとにデッキの状態を読む。曲がなければフレームの負荷はない。
 - 流しているBGMやSEを削除するときは、先にそれを止める。
 
 ## 8. 主な流れ

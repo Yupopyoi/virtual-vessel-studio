@@ -4,11 +4,17 @@ using VirtualVessel.Core.State;
 
 namespace VirtualVessel.Audio
 {
-    /// <summary>What a source is for (audio detailed design 4). Later: music and sound effects.</summary>
+    /// <summary>What a source is for (audio detailed design 4; BGM and SE detailed design 6.2).</summary>
     public enum AudioSourceRole
     {
         Microphone,
         GameAudio,
+
+        /// <summary>BGM, played from the deck; it has no device.</summary>
+        Music,
+
+        /// <summary>Sound effects, played from the voices; it has no device.</summary>
+        SoundEffect,
     }
 
     /// <summary>Where a source is (audio detailed design 5).</summary>

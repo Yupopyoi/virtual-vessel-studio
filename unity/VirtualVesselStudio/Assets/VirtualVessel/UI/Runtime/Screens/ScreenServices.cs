@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using VirtualVessel.Audio;
+using VirtualVessel.Audio.Clips;
+using VirtualVessel.Audio.Playback;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
@@ -54,6 +56,13 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Playing samples to the user only (Audio), for Voice Lab's candidates; null leaves out the play buttons.</summary>
         public IAudioPreview AudioPreview { get; set; }
+
+        /// <summary>The registered BGM and SE (BGM and SE detailed design); null without them.</summary>
+        public IAudioClipLibrary AudioClips { get; set; }
+
+        public IBgmPlayer Bgm { get; set; }
+
+        public ISoundEffectPlayer SoundEffects { get; set; }
 
         /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
         public ISystemSettings SystemSettings { get; set; }

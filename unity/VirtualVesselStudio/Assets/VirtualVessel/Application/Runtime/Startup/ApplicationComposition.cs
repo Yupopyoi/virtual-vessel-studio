@@ -72,6 +72,7 @@ namespace VirtualVessel.Application.Startup
 
             descriptors.AddRange(CaptureDescriptors(context, built));
             descriptors.AddRange(AudioDescriptors(context, built));
+            descriptors.AddRange(AudioPlayerDescriptors(context, built));
             descriptors.AddRange(VoiceDescriptors(context, built));
             descriptors.AddRange(VideoDescriptors(context, built));
             descriptors.AddRange(TrackingDescriptors(context, built));

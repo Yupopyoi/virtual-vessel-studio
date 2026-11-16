@@ -105,7 +105,7 @@ namespace VirtualVessel.Audio
     /// <c>VirtualVessel.Audio.Native</c> (native/audio/include/vv_audio.h): WASAPI capture, the mix, and the
     /// stream tap, on threads of its own. Calls come from the main thread.
     /// </summary>
-    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine
+    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine, IAudioPlayerEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
         private const int ApiVersion = 11;
@@ -218,6 +218,64 @@ namespace VirtualVessel.Audio
         {
             vv_audio_denoise(_engine, samples, count);
         }
+
+        public int AddPlayerSource(AudioPlayer player)
+        {
+            int result = vv_audio_add_player_source(_engine, (int)player, out int source);
+            if (result != Ok)
+            {
+                throw new AudioEngineException($"No {player} source could be added ({result}).");
+            }
+
+            return source;
+        }
+
+        public long PlayBgm(string path, bool loop, float gainDb)
+        {
+            return vv_audio_bgm_play(_engine, path, loop ? 1 : 0, gainDb, out long generation) == Ok ? generation : 0;
+        }
+
+        public void StopBgm()
+        {
+            vv_audio_bgm_stop(_engine);
+        }
+
+        public void SetBgmGain(float gainDb)
+        {
+            vv_audio_bgm_set_gain(_engine, gainDb);
+        }
+
+        public BgmEngineStatus GetBgmStatus()
+        {
+            return vv_audio_bgm_get_status(_engine, out BgmStatus status) == Ok
+                ? new BgmEngineStatus((BgmEngineState)status.State, status.Error, status.Generation, status.FinishedGeneration, status.PlayedFrames, status.LengthFrames, status.Underruns)
+                : default;
+        }
+
+        public AudioEffectLoad LoadEffect(string path)
+        {
+            int result = vv_audio_effect_load(_engine, path, out int effect, out long frames, out int error);
+            return result == Ok
+                ? new AudioEffectLoad(effect, TimeSpan.FromSeconds(frames / 48000.0), null)
+                : new AudioEffectLoad(-1, TimeSpan.Zero, $"The sound effect cannot be loaded ({result}, HRESULT 0x{error:X8}).");
+        }
+
+        public void UnloadEffect(int effect)
+        {
+            vv_audio_effect_unload(_engine, effect);
+        }
+
+        public bool PlayEffect(int effect, float gainDb)
+        {
+            return vv_audio_effect_play(_engine, effect, gainDb) == Ok;
+        }
+
+        public void StopEffects()
+        {
+            vv_audio_effect_stop_all(_engine);
+        }
+
+        public long EffectsStolen => vv_audio_effect_stolen(_engine, out long stolen) == Ok ? stolen : 0;
 
         public void PlayPreview(float[] samples, int rate)
         {
@@ -475,5 +533,47 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_set_stream_delay(IntPtr engine, int delayMs);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BgmStatus
+        {
+            public int State;
+            public int Error;
+            public long Generation;
+            public long FinishedGeneration;
+            public long PlayedFrames;
+            public long LengthFrames;
+            public long Underruns;
+        }
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_add_player_source(IntPtr engine, int player, out int source);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int vv_audio_bgm_play(IntPtr engine, string path, int loop, float gainDb, out long generation);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_bgm_stop(IntPtr engine);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_bgm_set_gain(IntPtr engine, float gainDb);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_bgm_get_status(IntPtr engine, out BgmStatus status);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int vv_audio_effect_load(IntPtr engine, string path, out int effect, out long frames, out int error);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_effect_unload(IntPtr engine, int effect);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_effect_play(IntPtr engine, int effect, float gainDb);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_effect_stop_all(IntPtr engine);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_effect_stolen(IntPtr engine, out long stolen);
     }
 }

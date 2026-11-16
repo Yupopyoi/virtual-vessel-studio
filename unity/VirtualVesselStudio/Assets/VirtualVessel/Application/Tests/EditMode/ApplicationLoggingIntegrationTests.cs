@@ -133,6 +133,8 @@ namespace VirtualVessel.Application.Tests
                     "PerformanceMetrics Optional [Logging]",
                     "Capture Optional [Logging]",
                     "Audio Optional [Logging]",
+                    "BGM Optional [Logging,Audio]",
+                    "SoundEffects Optional [Logging,Audio,BGM]",
                     "Voice Optional [Logging,Audio]",
                     "Video Optional [Logging]",
                     "Recording Optional [Logging,Video]",

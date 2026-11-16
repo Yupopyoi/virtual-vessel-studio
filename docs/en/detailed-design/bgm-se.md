@@ -52,11 +52,15 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 public interface IAudioClipLibrary
 {
     CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind);
+    CrudResult<AudioClipRecord> Get(string id);
+    // Whether a file can be registered, and if not, why (its format, unreadable, an SE too long): for the user.
+    Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // Copies the file and checks it can be read and how long it is. Heavy, so called off the main thread.
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // name, volume, loop
-    CrudResult Delete(string id);
+    CrudResult Delete(string id);                // Busy for the BGM that plays
     IReadOnlyList<string> FileExtensions { get; } // wav and mp3 in the first version
+    event Action<AudioClipKind> Changed;          // after adding, changing, deleting; the players follow it
 }
 
 public interface IBgmPlayer
@@ -75,11 +79,14 @@ public interface IBgmSequence
 
 public interface ISoundEffectPlayer
 {
-    void Play(string id);  // overlaps; one not loaded yet is not played when it loads, but counted and logged
+    void Play(string id);  // overlaps; one not loaded yet is not played, and is logged
     void StopAll();
+    bool IsReady(string id);
 }
 ```
 
+- `CheckAsync` is there to tell the user why `AddAsync` returns `Invalid`, as a CRUD result (`CrudResult`) holds only the kind of failure (system design 6.31).
+- The BGM that plays cannot be deleted (`Busy`): the deck's thread has its file open. Its Delete is disabled with the reason. An SE does not keep its file open once loaded, so it can always be deleted; the SE player then removes it from the engine.
 - A `BgmCue` holds a track's ID and whether it loops. The first version's `SingleTrack` returns the chosen track once, following its loop setting. Playlists and shuffle are added as new `IBgmSequence` implementations (chapter 17); the player and the native deck do not change.
 - Playback never rebuilds the audio pipeline during a stream (system design 12.11). The sources and buses exist from start-up.
 
@@ -115,7 +122,7 @@ Audio/
 
 - The original file is copied unchanged and decoded each time it plays. A converted copy would turn an MP3 into a WAV about ten times its size.
 - Adding copies into a sibling folder (`.part`) and then renames it, so a half-made one is never listed (as VoiceModelStore does).
-- Only BGM uses `loop`; SE files do not write it.
+- Only BGM uses `loop`; SE keeps it `false` and does not use it (the settings files write nulls too, so it cannot be left out).
 - Fields this version does not know are written back, not dropped (CLAUDE.md 25). Examples to come: an SE's `shortcut`, how a made BGM was made (system design 16.32).
 - `name` is 1 to 60 characters. Equal names are allowed; the ID tells them apart.
 
@@ -135,6 +142,7 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 - `AudioService` makes the BGM and SE sources in the mixer at start-up. The native deck and SE voices are made with the engine and stopped with it at exit.
 - After start-up, all registered SE are decoded off the main thread and handed to the native side. An added SE is handed over alone; a deleted one is removed.
 - BGM states: `Idle` → (Play) `Starting` (reading ahead) → `Playing` → (Stop, or the end with nothing next from the sequence) `Stopping` (fading) → `Idle`. `Failed` when it cannot be read.
+- The BGM player has frame work only while it has a track, reading the deck's state every tenth of a second; with none, it costs the frames nothing.
 - Deleting a BGM or SE that plays stops it first.
 
 ## 8. Main Flows

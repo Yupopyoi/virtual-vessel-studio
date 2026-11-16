@@ -233,6 +233,7 @@ public interface IAudioPreview
 - `streamDelayMs`（8.5）は、Schema version 1のまま手順なしで加えた。ない古いファイルは300として読む。
 - 音の元の`denoise`（8.6）も、Schema version 1のまま手順なしで加えた。ない古いファイルは、マイクをオン、ほかをオフとして読む。
 - `monitor`と送りの`monitor`も、Schema version 1のまま手順なしで加えた。`monitor`がないファイルはWindowsの既定の出力の機器で始め、送りがない音の元はゲームの音声だけを聞く。`deviceId`がnullなら、利用者が「なし」を選んだので既定に戻さない。
+- BGMとSEの音の元（`music`、`soundEffect`）は機器を持たない。ないファイルには既定の値で加える（[BGM・SE詳細設計](bgm-se.md)6.2）。
 - マイクは、初めて使うときにWindowsの既定の入力の機器とする。ゲームの音声には既定がない（キャプチャーボードを選ぶ必要がある）。
 - `ProfileKind`に`Audio`を加える。
 
