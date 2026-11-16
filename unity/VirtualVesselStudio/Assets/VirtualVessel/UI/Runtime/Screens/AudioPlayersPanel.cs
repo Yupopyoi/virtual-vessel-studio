@@ -1,0 +1,254 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using UnityEngine.UIElements;
+using VirtualVessel.Audio;
+using VirtualVessel.Audio.Clips;
+using VirtualVessel.Audio.Playback;
+using VirtualVessel.ProjectData.Records;
+using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Localization;
+
+namespace VirtualVessel.UI.Screens
+{
+    /// <summary>String table keys of the live screen's BGM and SE (docs/&lt;lang&gt;/ui/screens/live.md).</summary>
+    [StringKeys]
+    public static class AudioPlayersStrings
+    {
+        public const string Title = "live.players.title";
+        public const string Bgm = "live.players.bgm";
+        public const string Effects = "live.players.effects";
+        public const string Play = "live.players.play";
+        public const string Stop = "live.players.stop";
+        public const string Volume = "live.players.volume";
+        public const string StopEffects = "live.players.stop-effects";
+        public const string NoBgm = "live.players.no-bgm";
+        public const string NoEffects = "live.players.no-effects";
+    }
+
+    /// <summary>
+    /// BGM and SE on the live screen (BGM and SE detailed design; live.md 2): choose a track, play and stop it, see how
+    /// far it is, set the BGM's volume, and press a sound effect's button. Registering files is the setup screen's.
+    /// </summary>
+    public sealed class AudioPlayersPanel : VisualElement
+    {
+        public const string UssClass = "vv-players";
+        public const string RowClass = UssClass + "__row";
+        public const string LabelClass = UssClass + "__label";
+        public const string PadClass = UssClass + "__pad";
+        public const string TimeClass = UssClass + "__time";
+
+        /// <summary>How often the time and the library are looked at again.</summary>
+        public const long RefreshIntervalMs = 250;
+
+        private readonly IAudioClipLibrary _library;
+        private readonly IBgmPlayer _bgm;
+        private readonly ISoundEffectPlayer _effects;
+        private readonly IAudioSource _music;
+        private readonly VisualElement _pad = new VisualElement();
+        private readonly Label _time;
+        private readonly Label _noBgm;
+        private readonly Label _noEffects;
+        private readonly List<AudioClipRecord> _tracks = new List<AudioClipRecord>();
+        private readonly List<(ActionButton Button, string Id)> _effectButtons = new List<(ActionButton, string)>();
+        private volatile bool _changed = true;
+
+        /// <param name="music">The BGM source, whose volume the slider sets; null leaves the slider out.</param>
+        public AudioPlayersPanel(IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IAudioSource music)
+        {
+            _library = library ?? throw new ArgumentNullException(nameof(library));
+            _bgm = bgm;
+            _effects = effects;
+            _music = music;
+            AddToClassList(UssClass);
+            Card card = Ui.Card(AudioPlayersStrings.Title);
+            Add(card);
+
+            var bgmRow = new VisualElement();
+            bgmRow.AddToClassList(RowClass);
+            bgmRow.Add(Ui.Text(AudioPlayersStrings.Bgm, LabelClass, "vv-text-body"));
+            Tracks = Ui.Select(null);
+            Tracks.TooltipKey = AudioPlayersStrings.Bgm;
+            bgmRow.Add(Tracks);
+            PlayButton = Ui.Button(AudioPlayersStrings.Play, ButtonVariant.Primary);
+            PlayButton.clicked += PressPlay;
+            bgmRow.Add(PlayButton);
+            State = Ui.Chip(StatusKind.Live, AudioClipStrings.BgmPlaying);
+            bgmRow.Add(State);
+            _time = QuietText.Of(new Label());
+            _time.AddToClassList(TimeClass);
+            _time.AddToClassList("vv-mono");
+            bgmRow.Add(_time);
+            if (music != null)
+            {
+                Volume = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
+                Volume.Step = 1f;
+                Volume.Signed = true;
+                Volume.TooltipKey = AudioPlayersStrings.Volume;
+                Volume.SetValueWithoutNotify(music.Options.Value.GainDb);
+                Volume.RegisterValueChangedCallback(evt => _music.SetOptions(_music.Options.Value.WithGain(evt.newValue)));
+                bgmRow.Add(Volume);
+            }
+
+            card.Add(bgmRow);
+            _noBgm = Ui.Text(AudioPlayersStrings.NoBgm, LabelClass, "vv-text-body");
+            card.Add(_noBgm);
+
+            var effectsRow = new VisualElement();
+            effectsRow.AddToClassList(RowClass);
+            effectsRow.Add(Ui.Text(AudioPlayersStrings.Effects, LabelClass, "vv-text-body"));
+            _pad.AddToClassList(PadClass);
+            effectsRow.Add(_pad);
+            StopEffectsButton = Ui.Button(AudioPlayersStrings.StopEffects);
+            StopEffectsButton.clicked += () => _effects?.StopAll();
+            effectsRow.Add(StopEffectsButton);
+            card.Add(effectsRow);
+            _noEffects = Ui.Text(AudioPlayersStrings.NoEffects, LabelClass, "vv-text-body");
+            card.Add(_noEffects);
+
+            PanelLifetime.WhileAttached(this, Attach);
+        }
+
+        public SelectField Tracks { get; }
+
+        public ActionButton PlayButton { get; }
+
+        /// <summary>The BGM's state beside the button, by its shape and text.</summary>
+        public StatusChip State { get; }
+
+        /// <summary>The BGM source's volume; null without the source.</summary>
+        public ValueSlider Volume { get; }
+
+        public ActionButton StopEffectsButton { get; }
+
+        /// <summary>The sound effects' buttons, in the order they were added.</summary>
+        public IReadOnlyList<ActionButton> EffectButtons => _effectButtons.ConvertAll(entry => entry.Button);
+
+        /// <summary>The time through the track and its length, as "0:12 / 0:47"; empty when unknown. Pure.</summary>
+        public static string TimeText(float? progress, TimeSpan length)
+        {
+            if (progress == null || length <= TimeSpan.Zero)
+            {
+                return string.Empty;
+            }
+
+            return AudioClipCard.LengthText(TimeSpan.FromSeconds(Math.Max(1, progress.Value * length.TotalSeconds))) + " / " + AudioClipCard.LengthText(length);
+        }
+
+        /// <summary>Which track the list shows: the one playing, else the one chosen if it is still there, else the first. Pure.</summary>
+        public static string ChosenTrack(IReadOnlyList<string> ids, string playing, string chosen)
+        {
+            if (playing != null && ids.Contains(playing))
+            {
+                return playing;
+            }
+
+            return chosen != null && ids.Contains(chosen) ? chosen : ids.FirstOrDefault();
+        }
+
+        private IDisposable Attach(UiServices services)
+        {
+            void OnChanged(AudioClipKind kind)
+            {
+                // Raised on any thread: read again on this one.
+                _changed = true;
+            }
+
+            _library.Changed += OnChanged;
+            Refresh();
+            IVisualElementScheduledItem poll = schedule.Execute(() =>
+            {
+                if (_changed)
+                {
+                    Refresh();
+                }
+
+                ShowPlayers();
+            }).Every(RefreshIntervalMs);
+            var subscriptions = new List<IDisposable> { new DisposeAction(() => _library.Changed -= OnChanged), new DisposeAction(poll.Pause) };
+            if (_bgm != null)
+            {
+                subscriptions.Add(_bgm.Status.Subscribe(_ => ShowPlayers()));
+            }
+
+            if (_music != null)
+            {
+                subscriptions.Add(_music.Options.Subscribe(options => Volume.SetValueWithoutNotify(options.GainDb)));
+            }
+
+            return new DisposeAll(subscriptions);
+        }
+
+        private void Refresh()
+        {
+            _changed = false;
+            CrudResult<IReadOnlyList<AudioClipRecord>> tracks = _library.List(AudioClipKind.Bgm);
+            CrudResult<IReadOnlyList<AudioClipRecord>> effects = _library.List(AudioClipKind.SoundEffect);
+            _tracks.Clear();
+            _tracks.AddRange(tracks.Ok ? tracks.Value : Array.Empty<AudioClipRecord>());
+            Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.Name)).ToArray());
+            string chosen = ChosenTrack(_tracks.Select(track => track.Id).ToArray(), _bgm?.Status.Value.TrackId, Tracks.value);
+            Tracks.SetValueWithoutNotify(chosen ?? string.Empty);
+            _noBgm.style.display = _tracks.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            Tracks.parent.style.display = _tracks.Count == 0 ? DisplayStyle.None : DisplayStyle.Flex;
+
+            _pad.Clear();
+            _effectButtons.Clear();
+            IReadOnlyList<AudioClipRecord> list = effects.Ok ? effects.Value : Array.Empty<AudioClipRecord>();
+            foreach (AudioClipRecord effect in list)
+            {
+                var button = new ActionButton(null) { PlainText = effect.Name };
+                string id = effect.Id;
+                button.clicked += () => _effects?.Play(id);
+                _pad.Add(button);
+                _effectButtons.Add((button, id));
+            }
+
+            _noEffects.style.display = list.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            StopEffectsButton.parent.style.display = list.Count == 0 ? DisplayStyle.None : DisplayStyle.Flex;
+            ShowPlayers();
+        }
+
+        private void ShowPlayers()
+        {
+            BgmStatus status = _bgm?.Status.Value ?? default;
+            (bool playing, bool failed) = AudioClipCard.RowState(status, status.TrackId);
+            PlayButton.TextKey = playing ? AudioPlayersStrings.Stop : AudioPlayersStrings.Play;
+            PlayButton.Variant = playing ? ButtonVariant.Secondary : ButtonVariant.Primary;
+            PlayButton.SetEnabled(_bgm != null && (playing || !string.IsNullOrEmpty(Tracks.value)));
+            Tracks.SetEnabled(!playing);
+            State.style.display = playing || failed ? DisplayStyle.Flex : DisplayStyle.None;
+            State.Status = failed ? StatusKind.Error : StatusKind.Live;
+            State.TextKey = failed ? AudioClipStrings.BgmFailed : AudioClipStrings.BgmPlaying;
+            AudioClipRecord track = _tracks.Find(t => t.Id == status.TrackId);
+            _time.text = playing && track != null ? TimeText(_bgm.Progress, track.Duration) : string.Empty;
+            foreach ((ActionButton button, string id) in _effectButtons)
+            {
+                button.SetEnabled(_effects != null && _effects.IsReady(id));
+            }
+        }
+
+        private void PressPlay()
+        {
+            if (_bgm == null)
+            {
+                return;
+            }
+
+            BgmStatus status = _bgm.Status.Value;
+            if (AudioClipCard.RowState(status, status.TrackId).Playing)
+            {
+                _bgm.Stop();
+                return;
+            }
+
+            AudioClipRecord track = _tracks.Find(t => t.Id == Tracks.value);
+            if (track != null)
+            {
+                _bgm.Play(new SingleTrack(track.Id, track.Loop));
+            }
+        }
+    }
+}

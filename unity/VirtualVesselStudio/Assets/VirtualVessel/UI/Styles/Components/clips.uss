@@ -101,3 +101,50 @@
     flex-direction: row;
     margin-top: var(--vv-space-m);
 }
+
+/* The live screen's BGM and SE (live.md 2): a row for BGM, a row of sound effects' buttons that wraps. */
+.vv-players {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-players__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-players__row > * {
+    margin-right: var(--vv-space-s);
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-players__label {
+    color: var(--vv-color-text-2);
+    min-width: 64px;
+}
+
+.vv-players__row > .vv-select {
+    width: 260px;
+}
+
+.vv-players__row > .vv-slider {
+    width: 200px;
+}
+
+.vv-players__time {
+    color: var(--vv-color-text-2);
+    min-width: 96px;
+}
+
+.vv-players__pad {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.vv-players__pad > .vv-button {
+    margin-right: var(--vv-space-s);
+    margin-bottom: var(--vv-space-xs);
+}

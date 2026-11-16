@@ -42,6 +42,7 @@ For each component, the following states are defined:
 - Shape Radius Control (rounded rectangle), text Button style, padding 8px vertical and 18px horizontal.
 - Moves down 1px while pressed.
 - A Danger action runs only after a confirmation dialog (3.11).
+- A name the user gave (such as a sound effect's) is shown as it is, not looked up in the string tables and not read as rich text (`PlainText`).
 
 ### 3.2 Icon Button
 
