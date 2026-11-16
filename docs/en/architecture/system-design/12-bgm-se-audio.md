@@ -111,6 +111,8 @@ The following may be added in the future as needed:
 - fade out
 - repeat
 
+BGM made inside the app (16.32) is registered and managed the same way.
+
 ### Rationale
 
 A structure that plays audio files by specifying their paths directly may break settings when files are moved, etc.

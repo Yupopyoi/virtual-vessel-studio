@@ -853,3 +853,39 @@ Future feature additions follow these basic principles.
 23. When adding new functions, also evaluate performance, security, privacy, and UI complexity.
 24. Base final decisions on adopting functions on actual usefulness.
 25. Add new video input approaches as capture sources / adapters.
+26. Generate BGM from music-theory rules and synthesis, not a model, with a score to edit it through (16.32).
+
+---
+
+## 16.32 Generating BGM
+
+Users can make BGM for their own streams inside the app (the user's idea, 2026-11-16). It is built in a later stage; this section only sets its direction.
+
+No machine-learning model is used. A piece is made from music-theory rules (chord progressions, scales, accompaniment and rhythm patterns, building a melody), the choices the user makes, and random numbers, and its sound is synthesized from basic waveforms and filters.
+
+```text
+Mood, controls, random seed
+        ↓
+Composition (rules)
+        ↓
+Score (chords, notes per part)  ← editing works on this
+        ↓
+Synthesis (waveforms, filters, reverb)
+        ↓
+Audio → registered as BGM (12.4, 12.6)
+```
+
+- Instructions are given with choices and controls: the mood (for example lo-fi, cute pop, a gentle waltz), tempo, brightness, the melody's instrument, how busy it is, human timing, and length. Asking in sentences is not used, as reading words would need a language model.
+- A mood is added as a set of candidate progressions, rhythm patterns, a way of building the melody, and instruments.
+- Composition and synthesis are C# computation independent of Unity, run apart from the runtime's work (never holding up the stream). They need no Python, external service, or GPU.
+- The score and what the piece was made from (mood, controls, seed, and the composer's version) are saved with the audio. Improving the rules changes the piece made from the same choices, so the registered audio is authoritative.
+- Editing is added step by step: changing the chord row (the accompaniment and melody follow the new chord), making bars again and keeping bars, MIDI export and import, and later a screen to edit notes directly.
+- Playback uses chapter 12's mechanism, as for registered BGM, so BGM and SE playback is built first.
+
+### Rationale
+
+Without a model, a piece can be streamed as the user's own, with no concern for model licenses, training-data rights, or false Content ID matches. The computation is light, so changing a control can be heard again at once, and no environment has to be built as for Voice Lab.
+
+A score between composition and synthesis lets the user fix part of a piece, and exchange it with other music software as MIDI.
+
+It cannot make the sound of live instruments or a singing voice. Synthesized sound is judged enough for BGM behind a stream. If generation with a model is needed later, it is decided again under 16.29.
