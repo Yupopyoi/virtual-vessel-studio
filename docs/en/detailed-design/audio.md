@@ -289,7 +289,7 @@ A new module `VirtualVessel.Audio` (system design 2.4); UI references Audio, as 
 1. The microphone and the game's audio, gain and mute, the stream bus, levels, settings (this version).
 2. The monitor bus: game audio and later BGM and SE on the user's headphones, with their own sends (system design 9.4). Done.
 3. Voice conversion as a managed stage on the microphone (8.3), and the stream video delayed to match (8.4).
-4. Clip players for BGM and SE, with their files in the Data Root.
+4. Clip players for BGM and SE, with their files in the Data Root. See the [BGM and SE detailed design](bgm-se.md).
 
 Not a requirement yet, but the user wants it (2026-10-31): taking a game's sound on the same PC without a capture board (application audio loopback). When it is added: it comes as a new `AudioSourceInput`. Its sound already reaches the user directly from the game, so sending it to the monitor would be heard twice, and its default send must be none. For the video, see the open issues of `capture.md`.
 

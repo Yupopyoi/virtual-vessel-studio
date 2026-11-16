@@ -1,0 +1,244 @@
+# BGM・SE詳細設計
+
+## 1. 目的
+
+配信で流すBGMと効果音（SE）を、アプリに登録して再生する（方式設計12章）。BGMとSEは、マイクやゲームの音声と同じく、Audio Moduleの音の元としてミキサーに入る（Audio詳細設計17章の段階4）。配信と録画は、混ぜた後の音だけを受け取り、BGMとSEを知らない（方式設計12.8）。
+
+最初の版で扱う形式は、WAVとMP3とする（利用者の決定、2026-11-16）。BGMは1曲を選んで流し、ループするかを選べる。SEは、押すとすぐ鳴り、いくつでも重ねられる。
+
+後で加える前提のもの（利用者の決定、2026-11-16）。最初の版はこれらを作らないが、加えるときに作り直しが要らない形にする（17章）：
+
+- BGMの並べ方：プレイリスト、シャッフル、繰り返し、曲の間のクロスフェード（方式設計12.4）
+- SEのキーボードのショートカット、後で外部の機器やイベント（方式設計12.5）
+- 扱う形式：M4A（AAC）など、Windowsがデコードできるもの
+- アプリの中で作ったBGM（方式設計16.32）
+
+## 2. 責務
+
+| 責務 | 担当 |
+|---|---|
+| BGMとSEのファイルの登録、名前、音量、ループ、削除（CRUD） | Audio（`AudioClipLibrary`） |
+| BGMを少しずつデコードして流す、止める、フェード | Audio、ネイティブの`VirtualVessel.Audio.Native`（BGMのデッキ） |
+| SEのデコードとメモリーへの保持、重ねての再生 | Audio、ネイティブ（SEのボイス） |
+| 何を次に流すかを決める（1曲、後でプレイリスト） | Audio（`IBgmSequence`） |
+| BGMとSEの音の元の音量、ミュート、配信とモニターへの送り、レベル | Audio（既存の音の元の仕組み） |
+| 登録と設定の画面、ライブ画面の操作 | UI。各操作はCommandを通す |
+
+## 3. Moduleの境界
+
+- BGMとSEは、Audio Moduleの中に置く（方式設計12.15）。新しいModuleは作らない。混ぜ合わせ、バス、リミッター、メーターを共有するためである。
+- ほかのModuleに見せるのは、`IAudioClipLibrary`、`IBgmPlayer`、`ISoundEffectPlayer`と、既存の`IAudioService`である。Media FoundationやWASAPIの型は見せない。
+- UIは、再生をCommand（`PlayBgmCommand`、`StopBgmCommand`、`PlaySoundEffectCommand`）で依頼する。後でキーボードのショートカットや外部の機器が、同じCommandを呼ぶ（17章）。
+- アプリの中で作るBGM（方式設計16.32）は、作った音声をこのライブラリへ登録する。作る側はライブラリの公開APIだけを使う。
+
+## 4. 主なClassとInterface
+
+| Class | 種類 | 役割 |
+|---|---|---|
+| `IAudioClipLibrary` | Interface | BGMとSEの登録、一覧、名前・音量・ループの変更、削除。結果は`CrudResult`（方式設計6.31） |
+| `AudioClipLibrary` | Class | `Audio/BGM/<id>/`と`Audio/SE/<id>/`を読み書きする |
+| `AudioClipKind` | Enum | `Bgm`、`SoundEffect` |
+| `AudioClipRecord` | Record | 1つの登録：ID、種類、名前、音量、ループ、長さ、元のファイル名、登録の日時 |
+| `IBgmPlayer` | Interface | BGMの再生、停止、今の状態 |
+| `IBgmSequence` | Interface | 次に流す曲を決める。最初の版は`SingleTrack`（1曲、ループするかしないか） |
+| `ISoundEffectPlayer` | Interface | SEを鳴らす、全部止める |
+| `AudioSourceRole.Music`、`SoundEffect` | Enumの値 | ミキサーの行になる音の元（Audio詳細設計4章で予定していたもの） |
+| ネイティブのBGMのデッキ | C++ | デコード用のスレッドがファイルを先読みし、リングへ書く。混ぜ合わせのスレッドがそこから読む |
+| ネイティブのSEのボイス | C++ | メモリーに置いたSEを、決まった数まで重ねて鳴らす |
+
+## 5. 公開API
+
+```csharp
+public interface IAudioClipLibrary
+{
+    CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind);
+    // ファイルを写し、読めるかと長さを確かめる。重いのでメインスレッドの外で呼ぶ。
+    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
+    CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
+    CrudResult Delete(string id);
+    IReadOnlyList<string> FileExtensions { get; } // 最初の版は wav、mp3
+}
+
+public interface IBgmPlayer
+{
+    IReadOnlyObservable<BgmState> State { get; } // 曲のID、Idle / Starting / Playing / Stopping / Failed、問題
+    void Play(IBgmSequence sequence);            // 流しているものとフェードで入れ替わる
+    void Stop();                                 // フェードで止まる
+    float? Progress { get; }                     // 0から1。流していないときはnull
+}
+
+public interface IBgmSequence
+{
+    // 今の曲が終わったとき（ループしない曲）、または初めに、次に流す曲。nullで終わる。
+    BgmCue Next(BgmCue finished);
+}
+
+public interface ISoundEffectPlayer
+{
+    void Play(string id);  // 重ねて鳴らす。読み込みが済んでいなければ、済んだときに鳴らさず、数えてログに残す
+    void StopAll();
+}
+```
+
+- `BgmCue`は、曲のIDと、その曲をループするかを持つ。最初の版の`SingleTrack`は、選んだ曲を1つ返し、その曲のループの設定に従う。プレイリストとシャッフルは、`IBgmSequence`の新しい実装として加える（17章）。プレイヤーとネイティブのデッキは変えない。
+- 再生の操作は、配信中に音声の仕組みを作り直さない（方式設計12.11）。音の元とバスは、起動時から持ち続ける。
+
+## 6. Data Model
+
+### 6.1 登録したファイル
+
+Data Rootの`Audio/`に置く（方式設計6.10、12.6）。
+
+```text
+Audio/
+├─ BGM/
+│  └─ bgm-<id>/
+│     ├─ audio.mp3          元のファイルの写し（拡張子は元のまま）
+│     └─ audio-profile.json
+└─ SE/
+   └─ se-<id>/
+      ├─ audio.wav
+      └─ audio-profile.json
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "ふわふわ午後",
+  "gainDb": 0,
+  "loop": true,
+  "durationSeconds": 31.0,
+  "originalName": "fuwafuwa.mp3",
+  "addedAtUtc": "2026-11-16T12:00:00Z"
+}
+```
+
+- 元のファイルは変えずに写す。再生のたびにデコードする。変換した写しを持つと、MP3が約10倍の大きさのWAVになるためである。
+- 追加は、隣のフォルダー（`.part`）へ写してから名前を変える。作りかけを一覧に出さないためである（VoiceModelStoreと同じ）。
+- `loop`はBGMだけが使う。SEのファイルには書かない。
+- この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
+- `name`は1〜60文字。同じ名前を許す（IDで区別する）。
+
+### 6.2 Audio Profileの音の元
+
+Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffect`の音の元を1つずつ加える。機器を持たない。
+
+```json
+{ "id": "...", "role": "music", "gainDb": -6, "muted": false, "sends": { "stream": 0, "monitor": 0 } }
+```
+
+- 古いファイルにないときは、既定の値で加える：BGMは-6 dB、SEは0 dB。送りは配信とモニターの両方（Audio詳細設計5.2の既定）。
+- 最後に流していたBGMと、それを流していたかは保存しない。起動していきなりBGMが流れないようにするためである。プレイリストを加えるときに、選んだプレイリストだけを保存する。
+
+## 7. 状態とライフサイクル
+
+- `AudioService`は、起動時にBGMとSEの音の元をミキサーに作る。ネイティブのデッキとSEのボイスは、エンジンと一緒に作り、終了時に一緒に止める。
+- SEは、起動後にメインスレッドの外で、登録したものを全部デコードしてネイティブへ渡す。追加したときは、そのSEだけを渡す。削除したときは外す。
+- BGMの状態：`Idle` →（Play）`Starting`（先読み）→ `Playing` →（Stop、または終わってSequenceが何も返さない）`Stopping`（フェード）→ `Idle`。読めないときは`Failed`。
+- 流しているBGMやSEを削除するときは、先にそれを止める。
+
+## 8. 主な流れ
+
+### 8.1 BGMを流す
+
+1. UIが`PlayBgmCommand`に、選んだ曲の`SingleTrack`を渡す。
+2. `BgmPlayer`が`Next`で最初の曲を受け取り、ネイティブのデッキへファイルのパス、ループ、曲の音量を渡す。
+3. デッキのデコード用のスレッドが、Media Foundationでファイルを開き、48 kHzのfloatのステレオにして、約2秒先までリングへ書く。足りなくなる前に書き足す。
+4. 混ぜ合わせのスレッドは、10 msごとにリングから1ブロックを読み、BGMの音の元として、音量、ミュート、送りをかけてバスへ足す。ファイルは読まない。
+5. ループする曲は、デコード用のスレッドが終わりで頭へ戻り、続けて書く。継ぎ目に無音は入らない。
+6. ループしない曲が終わると、デッキが終わりを知らせる。`BgmPlayer`は`Next`を呼び、次の曲があればそれを流し、なければ`Idle`になる。
+
+- 切り替えと停止では、流しているものを約0.3秒で下げる。新しい曲は頭から約0.05秒で上げる。プツッと鳴らないためである。
+- リングが空になった（デコードが遅れた）ときは、その分を無音にして数える（`Audio/Music.Underruns`）。
+
+### 8.2 SEを鳴らす
+
+1. `PlaySoundEffectCommand`が`ISoundEffectPlayer.Play(id)`を呼ぶ。
+2. ネイティブのSEのボイスの空きに、そのSEを頭から入れる。次の10 msのブロックから鳴る。
+3. 空きがなければ、一番古く鳴り始めたものを短く下げて入れ替える。
+4. ボイスの数は16とする。ボイスごとに位置と曲の音量だけを持ち、サンプルはSEごとに1つを共有する。
+
+- SEはファイルの音量（`gainDb`）を、ボイスに入れるときにかける。SEの音の元全体の音量とミュートは、ミキサーでかける。
+
+## 9. Threadと非同期
+
+- 混ぜ合わせのスレッド（既存）：デッキのリングとSEのボイスを読むだけ。Allocation、待つ間のLock、ファイルの読み込みはしない（Audio詳細設計9章）。
+- デッキのデコード用のスレッド（新規、ネイティブ、通常の優先度）：Media Foundationでデコードし、リングへ書く。リングは書き手1つ、読み手1つで、Lockを取らない。
+- SEのデコード：マネージドで、メインスレッドの外で行い、できたサンプルをエンジンのLockの中でネイティブへ渡す（入れ替えだけ。プレビューと同じ。Audio詳細設計5.5）。
+- 登録（ファイルの写しと確認）：マネージドで、メインスレッドの外で行う。
+
+## 10. 設定
+
+- 6.2の音の元の音量、ミュート、送り。
+- 曲ごと、SEごとの音量とループは、登録のファイル（6.1）に持つ。ProjectのProfileではない。素材の性質であり、Projectが変わっても同じだからである。
+
+## 11. 保存
+
+6.1と6.2のとおり。BGMとSEのファイルは利用者のAssetとして扱う（CLAUDE.md 25章）。
+
+## 12. エラーと回復
+
+| 起きたこと | 動作 | 利用者への表示 |
+|---|---|---|
+| 登録するファイルを読めない、形式が違う | 登録しない（`Invalid`） | 音声ファイルを読み込めません |
+| SEが30秒より長い | 登録しない（`Invalid`） | 効果音は30秒までです |
+| 再生するファイルがない、壊れている | `Failed`。ほかの音は止めない | このBGMを再生できません |
+| デコードが遅れた | 足りない分を無音にして数える | 表示しない。診断に数える |
+| Media Foundationがない（Nエディション） | BGMとSEを使えない | 音声ファイルを読み込めません。Media Feature Packの案内 |
+
+- BGMとSEの失敗は、マイク、配信、録画を止めない（方式設計12.11）。
+
+## 13. ログと診断
+
+- 登録、削除、再生の開始と終わり、失敗を記録する。曲はIDで書き、ファイルのパスと名前は書かない（利用者のファイルの名前は個人の情報になりうる）。
+- 失敗では、形式、レート、チャンネル数、HRESULTを記録する（方式設計12.14）。
+- 計測：`Audio/Music.Underruns`、`Audio/SoundEffect.VoicesStolen`。
+- 音声そのものは記録しない。
+
+## 14. Testの方針
+
+| 種類 | 対象 |
+|---|---|
+| ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
+| EditMode | `AudioClipLibrary`：追加、一覧、変更、削除、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
+| PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
+| 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
+
+## 15. 性能
+
+- 混ぜ合わせのスレッドの仕事は、ブロックごとに、リングからの写しと、鳴っているSEのボイスの足し合わせだけ。
+- デコード：MP3は1コアの1%を十分に下回る見込み。デッキのリングは約2秒（約0.8 MB）。
+- SEのメモリー：30秒のステレオで約11.5 MB。登録の数が多い場合の上限は、実装時に測って決める（17章）。
+
+## 16. Folder / Namespace
+
+```text
+native/audio/src/        bgm_deck（デコード用のスレッドとリング）、sound_effects（ボイス）、audio_file（ステレオのデコードを加える）
+native/audio/include/    vv_audio.h（API version 11）
+Audio/Runtime/Clips/     IAudioClipLibrary、AudioClipLibrary、AudioClipRecord
+Audio/Runtime/Playback/  IBgmPlayer、BgmPlayer、IBgmSequence、SingleTrack、ISoundEffectPlayer
+UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の操作
+```
+
+## 17. 段階と未解決
+
+段階：
+
+1. ネイティブ：ステレオのデコード、BGMのデッキ（ループ、終わりの知らせ、フェード）、SEのボイス。
+2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`ISoundEffectPlayer`、Commands。
+3. 設定画面：ミキサーの行、BGMとSEのCard。画面仕様はこのときに書く。
+4. ライブ画面：BGMの選択、再生、停止、音量。SEのボタン。
+
+後で加えるもの（作り直さずに加える場所）：
+
+- プレイリスト、シャッフル、繰り返し：`IBgmSequence`の実装と、プレイリストの保存（`Audio/Playlists/`）。
+- 曲の間のクロスフェード、曲間なし：デッキに次の曲を予約するAPIを加え、2つのデコードを重ねる。
+- SEのショートカット：`audio-profile.json`の`shortcut`と、UIのキーの割り当てから`PlaySoundEffectCommand`を呼ぶ。
+- M4Aなど：`FileExtensions`を広げる。デコードはMedia Foundationなので、コードの変更は確認だけで済む見込み。
+- アプリで作ったBGM（方式設計16.32）：作った音声を`AddAsync`で登録する。
+
+未解決：
+
+- 48 kHzへのレートの変換を、Media Foundationの変換に任せるか、プラグインで行うか。実装時に、音と負荷を比べて決める。
+- SEの数とメモリーの上限。
+- 声に合わせてBGMを下げる機能（ダッキング）。利用者の要望があれば加える。
