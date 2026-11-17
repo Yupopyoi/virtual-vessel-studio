@@ -1,0 +1,3 @@
+# For tools/audio/build_builtin_audio.py only; developer tooling, not shipped.
+numpy==2.1.3
+scipy==1.15.2

@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "clips": [
+    {
+      "id": "bgm-cute-pop",
+      "kind": "bgm",
+      "file": "bgm/cute-pop.wav",
+      "names": {
+        "ja": "きらきらポップ",
+        "en": "Sparkly Pop"
+      }
+    },
+    {
+      "id": "bgm-mellow-lofi",
+      "kind": "bgm",
+      "file": "bgm/mellow-lofi.wav",
+      "names": {
+        "ja": "まったりローファイ",
+        "en": "Mellow Lo-fi"
+      }
+    },
+    {
+      "id": "bgm-recorder-waltz",
+      "kind": "bgm",
+      "file": "bgm/recorder-waltz.wav",
+      "names": {
+        "ja": "リコーダーのワルツ",
+        "en": "Recorder Waltz"
+      }
+    },
+    {
+      "id": "bgm-chat-time",
+      "kind": "bgm",
+      "file": "bgm/chat-time.wav",
+      "names": {
+        "ja": "おしゃべりタイム",
+        "en": "Chat Time"
+      }
+    },
+    {
+      "id": "bgm-denpa-41",
+      "kind": "bgm",
+      "file": "bgm/denpa-41.wav",
+      "names": {
+        "ja": "でんぱ41（41平均律）",
+        "en": "Denpa 41 (41-EDO)"
+      }
+    },
+    {
+      "id": "se-chime",
+      "kind": "soundEffect",
+      "file": "se/chime.wav",
+      "names": {
+        "ja": "ピンポーン",
+        "en": "Chime"
+      }
+    },
+    {
+      "id": "se-correct",
+      "kind": "soundEffect",
+      "file": "se/correct.wav",
+      "names": {
+        "ja": "正解",
+        "en": "Correct"
+      }
+    },
+    {
+      "id": "se-wrong",
+      "kind": "soundEffect",
+      "file": "se/wrong.wav",
+      "names": {
+        "ja": "ブブー",
+        "en": "Wrong"
+      }
+    },
+    {
+      "id": "se-pop",
+      "kind": "soundEffect",
+      "file": "se/pop.wav",
+      "names": {
+        "ja": "ポン",
+        "en": "Pop"
+      }
+    },
+    {
+      "id": "se-sparkle",
+      "kind": "soundEffect",
+      "file": "se/sparkle.wav",
+      "names": {
+        "ja": "キラキラ",
+        "en": "Sparkle"
+      }
+    },
+    {
+      "id": "se-drumroll",
+      "kind": "soundEffect",
+      "file": "se/drumroll.wav",
+      "names": {
+        "ja": "ドラムロール",
+        "en": "Drumroll"
+      }
+    },
+    {
+      "id": "se-whoosh",
+      "kind": "soundEffect",
+      "file": "se/whoosh.wav",
+      "names": {
+        "ja": "シュッ",
+        "en": "Whoosh"
+      }
+    },
+    {
+      "id": "se-laser",
+      "kind": "soundEffect",
+      "file": "se/laser.wav",
+      "names": {
+        "ja": "ピュン",
+        "en": "Laser"
+      }
+    },
+    {
+      "id": "se-boing",
+      "kind": "soundEffect",
+      "file": "se/boing.wav",
+      "names": {
+        "ja": "ボヨン",
+        "en": "Boing"
+      }
+    },
+    {
+      "id": "se-rimshot",
+      "kind": "soundEffect",
+      "file": "se/rimshot.wav",
+      "names": {
+        "ja": "ツッコミ",
+        "en": "Rimshot"
+      }
+    },
+    {
+      "id": "se-coin",
+      "kind": "soundEffect",
+      "file": "se/coin.wav",
+      "names": {
+        "ja": "コイン",
+        "en": "Coin"
+      }
+    },
+    {
+      "id": "se-fanfare",
+      "kind": "soundEffect",
+      "file": "se/fanfare.wav",
+      "names": {
+        "ja": "ファンファーレ",
+        "en": "Fanfare"
+      }
+    },
+    {
+      "id": "se-applause",
+      "kind": "soundEffect",
+      "file": "se/applause.wav",
+      "names": {
+        "ja": "拍手",
+        "en": "Applause"
+      }
+    }
+  ]
+}
