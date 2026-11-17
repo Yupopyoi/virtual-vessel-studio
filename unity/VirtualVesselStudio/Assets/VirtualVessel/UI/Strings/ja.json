@@ -874,7 +874,7 @@
         "setup.audio.state.off": "オフ",
         "setup.audio.state.starting": "開始中",
         "setup.audio.state.running": "動作中",
-        "setup.audio.state.not-found": "見つかりません",
+        "setup.audio.state.not-found": "未発見",
         "setup.audio.state.failed": "使えません",
         "setup.audio.state.muted": "ミュート中",
         "setup.audio.problem.not-found": "デバイスが接続されていません。接続すると自動で使い始めます。",

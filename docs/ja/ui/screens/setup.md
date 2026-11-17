@@ -243,7 +243,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 
 | 行 | 内容 |
 |---|---|
-| 音の元 | 名前と、状態のStatus Chip（オフ、開始中、動作中、ミュート中、見つかりません、使えません。形と文字で示す） |
+| 音の元 | 名前と、状態のStatus Chip（オフ、開始中、動作中、ミュート中、未発見、使えません。形と文字で示す） |
 | デバイス | Select。先頭に「なし」。抜かれている機器は「接続されていないデバイス」として残す。ゲームの音声は、映像の取り込みのCardで選ぶ（3章）ので、ここでは無効にして機器の名前だけを見せる。モニターは出力先を選ぶ |
 | 音量 | Slider、-60〜+12dB |
 | 聞く | Toggle。モニターの行にはない |
@@ -277,7 +277,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
-| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.not-found` | 未発見 | Not found |
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |

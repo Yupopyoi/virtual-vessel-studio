@@ -275,7 +275,7 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
-| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.not-found` | 未発見 | Not found |
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
