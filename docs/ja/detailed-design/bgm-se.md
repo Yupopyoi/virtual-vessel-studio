@@ -6,6 +6,8 @@
 
 最初の版で扱う形式は、WAVとMP3とする（利用者の決定、2026-11-16）。BGMは1曲を選んで流し、ループするかを選べる。SEは、押すとすぐ鳴り、いくつでも重ねられる。
 
+アプリには、すぐ使えるBGMとSEを同梱する（利用者の依頼、2026-11-17。6.3）。
+
 後で加える前提のもの（利用者の決定、2026-11-16）。最初の版はこれらを作らないが、加えるときに作り直しが要らない形にする（17章）：
 
 - BGMの並べ方：プレイリスト、シャッフル、繰り返し、曲の間のクロスフェード（方式設計12.4）
@@ -38,6 +40,7 @@
 | `IAudioClipLibrary` | Interface | BGMとSEの登録、一覧、名前・音量・ループの変更、削除。結果は`CrudResult`（方式設計6.31） |
 | `AudioClipLibrary` | Class | `Audio/BGM/<id>/`と`Audio/SE/<id>/`を読み書きする |
 | `AudioClipKind` | Enum | `Bgm`、`SoundEffect` |
+| `BuiltInAudioClips` | Class（Service） | 同梱のBGMとSEを、初めての起動時にライブラリへ登録する（6.3） |
 | `AudioClipRecord` | Record | 1つの登録：ID、種類、名前、音量、ループ、長さ、元のファイル名、登録の日時 |
 | `IBgmPlayer` | Interface | BGMの再生、停止、今の状態 |
 | `IBgmSequence` | Interface | 次に流す曲を決める。最初の版は`SingleTrack`（1曲、ループするかしないか） |
@@ -137,6 +140,28 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 - 古いファイルにないときは、既定の値で加える：BGMは-6 dB、SEは0 dB。送りは配信とモニターの両方（Audio詳細設計5.2の既定）。
 - 最後に流していたBGMと、それを流していたかは保存しない。起動していきなりBGMが流れないようにするためである。プレイリストを加えるときに、選んだプレイリストだけを保存する。
 
+### 6.3 同梱のBGMとSE
+
+アプリには、すぐ使えるBGMとSEを同梱する。プロジェクトが作った音源で、ライセンスはアプリと同じApache-2.0である。
+
+```text
+StreamingAssets/Audio/BuiltIn/
+├─ built-in-audio.json      一覧：ID、種類、ファイル、日本語と英語の名前
+├─ bgm/<name>.wav
+└─ se/<name>.wav
+```
+
+```json
+{ "schemaVersion": 1, "clips": [ { "id": "bgm-cute-pop", "kind": "bgm", "file": "bgm/cute-pop.wav", "names": { "ja": "きらきらポップ", "en": "Sparkly Pop" } } ] }
+```
+
+- 起動の後に、`BuiltInAudioClips`が、まだ登録していないものを`AddAsync`で登録する。ほかの登録と同じく、Data Rootへ写す。利用者は名前、音量、ループを変えられ、消せる。起動を待たせないよう、登録はバックグラウンドで行う。
+- 登録したものは、Data Rootの`Audio/built-in-audio.json`（`{ "schemaVersion": 1, "added": ["bgm-cute-pop", ...] }`）に覚える。1つ登録するたびに書く。利用者が消したものは、もう登録しない。後の版で増えたものだけを登録する。
+- 登録できなかったもの（Media Foundationがないなど）は覚えず、次の起動でもう一度試す。ほかのものの登録は続ける。
+- 名前は、Windowsの表示言語に合わせて日本語か英語を選ぶ（`Localizer.ChooseInitialLocale`）。利用者の画面の言語の設定は、UIが持つため使わない。登録した後の名前は利用者のデータであり、言語を切り替えても変えない。
+- ファイルはMP3ではなくWAV（モノラル、48 kHz、16 bit）とする。MP3は、エンコーダーの足す無音が頭と終わりにあり、Media Foundationはそれを除かないため、ループの継ぎ目が途切れる。モノラルにしたのは、元の曲の左右の違いが数ミリ秒の遅れだけで、大きさを半分にできるためである。合わせて約20 MB。
+- 音源は`tools/audio/build_builtin_audio.py`が作る（numpyとscipy。`tools/audio/requirements.txt`）。乱数の種が決まっているので、何度作っても同じファイルになる。BGMは音の大きさ（RMS -19 dBFS）、SEはピーク（-3 dBFS）でそろえる。
+
 ## 7. 状態とライフサイクル
 
 - `AudioService`は、起動時にBGMとSEの音の元をミキサーに作る。ネイティブのデッキとSEのボイスは、エンジンと一緒に作り、終了時に一緒に止める。
@@ -208,7 +233,7 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 | 種類 | 対象 |
 |---|---|
 | ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
-| EditMode | `AudioClipLibrary`：追加、一覧、変更、削除、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
+| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
 | PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
 | 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
 
@@ -223,7 +248,9 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 ```text
 native/audio/src/        bgm_deck（デコード用のスレッドとリング）、sound_effects（ボイス）、audio_file（ステレオのデコードを加える）
 native/audio/include/    vv_audio.h（API version 11）
-Audio/Runtime/Clips/     IAudioClipLibrary、AudioClipLibrary、AudioClipRecord
+Audio/Runtime/Clips/     IAudioClipLibrary、AudioClipLibrary、AudioClipRecord、BuiltInAudioClips
+StreamingAssets/Audio/BuiltIn/  同梱のBGMとSE（6.3）
+tools/audio/             同梱の音源を作るスクリプト
 Audio/Runtime/Playback/  IBgmPlayer、BgmPlayer、IBgmSequence、SingleTrack、ISoundEffectPlayer
 UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の操作
 ```
@@ -236,6 +263,7 @@ UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の�
 2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`SoundEffectPlayer`。完了。UIからは各プレイヤーのメソッドを直接呼ぶ（UIの`IUiCommand`は使っていない。キーボードのショートカットを加えるときに、その入口としてCommandを作る）。
 3. 設定画面：ミキサーの行、BGMとSEのCard（`setup.md` 14章）。完了。
 4. ライブ画面：BGMの選択、再生、停止、音量。SEのボタン（`live.md`）。完了。
+5. 同梱のBGMとSE（6.3）。完了（2026-11-17）。
 
 本物のプラグインでの結合テスト（`AudioPlayersIntegrationTests`）が、WAVの登録、BGMの最後までの再生、再生中の削除の拒否、SEの読み込みと再生を確かめる。
 

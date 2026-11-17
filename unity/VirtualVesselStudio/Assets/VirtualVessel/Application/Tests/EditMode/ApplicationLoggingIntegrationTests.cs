@@ -135,6 +135,7 @@ namespace VirtualVessel.Application.Tests
                     "Audio Optional [Logging]",
                     "BGM Optional [Logging,Audio]",
                     "SoundEffects Optional [Logging,Audio,BGM]",
+                    "BuiltInAudio Optional [Logging,BGM,SoundEffects]",
                     "Voice Optional [Logging,Audio]",
                     "Video Optional [Logging]",
                     "Recording Optional [Logging,Video]",

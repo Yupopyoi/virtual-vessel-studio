@@ -26,6 +26,7 @@ using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
@@ -174,6 +175,19 @@ namespace VirtualVessel.Application.Startup
                 ServiceCriticality.Optional,
                 () => built.SoundEffects = new SoundEffectPlayer(() => built.Audio?.PlayerEngine, built.Clips, built.Log("Audio", "SoundEffects"), built.Metrics),
                 new[] { LoggingService.ServiceName, AudioService.ServiceName, BgmPlayer.ServiceName });
+
+            // The BGM and SE that come with the app, added once to the library in the system's language.
+            yield return new ApplicationServiceDescriptor(
+                BuiltInAudioClips.ServiceName,
+                ServiceCriticality.Optional,
+                () => new BuiltInAudioClips(
+                    built.Clips,
+                    Path.Combine(UnityEngine.Application.streamingAssetsPath, BuiltInAudioClips.Folder),
+                    context.DataRoot.GetDirectory(DataRootDirectory.Audio),
+                    Localizer.ChooseInitialLocale(UnityEngine.Application.systemLanguage, new[] { "ja", BuiltInAudioClips.FallbackLanguage }),
+                    context.SystemClock,
+                    built.Log("Audio", "BuiltIn")),
+                new[] { LoggingService.ServiceName, BgmPlayer.ServiceName, SoundEffectPlayer.ServiceName });
         }
 
         // The voice conversion, a stage on the microphone. Its models stay outside the repository, in the Data Root;

@@ -94,6 +94,36 @@ namespace VirtualVessel.Audio.Tests
             }
         }
 
+        [Test]
+        public void TheBuiltInFiles_AreEachAdded_ThroughThePlugin()
+        {
+            try
+            {
+                NativeAudioEngine.Create().Dispose();
+            }
+            catch (AudioEngineException exception)
+            {
+                Assert.Ignore(exception.Message);
+                return;
+            }
+
+            string folder = Path.Combine(UnityEngine.Application.streamingAssetsPath, BuiltInAudioClips.Folder);
+            string audio = Path.Combine(_root, "Audio");
+            var library = new AudioClipLibrary(audio, new UtcSystemClock(), AudioFile.Probe, () => Guid.NewGuid().ToString("N").Substring(0, 8));
+            using (var builtIn = new BuiltInAudioClips(library, folder, audio, "ja", new UtcSystemClock(), null))
+            {
+                builtIn.InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
+                builtIn.Adding.GetAwaiter().GetResult();
+            }
+
+            var manifest = new ProjectData.Config.ConfigFileStore<BuiltInAudioManifest>(folder, BuiltInAudioClips.ManifestFile, BuiltInAudioManifest.SchemaVersion, () => new BuiltInAudioManifest(), new UtcSystemClock()).Load().Value;
+            int bgm = library.List(AudioClipKind.Bgm).Value.Count;
+            int effects = library.List(AudioClipKind.SoundEffect).Value.Count;
+            Assert.That(bgm + effects, Is.EqualTo(manifest.Clips.Count), "Every built-in file decodes and is within its limits.");
+            Assert.That(bgm, Is.GreaterThan(0));
+            Assert.That(effects, Is.GreaterThan(0));
+        }
+
         private static byte[] Wav(int rate, int frames, float level)
         {
             using var stream = new MemoryStream();

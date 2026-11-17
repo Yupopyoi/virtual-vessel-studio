@@ -162,6 +162,8 @@ Data/
            └─ audio-profile.json
 ```
 
+The app comes with BGM and SE ready to use. On the first start, they are copied here and registered like any other. The user can rename and delete them, and deleted ones do not come back (BGM and SE detailed design 6.3).
+
 ### Rationale
 
 As with avatar models, this prevents streaming settings from breaking due to moving or deleting the original files.
