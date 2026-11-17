@@ -28,7 +28,7 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 
 - BGM and SE live in the Audio module (system design 12.15); no new module is made, so they share the mix, buses, limiter, and meters.
 - Other modules see `IAudioClipLibrary`, `IBgmPlayer`, `ISoundEffectPlayer`, and the existing `IAudioService`. No Media Foundation or WASAPI types are shown.
-- The UI asks for playback through commands (`PlayBgmCommand`, `StopBgmCommand`, `PlaySoundEffectCommand`). Keyboard shortcuts and external devices will later call the same commands (chapter 17).
+- The UI asks `IBgmPlayer` and `ISoundEffectPlayer` for playback. When keyboard shortcuts or external devices are added, commands (such as `PlaySoundEffectCommand`) come with them as their way in, so the screen's buttons and the shortcuts go through the same command (chapter 17).
 - BGM made in the app (system design 16.32) registers its audio in this library, using only its public API.
 
 ## 4. Main Classes and Interfaces
@@ -149,7 +149,7 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 
 ### 8.1 Playing BGM
 
-1. The UI passes `PlayBgmCommand` a `SingleTrack` of the chosen track.
+1. The UI passes `IBgmPlayer.Play` a `SingleTrack` of the chosen track.
 2. `BgmPlayer` takes the first track from `Next` and gives the native deck the file's path, the loop, and the track's volume.
 3. The deck's decoding thread opens the file with Media Foundation, converts it to 48 kHz float stereo, and writes about 1.5 seconds ahead into the ring (about 2.7 seconds), topping it up before it runs short. Mono goes to both sides, and three or more channels keep their front left and right. The plugin converts the rate by 4-point Hermite interpolation (2026-11-16): Media Foundation is asked for the sample format only, and the rate and channels come as the file has them. The converter keeps its state through a track, so reading in pieces, or going back to the start for a loop, leaves no seam. A 1 kHz tone at 44.1 kHz came out within 0.0004.
 4. Every 10 ms the mix thread reads one block from the ring and adds it to the buses as the BGM source, with its volume, mute, and sends. It never reads the file.
@@ -232,10 +232,12 @@ UI/Runtime/Screens/      the BGM and SE Cards (settings screen), the live screen
 
 Stages:
 
-1. Native: stereo decoding, the BGM deck (loop, end notice, fades), SE voices.
-2. Managed: the sources, the library (CRUD), `BgmPlayer`, `SingleTrack`, `ISoundEffectPlayer`, commands.
-3. Settings screen: the mixer rows, the BGM and SE Cards. The screen spec is written then.
-4. Live screen: choosing, playing, stopping BGM and its volume; SE buttons.
+1. Native: stereo decoding, the BGM deck (loop, end notice, fades), SE voices. Done (2026-11-17).
+2. Managed: the sources, the library (CRUD), `BgmPlayer`, `SingleTrack`, `SoundEffectPlayer`. Done. The UI calls the players' methods directly (no UI `IUiCommand` yet); commands come with keyboard shortcuts, as their way in.
+3. Settings screen: the mixer rows, the BGM and SE Cards (`setup.md` chapter 14). Done.
+4. Live screen: choosing, playing, stopping BGM and its volume; SE buttons (`live.md`). Done.
+
+An integration test through the real plugin (`AudioPlayersIntegrationTests`) registers a WAV, plays it as BGM to its end, is refused deleting it while it plays, and loads and plays it as an effect.
 
 To be added later, and where (without rework):
 

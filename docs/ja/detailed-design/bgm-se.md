@@ -28,7 +28,7 @@
 
 - BGMとSEは、Audio Moduleの中に置く（方式設計12.15）。新しいModuleは作らない。混ぜ合わせ、バス、リミッター、メーターを共有するためである。
 - ほかのModuleに見せるのは、`IAudioClipLibrary`、`IBgmPlayer`、`ISoundEffectPlayer`と、既存の`IAudioService`である。Media FoundationやWASAPIの型は見せない。
-- UIは、再生をCommand（`PlayBgmCommand`、`StopBgmCommand`、`PlaySoundEffectCommand`）で依頼する。後でキーボードのショートカットや外部の機器が、同じCommandを呼ぶ（17章）。
+- UIは、再生を`IBgmPlayer`と`ISoundEffectPlayer`に依頼する。キーボードのショートカットや外部の機器を加えるときに、その入口としてCommand（`PlaySoundEffectCommand`など）を作り、画面のボタンとショートカットが同じCommandを通るようにする（17章）。
 - アプリの中で作るBGM（方式設計16.32）は、作った音声をこのライブラリへ登録する。作る側はライブラリの公開APIだけを使う。
 
 ## 4. 主なClassとInterface
@@ -149,7 +149,7 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 
 ### 8.1 BGMを流す
 
-1. UIが`PlayBgmCommand`に、選んだ曲の`SingleTrack`を渡す。
+1. UIが`IBgmPlayer.Play`に、選んだ曲の`SingleTrack`を渡す。
 2. `BgmPlayer`が`Next`で最初の曲を受け取り、ネイティブのデッキへファイルのパス、ループ、曲の音量を渡す。
 3. デッキのデコード用のスレッドが、Media Foundationでファイルを開き、48 kHzのfloatのステレオにして、約1.5秒先までリング（約2.7秒）へ書く。足りなくなる前に書き足す。チャンネルは、モノラルを両側へ、3つ以上は前の左右を使う。レートは、プラグインが4点のHermite補間で変える（2026-11-16）。Media Foundationには形式だけを頼み、レートとチャンネルはファイルのままで受け取る。変換の状態を曲の間で持ち続けるので、少しずつ読んでも、ループで頭へ戻っても継ぎ目が出ない。44.1 kHzの1 kHzの音で、誤差は0.0004だった。
 4. 混ぜ合わせのスレッドは、10 msごとにリングから1ブロックを読み、BGMの音の元として、音量、ミュート、送りをかけてバスへ足す。ファイルは読まない。
@@ -232,10 +232,12 @@ UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の�
 
 段階：
 
-1. ネイティブ：ステレオのデコード、BGMのデッキ（ループ、終わりの知らせ、フェード）、SEのボイス。
-2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`ISoundEffectPlayer`、Commands。
-3. 設定画面：ミキサーの行、BGMとSEのCard。画面仕様はこのときに書く。
-4. ライブ画面：BGMの選択、再生、停止、音量。SEのボタン。
+1. ネイティブ：ステレオのデコード、BGMのデッキ（ループ、終わりの知らせ、フェード）、SEのボイス。完了（2026-11-17）。
+2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`SoundEffectPlayer`。完了。UIからは各プレイヤーのメソッドを直接呼ぶ（UIの`IUiCommand`は使っていない。キーボードのショートカットを加えるときに、その入口としてCommandを作る）。
+3. 設定画面：ミキサーの行、BGMとSEのCard（`setup.md` 14章）。完了。
+4. ライブ画面：BGMの選択、再生、停止、音量。SEのボタン（`live.md`）。完了。
+
+本物のプラグインでの結合テスト（`AudioPlayersIntegrationTests`）が、WAVの登録、BGMの最後までの再生、再生中の削除の拒否、SEの読み込みと再生を確かめる。
 
 後で加えるもの（作り直さずに加える場所）：
 
