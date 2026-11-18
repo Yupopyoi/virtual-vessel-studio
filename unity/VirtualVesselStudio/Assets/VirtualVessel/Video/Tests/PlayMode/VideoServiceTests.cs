@@ -97,6 +97,33 @@ namespace VirtualVessel.Video.Tests
         }
 
         [UnityTest]
+        public IEnumerator WithAFraming_TheAvatarIsDrawnWhereTheFramingPutsIt_AndWithoutOne_FollowsTheMainCamera()
+        {
+            // A blue quad standing at the origin, and a camera 2 m in front of it whose projection is shifted so the
+            // origin lands three quarters across the stream, halfway down (video detailed design 7.6).
+            GameObject screen = Quad(_video.Screens.Layer, Color.green);
+            screen.transform.SetParent(_video.Screens.Root, false);
+            screen.transform.localPosition = new Vector3(0.5f, 0.5f, 0f);
+            GameObject avatar = Quad(_video.AvatarLayer, Color.blue);
+            avatar.transform.localScale = new Vector3(0.3f, 0.3f, 1f);
+            float half = 0.5f * 36f / 64f;
+            _video.SetFraming(new AvatarFraming(new Vector3(0f, 0f, -2f), Quaternion.identity, -0.75f, 0.25f, -half, half));
+
+            yield return null;
+            yield return null;
+
+            Color32[] pixels = ReadBack((RenderTexture)_video.Video.Value);
+            Color32 framed = pixels[(18 * 64) + 48];
+            Color32 middle = pixels[(18 * 64) + 32];
+            Assert.That((framed.r, framed.g, framed.b), Is.EqualTo(((byte)0, (byte)0, (byte)255)), "The avatar, where the framing put it.");
+            Assert.That((middle.r, middle.g, middle.b), Is.EqualTo(((byte)0, (byte)255, (byte)0)), "Not in the middle.");
+
+            _video.SetFraming(null);
+            Assert.That(_video.AvatarCamera.transform.localPosition, Is.EqualTo(Vector3.zero), "Back on the Main Camera.");
+            Assert.That(_video.AvatarCamera.fieldOfView, Is.EqualTo(_cameraObject.GetComponent<Camera>().fieldOfView));
+        }
+
+        [UnityTest]
         public IEnumerator AFlatVideo_AtTheRightEdge_ReachesTheEdge_WhateverTheWindowShape()
         {
             // The layer's cameras took the window's shape, not the stream's: with the window no longer 16:9 (the
