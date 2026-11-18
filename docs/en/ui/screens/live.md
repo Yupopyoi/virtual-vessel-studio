@@ -26,7 +26,7 @@ It has the stream preview, starting and stopping a recording, the sound going in
 | Part | Component | Content |
 |---|---|---|
 | Stream preview | Preview (`components.md` 3.17) | `IStreamPreviewSource` (Video), at 16:9 across the screen's width (at most 960 px) |
-| Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage) |
+| Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage). It includes the avatar frame: with the same operations as the game screen, it changes the avatar's position and size and the part shown (Stage detailed design 7.2). The avatar frame is always in front and cannot be flipped |
 | Streaming | Status Chip (3.13) and Buttons (3.1); `StreamControl` | Under the record control; `IStreamingService` (Streaming). What each state shows and the confirmations to start and end: streaming detailed design 18.1. Left out without streaming |
 | Recording | Status Chip (3.13) and Buttons (3.1); `RecordControl` | Right under the preview; `IRecordingService` (Video). What each state shows, the confirmation to stop, and the saved file: recording detailed design 18.1. Left out without recording |
 | Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The mute button toggles, and muted shows the crossed-out microphone (by shape). The meter is -60 to 0 dB. Left out without audio |

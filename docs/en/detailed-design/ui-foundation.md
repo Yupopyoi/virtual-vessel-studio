@@ -923,8 +923,15 @@ public interface IFrameSource
     IReadOnlyObservable<FrameLayout> Layout { get; }   // the confirmed layout (runtime state)
     void PreviewLayout(FrameLayout layout);            // LayoutChanging: each step of a drag
     Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
+    bool CanStopCapture => false;                      // whether its capture can be stopped (Del and the menu)
+    void StopCapture() { }
+    bool StaysInFront => false;                        // always in front; its stacking order cannot change (the avatar frame, Stage detailed design 7.2)
+    bool CanFlip => true;                              // whether it can be flipped
 }
 ```
+
+- A `StaysInFront` frame stays at the top of the stacking list, and bringing forward, sending back, and dragging to reorder are not accepted for it. It is left out when the other frames' `Order` is renumbered. Stage keeps its `Order` frontmost, so hit testing needs no change.
+- A frame whose `CanFlip` is false cannot be flipped (the menu and `H`).
 
 - Commits run through `CommandRunner`. If Stage rejects one with a `UserFacingException`, that text is shown as a notification. Whether the commit succeeds or not, the editor then shows the value of `Layout`, so a rejected edit returns to the previous layout.
 - While a commit is pending, the edited layout stays on screen. If a newer edit starts before the commit finishes, the newer edit is shown.

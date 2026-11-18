@@ -26,7 +26,7 @@
 | 部分 | 部品 | 内容 |
 |---|---|---|
 | 配信プレビュー | Preview（`components.md` 3.17） | `IStreamPreviewSource`（Video）。画面の幅いっぱい（最大960px）に16:9で置く |
-| 配置編集 | Media Frame（3.19） | プレビューのOverlayに置く。映像は`IFrameSource`（Stage） |
+| 配置編集 | Media Frame（3.19） | プレビューのOverlayに置く。映像は`IFrameSource`（Stage）。アバターの枠も含む：ゲーム画面と同じ操作で、アバターの位置と大きさ、写す範囲を変える（Stage詳細設計7.2）。アバターの枠は常に一番手前で、左右反転はできない |
 | 録画 | Status Chip（3.13）とButton（3.1）。`RecordControl` | プレビューのすぐ下。`IRecordingService`（Video）。状態ごとの表示、停止の確認、保存したファイルの表示は録画詳細設計18.1。録画がないときは出さない |
 | 配信 | Status Chip（3.13）とButton（3.1）。`StreamControl` | 録画の操作の下。`IStreamingService`（Streaming）。状態ごとの表示、開始と終了の確認は配信詳細設計18.1。配信がないときは出さない |
 | 入っている音 | 音の元ごとのIconButton（3.2）、名前、Level Meter（3.5）。`AudioStrip` | 録画の操作の下。`IAudioService`（Audio）。ミュートのButtonは押すたびに切り替わり、ミュート中は斜線のマイク（形で示す）。メーターは-60〜0dB。音声がないときは出さない |
