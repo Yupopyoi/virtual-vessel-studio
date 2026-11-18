@@ -708,6 +708,7 @@
         "gallery.step-build": "Build",
         "stage.screen.game": "Game screen",
         "stage.screen.subscreen": "Sub monitor",
+        "stage.avatar.name": "Avatar",
         "stage.placement.invalid": "This placement cannot be used.",
         "live.audio.microphone": "Mic",
         "live.audio.game": "Game",

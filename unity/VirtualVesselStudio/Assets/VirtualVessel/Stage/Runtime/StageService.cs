@@ -20,7 +20,7 @@ namespace VirtualVessel.Stage
     /// Puts each capture video on the stream screen where the placement editor put it, and saves the
     /// placements (Stage detailed design 7). Until Stage Scenes exist it also gives the avatar a
     /// default spawn point and a light, whose brightness the user may change (Stage detailed design
-    /// 7.1). An Optional application service.
+    /// 7.1), and frames the avatar where its frame in the placement editor is (7.2). An Optional application service.
     /// </summary>
     public sealed class StageService : IApplicationService, IAvatarSpawnPoints, IStageLighting
     {
@@ -37,7 +37,11 @@ namespace VirtualVessel.Stage
         private readonly ConfigFileStore<StageSettings> _store;
         private readonly ConfigSaveScheduler<StageSettings> _saves;
         private readonly ILog _log;
+        private readonly IAvatarCamera _avatarCamera;
+        private readonly IReadOnlyObservable<float?> _avatarHeight;
         private readonly List<CaptureScreen> _screens = new List<CaptureScreen>();
+        private readonly List<IFrameSource> _frames = new List<IFrameSource>();
+        private AvatarFrame _avatarFrame;
         private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
         private StageSettings _settings = new StageSettings();
         private GameObject _light;
@@ -46,20 +50,27 @@ namespace VirtualVessel.Stage
         private Texture2D _backdropTexture;
         private IDisposable _tick;
 
-        public StageService(ICaptureSources captures, IStreamOutput output, IFrameLoop frameLoop, ConfigFileStore<StageSettings> store, IMonotonicClock clock, ILog log)
+        /// <param name="avatarCamera">Shoots the avatar to fit its frame; with <paramref name="avatarHeight"/>, the placement editor gets the frame (7.2).</param>
+        /// <param name="avatarHeight">The avatar's height, null without one (avatar detailed design 6.5).</param>
+        public StageService(ICaptureSources captures, IStreamOutput output, IFrameLoop frameLoop, ConfigFileStore<StageSettings> store, IMonotonicClock clock, ILog log, IAvatarCamera avatarCamera = null, IReadOnlyObservable<float?> avatarHeight = null)
         {
             _captures = captures ?? throw new ArgumentNullException(nameof(captures));
             _output = output ?? throw new ArgumentNullException(nameof(output));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _store = store ?? throw new ArgumentNullException(nameof(store));
             _log = log;
+            _avatarCamera = avatarCamera;
+            _avatarHeight = avatarHeight;
             _saves = new ConfigSaveScheduler<StageSettings>(store, clock, s_saveDelay, failure => _log?.Warning($"Failed to save the stage settings to {store.FilePath}.", failure));
         }
 
         public string Name => ServiceName;
 
-        /// <summary>The placement editor's videos, in source order.</summary>
-        public IReadOnlyList<IFrameSource> Screens => _screens;
+        /// <summary>The placement editor's videos in source order, then the avatar's frame.</summary>
+        public IReadOnlyList<IFrameSource> Screens => _frames;
+
+        /// <summary>The avatar's frame among <see cref="Screens"/>; null without Avatar or Video's avatar camera.</summary>
+        public IFrameSource AvatarFrameSource => _avatarFrame;
 
         public IAvatarSpawnPoints SpawnPoints => this;
 
@@ -81,12 +92,18 @@ namespace VirtualVessel.Stage
         /// <summary>The placement to use for a screen: the saved one when it can be used, else the default. Pure.</summary>
         public static FrameLayout LayoutFor(StageSettings settings, string screenId)
         {
-            if (settings?.Screens != null && settings.Screens.TryGetValue(screenId, out ScreenSettings saved) && saved?.ToLayout() is FrameLayout layout)
-            {
-                return layout;
-            }
+            return Saved(settings, screenId) ?? StageDefaults.For(screenId);
+        }
 
-            return StageDefaults.For(screenId);
+        /// <summary>The avatar frame's placement: the saved one when it can be used, else the default (7.2). Pure.</summary>
+        public static FrameLayout AvatarLayoutFor(StageSettings settings, double streamAspect)
+        {
+            return Saved(settings, AvatarFrame.FrameId) ?? AvatarFramingMath.DefaultLayout(streamAspect);
+        }
+
+        private static FrameLayout? Saved(StageSettings settings, string id)
+        {
+            return settings?.Screens != null && settings.Screens.TryGetValue(id, out ScreenSettings saved) ? saved?.ToLayout() : null;
         }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
@@ -118,6 +135,14 @@ namespace VirtualVessel.Stage
                 _screens.Add(new CaptureScreen(source, LayoutFor(_settings, source.Id), _output.Screens, quad, shader, OnCommitted));
             }
 
+            _frames.AddRange(_screens);
+            if (_avatarCamera != null && _avatarHeight != null)
+            {
+                double aspect = (double)_output.Size.Width / _output.Size.Height;
+                _avatarFrame = new AvatarFrame(_avatarCamera, _avatarHeight, StageDefaults.AvatarSpawn, aspect, AvatarLayoutFor(_settings, aspect), OnCommitted);
+                _frames.Add(_avatarFrame);
+            }
+
             // The persistent scene has no light, and lit avatar materials would be black without one.
             _light = new GameObject("StageDefaultLight");
             _light.transform.rotation = StageDefaults.LightRotation;
@@ -128,7 +153,7 @@ namespace VirtualVessel.Stage
 
             CreateBackdrop(quad, shader);
             _tick = _frameLoop.Register(_saves.Tick);
-            _log?.Information($"Stage started with {_screens.Count} stream screens; placements {loaded.Status} from {_store.FilePath}.");
+            _log?.Information($"Stage started with {_screens.Count} stream screens{(_avatarFrame != null ? " and the avatar frame" : string.Empty)}; placements {loaded.Status} from {_store.FilePath}.");
             return Task.CompletedTask;
         }
 
@@ -181,6 +206,9 @@ namespace VirtualVessel.Stage
             }
 
             _screens.Clear();
+            _avatarFrame?.Dispose();
+            _avatarFrame = null;
+            _frames.Clear();
             Destroy(_backdrop);
             Destroy(_backdropMaterial);
             Destroy(_backdropTexture);
@@ -234,7 +262,7 @@ namespace VirtualVessel.Stage
             }
         }
 
-        private void OnCommitted(CaptureScreen screen)
+        private void OnCommitted(IFrameSource screen)
         {
             // A copy: the save runs on another thread while editing goes on.
             StageSettings next = _settings.Clone();

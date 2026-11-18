@@ -31,6 +31,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The videos to place on the live screen (Stage).</summary>
         public IReadOnlyList<IFrameSource> FrameSources { get; set; } = Array.Empty<IFrameSource>();
 
+        /// <summary>The avatar's frame among them (Stage), so the face picture zooms about the avatar; null zooms about the stream's middle.</summary>
+        public IFrameSource AvatarFrame { get; set; }
+
         /// <summary>The capture sources (Capture); null says capture is unavailable.</summary>
         public ICaptureSources Captures { get; set; }
 

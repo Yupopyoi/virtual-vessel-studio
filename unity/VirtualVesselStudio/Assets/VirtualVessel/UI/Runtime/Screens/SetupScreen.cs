@@ -117,7 +117,7 @@ namespace VirtualVessel.UI.Screens
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)
             {
-                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
+                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting, services.AvatarFrame));
             }
         }
 
