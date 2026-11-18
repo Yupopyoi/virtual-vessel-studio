@@ -37,6 +37,12 @@ namespace VirtualVessel.Avatar
         /// <summary>The latest problem to show; None after a success.</summary>
         IReadOnlyObservable<AvatarProblem> Problem { get; }
 
+        /// <summary>
+        /// The avatar on the stream's height, from its feet to the top of its head in the reference pose, in meters;
+        /// null without one (avatar detailed design 6.5). Stage frames the avatar with it.
+        /// </summary>
+        IReadOnlyObservable<float?> Height { get; }
+
         /// <summary>File extensions that can be registered, such as ".vrm", for the file-picking screen.</summary>
         IReadOnlyList<string> Extensions { get; }
 

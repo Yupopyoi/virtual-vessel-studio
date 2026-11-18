@@ -221,6 +221,8 @@ namespace VirtualVessel.UI.Tests
 
             Assert.That(FaceTuningCard.Crop(100f, 200f), Is.EqualTo(new Rect(0.25f, 0.5f, 0.5f, 0.5f)), "The top middle quarter.");
             Assert.That(FaceTuningCard.Crop(0f, 50f), Is.EqualTo(new Rect(0f, 0f, 1f, 1f)), "Never smaller than the stream.");
+            Assert.That(FaceTuningCard.Crop(100f, 200f, 0.7f), Is.EqualTo(new Rect(0.45f, 0.5f, 0.5f, 0.5f)), "About the avatar frame's middle.");
+            Assert.That(FaceTuningCard.Crop(100f, 200f, 0.95f), Is.EqualTo(new Rect(0.5f, 0.5f, 0.5f, 0.5f)), "Kept within the stream at its edge.");
         }
 
         [UnityTest]
@@ -422,6 +424,8 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<AvatarState> State => _state;
 
             public IReadOnlyObservable<AvatarProblem> Problem => _problem;
+
+            public IReadOnlyObservable<float?> Height { get; } = new ObservableValue<float?>(null);
 
             public IReadOnlyList<string> Extensions { get; } = new[] { ".vrm" };
 
