@@ -92,7 +92,8 @@ namespace VirtualVessel.UI.Screens
             {
                 if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
                 {
-                    GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && services.Audio != null ? new GameAudioRow(services.Audio) : null;
+                    // Audio that did not start (its plugin missing or another version) has no sources: the Card goes without the row.
+                    GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && GameAudioRow.CanShow(services.Audio) ? new GameAudioRow(services.Audio) : null;
                     page.Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), gameAudio));
                 }
             }

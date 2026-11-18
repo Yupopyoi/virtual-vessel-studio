@@ -108,6 +108,16 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheGameAudioRow_IsLeftOut_WhenAudioDidNotStart()
+        {
+            // A plugin of another version left audio without sources, and the whole setup screen failed to build.
+            Assert.That(GameAudioRow.CanShow(_audio), Is.True);
+            _audio.Started = false;
+            Assert.That(GameAudioRow.CanShow(_audio), Is.False);
+            Assert.That(GameAudioRow.CanShow(null), Is.False);
+        }
+
+        [Test]
         public void Find_MatchesTheVideoDevicesName_InsideTheAudioDevicesName()
         {
             var devices = new[]
@@ -446,7 +456,10 @@ namespace VirtualVessel.UI.Tests
 
             public FakeSource Game { get; }
 
-            public IReadOnlyList<IAudioSource> Sources => new IAudioSource[] { Microphone, Game };
+            /// <summary>False as for an audio service that did not start: it has no sources.</summary>
+            public bool Started { get; set; } = true;
+
+            public IReadOnlyList<IAudioSource> Sources => Started ? new IAudioSource[] { Microphone, Game } : Array.Empty<IAudioSource>();
 
             public IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices => _devices;
 
