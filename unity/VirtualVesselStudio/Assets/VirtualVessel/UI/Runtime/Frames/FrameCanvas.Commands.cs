@@ -23,6 +23,11 @@ namespace VirtualVessel.UI.Frames
                 return;
             }
 
+            if (!FrameCanvasMath.Supports(action, frame.Source.CanFlip, frame.Source.StaysInFront))
+            {
+                return;
+            }
+
             if (action == FrameAction.ToggleCropMode)
             {
                 SetCropMode(!_cropMode);
@@ -135,7 +140,7 @@ namespace VirtualVessel.UI.Frames
         public void MoveInStack(IFrameSource source, int position)
         {
             MediaFrame frame = _frames.Find(f => f.Source == source);
-            if (frame == null || frame.Shown.Locked)
+            if (frame == null || frame.Shown.Locked || source.StaysInFront)
             {
                 return;
             }
@@ -160,8 +165,9 @@ namespace VirtualVessel.UI.Frames
             {
                 for (int i = 0; i < _frames.Count; i++)
                 {
+                    // A frame that stays in front keeps its order; the others are renumbered under it.
                     bool moved = _frames[i] == frame;
-                    if (moved == (pass == 0) && orders[i] != layouts[i].Order)
+                    if (moved == (pass == 0) && orders[i] != layouts[i].Order && !_frames[i].Source.StaysInFront)
                     {
                         edits.Add(new FrameEdit(_frames[i].Source, layouts[i], layouts[i].WithOrder(orders[i])));
                     }
@@ -209,12 +215,12 @@ namespace VirtualVessel.UI.Frames
 
             MenuEntry Stack(FrameAction action, StackMove move, string textKey, string tooltipKey, string shortcut)
             {
-                return Entry(action, textKey, tooltipKey, shortcut, possible: FrameCommands.CanRestack(position, count, move));
+                return Entry(action, textKey, tooltipKey, shortcut, possible: FrameCommands.CanRestack(position, count, move) && !_selected.Source.StaysInFront);
             }
 
             return new[]
             {
-                Entry(FrameAction.ToggleFlip, FrameStrings.Flip, FrameStrings.FlipTip, "H", layout.FlipHorizontal),
+                Entry(FrameAction.ToggleFlip, FrameStrings.Flip, FrameStrings.FlipTip, "H", layout.FlipHorizontal, _selected.Source.CanFlip),
                 Entry(FrameAction.ToggleLock, FrameStrings.Lock, FrameStrings.LockTip, "L", layout.Locked),
                 Entry(FrameAction.ToggleAllowOutside, FrameStrings.AllowOutside, FrameStrings.AllowOutsideTip, "O", layout.AllowOutside),
                 MenuEntry.Separator,
