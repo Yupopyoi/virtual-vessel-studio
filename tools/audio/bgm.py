@@ -5,9 +5,9 @@ onto the start (synth.Loop).
 """
 import numpy as np
 
-from synth import (SR, bass, bell, brass, circular, clap, env, epiano, finish_loop, hat, highpass, kick, Loop,
+from synth import (SR, bass, bell, circular, clap, env, epiano, finish_loop, hat, highpass, horn, kick, Loop,
                    lowpass, midi, pad, pulse, recorder, saw_pluck, snare, soft_square, string_pluck, triangle_lead,
-                   woodblock, xylophone)
+                   trumpet, woodblock, xylophone)
 
 
 def cute_pop(seed=21):
@@ -388,16 +388,22 @@ def toy_box(seed=17):
     ]
     # The clarinet under the brass: two notes a bar from the chords.
     under_b = [(69, 72), (71, 74), (67, 71), (69, 72), (69, 65), (71, 67), (67, 64), (65, 62)]
+    c_major = [0, 2, 4, 5, 7, 9, 11]
 
-    tuba, pizz, xylo, glock, horns, clar, drums, toys = (loop.track() for _ in range(8))
+    def third_below(note):
+        """The note two steps down the C major scale, so the second trumpet never leaves the key."""
+        degree = c_major.index(note % 12)
+        return note - (c_major[degree] - c_major[degree - 2]) % 12
+
+    tuba, pizz, xylo, glock, horns, clar, drums, toys, french = (loop.track() for _ in range(9))
     for bar, (chord, root) in enumerate(bars):
         b0 = bar * 4
         part = 'a' if bar < 8 else 'b' if bar < 16 else 'a2'
         line = bar % 8
 
         # The march: tuba on 1 and 3 (root, then fifth), pizzicato chords on 2 and 4.
-        loop.add(tuba, b0, brass(midi(root), beat * 0.8, bright=0.35) * 0.55)
-        loop.add(tuba, b0 + 2, brass(midi(root + 7 if root < 43 else root - 5), beat * 0.8, bright=0.35) * 0.5)
+        loop.add(tuba, b0, trumpet(midi(root), beat * 0.8, rng, loud=0.85, scoop=10, bright=0.3) * 0.45, rng.normal(0, 0.006))
+        loop.add(tuba, b0 + 2, trumpet(midi(root + 7 if root < 43 else root - 5), beat * 0.8, rng, loud=0.75, scoop=10, bright=0.3) * 0.42, rng.normal(0, 0.006))
         loop.add(tuba, b0, bass(midi(root), beat * 0.9, 400, 1.2) * 0.35)
         for pos in (1, 3):
             for i, note in enumerate(chord):
@@ -413,12 +419,20 @@ def toy_box(seed=17):
             for pos in (0.5, 1.5, 2.5, 3.5):
                 loop.add(toys, b0 + pos, woodblock(rng, 1.0 if pos in (0.5, 2.5) else 1.25) * 0.16)
         if part == 'b':
-            for pos, note, dur in tune_b[line]:
-                # Two trumpets a third apart on the long notes, one on the short ones.
-                loop.add(horns, b0 + pos, brass(midi(note), beat * dur * 0.95) * 0.3)
+            for i, (pos, note, dur) in enumerate(tune_b[line]):
+                # Two trumpets a third apart in the key on the long notes, one on the short ones. A note after a rest or
+                # on the beat is lipped up more and played louder; each is a little early or late, as players are.
+                accent = pos % 1 == 0
+                loud = 0.9 if accent else 0.72
+                scoop = 30 if i == 0 else 14
+                length = beat * dur * (0.92 if dur >= 1 else 0.8)
+                loop.add(horns, b0 + pos, trumpet(midi(note), length, rng, loud, scoop) * 0.42, rng.normal(0, 0.008))
                 if dur >= 1:
-                    third = 3 if (note - root) % 12 in (4, 11) else 4
-                    loop.add(horns, b0 + pos, brass(midi(note - third), beat * dur * 0.95, bright=0.8) * 0.18)
+                    loop.add(horns, b0 + pos, trumpet(midi(third_below(note)), length, rng, loud * 0.85, scoop, bright=0.85) * 0.28, 0.012 + rng.normal(0, 0.008))
+            # Horns hold the chord under the trumpets, a swell each half bar.
+            for half in (0, 2):
+                for note in chord:
+                    loop.add(french, b0 + half, horn(midi(note), beat * 1.95, rng, 0.6 if half == 0 else 0.5) * 0.21, abs(rng.normal(0, 0.01)))
             for k, note in enumerate(under_b[line]):
                 loop.add(clar, b0 + k * 2, soft_square(midi(note - 12), beat * 1.9, vibrato=0.002) * 0.17)
             for pos in (1, 3):
@@ -428,9 +442,11 @@ def toy_box(seed=17):
         if part == 'a2':
             # Everyone at once: brass stabs on the off-beats answer the xylophone.
             for pos in (1.5, 3.5) if line % 2 == 0 else (0.5, 2.5):
-                for i, note in enumerate(chord):
-                    loop.add(horns, b0 + pos, brass(midi(note), beat * 0.3) * 0.13, i * 0.004)
+                for note in chord:
+                    loop.add(horns, b0 + pos, trumpet(midi(note), beat * 0.32, rng, 0.8, 12) * 0.2, abs(rng.normal(0, 0.007)))
             loop.add(clar, b0, soft_square(midi(chord[0] - 12), beat * 3.8, vibrato=0.002) * 0.08)
+            for note in chord:
+                loop.add(french, b0, horn(midi(note), beat * 3.9, rng, 0.5) * 0.16, abs(rng.normal(0, 0.01)))
 
         # Drums: a light march, a roll into each new part.
         loop.add(drums, b0, kick(55, 80, 0.12) * 0.7)
@@ -450,6 +466,6 @@ def toy_box(seed=17):
     whistle = np.sin(2 * np.pi * np.cumsum(glide * (1 + 0.006 * np.sin(2 * np.pi * 7 * t))) / SR) * env(n, 0.04, 10.0, 1.0, 0.08)
     loop.add(toys, len(bars) * 4 - 2, whistle * 0.12)
 
-    mix = tuba + pizz + xylo + glock + horns + clar + drums + toys
-    mix = mix + loop.room(xylo + glock + horns + clar + pizz, 1.2, 3.8, 0.012, rng, 5000)
+    mix = tuba + pizz + xylo + glock + horns + french + clar + drums + toys
+    mix = mix + loop.room(xylo + glock + horns + french + clar + pizz, 1.2, 3.8, 0.012, rng, 5000)
     return finish_loop(mix, 0.005, 1.15)

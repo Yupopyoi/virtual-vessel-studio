@@ -166,21 +166,36 @@ def triangle_lead(freq, dur):
     return lowpass(tri * env(n, 0.02, 0.5, 0.4, 0.12), 3000)
 
 
-def brass(freq, dur, bright=1.0):
-    """A trumpet or horn: harmonics that open up as the lips start to buzz, a slight vibrato on held notes. Lower
-    `bright` for a rounder horn or a tuba."""
+def trumpet(freq, dur, rng, loud=0.8, scoop=25.0, bright=1.0, ring=(900, 1700)):
+    """A trumpet as a player blows it. The note starts a little low and is lipped up to pitch (`scoop` cents); the
+    tongue gives a small burst and a puff of breath; the louder it is, the brighter it gets, as more harmonics speak;
+    a long note swells a little; and the vibrato comes in late, its speed and depth drifting. Each note is off by a
+    few cents, as no two are blown alike. Lower `bright` and `ring` (the bell's resonance, Hz) for a horn or a tuba."""
     n = int(dur * SR)
     t = np.arange(n) / SR
-    vib = 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.18) / 0.25, 0, 1)
-    ph = 2 * np.pi * freq * np.cumsum(vib) / SR
-    # How many harmonics speak: few at the attack, more a few hundredths later, settling a little after.
-    width = 1.5 + 7.0 * bright * (1 - np.exp(-t / 0.035)) * (0.85 + 0.15 * np.exp(-t / 0.25))
+    rate = 5.3 + 0.4 * np.sin(2 * np.pi * 0.6 * t + rng.uniform(0, 6.3))
+    depth = 14 * np.clip((t - 0.22) / 0.35, 0, 1) * (0.8 + 0.2 * np.sin(2 * np.pi * 1.1 * t))
+    cents = -scoop * np.exp(-t / 0.045) + rng.normal(0, 3.5) + depth * np.sin(2 * np.pi * np.cumsum(rate) / SR)
+    ph = 2 * np.pi * np.cumsum(freq * 2 ** (cents / 1200)) / SR
+    # Loudness: the tongue's overshoot, a little swell on a long note, and a release as the breath stops.
+    tongue = 1 + 0.25 * np.exp(-t / 0.03)
+    swell = 1 + 0.15 * np.clip((t - 0.15) / max(dur - 0.15, 0.05), 0, 1) if dur > 0.45 else 1.0
+    shape = loud * tongue * swell * env(n, 0.03, 10.0, 1.0, min(0.07, dur / 3))
+    width = 1.0 + 7.5 * bright * np.clip(shape, 0, 1.3) * np.clip(t / 0.03, 0, 1) ** 0.7
     tone = np.zeros(n)
     k = 1
     while k * freq < 9000 and k <= 30:
         tone += np.exp(-(k - 1) / width) / np.sqrt(k) * np.sin(k * ph)
         k += 1
-    return tone * env(n, 0.025, 0.5, 0.75, 0.05) * 0.6
+    # The bell's ring, around 1.2 kHz for a trumpet, which makes it a trumpet rather than any buzzy wave.
+    tone = tone + 0.6 * band(tone, *ring)
+    breath = band(rng.standard_normal(n), 1500, 6000) * (0.03 + 0.25 * np.exp(-t / 0.025))
+    return (tone + breath) * shape * 0.45
+
+
+def horn(freq, dur, rng, loud=0.6):
+    """A French horn: the same blowing as the trumpet, rounder and with its bell's ring lower, for warm harmony."""
+    return lowpass(trumpet(freq, dur, rng, loud, scoop=12, bright=0.5, ring=(350, 900)), 3500)
 
 
 def xylophone(freq, dur):
