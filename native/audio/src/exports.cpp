@@ -3,6 +3,9 @@
 #include "vv_audio.h"
 
 #include "audio_file.h"
+#include "bgm_deck.h"
+#include "clip_source.h"
+#include "sound_effects.h"
 #include "device_output.h"
 #include "device_source.h"
 #include "denoiser.h"
@@ -11,6 +14,7 @@
 #include <windows.h>
 
 #include <avrt.h>
+#include <mferror.h>
 #include <mmdeviceapi.h>
 #include <propsys.h>
 
@@ -89,6 +93,11 @@ struct vv_audio_engine
     vv::audio::Denoiser denoiser;
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
+
+    // The players (BGM and SE detailed design). The deck is made with the first BGM source; its thread stops with
+    // the engine, after the mix.
+    std::unique_ptr<vv::audio::BgmDeck> bgm;
+    vv::audio::SoundEffects effects;
     std::atomic<bool> stop{ false };
     std::thread mixThread;
 
@@ -149,6 +158,12 @@ struct vv_audio_engine
 
 namespace
 {
+    // An audio file's failure as the API's code.
+    int32_t FileError(HRESULT hr)
+    {
+        return hr == vv::audio::FileTooLong ? VV_AUDIO_TOO_LONG : hr == E_OUTOFMEMORY ? VV_AUDIO_OUT_OF_MEMORY : VV_AUDIO_UNREADABLE;
+    }
+
     int32_t ListDevices(EDataFlow flow, vv_audio_device* devices, int32_t capacity, int32_t* count)
     {
         if (count == nullptr || capacity < 0 || (devices == nullptr && capacity > 0))
@@ -484,16 +499,27 @@ extern "C"
 
     int32_t vv_audio_get_source_status(vv_audio_engine* engine, int32_t source, vv_audio_source_status* status)
     {
-        if (engine == nullptr || status == nullptr || !engine->mixer.Used(source) || !engine->sources[source])
+        if (engine == nullptr || status == nullptr || !engine->mixer.Used(source))
         {
             return VV_AUDIO_NOT_FOUND;
         }
 
-        const vv::audio::DeviceLoop& device = engine->sources[source]->Loop();
+        // A player has no device to open or lose: it is always running, playing or not.
         vv::audio::SourceCounters counters = engine->mixer.TakeCounters(source);
-        status->state = device.State();
-        status->problem = device.Problem();
-        status->last_error = device.LastError();
+        if (engine->sources[source])
+        {
+            const vv::audio::DeviceLoop& device = engine->sources[source]->Loop();
+            status->state = device.State();
+            status->problem = device.Problem();
+            status->last_error = device.LastError();
+        }
+        else
+        {
+            status->state = VV_AUDIO_SOURCE_RUNNING;
+            status->problem = VV_AUDIO_PROBLEM_NONE;
+            status->last_error = 0;
+        }
+
         status->peak_db = vv::audio::LinearToDb(counters.peak);
         status->overruns = counters.overruns;
         status->underruns = counters.underruns;
@@ -682,6 +708,244 @@ extern "C"
             auto tapReader = static_cast<TapReader*>(context);
             return tapReader->mixer->ReadStream(out, frames, until_qpc, first_qpc, tapReader->reader);
         };
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_add_player_source(vv_audio_engine* engine, int32_t player, int32_t* source)
+    {
+        if (engine == nullptr || source == nullptr || (player != VV_AUDIO_PLAYER_BGM && player != VV_AUDIO_PLAYER_SOUND_EFFECTS))
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        try
+        {
+            if (player == VV_AUDIO_PLAYER_BGM && !engine->bgm)
+            {
+                engine->bgm = std::make_unique<vv::audio::BgmDeck>();
+            }
+
+            std::lock_guard<std::mutex> guard(engine->lock);
+            int id = -1;
+            if (!engine->mixer.Add(&id))
+            {
+                return VV_AUDIO_OUT_OF_MEMORY;
+            }
+
+            vv::audio::BlockProvider* provider = player == VV_AUDIO_PLAYER_BGM ? static_cast<vv::audio::BlockProvider*>(engine->bgm.get()) : &engine->effects;
+            engine->mixer.SetProvider(id, provider);
+            *source = id;
+            return VV_AUDIO_OK;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+        catch (...)
+        {
+            return VV_AUDIO_SYSTEM_ERROR;
+        }
+    }
+
+    int32_t vv_audio_probe_file(const wchar_t* path, vv_audio_file_info* info, int32_t* error)
+    {
+        if (path == nullptr || info == nullptr || error == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *info = {};
+        *error = 0;
+        HRESULT hr = S_OK;
+        std::unique_ptr<vv::audio::ClipSource> source = vv::audio::OpenMediaFile(path, hr);
+        if (source)
+        {
+            // Opening reads the header only: the first frames are read too, so a file that cannot be decoded fails here.
+            std::vector<float> first;
+            hr = source->Read(first);
+            if (SUCCEEDED(hr) && first.empty())
+            {
+                hr = MF_E_INVALIDMEDIATYPE;
+            }
+        }
+
+        if (FAILED(hr))
+        {
+            *error = static_cast<int32_t>(hr);
+            return FileError(hr);
+        }
+
+        vv::audio::ClipFormat format = source->Format();
+        info->rate = format.rate;
+        info->channels = format.channels;
+        info->frames = format.rate > 0 ? (format.frames * vv::audio::SampleRate) / format.rate : 0;
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_bgm_play(vv_audio_engine* engine, const wchar_t* path, int32_t loop, float gain_db, int64_t* generation)
+    {
+        if (engine == nullptr || path == nullptr || generation == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        if (!engine->bgm)
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        try
+        {
+            *generation = engine->bgm->Play(path, loop != 0, gain_db);
+            return VV_AUDIO_OK;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+    }
+
+    int32_t vv_audio_bgm_stop(vv_audio_engine* engine)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        if (engine->bgm)
+        {
+            engine->bgm->Stop();
+        }
+
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_bgm_set_gain(vv_audio_engine* engine, float gain_db)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        if (engine->bgm)
+        {
+            engine->bgm->SetGain(gain_db);
+        }
+
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_bgm_get_status(vv_audio_engine* engine, vv_audio_bgm_status* status)
+    {
+        if (engine == nullptr || status == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *status = {};
+        if (engine->bgm)
+        {
+            vv::audio::BgmStatus value = engine->bgm->Status();
+            status->state = static_cast<int32_t>(value.state);
+            status->error = value.error;
+            status->generation = value.generation;
+            status->finished_generation = value.finishedGeneration;
+            status->played_frames = value.playedFrames;
+            status->length_frames = value.lengthFrames;
+            status->underruns = value.underruns;
+        }
+
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_effect_load(vv_audio_engine* engine, const wchar_t* path, int32_t* effect, int64_t* frames, int32_t* error)
+    {
+        if (engine == nullptr || path == nullptr || effect == nullptr || frames == nullptr || error == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *effect = -1;
+        *frames = 0;
+        *error = 0;
+        try
+        {
+            // Decoded before taking the lock, so the mix waits only for the effect to be put in place.
+            auto decoded = std::make_shared<std::vector<float>>();
+            HRESULT hr = vv::audio::DecodeStereo(path, VV_AUDIO_MAX_EFFECT_SECONDS, *decoded);
+            if (FAILED(hr))
+            {
+                *error = static_cast<int32_t>(hr);
+                return FileError(hr);
+            }
+
+            int64_t count = static_cast<int64_t>(decoded->size() / vv::audio::Channels);
+            std::lock_guard<std::mutex> guard(engine->lock);
+            int id = -1;
+            if (!engine->effects.Load(std::move(decoded), &id))
+            {
+                return VV_AUDIO_OUT_OF_MEMORY;
+            }
+
+            *effect = id;
+            *frames = count;
+            return VV_AUDIO_OK;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return VV_AUDIO_OUT_OF_MEMORY;
+        }
+    }
+
+    int32_t vv_audio_effect_unload(vv_audio_engine* engine, int32_t effect)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        std::shared_ptr<const std::vector<float>> released;
+        {
+            std::lock_guard<std::mutex> guard(engine->lock);
+            released = engine->effects.Unload(effect);
+        }
+
+        // Freed here, outside the lock, so the mix does not wait for it.
+        return released ? VV_AUDIO_OK : VV_AUDIO_NOT_FOUND;
+    }
+
+    int32_t vv_audio_effect_play(vv_audio_engine* engine, int32_t effect, float gain_db)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        std::lock_guard<std::mutex> guard(engine->lock);
+        return engine->effects.Play(effect, gain_db) ? VV_AUDIO_OK : VV_AUDIO_NOT_FOUND;
+    }
+
+    int32_t vv_audio_effect_stop_all(vv_audio_engine* engine)
+    {
+        if (engine == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        std::lock_guard<std::mutex> guard(engine->lock);
+        engine->effects.StopAll();
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_effect_stolen(vv_audio_engine* engine, int64_t* stolen)
+    {
+        if (engine == nullptr || stolen == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        std::lock_guard<std::mutex> guard(engine->lock);
+        *stolen = engine->effects.Stolen();
         return VV_AUDIO_OK;
     }
 }

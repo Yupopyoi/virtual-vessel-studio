@@ -17,6 +17,8 @@ namespace VirtualVessel.Audio
 
         public const string MicrophoneRole = "microphone";
         public const string GameAudioRole = "gameAudio";
+        public const string MusicRole = "music";
+        public const string SoundEffectRole = "soundEffect";
         public const string StreamBus = "stream";
         public const string MonitorBus = "monitor";
 
@@ -25,6 +27,9 @@ namespace VirtualVessel.Audio
 
         /// <summary>The game audio starts a little lower than the voice, so talking over a game stays clear.</summary>
         public const float GameAudioGainDb = -6f;
+
+        /// <summary>BGM starts lower than the voice, so it stays behind the talk (BGM and SE detailed design 6.2).</summary>
+        public const float MusicGainDb = -6f;
 
         /// <summary>The user's choice of a default (2026-10-29): the avatar's motion was measured at least 0.2 s behind the voice.</summary>
         public const int DefaultStreamDelayMs = 300;
@@ -59,9 +64,10 @@ namespace VirtualVessel.Audio
         }
 
         /// <summary>
-        /// The settings with a microphone and a game audio source, adding those missing: the microphone on
+        /// The settings with a microphone, a game audio, a BGM, and an SE source, adding those missing: the microphone on
         /// Windows' default input device, the game audio on none, since a capture board must be chosen
-        /// (audio detailed design 10). Other sources are kept as they are. Pure.
+        /// (audio detailed design 10), BGM and SE with no device (BGM and SE detailed design 6.2). Other sources are
+        /// kept as they are. Pure.
         /// </summary>
         public static AudioSettings Prepared(AudioSettings settings, IReadOnlyList<AudioDevice> devices, Func<string> newId, IReadOnlyList<AudioDevice> outputs = null)
         {
@@ -77,6 +83,16 @@ namespace VirtualVessel.Audio
                 next.Sources.Add(new AudioSourceSettings { Id = newId(), Role = GameAudioRole, GainDb = GameAudioGainDb });
             }
 
+            if (next.Sources.Find(source => source.Role == MusicRole) == null)
+            {
+                next.Sources.Add(new AudioSourceSettings { Id = newId(), Role = MusicRole, GainDb = MusicGainDb });
+            }
+
+            if (next.Sources.Find(source => source.Role == SoundEffectRole) == null)
+            {
+                next.Sources.Add(new AudioSourceSettings { Id = newId(), Role = SoundEffectRole });
+            }
+
             foreach (AudioSourceSettings source in next.Sources)
             {
                 source.Id = string.IsNullOrEmpty(source.Id) ? newId() : source.Id;
@@ -86,10 +102,10 @@ namespace VirtualVessel.Audio
                     source.Sends[StreamBus] = 0f;
                 }
 
-                // The user hears the game; their own voice, echoed back or into a microphone from speakers, not.
+                // The user hears the game, BGM, and SE; their own voice, echoed back or into a microphone from speakers, not.
                 if (!source.Sends.ContainsKey(MonitorBus))
                 {
-                    source.Sends[MonitorBus] = source.Role == GameAudioRole ? 0f : NoSendDb;
+                    source.Sends[MonitorBus] = source.Role == MicrophoneRole ? NoSendDb : 0f;
                 }
             }
 
@@ -115,6 +131,12 @@ namespace VirtualVessel.Audio
             return double.IsNaN(milliseconds) ? DefaultStreamDelayMs : (int)Math.Round(Math.Max(0, Math.Min(MaxStreamDelayMs, milliseconds)));
         }
 
+        /// <summary>Whether a source plays from a player, with no device to choose. Pure.</summary>
+        public static bool IsPlayer(AudioSourceRole role)
+        {
+            return role == AudioSourceRole.Music || role == AudioSourceRole.SoundEffect;
+        }
+
         /// <summary>The role of a saved source, or null for one this version does not know. Pure.</summary>
         public static AudioSourceRole? RoleOf(string role)
         {
@@ -122,6 +144,8 @@ namespace VirtualVessel.Audio
             {
                 MicrophoneRole => AudioSourceRole.Microphone,
                 GameAudioRole => AudioSourceRole.GameAudio,
+                MusicRole => AudioSourceRole.Music,
+                SoundEffectRole => AudioSourceRole.SoundEffect,
                 _ => null,
             };
         }

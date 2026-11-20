@@ -16,7 +16,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | Page | Key | Cards |
 |---|---|---|
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
-| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), voice conversion (chapter 13, being designed) |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), BGM, sound effects (chapter 14), voice conversion (chapter 13) |
 | Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
 | Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
@@ -237,7 +237,7 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 
 ## 11. Audio Card
 
-Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio) and the monitor, in shared columns. Another source adds only a row. Details in audio detailed design 18.
+Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio, BGM, sound effects) and the monitor, in shared columns. BGM and sound effects have no device, so their Device column is blank (chapter 14). Another source adds only a row. Details in audio detailed design 18.
 
 | Row | Content |
 |---|---|
@@ -261,6 +261,8 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
 | `setup.audio.microphone` | マイク | Microphone |
 | `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.music` | BGM | BGM |
+| `setup.audio.sound-effect` | 効果音 | Sound effects |
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
@@ -273,7 +275,7 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
-| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.not-found` | 未発見 | Not found |
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
@@ -407,3 +409,56 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
 | `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
+
+## 14. The BGM and Sound Effects Cards
+
+Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24).
+
+| Column | What it holds |
+|---|---|
+| Play | Icon Button. For BGM it plays the file on the stream and in recordings, and turns into stop (■) while it plays. For a sound effect each press plays it from its start, overlapping. Disabled until it is loaded, with a tooltip saying it is loading |
+| Name | Takes the rest of the width, cut with an ellipsis, its tooltip holding it whole. For BGM a Status Chip after the name says Playing, or Cannot play (by shape and text) |
+| Length | Minutes and seconds, monospaced, right-aligned. Blank when the file does not say |
+| Loop | BGM only. Toggle, on by default; a change applies from the next play. Explained by a Help Hint after its heading |
+| Volume | Slider, -60 to +12 dB: the file's own, apart from the BGM and sound effects rows of the mixer. The BGM that plays takes it at once |
+| Actions | Rename (the name turns into a field where it is, and the button into Save; 1 to 60 characters), Delete (after a confirmation; the original file stays). Delete is disabled for the BGM that plays, with the reason in its tooltip |
+
+- Add a file… is under the rows. The file dialog offers WAV and MP3. The chosen file is checked, and when it cannot be registered the Card says why (another format, unreadable, a sound effect over 30 seconds, cannot be saved). It is registered under its file name, which can be changed later.
+- The sound effects Card has Stop sound effects at the right of its title, stopping every sound effect that sounds.
+- With nothing registered, a line says what to add.
+- The mixer (chapter 11) gains BGM and sound effects rows. They have no device, so the Device column is blank, as is Noise removal. Hear is on by default.
+- The live screen's audio (`live.md`) gains BGM and sound effects, with a note and a speaker as their icons, crossed out when muted.
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.bgm.title` | BGM | BGM |
+| `setup.se.title` | 効果音 | Sound effects |
+| `setup.clips.name` | 名前 | Name |
+| `setup.clips.length` | 長さ | Length |
+| `setup.clips.loop` | ループ | Loop |
+| `setup.clips.loop.description` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
+| `setup.clips.gain` | 音量 | Volume |
+| `setup.clips.add` | ファイルを追加… | Add a file… |
+| `setup.clips.rename` | 名前を変更 | Rename |
+| `setup.clips.save` | 保存 | Save |
+| `setup.clips.delete` | 削除 | Delete |
+| `setup.clips.name.required` | 名前を入力してください | Enter a name |
+| `setup.clips.filter` | 音声ファイル | Audio files |
+| `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |
+| `setup.bgm.stop` | このBGMを停止します。 | Stops this BGM. |
+| `setup.bgm.playing` | 再生中 | Playing |
+| `setup.bgm.failed` | 再生できません | Cannot play |
+| `setup.bgm.empty` | BGMはまだ登録されていません。WAVかMP3のファイルを追加してください。 | No BGM yet. Add a WAV or MP3 file. |
+| `setup.bgm.delete.title` | BGMの削除 | Delete the BGM |
+| `setup.bgm.delete.body` | このBGMを削除します。追加した元のファイルは削除されません。 | This BGM is deleted. The file it was added from is not. |
+| `setup.se.play` | この効果音を配信と録画で再生します。 | Plays this sound effect on the stream and in recordings. |
+| `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
+| `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
+| `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
+| `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
+| `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |
+| `setup.clips.problem.unsupported` | WAVかMP3のファイルを選択してください。 | Choose a WAV or MP3 file. |
+| `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
+| `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
+| `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |

@@ -6,6 +6,8 @@ using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
 using VirtualVessel.Audio;
+using VirtualVessel.Audio.Clips;
+using VirtualVessel.Audio.Playback;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
@@ -25,6 +27,7 @@ using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
@@ -53,6 +56,9 @@ namespace VirtualVessel.Application.Startup
             public Lazy<OpenedProject> Project;
             public CaptureService Capture;
             public AudioService Audio;
+            public AudioClipLibrary Clips;
+            public BgmPlayer Bgm;
+            public SoundEffectPlayer SoundEffects;
             public VoiceService Voice;
             public VideoService Video;
             public StageService Stage;
@@ -143,6 +149,50 @@ namespace VirtualVessel.Application.Startup
                 ServiceCriticality.Optional,
                 () => built.Audio = CreateAudio(context, built.Project.Value, built.Metrics, built.Log("Audio", "Sources")),
                 new[] { LoggingService.ServiceName });
+        }
+
+        // BGM and SE (BGM and SE detailed design): the registered files in the Data Root, and the players over the audio
+        // engine's deck and voices. Optional, like Audio: without them the rest runs, and the Cards say so.
+        private static IEnumerable<ApplicationServiceDescriptor> AudioPlayerDescriptors(ApplicationCompositionContext context, Built built)
+        {
+            if (context.FrameLoop == null || built.Project == null)
+            {
+                yield break;
+            }
+
+            yield return new ApplicationServiceDescriptor(
+                BgmPlayer.ServiceName,
+                ServiceCriticality.Optional,
+                () =>
+                {
+                    built.Clips = new AudioClipLibrary(context.DataRoot.GetDirectory(DataRootDirectory.Audio), context.SystemClock, AudioFile.Probe, () => Guid.NewGuid().ToString("N").Substring(0, 12));
+                    built.Bgm = new BgmPlayer(() => built.Audio?.PlayerEngine, built.Clips, context.FrameLoop, context.MonotonicClock, built.Log("Audio", "BGM"), built.Metrics);
+
+                    // A track that plays has its file open; it is not deleted until it has stopped.
+                    BgmPlayer bgm = built.Bgm;
+                    built.Clips.InUse = id => bgm.Status.Value.HoldsTrack && bgm.Status.Value.TrackId == id;
+                    return built.Bgm;
+                },
+                new[] { LoggingService.ServiceName, AudioService.ServiceName });
+
+            yield return new ApplicationServiceDescriptor(
+                SoundEffectPlayer.ServiceName,
+                ServiceCriticality.Optional,
+                () => built.SoundEffects = new SoundEffectPlayer(() => built.Audio?.PlayerEngine, built.Clips, built.Log("Audio", "SoundEffects"), built.Metrics),
+                new[] { LoggingService.ServiceName, AudioService.ServiceName, BgmPlayer.ServiceName });
+
+            // The BGM and SE that come with the app, added once to the library in the system's language.
+            yield return new ApplicationServiceDescriptor(
+                BuiltInAudioClips.ServiceName,
+                ServiceCriticality.Optional,
+                () => new BuiltInAudioClips(
+                    built.Clips,
+                    Path.Combine(UnityEngine.Application.streamingAssetsPath, BuiltInAudioClips.Folder),
+                    context.DataRoot.GetDirectory(DataRootDirectory.Audio),
+                    Localizer.ChooseInitialLocale(UnityEngine.Application.systemLanguage, new[] { "ja", BuiltInAudioClips.FallbackLanguage }),
+                    context.SystemClock,
+                    built.Log("Audio", "BuiltIn")),
+                new[] { LoggingService.ServiceName, BgmPlayer.ServiceName, SoundEffectPlayer.ServiceName });
         }
 
         // The voice conversion, a stage on the microphone. Its models stay outside the repository, in the Data Root;
@@ -352,6 +402,9 @@ namespace VirtualVessel.Application.Startup
                 VoiceLabLibrary = voiceLab.Library,
                 VoiceLabSetup = PauseWhileLive(CreateVoiceLabSetup(context, voiceLab, built.Log("VoiceLab", "Activation")), built.Streaming, built.Recording),
                 AudioPreview = built.Audio,
+                AudioClips = built.Clips,
+                Bgm = built.Bgm,
+                SoundEffects = built.SoundEffects,
                 SystemSettings = new WindowsSystemSettings(),
                 Recording = built.Recording,
                 Streaming = built.Streaming,

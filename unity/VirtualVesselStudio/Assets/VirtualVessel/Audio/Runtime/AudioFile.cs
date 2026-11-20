@@ -5,6 +5,24 @@ using System.Runtime.InteropServices;
 
 namespace VirtualVessel.Audio
 {
+    /// <summary>What a file holds, read without decoding it all (BGM and SE detailed design 5).</summary>
+    public readonly struct AudioFileInfo
+    {
+        public AudioFileInfo(TimeSpan duration, int rate, int channels)
+        {
+            Duration = duration;
+            Rate = rate;
+            Channels = channels;
+        }
+
+        /// <summary>Zero when the file does not say.</summary>
+        public TimeSpan Duration { get; }
+
+        public int Rate { get; }
+
+        public int Channels { get; }
+    }
+
     /// <summary>
     /// Reads audio files with the audio plugin, which uses Windows' Media Foundation (audio detailed design 5.4):
     /// M4A (AAC), MP3, WAV, and others, so the application carries no codec of its own.
@@ -61,6 +79,42 @@ namespace VirtualVessel.Audio
                 vv_audio_clip_free(clip);
             }
         }
+
+        /// <summary>The file's length and format, reading only its start. Call it off the main thread.</summary>
+        /// <exception cref="InvalidDataException">The file is missing or cannot be decoded.</exception>
+        /// <exception cref="AudioEngineException">The audio plugin is missing or older.</exception>
+        public static AudioFileInfo Probe(string path)
+        {
+            int result;
+            Info info;
+            int error;
+            try
+            {
+                result = vv_audio_probe_file(path, out info, out error);
+            }
+            catch (Exception exception) when (exception is DllNotFoundException || exception is EntryPointNotFoundException)
+            {
+                throw new AudioEngineException($"The audio plugin {Library} is missing or too old to read files; build it with tools/native/build-audio.ps1.", exception);
+            }
+
+            if (result != Ok)
+            {
+                throw new InvalidDataException($"Windows cannot read this file ({result}, HRESULT 0x{error:X8}).");
+            }
+
+            return new AudioFileInfo(TimeSpan.FromSeconds(info.Frames / 48000.0), info.Rate, info.Channels);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Info
+        {
+            public long Frames;
+            public int Rate;
+            public int Channels;
+        }
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int vv_audio_probe_file(string path, out Info info, out int error);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
         private static extern int vv_audio_decode_file(string path, out IntPtr clip, out int rate, out long count, out int error);

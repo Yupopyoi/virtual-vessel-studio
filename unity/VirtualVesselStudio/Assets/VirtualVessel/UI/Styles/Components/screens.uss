@@ -112,6 +112,13 @@
     width: 120px;
 }
 
+/* A long state stays inside the name column instead of running under the device. */
+.vv-audio-card__cell--name .vv-chip {
+    flex-shrink: 1;
+    max-width: 100%;
+    overflow: hidden;
+}
+
 .vv-audio-card__cell--device {
     flex-grow: 1;
     flex-shrink: 1;

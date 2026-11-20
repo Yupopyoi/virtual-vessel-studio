@@ -1,0 +1,150 @@
+/*
+ * The BGM and SE Cards (setup.md 14): headings and rows share the column widths, as a table (components.md 3.24). The
+ * name takes what is left and is cut with an ellipsis; its tooltip has it whole.
+ */
+.vv-clips__columns,
+.vv-clips__row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-clips__columns {
+    color: var(--vv-color-text-3);
+    padding-bottom: var(--vv-space-xs);
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+.vv-clips__columns .vv-text-caption {
+    color: var(--vv-color-text-3);
+}
+
+.vv-clips__row {
+    min-height: 44px;
+    padding: var(--vv-space-xs) 0;
+    border-bottom-width: 1px;
+    border-color: var(--vv-color-border);
+}
+
+.vv-clips__cell {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    margin-right: var(--vv-space-s);
+}
+
+.vv-clips__cell--play {
+    width: 40px;
+}
+
+.vv-clips__cell--name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 160px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.vv-clips__name {
+    color: var(--vv-color-text);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    margin-right: var(--vv-space-s);
+}
+
+.vv-clips__cell--name > .vv-text-input {
+    flex-grow: 1;
+}
+
+.vv-clips__cell--length {
+    width: 56px;
+    justify-content: flex-end;
+}
+
+.vv-clips__cell--length > .vv-mono {
+    color: var(--vv-color-text-2);
+}
+
+.vv-clips__cell--loop {
+    width: 72px;
+}
+
+.vv-clips__cell--gain {
+    width: 180px;
+}
+
+/* Fixed, so the headings stay over their columns whatever the buttons' language. */
+.vv-clips__cell--actions {
+    width: 200px;
+    justify-content: flex-end;
+    margin-right: 0;
+}
+
+.vv-clips__cell--actions > .vv-button {
+    margin-left: var(--vv-space-s);
+}
+
+.vv-clips__note {
+    color: var(--vv-color-text-2);
+    margin: var(--vv-space-s) 0;
+    white-space: normal;
+}
+
+.vv-clips > .vv-card > .vv-chip,
+.vv-clips .vv-card__body > .vv-chip {
+    margin-top: var(--vv-space-s);
+}
+
+.vv-clips__actions {
+    flex-direction: row;
+    margin-top: var(--vv-space-m);
+}
+
+/* The live screen's BGM and SE (live.md 2): a row for BGM, a row of sound effects' buttons that wraps. */
+.vv-players {
+    margin-top: var(--vv-space-m);
+}
+
+.vv-players__row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: var(--vv-space-s);
+}
+
+.vv-players__row > * {
+    margin-right: var(--vv-space-s);
+    margin-bottom: var(--vv-space-xs);
+}
+
+.vv-players__label {
+    color: var(--vv-color-text-2);
+    min-width: 64px;
+}
+
+.vv-players__row > .vv-select {
+    width: 260px;
+}
+
+.vv-players__row > .vv-slider {
+    width: 200px;
+}
+
+.vv-players__time {
+    color: var(--vv-color-text-2);
+    min-width: 96px;
+}
+
+.vv-players__pad {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.vv-players__pad > .vv-button {
+    margin-right: var(--vv-space-s);
+    margin-bottom: var(--vv-space-xs);
+}

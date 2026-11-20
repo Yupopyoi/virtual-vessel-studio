@@ -28,12 +28,14 @@ namespace VirtualVessel.Audio.Tests
         {
             AudioSettings prepared = AudioSettings.Prepared(new AudioSettings(), s_devices, Ids());
 
-            Assert.That(prepared.Sources.Select(s => s.Role), Is.EqualTo(new[] { AudioSettings.MicrophoneRole, AudioSettings.GameAudioRole }));
+            Assert.That(prepared.Sources.Select(s => s.Role), Is.EqualTo(new[] { AudioSettings.MicrophoneRole, AudioSettings.GameAudioRole, AudioSettings.MusicRole, AudioSettings.SoundEffectRole }));
             Assert.That(prepared.Sources[0].DeviceId, Is.EqualTo("headset"), "Windows' default input device.");
             Assert.That(prepared.Sources[1].DeviceId, Is.Null, "A capture board must be chosen.");
             Assert.That(prepared.Sources[1].GainDb, Is.EqualTo(AudioSettings.GameAudioGainDb));
             Assert.That(prepared.Sources.All(s => s.Sends[AudioSettings.StreamBus] == 0f), Is.True, "Both go to the stream.");
-            Assert.That(prepared.Sources.Select(s => s.Id).Distinct().Count(), Is.EqualTo(2));
+            Assert.That(prepared.Sources.Select(s => s.Id).Distinct().Count(), Is.EqualTo(4));
+            Assert.That(prepared.Sources[2].GainDb, Is.EqualTo(AudioSettings.MusicGainDb), "BGM stays behind the voice.");
+            Assert.That(prepared.Sources[2].DeviceId, Is.Null, "BGM and SE have no device.");
         }
 
         [Test]
@@ -46,6 +48,7 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(prepared.Monitor.DeviceId, Is.EqualTo("phones"));
             Assert.That(prepared.Sources[0].ToOptions().Monitored, Is.False, "One's own voice echoes back, and leaks into the microphone from speakers.");
             Assert.That(prepared.Sources[1].ToOptions().Monitored, Is.True);
+            Assert.That(prepared.Sources[2].ToOptions().Monitored && prepared.Sources[3].ToOptions().Monitored, Is.True, "BGM and SE are heard too.");
         }
 
         [Test]
@@ -80,7 +83,7 @@ namespace VirtualVessel.Audio.Tests
                 Sources = new List<AudioSourceSettings>
                 {
                     new AudioSourceSettings { Id = "a", Role = AudioSettings.MicrophoneRole, DeviceId = "usb", GainDb = 3, Muted = true, Sends = new Dictionary<string, float> { [AudioSettings.StreamBus] = -3f } },
-                    new AudioSourceSettings { Id = "b", Role = "music", DeviceId = null },
+                    new AudioSourceSettings { Id = "b", Role = "future", DeviceId = null },
                 },
             };
 
@@ -89,7 +92,8 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(prepared.Sources.Select(s => s.Id).Take(2), Is.EqualTo(new[] { "a", "b" }));
             Assert.That(prepared.Sources[0].DeviceId, Is.EqualTo("usb"), "A chosen device is not replaced by the default.");
             Assert.That(prepared.Sources[2].Role, Is.EqualTo(AudioSettings.GameAudioRole), "The missing role is added.");
-            Assert.That(AudioSettings.RoleOf("music"), Is.Null);
+            Assert.That(AudioSettings.RoleOf("future"), Is.Null);
+            Assert.That(AudioSettings.RoleOf("music"), Is.EqualTo(AudioSourceRole.Music));
             Assert.That(saved.Sources.Count, Is.EqualTo(2), "The original is not changed.");
         }
 
@@ -137,7 +141,7 @@ namespace VirtualVessel.Audio.Tests
         [Test]
         public void ARoleThisVersionDoesNotKnow_IsNotPlayed()
         {
-            var saved = new AudioSettings { Sources = new List<AudioSourceSettings> { new AudioSourceSettings { Id = "m", Role = "music" } } };
+            var saved = new AudioSettings { Sources = new List<AudioSourceSettings> { new AudioSourceSettings { Id = "m", Role = "future" } } };
 
             using AudioService service = Start(saved);
 

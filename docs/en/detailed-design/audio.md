@@ -233,6 +233,7 @@ The prototype's results are in the [decision record](../decisions/voice-conversi
 - `streamDelayMs` (8.5) was added in schema version 1 without a step: a file without it reads as 300.
 - A source's `denoise` (8.6) was also added in schema version 1 without a step: a file without it reads as on for the microphone and off for the others.
 - `monitor` and the `monitor` send were added the same way. A file without `monitor` starts on Windows' default output, and a source without the send is heard only if it is the game audio. A `deviceId` of null is the user's choice of none, and stays.
+- The BGM and SE sources (`music`, `soundEffect`) have no device; a file without them gets them with defaults ([BGM and SE detailed design](bgm-se.md) 6.2).
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
 - `ProfileKind` gains `Audio`.
 
@@ -289,7 +290,7 @@ A new module `VirtualVessel.Audio` (system design 2.4); UI references Audio, as 
 1. The microphone and the game's audio, gain and mute, the stream bus, levels, settings (this version).
 2. The monitor bus: game audio and later BGM and SE on the user's headphones, with their own sends (system design 9.4). Done.
 3. Voice conversion as a managed stage on the microphone (8.3), and the stream video delayed to match (8.4).
-4. Clip players for BGM and SE, with their files in the Data Root.
+4. Clip players for BGM and SE, with their files in the Data Root. See the [BGM and SE detailed design](bgm-se.md).
 
 Not a requirement yet, but the user wants it (2026-10-31): taking a game's sound on the same PC without a capture board (application audio loopback). When it is added: it comes as a new `AudioSourceInput`. Its sound already reaches the user directly from the game, so sending it to the monitor would be heard twice, and its default send must be none. For the video, see the open issues of `capture.md`.
 

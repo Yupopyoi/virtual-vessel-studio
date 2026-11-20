@@ -134,6 +134,9 @@ namespace VirtualVessel.Audio
 
         public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
 
+        /// <summary>The BGM and SE players; null before this service has started, or with an engine without them.</summary>
+        public IAudioPlayerEngine PlayerEngine => _engine as IAudioPlayerEngine;
+
         /// <summary>The stage on the microphone; ask after this service has started.</summary>
         public IAudioStage MicrophoneStage => new MicrophoneStageAccess(this);
 
@@ -158,13 +161,16 @@ namespace VirtualVessel.Audio
             _settings = prepared;
             foreach (AudioSourceSettings saved in _settings.Sources)
             {
-                // A role this version does not know is kept in the profile but not played.
-                if (AudioSettings.RoleOf(saved.Role) is AudioSourceRole role)
+                // A role this version does not know is kept in the profile but not played; so is a player the engine lacks.
+                if (AudioSettings.RoleOf(saved.Role) is AudioSourceRole role && (!AudioSettings.IsPlayer(role) || PlayerEngine != null))
                 {
-                    var source = new Source(this, saved.Id, role, _engine.AddSource(), saved.ToOptions(), _metrics);
-                    Apply(source.Engine, source.Options.Value);
+                    bool player = AudioSettings.IsPlayer(role);
+                    int engineSource = player ? PlayerEngine.AddPlayerSource(role == AudioSourceRole.Music ? AudioPlayer.Bgm : AudioPlayer.SoundEffects) : _engine.AddSource();
+                    var source = new Source(this, saved.Id, role, engineSource, saved.ToOptions(), _metrics);
+                    Apply(source.Engine, source.Options.Value, player);
                     _sources.Add(source);
-                    _log?.Information($"Audio source {role} on {DeviceName(source.Options.Value.DeviceId, devices)}, gain {source.Options.Value.GainDb:0.#} dB{(source.Options.Value.Muted ? ", muted" : string.Empty)}.");
+                    string from = player ? "its player" : DeviceName(source.Options.Value.DeviceId, devices);
+                    _log?.Information($"Audio source {role} on {from}, gain {source.Options.Value.GainDb:0.#} dB{(source.Options.Value.Muted ? ", muted" : string.Empty)}.");
                 }
             }
 
@@ -307,13 +313,18 @@ namespace VirtualVessel.Audio
             }
         }
 
-        private void Apply(int engineSource, AudioSourceOptions options)
+        private void Apply(int engineSource, AudioSourceOptions options, bool player)
         {
-            _engine.SetDevice(engineSource, options.DeviceId);
+            // A player has no device, and noise removal is for a voice.
+            if (!player)
+            {
+                _engine.SetDevice(engineSource, options.DeviceId);
+                SetDenoise(engineSource, options.Denoise);
+            }
+
             _engine.SetGain(engineSource, options.GainDb, options.Muted);
             _engine.SetStreamSend(engineSource, options.StreamSendDb);
             _engine.SetMonitorSend(engineSource, options.MonitorSendDb);
-            SetDenoise(engineSource, options.Denoise);
         }
 
         private void SetDenoise(int engineSource, bool denoise)
@@ -327,7 +338,7 @@ namespace VirtualVessel.Audio
 
         private void Changed(Source source, AudioSourceOptions previous, AudioSourceOptions options)
         {
-            if (previous.DeviceId != options.DeviceId)
+            if (previous.DeviceId != options.DeviceId && !AudioSettings.IsPlayer(source.Role))
             {
                 _engine?.SetDevice(source.Engine, options.DeviceId);
                 _log?.Information($"Audio source {source.Role} moves to {DeviceName(options.DeviceId, _devices.Value)}.");

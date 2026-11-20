@@ -23,6 +23,7 @@ namespace VirtualVessel.UI.Controls
         private readonly KeyedText _text;
         private readonly CommandBinding _command;
         private ButtonVariant _variant;
+        private string _plainText;
 
         public ActionButton()
             : this(null)
@@ -42,7 +43,7 @@ namespace VirtualVessel.UI.Controls
             _label.AddToClassList("vv-text-button");
             Add(_label);
             FocusRing.Attach(this);
-            _text = new KeyedText(this, value => _label.text = value);
+            _text = new KeyedText(this, value => _label.text = _plainText ?? value);
             _command = new CommandBinding(this);
             TextKey = textKey;
             Variant = variant;
@@ -55,7 +56,22 @@ namespace VirtualVessel.UI.Controls
             set => _text.Key = value;
         }
 
-        /// <summary>The text shown now, from <see cref="TextKey"/>.</summary>
+        /// <summary>
+        /// Text that is the user's own, such as a sound effect's name: shown as it is, not looked up in the string tables
+        /// and not read as rich text (components.md 3.1).
+        /// </summary>
+        public string PlainText
+        {
+            get => _plainText;
+            set
+            {
+                _plainText = value;
+                _label.enableRichText = value == null;
+                _label.text = value ?? string.Empty;
+            }
+        }
+
+        /// <summary>The text shown now, from <see cref="TextKey"/> or <see cref="PlainText"/>.</summary>
         public string DisplayedText => _label.text;
 
         [UxmlAttribute("tooltip-key")]
