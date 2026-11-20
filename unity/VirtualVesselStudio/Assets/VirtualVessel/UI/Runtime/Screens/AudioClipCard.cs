@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -10,11 +11,13 @@ using VirtualVessel.Audio.Playback;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Shortcuts;
 using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Screens
@@ -77,6 +80,7 @@ namespace VirtualVessel.UI.Screens
         public const string LengthColumn = CellClass + "--length";
         public const string LoopColumn = CellClass + "--loop";
         public const string GainColumn = CellClass + "--gain";
+        public const string ShortcutColumn = CellClass + "--shortcut";
         public const string ActionsColumn = CellClass + "--actions";
         public const string NameTextClass = UssClass + "__name";
         public const string NoteClass = UssClass + "__note";
@@ -93,6 +97,7 @@ namespace VirtualVessel.UI.Screens
         private readonly IBgmPlayer _bgm;
         private readonly ISoundEffectPlayer _effects;
         private readonly IFileDialog _files;
+        private readonly IGlobalShortcuts _shortcuts;
         private readonly VisualElement _rows = new VisualElement();
         private readonly Label _empty;
         private readonly StatusChip _problem;
@@ -105,8 +110,10 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The Card itself, which the user can close by its title.</summary>
         public Card Card { get; }
 
-        public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files)
+        /// <param name="shortcuts">SE only: the keys that play sound effects from any app; null leaves out their column.</param>
+        public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files, IGlobalShortcuts shortcuts = null)
         {
+            _shortcuts = kind == AudioClipKind.SoundEffect ? shortcuts : null;
             _kind = kind;
             _library = library ?? throw new ArgumentNullException(nameof(library));
             _bgm = bgm;
@@ -125,7 +132,7 @@ namespace VirtualVessel.UI.Screens
                 card.HeaderEnd.Add(StopAllButton);
             }
 
-            card.Add(Columns(kind));
+            card.Add(Columns(kind, _shortcuts != null));
             card.Add(_rows);
 
             // The landing line is drawn over the rows, not inserted between them, so the rows do not move under the
@@ -196,7 +203,11 @@ namespace VirtualVessel.UI.Screens
         {
             if (_kind == AudioClipKind.SoundEffect)
             {
-                _effects?.Play(record.Id);
+                if (_effects != null)
+                {
+                    new PlaySoundEffectCommand(_effects, record.Id).Execute();
+                }
+
                 return;
             }
 
@@ -222,6 +233,42 @@ namespace VirtualVessel.UI.Screens
             {
                 ShowFailure($"Changing {record.Id}", updated.Error, updated.Detail);
             }
+        }
+
+        /// <summary>
+        /// Gives a sound effect the keys the user pressed, or removes them with an empty text. Keys another sound effect
+        /// has are not taken from it: the user is told and chooses again.
+        /// </summary>
+        internal void ChooseShortcut(AudioClipRecord record, string shortcut)
+        {
+            _problem.style.display = DisplayStyle.None;
+            if (TakenBy(_shown.ConvertAll(row => row.Record), record.Id, shortcut) != null)
+            {
+                ShowProblem(ShortcutStrings.Taken);
+                return;
+            }
+
+            Change(record, new AudioClipChange(shortcut: shortcut));
+        }
+
+        /// <summary>The ID of another sound effect that has these keys already, or null. Pure.</summary>
+        public static string TakenBy(IReadOnlyList<AudioClipRecord> effects, string id, string shortcut)
+        {
+            KeyChord? chord = KeyChord.Parse(shortcut);
+            if (!chord.HasValue)
+            {
+                return null;
+            }
+
+            foreach (AudioClipRecord effect in effects)
+            {
+                if (effect.Id != id && KeyChord.Parse(effect.Settings.Shortcut) == chord)
+                {
+                    return effect.Id;
+                }
+            }
+
+            return null;
         }
 
         internal async void Delete(AudioClipRecord record)
@@ -281,7 +328,7 @@ namespace VirtualVessel.UI.Screens
             _shown.Clear();
             foreach (AudioClipRecord record in records)
             {
-                var row = new ClipRow(this, record, _kind, record.NameIn(_language));
+                var row = new ClipRow(this, record, _kind, record.NameIn(_language), _shortcuts);
                 _shown.Add(row);
                 _rows.Add(row.Root);
             }
@@ -349,7 +396,9 @@ namespace VirtualVessel.UI.Screens
                 }
                 else
                 {
-                    row.ShowEffect(_effects != null && _effects.IsReady(row.Record.Id));
+                    KeyChord? chord = KeyChord.Parse(row.Record.Settings.Shortcut);
+                    bool heldElsewhere = chord.HasValue && _shortcuts != null && _shortcuts.Refused.Contains(chord.Value);
+                    row.ShowEffect(_effects != null && _effects.IsReady(row.Record.Id), heldElsewhere);
                 }
             }
         }
@@ -504,7 +553,7 @@ namespace VirtualVessel.UI.Screens
             UiServices.Find(this)?.Log?.Warning($"{what} failed ({error}): {detail}");
         }
 
-        private static VisualElement Columns(AudioClipKind kind)
+        private static VisualElement Columns(AudioClipKind kind, bool shortcuts)
         {
             var columns = new VisualElement();
             columns.AddToClassList(ColumnsClass);
@@ -521,6 +570,14 @@ namespace VirtualVessel.UI.Screens
             }
 
             columns.Add(Heading(AudioClipStrings.Gain, GainColumn));
+            if (shortcuts)
+            {
+                VisualElement shortcut = Cell(ShortcutColumn);
+                shortcut.Add(Ui.Text(ShortcutStrings.Column, "vv-text-caption"));
+                shortcut.Add(new HelpHint(ShortcutStrings.Description));
+                columns.Add(shortcut);
+            }
+
             columns.Add(Cell(ActionsColumn));
             return columns;
         }
@@ -585,7 +642,7 @@ namespace VirtualVessel.UI.Screens
             private readonly TextInput _rename;
             private readonly StatusChip _state;
 
-            internal ClipRow(AudioClipCard card, AudioClipRecord record, AudioClipKind kind, string shownName)
+            internal ClipRow(AudioClipCard card, AudioClipRecord record, AudioClipKind kind, string shownName, IGlobalShortcuts shortcuts)
             {
                 ShownName = shownName;
                 _card = card;
@@ -653,6 +710,15 @@ namespace VirtualVessel.UI.Screens
                 gain.Add(Gain);
                 Root.Add(gain);
 
+                if (shortcuts != null)
+                {
+                    Shortcut = new ShortcutButton(record.Settings.Shortcut, shortcuts);
+                    Shortcut.Chosen += keys => _card.ChooseShortcut(Record, keys);
+                    VisualElement shortcut = Cell(ShortcutColumn);
+                    shortcut.Add(Shortcut);
+                    Root.Add(shortcut);
+                }
+
                 RenameButton = Ui.Button(AudioClipStrings.Rename);
                 RenameButton.clicked += StartRename;
                 SaveButton = Ui.Button(AudioClipStrings.Save, ButtonVariant.Primary);
@@ -672,7 +738,13 @@ namespace VirtualVessel.UI.Screens
                     Controls.Add(LoopToggle);
                 }
 
-                Controls.AddRange(new VisualElement[] { Gain, RenameButton, SaveButton, DeleteButton });
+                Controls.Add(Gain);
+                if (Shortcut != null)
+                {
+                    Controls.Add(Shortcut.Button);
+                }
+
+                Controls.AddRange(new VisualElement[] { RenameButton, SaveButton, DeleteButton });
             }
 
             public AudioClipRecord Record { get; }
@@ -691,6 +763,9 @@ namespace VirtualVessel.UI.Screens
             public SwitchToggle LoopToggle { get; }
 
             public ValueSlider Gain { get; }
+
+            /// <summary>SE only, with the global keys: the keys that play it from any app.</summary>
+            public ShortcutButton Shortcut { get; }
 
             public ActionButton RenameButton { get; }
 
@@ -720,10 +795,14 @@ namespace VirtualVessel.UI.Screens
                 DeleteButton.TooltipKey = holdsFile ? AudioClipStrings.DeleteInUse : null;
             }
 
-            internal void ShowEffect(bool ready)
+            /// <param name="heldElsewhere">Its keys are another app's, so they do not play it; told by shape and text.</param>
+            internal void ShowEffect(bool ready, bool heldElsewhere)
             {
                 PlayButton.SetEnabled(ready);
                 PlayButton.TooltipKey = ready ? AudioClipStrings.EffectPlay : AudioClipStrings.EffectLoading;
+                _state.style.display = heldElsewhere ? DisplayStyle.Flex : DisplayStyle.None;
+                _state.Status = StatusKind.Warning;
+                _state.TextKey = ShortcutStrings.HeldElsewhere;
             }
 
             /// <summary>Focuses a control by its place in <see cref="Controls"/>; the rename button if it cannot.</summary>

@@ -108,7 +108,7 @@ namespace VirtualVessel.UI.Screens
             if (services.Audio != null && services.AudioClips != null)
             {
                 page.Add(new AudioClipCard(AudioClipKind.Bgm, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
-                page.Add(new AudioClipCard(AudioClipKind.SoundEffect, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
+                page.Add(new AudioClipCard(AudioClipKind.SoundEffect, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog, services.Shortcuts));
             }
 
             if (services.Audio != null && services.Voice != null)

@@ -105,6 +105,21 @@
     width: 180px;
 }
 
+/* SE: the keys that play it from any app (setup.md 14). Wide enough for "Ctrl+Alt+Shift+F12". */
+.vv-clips__cell--shortcut {
+    width: 160px;
+}
+
+.vv-shortcut,
+.vv-shortcut > .vv-button {
+    flex-grow: 1;
+}
+
+/* Waiting for keys: the accent line, as a field with the focus has, so it is plain that keys go here. */
+.vv-shortcut--waiting > .vv-button {
+    border-color: var(--vv-color-accent-line);
+}
+
 /* Fixed, so the headings stay over their columns whatever the buttons' language. */
 .vv-clips__cell--actions {
     width: 200px;
