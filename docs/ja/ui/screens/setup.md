@@ -426,6 +426,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | 長さ | 分:秒、等幅、右寄せ。ファイルが長さを持たないときは空ける |
 | ループ | BGMだけ。Toggle。既定はオン。変更は次の再生から。説明は見出しの後のHelp Hint |
 | 音量 | Slider、-60〜+12 dB。そのファイルの音量で、ミキサーのBGMと効果音の行の音量とは別。再生中のBGMには、その場で反映する |
+| ショートカット | 効果音だけ。押すと「キーを押してください」になり、Accent Lineの枠で待つ。`Ctrl`、`Alt`、`Shift`のどれかと一緒に押したキーを割り当てる（どのアプリを使っていても鳴る。`bgm-se.md` 8.3）。単独のキーでは割り当てず、ツールチップで修飾キーが要ると伝える。`Esc`で取り消し、`Delete`か`Backspace`で外す。待っている間は、ほかのキーを受け取らない（Tabで離れず、`Esc`で抜ける）。キーは「Ctrl+Alt+1」のように等幅で出し、ないときは「なし」。ほかの効果音と同じキーは割り当てず、Cardの下に理由を出す。ほかのアプリがそのキーを持っているときは、名前の後に「キーをほかのアプリが使用中」のStatus Chip（警告の形と文字）を出す。説明は見出しの後のHelp Hint |
 | 操作 | 「名前を変更」（名前のあった場所で入力欄に替わり、「保存」になる。1〜60文字）、「削除」（確認のダイアログの後。元のファイルは残る）。再生中のBGMの「削除」は無効にし、ツールチップで理由を出す |
 
 - Cardの下に「ファイルを追加…」を置く。ファイルの選択の画面ではWAVとMP3を選べる。選んだファイルを確かめ、登録できないときはCardの下にその理由を出す（形式が違う、読み込めない、効果音が30秒を超える、保存できない）。名前はファイルの名前で登録し、後から変更できる。
@@ -461,6 +462,13 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
 | `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
 | `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.shortcut` | ショートカット | Shortcut |
+| `setup.se.shortcut.description` | これを押してから、割り当てるキーを押します。ほかのアプリを使っている間も効果音を鳴らせます。Ctrl、Alt、Shiftのどれかと組み合わせてください。Escで取り消し、Deleteで外します。 | Press this, then the keys to assign. They play the sound effect even while you use another app. Use them with Ctrl, Alt, or Shift. Esc cancels; Delete removes them. |
+| `setup.se.shortcut.none` | なし | None |
+| `setup.se.shortcut.press` | キーを押してください | Press keys |
+| `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |
+| `setup.se.shortcut.taken` | このキーはほかの効果音で使っています。別のキーを選んでください。 | Another sound effect uses these keys. Choose other keys. |
+| `setup.se.shortcut.held-elsewhere` | キーをほかのアプリが使用中 | Keys used by another app |
 | `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
 | `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
 | `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |

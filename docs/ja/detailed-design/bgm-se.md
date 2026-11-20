@@ -11,7 +11,7 @@
 後で加える前提のもの（利用者の決定、2026-11-16）。最初の版はこれらを作らないが、加えるときに作り直しが要らない形にする（17章）：
 
 - BGMの並べ方：プレイリスト、シャッフル、繰り返し、曲の間のクロスフェード（方式設計12.4）
-- SEのキーボードのショートカット、後で外部の機器やイベント（方式設計12.5）
+- 外部の機器やイベントからSEを鳴らす（方式設計12.5）。キーボードのショートカットは作った（2026-11-21。8.3）
 - 扱う形式：M4A（AAC）など、Windowsがデコードできるもの
 - アプリの中で作ったBGM（方式設計16.32）
 
@@ -30,7 +30,8 @@
 
 - BGMとSEは、Audio Moduleの中に置く（方式設計12.15）。新しいModuleは作らない。混ぜ合わせ、バス、リミッター、メーターを共有するためである。
 - ほかのModuleに見せるのは、`IAudioClipLibrary`、`IBgmPlayer`、`ISoundEffectPlayer`と、既存の`IAudioService`である。Media FoundationやWASAPIの型は見せない。
-- UIは、再生を`IBgmPlayer`と`ISoundEffectPlayer`に依頼する。キーボードのショートカットや外部の機器を加えるときに、その入口としてCommand（`PlaySoundEffectCommand`など）を作り、画面のボタンとショートカットが同じCommandを通るようにする（17章）。
+- UIは、再生を`IBgmPlayer`と`ISoundEffectPlayer`に依頼する。SEは、設定画面とライブ画面のボタンとショートカットが、同じ`PlaySoundEffectCommand`を通る（方式設計14.28。8.3）。外部の機器を加えるときも、このCommandを入口にする。
+- ショートカットのキーを受け取るのはUIである（`VirtualVessel.UI.Shortcuts`。方式設計14.27）。Audioはキーの文字をそのまま保存し、意味を知らない。
 - アプリの中で作るBGM（方式設計16.32）は、作った音声をこのライブラリへ登録する。作る側はライブラリの公開APIだけを使う。
 
 ## 4. 主なClassとInterface
@@ -60,7 +61,7 @@ public interface IAudioClipLibrary
     Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // ファイルを写し、読めるかと長さを確かめる。重いのでメインスレッドの外で呼ぶ。
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
-    CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
+    CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ、SEのショートカット
     CrudResult Delete(string id);                // 流しているBGMはBusy
     CrudResult Move(string id, int position);    // 種類の一覧の中の位置（0が先頭）へ。後ろを越えたら最後
     IReadOnlyList<string> FileExtensions { get; } // 最初の版は wav、mp3
@@ -122,14 +123,16 @@ Audio/
   "loop": true,
   "durationSeconds": 31.0,
   "originalName": "fuwafuwa.mp3",
-  "addedAtUtc": "2026-11-16T12:00:00Z"
+  "addedAtUtc": "2026-11-16T12:00:00Z",
+  "shortcut": "Ctrl+Alt+1"
 }
 ```
 
 - 元のファイルは変えずに写す。再生のたびにデコードする。変換した写しを持つと、MP3が約10倍の大きさのWAVになるためである。
 - 追加は、隣のフォルダー（`.part`）へ写してから名前を変える。作りかけを一覧に出さないためである（VoiceModelStoreと同じ）。
 - `loop`はBGMだけが使う。SEは`false`のままで、使わない（設定のファイルはnullも書くため、省けない）。
-- この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
+- この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：作ったBGMの作り方（方式設計16.32）。
+- `shortcut`（SEだけ）：どのアプリを使っていても、そのSEを鳴らすキー（8.3）。`Ctrl`、`Alt`、`Shift`、キーの順に`+`でつなぐ（`"Ctrl+Alt+1"`）。どの言語でも同じ文字である。ないときはnull。40文字まで。音量と同じく素材の性質として、ここに持つ。項目を加えただけなので、schemaVersionは1のままとする。
 - `name`は1〜60文字。同じ名前を許す（IDで区別する）。
 - `names`（同梱のものだけ）：言語ごとの名前（`{ "ja": "サンプル１（ポップ）", "en": "Sample 1 (Pop)" }`）。利用者が名前を変えるまで持ち、変えたら消す（音量やループを変えても残す）。画面には`AudioClipRecord.NameIn(言語)`の名前を出す：画面の言語の名前、なければ英語、なければ`name`。項目を加えただけなので、schemaVersionは1のままとする（前の版は知らない項目として残す）。
 - 一覧（`List`）の順は、利用者が並べた順である（2026-11-20）。`order.json`（`{ "schemaVersion": 1, "ids": ["se-…", …] }`）に、種類ごとにIDを先頭から持つ。そこにないもの（並べ替えの後に追加したもの、並べ替えたことがないもの）は、その後ろに追加した順で並ぶ。消したもののIDは読み飛ばし、次の並べ替えで消える。順を1つのファイルに持つのは、並べ替えのたびに全部の`audio-profile.json`を書き換えないためである。設定画面とライブ画面のどちらも、この順で出す。
@@ -199,12 +202,27 @@ StreamingAssets/Audio/BuiltIn/
 
 - SEはファイルの音量（`gainDb`）を、ボイスに入れるときにかける。SEの音の元全体の音量とミュートは、ミキサーでかける。
 
+### 8.3 ショートカットでSEを鳴らす
+
+配信中は、ゲームなどほかのアプリを前に出していることが多い。そのため、SEのショートカットは、Virtual Vessel Studioが前にないときも効く（利用者の決定、2026-11-21）。WindowsのRegisterHotKeyを使う。
+
+1. `SoundEffectShortcuts`（アプリの起動から終了まで生きるサービス）が、ライブラリのSEの一覧から、キーとSEの対応を作る。2つのSEに同じキーがあれば、一覧で先のものを使う。ライブラリが変わると作り直す。
+2. `WindowsGlobalShortcuts`が、専用のスレッドでキーを登録し、そのスレッドのメッセージループでWM_HOTKEYを待つ。ホットキーは登録したスレッドに届くため、専用のスレッドにする。Unityのフレームに頼らないので、ゲームの裏でフレームが遅くなっても遅れない。
+3. キーが押されると、そのスレッドで`PlaySoundEffectCommand`を実行する。`SoundEffectPlayer.Play`はどのスレッドからでも呼べる（中でLockを取る）ので、メインスレッドへ渡さない。
+4. キーには`Ctrl`、`Alt`、`Shift`のどれかが要る。ゲームが単独のキーで使うキーを奪わないためである。押し続けても繰り返さない（`MOD_NOREPEAT`）。使えるキーは、英字、数字、テンキーの数字、F1〜F12である。記号のキーはキーボードの配列で位置が変わるため除く。
+5. ほかのアプリが同じキーを持っているとWindowsが断る。断られたキーは`Refused`に入り、設定画面の行に出す（`setup.md` 14章）。キーの組み合わせを変えるたびに、断られたキーをもう一度試す。
+6. 設定画面でキーを割り当てている間は、すべてのキーの登録を外す（`Paused`）。押したキーが効果音を鳴らさず、画面に届くようにするためである。
+
+- RegisterHotKeyは、登録したキーが押されたことだけを知らせる。ほかのキーの入力は読まない。キーの入力を記録もしない。
+- 終了時は、スレッドがキーの登録をすべて外してから終わる。外さないと、ほかのアプリがそのキーを使えないままになる。
+
 ## 9. Threadと非同期
 
 - 混ぜ合わせのスレッド（既存）：デッキのリングとSEのボイスを読むだけ。Allocation、待つ間のLock、ファイルの読み込みはしない（Audio詳細設計9章）。
 - デッキのデコード用のスレッド（新規、ネイティブ、通常の優先度）：Media Foundationでデコードし、リングへ書く。リングは書き手1つ、読み手1つで、Lockを取らない。
 - SEのデコード：マネージドで、メインスレッドの外で行い、できたサンプルをエンジンのLockの中でネイティブへ渡す（入れ替えだけ。プレビューと同じ。Audio詳細設計5.5）。
 - 登録（ファイルの写しと確認）：マネージドで、メインスレッドの外で行う。
+- ショートカットのスレッド（新規、マネージド）：キーの登録と、押されたときのSEの再生（8.3）。メインスレッドを待たない。
 
 ## 10. 設定
 
@@ -224,6 +242,8 @@ StreamingAssets/Audio/BuiltIn/
 | 再生するファイルがない、壊れている | `Failed`。ほかの音は止めない | このBGMを再生できません |
 | デコードが遅れた | 足りない分を無音にして数える | 表示しない。診断に数える |
 | Media Foundationがない（Nエディション） | BGMとSEを使えない | 音声ファイルを読み込めません。Media Feature Packの案内 |
+| ショートカットのキーをほかのアプリが持っている | そのキーでは鳴らない。ボタンでは鳴る | その行に「キーをほかのアプリが使用中」（警告の形と文字） |
+| ほかのSEが同じキーを持っている | 割り当てない | このキーはほかの効果音で使っています |
 
 - BGMとSEの失敗は、マイク、配信、録画を止めない（方式設計12.11）。
 
@@ -231,6 +251,7 @@ StreamingAssets/Audio/BuiltIn/
 
 - 登録、削除、再生の開始と終わり、失敗を記録する。曲はIDで書き、ファイルのパスと名前は書かない（利用者のファイルの名前は個人の情報になりうる）。
 - 失敗では、形式、レート、チャンネル数、HRESULTを記録する（方式設計12.14）。
+- ショートカットは、ほかのアプリに断られたキーを、変わったときに記録する。押されたことは記録しない。
 - 計測：`Audio/Music.Underruns`、`Audio/SoundEffect.VoicesStolen`。
 - 音声そのものは記録しない。
 
@@ -239,8 +260,8 @@ StreamingAssets/Audio/BuiltIn/
 | 種類 | 対象 |
 |---|---|
 | ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
-| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、同梱のものの言語ごとの名前（名前を変えるまで残ること）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
-| PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
+| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、同梱のものの言語ごとの名前（名前を変えるまで残ること）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態。SEのショートカットの保存と削除。`KeyChord`の読み書き、キーの対応（同じキーは先のもの）、押されたSEの再生と一覧への追従、本物のWindowsで、ほかが持つキーを断られ、放されたら取れること |
+| PlayMode | 設定画面とライブ画面の操作（画面仕様とともに）。ショートカットの割り当て、取り消し、削除、同じキーの拒否、ほかのアプリが持つキーの表示、ライブ画面のツールチップ |
 | 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
 
 ## 15. 性能
@@ -258,6 +279,8 @@ Audio/Runtime/Clips/     IAudioClipLibrary、AudioClipLibrary、AudioClipRecord�
 StreamingAssets/Audio/BuiltIn/  同梱のBGMとSE（6.3）
 tools/audio/             同梱の音源を作るスクリプト
 Audio/Runtime/Playback/  IBgmPlayer、BgmPlayer、IBgmSequence、SingleTrack、ISoundEffectPlayer
+UI/Runtime/Shortcuts/    KeyChord、IGlobalShortcuts、WindowsGlobalShortcuts、SoundEffectShortcuts、ShortcutButton
+UI/Runtime/Commands/     PlaySoundEffectCommand
 UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の操作
 ```
 
@@ -266,10 +289,11 @@ UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の�
 段階：
 
 1. ネイティブ：ステレオのデコード、BGMのデッキ（ループ、終わりの知らせ、フェード）、SEのボイス。完了（2026-11-17）。
-2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`SoundEffectPlayer`。完了。UIからは各プレイヤーのメソッドを直接呼ぶ（UIの`IUiCommand`は使っていない。キーボードのショートカットを加えるときに、その入口としてCommandを作る）。
+2. マネージド：音の元、ライブラリ（CRUD）、`BgmPlayer`、`SingleTrack`、`SoundEffectPlayer`。完了。BGMは、UIから各プレイヤーのメソッドを直接呼ぶ。
 3. 設定画面：ミキサーの行、BGMとSEのCard（`setup.md` 14章）。完了。
 4. ライブ画面：BGMの選択、再生、停止、音量。SEのボタン（`live.md`）。完了。
 5. 同梱のBGMとSE（6.3）。完了（2026-11-17）。
+6. SEのショートカット（8.3）。完了（2026-11-21）。
 
 本物のプラグインでの結合テスト（`AudioPlayersIntegrationTests`）が、WAVの登録、BGMの最後までの再生、再生中の削除の拒否、SEの読み込みと再生を確かめる。
 
@@ -277,7 +301,6 @@ UI/Runtime/Screens/      BGMとSEのCard（設定画面）、ライブ画面の�
 
 - プレイリスト、シャッフル、繰り返し：`IBgmSequence`の実装と、プレイリストの保存（`Audio/Playlists/`）。
 - 曲の間のクロスフェード、曲間なし：デッキに次の曲を予約するAPIを加え、2つのデコードを重ねる。
-- SEのショートカット：`audio-profile.json`の`shortcut`と、UIのキーの割り当てから`PlaySoundEffectCommand`を呼ぶ。
 - M4Aなど：`FileExtensions`を広げる。デコードはMedia Foundationなので、コードの変更は確認だけで済む見込み。
 - アプリで作ったBGM（方式設計16.32）：作った音声を`AddAsync`で登録する。
 

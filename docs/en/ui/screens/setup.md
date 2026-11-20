@@ -426,6 +426,7 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | Length | Minutes and seconds, monospaced, right-aligned. Blank when the file does not say |
 | Loop | BGM only. Toggle, on by default; a change applies from the next play. Explained by a Help Hint after its heading |
 | Volume | Slider, -60 to +12 dB: the file's own, apart from the BGM and sound effects rows of the mixer. The BGM that plays takes it at once |
+| Shortcut | Sound effects only. Pressed, it says "Press keys" and waits with an Accent Line border. Keys pressed with `Ctrl`, `Alt`, or `Shift` are assigned (they play it whichever app is in use; `bgm-se.md` 8.3). A key alone is not assigned, and the tooltip says a modifier is needed. `Esc` cancels; `Delete` or `Backspace` removes them. While it waits it takes every key (Tab does not leave it; `Esc` does). The keys are shown monospaced, as "Ctrl+Alt+1", or "None". Keys another sound effect has are not assigned, and the Card says why under the rows. When another app holds the keys, a Status Chip "Keys used by another app" (a warning shape and text) follows the name. Explained by a Help Hint after its heading |
 | Actions | Rename (the name turns into a field where it is, and the button into Save; 1 to 60 characters), Delete (after a confirmation; the original file stays). Delete is disabled for the BGM that plays, with the reason in its tooltip |
 
 - Add a file… is under the rows. The file dialog offers WAV and MP3. The chosen file is checked, and when it cannot be registered the Card says why (another format, unreadable, a sound effect over 30 seconds, cannot be saved). It is registered under its file name, which can be changed later.
@@ -461,6 +462,13 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
 | `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
 | `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.shortcut` | ショートカット | Shortcut |
+| `setup.se.shortcut.description` | これを押してから、割り当てるキーを押します。ほかのアプリを使っている間も効果音を鳴らせます。Ctrl、Alt、Shiftのどれかと組み合わせてください。Escで取り消し、Deleteで外します。 | Press this, then the keys to assign. They play the sound effect even while you use another app. Use them with Ctrl, Alt, or Shift. Esc cancels; Delete removes them. |
+| `setup.se.shortcut.none` | なし | None |
+| `setup.se.shortcut.press` | キーを押してください | Press keys |
+| `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |
+| `setup.se.shortcut.taken` | このキーはほかの効果音で使っています。別のキーを選んでください。 | Another sound effect uses these keys. Choose other keys. |
+| `setup.se.shortcut.held-elsewhere` | キーをほかのアプリが使用中 | Keys used by another app |
 | `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
 | `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
 | `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |
