@@ -270,10 +270,10 @@ def denpa_41edo(seed=7):
 
 
 def lofi_41edo(seed=13):
-    """Steady lo-fi in 41-tone equal temperament. The thirds and fifths are close to pure, so the chords sit still and
-    sweet; the dominant chords take the harmonic seventh (7/4, lower and smoother than 12-tone's), and the melody leans
-    on that seventh before it resolves. A phrase's first note slides up one step of 41, too small to hear as a slide.
-    The melody is written out, not random, and there is no tape wobble or crackle, so nothing in it sounds unsure."""
+    """Bright, light lo-fi in 41-tone equal temperament, at 92 BPM in a major key. The thirds and fifths are close to
+    pure, so the chords ring clean; they take an added ninth rather than a seventh, and the melody moves in short notes,
+    so nothing rubs for long under talk. The tuning shows in the dominant chord's harmonic seventh (7/4), which the
+    melody only passes through, and in a phrase's first note sliding up one step of 41."""
     rng = np.random.default_rng(seed)
     edo = 41
     base = 261.63  # C4
@@ -282,31 +282,36 @@ def lofi_41edo(seed=13):
         return base * 2 ** (step / edo)
 
     c_, d_, e_, f_, g_, a_, b_ = 0, 7, 13, 17, 24, 30, 37
-    maj, minor, fifth, h7, min7, maj7, octave = 13, 11, 24, 33, 34, 37, 41
-    # Two bars a chord: Fmaj7, Em7, Dm7, G7; then Fmaj7, E7, Am7, G7. Every 7 chord has the harmonic seventh.
-    progression = [(f_, [0, maj, fifth, maj7]), (e_, [0, minor, fifth, min7]), (d_, [0, minor, fifth, min7]), (g_ - octave, [0, maj, fifth, h7]),
-                   (f_, [0, maj, fifth, maj7]), (e_, [0, maj, fifth, h7]), (a_ - octave, [0, minor, fifth, min7]), (g_ - octave, [0, maj, fifth, h7])]
-    # The melody for each chord as (beat in its two bars, step from C4, beats); the first chord of each half rests.
+    maj, minor, fifth, h7, octave = 13, 11, 24, 33, 41
+    ninth = octave + d_
+    major, minor_add9, dominant = [0, maj, fifth, ninth], [0, minor, fifth, ninth], [0, maj, fifth, h7]
+    # Two bars a chord: C, G, Am, F; then C, G, F, G7.
+    progression = [(c_, major), (g_ - octave, major), (a_ - octave, minor_add9), (f_ - octave, major),
+                   (c_, major), (g_ - octave, major), (f_ - octave, major), (g_ - octave, dominant)]
     hi = octave
-    g7_seventh = g_ + h7 - octave  # The harmonic seventh of G, a little under F.
-    e7_seventh = e_ + h7  # The harmonic seventh of E, a little under D.
+    g7_seventh = hi + g_ + h7 - octave  # A little under F5.
+    # The melody for each chord as (beat in its two bars, step from C4, beats).
+    phrase_c = [(0.5, hi + e_, 0.5), (1, hi + g_, 0.5), (1.5, hi + a_, 0.5), (2, hi + g_, 1), (3, hi + e_, 1),
+                (4.5, hi + d_, 0.5), (5, hi + e_, 0.5), (5.5, hi + g_, 1.5)]
+    phrase_g = [(0.5, hi + d_, 0.5), (1, hi + d_, 0.5), (1.5, hi + e_, 0.5), (2, hi + d_, 1), (3, b_, 1),
+                (4.5, hi + d_, 0.5), (5, hi + g_, 1), (6, hi + d_, 1.5)]
     melody = [
-        [],
-        [(0.5, hi + e_, 1), (1.5, hi + g_, 0.5), (2, hi + a_, 1.5), (4.5, hi + g_, 1), (5.5, hi + e_, 2)],
-        [(0.5, hi + d_, 1), (1.5, hi + f_, 1), (2.5, hi + a_, 1), (3.5, 2 * hi, 1.5), (5.5, hi + a_, 1.5)],
-        [(0.5, hi + b_, 1), (1.5, hi + a_, 0.5), (2, hi + g_, 1.5), (4, hi + g7_seventh, 3)],
-        [],
-        [(0.5, hi + b_, 1), (1.5, hi + g_ + 2, 1), (2.5, hi + e_, 1), (3.5, e7_seventh, 2.5), (6, hi + e_, 1.5)],
-        [(0.5, hi + a_, 1), (1.5, 2 * hi, 1), (2.5, hi + a_, 0.5), (3, hi + g_, 1), (4, hi + e_, 3)],
-        [(0.5, hi + g_, 1), (1.5, hi + a_, 1), (2.5, hi + b_, 1.5), (4, hi + g_, 1), (5, hi + g7_seventh, 2.5)],
+        phrase_c,
+        phrase_g,
+        [(0.5, hi + e_, 0.5), (1, hi + a_, 1), (2, hi + g_, 0.5), (2.5, hi + e_, 1), (4.5, hi, 0.5), (5, hi + d_, 0.5), (5.5, hi + e_, 1.5)],
+        [(0.5, hi + f_, 0.5), (1, hi + a_, 0.5), (1.5, 2 * hi, 1), (2.5, hi + a_, 0.5), (3, hi + g_, 1), (4.5, hi + f_, 0.5), (5, hi + e_, 0.5), (5.5, hi + d_, 1.5)],
+        phrase_c,
+        phrase_g,
+        [(0.5, hi + f_, 0.5), (1, hi + a_, 0.5), (1.5, 2 * hi, 1), (2.5, hi + a_, 0.5), (3, hi + g_, 1), (4.5, hi + f_, 0.5), (5, hi + g_, 0.5), (5.5, hi + a_, 1)],
+        [(0.5, hi + b_, 0.5), (1, hi + a_, 0.5), (1.5, hi + g_, 1), (2.5, g7_seventh, 0.5), (3, hi + d_, 1), (4.5, hi + g_, 0.5), (5, hi + a_, 0.5), (5.5, hi + b_, 1.5)],
     ]
     bars = len(progression) * 2
-    loop = Loop(78, bars * 4)
+    loop = Loop(92, bars * 4)
     beat = loop.beat
 
     def swing(pos):
         whole, frac = divmod(pos, 1.0)
-        return whole + (0.58 if abs(frac - 0.5) < 1e-6 else frac)
+        return whole + (0.56 if abs(frac - 0.5) < 1e-6 else frac)
 
     def lead(step, dur, slide):
         """A soft triangle; with `slide`, it starts one step of 41 low and settles within a few hundredths of a second."""
@@ -315,30 +320,31 @@ def lofi_41edo(seed=13):
         bend = np.exp(-t / 0.03) if slide else 0.0
         f = hz(step - bend)
         tri = 2 / np.pi * np.arcsin(np.sin(2 * np.pi * np.cumsum(f) / SR))
-        return lowpass(tri * env(n, 0.03, 0.6, 0.45, 0.15), 2600)
+        return lowpass(tri * env(n, 0.02, 0.4, 0.4, 0.08), 3200)
 
     keys, low, drums, mel = (loop.track() for _ in range(4))
     for bar in range(bars):
         chord = bar // 2
         root, tones = progression[chord]
         b0 = bar * 4
-        hits = [(0, 0.9), (2.5, 0.55)] if bar % 2 == 0 else [(0.5, 0.6), (2, 0.7), (3.5, 0.4)]
+        hits = [(0, 0.85), (1.5, 0.5), (2.5, 0.6)] if bar % 2 == 0 else [(0.5, 0.55), (2, 0.65), (3.5, 0.45)]
         for pos, vel in hits:
             for i, tone in enumerate(tones):
-                loop.add(keys, swing(b0 + pos), vel * epiano(hz(root + tone), beat * 2.2) * 0.2, i * 0.014 + rng.uniform(0, 0.008))
-        loop.add(low, swing(b0), bass(hz(root - octave), beat * 2.2, 450, 1.5) * 0.5)
-        loop.add(low, swing(b0 + 2.5), bass(hz(root - octave + (fifth if bar % 2 else 0)), beat * 1.3, 450, 1.5) * 0.38)
-        for pos in [0, 1.5 if bar % 2 else 2.25]:
-            loop.add(drums, swing(b0 + pos), kick(44, 65, 0.2) * 0.85)
+                loop.add(keys, swing(b0 + pos), vel * epiano(hz(root + tone), beat * 1.4) * 0.18, i * 0.01 + rng.uniform(0, 0.006))
+        loop.add(low, swing(b0), bass(hz(root - octave), beat * 1.6, 500, 1.5) * 0.5)
+        loop.add(low, swing(b0 + 1.5), bass(hz(root - octave), beat * 0.6, 500, 1.5) * 0.3)
+        loop.add(low, swing(b0 + 2.5), bass(hz(root - octave + (fifth if bar % 2 else 0)), beat * 1.2, 500, 1.5) * 0.38)
+        for pos in [0, 1.5, 2.5] if bar % 2 else [0, 2.25]:
+            loop.add(drums, swing(b0 + pos), kick(46, 70, 0.18) * 0.85)
         for pos in [1, 3]:
-            loop.add(drums, swing(b0 + pos), snare(rng, 170) * 0.36, 0.012)
+            loop.add(drums, swing(b0 + pos), snare(rng, 180) * 0.38, 0.01)
         for k in range(8):
-            loop.add(drums, swing(b0 + k * 0.5), hat(rng, open_=(k == 7 and bar % 4 == 3)) * (0.12 if k % 2 == 0 else 0.075) * rng.uniform(0.9, 1.05))
+            loop.add(drums, swing(b0 + k * 0.5), hat(rng, open_=(k == 7 and bar % 4 == 3)) * (0.13 if k % 2 == 0 else 0.085) * rng.uniform(0.9, 1.05))
         if bar % 2 == 0:
             for i, (pos, step, dur) in enumerate(melody[chord]):
                 loop.add(mel, swing(b0 + pos), lead(step, beat * dur, slide=(i == 0)) * 0.17)
 
     mix = keys + low + drums + mel
-    mix = mix + loop.room(keys + mel, 1.8, 2.8, 0.013, rng)
-    mix = circular(lowpass, mix, 6200)
+    mix = mix + loop.room(keys + mel, 1.4, 3.2, 0.011, rng)
+    mix = circular(lowpass, mix, 8500)
     return finish_loop(mix, 0.006, 1.2)
