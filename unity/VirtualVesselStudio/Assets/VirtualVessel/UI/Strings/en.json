@@ -843,6 +843,7 @@
         "setup.clips.rename": "Rename",
         "setup.clips.save": "Save",
         "setup.clips.delete": "Delete",
+        "setup.clips.move": "Drag to reorder, or press Ctrl+Up or Ctrl+Down.",
         "setup.clips.name.required": "Enter a name",
         "setup.clips.filter": "Audio files",
         "setup.bgm.play": "Plays this BGM on the stream and in recordings.",

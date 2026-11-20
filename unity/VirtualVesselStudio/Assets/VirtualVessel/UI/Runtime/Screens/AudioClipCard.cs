@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio.Clips;
 using VirtualVessel.Audio.Playback;
@@ -11,6 +12,7 @@ using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
 
@@ -31,6 +33,7 @@ namespace VirtualVessel.UI.Screens
         public const string Rename = "setup.clips.rename";
         public const string Save = "setup.clips.save";
         public const string Delete = "setup.clips.delete";
+        public const string Move = "setup.clips.move";
         public const string NameRequired = "setup.clips.name.required";
         public const string Filter = "setup.clips.filter";
         public const string BgmPlay = "setup.bgm.play";
@@ -55,8 +58,8 @@ namespace VirtualVessel.UI.Screens
 
     /// <summary>
     /// The BGM or the SE Card on the setup screen's Audio page (BGM and SE detailed design; setup.md 14): the registered
-    /// files in rows with their play button, name, length, loop (BGM), and volume, renaming and deleting them, and
-    /// adding a WAV or MP3 file. What plays is the players' state; the Card only shows it and asks.
+    /// files in rows with their play button, name, length, loop (BGM), and volume, renaming, deleting, and reordering
+    /// them, and adding a WAV or MP3 file. What plays is the players' state; the Card only shows it and asks.
     /// </summary>
     public sealed class AudioClipCard : VisualElement
     {
@@ -64,6 +67,9 @@ namespace VirtualVessel.UI.Screens
         public const string ColumnsClass = UssClass + "__columns";
         public const string RowClass = UssClass + "__row";
         public const string CellClass = UssClass + "__cell";
+        public const string DraggingClass = RowClass + "--dragging";
+        public const string DropClass = UssClass + "__drop";
+        public const string MoveColumn = CellClass + "--move";
         public const string PlayColumn = CellClass + "--play";
         public const string NameColumn = CellClass + "--name";
         public const string LengthColumn = CellClass + "--length";
@@ -77,6 +83,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>How often the Card looks whether the library changed, as it may change on another thread.</summary>
         public const long RefreshIntervalMs = 200;
 
+        /// <summary>A press on the grip turns into a drag after moving this many pixels, as in the layer list.</summary>
+        private const float DragThreshold = 4f;
+
         private readonly AudioClipKind _kind;
         private readonly IAudioClipLibrary _library;
         private readonly IBgmPlayer _bgm;
@@ -86,6 +95,8 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _empty;
         private readonly StatusChip _problem;
         private readonly List<ClipRow> _shown = new List<ClipRow>();
+        private readonly VisualElement _drop;
+        private Drag _drag;
         private volatile bool _changed = true;
 
         public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files)
@@ -107,6 +118,13 @@ namespace VirtualVessel.UI.Screens
 
             card.Add(Columns(kind));
             card.Add(_rows);
+
+            // The landing line is drawn over the rows, not inserted between them, so the rows do not move under the
+            // pointer during a drag (as in the layer list).
+            _drop = new VisualElement { pickingMode = PickingMode.Ignore };
+            _drop.AddToClassList(DropClass);
+            _drop.style.position = Position.Absolute;
+            _drop.style.display = DisplayStyle.None;
             _empty = Ui.Text(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmEmpty : AudioClipStrings.EffectsEmpty, NoteClass, "vv-text-body");
             card.Add(_empty);
             _problem = Ui.Chip(StatusKind.Error, AudioClipStrings.ProblemUnreadable);
@@ -214,9 +232,28 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        /// <summary>Puts a row's file at a position in the list, and keeps the focus on its grip.</summary>
+        internal void Move(AudioClipRecord record, int position)
+        {
+            CrudResult moved = _library.Move(record.Id, position);
+            if (!moved.Ok)
+            {
+                ShowFailure($"Moving {record.Id}", moved.Error, moved.Detail);
+                return;
+            }
+
+            Refresh();
+            _shown.Find(row => row.Record.Id == record.Id)?.Grip.Focus();
+        }
+
         /// <summary>Reads the library again and shows it.</summary>
         public void Refresh()
         {
+            if (_drag != null)
+            {
+                EndDrag();
+            }
+
             _changed = false;
             CrudResult<IReadOnlyList<AudioClipRecord>> listed = _library.List(_kind);
             if (!listed.Ok)
@@ -233,6 +270,8 @@ namespace VirtualVessel.UI.Screens
                 _shown.Add(row);
                 _rows.Add(row.Root);
             }
+
+            _rows.Add(_drop);
 
             _empty.style.display = records.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             ShowPlayers();
@@ -326,6 +365,96 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
+        internal void StartDrag(ClipRow row, PointerDownEvent evt)
+        {
+            if (evt.button != 0)
+            {
+                return;
+            }
+
+            _drag = new Drag(row, evt.position.y);
+            row.Grip.CapturePointer(evt.pointerId);
+        }
+
+        internal void DragTo(PointerMoveEvent evt)
+        {
+            if (_drag == null)
+            {
+                return;
+            }
+
+            if (!_drag.Moving)
+            {
+                if (Mathf.Abs(evt.position.y - _drag.StartY) < DragThreshold)
+                {
+                    return;
+                }
+
+                _drag.Moving = true;
+                _drag.Row.Root.AddToClassList(DraggingClass);
+
+                // The rows do not move during a drag, so their places are measured once.
+                foreach (ClipRow row in _shown)
+                {
+                    _drag.Centers.Add(row.Root.worldBound.center.y);
+                    _drag.Edges.Add(row.Root.layout.yMin);
+                }
+
+                _drag.Edges.Add(_shown[_shown.Count - 1].Root.layout.yMax);
+            }
+
+            _drag.DropIndex = LayerListMath.DropIndex(_drag.Centers, evt.position.y);
+            _drop.style.top = _drag.Edges[_drag.DropIndex] - 1;
+            _drop.style.display = DisplayStyle.Flex;
+        }
+
+        internal void Drop(PointerUpEvent evt)
+        {
+            Drag drag = _drag;
+            if (drag == null)
+            {
+                return;
+            }
+
+            if (drag.Row.Grip.HasPointerCapture(evt.pointerId))
+            {
+                drag.Row.Grip.ReleasePointer(evt.pointerId);
+            }
+
+            EndDrag();
+            int from = _shown.IndexOf(drag.Row);
+            int to = LayerListMath.TargetPosition(from, drag.DropIndex);
+            if (drag.Moving && to != from)
+            {
+                Move(drag.Row.Record, to);
+            }
+        }
+
+        /// <summary>Ctrl+Up and Ctrl+Down on a grip move its row by one, as in the layer list.</summary>
+        internal void Step(ClipRow row, KeyDownEvent evt)
+        {
+            int step = evt.keyCode == KeyCode.UpArrow ? -1 : evt.keyCode == KeyCode.DownArrow ? 1 : 0;
+            if (step == 0 || !(evt.ctrlKey || evt.commandKey))
+            {
+                return;
+            }
+
+            evt.StopPropagation();
+            int from = _shown.IndexOf(row);
+            int to = from + step;
+            if (from >= 0 && to >= 0 && to < _shown.Count)
+            {
+                Move(row.Record, to);
+            }
+        }
+
+        private void EndDrag()
+        {
+            _drag?.Row.Root.RemoveFromClassList(DraggingClass);
+            _drag = null;
+            _drop.style.display = DisplayStyle.None;
+        }
+
         private void ShowProblem(string key)
         {
             _problem.TextKey = key;
@@ -343,6 +472,7 @@ namespace VirtualVessel.UI.Screens
         {
             var columns = new VisualElement();
             columns.AddToClassList(ColumnsClass);
+            columns.Add(Cell(MoveColumn));
             columns.Add(Cell(PlayColumn));
             columns.Add(Heading(AudioClipStrings.Name, NameColumn));
             columns.Add(Heading(AudioClipStrings.Length, LengthColumn));
@@ -374,6 +504,29 @@ namespace VirtualVessel.UI.Screens
             return cell;
         }
 
+        private sealed class Drag
+        {
+            public Drag(ClipRow row, float startY)
+            {
+                Row = row;
+                StartY = startY;
+            }
+
+            public ClipRow Row { get; }
+
+            public float StartY { get; }
+
+            public bool Moving { get; set; }
+
+            public int DropIndex { get; set; }
+
+            /// <summary>Row centers in panel space, for choosing the landing row.</summary>
+            public List<float> Centers { get; } = new List<float>();
+
+            /// <summary>Row tops in the list, then the bottom of the last row, for drawing the line.</summary>
+            public List<float> Edges { get; } = new List<float>();
+        }
+
         /// <summary>One registered file's row.</summary>
         public sealed class ClipRow
         {
@@ -388,6 +541,16 @@ namespace VirtualVessel.UI.Screens
                 Record = record;
                 Root = new VisualElement();
                 Root.AddToClassList(RowClass);
+
+                // Registered before the button's own handling, so pressing the grip starts a drag.
+                Grip = Ui.IconButton(IconName.Grip).WithTooltip(AudioClipStrings.Move);
+                Grip.RegisterCallback<PointerDownEvent>(evt => _card.StartDrag(this, evt), TrickleDown.TrickleDown);
+                Grip.RegisterCallback<PointerMoveEvent>(evt => _card.DragTo(evt), TrickleDown.TrickleDown);
+                Grip.RegisterCallback<PointerUpEvent>(evt => _card.Drop(evt), TrickleDown.TrickleDown);
+                Grip.RegisterCallback<KeyDownEvent>(evt => _card.Step(this, evt), TrickleDown.TrickleDown);
+                VisualElement move = Cell(MoveColumn);
+                move.Add(Grip);
+                Root.Add(move);
 
                 PlayButton = Ui.IconButton(IconName.Play).WithTooltip(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmPlay : AudioClipStrings.EffectPlay);
                 PlayButton.clicked += () => _card.Press(Record);
@@ -456,6 +619,9 @@ namespace VirtualVessel.UI.Screens
             public AudioClipRecord Record { get; }
 
             public VisualElement Root { get; }
+
+            /// <summary>Dragged, or Ctrl+Up and Ctrl+Down while it has the focus, to reorder.</summary>
+            public IconButton Grip { get; }
 
             public IconButton PlayButton { get; }
 

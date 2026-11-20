@@ -33,8 +33,29 @@
     margin-right: var(--vv-space-s);
 }
 
+.vv-clips__cell--move {
+    width: 32px;
+    margin-right: 0;
+}
+
+.vv-clips__cell--move > .vv-icon-button {
+    color: var(--vv-color-text-3);
+}
+
 .vv-clips__cell--play {
     width: 40px;
+}
+
+/* Reordering, as in the layer list (components.md 3.20). */
+.vv-clips__row--dragging {
+    opacity: 0.45;
+}
+
+.vv-clips__drop {
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--vv-color-accent-line);
 }
 
 .vv-clips__cell--name {
