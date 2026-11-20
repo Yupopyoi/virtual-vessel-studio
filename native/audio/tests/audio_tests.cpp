@@ -945,7 +945,19 @@ namespace
         }
 
         std::printf("program's sound: loudest %.1f dB\n", loudest);
-        Check(loudest > -20.0f, "the program's tone is heard");
+        // Windows mixes a program's sound only on an output device; CI's hosted runners have an audio service but
+        // no output, so the tone is silent there.
+        vv_audio_device outputs[4];
+        int32_t outputCount = 0;
+        vv_audio_list_outputs(outputs, 4, &outputCount);
+        if (outputCount > 0)
+        {
+            Check(loudest > -20.0f, "the program's tone is heard");
+        }
+        else
+        {
+            std::printf("SKIP the program's tone is heard: no output device\n");
+        }
 
         TerminateProcess(child.hProcess, 0);
         WaitForSingleObject(child.hProcess, 5000);

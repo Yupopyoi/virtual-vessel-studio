@@ -10,7 +10,9 @@ if(NOT WIN32)
     message(FATAL_ERROR "The capture plugin uses DXGI Desktop Duplication and builds only on Windows.")
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+# C++20: C++/WinRT's coroutines then use <coroutine>; under C++17 they take <experimental/coroutine>, which
+# newer MSVC (14.52 on CI) rejects.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
