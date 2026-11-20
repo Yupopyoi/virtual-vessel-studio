@@ -142,11 +142,12 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 
 ### 6.3 同梱のBGMとSE
 
-アプリには、すぐ使えるBGMとSEを同梱する。プロジェクトが作った音源で、ライセンスはアプリと同じApache-2.0である。
+アプリには、すぐ使えるBGMとSEを同梱する。プロジェクトが作った音源で、ライセンスはCC0 1.0である（利用者の決定、2026-11-20）。配信や動画（収益化を含む）で、許可もクレジットもなく使えるようにするためである。アプリ本体と、音を作るスクリプト（`tools/audio/`）はApache-2.0のままとする。CC0であることは、フォルダーの`LICENSE.txt`（日本語と英語の説明と、CC0の全文）に書き、SBOMの部品「Virtual Vessel Studio built-in BGM and sound effects」として、設定画面のクレジット（設定画面8章）に出す。
 
 ```text
 StreamingAssets/Audio/BuiltIn/
 ├─ built-in-audio.json      一覧：ID、種類、ファイル、日本語と英語の名前
+├─ LICENSE.txt              CC0 1.0
 ├─ bgm/<name>.wav
 └─ se/<name>.wav
 ```

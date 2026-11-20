@@ -30,6 +30,30 @@
   },
   "components": [
     {
+      "type": "file",
+      "bom-ref": "virtual-vessel-studio:built-in-audio",
+      "supplier": {
+        "name": "Virtual Vessel Studio project"
+      },
+      "name": "Virtual Vessel Studio built-in BGM and sound effects",
+      "version": "2026-11-20",
+      "licenses": [
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "The project's own BGM and sound effects in StreamingAssets/Audio/BuiltIn, rendered by tools/audio/build_builtin_audio.py. Released under CC0 so they can be used in streams and videos without credit; the code that makes them stays Apache-2.0.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/built-in-audio-LICENSE.txt"
+        }
+      ]
+    },
+    {
       "type": "framework",
       "bom-ref": "unity-engine",
       "supplier": {

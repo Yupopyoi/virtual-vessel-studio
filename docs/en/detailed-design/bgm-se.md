@@ -142,11 +142,12 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 
 ### 6.3 Built-in BGM and SE
 
-The app comes with BGM and SE ready to use. The project made them, and they are under the app's own license, Apache-2.0.
+The app comes with BGM and SE ready to use. The project made them, and they are under CC0 1.0 (the user's decision, 2026-11-20), so they can be used in streams and videos, monetized or not, without asking and without credit. The app and the scripts that make the sounds (`tools/audio/`) stay Apache-2.0. The folder's `LICENSE.txt` (a Japanese and English statement and the CC0 text) says so, and the SBOM component "Virtual Vessel Studio built-in BGM and sound effects" shows it in the settings screen's credits (settings screen 8).
 
 ```text
 StreamingAssets/Audio/BuiltIn/
 ├─ built-in-audio.json      the list: ID, kind, file, Japanese and English names
+├─ LICENSE.txt              CC0 1.0
 ├─ bgm/<name>.wav
 └─ se/<name>.wav
 ```

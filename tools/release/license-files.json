@@ -5,6 +5,7 @@
         "LICENSE": "LICENSE",
         "NOTICE": "NOTICE",
         "licenses/virtual-vessel-studio.cdx.json": "sbom/virtual-vessel-studio.cdx.json",
+        "licenses/built-in-audio-LICENSE.txt": "unity/VirtualVesselStudio/Assets/StreamingAssets/Audio/BuiltIn/LICENSE.txt",
         "licenses/NotoSansJP-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/NotoSansJP/OFL.txt",
         "licenses/NotoSansMono-OFL.txt": "unity/VirtualVesselStudio/Assets/ThirdParty/NotoSansMono/OFL.txt",
         "licenses/MediaPipeUnityPlugin-LICENSE.md": "unity/VirtualVesselStudio/Packages/com.github.homuler.mediapipe/LICENSE.md",
