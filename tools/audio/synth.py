@@ -166,6 +166,54 @@ def triangle_lead(freq, dur):
     return lowpass(tri * env(n, 0.02, 0.5, 0.4, 0.12), 3000)
 
 
+def trumpet(freq, dur, rng, loud=0.8, scoop=25.0, bright=1.0, ring=(900, 1700)):
+    """A trumpet as a player blows it. The note starts a little low and is lipped up to pitch (`scoop` cents); the
+    tongue gives a small burst and a puff of breath; the louder it is, the brighter it gets, as more harmonics speak;
+    a long note swells a little; and the vibrato comes in late, its speed and depth drifting. Each note is off by a
+    few cents, as no two are blown alike. Lower `bright` and `ring` (the bell's resonance, Hz) for a horn or a tuba."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    rate = 5.3 + 0.4 * np.sin(2 * np.pi * 0.6 * t + rng.uniform(0, 6.3))
+    depth = 14 * np.clip((t - 0.22) / 0.35, 0, 1) * (0.8 + 0.2 * np.sin(2 * np.pi * 1.1 * t))
+    cents = -scoop * np.exp(-t / 0.045) + rng.normal(0, 3.5) + depth * np.sin(2 * np.pi * np.cumsum(rate) / SR)
+    ph = 2 * np.pi * np.cumsum(freq * 2 ** (cents / 1200)) / SR
+    # Loudness: the tongue's overshoot, a little swell on a long note, and a release as the breath stops.
+    tongue = 1 + 0.25 * np.exp(-t / 0.03)
+    swell = 1 + 0.15 * np.clip((t - 0.15) / max(dur - 0.15, 0.05), 0, 1) if dur > 0.45 else 1.0
+    shape = loud * tongue * swell * env(n, 0.03, 10.0, 1.0, min(0.07, dur / 3))
+    width = 1.0 + 7.5 * bright * np.clip(shape, 0, 1.3) * np.clip(t / 0.03, 0, 1) ** 0.7
+    tone = np.zeros(n)
+    k = 1
+    while k * freq < 9000 and k <= 30:
+        tone += np.exp(-(k - 1) / width) / np.sqrt(k) * np.sin(k * ph)
+        k += 1
+    # The bell's ring, around 1.2 kHz for a trumpet, which makes it a trumpet rather than any buzzy wave.
+    tone = tone + 0.6 * band(tone, *ring)
+    breath = band(rng.standard_normal(n), 1500, 6000) * (0.03 + 0.25 * np.exp(-t / 0.025))
+    return (tone + breath) * shape * 0.45
+
+
+def horn(freq, dur, rng, loud=0.6):
+    """A French horn: the same blowing as the trumpet, rounder and with its bell's ring lower, for warm harmony."""
+    return lowpass(trumpet(freq, dur, rng, loud, scoop=12, bright=0.5, ring=(350, 900)), 3500)
+
+
+def xylophone(freq, dur):
+    """A wooden bar struck with a hard mallet: the fundamental, its tuned fourth partial, and a quick knock."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    tone = np.sin(2 * np.pi * freq * t) * np.exp(-t * 11) + 0.3 * np.sin(2 * np.pi * freq * 3.93 * t) * np.exp(-t * 35)
+    return tone * env(n, 0.001, 10.0, 1.0, 0.02)
+
+
+def woodblock(rng, pitch=1.0):
+    n = int(0.08 * SR)
+    t = np.arange(n) / SR
+    tone = np.sin(2 * np.pi * 950 * pitch * t) + 0.5 * np.sin(2 * np.pi * 1720 * pitch * t)
+    knock = band(rng.standard_normal(n), 800 * pitch, 2500 * pitch) * 0.4
+    return (tone + knock) * env(n, 0.0005, 0.018)
+
+
 def bass(freq, dur, cutoff=900, drive=1.4):
     n = int(dur * SR)
     t = np.arange(n) / SR

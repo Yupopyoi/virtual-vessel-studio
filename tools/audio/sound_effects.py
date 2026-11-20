@@ -1,7 +1,7 @@
 """The built-in sound effects: short one-shots synthesized from plain waves and noise, with no samples."""
 import numpy as np
 
-from synth import SR, bell, band, cymbal, env, finish_effect, highpass, kick, lowpass, midi, pulse, snare
+from synth import SR, bell, band, env, finish_effect, highpass, kick, lowpass, midi, pulse, snare
 
 
 def _place(total_seconds, *parts):
@@ -15,8 +15,9 @@ def _place(total_seconds, *parts):
 
 
 def chime():
-    """A two-tone door chime: the high note, then the low one ringing on."""
-    return finish_effect(_place(1.8, (0.0, bell(midi(76), 1.0, 2.0, 1.0, 0.6)), (0.32, bell(midi(72), 1.45, 2.0, 1.0, 0.8))))
+    """A two-tone door chime: the high note, then the low one ringing on. A fifth higher than a house's, so it rings
+    out brightly over a stream (the user's request, 2026-11-20)."""
+    return finish_effect(_place(1.8, (0.0, bell(midi(83), 1.0, 2.0, 1.0, 0.6)), (0.32, bell(midi(79), 1.45, 2.0, 1.0, 0.8))))
 
 
 def correct():
@@ -27,11 +28,13 @@ def correct():
 
 
 def wrong():
-    """Two low buzzes, the second longer."""
+    """Two buzzes, the second held: a quiz show's playful miss rather than an alarm, so brighter than a plain low
+    buzz, low in pitch, and the second drawn out (the user's requests, 2026-11-20)."""
     def buzz(dur):
         n = int(dur * SR)
-        return lowpass(pulse(midi(41), n, 0.5) + pulse(midi(41) * 1.012, n, 0.5), 1800) * env(n, 0.005, 10, 1.0, 0.03)
-    return finish_effect(_place(0.9, (0.0, buzz(0.22)), (0.3, buzz(0.55))) * 0.6)
+        tone = pulse(midi(43), n, 0.35) + pulse(midi(43) * 1.01, n, 0.35) + 0.5 * pulse(midi(50), n, 0.35)
+        return lowpass(tone, 4200) * env(n, 0.005, 10, 1.0, 0.08)
+    return finish_effect(_place(1.5, (0.0, buzz(0.2)), (0.28, buzz(1.1))) * 0.45)
 
 
 def pop():
@@ -51,14 +54,27 @@ def sparkle(rng):
     return finish_effect(_place(1.2, *parts, (0.0, shimmer)))
 
 
+def crash(rng, seconds=3.2):
+    """A crash cymbal: a bright wash of noise over clangy inharmonic partials, with a hard first splash."""
+    n = int(seconds * SR)
+    t = np.arange(n) / SR
+    wash = highpass(rng.standard_normal(n), 3000, 4) * env(n, 0.001, seconds / 3.0)
+    splash = highpass(rng.standard_normal(n), 6000, 2) * env(n, 0.0005, 0.12)
+    partials = sum(np.sign(np.sin(2 * np.pi * f * t + rng.uniform(0, 6.3))) for f in (342, 517, 788, 1213, 1587, 2437, 3311))
+    clang = highpass(partials, 1500) * env(n, 0.001, seconds / 4.0) * 0.06
+    return wash + splash * 0.8 + clang
+
+
 def drumroll(rng):
-    """A snare roll that grows for two seconds and ends on a cymbal with a kick under it."""
+    """A snare roll that grows for two seconds and bursts into a big crash: two cymbals a moment apart, a kick and a
+    snare under them (the user asked for a showier ending, 2026-11-20)."""
     hits = []
     t = 0.0
     while t < 2.0:
-        hits.append((t, snare(rng, 220) * (0.25 + 0.35 * t / 2.0)))
+        hits.append((t, snare(rng, 220) * (0.2 + 0.25 * t / 2.0)))
         t += 0.045
-    return finish_effect(_place(4.0, *hits, (2.05, kick(48, 80, 0.2) * 0.9), (2.05, cymbal(rng, 1.9) * 0.7)) * 0.8)
+    ending = [(2.05, kick(45, 90, 0.3) * 1.1), (2.05, snare(rng, 200) * 0.8), (2.05, crash(rng, 3.2) * 1.0), (2.07, crash(rng, 2.8) * 0.7)]
+    return finish_effect(_place(5.0, *hits, *ending) * 0.8)
 
 
 def whoosh(rng):
@@ -92,12 +108,6 @@ def boing():
     return finish_effect(np.tanh(tone * 1.5) * env(n, 0.002, 0.25) * 0.8)
 
 
-def rimshot(rng):
-    """The comedy sting: two snare hits and a cymbal (ba-dum-tss)."""
-    return finish_effect(_place(1.6, (0.0, snare(rng, 240) * 0.7), (0.16, snare(rng, 200) * 0.6), (0.16, kick() * 0.7),
-                                (0.38, cymbal(rng, 1.1) * 0.6)))
-
-
 def coin():
     """A game coin: a short square note, then a higher one held."""
     def note(m, dur):
@@ -106,31 +116,21 @@ def coin():
     return finish_effect(_place(0.6, (0.0, note(83, 0.07)), (0.07, note(88, 0.4) * env(int(0.4 * SR), 0.001, 0.18))))
 
 
-def fanfare(rng):
-    """A short cheerful fanfare for the start of a stream: a pickup run to a held major chord with a cymbal."""
-    def brass(m, dur):
-        n = int(dur * SR)
-        t = np.arange(n) / SR
-        vib = 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.15) / 0.2, 0, 1)
-        ph = 2 * np.pi * midi(m) * np.cumsum(vib) / SR
-        tone = sum(np.sin(k * ph) / k ** 1.1 for k in range(1, 9))
-        return lowpass(tone, 3500) * env(n, 0.03, 10, 1.0, 0.15) * 0.25
-    run = [(0.0, brass(67, 0.12)), (0.14, brass(67, 0.12)), (0.28, brass(67, 0.12)), (0.42, brass(72, 0.3))]
-    held = [(0.75, brass(m, 1.2)) for m in (60, 64, 67, 72)]
-    sparkle_top = [(0.75 + k * 0.06, bell(midi(m), 0.9, 3.5, 1.0, 0.4) * 0.25) for k, m in enumerate((84, 88, 91, 96))]
-    return finish_effect(_place(2.6, *run, *held, *sparkle_top, (0.75, cymbal(rng, 1.6) * 0.35), (0.75, kick() * 0.6)))
-
-
 def applause(rng):
-    """A short burst of clapping: many hand claps at random moments, swelling and fading."""
-    n = int(3.0 * SR)
+    """A big room clapping: over a thousand claps from people of many hand sizes, on a wash of the crowd, swelling and
+    fading (the user asked for more people, 2026-11-20)."""
+    seconds = 3.5
+    n = int(seconds * SR)
     out = np.zeros(n)
-    count = 260
-    times = np.sort(rng.uniform(0, 2.7, count))
+    count = 1400
+    times = np.sort(rng.uniform(0, seconds - 0.3, count))
+    m = int(0.03 * SR)
     for t0 in times:
-        m = int(0.03 * SR)
-        clap_ = band(rng.standard_normal(m), 900 + rng.uniform(0, 1500), 5000) * env(m, 0.0005, 0.008)
+        low = rng.uniform(600, 2200)
+        clap_ = band(rng.standard_normal(m), low, low * rng.uniform(2.5, 5.0)) * env(m, 0.0005, rng.uniform(0.005, 0.012))
         s = int(t0 * SR)
-        out[s:s + m] += clap_[:max(0, min(m, n - s))] * rng.uniform(0.3, 1.0)
-    swell = np.clip(np.linspace(0, 1, n) / 0.15, 0, 1) * np.clip((1 - np.linspace(0, 1, n)) / 0.4, 0, 1)
-    return finish_effect(highpass(out, 300) * swell * 0.5)
+        out[s:s + m] += clap_[:max(0, min(m, n - s))] * rng.uniform(0.15, 0.6)
+    crowd = band(rng.standard_normal(n), 500, 6000) * 0.12
+    x = np.linspace(0, 1, n)
+    swell = np.clip(x / 0.12, 0, 1) * np.clip((1 - x) / 0.35, 0, 1)
+    return finish_effect(highpass(out + crowd, 300) * swell * 0.4)

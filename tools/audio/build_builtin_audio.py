@@ -33,26 +33,29 @@ BGM_PEAK = 10 ** (-1 / 20)
 EFFECT_PEAK = 10 ** (-3 / 20)
 
 BGM = [
-    ('cute-pop', bgm.cute_pop, 'きらきらポップ', 'Sparkly Pop'),
-    ('mellow-lofi', bgm.lofi, 'まったりローファイ', 'Mellow Lo-fi'),
-    ('recorder-waltz', bgm.recorder_waltz, 'リコーダーのワルツ', 'Recorder Waltz'),
-    ('chat-time', bgm.calm_talk, 'おしゃべりタイム', 'Chat Time'),
-    ('denpa-41', bgm.denpa_41edo, 'でんぱ41（41平均律）', 'Denpa 41 (41-EDO)'),
+    ('cute-pop', bgm.cute_pop, 'サンプル１（ポップ）', 'Sample 1 (Pop)'),
+    ('mellow-lofi', bgm.lofi, 'サンプル２（ローファイ）', 'Sample 2 (Lo-fi)'),
+    ('recorder-waltz', bgm.recorder_waltz, 'サンプル３（ワルツ）', 'Sample 3 (Waltz)'),
+    ('chat-time', bgm.calm_talk, 'サンプル４（チル）', 'Sample 4 (Chill)'),
+    # The names and files do not say how the last two are tuned: they are heard as pieces, not as a demonstration.
+    ('chiptune', bgm.denpa_41edo, 'サンプル５（チップチューン）', 'Sample 5 (Chiptune)'),
+    ('night-lofi', bgm.lofi_41edo, 'サンプル６（ローファイ）', 'Sample 6 (Lo-fi)'),
+    ('toy-box', bgm.toy_box, 'サンプル７（マーチ）', 'Sample 7 (March)'),
 ]
 
+# The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's
+# review of 2026-11-20 renamed, reordered, and dropped some (the fanfare and the rimshot).
 EFFECTS = [
     ('chime', lambda rng: se.chime(), 'ピンポーン', 'Chime'),
-    ('correct', lambda rng: se.correct(), '正解', 'Correct'),
     ('wrong', lambda rng: se.wrong(), 'ブブー', 'Wrong'),
-    ('pop', lambda rng: se.pop(), 'ポン', 'Pop'),
-    ('sparkle', se.sparkle, 'キラキラ', 'Sparkle'),
+    ('pop', lambda rng: se.pop(), 'ポコッ', 'Bloop'),
+    ('sparkle', se.sparkle, 'キラキラ１', 'Sparkle 1'),
+    ('correct', lambda rng: se.correct(), 'キラキラ２', 'Sparkle 2'),
     ('drumroll', se.drumroll, 'ドラムロール', 'Drumroll'),
     ('whoosh', se.whoosh, 'シュッ', 'Whoosh'),
     ('laser', lambda rng: se.laser(), 'ピュン', 'Laser'),
     ('boing', lambda rng: se.boing(), 'ボヨン', 'Boing'),
-    ('rimshot', se.rimshot, 'ツッコミ', 'Rimshot'),
     ('coin', lambda rng: se.coin(), 'コイン', 'Coin'),
-    ('fanfare', se.fanfare, 'ファンファーレ', 'Fanfare'),
     ('applause', se.applause, '拍手', 'Applause'),
 ]
 
