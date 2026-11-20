@@ -110,6 +110,22 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void ASoundEffectsShortcut_IsKept_UntilItIsRemoved()
+        {
+            AudioClipRecord effect = _library.AddAsync(AudioClipKind.SoundEffect, Source("Ding-2.wav"), "Ding", null, CancellationToken.None).GetAwaiter().GetResult().Value;
+            Assert.That(effect.Settings.Shortcut, Is.Null, "None at first.");
+
+            CrudResult<AudioClipRecord> set = _library.Update(effect.Id, new AudioClipChange(shortcut: " Ctrl+Alt+1 "));
+            Assert.That(set.Value.Settings.Shortcut, Is.EqualTo("Ctrl+Alt+1"));
+            Assert.That(_library.Update(effect.Id, new AudioClipChange(gainDb: -3f)).Value.Settings.Shortcut, Is.EqualTo("Ctrl+Alt+1"), "Another change leaves it.");
+            Assert.That(_library.Update(effect.Id, new AudioClipChange(shortcut: new string('a', 41))).Error, Is.EqualTo(CrudError.Invalid));
+            Assert.That(_library.Update(effect.Id, new AudioClipChange(shortcut: string.Empty)).Value.Settings.Shortcut, Is.Null, "Removed.");
+
+            AudioClipRecord bgm = _library.AddAsync(AudioClipKind.Bgm, Source("Fluffy-90.mp3"), null, null, CancellationToken.None).GetAwaiter().GetResult().Value;
+            Assert.That(_library.Update(bgm.Id, new AudioClipChange(shortcut: "Ctrl+Alt+2")).Value.Settings.Shortcut, Is.Null, "BGM has none.");
+        }
+
+        [Test]
         public void RecordOf_MakesAProfilesValuesUsable()
         {
             var edited = new AudioClipProfile

@@ -54,10 +54,11 @@ namespace VirtualVessel.Audio.Clips
     /// <summary>How a registration plays, as the user set it with <see cref="AudioClipChange"/>.</summary>
     public readonly struct AudioClipSettings
     {
-        public AudioClipSettings(float gainDb, bool loop)
+        public AudioClipSettings(float gainDb, bool loop, string shortcut = null)
         {
             GainDb = gainDb;
             Loop = loop;
+            Shortcut = shortcut;
         }
 
         /// <summary>The file's own volume, apart from the BGM or SE source's.</summary>
@@ -65,6 +66,12 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>BGM only: plays again from its start at its end.</summary>
         public bool Loop { get; }
+
+        /// <summary>
+        /// SE only: the keys that play it from any app, as the UI writes them (such as "Ctrl+Alt+1"); null for none.
+        /// Audio keeps the text as it is; the UI reads it (BGM and SE detailed design 6.1).
+        /// </summary>
+        public string Shortcut { get; }
     }
 
     /// <summary>One registered BGM or SE (BGM and SE detailed design 6.1).</summary>
@@ -120,11 +127,13 @@ namespace VirtualVessel.Audio.Clips
     /// <summary>A change to a registration: the values to set, the others left as they are.</summary>
     public readonly struct AudioClipChange
     {
-        public AudioClipChange(string name = null, float? gainDb = null, bool? loop = null)
+        /// <param name="shortcut">SE only: the new keys, an empty string to remove them, or null to leave them.</param>
+        public AudioClipChange(string name = null, float? gainDb = null, bool? loop = null, string shortcut = null)
         {
             Name = name;
             GainDb = gainDb;
             Loop = loop;
+            Shortcut = shortcut;
         }
 
         public string Name { get; }
@@ -132,6 +141,8 @@ namespace VirtualVessel.Audio.Clips
         public float? GainDb { get; }
 
         public bool? Loop { get; }
+
+        public string Shortcut { get; }
     }
 
     /// <summary>
