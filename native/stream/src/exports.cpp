@@ -40,6 +40,9 @@ namespace
     // At the end, what is queued is sent for at most this long.
     constexpr int CloseFlushMs = 2'000;
 
+    // At the end, the video encoder gives back the frames it held within this; a hardware encoder takes a few ms.
+    constexpr int CloseDrainMs = 500;
+
     constexpr int32_t AudioChunkFrames = 4800;
 
     int64_t NowMs()
@@ -202,12 +205,37 @@ struct vv_stream
                     sendQueue.Wake();
                 }
             }
+
+            if (ok)
+            {
+                DrainEncoders(videoEncoder, aacEncoder);
+            }
         }
 
         MFShutdown();
         if (SUCCEEDED(com))
         {
             CoUninitialize();
+        }
+    }
+
+    // Closing: the frames the encoders still hold are queued, so the stream does not end a frame and a fraction
+    // of a second of audio early. A failed drain only loses those frames, as before; the stream is ending anyway.
+    void DrainEncoders(VideoEncoder& videoEncoder, AacEncoder& aacEncoder)
+    {
+        std::string error;
+        std::vector<EncodedFrame> frames;
+        videoEncoder.Drain(CloseDrainMs, frames, error);
+        for (const EncodedFrame& frame : frames)
+        {
+            QueueVideo(frame);
+        }
+
+        if (audioRead != nullptr)
+        {
+            frames.clear();
+            aacEncoder.Drain(frames, error);
+            QueueAudio(frames);
         }
     }
 
@@ -316,6 +344,14 @@ struct vv_stream
             return false;
         }
 
+        QueueAudio(frames);
+        std::lock_guard<std::mutex> lock(mutex);
+        stats.av_offset_us = (vv::encode::FramesToFileTime(audioWritten) - videoEnd) / 10;
+        return true;
+    }
+
+    void QueueAudio(const std::vector<EncodedFrame>& frames)
+    {
         for (const EncodedFrame& frame : frames)
         {
             Packet packet;
@@ -324,10 +360,6 @@ struct vv_stream
             packet.body = flv::AacFrame(frame.data.data(), frame.data.size());
             sendQueue.Push(std::move(packet));
         }
-
-        std::lock_guard<std::mutex> lock(mutex);
-        stats.av_offset_us = (vv::encode::FramesToFileTime(audioWritten) - videoEnd) / 10;
-        return true;
     }
 
     bool Silence(AacEncoder& aac, int64_t frames, std::vector<EncodedFrame>& out, std::string& error)

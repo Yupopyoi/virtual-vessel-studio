@@ -7,7 +7,9 @@
 #include <mferror.h>
 #include <strmif.h>
 
+#include <chrono>
 #include <cstring>
+#include <thread>
 
 using Microsoft::WRL::ComPtr;
 
@@ -389,6 +391,76 @@ namespace vv::stream
         }
     }
 
+    bool VideoEncoder::Drain(int timeoutMs, std::vector<EncodedFrame>& out, std::string& error)
+    {
+        if (!_started)
+        {
+            return true;
+        }
+
+        // Ended here, so the destructor does not end it again.
+        _started = false;
+        _transform->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+        HRESULT hr = _transform->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+        if (FAILED(hr))
+        {
+            error = HrError("video encoder drain", hr);
+            return false;
+        }
+
+        if (!_events)
+        {
+            for (size_t before = SIZE_MAX; before != out.size();)
+            {
+                before = out.size();
+                if (!TakeOutput(out, error))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Asynchronous: outputs come as events until METransformDrainComplete. Polled, not waited on, so an encoder
+        // that never completes cannot hold up closing the stream.
+        auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        for (;;)
+        {
+            ComPtr<IMFMediaEvent> event;
+            hr = _events->GetEvent(MF_EVENT_FLAG_NO_WAIT, &event);
+            if (hr == MF_E_NO_EVENTS_AVAILABLE)
+            {
+                if (std::chrono::steady_clock::now() > until)
+                {
+                    error = "the video encoder did not finish draining";
+                    return false;
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+
+            if (FAILED(hr))
+            {
+                error = HrError("the video encoder's events", hr);
+                return false;
+            }
+
+            MediaEventType type = MEUnknown;
+            event->GetType(&type);
+            if (type == METransformDrainComplete)
+            {
+                return true;
+            }
+
+            if (type == METransformHaveOutput && !TakeOutput(out, error))
+            {
+                return false;
+            }
+        }
+    }
+
     AacEncoder::~AacEncoder()
     {
         if (_transform)
@@ -477,6 +549,34 @@ namespace vv::stream
             if (FAILED(hr))
             {
                 error = HrError("audio encode output", hr);
+                return false;
+            }
+
+            out.push_back(std::move(frame));
+        }
+    }
+
+    bool AacEncoder::Drain(std::vector<EncodedFrame>& out, std::string& error)
+    {
+        HRESULT hr = _transform->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+        if (FAILED(hr))
+        {
+            error = HrError("audio encoder drain", hr);
+            return false;
+        }
+
+        for (;;)
+        {
+            EncodedFrame frame;
+            hr = ProcessOne(_transform.Get(), 0, false, _outputSize, frame);
+            if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
+            {
+                return true;
+            }
+
+            if (FAILED(hr))
+            {
+                error = HrError("audio encoder drain output", hr);
                 return false;
             }
 

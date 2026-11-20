@@ -54,3 +54,8 @@ target_link_libraries(VirtualVessel.Stream.Native PRIVATE vv_stream_network mfpl
 add_executable(vv_stream_tests tests/stream_tests.cpp)
 target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol)
 add_test(NAME vv_stream_tests COMMAND vv_stream_tests)
+
+# The Media Foundation encoders on their own: every frame given comes back out, the held ones by draining.
+add_executable(vv_stream_encoder_tests tests/encoder_tests.cpp src/mft_encoders.cpp)
+target_link_libraries(vv_stream_encoder_tests PRIVATE vv_stream_protocol mfplat mfuuid ole32)
+add_test(NAME vv_stream_encoder_tests COMMAND vv_stream_encoder_tests)
