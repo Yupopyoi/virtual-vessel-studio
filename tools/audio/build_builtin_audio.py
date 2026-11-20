@@ -33,11 +33,11 @@ BGM_PEAK = 10 ** (-1 / 20)
 EFFECT_PEAK = 10 ** (-3 / 20)
 
 BGM = [
-    ('cute-pop', bgm.cute_pop, 'きらきらポップ', 'Sparkly Pop'),
-    ('mellow-lofi', bgm.lofi, 'まったりローファイ', 'Mellow Lo-fi'),
-    ('recorder-waltz', bgm.recorder_waltz, 'リコーダーのワルツ', 'Recorder Waltz'),
-    ('chat-time', bgm.calm_talk, 'おしゃべりタイム', 'Chat Time'),
-    ('denpa-41', bgm.denpa_41edo, 'でんぱ41（41平均律）', 'Denpa 41 (41-EDO)'),
+    ('cute-pop', bgm.cute_pop, 'サンプル１', 'Sample 1'),
+    ('mellow-lofi', bgm.lofi, 'サンプル２', 'Sample 2'),
+    ('recorder-waltz', bgm.recorder_waltz, 'サンプル３', 'Sample 3'),
+    ('chat-time', bgm.calm_talk, 'サンプル４', 'Sample 4'),
+    ('denpa-41', bgm.denpa_41edo, 'サンプル５', 'Sample 5'),
 ]
 
 # The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's

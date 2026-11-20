@@ -6,8 +6,8 @@
       "kind": "bgm",
       "file": "bgm/cute-pop.wav",
       "names": {
-        "ja": "きらきらポップ",
-        "en": "Sparkly Pop"
+        "ja": "サンプル１",
+        "en": "Sample 1"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind": "bgm",
       "file": "bgm/mellow-lofi.wav",
       "names": {
-        "ja": "まったりローファイ",
-        "en": "Mellow Lo-fi"
+        "ja": "サンプル２",
+        "en": "Sample 2"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind": "bgm",
       "file": "bgm/recorder-waltz.wav",
       "names": {
-        "ja": "リコーダーのワルツ",
-        "en": "Recorder Waltz"
+        "ja": "サンプル３",
+        "en": "Sample 3"
       }
     },
     {
@@ -33,8 +33,8 @@
       "kind": "bgm",
       "file": "bgm/chat-time.wav",
       "names": {
-        "ja": "おしゃべりタイム",
-        "en": "Chat Time"
+        "ja": "サンプル４",
+        "en": "Sample 4"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind": "bgm",
       "file": "bgm/denpa-41.wav",
       "names": {
-        "ja": "でんぱ41（41平均律）",
-        "en": "Denpa 41 (41-EDO)"
+        "ja": "サンプル５",
+        "en": "Sample 5"
       }
     },
     {
