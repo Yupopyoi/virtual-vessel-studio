@@ -56,15 +56,6 @@
       }
     },
     {
-      "id": "se-correct",
-      "kind": "soundEffect",
-      "file": "se/correct.wav",
-      "names": {
-        "ja": "正解",
-        "en": "Correct"
-      }
-    },
-    {
       "id": "se-wrong",
       "kind": "soundEffect",
       "file": "se/wrong.wav",
@@ -78,8 +69,8 @@
       "kind": "soundEffect",
       "file": "se/pop.wav",
       "names": {
-        "ja": "ポン",
-        "en": "Pop"
+        "ja": "ポコッ",
+        "en": "Bloop"
       }
     },
     {
@@ -87,8 +78,17 @@
       "kind": "soundEffect",
       "file": "se/sparkle.wav",
       "names": {
-        "ja": "キラキラ",
-        "en": "Sparkle"
+        "ja": "キラキラ１",
+        "en": "Sparkle 1"
+      }
+    },
+    {
+      "id": "se-correct",
+      "kind": "soundEffect",
+      "file": "se/correct.wav",
+      "names": {
+        "ja": "キラキラ２",
+        "en": "Sparkle 2"
       }
     },
     {
@@ -128,30 +128,12 @@
       }
     },
     {
-      "id": "se-rimshot",
-      "kind": "soundEffect",
-      "file": "se/rimshot.wav",
-      "names": {
-        "ja": "ツッコミ",
-        "en": "Rimshot"
-      }
-    },
-    {
       "id": "se-coin",
       "kind": "soundEffect",
       "file": "se/coin.wav",
       "names": {
         "ja": "コイン",
         "en": "Coin"
-      }
-    },
-    {
-      "id": "se-fanfare",
-      "kind": "soundEffect",
-      "file": "se/fanfare.wav",
-      "names": {
-        "ja": "ファンファーレ",
-        "en": "Fanfare"
       }
     },
     {

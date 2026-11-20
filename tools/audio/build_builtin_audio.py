@@ -40,19 +40,19 @@ BGM = [
     ('denpa-41', bgm.denpa_41edo, 'でんぱ41（41平均律）', 'Denpa 41 (41-EDO)'),
 ]
 
+# The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's
+# review of 2026-11-20 renamed, reordered, and dropped some (the fanfare and the rimshot).
 EFFECTS = [
     ('chime', lambda rng: se.chime(), 'ピンポーン', 'Chime'),
-    ('correct', lambda rng: se.correct(), '正解', 'Correct'),
     ('wrong', lambda rng: se.wrong(), 'ブブー', 'Wrong'),
-    ('pop', lambda rng: se.pop(), 'ポン', 'Pop'),
-    ('sparkle', se.sparkle, 'キラキラ', 'Sparkle'),
+    ('pop', lambda rng: se.pop(), 'ポコッ', 'Bloop'),
+    ('sparkle', se.sparkle, 'キラキラ１', 'Sparkle 1'),
+    ('correct', lambda rng: se.correct(), 'キラキラ２', 'Sparkle 2'),
     ('drumroll', se.drumroll, 'ドラムロール', 'Drumroll'),
     ('whoosh', se.whoosh, 'シュッ', 'Whoosh'),
     ('laser', lambda rng: se.laser(), 'ピュン', 'Laser'),
     ('boing', lambda rng: se.boing(), 'ボヨン', 'Boing'),
-    ('rimshot', se.rimshot, 'ツッコミ', 'Rimshot'),
     ('coin', lambda rng: se.coin(), 'コイン', 'Coin'),
-    ('fanfare', se.fanfare, 'ファンファーレ', 'Fanfare'),
     ('applause', se.applause, '拍手', 'Applause'),
 ]
 
