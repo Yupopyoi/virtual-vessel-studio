@@ -87,7 +87,7 @@ namespace VirtualVessel.UI.Screens
         public LevelMeter Meter { get; }
 
         /// <summary>The chosen device.</summary>
-        protected abstract string DeviceId { get; }
+        protected internal abstract string DeviceId { get; }
 
         /// <summary>The level now, in dBFS.</summary>
         protected abstract float PeakDb { get; }
@@ -251,7 +251,7 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Noise removal; null for a source other than the microphone.</summary>
         public SwitchToggle Denoise { get; }
 
-        protected override string DeviceId => _source.Options.Value.DeviceId;
+        protected internal override string DeviceId => _source.Options.Value.DeviceId;
 
         protected override float PeakDb => _source.PeakDb;
 
@@ -299,7 +299,7 @@ namespace VirtualVessel.UI.Screens
             Show();
         }
 
-        protected override string DeviceId => _monitor.Options.Value.DeviceId;
+        protected internal override string DeviceId => _monitor.Options.Value.DeviceId;
 
         protected override float PeakDb => _monitor.PeakDb;
 

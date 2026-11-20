@@ -40,6 +40,14 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemFailed = "setup.capture.problem.failed";
         public const string ProblemInUse = "setup.capture.problem.inuse";
         public const string NoVideo = "setup.capture.preview.none";
+        public const string Input = "setup.capture.input";
+        public const string InputDescription = "setup.capture.input.description";
+        public const string InputBoard = "setup.capture.input.board";
+        public const string InputWindow = "setup.capture.input.window";
+        public const string ChooseWindow = "setup.capture.device.window.choose";
+        public const string NoWindow = "setup.capture.device.window.none";
+        public const string ProblemChooseWindow = "setup.capture.problem.window.choose";
+        public const string ProblemWindowNotFound = "setup.capture.problem.window.notfound";
     }
 
     /// <summary>
@@ -58,13 +66,20 @@ namespace VirtualVessel.UI.Screens
         private readonly ICaptureDeviceSource _source;
         private readonly GameAudioRow _audio;
         private readonly string _emptyChoiceKey;
+
+        // Which devices are offered while none is chosen: capture boards, or windows on this PC (setup.md 3).
+        private bool _windows;
         private readonly KeyedText _problemText;
         private readonly Label _problem;
         private readonly Label _noVideo;
 
         /// <param name="emptyChoiceKey">The device choice with no device: "Choose a camera" or "Automatic".</param>
         /// <param name="audio">The sound that comes with this video, or null when none does.</param>
-        public CaptureSourceCard(ICaptureDeviceSource source, string titleKey, string emptyChoiceKey, GameAudioRow audio = null)
+        /// <param name="offersWindows">
+        /// Whether the source also captures windows on this PC (the game screen, capture detailed design 8.6): an
+        /// input row then chooses between capture boards and windows.
+        /// </param>
+        public CaptureSourceCard(ICaptureDeviceSource source, string titleKey, string emptyChoiceKey, GameAudioRow audio = null, bool offersWindows = false)
         {
             _source = source ?? throw new ArgumentNullException(nameof(source));
             _emptyChoiceKey = emptyChoiceKey;
@@ -107,12 +122,15 @@ namespace VirtualVessel.UI.Screens
             });
             card.Add(Ui.ControlRow(CaptureStrings.Capture, Capture));
 
-            Devices = Ui.Select(null);
-            Devices.RegisterValueChangedCallback(evt =>
+            if (offersWindows)
             {
-                _audio?.VideoChanged(NameOf(evt.previousValue), NameOf(evt.newValue));
-                _source.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue);
-            });
+                Input = Ui.Segmented(CaptureStrings.InputBoard, CaptureStrings.InputWindow);
+                Input.RegisterValueChangedCallback(evt => ChooseInput(evt.newValue == 1));
+                card.Add(Ui.ControlRow(CaptureStrings.Input, Input, CaptureStrings.InputDescription));
+            }
+
+            Devices = Ui.Select(null);
+            Devices.RegisterValueChangedCallback(evt => Choose(evt.previousValue, evt.newValue));
             card.Add(Ui.ControlRow(CaptureStrings.Device, Devices));
             if (audio != null)
             {
@@ -152,6 +170,9 @@ namespace VirtualVessel.UI.Screens
 
         public SelectField Devices { get; }
 
+        /// <summary>Capture board or window on this PC; null for sources without windows.</summary>
+        public Segmented Input { get; }
+
         public SwitchToggle FlipHorizontal { get; }
 
         public SwitchToggle FlipVertical { get; }
@@ -161,23 +182,32 @@ namespace VirtualVessel.UI.Screens
 
         public Label Info { get; }
 
-        /// <summary>The chip and the explanation for a state: shape, color, and text together (design-system.md 3.4). Pure.</summary>
-        public static (StatusKind Kind, string StateKey, string ProblemKey) Describe(CaptureState state, CaptureProblem problem)
+        /// <summary>
+        /// The chip and the explanation for a state: shape, color, and text together (design-system.md 3.4). For a
+        /// window on this PC, what to do is about the game rather than a device. Pure.
+        /// </summary>
+        public static (StatusKind Kind, string StateKey, string ProblemKey) Describe(CaptureState state, CaptureProblem problem, bool window = false)
         {
             return state switch
             {
-                CaptureState.Stopped when problem == CaptureProblem.DeviceNotChosen => (StatusKind.Warning, CaptureStrings.Stopped, CaptureStrings.ProblemChoose),
+                CaptureState.Stopped when problem == CaptureProblem.DeviceNotChosen => (StatusKind.Warning, CaptureStrings.Stopped, window ? CaptureStrings.ProblemChooseWindow : CaptureStrings.ProblemChoose),
                 CaptureState.Stopped => (StatusKind.Idle, CaptureStrings.Stopped, null),
                 CaptureState.Starting => (StatusKind.Idle, CaptureStrings.Starting, null),
                 CaptureState.Ready when problem == CaptureProblem.NoSignal => (StatusKind.Warning, CaptureStrings.Ready, CaptureStrings.ProblemSignal),
                 CaptureState.Ready => (StatusKind.Idle, CaptureStrings.Ready, null),
                 CaptureState.Capturing => (StatusKind.Success, CaptureStrings.Capturing, null),
-                CaptureState.Unavailable => (StatusKind.Warning, CaptureStrings.NotFound, CaptureStrings.ProblemNotFound),
+                CaptureState.Unavailable => (StatusKind.Warning, CaptureStrings.NotFound, window ? CaptureStrings.ProblemWindowNotFound : CaptureStrings.ProblemNotFound),
                 CaptureState.Error when problem == CaptureProblem.DeviceInUse => (StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemInUse),
 
                 // A missing plugin is a developer problem; users see a failure (capture detailed design 6.2).
                 _ => (StatusKind.Error, CaptureStrings.Failed, CaptureStrings.ProblemFailed),
             };
+        }
+
+        /// <summary>The devices of one input: the capture boards, or the windows on this PC. Pure.</summary>
+        public static IReadOnlyList<CaptureDevice> DevicesOf(IReadOnlyList<CaptureDevice> devices, bool windows)
+        {
+            return devices.Where(device => CaptureWindow.IsWindow(device.Id) == windows).ToList();
         }
 
         /// <summary>"1920×1080 · 59.9 fps", or "—" while nothing is delivered. Numbers only, so the same in every language. Pure.</summary>
@@ -215,16 +245,50 @@ namespace VirtualVessel.UI.Screens
         private void RefreshDevices()
         {
             _source.RefreshDevices();
-            IReadOnlyList<CaptureDevice> devices = _source.Devices;
+            ShowDevices();
+        }
+
+        private void ShowDevices()
+        {
+            IReadOnlyList<CaptureDevice> devices = Input != null ? DevicesOf(_source.Devices, _windows) : _source.Devices;
+            string emptyKey = Input != null && _windows ? CaptureStrings.ChooseWindow : _emptyChoiceKey;
+            string noneKey = Input != null && _windows ? CaptureStrings.NoWindow : CaptureStrings.NoDevice;
             Devices.SetChoices(devices.Count > 0
-                ? new[] { SelectChoice.FromKey(string.Empty, _emptyChoiceKey) }.Concat(devices.Select(device => SelectChoice.FromText(device.Id, device.DisplayName)))
-                : new[] { SelectChoice.FromKey(string.Empty, CaptureStrings.NoDevice) });
+                ? new[] { SelectChoice.FromKey(string.Empty, emptyKey) }.Concat(devices.Select(device => SelectChoice.FromText(device.Id, device.DisplayName)))
+                : new[] { SelectChoice.FromKey(string.Empty, noneKey) });
             Devices.SetValueWithoutNotify(_source.SelectedDeviceId ?? string.Empty);
+        }
+
+        private void Choose(string previousId, string nextId)
+        {
+            _audio?.VideoChanged(previousId, NameOf(previousId), nextId, NameOf(nextId));
+            _source.SelectDevice(string.IsNullOrEmpty(nextId) ? null : nextId);
+        }
+
+        // Another input: a device of the other kind is let go, so the user chooses one of this kind.
+        private void ChooseInput(bool windows)
+        {
+            _windows = windows;
+            string chosen = _source.SelectedDeviceId;
+            if (chosen != null && CaptureWindow.IsWindow(chosen) != windows)
+            {
+                Choose(chosen, null);
+            }
+
+            ShowDevices();
+            Show();
         }
 
         private void Show()
         {
-            (StatusKind kind, string stateKey, string problemKey) = Describe(_source.State.Value, _source.Problem.Value);
+            // The chosen device tells the input; with none chosen, the input the user last picked stays.
+            if (Input != null && _source.SelectedDeviceId != null)
+            {
+                _windows = CaptureWindow.IsWindow(_source.SelectedDeviceId);
+            }
+
+            Input?.SetValueWithoutNotify(_windows ? 1 : 0);
+            (StatusKind kind, string stateKey, string problemKey) = Describe(_source.State.Value, _source.Problem.Value, Input != null && _windows);
             Status.Status = kind;
             Status.TextKey = stateKey;
             _problemText.Key = problemKey;
@@ -232,7 +296,12 @@ namespace VirtualVessel.UI.Screens
             FlipHorizontal.SetValueWithoutNotify((_source.Flip.Value & CaptureFlip.Horizontal) != 0);
             FlipVertical.SetValueWithoutNotify((_source.Flip.Value & CaptureFlip.Vertical) != 0);
 
-            // A device chosen by default becomes the chosen one when it opens.
+            // A device chosen by default becomes the chosen one when it opens; its input may have changed with it.
+            if (Input != null)
+            {
+                ShowDevices();
+            }
+
             Devices.SetValueWithoutNotify(_source.SelectedDeviceId ?? string.Empty);
             if (Pointer != null && _source is IPointerOption pointer)
             {

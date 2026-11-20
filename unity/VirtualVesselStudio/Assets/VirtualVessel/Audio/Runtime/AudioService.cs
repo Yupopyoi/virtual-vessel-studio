@@ -237,6 +237,11 @@ namespace VirtualVessel.Audio
                 return "no device";
             }
 
+            if (AudioApplication.IsApplication(deviceId))
+            {
+                return "the sound of " + AudioApplication.ProgramOf(deviceId);
+            }
+
             foreach (AudioDevice device in devices)
             {
                 if (device.Id == deviceId)

@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
@@ -142,10 +143,43 @@ namespace VirtualVessel.UI.Tests
                 new AudioDevice("b", "Audio (Board B)", false),
             };
 
-            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board B"), Is.EqualTo("b"), "It followed the old board.");
-            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, null, "Board A", "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "Board B", "Board B"), Is.EqualTo("b"), "It followed the old board.");
+            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "Board B", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "Webcam", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+        }
+
+        [Test]
+        public void Follow_TakesAWindowsOwnSound_AndLetsItGoWithTheWindow()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("line", "Line In", false),
+                new AudioDevice("a", "Audio (Board A)", false),
+            };
+
+            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "From a board to a game's window.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, null, "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "window:other.exe", "Other (other.exe)"), Is.EqualTo("app:other.exe"), "From window to window.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "Board A", "Board A"), Is.EqualTo("a"), "Back to a board.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", null, null), Is.Null, "A window's sound does not stay without it.");
+            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("line"), "Chosen on purpose.");
+        }
+
+        [Test]
+        public void MonitoredAfter_LeavesOutAGameOnThisPc_WhichThePcPlaysAlready()
+        {
+            Assert.That(GameAudioRow.MonitoredAfter(true, "a", "app:game.exe"), Is.False, "Heard twice otherwise.");
+            Assert.That(GameAudioRow.MonitoredAfter(false, "app:game.exe", "a"), Is.True, "A board is heard through the monitor.");
+            Assert.That(GameAudioRow.MonitoredAfter(false, "a", "b"), Is.False, "Between boards the user's choice stays.");
+            Assert.That(GameAudioRow.MonitoredAfter(true, "a", "b"), Is.True);
+        }
+
+        [Test]
+        public void UnlistedName_NamesAProgramsSound()
+        {
+            Assert.That(AudioCard.UnlistedName(null, "app:game.exe"), Is.EqualTo("game.exe"));
+            Assert.That(AudioCard.UnlistedName(null, "{gone}"), Is.EqualTo(AudioStrings.MissingDevice));
         }
 
         [UnityTest]
@@ -166,6 +200,39 @@ namespace VirtualVessel.UI.Tests
 
             row.Devices.value = string.Empty;
             Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "It can be chosen by hand here too.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheGameCaptureCard_OffersWindowsOnThisPc_WithTheGamesOwnSound()
+        {
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture)
+            {
+                Devices = new[] { new CaptureDevice("Board A", "Board A"), new CaptureDevice("window:game.exe", "My Game (game.exe)") },
+            };
+            _audio.Game.SetOptions(_audio.Game.Options.Value.WithMonitored(true));
+            var row = new GameAudioRow(_audio);
+            var card = new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row, offersWindows: true);
+            _root.Content.Add(card);
+            yield return null;
+            Assert.That(card.Input.value, Is.EqualTo(0), "Capture boards at first.");
+            Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "Board A" }));
+
+            card.Input.value = 1;
+            yield return null;
+            Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "window:game.exe" }), "Only the windows.");
+
+            card.Devices.value = "window:game.exe";
+            yield return null;
+            Assert.That(video.SelectedDeviceId, Is.EqualTo("window:game.exe"));
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("app:game.exe"), "The game's own sound.");
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.False, "The PC plays it already; not heard twice.");
+            Assert.That(row.Devices.Choices.Last().Id, Is.EqualTo("app:game.exe"));
+
+            card.Input.value = 0;
+            yield return null;
+            Assert.That(video.SelectedDeviceId, Is.Null, "A window is let go for a board to be chosen.");
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "Its sound goes with it.");
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.True, "A board is heard through the monitor again.");
         }
 
         [UnityTest]

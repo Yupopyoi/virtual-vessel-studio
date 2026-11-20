@@ -24,6 +24,7 @@ namespace VirtualVessel.UI.Screens
         public const string Device = "setup.audio.device";
         public const string NoDevice = "setup.audio.device.none";
         public const string MissingDevice = "setup.audio.device.missing";
+        public const string ApplicationSound = "setup.audio.device.application";
         public const string Gain = "setup.audio.gain";
         public const string Mute = "setup.audio.mute";
         public const string Level = "setup.audio.level";
@@ -201,6 +202,21 @@ namespace VirtualVessel.UI.Screens
         /// The device choices: "None" first, then the devices, and the chosen one marked as not connected
         /// when it is missing, so the choice is not lost while it is unplugged. Pure.
         /// </summary>
+        /// <summary>
+        /// The name of a chosen device that is not in the list: a program's sound ("Sound of game.exe", audio detailed
+        /// design 8.7), or a device not connected now.
+        /// </summary>
+        public static string UnlistedName(ILocalizer localizer, string deviceId)
+        {
+            string program = AudioApplication.ProgramOf(deviceId);
+            if (program != null)
+            {
+                return localizer?.Get(AudioStrings.ApplicationSound, ("name", program)) ?? program;
+            }
+
+            return localizer?.Get(AudioStrings.MissingDevice) ?? AudioStrings.MissingDevice;
+        }
+
         public static IReadOnlyList<SelectChoice> Choices(IReadOnlyList<AudioDevice> devices, string chosen, string missingText)
         {
             var choices = new List<SelectChoice> { SelectChoice.FromKey(string.Empty, AudioStrings.NoDevice) };
@@ -244,13 +260,12 @@ namespace VirtualVessel.UI.Screens
 
         private void ShowDevices(UiServices services)
         {
-            string missing = services?.Localizer?.Get(AudioStrings.MissingDevice) ?? AudioStrings.MissingDevice;
             foreach (AudioSourceRow group in _groups)
             {
-                group.ShowDevices(_audio.InputDevices.Value, missing);
+                group.ShowDevices(_audio.InputDevices.Value, UnlistedName(services?.Localizer, group.DeviceId));
             }
 
-            Monitor.ShowDevices(_audio.OutputDevices.Value, missing);
+            Monitor.ShowDevices(_audio.OutputDevices.Value, UnlistedName(services?.Localizer, Monitor.DeviceId));
         }
     }
 }
