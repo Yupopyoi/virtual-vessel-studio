@@ -163,7 +163,18 @@ namespace VirtualVessel.UI.Tests
             Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "window:other.exe", "Other (other.exe)"), Is.EqualTo("app:other.exe"), "From window to window.");
             Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "Board A", "Board A"), Is.EqualTo("a"), "Back to a board.");
             Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", null, null), Is.Null, "A window's sound does not stay without it.");
-            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "A window always brings its own sound.");
+            Assert.That(GameAudioRow.Follow(devices, "a", "window:old.exe", "Old (old.exe)", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "Even when a board's sound was left from before (2026-11-20).");
+        }
+
+        [Test]
+        public void ChoicesFor_OffersTheWindowsOwnSound()
+        {
+            var devices = new[] { new AudioDevice("a", "Audio (Board A)", false) };
+
+            Assert.That(GameAudioRow.ChoicesFor(devices, "Board A", "unused").Select(d => d.Id), Is.EqualTo(new[] { "a" }));
+            Assert.That(GameAudioRow.ChoicesFor(devices, "window:game.exe", "Sound of game.exe").Select(d => d.Id), Is.EqualTo(new[] { "a", "app:game.exe" }));
+            Assert.That(GameAudioRow.ChoicesFor(devices, "window:game.exe", "Sound of game.exe").Last().Name, Is.EqualTo("Sound of game.exe"));
         }
 
         [Test]
@@ -200,6 +211,26 @@ namespace VirtualVessel.UI.Tests
 
             row.Devices.value = string.Empty;
             Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "It can be chosen by hand here too.");
+        }
+
+        [UnityTest]
+        public IEnumerator AWindowChosenBefore_OffersItsOwnSound_InTheAudioRow()
+        {
+            // As the user found it (2026-11-20): the window saved as the game screen, the board's sound left over.
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture)
+            {
+                Devices = new[] { new CaptureDevice("window:undertale.exe", "UNDERTALE (undertale.exe)") },
+            };
+            video.SelectDevice("window:undertale.exe");
+            _audio.Game.SetOptions(_audio.Game.Options.Value.WithDevice("board").WithMonitored(true));
+            var row = new GameAudioRow(_audio);
+            _root.Content.Add(new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row, offersWindows: true));
+            yield return null;
+            Assert.That(row.Devices.Choices.Select(c => c.Id), Does.Contain("app:undertale.exe"));
+
+            row.Devices.value = "app:undertale.exe";
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("app:undertale.exe"));
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.False, "Chosen by hand, it is not heard twice either.");
         }
 
         [UnityTest]

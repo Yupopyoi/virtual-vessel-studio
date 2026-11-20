@@ -277,6 +277,7 @@ namespace VirtualVessel.UI.Screens
             _letGo = null;
             _audio?.VideoChanged(previous, NameOf(previous), nextId, NameOf(nextId));
             _source.SelectDevice(string.IsNullOrEmpty(nextId) ? null : nextId);
+            _audio?.ShowVideo(_source.SelectedDeviceId);
         }
 
         // Another input: a device of the other kind is let go, so the user chooses one of this kind.
@@ -303,6 +304,7 @@ namespace VirtualVessel.UI.Screens
             }
 
             Input?.SetValueWithoutNotify(_windows ? WindowInput : BoardInput);
+            _audio?.ShowVideo(_source.SelectedDeviceId);
             (StatusKind kind, string stateKey, string problemKey) = Describe(_source.State.Value, _source.Problem.Value, Input != null && _windows);
             Status.Status = kind;
             Status.TextKey = stateKey;
