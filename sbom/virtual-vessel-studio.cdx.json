@@ -880,7 +880,25 @@
         }
       ],
       "scope": "required",
-      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine) are only linked against and not distributed."
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine, and mmdevapi for a program's sound; dwmapi and windowsapp for window capture) are only linked against and not distributed."
+    },
+    {
+      "type": "library",
+      "bom-ref": "cppwinrt",
+      "supplier": {
+        "name": "Microsoft"
+      },
+      "name": "C++/WinRT",
+      "version": "2.0.250303.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Header-only projection of the Windows Runtime, from the Windows SDK (10.0.28000.0). Compiled into VirtualVessel.Capture.Native.dll (native/capture) for window capture with Windows.Graphics.Capture (capture detailed design 8.6)."
     },
     {
       "type": "application",

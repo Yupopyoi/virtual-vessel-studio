@@ -36,6 +36,7 @@ target_compile_options(rnnoise PRIVATE /W0)
 add_library(vv_audio_core STATIC
     src/mixer.cpp
     src/denoiser.cpp
+    src/application_loopback.cpp
     src/device_loop.cpp
     src/device_output.cpp
     src/device_source.cpp
@@ -47,7 +48,7 @@ add_library(vv_audio_core STATIC
 target_include_directories(vv_audio_core PUBLIC include src)
 target_compile_definitions(vv_audio_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(vv_audio_core PUBLIC /W4 /WX /permissive- /utf-8 /external:anglebrackets /external:W0)
-target_link_libraries(vv_audio_core PUBLIC ole32 avrt mfplat mfreadwrite mfuuid PRIVATE rnnoise)
+target_link_libraries(vv_audio_core PUBLIC ole32 avrt mfplat mfreadwrite mfuuid mmdevapi PRIVATE rnnoise)
 
 add_library(VirtualVessel.Audio.Native SHARED src/exports.cpp)
 target_compile_definitions(VirtualVessel.Audio.Native PRIVATE VV_AUDIO_EXPORTS)
@@ -57,7 +58,7 @@ target_link_options(VirtualVessel.Audio.Native PRIVATE /DELAYLOAD:mfplat.dll /DE
 
 enable_testing()
 add_executable(vv_audio_tests tests/audio_tests.cpp)
-target_link_libraries(vv_audio_tests PRIVATE vv_audio_core VirtualVessel.Audio.Native)
+target_link_libraries(vv_audio_tests PRIVATE vv_audio_core VirtualVessel.Audio.Native winmm)
 add_test(NAME vv_audio_tests COMMAND vv_audio_tests)
 
 add_executable(vv_player_tests tests/player_tests.cpp)

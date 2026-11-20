@@ -854,6 +854,15 @@ GameCapture video is not sent directly to the streaming encoder but is passed to
 
 GameCapture audio is input to the audio mixer defined in Chapter 12 and mixed into the final streaming audio in the same way as voice, BGM, SE, etc.
 
+### A Game on This PC
+
+A game running on the streaming PC can be taken from its window, without a capture board (added 2026-11-20).
+
+- It is an input of GameCapture, not a capture source of its own. On the stream it is the same game screen, so its placement on the stage and its audio stay as they are. Either the capture board or the window is used, not both.
+- The video is the window's client area, taken with Windows.Graphics.Capture and passed on as a capture texture. The Audio module takes only that program's sound, through Windows' process loopback (12.16).
+- The window is chosen by its program, so the choice holds after the game is started again. No window is captured until the user chooses one.
+- The details are in Capture detailed design 8.6 and Audio detailed design 8.7.
+
 ### Rationale
 
 Bringing game video into the Unity scene allows
@@ -867,6 +876,8 @@ Bringing game video into the Unity scene allows
 to be composed together in Unity.
 
 Also, limiting the dependency on the video / audio acquisition plugin to the inside of the adapter reduces the impact if the plugin implementation changes in the future.
+
+A game on this PC is an input of GameCapture because to the user it is the same "game screen" as a game through a capture board; splitting its placement and audio settings in two would leave the user to keep track of which one is in use.
 
 ---
 

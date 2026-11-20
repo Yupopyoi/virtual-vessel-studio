@@ -21,7 +21,46 @@ namespace VirtualVessel.Capture.SubScreen
         IDuplicationSession Open(string deviceName, bool drawPointer);
     }
 
-    /// <summary>One monitor being duplicated on a native thread. Disposing stops it and waits for the thread.</summary>
+    /// <summary>
+    /// The boundary to the plugin's window capture (Windows.Graphics.Capture), for a game on this PC (capture
+    /// detailed design 8.6); replaced by a fake in tests. Main thread only.
+    /// </summary>
+    internal interface IWindowCapture
+    {
+        /// <summary>The windows of other programs that can be captured, one per program (its largest).</summary>
+        /// <exception cref="CapturePluginMissingException">The plugin is missing or of another version.</exception>
+        IReadOnlyList<WindowDescription> ListWindows();
+
+        /// <summary>
+        /// Starts capturing the largest window of the program <paramref name="executable"/> (its file name) and
+        /// returns at once. The session reports <see cref="DuplicationState.MonitorLost"/> when the window is gone.
+        /// </summary>
+        /// <exception cref="CapturePluginMissingException">The plugin is missing or of another version.</exception>
+        IDuplicationSession OpenWindow(string executable, bool drawPointer);
+    }
+
+    internal readonly struct WindowDescription
+    {
+        public WindowDescription(string executable, string title, int width, int height)
+        {
+            Executable = executable;
+            Title = title;
+            Width = width;
+            Height = height;
+        }
+
+        /// <summary>The program's file name in lower case, such as game.exe.</summary>
+        public string Executable { get; }
+
+        public string Title { get; }
+
+        /// <summary>The client area in physical pixels.</summary>
+        public int Width { get; }
+
+        public int Height { get; }
+    }
+
+    /// <summary>One monitor or window being captured on a native thread. Disposing stops it and waits for the thread.</summary>
     internal interface IDuplicationSession : IDisposable
     {
         DuplicationStatus GetStatus();
@@ -42,7 +81,7 @@ namespace VirtualVessel.Capture.SubScreen
         /// <summary>The duplication was lost (a mode change, the secure desktop) and is being created again.</summary>
         Recovering = 2,
 
-        /// <summary>The monitor is not connected any more; the session has stopped.</summary>
+        /// <summary>The monitor is not connected any more, or the window was closed; the session has stopped.</summary>
         MonitorLost = 3,
 
         /// <summary>It gave up; the session has stopped.</summary>

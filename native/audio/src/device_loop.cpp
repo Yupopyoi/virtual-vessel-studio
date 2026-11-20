@@ -1,5 +1,6 @@
 #include "device_loop.h"
 
+#include "application_loopback.h"
 #include "mixer.h"
 #include "vv_audio.h"
 
@@ -14,26 +15,43 @@ namespace vv::audio
     namespace
     {
         constexpr DWORD RetryMilliseconds = 1000;
-
-        WAVEFORMATEXTENSIBLE FloatStereo()
-        {
-            WAVEFORMATEXTENSIBLE format = {};
-            format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-            format.Format.nChannels = Channels;
-            format.Format.nSamplesPerSec = SampleRate;
-            format.Format.wBitsPerSample = 32;
-            format.Format.nBlockAlign = Channels * sizeof(float);
-            format.Format.nAvgBytesPerSec = SampleRate * format.Format.nBlockAlign;
-            format.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
-            format.Samples.wValidBitsPerSample = 32;
-            format.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-            format.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-            return format;
-        }
     }
 
-    HRESULT OpenSharedClient(const std::wstring& deviceId, REFERENCE_TIME bufferDuration, HANDLE events, ComPtr<IAudioClient>& client)
+    WAVEFORMATEXTENSIBLE FloatStereo()
     {
+        WAVEFORMATEXTENSIBLE format = {};
+        format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+        format.Format.nChannels = Channels;
+        format.Format.nSamplesPerSec = SampleRate;
+        format.Format.wBitsPerSample = 32;
+        format.Format.nBlockAlign = Channels * sizeof(float);
+        format.Format.nAvgBytesPerSec = SampleRate * format.Format.nBlockAlign;
+        format.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+        format.Samples.wValidBitsPerSample = 32;
+        format.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
+        format.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+        return format;
+    }
+
+    HRESULT OpenSharedClient(const std::wstring& deviceId, REFERENCE_TIME bufferDuration, HANDLE events, ComPtr<IAudioClient>& client, HANDLE* ended)
+    {
+        std::wstring application = ApplicationOf(deviceId);
+        if (!application.empty())
+        {
+            HANDLE process = nullptr;
+            HRESULT opened = OpenApplicationLoopback(application, bufferDuration, events, client, process);
+            if (ended != nullptr)
+            {
+                *ended = process;
+            }
+            else if (process != nullptr)
+            {
+                CloseHandle(process);
+            }
+
+            return opened;
+        }
+
         ComPtr<IMMDeviceEnumerator> enumerator;
         HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
         ComPtr<IMMDevice> device;

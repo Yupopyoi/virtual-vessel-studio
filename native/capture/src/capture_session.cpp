@@ -22,64 +22,7 @@ namespace vv::capture
 
     Session::~Session()
     {
-        {
-            std::lock_guard<std::mutex> lock(_stopMutex);
-            _stop.store(true, std::memory_order_release);
-        }
-
-        _stopSignal.notify_all();
-        if (_thread.joinable())
-        {
-            _thread.join();
-        }
-    }
-
-    void Session::Start()
-    {
-        _thread = std::thread(&Session::Run, this);
-    }
-
-    vv_capture_status Session::Status() const
-    {
-        vv_capture_status status = {};
-        {
-            std::lock_guard<std::mutex> lock(_statusMutex);
-            status.state = _state;
-            status.last_error = static_cast<int32_t>(_lastError);
-            status.recoveries = _recoveries;
-        }
-
-        _exchange.Snapshot(status.frame_number, status.overwritten, status.width, status.height);
-        return status;
-    }
-
-    bool Session::Take(uint64_t after, vv_capture_frame& frame)
-    {
-        uint64_t number = 0;
-        const FrameBuffer* buffer = _exchange.Take(after, number);
-        if (buffer == nullptr)
-        {
-            return false;
-        }
-
-        frame.data = buffer->pixels.data();
-        frame.width = buffer->width;
-        frame.height = buffer->height;
-        frame.frame_number = number;
-        return true;
-    }
-
-    void Session::Run()
-    {
-        try
-        {
-            Capture();
-        }
-        catch (...)
-        {
-            // An exception leaving a thread would end the whole application.
-            SetState(VV_CAPTURE_FAILED, E_UNEXPECTED);
-        }
+        StopAndJoin();
     }
 
     void Session::Capture()
@@ -90,7 +33,7 @@ namespace vv::capture
         // after being created also waits and finally gives up instead of spinning.
         int failures = 0;
         bool wasRunning = false;
-        while (!_stop.load(std::memory_order_acquire))
+        while (!Stopping())
         {
             HRESULT hr;
             if (!duplication.IsCreated())
@@ -111,7 +54,7 @@ namespace vv::capture
             }
             else
             {
-                hr = duplication.Capture(_exchange, AcquireTimeoutMilliseconds);
+                hr = duplication.Capture(Exchange(), AcquireTimeoutMilliseconds);
                 if (hr == S_OK)
                 {
                     failures = 0;
@@ -138,28 +81,5 @@ namespace vv::capture
             SetState(wasRunning ? VV_CAPTURE_RECOVERING : VV_CAPTURE_STARTING, hr);
             Wait(delay);
         }
-    }
-
-    void Session::SetState(int32_t state, HRESULT error)
-    {
-        std::lock_guard<std::mutex> lock(_statusMutex);
-        _state = state;
-        _lastError = error;
-    }
-
-    void Session::SetRunning(bool recovered)
-    {
-        std::lock_guard<std::mutex> lock(_statusMutex);
-        _state = VV_CAPTURE_RUNNING;
-        if (recovered)
-        {
-            _recoveries++;
-        }
-    }
-
-    void Session::Wait(int milliseconds)
-    {
-        std::unique_lock<std::mutex> lock(_stopMutex);
-        _stopSignal.wait_for(lock, std::chrono::milliseconds(milliseconds), [this] { return _stop.load(std::memory_order_acquire); });
     }
 }

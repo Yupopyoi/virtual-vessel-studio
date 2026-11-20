@@ -798,7 +798,7 @@ The initial implementation provides GameCapture using a capture board and SubScr
 
 In the future, video input approaches such as the following can be added using the same capture source boundary:
 
-- window capture
+- window capture (added on 2026-11-20 as an input of GameCapture for a game on this PC, 10.21)
 - desktop capture with a different method
 - Spout input
 - network video input

@@ -3,6 +3,7 @@
 
 #include "vv_audio.h"
 
+#include "application_loopback.h"
 #include "audio_file.h"
 #include "denoiser.h"
 #include "device_source.h"
@@ -13,6 +14,7 @@
 
 #include <audioclient.h>
 #include <mferror.h>
+#include <mmsystem.h>
 
 #include <algorithm>
 #include <chrono>
@@ -816,6 +818,157 @@ namespace
         return EXCEPTION_EXECUTE_HANDLER;
     }
 
+    void ApplicationIds()
+    {
+        Check(ApplicationOf(L"app:game.exe") == L"game.exe", "an application ID names its program");
+        Check(ApplicationOf(L"{0.0.1.00000000}.{00000000-0000-0000-0000-000000000000}").empty(), "a device ID is not an application");
+        Check(ApplicationOf(L"app:").empty(), "an application ID without a program is none");
+
+        std::vector<ProcessEntry> processes = {
+            { 4, 0, L"System" },
+            { 100, 4, L"Launcher.exe" },
+            { 200, 100, L"Game.exe" },
+            { 300, 200, L"game.exe" },
+            { 400, 4, L"other.exe" },
+        };
+        Check(RootProcess(processes, L"game.exe") == 200, "the program's first process, not the one it started");
+        Check(RootProcess(processes, L"missing.exe") == 0, "a program that is not running");
+
+        // A browser: its window's process was started by another of its processes, and plays a page's sound from a
+        // helper it started; a second browser root (another profile) shows no window and was found first.
+        std::vector<ProcessEntry> browser = {
+            { 10, 4, L"msedge.exe" },
+            { 20, 4, L"msedge.exe" },
+            { 21, 20, L"msedge.exe" },
+            { 22, 20, L"msedge.exe" },
+        };
+        Check(ProcessFor(browser, L"msedge.exe", 21) == 20, "up to the root of the window's own tree");
+        Check(ProcessFor(browser, L"msedge.exe", 20) == 20, "the window's process is the root");
+        Check(ProcessFor(browser, L"msedge.exe", 0) == 10, "without a window, the first root");
+        Check(ProcessFor(browser, L"msedge.exe", 400) == 10, "a window of another program does not count");
+        std::vector<ProcessEntry> loop = { { 30, 31, L"game.exe" }, { 31, 30, L"game.exe" } };
+        Check(ProcessFor(loop, L"game.exe", 30) != 0, "reused process IDs that point at each other end");
+    }
+
+    // A program that plays a 440 Hz tone over and over, for the test of a program's sound: a copy of this test under
+    // another name, run with --play-tone.
+    int PlayTone()
+    {
+        const int rate = 48000;
+        const int samples = rate;
+        std::vector<uint8_t> wave(44 + samples * 2);
+        auto put32 = [&](size_t at, uint32_t value) { std::memcpy(wave.data() + at, &value, 4); };
+        auto put16 = [&](size_t at, uint16_t value) { std::memcpy(wave.data() + at, &value, 2); };
+        std::memcpy(wave.data(), "RIFF", 4);
+        put32(4, static_cast<uint32_t>(wave.size() - 8));
+        std::memcpy(wave.data() + 8, "WAVEfmt ", 8);
+        put32(16, 16);
+        put16(20, 1);
+        put16(22, 1);
+        put32(24, rate);
+        put32(28, rate * 2);
+        put16(32, 2);
+        put16(34, 16);
+        std::memcpy(wave.data() + 36, "data", 4);
+        put32(40, samples * 2);
+        for (int i = 0; i < samples; i++)
+        {
+            put16(44 + static_cast<size_t>(i) * 2, static_cast<uint16_t>(static_cast<int16_t>(16000.0 * std::sin(2.0 * 3.14159265358979 * 440.0 * i / rate))));
+        }
+
+        if (!PlaySoundW(reinterpret_cast<LPCWSTR>(wave.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_LOOP))
+        {
+            return 2;
+        }
+
+        // Ended by the test; this is only in case the test does not.
+        Sleep(20'000);
+        return 0;
+    }
+
+    vv_audio_source_status WaitForSource(vv_audio_engine* engine, int32_t source, int32_t state, int seconds)
+    {
+        vv_audio_source_status status = {};
+        auto start = std::chrono::steady_clock::now();
+        do
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            vv_audio_get_source_status(engine, source, &status);
+        }
+        while (status.state != state && std::chrono::steady_clock::now() - start < std::chrono::seconds(seconds));
+
+        return status;
+    }
+
+    // Only the chosen program's sound, through Windows' process loopback (audio detailed design 8.7): it is heard
+    // while the program plays, and the source is unavailable once the program has exited.
+    void ApplicationOnThisPc()
+    {
+        vv_audio_device devices[4];
+        int32_t count = 0;
+        if (vv_audio_list_inputs(devices, 4, &count) != VV_AUDIO_OK)
+        {
+            std::printf("SKIP a program's sound: no audio service\n");
+            return;
+        }
+
+        wchar_t self[MAX_PATH];
+        GetModuleFileNameW(nullptr, self, MAX_PATH);
+        // Beside this test, where the plugin it loads is.
+        std::wstring player(self);
+        player = player.substr(0, player.find_last_of(L"/\\") + 1) + L"vv_tone_player.exe";
+        Check(CopyFileW(self, player.c_str(), FALSE) != FALSE, "the tone player is in place");
+        std::wstring command = L"\"" + player + L"\" --play-tone";
+        STARTUPINFOW startup = { sizeof(startup) };
+        PROCESS_INFORMATION child = {};
+        if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &child))
+        {
+            Check(false, "the tone player starts");
+            return;
+        }
+
+        vv_audio_engine* engine = nullptr;
+        vv_audio_create(&engine);
+        int32_t source = -1;
+        vv_audio_add_source(engine, &source);
+        vv_audio_set_device(engine, source, L"app:vv_tone_player.exe");
+        vv_audio_source_status status = WaitForSource(engine, source, VV_AUDIO_SOURCE_RUNNING, 5);
+        std::printf("program's sound: state %d, error 0x%08x\n", status.state, static_cast<unsigned>(status.last_error));
+        Check(status.state == VV_AUDIO_SOURCE_RUNNING, "the program's sound runs");
+
+        float loudest = -200.0f;
+        for (int i = 0; i < 30; i++)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            vv_audio_get_source_status(engine, source, &status);
+            loudest = std::max(loudest, status.peak_db);
+        }
+
+        std::printf("program's sound: loudest %.1f dB\n", loudest);
+        // Windows mixes a program's sound only on an output device; CI's hosted runners have an audio service but
+        // no output, so the tone is silent there.
+        vv_audio_device outputs[4];
+        int32_t outputCount = 0;
+        vv_audio_list_outputs(outputs, 4, &outputCount);
+        if (outputCount > 0)
+        {
+            Check(loudest > -20.0f, "the program's tone is heard");
+        }
+        else
+        {
+            std::printf("SKIP the program's tone is heard: no output device\n");
+        }
+
+        TerminateProcess(child.hProcess, 0);
+        WaitForSingleObject(child.hProcess, 5000);
+        CloseHandle(child.hThread);
+        CloseHandle(child.hProcess);
+        status = WaitForSource(engine, source, VV_AUDIO_SOURCE_UNAVAILABLE, 3);
+        Check(status.state == VV_AUDIO_SOURCE_UNAVAILABLE, "the program's sound is unavailable once it has exited");
+        vv_audio_destroy(engine);
+        DeleteFileW(player.c_str());
+    }
+
     void Step(const char* name, void (*test)())
     {
         std::printf("== %s\n", name);
@@ -823,8 +976,13 @@ namespace
     }
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc > 1 && std::strcmp(argv[1], "--play-tone") == 0)
+    {
+        return PlayTone();
+    }
+
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     SetUnhandledExceptionFilter(ReportCrash);
     Step("gain, mute, and sends", GainMuteAndSends);
@@ -839,9 +997,11 @@ int main()
     Step("fill", Fill);
     Step("ramps", Ramps);
     Step("problems", Problems);
+    Step("application IDs", ApplicationIds);
     Step("audio files", AudioFiles);
     Step("preview", Preview);
     Step("the engine on this PC", EngineOnThisPc);
+    Step("a program's sound on this PC", ApplicationOnThisPc);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;
 }

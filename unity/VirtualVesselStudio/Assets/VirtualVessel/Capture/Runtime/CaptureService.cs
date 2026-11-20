@@ -181,14 +181,15 @@ namespace VirtualVessel.Capture
             // None touches a device or the native plugin until it is started. The two camera sources
             // keep off each other's device, which WebCamTexture cannot open twice.
             var cameras = new UnityCameraDevices();
+            var plugin = new DesktopDuplicationNative();
             WebCamCaptureSource game = null;
             WebCamCaptureSource camera = null;
-            game = WebCamCaptureSource.ForGame(cameras, settings, clock, metrics, log, id => IsOpen(camera, id));
+            game = WebCamCaptureSource.ForGame(cameras, settings, clock, metrics, log, id => IsOpen(camera, id), plugin);
             camera = WebCamCaptureSource.ForTrackingCamera(cameras, settings, clock, metrics, log, id => IsOpen(game, id));
             return new CaptureSourceBase[]
             {
                 game,
-                new SubScreenCaptureSource(new DesktopDuplicationNative(), settings, clock, metrics, log),
+                new SubScreenCaptureSource(plugin, settings, clock, metrics, log),
                 camera,
             };
         }

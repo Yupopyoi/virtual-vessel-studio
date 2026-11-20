@@ -432,6 +432,8 @@ For game / capture audio, at least the following can be controlled:
 
 SubScreenCapture targets video only in the initial implementation, and a function that automatically obtains desktop audio is not required.
 
+When a game on this PC is taken from its window (10.21), its sound is taken from that program alone and handled as the same game audio source. It is taken per program, not as the PC's whole sound (desktop audio), so the browser and notifications stay out of the stream. The PC plays the game's sound to the user directly, so it is not sent to the monitor output.
+
 ### Rationale
 
 Sending game audio directly from the video capture function to the stream makes it impossible to centrally manage volume balance and routing with voice, BGM, and SE.

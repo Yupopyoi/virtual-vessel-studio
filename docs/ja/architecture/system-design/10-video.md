@@ -882,6 +882,15 @@ GameCapture映像は直接配信Encoderへ送らず、Capture TextureとしてUn
 
 GameCapture音声は12章で定義するAudio Mixerへ入力し、Voice、BGM、SE等と同様に最終配信音声へMixする。
 
+### このPCのゲーム
+
+配信するPCで動くゲームは、Capture Boardを使わず、そのウィンドウから取り込める（2026-11-20に追加）。
+
+- 独立したCapture Sourceではなく、GameCaptureの入力元の1つとする。配信では同じゲーム画面であり、Stageでの配置と音声はそのまま使う。Capture Boardとウィンドウは、どちらか一方を使う。
+- 映像はWindows.Graphics.Captureでウィンドウのクライアント領域を取り込み、Capture Textureとして渡す。音声はAudio Moduleが、同じプログラムの音だけをWindowsのプロセスのループバックで取る（12.16）。
+- ウィンドウはプログラムで選び、ゲームを起動し直しても選んだままになる。利用者が選ぶまで、どのウィンドウも取り込まない。
+- 詳細はCapture詳細設計8.6、Audio詳細設計8.7。
+
 ### 採用理由
 
 ゲーム映像をUnity Scene内へ取り込むことで、
@@ -895,6 +904,8 @@ GameCapture音声は12章で定義するAudio Mixerへ入力し、Voice、BGM、
 をUnity上で一体として構成できる。
 
 また、映像・音声取得Pluginへの依存をAdapter内部に限定することで、将来Plugin実装を変更した場合の影響を小さくする。
+
+このPCのゲームをGameCaptureの入力元とするのは、利用者にとってはCapture Boardのゲームと同じ「ゲーム画面」であり、配置や音声の設定を2つに分けると、どちらを使っているかを利用者が管理しなければならなくなるためである。
 
 ---
 
