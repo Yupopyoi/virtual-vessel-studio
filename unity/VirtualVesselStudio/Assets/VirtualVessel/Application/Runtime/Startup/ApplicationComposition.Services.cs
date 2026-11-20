@@ -31,6 +31,7 @@ using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.UI.Shortcuts;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Video;
@@ -59,6 +60,7 @@ namespace VirtualVessel.Application.Startup
             public AudioClipLibrary Clips;
             public BgmPlayer Bgm;
             public SoundEffectPlayer SoundEffects;
+            public SoundEffectShortcuts EffectShortcuts;
             public VoiceService Voice;
             public VideoService Video;
             public StageService Stage;
@@ -180,6 +182,21 @@ namespace VirtualVessel.Application.Startup
                 ServiceCriticality.Optional,
                 () => built.SoundEffects = new SoundEffectPlayer(() => built.Audio?.PlayerEngine, built.Clips, built.Log("Audio", "SoundEffects"), built.Metrics),
                 new[] { LoggingService.ServiceName, AudioService.ServiceName, BgmPlayer.ServiceName });
+
+            // Keys that play sound effects from any app, so they work while the user is in a game (BGM and SE detailed
+            // design 8.3). Windows only; without it, the sound effects still play from their buttons.
+            if (UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsPlayer || UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsEditor)
+            {
+                yield return new ApplicationServiceDescriptor(
+                    SoundEffectShortcuts.ServiceName,
+                    ServiceCriticality.Optional,
+                    () =>
+                    {
+                        ILog log = built.Log("UI", "Shortcuts");
+                        return built.EffectShortcuts = new SoundEffectShortcuts(built.Clips, built.SoundEffects, new WindowsGlobalShortcuts(log), log);
+                    },
+                    new[] { LoggingService.ServiceName, SoundEffectPlayer.ServiceName });
+            }
 
             // The BGM and SE that come with the app, added once to the library in the system's language.
             yield return new ApplicationServiceDescriptor(
@@ -405,6 +422,7 @@ namespace VirtualVessel.Application.Startup
                 AudioClips = built.Clips,
                 Bgm = built.Bgm,
                 SoundEffects = built.SoundEffects,
+                Shortcuts = built.EffectShortcuts?.Keys,
                 SystemSettings = new WindowsSystemSettings(),
                 Recording = built.Recording,
                 Streaming = built.Streaming,

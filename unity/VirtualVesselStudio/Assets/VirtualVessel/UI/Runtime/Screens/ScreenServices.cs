@@ -13,6 +13,7 @@ using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Shortcuts;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
@@ -66,6 +67,12 @@ namespace VirtualVessel.UI.Screens
         public IBgmPlayer Bgm { get; set; }
 
         public ISoundEffectPlayer SoundEffects { get; set; }
+
+        /// <summary>
+        /// The keys that play sound effects from any app (BGM and SE detailed design 8.3); null leaves out the
+        /// shortcut column.
+        /// </summary>
+        public IGlobalShortcuts Shortcuts { get; set; }
 
         /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
         public ISystemSettings SystemSettings { get; set; }
