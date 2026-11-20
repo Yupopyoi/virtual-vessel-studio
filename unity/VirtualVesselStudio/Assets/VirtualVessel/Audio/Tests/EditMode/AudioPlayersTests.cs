@@ -65,11 +65,11 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(added.Ok, Is.True, added.Detail);
             Assert.That(added.Value.Id, Does.StartWith("bgm-"));
             Assert.That(added.Value.Name, Is.EqualTo("Fluffy-90"), "Without a name, the file's.");
-            Assert.That(added.Value.Loop, Is.True, "BGM loops by default.");
-            Assert.That(added.Value.Duration, Is.EqualTo(TimeSpan.FromSeconds(90)));
-            Assert.That(added.Value.OriginalName, Is.EqualTo("Fluffy-90.mp3"));
-            Assert.That(File.Exists(added.Value.FilePath) && added.Value.FilePath != Path.Combine(_sources, "Fluffy-90.mp3"), Is.True, "Played from the copy.");
-            Assert.That(Path.GetFileName(added.Value.FilePath), Is.EqualTo("audio.mp3"));
+            Assert.That(added.Value.Settings.Loop, Is.True, "BGM loops by default.");
+            Assert.That(added.Value.File.Duration, Is.EqualTo(TimeSpan.FromSeconds(90)));
+            Assert.That(added.Value.File.OriginalName, Is.EqualTo("Fluffy-90.mp3"));
+            Assert.That(File.Exists(added.Value.File.Path) && added.Value.File.Path != Path.Combine(_sources, "Fluffy-90.mp3"), Is.True, "Played from the copy.");
+            Assert.That(Path.GetFileName(added.Value.File.Path), Is.EqualTo("audio.mp3"));
             Assert.That(_library.List(AudioClipKind.Bgm).Value.Select(c => c.Id), Is.EqualTo(new[] { added.Value.Id }));
             Assert.That(_library.List(AudioClipKind.SoundEffect).Value, Is.Empty, "Each kind is listed apart.");
             Assert.That(changed, Is.EqualTo(1));
@@ -93,20 +93,50 @@ namespace VirtualVessel.Audio.Tests
         public void Changes_AreKept_WithFieldsThisVersionDoesNotKnow()
         {
             AudioClipRecord added = _library.AddAsync(AudioClipKind.SoundEffect, Source("Ding-2.wav"), "Ding", null, CancellationToken.None).GetAwaiter().GetResult().Value;
-            Assert.That(added.Loop, Is.False, "SE does not loop.");
-            string profile = Path.Combine(Path.GetDirectoryName(added.FilePath), AudioClipLibrary.ProfileFile);
+            Assert.That(added.Settings.Loop, Is.False, "SE does not loop.");
+            string profile = Path.Combine(Path.GetDirectoryName(added.File.Path), AudioClipLibrary.ProfileFile);
             File.WriteAllText(profile, File.ReadAllText(profile).Replace("\"name\"", "\"shortcut\": \"F1\",\n  \"name\""));
 
             CrudResult<AudioClipRecord> updated = _library.Update(added.Id, new AudioClipChange(name: " Chime ", gainDb: 40f, loop: true));
 
             Assert.That(updated.Ok, Is.True, updated.Detail);
             Assert.That(updated.Value.Name, Is.EqualTo("Chime"));
-            Assert.That(updated.Value.GainDb, Is.EqualTo(AudioSourceOptions.MaxGainDb), "Clamped.");
-            Assert.That(updated.Value.Loop, Is.False, "Loop is BGM's only.");
+            Assert.That(updated.Value.Settings.GainDb, Is.EqualTo(AudioSourceOptions.MaxGainDb), "Clamped.");
+            Assert.That(updated.Value.Settings.Loop, Is.False, "Loop is BGM's only.");
             Assert.That(File.ReadAllText(profile), Does.Contain("\"shortcut\""), "A later version's field is kept (CLAUDE.md 25).");
             Assert.That(_library.Update(added.Id, new AudioClipChange(name: "  ")).Error, Is.EqualTo(CrudError.Invalid));
             Assert.That(_library.Update(added.Id, new AudioClipChange(name: new string('a', 61))).Error, Is.EqualTo(CrudError.Invalid));
             Assert.That(_library.Update("se-none", new AudioClipChange(gainDb: 0f)).Error, Is.EqualTo(CrudError.NotFound));
+        }
+
+        [Test]
+        public void RecordOf_MakesAProfilesValuesUsable()
+        {
+            var edited = new AudioClipProfile
+            {
+                Name = "  ",
+                OriginalName = "Ding-2.wav",
+                GainDb = 99f,
+                Loop = true,
+                DurationSeconds = double.NaN,
+                AddedAtUtc = "2026-11-21T01:02:03Z",
+            };
+
+            AudioClipRecord effect = AudioClipLibrary.RecordOf("se-1", edited, @"C:\library\se-1\audio.wav");
+
+            Assert.That(effect.Kind, Is.EqualTo(AudioClipKind.SoundEffect));
+            Assert.That(effect.Name, Is.EqualTo("Ding-2"), "An empty name takes the file's.");
+            Assert.That(effect.Settings.GainDb, Is.EqualTo(AudioSourceOptions.MaxGainDb), "Clamped.");
+            Assert.That(effect.Settings.Loop, Is.False, "Loop is BGM's only.");
+            Assert.That(effect.File.Duration, Is.EqualTo(TimeSpan.Zero), "A length that is not a number is unknown.");
+            Assert.That(effect.File.AddedAt, Is.EqualTo(new DateTimeOffset(2026, 11, 21, 1, 2, 3, TimeSpan.Zero)));
+            Assert.That(effect.File.Path, Is.EqualTo(@"C:\library\se-1\audio.wav"));
+            Assert.That(effect.Names, Is.Null, "The user's own file has no names per language.");
+
+            edited.DurationSeconds = -5;
+            AudioClipRecord bgm = AudioClipLibrary.RecordOf("bgm-1", edited, @"C:\library\bgm-1\audio.wav");
+            Assert.That(bgm.Settings.Loop, Is.True);
+            Assert.That(bgm.File.Duration, Is.EqualTo(TimeSpan.Zero), "No negative length.");
         }
 
         [Test]
@@ -186,7 +216,7 @@ namespace VirtualVessel.Audio.Tests
         public void Arrange_PutsThePlacedFirst_ThenByWhenAdded()
         {
             var early = DateTimeOffset.Parse("2026-11-01T00:00:00Z");
-            AudioClipRecord Clip(string id, int day) => new AudioClipRecord(id, AudioClipKind.Bgm, id, 0f, true, TimeSpan.Zero, id, early.AddDays(day), id);
+            AudioClipRecord Clip(string id, int day) => new AudioClipRecord(id, AudioClipKind.Bgm, id, new AudioClipSettings(0f, true), new AudioClipFile(id, id, TimeSpan.Zero, early.AddDays(day)));
             AudioClipRecord[] records = { Clip("bgm-a", 2), Clip("bgm-b", 1), Clip("bgm-c", 3), Clip("bgm-d", 0) };
 
             Assert.That(AudioClipLibrary.Arrange(records, new[] { "bgm-c", "bgm-gone", "bgm-a" }).Select(c => c.Id), Is.EqualTo(new[] { "bgm-c", "bgm-a", "bgm-d", "bgm-b" }));
@@ -371,7 +401,7 @@ namespace VirtualVessel.Audio.Tests
 
         private static AudioClipRecord Record(string id, string path, float gainDb = 0f)
         {
-            return new AudioClipRecord(id, AudioClipLibrary.KindOf(id).Value, id, gainDb, id.StartsWith("bgm"), TimeSpan.FromSeconds(10), id, DateTimeOffset.UnixEpoch, path);
+            return new AudioClipRecord(id, AudioClipLibrary.KindOf(id).Value, id, new AudioClipSettings(gainDb, id.StartsWith("bgm")), new AudioClipFile(path, id, TimeSpan.FromSeconds(10), DateTimeOffset.UnixEpoch));
         }
 
         private static void Tick(FrameLoop loop, ManualClock clock)

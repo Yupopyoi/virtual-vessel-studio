@@ -102,7 +102,7 @@ namespace VirtualVessel.Audio.Tests
 
             Assert.That(Names(AudioClipKind.Bgm), Is.EqualTo(new[] { "ポップ", "ワルツ" }));
             Assert.That(Names(AudioClipKind.SoundEffect), Is.EqualTo(new[] { "ピンポーン" }));
-            Assert.That(_library.List(AudioClipKind.Bgm).Value.All(clip => clip.Loop), Is.True, "Built-in BGM loops, like any BGM.");
+            Assert.That(_library.List(AudioClipKind.Bgm).Value.All(clip => clip.Settings.Loop), Is.True, "Built-in BGM loops, like any BGM.");
         }
 
         [Test]

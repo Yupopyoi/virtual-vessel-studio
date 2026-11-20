@@ -120,7 +120,7 @@ namespace VirtualVessel.Audio.Playback
             foreach (AudioClipRecord record in registered)
             {
                 present.Add(record.Id);
-                if (!loadedPaths.TryGetValue(record.Id, out string path) || path != record.FilePath)
+                if (!loadedPaths.TryGetValue(record.Id, out string path) || path != record.File.Path)
                 {
                     load.Add(record);
                 }
@@ -187,7 +187,7 @@ namespace VirtualVessel.Audio.Playback
                 {
                     if (_loaded.TryGetValue(record.Id, out (int Effect, float GainDb, string Path) loaded))
                     {
-                        _loaded[record.Id] = (loaded.Effect, record.GainDb, loaded.Path);
+                        _loaded[record.Id] = (loaded.Effect, record.Settings.GainDb, loaded.Path);
                     }
                 }
             }
@@ -207,7 +207,7 @@ namespace VirtualVessel.Audio.Playback
 
             foreach (AudioClipRecord record in load)
             {
-                AudioEffectLoad loaded = engine.LoadEffect(record.FilePath);
+                AudioEffectLoad loaded = engine.LoadEffect(record.File.Path);
                 if (loaded.Effect < 0)
                 {
                     _log?.Warning($"Sound effect {record.Id} cannot be loaded: {loaded.Problem}");
@@ -221,7 +221,7 @@ namespace VirtualVessel.Audio.Playback
                         engine.UnloadEffect(previous.Effect);
                     }
 
-                    _loaded[record.Id] = (loaded.Effect, record.GainDb, record.FilePath);
+                    _loaded[record.Id] = (loaded.Effect, record.Settings.GainDb, record.File.Path);
                 }
             }
 

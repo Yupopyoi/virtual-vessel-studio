@@ -211,7 +211,7 @@ namespace VirtualVessel.UI.Screens
             }
             else
             {
-                _bgm.Play(new SingleTrack(record.Id, record.Loop));
+                _bgm.Play(new SingleTrack(record.Id, record.Settings.Loop));
             }
         }
 
@@ -627,7 +627,7 @@ namespace VirtualVessel.UI.Screens
                 Root.Add(name);
 
                 VisualElement length = Cell(LengthColumn);
-                Label lengthText = QuietText.Of(new Label(LengthText(record.Duration)));
+                Label lengthText = QuietText.Of(new Label(LengthText(record.File.Duration)));
                 lengthText.AddToClassList("vv-text-body");
                 lengthText.AddToClassList("vv-mono");
                 length.Add(lengthText);
@@ -636,7 +636,7 @@ namespace VirtualVessel.UI.Screens
                 if (kind == AudioClipKind.Bgm)
                 {
                     LoopToggle = new SwitchToggle();
-                    LoopToggle.SetValueWithoutNotify(record.Loop);
+                    LoopToggle.SetValueWithoutNotify(record.Settings.Loop);
                     LoopToggle.TooltipKey = AudioClipStrings.LoopDescription;
                     LoopToggle.RegisterValueChangedCallback(evt => _card.Change(Record, new AudioClipChange(loop: evt.newValue)));
                     VisualElement loop = Cell(LoopColumn);
@@ -647,7 +647,7 @@ namespace VirtualVessel.UI.Screens
                 Gain = Ui.Slider(null, VirtualVessel.Audio.AudioSourceOptions.MinGainDb, VirtualVessel.Audio.AudioSourceOptions.MaxGainDb, "dB");
                 Gain.Step = 1f;
                 Gain.Signed = true;
-                Gain.SetValueWithoutNotify(record.GainDb);
+                Gain.SetValueWithoutNotify(record.Settings.GainDb);
                 Gain.RegisterValueChangedCallback(evt => _card.Change(Record, new AudioClipChange(gainDb: evt.newValue)));
                 VisualElement gain = Cell(GainColumn);
                 gain.Add(Gain);
