@@ -28,21 +28,56 @@ namespace VirtualVessel.Audio.Clips
         TooLong,
     }
 
+    /// <summary>A registration's file as it was registered; none of it changes afterwards.</summary>
+    public readonly struct AudioClipFile
+    {
+        public AudioClipFile(string path, string originalName, TimeSpan duration, DateTimeOffset addedAt)
+        {
+            Path = path;
+            OriginalName = originalName;
+            Duration = duration;
+            AddedAt = addedAt;
+        }
+
+        /// <summary>The copy in the library, which playback reads.</summary>
+        public string Path { get; }
+
+        /// <summary>The name of the file the user chose.</summary>
+        public string OriginalName { get; }
+
+        /// <summary>Zero when the file does not say.</summary>
+        public TimeSpan Duration { get; }
+
+        public DateTimeOffset AddedAt { get; }
+    }
+
+    /// <summary>How a registration plays, as the user set it with <see cref="AudioClipChange"/>.</summary>
+    public readonly struct AudioClipSettings
+    {
+        public AudioClipSettings(float gainDb, bool loop)
+        {
+            GainDb = gainDb;
+            Loop = loop;
+        }
+
+        /// <summary>The file's own volume, apart from the BGM or SE source's.</summary>
+        public float GainDb { get; }
+
+        /// <summary>BGM only: plays again from its start at its end.</summary>
+        public bool Loop { get; }
+    }
+
     /// <summary>One registered BGM or SE (BGM and SE detailed design 6.1).</summary>
     public sealed class AudioClipRecord
     {
-        public AudioClipRecord(string id, AudioClipKind kind, string name, float gainDb, bool loop, TimeSpan duration, string originalName, DateTimeOffset addedAt, string filePath, IReadOnlyDictionary<string, string> names = null)
+        public AudioClipRecord(string id, AudioClipKind kind, string name, AudioClipSettings settings, AudioClipFile file, IReadOnlyDictionary<string, string> names = null)
         {
-            Names = names;
             Id = id;
             Kind = kind;
             Name = name;
-            GainDb = gainDb;
-            Loop = loop;
-            Duration = duration;
-            OriginalName = originalName;
-            AddedAt = addedAt;
-            FilePath = filePath;
+            Settings = settings;
+            File = file;
+            Names = names;
         }
 
         public string Id { get; }
@@ -77,21 +112,9 @@ namespace VirtualVessel.Audio.Clips
             return Name;
         }
 
-        /// <summary>The file's own volume, apart from the BGM or SE source's.</summary>
-        public float GainDb { get; }
+        public AudioClipSettings Settings { get; }
 
-        /// <summary>BGM only: plays again from its start at its end.</summary>
-        public bool Loop { get; }
-
-        /// <summary>Zero when the file does not say.</summary>
-        public TimeSpan Duration { get; }
-
-        public string OriginalName { get; }
-
-        public DateTimeOffset AddedAt { get; }
-
-        /// <summary>The copy in the library, which playback reads.</summary>
-        public string FilePath { get; }
+        public AudioClipFile File { get; }
     }
 
     /// <summary>A change to a registration: the values to set, the others left as they are.</summary>

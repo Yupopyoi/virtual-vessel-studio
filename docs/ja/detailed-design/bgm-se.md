@@ -41,7 +41,7 @@
 | `AudioClipLibrary` | Class | `Audio/BGM/<id>/`と`Audio/SE/<id>/`を読み書きする |
 | `AudioClipKind` | Enum | `Bgm`、`SoundEffect` |
 | `BuiltInAudioClips` | Class（Service） | 同梱のBGMとSEを、初めての起動時にライブラリへ登録する（6.3） |
-| `AudioClipRecord` | Record | 1つの登録：ID、種類、名前、音量、ループ、長さ、元のファイル名、登録の日時 |
+| `AudioClipRecord` | Record | 1つの登録：ID、種類、名前（同梱のものは言語ごとの名前も）、`Settings`（`AudioClipSettings`：利用者が変える音量とループ）、`File`（`AudioClipFile`：登録したときから変わらない、ライブラリーの中のファイル、元のファイル名、長さ、登録の日時） |
 | `IBgmPlayer` | Interface | BGMの再生、停止、今の状態 |
 | `IBgmSequence` | Interface | 次に流す曲を決める。最初の版は`SingleTrack`（1曲、ループするかしないか） |
 | `ISoundEffectPlayer` | Interface | SEを鳴らす、全部止める |

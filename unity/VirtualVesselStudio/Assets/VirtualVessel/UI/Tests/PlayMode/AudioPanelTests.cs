@@ -133,6 +133,12 @@ namespace VirtualVessel.UI.Tests
             Assert.That(GameAudioRow.Find(devices, null), Is.Null);
         }
 
+        // A video device as the capture Card hands it over; null for none.
+        private static CaptureDevice Video(string id, string name)
+        {
+            return id == null ? null : new CaptureDevice(id, name);
+        }
+
         [Test]
         public void Follow_KeepsAChoiceThatIsTheUsersOwn()
         {
@@ -143,10 +149,10 @@ namespace VirtualVessel.UI.Tests
                 new AudioDevice("b", "Audio (Board B)", false),
             };
 
-            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, null, "Board A", "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "Board B", "Board B"), Is.EqualTo("b"), "It followed the old board.");
-            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "Board B", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "Webcam", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, Video(null, null), Video("Board A", "Board A")), Is.EqualTo("a"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("Board B", "Board B")), Is.EqualTo("b"), "It followed the old board.");
+            Assert.That(GameAudioRow.Follow(devices, "line", Video("Board A", "Board A"), Video("Board B", "Board B")), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("Webcam", "Webcam")), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
         }
 
         [Test]
@@ -158,13 +164,13 @@ namespace VirtualVessel.UI.Tests
                 new AudioDevice("a", "Audio (Board A)", false),
             };
 
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "From a board to a game's window.");
-            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, null, "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "Nothing chosen yet.");
-            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "window:other.exe", "Other (other.exe)"), Is.EqualTo("app:other.exe"), "From window to window.");
-            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", "Board A", "Board A"), Is.EqualTo("a"), "Back to a board.");
-            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", "window:game.exe", "My Game (game.exe)", null, null), Is.Null, "A window's sound does not stay without it.");
-            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board A", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "A window always brings its own sound.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "window:old.exe", "Old (old.exe)", "window:game.exe", "My Game (game.exe)"), Is.EqualTo("app:game.exe"), "Even when a board's sound was left from before (2026-11-20).");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "From a board to a game's window.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, Video(null, null), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video("window:other.exe", "Other (other.exe)")), Is.EqualTo("app:other.exe"), "From window to window.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video("Board A", "Board A")), Is.EqualTo("a"), "Back to a board.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video(null, null)), Is.Null, "A window's sound does not stay without it.");
+            Assert.That(GameAudioRow.Follow(devices, "line", Video("Board A", "Board A"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "A window always brings its own sound.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("window:old.exe", "Old (old.exe)"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "Even when a board's sound was left from before (2026-11-20).");
         }
 
         [Test]

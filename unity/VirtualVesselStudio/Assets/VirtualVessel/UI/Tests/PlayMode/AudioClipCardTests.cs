@@ -327,7 +327,7 @@ namespace VirtualVessel.UI.Tests
 
             public void Add(AudioClipKind kind, string id, string name, int seconds, IReadOnlyDictionary<string, string> names = null)
             {
-                _records.Add(new AudioClipRecord(id, kind, name, 0f, kind == AudioClipKind.Bgm, TimeSpan.FromSeconds(seconds), name + ".mp3", DateTimeOffset.UtcNow, @"C:\clips\" + id, names));
+                _records.Add(new AudioClipRecord(id, kind, name, new AudioClipSettings(0f, kind == AudioClipKind.Bgm), new AudioClipFile(@"C:\clips\" + id, name + ".mp3", TimeSpan.FromSeconds(seconds), DateTimeOffset.UtcNow), names));
             }
 
             public CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind)

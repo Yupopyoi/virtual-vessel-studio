@@ -247,11 +247,11 @@ namespace VirtualVessel.UI.Screens
             return new Subscriptions(subscriptions);
         }
 
-        // A capture board's ID is its name, so one that is not plugged in now is still named; a window is not.
-        private string NameOf(string deviceId)
+        // A capture board's ID is its name, so one that is not plugged in now is still a device by that name; a window
+        // that is gone is known by its ID, which names its program.
+        private CaptureDevice DeviceOf(string deviceId)
         {
-            string listed = _source.Devices.FirstOrDefault(device => device.Id == deviceId)?.DisplayName;
-            return listed ?? (CaptureWindow.IsWindow(deviceId) ? null : deviceId);
+            return string.IsNullOrEmpty(deviceId) ? null : _source.Devices.FirstOrDefault(device => device.Id == deviceId) ?? new CaptureDevice(deviceId, null);
         }
 
         private void RefreshDevices()
@@ -275,7 +275,7 @@ namespace VirtualVessel.UI.Screens
         {
             string previous = string.IsNullOrEmpty(previousId) ? _letGo : previousId;
             _letGo = null;
-            _audio?.VideoChanged(previous, NameOf(previous), nextId, NameOf(nextId));
+            _audio?.VideoChanged(DeviceOf(previous), DeviceOf(nextId));
             _source.SelectDevice(string.IsNullOrEmpty(nextId) ? null : nextId);
             _audio?.ShowVideo(_source.SelectedDeviceId);
         }

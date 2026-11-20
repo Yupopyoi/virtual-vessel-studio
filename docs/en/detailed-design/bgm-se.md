@@ -41,7 +41,7 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 | `AudioClipLibrary` | Class | Reads and writes `Audio/BGM/<id>/` and `Audio/SE/<id>/` |
 | `AudioClipKind` | Enum | `Bgm`, `SoundEffect` |
 | `BuiltInAudioClips` | Class (service) | Registers the BGM and SE that come with the app in the library on the first start (6.3) |
-| `AudioClipRecord` | Record | One registration: ID, kind, name, volume, loop, length, original file name, when it was added |
+| `AudioClipRecord` | Record | One registration: ID, kind, name (and, for a built-in file, the names per language), `Settings` (`AudioClipSettings`: the volume and loop the user changes), and `File` (`AudioClipFile`: unchanged since it was registered: the file in the library, the original file name, the length, when it was added) |
 | `IBgmPlayer` | Interface | Plays and stops BGM, and its current state |
 | `IBgmSequence` | Interface | Decides the next track. The first version has `SingleTrack` (one track, looped or not) |
 | `ISoundEffectPlayer` | Interface | Plays an SE, stops them all |

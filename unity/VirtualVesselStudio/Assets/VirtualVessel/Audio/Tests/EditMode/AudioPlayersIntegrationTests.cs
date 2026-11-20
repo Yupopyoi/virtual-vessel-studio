@@ -58,7 +58,7 @@ namespace VirtualVessel.Audio.Tests
                 var library = new AudioClipLibrary(Path.Combine(_root, "Audio"), new UtcSystemClock(), AudioFile.Probe, () => Guid.NewGuid().ToString("N").Substring(0, 8));
                 CrudResult<AudioClipRecord> bgm = library.AddAsync(AudioClipKind.Bgm, source, null, null, CancellationToken.None).GetAwaiter().GetResult();
                 Assert.That(bgm.Ok, Is.True, bgm.Detail);
-                Assert.That(bgm.Value.Duration.TotalSeconds, Is.EqualTo(0.5).Within(0.01), "Its length, read without decoding it all.");
+                Assert.That(bgm.Value.File.Duration.TotalSeconds, Is.EqualTo(0.5).Within(0.01), "Its length, read without decoding it all.");
 
                 var loop = new FrameLoop();
                 var player = new BgmPlayer(() => engine, library, loop, new StopwatchMonotonicClock(), null);

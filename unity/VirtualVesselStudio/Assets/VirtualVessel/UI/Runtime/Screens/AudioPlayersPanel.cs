@@ -253,7 +253,7 @@ namespace VirtualVessel.UI.Screens
             State.Status = failed ? StatusKind.Error : StatusKind.Live;
             State.TextKey = failed ? AudioClipStrings.BgmFailed : AudioClipStrings.BgmPlaying;
             AudioClipRecord track = _tracks.Find(t => t.Id == status.TrackId);
-            _time.text = playing && track != null ? TimeText(_bgm.Progress, track.Duration) : string.Empty;
+            _time.text = playing && track != null ? TimeText(_bgm.Progress, track.File.Duration) : string.Empty;
             foreach ((ActionButton button, string id) in _effectButtons)
             {
                 button.SetEnabled(_effects != null && _effects.IsReady(id));
@@ -289,7 +289,7 @@ namespace VirtualVessel.UI.Screens
             AudioClipRecord track = _tracks.Find(t => t.Id == Tracks.value);
             if (track != null)
             {
-                _bgm.Play(new SingleTrack(track.Id, track.Loop));
+                _bgm.Play(new SingleTrack(track.Id, track.Settings.Loop));
             }
         }
     }

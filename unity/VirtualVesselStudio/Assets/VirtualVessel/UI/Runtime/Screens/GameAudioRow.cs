@@ -55,35 +55,40 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>
         /// The sound that belongs to a video device: a window's program's own sound, or the input device named
-        /// after a capture board; null when there is none. Pure.
+        /// after a capture board; null when there is none or no video device. Pure.
         /// </summary>
-        public static string Belonging(IReadOnlyList<AudioDevice> devices, string videoId, string videoName)
+        public static string Belonging(IReadOnlyList<AudioDevice> devices, CaptureDevice video)
         {
-            string program = CaptureWindow.ProgramOf(videoId);
-            return program != null ? AudioApplication.IdOf(program) : Find(devices, videoName);
+            if (video == null)
+            {
+                return null;
+            }
+
+            string program = CaptureWindow.ProgramOf(video.Id);
+            return program != null ? AudioApplication.IdOf(program) : Find(devices, video.DisplayName);
         }
 
         /// <summary>
         /// The audio device after the video device changed. A game's window always brings its own sound: the
         /// sound left from a capture board would not be the game's (user's report, 2026-11-20); the user can still
         /// choose another after. Otherwise a choice that has nothing to do with the old video device is the user's
-        /// own, and stays, and a window's sound does not stay without its window. Pure.
+        /// own, and stays, and a window's sound does not stay without its window. A null video device is none. Pure.
         /// </summary>
-        public static string Follow(IReadOnlyList<AudioDevice> devices, string chosen, string previousVideoId, string previousVideo, string nextVideoId, string nextVideo)
+        public static string Follow(IReadOnlyList<AudioDevice> devices, string chosen, CaptureDevice previous, CaptureDevice next)
         {
-            if (CaptureWindow.IsWindow(nextVideoId))
+            if (CaptureWindow.IsWindow(next?.Id))
             {
-                return Belonging(devices, nextVideoId, nextVideo);
+                return Belonging(devices, next);
             }
 
-            bool followed = string.IsNullOrEmpty(chosen) || chosen == Belonging(devices, previousVideoId, previousVideo);
+            bool followed = string.IsNullOrEmpty(chosen) || chosen == Belonging(devices, previous);
             if (!followed)
             {
                 return chosen;
             }
 
-            string next = Belonging(devices, nextVideoId, nextVideo);
-            return next ?? (AudioApplication.IsApplication(chosen) ? null : chosen);
+            string belonging = Belonging(devices, next);
+            return belonging ?? (AudioApplication.IsApplication(chosen) ? null : chosen);
         }
 
         /// <summary>
@@ -126,11 +131,11 @@ namespace VirtualVessel.UI.Screens
             ShowDevices();
         }
 
-        /// <summary>Called when the user chooses another video device.</summary>
-        public void VideoChanged(string previousId, string previousName, string nextId, string nextName)
+        /// <summary>Called when the user chooses another video device; null for none.</summary>
+        public void VideoChanged(CaptureDevice previous, CaptureDevice next)
         {
             AudioSourceOptions options = _source.Options.Value;
-            string chosen = Follow(_audio.InputDevices.Value, options.DeviceId, previousId, previousName, nextId, nextName);
+            string chosen = Follow(_audio.InputDevices.Value, options.DeviceId, previous, next);
             if (chosen != options.DeviceId)
             {
                 _source.SetOptions(options.WithDevice(chosen).WithMonitored(MonitoredAfter(options.Monitored, options.DeviceId, chosen)));

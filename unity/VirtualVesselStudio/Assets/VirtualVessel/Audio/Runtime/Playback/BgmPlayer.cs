@@ -151,8 +151,8 @@ namespace VirtualVessel.Audio.Playback
             }
 
             _cue = cue;
-            _gainDb = track.Value.GainDb;
-            _generation = engine.PlayBgm(track.Value.FilePath, cue.Value.Loop, _gainDb);
+            _gainDb = track.Value.Settings.GainDb;
+            _generation = engine.PlayBgm(track.Value.File.Path, cue.Value.Loop, _gainDb);
 
             // Followed on the frames only while a track is on: with none, the player costs the frames nothing.
             _tick ??= _frameLoop.Register(Tick);
@@ -216,9 +216,9 @@ namespace VirtualVessel.Audio.Playback
             }
 
             CrudResult<AudioClipRecord> track = _library.Get(_cue.Value.TrackId);
-            if (track.Ok && track.Value.GainDb != _gainDb)
+            if (track.Ok && track.Value.Settings.GainDb != _gainDb)
             {
-                _gainDb = track.Value.GainDb;
+                _gainDb = track.Value.Settings.GainDb;
                 _engine()?.SetBgmGain(_gainDb);
             }
         }

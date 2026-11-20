@@ -308,7 +308,7 @@ namespace VirtualVessel.Audio.Clips
                     return byPlace;
                 }
 
-                int byAdded = a.Record.AddedAt.CompareTo(b.Record.AddedAt);
+                int byAdded = a.Record.File.AddedAt.CompareTo(b.Record.File.AddedAt);
                 return byAdded != 0 ? byAdded : a.Index.CompareTo(b.Index);
             });
 
@@ -470,19 +470,24 @@ namespace VirtualVessel.Audio.Clips
                 return null;
             }
 
-            AudioClipProfile profile = loaded.Value;
+            return RecordOf(id, loaded.Value, file);
+        }
+
+        /// <summary>
+        /// The registration a profile describes, with values out of range or missing made usable: a name from the
+        /// file's, the gain in range, a loop on BGM only, no negative length. Pure.
+        /// </summary>
+        public static AudioClipRecord RecordOf(string id, AudioClipProfile profile, string filePath)
+        {
             AudioClipKind kind = KindOf(id).Value;
             DateTimeOffset.TryParse(profile.AddedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset added);
+            var duration = TimeSpan.FromSeconds(double.IsNaN(profile.DurationSeconds) ? 0 : Math.Max(0, profile.DurationSeconds));
             return new AudioClipRecord(
                 id,
                 kind,
                 CleanName(profile.Name) ?? Path.GetFileNameWithoutExtension(profile.OriginalName ?? id),
-                ClampGain(profile.GainDb),
-                kind == AudioClipKind.Bgm && profile.Loop,
-                TimeSpan.FromSeconds(double.IsNaN(profile.DurationSeconds) ? 0 : Math.Max(0, profile.DurationSeconds)),
-                profile.OriginalName,
-                added,
-                file,
+                new AudioClipSettings(ClampGain(profile.GainDb), kind == AudioClipKind.Bgm && profile.Loop),
+                new AudioClipFile(filePath, profile.OriginalName, duration, added),
                 CleanNames(profile.Names));
         }
 
