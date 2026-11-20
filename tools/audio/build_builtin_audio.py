@@ -33,12 +33,13 @@ BGM_PEAK = 10 ** (-1 / 20)
 EFFECT_PEAK = 10 ** (-3 / 20)
 
 BGM = [
-    ('cute-pop', bgm.cute_pop, 'サンプル１', 'Sample 1'),
-    ('mellow-lofi', bgm.lofi, 'サンプル２', 'Sample 2'),
-    ('recorder-waltz', bgm.recorder_waltz, 'サンプル３', 'Sample 3'),
-    ('chat-time', bgm.calm_talk, 'サンプル４', 'Sample 4'),
-    ('denpa-41', bgm.denpa_41edo, 'サンプル５', 'Sample 5'),
-    ('lofi-41', bgm.lofi_41edo, 'サンプル６', 'Sample 6'),
+    ('cute-pop', bgm.cute_pop, 'サンプル１（ポップ）', 'Sample 1 (Pop)'),
+    ('mellow-lofi', bgm.lofi, 'サンプル２（ローファイ）', 'Sample 2 (Lo-fi)'),
+    ('recorder-waltz', bgm.recorder_waltz, 'サンプル３（ワルツ）', 'Sample 3 (Waltz)'),
+    ('chat-time', bgm.calm_talk, 'サンプル４（チル）', 'Sample 4 (Chill)'),
+    # The names and files do not say how the last two are tuned: they are heard as pieces, not as a demonstration.
+    ('chiptune', bgm.denpa_41edo, 'サンプル５（チップチューン）', 'Sample 5 (Chiptune)'),
+    ('night-lofi', bgm.lofi_41edo, 'サンプル６（ローファイ）', 'Sample 6 (Lo-fi)'),
 ]
 
 # The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's

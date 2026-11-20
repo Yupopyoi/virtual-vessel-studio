@@ -270,10 +270,10 @@ def denpa_41edo(seed=7):
 
 
 def lofi_41edo(seed=13):
-    """Lo-fi in 41-tone equal temperament: the swung electric piano and crackle of lofi, on chords whose sevenths are
-    the harmonic seventh (7/4, sweeter and lower than 12-tone's), a neutral third between major and minor now and then,
-    and a melody that scoops into its notes from a step or two of 41 below. The color stays in the background, so it
-    still sits under talk."""
+    """Steady lo-fi in 41-tone equal temperament. The thirds and fifths are close to pure, so the chords sit still and
+    sweet; the dominant chords take the harmonic seventh (7/4, lower and smoother than 12-tone's), and the melody leans
+    on that seventh before it resolves. A phrase's first note slides up one step of 41, too small to hear as a slide.
+    The melody is written out, not random, and there is no tape wobble or crackle, so nothing in it sounds unsure."""
     rng = np.random.default_rng(seed)
     edo = 41
     base = 261.63  # C4
@@ -281,12 +281,25 @@ def lofi_41edo(seed=13):
     def hz(step):
         return base * 2 ** (step / edo)
 
-    c_, d_, e_, f_, g_, a_ = 0, 7, 13, 17, 24, 30
-    maj, minor, neutral = 13, 11, 12
-    fifth, h7, min7, maj7, octave = 24, 33, 34, 37, 41
-    # Two bars a chord: Fmaj7, Em7, D neutral 7, G harmonic 7; then Fmaj7, E harmonic 7, A neutral 7, G harmonic 7.
-    progression = [(f_, [0, maj, fifth, maj7]), (e_, [0, minor, fifth, min7]), (d_, [0, neutral, fifth, min7]), (g_ - octave, [0, maj, fifth, h7]),
-                   (f_, [0, maj, fifth, maj7]), (e_, [0, maj, fifth, h7]), (a_ - octave, [0, neutral, fifth, min7]), (g_ - octave, [0, maj, fifth, h7])]
+    c_, d_, e_, f_, g_, a_, b_ = 0, 7, 13, 17, 24, 30, 37
+    maj, minor, fifth, h7, min7, maj7, octave = 13, 11, 24, 33, 34, 37, 41
+    # Two bars a chord: Fmaj7, Em7, Dm7, G7; then Fmaj7, E7, Am7, G7. Every 7 chord has the harmonic seventh.
+    progression = [(f_, [0, maj, fifth, maj7]), (e_, [0, minor, fifth, min7]), (d_, [0, minor, fifth, min7]), (g_ - octave, [0, maj, fifth, h7]),
+                   (f_, [0, maj, fifth, maj7]), (e_, [0, maj, fifth, h7]), (a_ - octave, [0, minor, fifth, min7]), (g_ - octave, [0, maj, fifth, h7])]
+    # The melody for each chord as (beat in its two bars, step from C4, beats); the first chord of each half rests.
+    hi = octave
+    g7_seventh = g_ + h7 - octave  # The harmonic seventh of G, a little under F.
+    e7_seventh = e_ + h7  # The harmonic seventh of E, a little under D.
+    melody = [
+        [],
+        [(0.5, hi + e_, 1), (1.5, hi + g_, 0.5), (2, hi + a_, 1.5), (4.5, hi + g_, 1), (5.5, hi + e_, 2)],
+        [(0.5, hi + d_, 1), (1.5, hi + f_, 1), (2.5, hi + a_, 1), (3.5, 2 * hi, 1.5), (5.5, hi + a_, 1.5)],
+        [(0.5, hi + b_, 1), (1.5, hi + a_, 0.5), (2, hi + g_, 1.5), (4, hi + g7_seventh, 3)],
+        [],
+        [(0.5, hi + b_, 1), (1.5, hi + g_ + 2, 1), (2.5, hi + e_, 1), (3.5, e7_seventh, 2.5), (6, hi + e_, 1.5)],
+        [(0.5, hi + a_, 1), (1.5, 2 * hi, 1), (2.5, hi + a_, 0.5), (3, hi + g_, 1), (4, hi + e_, 3)],
+        [(0.5, hi + g_, 1), (1.5, hi + a_, 1), (2.5, hi + b_, 1.5), (4, hi + g_, 1), (5, hi + g7_seventh, 2.5)],
+    ]
     bars = len(progression) * 2
     loop = Loop(78, bars * 4)
     beat = loop.beat
@@ -295,57 +308,37 @@ def lofi_41edo(seed=13):
         whole, frac = divmod(pos, 1.0)
         return whole + (0.58 if abs(frac - 0.5) < 1e-6 else frac)
 
-    def scoop(step, dur, below):
-        """A soft triangle that slides up into its note from `below` steps of 41 under it, as a voice would."""
+    def lead(step, dur, slide):
+        """A soft triangle; with `slide`, it starts one step of 41 low and settles within a few hundredths of a second."""
         n = int(dur * SR)
         t = np.arange(n) / SR
-        bend = below * np.exp(-t / 0.07)
-        vib = 0.004 * np.sin(2 * np.pi * 5.0 * t) * np.clip((t - 0.15) / 0.3, 0, 1)
-        f = hz(step - bend) * (1 + vib)
+        bend = np.exp(-t / 0.03) if slide else 0.0
+        f = hz(step - bend)
         tri = 2 / np.pi * np.arcsin(np.sin(2 * np.pi * np.cumsum(f) / SR))
         return lowpass(tri * env(n, 0.03, 0.6, 0.45, 0.15), 2600)
 
-    # The pentatonic of C (C D F G A) with the neutral third as a passing color, all an octave up.
-    scale = [s + octave for s in (c_, d_, neutral, f_, g_, a_, octave, octave + d_)]
     keys, low, drums, mel = (loop.track() for _ in range(4))
     for bar in range(bars):
-        root, tones = progression[bar // 2]
+        chord = bar // 2
+        root, tones = progression[chord]
         b0 = bar * 4
         hits = [(0, 0.9), (2.5, 0.55)] if bar % 2 == 0 else [(0.5, 0.6), (2, 0.7), (3.5, 0.4)]
         for pos, vel in hits:
             for i, tone in enumerate(tones):
-                loop.add(keys, swing(b0 + pos), vel * epiano(hz(root + tone), beat * 2.2) * 0.2, i * 0.014 + rng.uniform(0, 0.012))
+                loop.add(keys, swing(b0 + pos), vel * epiano(hz(root + tone), beat * 2.2) * 0.2, i * 0.014 + rng.uniform(0, 0.008))
         loop.add(low, swing(b0), bass(hz(root - octave), beat * 2.2, 450, 1.5) * 0.5)
         loop.add(low, swing(b0 + 2.5), bass(hz(root - octave + (fifth if bar % 2 else 0)), beat * 1.3, 450, 1.5) * 0.38)
         for pos in [0, 1.5 if bar % 2 else 2.25]:
             loop.add(drums, swing(b0 + pos), kick(44, 65, 0.2) * 0.85)
         for pos in [1, 3]:
-            loop.add(drums, swing(b0 + pos), snare(rng, 170) * 0.38, 0.012)
+            loop.add(drums, swing(b0 + pos), snare(rng, 170) * 0.36, 0.012)
         for k in range(8):
-            loop.add(drums, swing(b0 + k * 0.5), hat(rng, open_=(k == 7 and bar % 4 == 3)) * (0.13 if k % 2 == 0 else 0.08) * rng.uniform(0.8, 1.1))
-        # The melody rests at the start of each half, and its notes are few, so the loop breathes.
-        if bar % 8 >= 2:
-            idx = int(rng.integers(2, 6))
-            pos = 0.0
-            while pos < 4:
-                dur = float(rng.choice([0.5, 1.0, 1.5, 2.0]))
-                if rng.random() < (0.5 if bar % 8 < 5 else 0.7):
-                    below = float(rng.choice([0, 0, 1, 2]))
-                    loop.add(mel, swing(b0 + pos), scoop(scale[idx], beat * dur, below) * 0.17)
-                idx = int(np.clip(idx + rng.choice([-2, -1, 1, 1, 2]), 0, len(scale) - 1))
-                pos += dur
-
-    # Tape wow: the keys drift a few cents slowly, read back through a varying delay.
-    t = np.arange(loop.length) / SR
-    cycles = max(1, round(loop.length / SR * 0.5))
-    delay = 0.004 + 0.0012 * np.sin(2 * np.pi * cycles * t / (loop.length / SR))
-    keys = np.interp(np.arange(loop.length) - delay * SR, np.arange(loop.length), keys, period=loop.length)
+            loop.add(drums, swing(b0 + k * 0.5), hat(rng, open_=(k == 7 and bar % 4 == 3)) * (0.12 if k % 2 == 0 else 0.075) * rng.uniform(0.9, 1.05))
+        if bar % 2 == 0:
+            for i, (pos, step, dur) in enumerate(melody[chord]):
+                loop.add(mel, swing(b0 + pos), lead(step, beat * dur, slide=(i == 0)) * 0.17)
 
     mix = keys + low + drums + mel
     mix = mix + loop.room(keys + mel, 1.8, 2.8, 0.013, rng)
     mix = circular(lowpass, mix, 6200)
-    crackle = np.zeros(loop.length)
-    pops = rng.integers(0, loop.length, size=bars * 30)
-    crackle[pops] = rng.uniform(-1, 1, size=len(pops)) * 0.25
-    mix += circular(highpass, crackle, 2000) + circular(highpass, rng.standard_normal(loop.length), 3000) * 0.003
     return finish_loop(mix, 0.006, 1.2)

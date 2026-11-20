@@ -6,8 +6,8 @@
       "kind": "bgm",
       "file": "bgm/cute-pop.wav",
       "names": {
-        "ja": "サンプル１",
-        "en": "Sample 1"
+        "ja": "サンプル１（ポップ）",
+        "en": "Sample 1 (Pop)"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind": "bgm",
       "file": "bgm/mellow-lofi.wav",
       "names": {
-        "ja": "サンプル２",
-        "en": "Sample 2"
+        "ja": "サンプル２（ローファイ）",
+        "en": "Sample 2 (Lo-fi)"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind": "bgm",
       "file": "bgm/recorder-waltz.wav",
       "names": {
-        "ja": "サンプル３",
-        "en": "Sample 3"
+        "ja": "サンプル３（ワルツ）",
+        "en": "Sample 3 (Waltz)"
       }
     },
     {
@@ -33,26 +33,26 @@
       "kind": "bgm",
       "file": "bgm/chat-time.wav",
       "names": {
-        "ja": "サンプル４",
-        "en": "Sample 4"
+        "ja": "サンプル４（チル）",
+        "en": "Sample 4 (Chill)"
       }
     },
     {
-      "id": "bgm-denpa-41",
+      "id": "bgm-chiptune",
       "kind": "bgm",
-      "file": "bgm/denpa-41.wav",
+      "file": "bgm/chiptune.wav",
       "names": {
-        "ja": "サンプル５",
-        "en": "Sample 5"
+        "ja": "サンプル５（チップチューン）",
+        "en": "Sample 5 (Chiptune)"
       }
     },
     {
-      "id": "bgm-lofi-41",
+      "id": "bgm-night-lofi",
       "kind": "bgm",
-      "file": "bgm/lofi-41.wav",
+      "file": "bgm/night-lofi.wav",
       "names": {
-        "ja": "サンプル６",
-        "en": "Sample 6"
+        "ja": "サンプル６（ローファイ）",
+        "en": "Sample 6 (Lo-fi)"
       }
     },
     {
