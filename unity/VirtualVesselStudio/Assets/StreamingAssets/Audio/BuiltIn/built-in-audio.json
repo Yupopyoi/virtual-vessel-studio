@@ -56,6 +56,15 @@
       }
     },
     {
+      "id": "bgm-toy-box",
+      "kind": "bgm",
+      "file": "bgm/toy-box.wav",
+      "names": {
+        "ja": "サンプル７（おもちゃ箱）",
+        "en": "Sample 7 (Toy box)"
+      }
+    },
+    {
       "id": "se-chime",
       "kind": "soundEffect",
       "file": "se/chime.wav",

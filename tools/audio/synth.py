@@ -166,6 +166,39 @@ def triangle_lead(freq, dur):
     return lowpass(tri * env(n, 0.02, 0.5, 0.4, 0.12), 3000)
 
 
+def brass(freq, dur, bright=1.0):
+    """A trumpet or horn: harmonics that open up as the lips start to buzz, a slight vibrato on held notes. Lower
+    `bright` for a rounder horn or a tuba."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    vib = 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.18) / 0.25, 0, 1)
+    ph = 2 * np.pi * freq * np.cumsum(vib) / SR
+    # How many harmonics speak: few at the attack, more a few hundredths later, settling a little after.
+    width = 1.5 + 7.0 * bright * (1 - np.exp(-t / 0.035)) * (0.85 + 0.15 * np.exp(-t / 0.25))
+    tone = np.zeros(n)
+    k = 1
+    while k * freq < 9000 and k <= 30:
+        tone += np.exp(-(k - 1) / width) / np.sqrt(k) * np.sin(k * ph)
+        k += 1
+    return tone * env(n, 0.025, 0.5, 0.75, 0.05) * 0.6
+
+
+def xylophone(freq, dur):
+    """A wooden bar struck with a hard mallet: the fundamental, its tuned fourth partial, and a quick knock."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    tone = np.sin(2 * np.pi * freq * t) * np.exp(-t * 11) + 0.3 * np.sin(2 * np.pi * freq * 3.93 * t) * np.exp(-t * 35)
+    return tone * env(n, 0.001, 10.0, 1.0, 0.02)
+
+
+def woodblock(rng, pitch=1.0):
+    n = int(0.08 * SR)
+    t = np.arange(n) / SR
+    tone = np.sin(2 * np.pi * 950 * pitch * t) + 0.5 * np.sin(2 * np.pi * 1720 * pitch * t)
+    knock = band(rng.standard_normal(n), 800 * pitch, 2500 * pitch) * 0.4
+    return (tone + knock) * env(n, 0.0005, 0.018)
+
+
 def bass(freq, dur, cutoff=900, drive=1.4):
     n = int(dur * SR)
     t = np.arange(n) / SR

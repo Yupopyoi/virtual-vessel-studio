@@ -40,6 +40,7 @@ BGM = [
     # The names and files do not say how the last two are tuned: they are heard as pieces, not as a demonstration.
     ('chiptune', bgm.denpa_41edo, 'サンプル５（チップチューン）', 'Sample 5 (Chiptune)'),
     ('night-lofi', bgm.lofi_41edo, 'サンプル６（ローファイ）', 'Sample 6 (Lo-fi)'),
+    ('toy-box', bgm.toy_box, 'サンプル７（おもちゃ箱）', 'Sample 7 (Toy box)'),
 ]
 
 # The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's

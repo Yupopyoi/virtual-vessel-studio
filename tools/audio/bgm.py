@@ -5,8 +5,9 @@ onto the start (synth.Loop).
 """
 import numpy as np
 
-from synth import (SR, Loop, bass, bell, circular, clap, epiano, finish_loop, hat, highpass, kick, lowpass, midi, pad,
-                   pulse, recorder, saw_pluck, snare, soft_square, string_pluck, triangle_lead, env)
+from synth import (SR, bass, bell, brass, circular, clap, env, epiano, finish_loop, hat, highpass, kick, Loop,
+                   lowpass, midi, pad, pulse, recorder, saw_pluck, snare, soft_square, string_pluck, triangle_lead,
+                   woodblock, xylophone)
 
 
 def cute_pop(seed=21):
@@ -348,3 +349,107 @@ def lofi_41edo(seed=13):
     mix = mix + loop.room(keys + mel, 1.4, 3.2, 0.011, rng)
     mix = circular(lowpass, mix, 8500)
     return finish_loop(mix, 0.006, 1.2)
+
+
+def toy_box(seed=17):
+    """A toy box tipped out: a xylophone tune over a tuba-and-pizzicato march, a glockenspiel answering, woodblocks, a
+    middle where a brass section takes the tune with a clarinet under it, and a last part with everyone at once, brass
+    stabs and a slide whistle up into the start again. Bright C major in 12-tone tuning, so it stays cute."""
+    rng = np.random.default_rng(seed)
+    C, Am, F, G, Dm, Em, G7 = ([60, 64, 67], 36), ([57, 60, 64], 45), ([53, 57, 60], 41), ([55, 59, 62], 43), \
+        ([53, 57, 62], 38), ([55, 59, 64], 40), ([53, 59, 62], 43)
+    part_a = [C, Am, F, G, C, Am, Dm, G]
+    part_b = [F, G, Em, Am, Dm, G, C, G7]
+    bars = part_a + part_b + part_a
+    loop = Loop(132, len(bars) * 4)
+    beat = loop.beat
+
+    # The xylophone tune of the A parts, a bar a line: (beat, note, beats).
+    tune_a = [
+        [(0, 76, .5), (.5, 79, .5), (1, 84, .5), (1.5, 79, .5), (2, 76, 1), (3, 72, .5), (3.5, 74, .5)],
+        [(0, 76, .5), (.5, 72, .5), (1, 69, 1), (2, 72, .5), (2.5, 76, .5), (3, 81, 1)],
+        [(0, 81, .5), (.5, 79, .5), (1, 77, .5), (1.5, 76, .5), (2, 77, 1), (3, 72, 1)],
+        [(0, 74, .5), (.5, 76, .5), (1, 77, .5), (1.5, 79, .5), (2, 83, 1), (3, 79, 1)],
+        [(0, 76, .5), (.5, 79, .5), (1, 84, .5), (1.5, 79, .5), (2, 76, 1), (3, 72, .5), (3.5, 74, .5)],
+        [(0, 81, .5), (.5, 79, .5), (1, 76, .5), (1.5, 72, .5), (2, 69, 1), (3, 72, 1)],
+        [(0, 74, .5), (.5, 77, .5), (1, 81, 1), (2, 77, .5), (2.5, 74, .5), (3, 74, 1)],
+        [(0, 71, .5), (.5, 74, .5), (1, 79, .5), (1.5, 74, .5), (2, 71, 1), (3, 67, 1)],
+    ]
+    # The brass tune of the B part, a little fanfare.
+    tune_b = [
+        [(0, 72, 1), (1, 77, .5), (1.5, 77, .5), (2, 81, 1.5), (3.5, 79, .5)],
+        [(0, 79, .5), (.5, 77, .5), (1, 74, 1), (2, 79, 1.5), (3.5, 77, .5)],
+        [(0, 76, 1), (1, 79, .5), (1.5, 76, .5), (2, 71, 1), (3, 76, 1)],
+        [(0, 72, .5), (.5, 76, .5), (1, 81, 1.5), (2.5, 79, .5), (3, 76, 1)],
+        [(0, 77, 1), (1, 74, .5), (1.5, 77, .5), (2, 81, 1), (3, 77, 1)],
+        [(0, 79, 1), (1, 83, .5), (1.5, 79, .5), (2, 74, 1), (3, 71, 1)],
+        [(0, 72, .5), (.5, 76, .5), (1, 79, .5), (1.5, 84, 1.5), (3, 79, 1)],
+        [(0, 77, .5), (.5, 76, .5), (1, 74, .5), (1.5, 71, .5), (2, 67, 2)],
+    ]
+    # The clarinet under the brass: two notes a bar from the chords.
+    under_b = [(69, 72), (71, 74), (67, 71), (69, 72), (69, 65), (71, 67), (67, 64), (65, 62)]
+
+    tuba, pizz, xylo, glock, horns, clar, drums, toys = (loop.track() for _ in range(8))
+    for bar, (chord, root) in enumerate(bars):
+        b0 = bar * 4
+        part = 'a' if bar < 8 else 'b' if bar < 16 else 'a2'
+        line = bar % 8
+
+        # The march: tuba on 1 and 3 (root, then fifth), pizzicato chords on 2 and 4.
+        loop.add(tuba, b0, brass(midi(root), beat * 0.8, bright=0.35) * 0.55)
+        loop.add(tuba, b0 + 2, brass(midi(root + 7 if root < 43 else root - 5), beat * 0.8, bright=0.35) * 0.5)
+        loop.add(tuba, b0, bass(midi(root), beat * 0.9, 400, 1.2) * 0.35)
+        for pos in (1, 3):
+            for i, note in enumerate(chord):
+                loop.add(pizz, b0 + pos, string_pluck(midi(note), 0.35, rng, bright=0.7) * 0.22, i * 0.008)
+
+        if part in ('a', 'a2'):
+            for pos, note, dur in tune_a[line]:
+                loop.add(xylo, b0 + pos, xylophone(midi(note), beat * dur + 0.25) * 0.42)
+            # The glockenspiel answers at the end of every other bar.
+            if line % 2 == 1:
+                for k, note in enumerate(sorted(chord)[::-1] + [sorted(chord)[0]]):
+                    loop.add(glock, b0 + 3 + k * 0.25, bell(midi(note + 24), 0.6, decay=0.35) * 0.12)
+            for pos in (0.5, 1.5, 2.5, 3.5):
+                loop.add(toys, b0 + pos, woodblock(rng, 1.0 if pos in (0.5, 2.5) else 1.25) * 0.16)
+        if part == 'b':
+            for pos, note, dur in tune_b[line]:
+                # Two trumpets a third apart on the long notes, one on the short ones.
+                loop.add(horns, b0 + pos, brass(midi(note), beat * dur * 0.95) * 0.3)
+                if dur >= 1:
+                    third = 3 if (note - root) % 12 in (4, 11) else 4
+                    loop.add(horns, b0 + pos, brass(midi(note - third), beat * dur * 0.95, bright=0.8) * 0.18)
+            for k, note in enumerate(under_b[line]):
+                loop.add(clar, b0 + k * 2, soft_square(midi(note - 12), beat * 1.9, vibrato=0.002) * 0.17)
+            for pos in (1, 3):
+                loop.add(drums, b0 + pos, clap(rng) * 0.3)
+            if line in (0, 4):
+                loop.add(glock, b0, bell(midi(84), 1.0, ratio=4.2, decay=0.5) * 0.08)
+        if part == 'a2':
+            # Everyone at once: brass stabs on the off-beats answer the xylophone.
+            for pos in (1.5, 3.5) if line % 2 == 0 else (0.5, 2.5):
+                for i, note in enumerate(chord):
+                    loop.add(horns, b0 + pos, brass(midi(note), beat * 0.3) * 0.13, i * 0.004)
+            loop.add(clar, b0, soft_square(midi(chord[0] - 12), beat * 3.8, vibrato=0.002) * 0.08)
+
+        # Drums: a light march, a roll into each new part.
+        loop.add(drums, b0, kick(55, 80, 0.12) * 0.7)
+        loop.add(drums, b0 + 2, kick(55, 80, 0.12) * 0.55)
+        for pos in (1, 3):
+            loop.add(drums, b0 + pos, snare(rng, 220) * 0.28)
+        for k in range(8):
+            loop.add(drums, b0 + k * 0.5, hat(rng) * (0.09 if k % 2 == 0 else 0.06))
+        if line == 7:
+            for k in range(8):
+                loop.add(drums, b0 + 2 + k * 0.25, snare(rng, 230) * (0.12 + 0.025 * k))
+
+    # A slide whistle up into the start again.
+    n = int(beat * 1.8 * SR)
+    t = np.arange(n) / SR
+    glide = midi(72) * 2 ** (1.0 * (t / t[-1]) ** 1.5)
+    whistle = np.sin(2 * np.pi * np.cumsum(glide * (1 + 0.006 * np.sin(2 * np.pi * 7 * t))) / SR) * env(n, 0.04, 10.0, 1.0, 0.08)
+    loop.add(toys, len(bars) * 4 - 2, whistle * 0.12)
+
+    mix = tuba + pizz + xylo + glock + horns + clar + drums + toys
+    mix = mix + loop.room(xylo + glock + horns + clar + pizz, 1.2, 3.8, 0.012, rng, 5000)
+    return finish_loop(mix, 0.005, 1.15)
