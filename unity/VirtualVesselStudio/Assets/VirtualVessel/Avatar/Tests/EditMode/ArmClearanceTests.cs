@@ -280,6 +280,8 @@ namespace VirtualVessel.Avatar.Tests
             });
 
             Assert.That(shape, Is.Not.Null);
+            Assert.That(AvatarBodyShape.HeightOf(shape), Is.EqualTo(rest[(int)AvatarBone.Head].y + shape.Head.Center.y + shape.Head.Radii.y).Within(1e-5f), "Up to the top of the head.");
+            Assert.That(AvatarBodyShape.HeightOf(null), Is.EqualTo(AvatarBodyShape.TypicalHeight), "A model not measured gets a typical height.");
             Assert.That(Vector3.Distance(shape.Head.Center, center - rest[(int)AvatarBone.Head]), Is.LessThan(0.01f), "The hair below the neck is left out.");
             // Evenly over a sphere, each coordinate is even between its ends, so leaving out the outermost
             // 5% on each side leaves 90% of the size.

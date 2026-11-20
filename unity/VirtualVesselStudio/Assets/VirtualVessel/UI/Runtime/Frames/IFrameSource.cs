@@ -66,5 +66,14 @@ namespace VirtualVessel.UI.Frames
         void StopCapture()
         {
         }
+
+        /// <summary>
+        /// Always in front, its stacking order fixed: the avatar's frame, as the avatar is drawn over every flat video
+        /// (Stage detailed design 7.2). Its source keeps its <see cref="FrameLayout.Order"/> frontmost.
+        /// </summary>
+        bool StaysInFront => false;
+
+        /// <summary>Whether it can be flipped left to right.</summary>
+        bool CanFlip => true;
     }
 }

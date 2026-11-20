@@ -71,6 +71,8 @@ flowchart LR
 | `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き、背景の位置と大きさ |
 | `DefaultBackdrop` | Static Class | 仮の背景の画像をコードで描く（純粋関数、7.1） |
 | `IAvatarSpawnPoints` | Interface | アバターの立つ位置（7.1） |
+| `AvatarFrame` | Class（UIの`IFrameSource`） | アバターの枠。配置からAvatar Cameraの写し方を決める（7.2） |
+| `AvatarFramingMath` | Static Class | アバターの枠から、カメラの位置と投影を求める（純粋関数、7.2） |
 | `IStageLighting`（UI） | Interface | ライトの強さ。設定画面が変え、Stageが実装する（7.1） |
 | `StageLightIntensity`（UI） | Static Class | ライトの強さの範囲と既定、範囲に収める関数（純粋関数） |
 
@@ -156,6 +158,7 @@ public interface IAvatarSpawnPoints
 |---|---|---|
 | ゲーム画面 | 配信画面全体（0, 0, 1, 1） | 0（奥） |
 | サブモニター | 右上（0.66, 0.04, 0.3, 0.3） | 1 |
+| アバター | 中央、高さいっぱい（7.2） | 常に一番手前 |
 
 ---
 
@@ -173,6 +176,22 @@ public interface IAvatarSpawnPoints
 - ライトの強さは、利用者が設定画面で変えられる（`IStageLighting`。利用者の要望、2026-10-21）。強さ1のライトでは、顔が白く飛んで表情が見にくかったため。範囲は10〜150%、既定は100%（強さ1）。強さは作ったときのライトに掛ける倍率とし、Stage Sceneができたときもその照明全体の明るさの調整として使えるようにする（17章）。
 - 方式設計11.7では、照明はStageが管理する。強さの設定もStageが持ち、`stage-settings.json`に保存する（6.3）。配信の映像も変わるため、表示を見るためだけの映像の高さや拡大（UI `setup.md` 9章）とは違い、保存する。
 - Stage Sceneが自分の背景を持つまでは、Stageがアバターの後ろに仮の背景を置く（利用者の要望、2026-10-24）。画像は、紫から藍、紺への暗いグラデーションに、アバターの後ろのやわらかな明るさ、淡い水玉、アバターから離れた左右の帯のパステル色の星とハートを描く。最初にパステル調を試したが、利用者は暗いものを選んだ。`DefaultBackdrop`（純粋関数）がコードで1600×900に描くため、画像ファイルは同梱しない。描くのにEditorで起動時に1回、約0.37秒かかる。画像は、アバターの2m後ろ、カメラの高さに置いた板（`StageBackdrop`）に貼る。板は4.27×2.4mで、既定のカメラの視野（Video詳細設計7.5）に約15%の余裕を足した大きさとする。Main Cameraが、平面の映像とアバターの下に描く。光を受けず、Stream Screenと同じShaderを使う。既定のライトとともに破棄する。
+
+### 7.2 アバターの枠（配置編集）
+
+利用者の要望（2026-11-18）：アバターを画面の右寄りに置き、ゲーム画面を左に置く。座っているようにも見せたい。設定は増やしたくない。
+
+- 配置編集に、アバターの枠を1つ加える（`AvatarFrame`、`IFrameSource`）。ゲーム画面と同じ操作で、位置と大きさ（`Placement`）と、写す範囲（`Crop`）を変える。Idは`avatar`、名前は`stage.avatar.name`（アバター / Avatar）。保存は`stage-settings.json`の`screens.avatar`（6.3と同じ形）。
+- 枠の「映像全体」は、アバターの前に立てた正方形とする。一辺はS = 1.1 × H（Hは基準の姿勢での足元から頭の上までの高さ。Avatarが測る）。足元から上へS、左右はアバターの中心から±S/2。`SourceAspect`は1。範囲（`Crop`）はこの正方形の中の部分で、上が0、下が1。
+- 範囲の部分が枠に収まるよう、Avatar Camera（Video詳細設計7.6）の位置と投影を決める（`AvatarFramingMath`、純粋関数）。
+  - カメラはアバターの正面、距離D = 2.0 mに置き、高さは範囲の上下の中央とする。アバターの方を向く。正面から見るので、枠を画面の端に寄せても、アバターは斜めにならない。
+  - 投影の中心をずらした透視投影（off-center）で、範囲の中心を枠の中心へ、範囲の高さを枠の高さへ合わせる。幅は高さから決まり、伸び縮みしない。
+- 範囲は身長に対する割合なので、身長の違うモデルでも、同じ枠に同じ部分が収まる（Avatar詳細設計17章「身長の違うモデルの写り方」）。
+- 枠はアバターを切り抜かない。枠の外へ出た手なども描く。URPのOverlayのカメラは、描く範囲を絞れないためである。腰から下を隠すには、枠の下端を配信画面の下端に合わせるか、はみ出しを許して下へ出す。
+- アバターは平面の映像より常に手前に描く（Video詳細設計7.2）。そのため、枠は重なり順の一覧で常に一番上にあり、並べ替えられない（`IFrameSource.StaysInFront`）。`Order`はStageが固定の大きな値（`AvatarFrame.FrontOrder`）にする。左右反転はできない（`IFrameSource.CanFlip`がfalse）。ロックとはみ出しの許可は使える。
+- 保存がないときの配置は、これまでの写り方に近い中央の上半身とする。範囲は(0.21, 0, 0.58, 0.58)、枠は配信画面の高さいっぱいで中央（16:9では(0.219, 0, 0.5625, 1)）。
+- アバターがないとき（Avatarがない、選んでいない、読み込めない）は、枠を非表示にし（`Visible`がfalse）、Avatar Cameraの写し方を外す（Main Cameraに合わせる元の動き。Video詳細設計7.2）。
+- アバターの高さは、Avatarが`IAvatarService.Height`で出し、CompositionがStageへ渡す（StageはAvatarを参照しない）。
 
 ---
 
@@ -237,6 +256,7 @@ public interface IAvatarSpawnPoints
 | EditMode | `ScreenPlacementMath`（位置、大きさ、UV、上下の入れ替え、左右反転、重なり）、`StageSettings`の読み書きと既定（純粋関数と偽のStore） |
 | EditMode | `CaptureScreen`：映像の変化で表示が切り替わる、確定で保存が予約される、不正な配置を拒否する |
 | EditMode | ライトの強さ：既定、範囲に収める、保存した値の読み込み（純粋関数）、変えるとすぐにライトへ反映し、遅れて保存し、次の起動で読み戻す |
+| EditMode | `AvatarFramingMath`：範囲の中心が枠の中心に、範囲の高さが枠の高さに写ること、身長によらないこと、既定の配置。`AvatarFrame`：アバターの有無で表示とカメラの写し方が切り替わる、確定で保存する、重なり順を固定する |
 | PlayMode | 置いた映像が、Stream Render Targetの決めた位置に描かれること（画素を読み戻す） |
 
 ---
@@ -273,7 +293,8 @@ Assets/VirtualVessel/Stage/
 
 | 項目 | 対応予定 |
 |---|---|
-| Stage Scene、Camera Point、Avatar Spawn Point | Stage Sceneの設計時 |
+| Stage Scene、Camera Point、Avatar Spawn Point | Stage Sceneの設計時。アバターが舞台の中に立つときに、アバターの枠（7.2）とどう合わせるかも決める |
+| アバターを枠で切り抜く | 要望が出た時点で。Avatar Cameraを別のRender Targetに描いて重ねる必要がある（7.2） |
 | 3Dの舞台の中のScreen Surface | Stage Sceneの設計時 |
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
 | 配置をProject / Profileへ移す | 完了（2026-10-27）：配置はProjectのものなので、`stage-settings.json`はProjectのフォルダーにある（Project Data詳細設計6章） |

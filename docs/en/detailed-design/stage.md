@@ -71,6 +71,8 @@ flowchart LR
 | `StageDefaults` | Static class | Placements for the first use, the default avatar spawn point, the default light's direction, and the backdrop's place and size |
 | `DefaultBackdrop` | Static class | The provisional backdrop's picture, drawn in code (pure function, 7.1) |
 | `IAvatarSpawnPoints` | Interface | Where avatars stand (7.1) |
+| `AvatarFrame` | Class (the UI's `IFrameSource`) | The avatar frame; sets the Avatar Camera's framing from its placement (7.2) |
+| `AvatarFramingMath` | Static class | The camera's position and projection from the avatar frame (pure functions, 7.2) |
 | `IStageLighting` (UI) | Interface | The light's brightness. The settings screen changes it; Stage implements it (7.1) |
 | `StageLightIntensity` (UI) | Static Class | The brightness's range and default, and a function that keeps a value in range (pure) |
 
@@ -156,6 +158,7 @@ public interface IAvatarSpawnPoints
 |---|---|---|
 | Game screen | The whole stream screen (0, 0, 1, 1) | 0 (back) |
 | Sub monitor | Top right (0.66, 0.04, 0.3, 0.3) | 1 |
+| Avatar | Middle, full height (7.2) | Always in front |
 
 ---
 
@@ -173,6 +176,22 @@ public interface IAvatarSpawnPoints
 - The user can change the light's brightness on the settings screen (`IStageLighting`; user's request, 2026-10-21). Under a light of intensity 1, the face was washed out and its expression hard to see. The range is 10 to 150%, and the default is 100% (intensity 1). The brightness scales the light as made, so that with Stage Scenes it can still adjust how bright the whole lighting is (chapter 17).
 - In system design 11.7, Stage manages the lighting. Stage also owns the brightness setting and saves it in `stage-settings.json` (6.3). It changes the stream too, so unlike the picture's height and zoom, which are only for looking (UI `setup.md` 9), it is saved.
 - Until a Stage Scene brings its own backdrop, Stage puts up a provisional one behind the avatar (the user's request, 2026-10-24). The picture is a dark gradient from plum through indigo to navy, with a soft glow behind the avatar, faint polka dots, and pastel stars and hearts in the side bands, away from the avatar. A pastel version was tried first; the user preferred a dark one. `DefaultBackdrop` (pure) draws it in code at 1600 × 900, so no image file is bundled; this takes about 0.37 s once at start in the Editor. It sits on a quad (`StageBackdrop`) 2 m behind the avatar at the camera's height. The quad is 4.27 × 2.4 m, the default camera's view (video detailed design 7.5) with about 15% to spare. The Main Camera draws it, under the flat videos and the avatar. It is unlit, with the stream screens' shader. It is removed with the default light.
+
+### 7.2 The Avatar Frame (placement editor)
+
+The user's request (2026-11-18): put the avatar on the right of the screen and the game screen on the left, and also make the avatar look seated, without more settings.
+
+- The placement editor gains one avatar frame (`AvatarFrame`, an `IFrameSource`). With the same operations as the game screen, it changes the position and size (`Placement`) and the part shown (`Crop`). Its Id is `avatar` and its name `stage.avatar.name` (アバター / Avatar). It is saved as `screens.avatar` in `stage-settings.json` (the same form as 6.3).
+- The frame's "whole video" is a square standing in front of the avatar. Its side is S = 1.1 × H, where H is the height from the feet to the top of the head in the reference pose, measured by Avatar. It reaches S up from the feet, and ±S/2 to each side of the avatar's center. `SourceAspect` is 1. The part shown (`Crop`) is a part of this square, 0 at the top and 1 at the bottom.
+- The Avatar Camera's (Video detailed design 7.6) position and projection are set so that the part shown fits the frame (`AvatarFramingMath`, pure functions).
+  - The camera stands in front of the avatar at D = 2.0 m, at the height of the middle of the part shown, facing the avatar. Seen from the front, the avatar does not turn at an angle even when the frame is moved to the side of the screen.
+  - A perspective projection with a shifted center (off-center) puts the center of the part shown at the frame's center, and its height at the frame's height. The width follows the height and is never stretched.
+- The part shown is a fraction of the height, so models of different heights show the same part in the same frame (avatar detailed design chapter 17, "how models of different heights are framed").
+- The frame does not cut the avatar: hands and the like outside the frame are still drawn, as URP overlay cameras cannot limit where they draw. To hide the body below the waist, put the frame's bottom on the stream's bottom edge, or allow it outside and move it down.
+- The avatar is always drawn in front of the flat videos (Video detailed design 7.2). So its frame is always at the top of the stacking list and cannot be reordered (`IFrameSource.StaysInFront`); Stage keeps its `Order` at a fixed large value (`AvatarFrame.FrontOrder`). It cannot be flipped (`IFrameSource.CanFlip` is false). Locking and allowing outside work.
+- Without a saved placement, it is close to how the avatar was shown before: the upper body in the middle. The part shown is (0.21, 0, 0.58, 0.58), and the frame is the stream's full height, centered ((0.219, 0, 0.5625, 1) at 16:9).
+- Without an avatar (no Avatar, none chosen, or it cannot be loaded), the frame is hidden (`Visible` is false) and the Avatar Camera's framing is removed (back to following the Main Camera, Video detailed design 7.2).
+- Avatar gives the avatar's height as `IAvatarService.Height`, and the composition passes it to Stage (Stage does not reference Avatar).
 
 ---
 
@@ -237,6 +256,7 @@ public interface IAvatarSpawnPoints
 | EditMode | `ScreenPlacementMath` (position, size, UVs, the top-bottom swap, left-right flip, stacking) and reading, writing, and defaults of `StageSettings` (pure functions and a fake store) |
 | EditMode | `CaptureScreen`: the display follows the video, a confirmation schedules a save, invalid placements are rejected |
 | EditMode | The light's brightness: the default, keeping it in range, reading a saved value (pure functions); a change applies to the light at once, is saved after the delay, and is read back on the next start |
+| EditMode | `AvatarFramingMath`: the center of the part shown lands on the frame's center and its height on the frame's height, independent of the avatar's height, and the default placement. `AvatarFrame`: showing and the camera's framing follow whether there is an avatar, a confirmation saves, the stacking order stays fixed |
 | PlayMode | A placed video is drawn at the decided place in the Stream Render Target (pixels read back) |
 
 ---
@@ -273,7 +293,8 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 
 | Item | Planned handling |
 |---|---|
-| Stage Scenes, Camera Points, Avatar Spawn Points | With the Stage Scene design |
+| Stage Scenes, Camera Points, Avatar Spawn Points | With the Stage Scene design. How the avatar frame (7.2) fits an avatar standing in the stage is decided then too |
+| Cutting the avatar to its frame | When requested. The Avatar Camera would have to draw into a separate render target that is then laid over (7.2) |
 | Screen Surfaces inside a 3D stage | With the Stage Scene design |
 | Keeping a capture running without showing it on the stream | When it is asked for |
 | Moving placements into Project / Profile | Done (2026-10-27): `stage-settings.json` is in the project's folder, as the layout belongs to the project (project data detailed design 6) |

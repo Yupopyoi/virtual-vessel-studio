@@ -104,6 +104,11 @@ public interface IStreamOutput
     int AvatarLayer { get; }                      // アバターに使うUnityの層（Avatar）。起動前は-1
 }
 
+public interface IAvatarCamera
+{
+    void SetFraming(AvatarFraming? framing);      // アバターの写し方（7.6）。nullでMain Cameraに合わせる
+}
+
 public interface IStreamScreenLayer
 {
     // 子のlocalPositionで、x：左0〜右1、y：上0〜下1が配信画面になる。zが小さいほど手前に描く。
@@ -171,7 +176,7 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 |---|---|---|---|---|
 | 1 | Main Camera | Base、透視投影 | 舞台（下の2つの層以外） | 背景色 |
 | 2 | Screen Camera | Overlay、正射影 | 平面の映像の層（`StreamScreens`） | なし |
-| 3 | Avatar Camera | Overlay、Main Cameraと同じ位置と画角 | アバターの層（`Avatar`） | 深度だけ |
+| 3 | Avatar Camera | Overlay、Main Cameraと同じ位置と画角。アバターの枠があればその写し方（7.6） | アバターの層（`Avatar`） | 深度だけ |
 
 - 平面の映像はアバターの後ろに出す（利用者の決定、2026-10-17）。映像ごとに前後を選ぶ機能は後で足せるよう、層の順は表で管理する。
 - Screen CameraはMain Cameraの子にしない。正射影で原点に置き、配信画面の範囲だけを描く。Main Cameraが動いても平面の映像は動かない。
@@ -195,6 +200,14 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 
 - Camera Pointができるまでは、Main Cameraを(0, 1.25, -1.9)に置き、+Zを向け、縦の画角を30°とする。既定のSpawn Point（原点、Stage詳細設計7.1）に立つアバターの前で、上半身が収まる。画角を狭くするのは、顔に寄ったときの広角のゆがみを避けるため。
 - 値は`VideoSettings`に持つ。nullならSceneのとおりにする。元の値は終了時に戻す。
+
+### 7.6 アバターの写し方（Avatar Camera）
+
+- Stageが、アバターの枠（Stage詳細設計7.2）から求めた写し方を`IAvatarCamera.SetFraming(AvatarFraming? framing)`で渡す。nullなら、Main Cameraと同じ位置と画角で写す（7.2）。
+- `AvatarFraming`は、カメラのWorldの位置と向きと、距離1での投影の左右上下（中心をずらした透視投影）を持つ。
+- 写し方があるときは、Videoが毎Frame、Avatar CameraのWorldの位置と向きと、`projectionMatrix`（`Matrix4x4.Frustum`。near 0.05 m、far 20 m）を設定する。Avatar CameraはMain Cameraの子のままにする。Main Cameraが動いても、毎Frame設定し直すので写し方は変わらない。
+- 写し方を外すときは、`ResetProjectionMatrix`で投影を元に戻し、Main Cameraに合わせる動きに戻る。
+- 舞台、背景、平面の映像はMain CameraとScreen Cameraが写すので、変わらない。
 
 ---
 
@@ -261,6 +274,7 @@ UniversalRenderPipelineのCamera Stackで、層ごとに描く。
 | EditMode | `ScreenLayerMath`（0〜1の座標、縦横比）、`StreamFrameMeter`（純粋関数） |
 | PlayMode | 平面の映像の層に置いた色付きの板が、Stream Render Targetの正しい位置に描かれること（画素を読み戻す）。Main Cameraが背景色で消去すること |
 | PlayMode | 終了時に描画先が外れ、作った物が破棄されること |
+| PlayMode | 写し方を渡すと、アバターの層に置いた物が、枠の位置に描かれること（画素を読み戻す）。外すとMain Cameraに合わせて描かれること |
 
 ---
 

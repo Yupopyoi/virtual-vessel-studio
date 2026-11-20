@@ -9,6 +9,7 @@ using VirtualVessel.Audio;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Core.State;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -60,6 +61,10 @@ namespace VirtualVessel.Application.Startup
             public TrackingService Tracking;
             public TrackingRecordings Recordings;
             public AvatarService Avatar;
+
+            // The avatar's height for Stage's avatar frame. Stage starts before Avatar, which stands at Stage's spawn
+            // point, so Stage gets this relay and Avatar fills it once it starts (Stage detailed design 7.2).
+            public readonly ObservableValue<float?> AvatarHeight = new ObservableValue<float?>(null);
 
             public ILog Log(string module, string category)
             {
@@ -240,7 +245,9 @@ namespace VirtualVessel.Application.Startup
                         context.FrameLoop,
                         StageService.CreateStore(built.Project.Value.Directory, context.SystemClock),
                         context.MonotonicClock,
-                        built.Log("Stage", "Screens")),
+                        built.Log("Stage", "Screens"),
+                        built.Video,
+                        built.AvatarHeight),
                     new[] { LoggingService.ServiceName, CaptureService.ServiceName, VideoService.ServiceName });
             }
         }
@@ -286,7 +293,12 @@ namespace VirtualVessel.Application.Startup
                 AvatarService.ServiceName,
                 ServiceCriticality.Optional,
                 // Tracking, when it started, was created just before: its frame work runs first each frame.
-                () => built.Avatar = CreateAvatar(context, built.Project.Value, built.Video, built.Stage, built.Tracking, built.Metrics, built.Log("Avatar", "Avatars")),
+                () =>
+                {
+                    built.Avatar = CreateAvatar(context, built.Project.Value, built.Video, built.Stage, built.Tracking, built.Metrics, built.Log("Avatar", "Avatars"));
+                    built.Avatar.Height.Subscribe(height => built.AvatarHeight.Value = height);
+                    return built.Avatar;
+                },
                 new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName });
         }
 
@@ -331,6 +343,7 @@ namespace VirtualVessel.Application.Startup
             {
                 StreamPreview = built.Video?.Preview,
                 FrameSources = built.Stage?.Screens,
+                AvatarFrame = built.Stage?.AvatarFrameSource,
                 Captures = built.Capture,
                 Audio = built.Audio,
                 Voice = built.Voice,

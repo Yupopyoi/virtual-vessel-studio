@@ -173,6 +173,14 @@ Making the main camera itself common and giving stage scenes only camera points 
 
 This allows the video output to always reference the same main camera.
 
+### The Avatar Frame
+
+In the present flat composition, with no 3D stage, the avatar is shot by its own camera (the Avatar Camera) to fit the avatar frame placed in the placement editor (the user's decision, 2026-11-18; Stage detailed design 7.2, Video detailed design 7.6). The stage and backdrop are shot by the Main Camera as before.
+
+This puts the avatar wherever the user likes on the screen, at any size, seen from the front. Moving the Main Camera would move the backdrop too, and an avatar moved to the side of the screen would be seen at an angle. The user handles only the frame and never chooses whether the camera or the avatar moves.
+
+For Stage Scenes where the avatar stands in the stage, whether it is shot by the Main Camera and Camera Points or by the frame is decided with the Stage Scene design.
+
 ---
 
 ## 10.4 Camera Switching

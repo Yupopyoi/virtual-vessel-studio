@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
+using VirtualVessel.Core.Geometry;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
+using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Preview;
@@ -91,16 +93,19 @@ namespace VirtualVessel.UI.Screens
         private readonly IAvatarService _avatars;
         private readonly IStreamPreviewSource _stream;
         private readonly IStageLighting _lighting;
+        private readonly IFrameSource _avatarFrame;
         private Label _noVideo;
         private readonly ValueSlider[] _sliders = new ValueSlider[FaceTuning.PartCount];
         private readonly ProgressMeter[] _meters = new ProgressMeter[FaceTuning.PartCount];
 
         /// <param name="stream">The stream video, to watch the avatar; null shows no picture.</param>
         /// <param name="lighting">The stage's light; null leaves its slider out.</param>
-        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream, IStageLighting lighting = null)
+        /// <param name="avatarFrame">The avatar's frame (Stage detailed design 7.2), to zoom about the avatar; null zooms about the stream's middle.</param>
+        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream, IStageLighting lighting = null, IFrameSource avatarFrame = null)
         {
             _avatars = avatars ?? throw new ArgumentNullException(nameof(avatars));
             _stream = stream;
+            _avatarFrame = avatarFrame;
             AddToClassList(UssClass);
             AddToClassList(CaptureSourceCard.UssClass);
             Card card = Ui.Card(FaceTuningStrings.Title);
@@ -133,12 +138,12 @@ namespace VirtualVessel.UI.Screens
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Frame.Add(Preview);
             Frame.Add(_noVideo);
-            Place(Preview, Crop(DefaultPictureHeight, DefaultZoom));
+            Place(Preview, Crop(DefaultPictureHeight, DefaultZoom, AreaOf(_avatarFrame)));
             var picture = new VisualElement();
             picture.AddToClassList(PictureClass);
-            PictureHeight = Percent(FaceTuningStrings.PictureHeight, 0f, 100f, 5f, value => Place(Preview, Crop(value, PictureZoom.value)));
+            PictureHeight = Percent(FaceTuningStrings.PictureHeight, 0f, 100f, 5f, value => ShowPicture());
             PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
-            PictureZoom = Percent(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, 10f, value => Place(Preview, Crop(PictureHeight.value, value)));
+            PictureZoom = Percent(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, 10f, value => ShowPicture());
             PictureZoom.SetValueWithoutNotify(DefaultZoom);
             picture.Add(Frame);
             picture.Add(PictureHeight);
@@ -258,15 +263,38 @@ namespace VirtualVessel.UI.Screens
         }
 
         /// <summary>
-        /// The part of the stream shown, in UV (0 to 1 from the bottom left), at
-        /// <paramref name="heightPercent"/>, 0 (bottom) to 100 (top), enlarged by
-        /// <paramref name="zoomPercent"/>: the stream's middle, in its own shape, kept within it. Pure.
+        /// The part of the stream shown, in UV (0 to 1 from the bottom left), looking at
+        /// <paramref name="area"/> (UV; the whole stream by default): at <paramref name="heightPercent"/>
+        /// of its height, 0 (bottom) to 100 (top), enlarged by <paramref name="zoomPercent"/> of its
+        /// height, about its horizontal middle; in the stream's own shape, kept within the stream. Pure.
         /// </summary>
-        public static Rect Crop(float heightPercent, float zoomPercent)
+        public static Rect Crop(float heightPercent, float zoomPercent, Rect? area = null)
         {
-            float size = 100f / Mathf.Clamp(zoomPercent, MinZoom, MaxZoom);
-            float y = Mathf.Clamp01(heightPercent / 100f) * (1f - size);
-            return new Rect((1f - size) / 2f, y, size, size);
+            Rect looked = area ?? new Rect(0f, 0f, 1f, 1f);
+            float size = Mathf.Min(1f, looked.height * 100f / Mathf.Clamp(zoomPercent, MinZoom, MaxZoom));
+            float y = looked.y + Mathf.Clamp01(heightPercent / 100f) * (looked.height - size);
+            float x = looked.center.x - size / 2f;
+            return new Rect(Mathf.Clamp(x, 0f, 1f - size), Mathf.Clamp(y, 0f, 1f - size), size, size);
+        }
+
+        /// <summary>
+        /// What the picture looks at, in UV: the avatar frame's place on the stream when the avatar shows, so the
+        /// height and zoom follow the avatar wherever and however large it is placed; else the whole stream. Pure.
+        /// </summary>
+        public static Rect? AreaOf(IFrameSource avatarFrame)
+        {
+            if (avatarFrame == null || !avatarFrame.Visible.Value)
+            {
+                return null;
+            }
+
+            NormalizedRect placement = avatarFrame.Layout.Value.Placement;
+            return new Rect((float)placement.X, (float)(1.0 - placement.Y - placement.Height), (float)placement.Width, (float)placement.Height);
+        }
+
+        private void ShowPicture()
+        {
+            Place(Preview, Crop(PictureHeight.value, PictureZoom.value, AreaOf(_avatarFrame)));
         }
 
         /// <summary>
@@ -317,6 +345,14 @@ namespace VirtualVessel.UI.Screens
                 ShowLight(_lighting.Intensity.Value);
             }
 
+            // The avatar may have been moved on the live screen since; the picture follows it.
+            if (_avatarFrame != null)
+            {
+                subscriptions.Add(_avatarFrame.Layout.Subscribe(_ => ShowPicture()));
+                subscriptions.Add(_avatarFrame.Visible.Subscribe(_ => ShowPicture()));
+            }
+
+            ShowPicture();
             return new DisposeAll(subscriptions);
         }
 

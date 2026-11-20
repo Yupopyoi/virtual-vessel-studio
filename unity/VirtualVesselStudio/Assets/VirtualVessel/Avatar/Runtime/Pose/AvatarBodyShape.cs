@@ -94,6 +94,24 @@ namespace VirtualVessel.Avatar
 
         public PartShape Head { get; }
 
+        /// <summary>The height used for a model whose body could not be measured: a typical avatar's.</summary>
+        public const float TypicalHeight = 1.6f;
+
+        /// <summary>
+        /// The height from the root, at the feet, to the top of the head in the reference pose, in meters; for a model
+        /// not measured, <see cref="TypicalHeight"/>. Pure.
+        /// </summary>
+        public static float HeightOf(AvatarBodyShape shape)
+        {
+            if (shape == null || !shape.Has(AvatarBone.Head))
+            {
+                return TypicalHeight;
+            }
+
+            float top = shape.Rest(AvatarBone.Head).y + shape.Head.Center.y + shape.Head.Radii.y;
+            return top > 0f ? top : TypicalHeight;
+        }
+
         /// <summary>The part of the torso on the <paramref name="index"/>th of <see cref="TorsoBones"/>; null when not measured.</summary>
         public PartShape? Torso(int index)
         {

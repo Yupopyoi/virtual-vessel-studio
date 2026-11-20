@@ -708,6 +708,7 @@
         "gallery.step-build": "作成",
         "stage.screen.game": "ゲーム画面",
         "stage.screen.subscreen": "サブモニター",
+        "stage.avatar.name": "アバター",
         "stage.placement.invalid": "この配置は使えません。",
         "live.audio.microphone": "マイク",
         "live.audio.game": "ゲーム",

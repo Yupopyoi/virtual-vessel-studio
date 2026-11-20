@@ -17,6 +17,17 @@ namespace VirtualVessel.UI.Tests
             Assert.That(FrameCanvasMath.AllowedWhenLocked(FrameAction.StopCapture), Is.False);
         }
 
+        [Test]
+        public void AFrameThatStaysInFront_RefusesRestacking_AndOneThatCannotFlip_RefusesFlipping()
+        {
+            Assert.That(FrameCanvasMath.Supports(FrameAction.BringForward, canFlip: true, staysInFront: true), Is.False);
+            Assert.That(FrameCanvasMath.Supports(FrameAction.SendToBack, canFlip: true, staysInFront: true), Is.False);
+            Assert.That(FrameCanvasMath.Supports(FrameAction.Center, canFlip: true, staysInFront: true), Is.True);
+            Assert.That(FrameCanvasMath.Supports(FrameAction.ToggleFlip, canFlip: false, staysInFront: false), Is.False);
+            Assert.That(FrameCanvasMath.Supports(FrameAction.ToggleFlip, canFlip: true, staysInFront: false), Is.True);
+            Assert.That(FrameCanvasMath.Supports(FrameAction.BringToFront, canFlip: true, staysInFront: false), Is.True);
+        }
+
         // A frame at 25%–75% × 25%–75% of a 400 × 200 px stream area: corners at (100, 50) and (300, 150).
         private static readonly NormalizedRect s_frame = new NormalizedRect(0.25, 0.25, 0.5, 0.5);
 

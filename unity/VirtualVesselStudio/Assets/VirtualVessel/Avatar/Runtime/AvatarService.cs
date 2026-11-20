@@ -39,6 +39,7 @@ namespace VirtualVessel.Avatar
         private readonly ObservableValue<string> _current = new ObservableValue<string>(null);
         private readonly ObservableValue<AvatarState> _state = new ObservableValue<AvatarState>(AvatarState.None);
         private readonly ObservableValue<AvatarProblem> _problem = new ObservableValue<AvatarProblem>(AvatarProblem.None);
+        private readonly ObservableValue<float?> _height = new ObservableValue<float?>(null);
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly PerfTimer _applyTimer;
         private readonly PerfTimer _loadTimer;
@@ -98,6 +99,8 @@ namespace VirtualVessel.Avatar
         public IReadOnlyObservable<AvatarState> State => _state;
 
         public IReadOnlyObservable<AvatarProblem> Problem => _problem;
+
+        public IReadOnlyObservable<float?> Height => _height;
 
         public IReadOnlyList<string> Extensions => _loader.Extensions;
 
@@ -349,6 +352,7 @@ namespace VirtualVessel.Avatar
             IAvatarModel old = _model;
             _model = model;
             _controller = controller;
+            _height.Value = AvatarBodyShape.HeightOf(model.BodyShape);
             return old;
         }
 
@@ -541,6 +545,7 @@ namespace VirtualVessel.Avatar
             IAvatarModel model = _model;
             _model = null;
             _controller = null;
+            _height.Value = null;
             model?.Dispose();
         }
 

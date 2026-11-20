@@ -475,6 +475,7 @@ In VRM, the author writes the conditions for using the avatar (who may use it as
 
 - The avatar is placed in the persistent area owned by the application (outside Stage Scenes) (system design 7.10).
 - Until Stage Scene spawn points exist, Stage provides one default spawn point (`IAvatarSpawnPoints`, Stage detailed design 7.1): at the origin, facing the camera (-Z). The default Main Camera position is set so the upper body fits the stream (Video detailed design 7.5).
+- The avatar's height (from the feet to the top of the head in the reference pose, in m) is given as `IAvatarService.Height`, from the top of the head in the body shape measured on loading (`AvatarBodyShape`, 7.6); null without an avatar. Stage uses it for the avatar frame (Stage detailed design 7.2).
 - Placing puts every part on the `Avatar` layer, moves it to the spawn point, and lowers the arms (`AvatarRestPose`, 70° by default) before showing it. Loading happens hidden, so it never shows for a moment at the origin or on the wrong layer.
 - It is drawn on the Unity layer `Avatar`, by Video's Avatar Camera (Video detailed design 7.2: same position and field of view as the Main Camera, overlay). It appears in front of the flat videos (user's decision, 2026-10-17).
 
@@ -907,7 +908,7 @@ Assets/VirtualVessel/Avatar/
 | Whether to accept VRM 0.x models | Decided: accepted by converting to 1.0 at load (6.8, system design 7.3; user's decision, 2026-10-18) |
 | A VRM model for tests | Checked with the user's samples (outside the repository, in `E:\VirtualVessel\samples\`; two VRM 1.0 models and one 0.x model). After conversion, the 0.x model passed the tests of bones, root-space rotation, expressions, and disposal. Decided (2026-10-25): the user's own model `otoha-chan.vrm`, re-exported with a license that allows redistribution and modification, is in the repository at `tests/samples/` in Git LFS (`tests/samples/README.md`). The VRM tests use it where the developer's own set is not found. They stay Explicit until Unity runs in CI |
 | Models without a thumbnail | "No image" is shown for now. Capturing one at load is considered if wanted |
-| How models of different heights are framed | The default camera position is fixed (Video detailed design 7.5). If the upper body of a much taller or shorter model does not fit, fitting to the head height is considered with the Camera Point design |
+| How models of different heights are framed | Decided: the avatar frame (Stage detailed design 7.2) chooses the part shown as a fraction of the height; the model's height is `IAvatarService.Height` (6.5) |
 | Position matching such as touching the face (IK) | Considered together with full body |
 | Setting the arm-down angle in the profile (`pose.armDownAngle`, 6.3) | Not built; the default 70° for now. Added to profile loading and the avatar Card if, for example, a model's arms sink into its body |
 | Depth estimation (tracking detailed design 8.4) | Decided: four methods were compared on recordings, and a correction straightening arms that point at the camera was added (tracking detailed design 8.4). The avatar's elbow bend in "arms forward" went from a median of 40° to 6°. Awaiting the camera check. The earlier **known issue** (the user's camera check, 2026-10-22): an arm thrust forward does not straighten. In the recording "arms forward", the elbow bends 33–40° at the median and the wrist is only 36–39 cm ahead of the shoulder for an arm about 43–45 cm long: MediaPipe underestimates the depth. Fixed by working the depth out again from bone lengths (8.4) |
@@ -921,7 +922,7 @@ Assets/VirtualVessel/Avatar/
 | The cropped video of the face tuning Card | Decided: the user moves it up and down (UI `setup.md` chapter 9; where the face is depends on the avatar's height). Not saved. Choosing the part from the head's position automatically is considered with Camera Points |
 | Expression defaults | Decided: the values the user tuned on a camera became the defaults (7.4, 2026-10-21). Someone whose face moves differently changes them on the tuning screen |
 | FBX | Starting with the choice of library. After v0.1.0 |
-| Screens for adjusting the spawn point and camera position | When designing Stage Scenes and Camera Points |
+| Screens for adjusting the spawn point and camera position | In the flat composition, with the avatar frame of the placement editor (Stage detailed design 7.2, 2026-11-18). Adjusting with Stage Scenes and Camera Points comes with their design |
 | Moving settings to Project / Profile | Done (2026-10-27): `avatar-settings.json` is in the project's folder (project data detailed design) |
 
 ---

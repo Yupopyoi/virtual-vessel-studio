@@ -34,6 +34,12 @@ namespace VirtualVessel.UI.Screens
 
         public SelectField Devices { get; }
 
+        /// <summary>Whether <paramref name="audio"/> has the game audio's source to choose a device for. Pure.</summary>
+        public static bool CanShow(IAudioService audio)
+        {
+            return audio?.Sources != null && audio.Sources.Any(source => source.Role == AudioSourceRole.GameAudio);
+        }
+
         /// <summary>
         /// The input device that belongs to a video device, or null. Windows names a board's sound after the
         /// board, as in "Digital Audio Interface (MiraBox Capture)", in the system's language. Pure.

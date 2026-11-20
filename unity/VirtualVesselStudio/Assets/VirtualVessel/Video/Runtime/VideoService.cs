@@ -18,7 +18,7 @@ namespace VirtualVessel.Video
     /// avatar in front of it (video detailed design 7). An Optional application service: without it
     /// there is no preview, and everything else runs.
     /// </summary>
-    public sealed class VideoService : IApplicationService, IStreamOutput, IStreamScreenLayer
+    public sealed class VideoService : IApplicationService, IStreamOutput, IStreamScreenLayer, IAvatarCamera
     {
         public const string ServiceName = "Video";
 
@@ -27,6 +27,10 @@ namespace VirtualVessel.Video
 
         /// <summary>The Unity layer of avatars, defined in the project's tags and layers.</summary>
         public const string AvatarLayerName = "Avatar";
+
+        /// <summary>The Avatar Camera's clip planes while it follows an avatar frame (video detailed design 7.6).</summary>
+        public const float FramingNear = 0.05f;
+        public const float FramingFar = 20f;
 
         private readonly VideoSettings _settings;
         private readonly Camera _mainCamera;
@@ -48,6 +52,7 @@ namespace VirtualVessel.Video
         private long _lastFrame;
         private int _layer = -1;
         private int _avatarLayer = -1;
+        private AvatarFraming? _framing;
 
         // What the scene's camera had, given back at shutdown.
         private int _originalCullingMask;
@@ -93,6 +98,15 @@ namespace VirtualVessel.Video
         internal Camera AvatarCamera => _avatarCamera;
 
         internal Camera ScreenCamera => _screenCamera;
+
+        public void SetFraming(AvatarFraming? framing)
+        {
+            _framing = framing;
+            if (_avatarCamera != null)
+            {
+                ShootAvatar(_mainCamera, _avatarCamera, framing);
+            }
+        }
 
         public Task InitializeAsync(CancellationToken cancellationToken)
         {
@@ -195,7 +209,7 @@ namespace VirtualVessel.Video
             _avatarCamera = avatarCameraObject.AddComponent<Camera>();
             _avatarCamera.cullingMask = 1 << _avatarLayer;
             _avatarCamera.aspect = Size.Aspect;
-            MatchMainCamera(_mainCamera, _avatarCamera);
+            ShootAvatar(_mainCamera, _avatarCamera, _framing);
             _avatarCamera.GetUniversalAdditionalCameraData().renderType = CameraRenderType.Overlay;
             return _avatarCamera;
         }
@@ -236,7 +250,7 @@ namespace VirtualVessel.Video
 
             if (_avatarCamera != null)
             {
-                MatchMainCamera(_mainCamera, _avatarCamera);
+                ShootAvatar(_mainCamera, _avatarCamera, _framing);
             }
 
             long now = _clock.GetTimestamp();
@@ -300,8 +314,22 @@ namespace VirtualVessel.Video
             }
         }
 
-        private static void MatchMainCamera(Camera main, Camera avatar)
+        // Set every frame: with a framing, the Main Camera may have moved under the Avatar Camera, its parent; without
+        // one, the Avatar Camera follows the Main Camera's field of view and clip planes.
+        private static void ShootAvatar(Camera main, Camera avatar, AvatarFraming? framing)
         {
+            if (framing is AvatarFraming shot)
+            {
+                avatar.transform.SetPositionAndRotation(shot.Position, shot.Rotation);
+                avatar.nearClipPlane = FramingNear;
+                avatar.farClipPlane = FramingFar;
+                avatar.projectionMatrix = shot.Projection(FramingNear, FramingFar);
+                return;
+            }
+
+            avatar.transform.localPosition = Vector3.zero;
+            avatar.transform.localRotation = Quaternion.identity;
+            avatar.ResetProjectionMatrix();
             avatar.fieldOfView = main.fieldOfView;
             avatar.nearClipPlane = main.nearClipPlane;
             avatar.farClipPlane = main.farClipPlane;
