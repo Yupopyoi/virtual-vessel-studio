@@ -32,7 +32,9 @@ extern "C"
 // 10: noise removal on a source as it is captured (vv_audio_set_denoise).
 // 11: BGM and SE players as sources (vv_audio_add_player_source, vv_audio_bgm_*, vv_audio_effect_*), and probing
 //     a file (vv_audio_probe_file).
-#define VV_AUDIO_API_VERSION 11
+// 12: a program's sound as a source's device: vv_audio_set_device takes "app:<file name>", such as
+//     "app:game.exe" (audio detailed design 8.7).
+#define VV_AUDIO_API_VERSION 12
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
