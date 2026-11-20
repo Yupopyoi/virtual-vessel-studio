@@ -28,11 +28,11 @@ def correct():
 
 
 def wrong():
-    """Two buzzes, the second held: a quiz show's playful miss rather than an alarm, so higher and brighter than a
-    plain low buzz, and the second drawn out (the user's request, 2026-11-20)."""
+    """Two buzzes, the second held: a quiz show's playful miss rather than an alarm, so brighter than a plain low
+    buzz, low in pitch, and the second drawn out (the user's requests, 2026-11-20)."""
     def buzz(dur):
         n = int(dur * SR)
-        tone = pulse(midi(50), n, 0.35) + pulse(midi(50) * 1.01, n, 0.35) + 0.5 * pulse(midi(57), n, 0.35)
+        tone = pulse(midi(43), n, 0.35) + pulse(midi(43) * 1.01, n, 0.35) + 0.5 * pulse(midi(50), n, 0.35)
         return lowpass(tone, 4200) * env(n, 0.005, 10, 1.0, 0.08)
     return finish_effect(_place(1.5, (0.0, buzz(0.2)), (0.28, buzz(1.1))) * 0.45)
 
