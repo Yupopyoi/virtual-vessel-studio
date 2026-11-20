@@ -62,6 +62,7 @@ public interface IAudioClipLibrary
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
     CrudResult Delete(string id);                // 流しているBGMはBusy
+    CrudResult Move(string id, int position);    // 種類の一覧の中の位置（0が先頭）へ。後ろを越えたら最後
     IReadOnlyList<string> FileExtensions { get; } // 最初の版は wav、mp3
     event Action<AudioClipKind> Changed;          // 追加、変更、削除の後。プレイヤーが追う
 }
@@ -102,10 +103,12 @@ Data Rootの`Audio/`に置く（方式設計6.10、12.6）。
 ```text
 Audio/
 ├─ BGM/
+│  ├─ order.json            利用者が並べた順（下）
 │  └─ bgm-<id>/
 │     ├─ audio.mp3          元のファイルの写し（拡張子は元のまま）
 │     └─ audio-profile.json
 └─ SE/
+   ├─ order.json
    └─ se-<id>/
       ├─ audio.wav
       └─ audio-profile.json
@@ -128,6 +131,7 @@ Audio/
 - `loop`はBGMだけが使う。SEは`false`のままで、使わない（設定のファイルはnullも書くため、省けない）。
 - この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
 - `name`は1〜60文字。同じ名前を許す（IDで区別する）。
+- 一覧（`List`）の順は、利用者が並べた順である（2026-11-20）。`order.json`（`{ "schemaVersion": 1, "ids": ["se-…", …] }`）に、種類ごとにIDを先頭から持つ。そこにないもの（並べ替えの後に追加したもの、並べ替えたことがないもの）は、その後ろに追加した順で並ぶ。消したもののIDは読み飛ばし、次の並べ替えで消える。順を1つのファイルに持つのは、並べ替えのたびに全部の`audio-profile.json`を書き換えないためである。設定画面とライブ画面のどちらも、この順で出す。
 
 ### 6.2 Audio Profileの音の元
 
@@ -233,7 +237,7 @@ StreamingAssets/Audio/BuiltIn/
 | 種類 | 対象 |
 |---|---|
 | ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
-| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
+| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
 | PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
 | 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
 

@@ -136,6 +136,44 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(AudioClipLibrary.KindOf("bgm-"), Is.Null);
         }
 
+        [Test]
+        public void Moving_KeepsTheUsersOrder_WithNewOnesAfter()
+        {
+            string[] ids = new[] { "a-1.wav", "b-1.wav", "c-1.wav" }
+                .Select(name => _library.AddAsync(AudioClipKind.SoundEffect, Source(name), null, CancellationToken.None).GetAwaiter().GetResult().Value.Id)
+                .ToArray();
+            int changed = 0;
+            _library.Changed += kind => changed += kind == AudioClipKind.SoundEffect ? 1 : 0;
+
+            Assert.That(_library.Move(ids[2], 0).Ok, Is.True);
+
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[0], ids[1] }));
+            Assert.That(changed, Is.EqualTo(1));
+            string added = _library.AddAsync(AudioClipKind.SoundEffect, Source("d-1.wav"), null, CancellationToken.None).GetAwaiter().GetResult().Value.Id;
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[0], ids[1], added }), "A new one comes last.");
+            Assert.That(_library.Delete(ids[0]).Ok, Is.True);
+            Assert.That(_library.Move(added, 99).Ok, Is.True, "Past the end is last.");
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[1], added }), "A deleted one leaves no gap.");
+            Assert.That(File.Exists(Path.Combine(_root, "Audio", "SE", AudioClipLibrary.OrderFile)), Is.True);
+            Assert.That(_library.List(AudioClipKind.Bgm).Value, Is.Empty, "The order file is not a registration.");
+            Assert.That(_library.Move("se-none", 0).Error, Is.EqualTo(CrudError.NotFound));
+            Assert.That(_library.Move("../x", 0).Error, Is.EqualTo(CrudError.Invalid));
+        }
+
+        [Test]
+        public void Arrange_PutsThePlacedFirst_ThenByWhenAdded()
+        {
+            var early = DateTimeOffset.Parse("2026-11-01T00:00:00Z");
+            AudioClipRecord Clip(string id, int day) => new AudioClipRecord(id, AudioClipKind.Bgm, id, 0f, true, TimeSpan.Zero, id, early.AddDays(day), id);
+            AudioClipRecord[] records = { Clip("bgm-a", 2), Clip("bgm-b", 1), Clip("bgm-c", 3), Clip("bgm-d", 0) };
+
+            Assert.That(AudioClipLibrary.Arrange(records, new[] { "bgm-c", "bgm-gone", "bgm-a" }).Select(c => c.Id), Is.EqualTo(new[] { "bgm-c", "bgm-a", "bgm-d", "bgm-b" }));
+            Assert.That(AudioClipLibrary.Arrange(records, null).Select(c => c.Id), Is.EqualTo(new[] { "bgm-d", "bgm-b", "bgm-a", "bgm-c" }), "Without an order, when they were added.");
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b", "c" }, "a", 2), Is.EqualTo(new[] { "b", "c", "a" }));
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b", "c" }, "c", -1), Is.EqualTo(new[] { "c", "a", "b" }), "Clamped.");
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b" }, "x", 0), Is.EqualTo(new[] { "a", "b" }), "Unknown IDs leave it as it was.");
+        }
+
         private sealed class FixedClock : ISystemClock
         {
             private DateTimeOffset _now = new DateTimeOffset(2026, 11, 16, 12, 0, 0, TimeSpan.Zero);
@@ -382,6 +420,11 @@ namespace VirtualVessel.Audio.Tests
             }
 
             public CrudResult Delete(string id)
+            {
+                throw new NotSupportedException();
+            }
+
+            public CrudResult Move(string id, int position)
             {
                 throw new NotSupportedException();
             }

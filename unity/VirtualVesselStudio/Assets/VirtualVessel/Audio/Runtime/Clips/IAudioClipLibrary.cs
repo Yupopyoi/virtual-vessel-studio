@@ -96,7 +96,10 @@ namespace VirtualVessel.Audio.Clips
         /// <summary>Raised after a registration of the kind was added, changed, or deleted; on any thread.</summary>
         event Action<AudioClipKind> Changed;
 
-        /// <summary>Every registration of the kind that can be read, in the order they were added.</summary>
+        /// <summary>
+        /// Every registration of the kind that can be read, in the user's order: those they placed first, then the
+        /// others in the order they were added.
+        /// </summary>
         CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind);
 
         /// <summary>NotFound when there is no such registration.</summary>
@@ -116,5 +119,11 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>Busy while it plays; a registration that is not there succeeds.</summary>
         CrudResult Delete(string id);
+
+        /// <summary>
+        /// Puts a registration at a position in its kind's list (0 is the first), the others keeping their order.
+        /// A position past the end puts it last. NotFound without the registration.
+        /// </summary>
+        CrudResult Move(string id, int position);
     }
 }

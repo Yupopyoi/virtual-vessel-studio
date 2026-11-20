@@ -62,6 +62,7 @@ public interface IAudioClipLibrary
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // name, volume, loop
     CrudResult Delete(string id);                // Busy for the BGM that plays
+    CrudResult Move(string id, int position);    // To a place in its kind's list (0 is first); past the end is last
     IReadOnlyList<string> FileExtensions { get; } // wav and mp3 in the first version
     event Action<AudioClipKind> Changed;          // after adding, changing, deleting; the players follow it
 }
@@ -102,10 +103,12 @@ In the Data Root's `Audio/` (system design 6.10, 12.6).
 ```text
 Audio/
 ├─ BGM/
+│  ├─ order.json            the order the user put them in (below)
 │  └─ bgm-<id>/
 │     ├─ audio.mp3          a copy of the original (its own extension)
 │     └─ audio-profile.json
 └─ SE/
+   ├─ order.json
    └─ se-<id>/
       ├─ audio.wav
       └─ audio-profile.json
@@ -128,6 +131,7 @@ Audio/
 - Only BGM uses `loop`; SE keeps it `false` and does not use it (the settings files write nulls too, so it cannot be left out).
 - Fields this version does not know are written back, not dropped (CLAUDE.md 25). Examples to come: an SE's `shortcut`, how a made BGM was made (system design 16.32).
 - `name` is 1 to 60 characters. Equal names are allowed; the ID tells them apart.
+- The list (`List`) is in the order the user put the files in (2026-11-20). `order.json` (`{ "schemaVersion": 1, "ids": ["se-…", …] }`) holds each kind's IDs from the first. Those not in it (added after the last reordering, or never reordered) come after, in the order they were added. IDs of deleted files are skipped and drop out at the next reordering. The order is one file so that reordering does not rewrite every `audio-profile.json`. The setup and the live screens both show this order.
 
 ### 6.2 Sources in the Audio Profile
 
@@ -233,7 +237,7 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 | Kind | Target |
 |---|---|
 | Native (ctest) | The deck with written WAV and MP3 files: no silence at a loop's seam, the end notice, fades, silence when the ring is empty. SE voices: overlapping, replacing with no free voice. Mixing in stereo |
-| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine |
+| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine |
 | PlayMode | The settings and live screens' controls (with their screen spec) |
 | Hardware (manual) | BGM and SE reach the stream and recordings, and the monitor send works |
 
