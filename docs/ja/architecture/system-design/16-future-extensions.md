@@ -808,7 +808,7 @@ Coreは可能な限り安定した共通機能へ限定する。
 
 将来的には、同じCapture Source境界を利用して以下のような映像入力方式を追加可能とする。
 
-- Window Capture
+- Window Capture（2026-11-20に、このPCのゲームを取り込むGameCaptureの入力元として追加した。10.21）
 - 別方式のDesktop Capture
 - Spout Input
 - Network Video Input

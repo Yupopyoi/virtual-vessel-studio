@@ -7,7 +7,7 @@ This document defines the detailed design of the Capture module. The Capture mod
 It covers:
 
 - The common contract of capture sources (`IVideoCaptureSource`) and their states
-- GameCapture: video from a capture board (a game device such as a Nintendo Switch)
+- GameCapture: video from a capture board (a game device such as a Nintendo Switch), or from a game's window on this PC (8.6)
 - SubScreenCapture: video from a PC's sub monitor (DXGI Desktop Duplication)
 - Starting and stopping capture sources, degrading on failure, and diagnostics
 - The native plugin (SubScreenCapture) and how it is built
@@ -96,8 +96,11 @@ flowchart LR
 | `CaptureSourceInfo` | Struct | The actual resolution, frame rate, and device display name |
 | `CaptureService` | Class (`IApplicationService`) | Creates, starts, stops, and updates sources every frame; measures |
 | `WebCamCaptureSource` | Class | A source through `WebCamTexture`: GameCapture (`game`) and the tracking camera (`camera`, 8.5) |
+| `GameCaptureSource` | Class | The game screen (`game`): a `WebCamCaptureSource` that also captures a game's window on this PC (8.6) |
+| `CaptureWindow` | Static class | The device IDs of windows (`window:game.exe`), for the UI to tell them apart (8.6) |
+| `NativeFrames` | Class (internal) | A native session's status and frames on the main thread, shared by the sub monitor and windows (8.2, 8.6) |
 | `SubScreenCaptureSource` | Class | SubScreenCapture through the native plugin |
-| `IDesktopDuplication` | Interface (internal) | The boundary to the native plugin; replaced by a fake in tests |
+| `IDesktopDuplication`, `IWindowCapture` | Interface (internal) | The boundary to the native plugin (monitors, windows); replaced by a fake in tests |
 | `ICameraDevices` | Interface (internal) | The boundary to `WebCamTexture`; replaced by a fake in tests |
 | `CaptureStateMachine` | Static class | Decides state transitions (pure functions) |
 | `IFrameLoop` | Interface (Core) | Registers work called on the main thread every frame (added to the application foundation design) |
@@ -187,7 +190,8 @@ public sealed class CaptureDevice
 
 | Source | `Id` | `DisplayName` |
 |---|---|---|
-| GameCapture | `WebCamDevice.name` | The same |
+| GameCapture (capture board) | `WebCamDevice.name` | The same |
+| GameCapture (window on this PC) | `window:` and the program's file name, such as `window:game.exe` (8.6) | "Title (program)", such as "My Game (game.exe)" |
 | SubScreenCapture | The monitor's device name (for example `\\.\DISPLAY2`) | Its device name and resolution, such as "DISPLAY2 (1920×1080)". It has no words, so it reads the same in every language. A translated name with a number and a mark for the main monitor is built by the setup screen (chapter 17) |
 
 GameCapture opens no device until the user chooses one: the first camera found may be a webcam, showing the user's face or room. Starting without a choice gives `Stopped` (`DeviceNotChosen`); choosing a device afterwards goes on with the start that waited.
@@ -298,6 +302,21 @@ For Tracking detailed design 5.4, a third source, the tracking webcam, was added
 - Tracking starts and stops it (Tracking detailed design 7.2). The chosen device and whether it was started are saved in `capture-settings.json`, like the other sources.
 - Every source gives the number of frames that have arrived (`FrameCount`) and when the latest one arrived (`LastFrameTimestamp`). Tracking uses them to infer each image once and to take the image time as the observation time.
 
+### 8.6 A Game on This PC (a Window)
+
+A game that runs on the streaming PC is taken without a capture board, from its window (the user's request, 2026-10-31; built 2026-11-20).
+
+- It is an input of the game screen (`game`), not a source of its own (the user's decision, 2026-11-20). The window is the same game screen on the stream: its placement on the stage, its flips, and its sound row stay as they are, and one of the two is used at a time. `GameCaptureSource` (a `WebCamCaptureSource` with windows added) lists the capture boards, then the windows; the device chosen tells which is used. The setup screen shows the two kinds apart with an input row (setup screen 3).
+- A window's device ID is `window:` and its program's file name, such as `window:game.exe` (`CaptureWindow`). It is chosen by its program, not by its title or handle, so the choice still holds after the game is started again; its display name is "Title (program)". Of a program's windows, the largest is captured. This application's own windows are never listed.
+- The plugin captures it with Windows.Graphics.Capture (Windows 10 1903 and later) on a thread of its own and hands frames over through the same three buffers as a monitor (8.2): `vv_capture_list_windows`, `vv_capture_open_window` (C API version 3). The managed side reads it as it reads a monitor (`NativeFrames`, shared with SubScreenCapture).
+- Only the client area is kept: a windowed game's title bar and borders are left out. The client rectangle is found every frame in physical pixels, so a window that is moved or resized stays right.
+- The mouse cursor is not captured: games draw their own, and Windows' would show twice (the user's choice, 2026-11-20). Windows 11 is asked to leave out the yellow border it draws around a captured window.
+- A still window sends no frames, and that is not `NoSignal`. A minimized window sends none either and is not listed.
+- When the window closes (the game exits), the session ends with `VV_CAPTURE_MONITOR_LOST` and the source is `Unavailable`; it looks for the program every 2 seconds and captures it again when the game is started again.
+- Closing a capture whose program was ended by force (the task manager, a crash) could block inside Windows for good: in about half the tries of the native test on Windows 11 build 26300, never when the window closed normally (2026-11-20). So when the window is gone the capture objects are closed on a thread of their own, which is left to finish; closing the source never waits for it.
+- The plugin keeps the process's multithreaded COM apartment for as long as the process lives (`CoIncrementMTAUsage`). C++/WinRT keeps the factories it got; when the last capture thread left the apartment, COM tore it down and the next capture called a released factory, which crashed the native test.
+- The game's sound is taken by Audio from the same program (Audio detailed design 8.7); the setup screen joins the two, as it does for a capture board's sound.
+
 ---
 
 ## 9. Threading / Async
@@ -374,7 +393,7 @@ public sealed class CaptureSettings
 
 ## 13. Security and Privacy
 
-- The captured screen is the user's screen and may contain personal information. Only sources the user started are captured, and only the chosen monitor is duplicated.
+- The captured screen is the user's screen and may contain personal information. Only sources the user started are captured, and only the chosen monitor or the chosen program's window is captured. A window is never chosen by default: the game screen opens nothing until the user chooses (6.3), so another program's window, such as a browser or a chat, is never shown by itself. When the chosen game closes, the source waits for that same program and never moves to another window.
 - Captured video never leaves the process. The prototype's named shared memory is not used (8.2).
 - The content of the video is never written to files, logs, or diagnostics.
 - Values passed to the native plugin (the length of the monitor's device name, pointers, counts) are checked on the native side too.
@@ -390,10 +409,11 @@ public sealed class CaptureSettings
 | EditMode | Reading back a flipped render texture shows left and right swapped; a capture board is not opened until one is chosen |
 | EditMode | `WebCamCaptureSource` (`game`, `camera`) and `SubScreenCaptureSource` driven by fake `ICameraDevices` and `IDesktopDuplication`: states, recovering from `Unavailable`, choosing again, releasing on stop, `DeviceInUse`, frame counts and times |
 | EditMode | `FrameLoop` order, isolating exceptions, removing registrations |
+| EditMode | `GameCaptureSource` with a fake plugin (`GameCaptureSourceTests`): the boards then the windows, capturing a window without the cursor and without `NoSignal` while still, waiting for a closed game and capturing it again, switching to a board, boards without the plugin |
 | EditMode | Fake frames handed to `SubScreenCaptureSource` are uploaded as BGRA to a real `Texture2D` |
 | Hardware | SubScreenCapture shows a real monitor through the real plugin; GameCapture shows a real capture board. Marked `[Explicit]` and run only by name. Recovering from `ACCESS_LOST` (a resolution change) is checked by changing the resolution by hand |
 | Performance | Records the upload time at 1920×1080 and 3840×2160 (`SubScreenCaptureHardwareTests.Upload_Timing`; `Capture/subscreen.Upload` at run time) |
-| Native | `vv_capture_tests` (CTest): handing over through the three buffers (across threads too), the retry policy, the row copy (bottom row first), drawing the mouse cursor (three kinds of shapes, clipped at the edges), the C ABI's argument checks, a monitor that does not exist. With `--hardware` it duplicates a real monitor once. `tools/native/build-capture.ps1` builds and runs it |
+| Native | `vv_capture_tests` (CTest): handing over through the three buffers (across threads too), the retry policy, the row copy (bottom row first), drawing the mouse cursor (three kinds of shapes, clipped at the edges), the C ABI's argument checks, a monitor that does not exist, choosing one window per program, the client area in a window's image, a program that is not running. With `--hardware` it duplicates a real monitor once, and captures a green window a second copy of itself shows: only the client area, 640×360, and the window's loss when it closes normally and when its program is ended by force, closing in under a second. `tools/native/build-capture.ps1` builds and runs it |
 
 ---
 
@@ -420,7 +440,9 @@ Assets/VirtualVessel/Capture/
 │  ├─ CapturePluginMissingException.cs   The native plugin is missing or of another version
 │  ├─ FrameRateMeter.cs        Counts the frame rate that actually arrives (pure)
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
-│  ├─ Game/          WebCamCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
+│  ├─ CaptureWindow.cs         The device IDs of windows on this PC (pure)
+│  ├─ NativeFrames.cs          A native session's frames on the main thread
+│  ├─ Game/          WebCamCaptureSource, GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
 ├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll (built and copied here; not in Git; chapter 17)
 └─ Tests/
@@ -432,7 +454,9 @@ native/capture/
 ├─ include/vv_capture.h        The C ABI declarations
 ├─ src/
 │  ├─ exports.cpp              The C ABI: checks arguments and keeps C++ exceptions inside
-│  ├─ capture_session.*        The thread and state of one duplicated monitor
+│  ├─ session_core.*           A session's thread, state, and frames, shared by monitors and windows
+│  ├─ capture_session.*        One duplicated monitor
+│  ├─ window_capture.*         Listing windows, capturing one with Windows.Graphics.Capture (8.6)
 │  ├─ desktop_duplication.*    Listing monitors, creating the duplication, acquiring frames
 │  ├─ frame_exchange.*         Handing frames over through three buffers (the steps are pure)
 │  └─ retry_policy.h           When to create the duplication again (pure)
@@ -453,7 +477,7 @@ tools/native/build-capture.ps1  Builds, tests, and copies the plugin into Unity
 | Where capture settings are stored | Done (2026-10-27): the project's capture profile, `Profiles/Capture/<ProfileId>.json`, in the format of `capture-settings.json` (project data detailed design 6) |
 | Translated monitor names (a number, a mark for the main monitor) | When the setup screen's specification is written; `CaptureDevice` gets the information it needs then |
 | Correcting the orientation of portrait monitors | When it is needed |
-| Taking a game on the same PC without a capture board | Not a requirement yet, but the user wants it (2026-10-31). When added: window capture as a new `IVideoCaptureSource`, and its sound as a new source in Audio (`audio.md` 17). |
+| Taking a game on the same PC without a capture board | Done (2026-11-20): a window on this PC as an input of the game screen, not a source of its own, so its placement and sound row stay one (8.6); its sound from the same program (`audio.md` 8.7) |
 | Sharing directly on the GPU | Decided from the measured upload times |
 | Capture setup screen and live screen controls | Decided: the capture Cards on the setup screen (`docs/en/ui/screens/setup.md`); the live screen has no capture controls |
 

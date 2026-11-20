@@ -36,8 +36,9 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 6) |
 | Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
-| Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
-| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Left out when audio is not available |
+| Input (game screen only) | Segmented (Capture board, A window on this PC) | What the game screen is taken from (Capture detailed design 8.6). With "A window on this PC", Device lists the windows open on this PC, one per program (its largest). A chosen device shows its kind. Changing the kind lets go of a device of the other kind. Explanation: "A game running on this PC is taken from its window under "A window on this PC". Only that game's sound is taken with it." |
+| Device | Dropdown | The devices found. The game screen starts with "Choose a camera" ("Choose the game's window" for windows), the sub monitor with "Automatic (not the main monitor)". A window shows as "Title (program)". With none found, "No device found" ("No window found" for windows) |
+| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Choosing a window chooses only that game's sound ("Sound of game.exe", Audio detailed design 8.7) and does not send it to the monitor: the PC plays the game's sound already, so it would be heard twice. Back on a capture board it is sent to the monitor again. Left out when audio is not available |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 | Flip left and right | Toggle | Corrects the video's orientation |
 | Flip top and bottom | Toggle | Corrects the video's orientation |
@@ -132,11 +133,13 @@ Shape, color, and text are always combined (`design-system.md` 3.4).
 |---|---|---|
 | Stopped | Idle | Stopped |
 | A device must be chosen | Warning | Stopped. Explanation: "Choose the capture board under Device. A camera is never opened by itself, so a webcam does not show you by mistake." |
+| A window must be chosen | Warning | Stopped. Explanation: "Choose the game's window under "Device"." |
 | Starting | Idle | Starting |
 | Waiting for video | Idle | Waiting for video |
 | No signal | Warning | Waiting for video. Explanation: "No video is arriving. Check the game device's power and cable connection." |
 | Capturing | Success | Capturing |
 | Device not found | Warning | Device not found; still looking. Explanation: "Connect the device and it is found again automatically." |
+| Window not found | Warning | Device not found; still looking. Explanation: "It looks again when the game starts. A minimized window cannot be found." Closing the game also shows this, and starting the game again starts capturing by itself |
 | The tracking camera | Error | Could not capture. Explanation: "Tracking uses this camera. Choose another device." |
 | Failed | Error | Could not capture. Explanation: "Another app may be using the device." |
 
@@ -242,7 +245,7 @@ Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a 
 | Row | Content |
 |---|---|
 | Source | The name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
-| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
+| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The sound of a game on this PC shows as "Sound of game.exe". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
 | Volume | Slider, -60 to +12 dB |
 | Hear | Toggle; not on the monitor's row |
 | Noise removal | Toggle, on the microphone's row only. On by default, and it works without voice conversion too (the user's decision, 2026-11-11; audio detailed design 8.6). Saved in the project's Audio Profile |
@@ -269,6 +272,7 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.device.application` | {name} の音 | Sound of {name} |
 | `setup.audio.gain` | 音量 | Volume |
 | `setup.audio.mute` | ミュート | Mute |
 | `setup.audio.level` | レベル | Level |
