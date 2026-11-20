@@ -173,6 +173,76 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_clips.Deleted, Is.EqualTo(new[] { "se-1" }));
         }
 
+        [UnityTest]
+        public IEnumerator Rows_AreReordered_ByCtrlArrows_AndByDraggingTheGrip()
+        {
+            _clips.Add(AudioClipKind.SoundEffect, "se-2", "Boing", 1);
+            _clips.Add(AudioClipKind.SoundEffect, "se-3", "Coin", 1);
+            AudioClipCard card = Open(AudioClipKind.SoundEffect);
+            yield return null;
+
+            Assert.That(card.Rows[0].Grip.focusable, Is.False, "The grip is a mark, not a button.");
+            Key(card.Rows[0].DeleteButton, KeyCode.DownArrow);
+            Assert.That(_clips.Moves, Is.Empty, "An arrow alone moves the focus, not the row.");
+            Key(card.Rows[0].DeleteButton, KeyCode.DownArrow, EventModifiers.Control);
+            Assert.That(card.Rows.Select(r => r.Record.Id), Is.EqualTo(new[] { "se-2", "se-1", "se-3" }));
+            Assert.That(card.Rows[1].DeleteButton.focusController?.focusedElement, Is.EqualTo(card.Rows[1].DeleteButton), "The same control of the moved row keeps the focus.");
+            Key(card.Rows[0].RenameButton, KeyCode.UpArrow, EventModifiers.Control);
+            Assert.That(_clips.Moves, Is.EqualTo(new[] { ("se-1", 1) }), "The first row does not go further up.");
+
+            yield return null;
+            VisualElement grip = card.Rows[2].Grip;
+            Vector2 start = grip.worldBound.center;
+            Vector2 top = new Vector2(start.x, card.Rows[0].Root.worldBound.yMin + 2);
+            GripPointer(grip, EventType.MouseDown, start);
+            GripPointer(grip, EventType.MouseDrag, top);
+            Assert.That(card.Rows[2].Root.ClassListContains(AudioClipCard.DraggingClass), Is.True);
+            GripPointer(grip, EventType.MouseUp, top);
+            Assert.That(card.Rows.Select(r => r.Record.Id), Is.EqualTo(new[] { "se-3", "se-2", "se-1" }), "Dropped above the first row.");
+            Assert.That(card.Rows.Any(r => r.Root.ClassListContains(AudioClipCard.DraggingClass)), Is.False);
+
+            grip = card.Rows[0].Grip;
+            GripPointer(grip, EventType.MouseDown, grip.worldBound.center);
+            GripPointer(grip, EventType.MouseUp, grip.worldBound.center);
+            Assert.That(_clips.Moves.Count, Is.EqualTo(2), "A click on the grip moves nothing.");
+        }
+
+        [UnityTest]
+        public IEnumerator ABuiltInsName_FollowsTheScreensLanguage()
+        {
+            _clips.Add(AudioClipKind.Bgm, "bgm-2", "サンプル１（ポップ）", 31, new Dictionary<string, string> { ["ja"] = "サンプル１（ポップ）", ["en"] = "Sample 1 (Pop)" });
+            AudioClipCard card = Open(AudioClipKind.Bgm);
+            yield return null;
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            Assert.That(card.Rows[1].ShownName, Is.EqualTo("Sample 1 (Pop)"));
+            Assert.That(card.Rows[0].ShownName, Is.EqualTo("Fluffy afternoon"), "The user's own file keeps its name.");
+
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+            Assert.That(card.Rows[1].ShownName, Is.EqualTo("サンプル１（ポップ）"));
+
+            Submit(card.Rows[1].RenameButton);
+            Assert.That(card.Rows[1].NameInput.value, Is.EqualTo("サンプル１（ポップ）"), "Renaming starts from the name shown.");
+            Submit(card.Rows[1].SaveButton);
+            Assert.That(_clips.Changes, Is.Empty, "Saving it unchanged keeps the names per language.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheCards_StartOpen_AndCloseByTheirTitle()
+        {
+            AudioClipCard card = Open(AudioClipKind.Bgm);
+            yield return null;
+            Assert.That(card.Card.Collapsible, Is.True);
+            Assert.That(card.Card.Expanded, Is.True, "Open at first, as they are used often.");
+            Assert.That(card.Rows.Single().Root.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            Submit(card.Card.Header);
+            yield return null;
+            Assert.That(card.Card.Expanded, Is.False);
+            Assert.That(card.Card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
         [Test]
         public void Lengths_ShowMinutesAndSeconds()
         {
@@ -202,6 +272,32 @@ namespace VirtualVessel.UI.Tests
             Assert.That(condition(), Is.True, "It did not happen in time.");
         }
 
+        private static void Key(VisualElement target, KeyCode key, EventModifiers modifiers = EventModifiers.None)
+        {
+            target.Focus();
+            using (KeyDownEvent evt = KeyDownEvent.GetPooled('\0', key, modifiers))
+            {
+                evt.target = target;
+                target.SendEvent(evt);
+            }
+        }
+
+        private static void GripPointer(VisualElement grip, EventType type, Vector2 position)
+        {
+            var system = new Event { type = type, mousePosition = position, button = 0, clickCount = 1 };
+            EventBase evt = type switch
+            {
+                EventType.MouseDown => PointerDownEvent.GetPooled(system),
+                EventType.MouseUp => PointerUpEvent.GetPooled(system),
+                _ => PointerMoveEvent.GetPooled(system),
+            };
+            using (evt)
+            {
+                evt.target = grip;
+                grip.SendEvent(evt);
+            }
+        }
+
         private static void Submit(VisualElement target)
         {
             using (NavigationSubmitEvent evt = NavigationSubmitEvent.GetPooled())
@@ -227,9 +323,11 @@ namespace VirtualVessel.UI.Tests
 
             public List<string> Deleted { get; } = new List<string>();
 
-            public void Add(AudioClipKind kind, string id, string name, int seconds)
+            public List<(string Id, int Position)> Moves { get; } = new List<(string, int)>();
+
+            public void Add(AudioClipKind kind, string id, string name, int seconds, IReadOnlyDictionary<string, string> names = null)
             {
-                _records.Add(new AudioClipRecord(id, kind, name, 0f, kind == AudioClipKind.Bgm, TimeSpan.FromSeconds(seconds), name + ".mp3", DateTimeOffset.UtcNow, @"C:\clips\" + id));
+                _records.Add(new AudioClipRecord(id, kind, name, 0f, kind == AudioClipKind.Bgm, TimeSpan.FromSeconds(seconds), name + ".mp3", DateTimeOffset.UtcNow, @"C:\clips\" + id, names));
             }
 
             public CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind)
@@ -248,7 +346,7 @@ namespace VirtualVessel.UI.Tests
                 return Task.FromResult(Problem);
             }
 
-            public Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken)
+            public Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken)
             {
                 Added.Add((kind, sourcePath));
                 Add(kind, (kind == AudioClipKind.Bgm ? "bgm-" : "se-") + (_records.Count + 1), Path.GetFileNameWithoutExtension(sourcePath), 3);
@@ -268,6 +366,19 @@ namespace VirtualVessel.UI.Tests
                 AudioClipKind kind = _records.Find(r => r.Id == id).Kind;
                 _records.RemoveAll(r => r.Id == id);
                 Changed?.Invoke(kind);
+                return CrudResult.Success;
+            }
+
+            public CrudResult Move(string id, int position)
+            {
+                Moves.Add((id, position));
+                AudioClipRecord record = _records.Find(r => r.Id == id);
+                List<AudioClipRecord> same = _records.Where(r => r.Kind == record.Kind).ToList();
+                same.Remove(record);
+                same.Insert(Math.Max(0, Math.Min(same.Count, position)), record);
+                _records.RemoveAll(r => r.Kind == record.Kind);
+                _records.AddRange(same);
+                Changed?.Invoke(record.Kind);
                 return CrudResult.Success;
             }
         }

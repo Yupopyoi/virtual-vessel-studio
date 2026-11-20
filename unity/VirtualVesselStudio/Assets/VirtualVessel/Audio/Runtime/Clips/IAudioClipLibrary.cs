@@ -31,8 +31,9 @@ namespace VirtualVessel.Audio.Clips
     /// <summary>One registered BGM or SE (BGM and SE detailed design 6.1).</summary>
     public sealed class AudioClipRecord
     {
-        public AudioClipRecord(string id, AudioClipKind kind, string name, float gainDb, bool loop, TimeSpan duration, string originalName, DateTimeOffset addedAt, string filePath)
+        public AudioClipRecord(string id, AudioClipKind kind, string name, float gainDb, bool loop, TimeSpan duration, string originalName, DateTimeOffset addedAt, string filePath, IReadOnlyDictionary<string, string> names = null)
         {
+            Names = names;
             Id = id;
             Kind = kind;
             Name = name;
@@ -48,7 +49,33 @@ namespace VirtualVessel.Audio.Clips
 
         public AudioClipKind Kind { get; }
 
+        /// <summary>The name it was registered or renamed with; <see cref="NameIn"/> is the one to show.</summary>
         public string Name { get; }
+
+        /// <summary>
+        /// A built-in file's names per language code, such as "ja" and "en", kept until the user renames it, so the
+        /// name follows the screen's language; null for the user's own files and renamed ones.
+        /// </summary>
+        public IReadOnlyDictionary<string, string> Names { get; }
+
+        /// <summary>The name to show in a language: its own name there, else the English one, else <see cref="Name"/>. Pure.</summary>
+        public string NameIn(string language)
+        {
+            if (Names != null)
+            {
+                if (language != null && Names.TryGetValue(language, out string name) && !string.IsNullOrWhiteSpace(name))
+                {
+                    return name;
+                }
+
+                if (Names.TryGetValue("en", out string english) && !string.IsNullOrWhiteSpace(english))
+                {
+                    return english;
+                }
+            }
+
+            return Name;
+        }
 
         /// <summary>The file's own volume, apart from the BGM or SE source's.</summary>
         public float GainDb { get; }
@@ -96,7 +123,10 @@ namespace VirtualVessel.Audio.Clips
         /// <summary>Raised after a registration of the kind was added, changed, or deleted; on any thread.</summary>
         event Action<AudioClipKind> Changed;
 
-        /// <summary>Every registration of the kind that can be read, in the order they were added.</summary>
+        /// <summary>
+        /// Every registration of the kind that can be read, in the user's order: those they placed first, then the
+        /// others in the order they were added.
+        /// </summary>
         CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind);
 
         /// <summary>NotFound when there is no such registration.</summary>
@@ -107,14 +137,24 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>
         /// Copies the file in and records it. Invalid when it cannot be registered (<see cref="CheckAsync"/> says why),
-        /// StorageFailed when it could not be copied. A null or empty name takes the file's.
+        /// StorageFailed when it could not be copied. A null or empty name takes the file's. <paramref name="names"/>
+        /// are a built-in file's names per language (<see cref="AudioClipRecord.Names"/>); null for the user's files.
         /// </summary>
-        Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
+        Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
 
-        /// <summary>Invalid for an empty or too long name; NotFound without the registration.</summary>
+        /// <summary>
+        /// Invalid for an empty or too long name; NotFound without the registration. A new name ends the names per
+        /// language: the user's name stays in every language.
+        /// </summary>
         CrudResult<AudioClipRecord> Update(string id, AudioClipChange change);
 
         /// <summary>Busy while it plays; a registration that is not there succeeds.</summary>
         CrudResult Delete(string id);
+
+        /// <summary>
+        /// Puts a registration at a position in its kind's list (0 is the first), the others keeping their order.
+        /// A position past the end puts it last. NotFound without the registration.
+        /// </summary>
+        CrudResult Move(string id, int position);
     }
 }

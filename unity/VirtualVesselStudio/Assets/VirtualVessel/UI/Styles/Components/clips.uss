@@ -33,8 +33,38 @@
     margin-right: var(--vv-space-s);
 }
 
+.vv-clips__cell--move {
+    width: 24px;
+}
+
+/* A plain mark as in the layer list (layers.uss), in a larger box so it is easy to grab. */
+.vv-clips__grip {
+    width: 24px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    color: var(--vv-color-text-3);
+}
+
+.vv-clips__grip > .vv-icon {
+    width: 16px;
+    height: 16px;
+}
+
 .vv-clips__cell--play {
     width: 40px;
+}
+
+/* Reordering, as in the layer list (components.md 3.20). */
+.vv-clips__row--dragging {
+    opacity: 0.45;
+}
+
+.vv-clips__drop {
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--vv-color-accent-line);
 }
 
 .vv-clips__cell--name {
@@ -117,6 +147,11 @@
 .vv-players__row > * {
     margin-right: var(--vv-space-s);
     margin-bottom: var(--vv-space-xs);
+}
+
+/* A chip keeps to the top by default (chip.uss); here it sits on the row's center line like the buttons. */
+.vv-players__row > .vv-chip {
+    align-self: center;
 }
 
 .vv-players__label {

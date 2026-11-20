@@ -60,7 +60,7 @@ namespace VirtualVessel.Audio.Tests
             int changed = 0;
             _library.Changed += kind => changed += kind == AudioClipKind.Bgm ? 1 : 0;
 
-            CrudResult<AudioClipRecord> added = _library.AddAsync(AudioClipKind.Bgm, Source("Fluffy-90.mp3"), null, CancellationToken.None).GetAwaiter().GetResult();
+            CrudResult<AudioClipRecord> added = _library.AddAsync(AudioClipKind.Bgm, Source("Fluffy-90.mp3"), null, null, CancellationToken.None).GetAwaiter().GetResult();
 
             Assert.That(added.Ok, Is.True, added.Detail);
             Assert.That(added.Value.Id, Does.StartWith("bgm-"));
@@ -84,7 +84,7 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(_library.CheckAsync(AudioClipKind.Bgm, Source("long-31.wav"), CancellationToken.None).Result, Is.EqualTo(AudioClipProblem.None), "BGM may be long.");
             Assert.That(_library.CheckAsync(AudioClipKind.SoundEffect, Source("Ding-2.WAV"), CancellationToken.None).Result, Is.EqualTo(AudioClipProblem.None), "The extension's case does not matter.");
 
-            CrudResult<AudioClipRecord> refused = _library.AddAsync(AudioClipKind.SoundEffect, Source("long-31.wav"), "Long", CancellationToken.None).GetAwaiter().GetResult();
+            CrudResult<AudioClipRecord> refused = _library.AddAsync(AudioClipKind.SoundEffect, Source("long-31.wav"), "Long", null, CancellationToken.None).GetAwaiter().GetResult();
             Assert.That(refused.Error, Is.EqualTo(CrudError.Invalid));
             Assert.That(Directory.Exists(Path.Combine(_root, "Audio", "SE")) && Directory.GetDirectories(Path.Combine(_root, "Audio", "SE")).Any(), Is.False, "Nothing is copied.");
         }
@@ -92,7 +92,7 @@ namespace VirtualVessel.Audio.Tests
         [Test]
         public void Changes_AreKept_WithFieldsThisVersionDoesNotKnow()
         {
-            AudioClipRecord added = _library.AddAsync(AudioClipKind.SoundEffect, Source("Ding-2.wav"), "Ding", CancellationToken.None).GetAwaiter().GetResult().Value;
+            AudioClipRecord added = _library.AddAsync(AudioClipKind.SoundEffect, Source("Ding-2.wav"), "Ding", null, CancellationToken.None).GetAwaiter().GetResult().Value;
             Assert.That(added.Loop, Is.False, "SE does not loop.");
             string profile = Path.Combine(Path.GetDirectoryName(added.FilePath), AudioClipLibrary.ProfileFile);
             File.WriteAllText(profile, File.ReadAllText(profile).Replace("\"name\"", "\"shortcut\": \"F1\",\n  \"name\""));
@@ -110,10 +110,32 @@ namespace VirtualVessel.Audio.Tests
         }
 
         [Test]
+        public void ABuiltInsNames_FollowTheLanguage_UntilTheUserRenamesIt()
+        {
+            var names = new Dictionary<string, string> { ["ja"] = "サンプル", ["en"] = "Sample", ["fr"] = " " };
+            AudioClipRecord added = _library.AddAsync(AudioClipKind.Bgm, Source("pop-30.wav"), "サンプル", names, CancellationToken.None).GetAwaiter().GetResult().Value;
+            Assert.That(added.NameIn("ja"), Is.EqualTo("サンプル"));
+            Assert.That(added.NameIn("en"), Is.EqualTo("Sample"));
+            Assert.That(added.NameIn("fr"), Is.EqualTo("Sample"), "A language without a name, or a blank one, takes the English.");
+            Assert.That(added.Names.ContainsKey("fr"), Is.False);
+
+            AudioClipRecord louder = _library.Update(added.Id, new AudioClipChange(gainDb: 3f)).Value;
+            Assert.That(louder.NameIn("en"), Is.EqualTo("Sample"), "Other changes keep the names.");
+            Assert.That(new AudioClipLibrary(Path.Combine(_root, "Audio"), new FixedClock(), Probe, () => "x").Get(added.Id).Value.NameIn("en"), Is.EqualTo("Sample"), "Kept in the file.");
+
+            AudioClipRecord renamed = _library.Update(added.Id, new AudioClipChange(name: "Opening")).Value;
+            Assert.That(renamed.Names, Is.Null);
+            Assert.That(renamed.NameIn("ja"), Is.EqualTo("Opening"), "The user's name stays in every language.");
+
+            AudioClipRecord own = _library.AddAsync(AudioClipKind.Bgm, Source("mine-30.wav"), null, null, CancellationToken.None).GetAwaiter().GetResult().Value;
+            Assert.That(own.NameIn("en"), Is.EqualTo("mine-30"));
+        }
+
+        [Test]
         public void APlayingTrack_IsNotDeleted_ButOthersAre()
         {
-            AudioClipRecord playing = _library.AddAsync(AudioClipKind.Bgm, Source("a-60.mp3"), "A", CancellationToken.None).GetAwaiter().GetResult().Value;
-            AudioClipRecord other = _library.AddAsync(AudioClipKind.Bgm, Source("b-60.mp3"), "B", CancellationToken.None).GetAwaiter().GetResult().Value;
+            AudioClipRecord playing = _library.AddAsync(AudioClipKind.Bgm, Source("a-60.mp3"), "A", null, CancellationToken.None).GetAwaiter().GetResult().Value;
+            AudioClipRecord other = _library.AddAsync(AudioClipKind.Bgm, Source("b-60.mp3"), "B", null, CancellationToken.None).GetAwaiter().GetResult().Value;
             _library.InUse = id => id == playing.Id;
 
             Assert.That(_library.Delete(playing.Id).Error, Is.EqualTo(CrudError.Busy));
@@ -134,6 +156,44 @@ namespace VirtualVessel.Audio.Tests
             Assert.That(AudioClipLibrary.KindOf("se-1"), Is.EqualTo(AudioClipKind.SoundEffect));
             Assert.That(AudioClipLibrary.KindOf("voice-1"), Is.Null);
             Assert.That(AudioClipLibrary.KindOf("bgm-"), Is.Null);
+        }
+
+        [Test]
+        public void Moving_KeepsTheUsersOrder_WithNewOnesAfter()
+        {
+            string[] ids = new[] { "a-1.wav", "b-1.wav", "c-1.wav" }
+                .Select(name => _library.AddAsync(AudioClipKind.SoundEffect, Source(name), null, null, CancellationToken.None).GetAwaiter().GetResult().Value.Id)
+                .ToArray();
+            int changed = 0;
+            _library.Changed += kind => changed += kind == AudioClipKind.SoundEffect ? 1 : 0;
+
+            Assert.That(_library.Move(ids[2], 0).Ok, Is.True);
+
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[0], ids[1] }));
+            Assert.That(changed, Is.EqualTo(1));
+            string added = _library.AddAsync(AudioClipKind.SoundEffect, Source("d-1.wav"), null, null, CancellationToken.None).GetAwaiter().GetResult().Value.Id;
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[0], ids[1], added }), "A new one comes last.");
+            Assert.That(_library.Delete(ids[0]).Ok, Is.True);
+            Assert.That(_library.Move(added, 99).Ok, Is.True, "Past the end is last.");
+            Assert.That(_library.List(AudioClipKind.SoundEffect).Value.Select(c => c.Id), Is.EqualTo(new[] { ids[2], ids[1], added }), "A deleted one leaves no gap.");
+            Assert.That(File.Exists(Path.Combine(_root, "Audio", "SE", AudioClipLibrary.OrderFile)), Is.True);
+            Assert.That(_library.List(AudioClipKind.Bgm).Value, Is.Empty, "The order file is not a registration.");
+            Assert.That(_library.Move("se-none", 0).Error, Is.EqualTo(CrudError.NotFound));
+            Assert.That(_library.Move("../x", 0).Error, Is.EqualTo(CrudError.Invalid));
+        }
+
+        [Test]
+        public void Arrange_PutsThePlacedFirst_ThenByWhenAdded()
+        {
+            var early = DateTimeOffset.Parse("2026-11-01T00:00:00Z");
+            AudioClipRecord Clip(string id, int day) => new AudioClipRecord(id, AudioClipKind.Bgm, id, 0f, true, TimeSpan.Zero, id, early.AddDays(day), id);
+            AudioClipRecord[] records = { Clip("bgm-a", 2), Clip("bgm-b", 1), Clip("bgm-c", 3), Clip("bgm-d", 0) };
+
+            Assert.That(AudioClipLibrary.Arrange(records, new[] { "bgm-c", "bgm-gone", "bgm-a" }).Select(c => c.Id), Is.EqualTo(new[] { "bgm-c", "bgm-a", "bgm-d", "bgm-b" }));
+            Assert.That(AudioClipLibrary.Arrange(records, null).Select(c => c.Id), Is.EqualTo(new[] { "bgm-d", "bgm-b", "bgm-a", "bgm-c" }), "Without an order, when they were added.");
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b", "c" }, "a", 2), Is.EqualTo(new[] { "b", "c", "a" }));
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b", "c" }, "c", -1), Is.EqualTo(new[] { "c", "a", "b" }), "Clamped.");
+            Assert.That(AudioClipLibrary.Moved(new[] { "a", "b" }, "x", 0), Is.EqualTo(new[] { "a", "b" }), "Unknown IDs leave it as it was.");
         }
 
         private sealed class FixedClock : ISystemClock
@@ -371,7 +431,7 @@ namespace VirtualVessel.Audio.Tests
                 return System.Threading.Tasks.Task.FromResult(AudioClipProblem.None);
             }
 
-            public System.Threading.Tasks.Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken)
+            public System.Threading.Tasks.Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken)
             {
                 throw new NotSupportedException();
             }
@@ -382,6 +442,11 @@ namespace VirtualVessel.Audio.Tests
             }
 
             public CrudResult Delete(string id)
+            {
+                throw new NotSupportedException();
+            }
+
+            public CrudResult Move(string id, int position)
             {
                 throw new NotSupportedException();
             }

@@ -28,6 +28,21 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>ISO 8601 in UTC.</summary>
         public string AddedAtUtc { get; set; }
+
+        /// <summary>
+        /// A built-in file's names per language code until the user renames it (BGM and SE detailed design 6.3); null
+        /// otherwise. Added without a new schema version: an older reader keeps it as an unknown field.
+        /// </summary>
+        public Dictionary<string, string> Names { get; set; }
+    }
+
+    /// <summary>order.json in Audio/BGM/ and Audio/SE/: the order the user put the registrations in (BGM and SE detailed design 6.1).</summary>
+    public sealed class AudioClipOrder
+    {
+        public const int SchemaVersion = 1;
+
+        /// <summary>Registration IDs, first to last. IDs that are gone are skipped; ones not here come after.</summary>
+        public List<string> Ids { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -37,6 +52,7 @@ namespace VirtualVessel.Audio.Clips
     public sealed class AudioClipLibrary : IAudioClipLibrary
     {
         public const string ProfileFile = "audio-profile.json";
+        public const string OrderFile = "order.json";
         public const string AudioFileName = "audio";
         public const int MaxNameLength = 60;
         public const int MaxEffectSeconds = 30;
@@ -93,8 +109,7 @@ namespace VirtualVessel.Audio.Clips
                     }
                 }
 
-                records.Sort((a, b) => a.AddedAt.CompareTo(b.AddedAt));
-                return records;
+                return Arrange(records, OrderStore(kind).Load().Value.Ids);
             }, $"Listing {kind}");
         }
 
@@ -114,7 +129,7 @@ namespace VirtualVessel.Audio.Clips
             return Task.Run(() => Check(kind, sourcePath).Problem, cancellationToken);
         }
 
-        public async Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken)
+        public async Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken)
         {
             CrudResult<AudioClipRecord> added = await Task.Run(() =>
             {
@@ -132,6 +147,7 @@ namespace VirtualVessel.Audio.Clips
 
                 string id = (kind == AudioClipKind.Bgm ? BgmPrefix : EffectPrefix) + _newId();
                 AudioClipProfile profile = NewProfile(kind, clean, info, Path.GetFileName(sourcePath), _clock.UtcNow);
+                profile.Names = CleanNames(names);
                 return CrudResult<AudioClipRecord>.Run(() =>
                 {
                     Copy(id, sourcePath);
@@ -172,6 +188,7 @@ namespace VirtualVessel.Audio.Clips
                 ConfigFileStore<AudioClipProfile> store = Store(id);
                 AudioClipProfile profile = store.Load().Value;
                 profile.Name = name ?? profile.Name;
+                profile.Names = name != null ? null : profile.Names;
                 profile.GainDb = change.GainDb.HasValue ? ClampGain(change.GainDb.Value) : profile.GainDb;
                 profile.Loop = change.Loop.HasValue && current.Value.Kind == AudioClipKind.Bgm ? change.Loop.Value : profile.Loop;
                 store.Save(profile);
@@ -217,6 +234,106 @@ namespace VirtualVessel.Audio.Clips
             return deleted;
         }
 
+        public CrudResult Move(string id, int position)
+        {
+            AudioClipKind? kind = KindOf(id);
+            if (kind == null)
+            {
+                return CrudResult.Fail(CrudError.Invalid, $"'{id}' is not an audio clip ID.");
+            }
+
+            CrudResult<IReadOnlyList<AudioClipRecord>> listed = List(kind.Value);
+            if (!listed.Ok)
+            {
+                return CrudResult.Fail(listed.Error, listed.Detail);
+            }
+
+            var ids = new List<string>(listed.Value.Count);
+            foreach (AudioClipRecord record in listed.Value)
+            {
+                ids.Add(record.Id);
+            }
+
+            if (!ids.Contains(id))
+            {
+                return CrudResult.Fail(CrudError.NotFound, $"There is no audio clip {id}.");
+            }
+
+            CrudResult moved = CrudResult.Run(() =>
+            {
+                // Loaded and saved through one store, so fields this version does not know are kept (CLAUDE.md 25).
+                ConfigFileStore<AudioClipOrder> store = OrderStore(kind.Value);
+                AudioClipOrder order = store.Load().Value;
+                order.Ids = Moved(ids, id, position);
+                store.Save(order);
+            }, $"Moving audio clip {id}");
+
+            if (moved.Ok)
+            {
+                Changed?.Invoke(kind.Value);
+            }
+
+            return moved;
+        }
+
+        /// <summary>
+        /// The registrations in the user's order: those in <paramref name="order"/> by their place there, then the
+        /// rest by when they were added. Pure.
+        /// </summary>
+        public static IReadOnlyList<AudioClipRecord> Arrange(IReadOnlyList<AudioClipRecord> records, IReadOnlyList<string> order)
+        {
+            var places = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; order != null && i < order.Count; i++)
+            {
+                if (order[i] != null && !places.ContainsKey(order[i]))
+                {
+                    places.Add(order[i], i);
+                }
+            }
+
+            int Place(AudioClipRecord record) => places.TryGetValue(record.Id, out int place) ? place : int.MaxValue;
+
+            // A stable sort, so registrations added at the same moment keep the order they were listed in.
+            var keyed = new List<(AudioClipRecord Record, int Index)>(records.Count);
+            for (int i = 0; i < records.Count; i++)
+            {
+                keyed.Add((records[i], i));
+            }
+
+            keyed.Sort((a, b) =>
+            {
+                int byPlace = Place(a.Record).CompareTo(Place(b.Record));
+                if (byPlace != 0)
+                {
+                    return byPlace;
+                }
+
+                int byAdded = a.Record.AddedAt.CompareTo(b.Record.AddedAt);
+                return byAdded != 0 ? byAdded : a.Index.CompareTo(b.Index);
+            });
+
+            var arranged = new List<AudioClipRecord>(keyed.Count);
+            foreach ((AudioClipRecord record, int _) in keyed)
+            {
+                arranged.Add(record);
+            }
+
+            return arranged;
+        }
+
+        /// <summary>The IDs with <paramref name="id"/> taken out and put at <paramref name="position"/>, clamped. Pure.</summary>
+        public static List<string> Moved(IReadOnlyList<string> ids, string id, int position)
+        {
+            var moved = new List<string>(ids);
+            if (!moved.Remove(id))
+            {
+                return moved;
+            }
+
+            moved.Insert(Math.Max(0, Math.Min(moved.Count, position)), id);
+            return moved;
+        }
+
         /// <summary>A registration's kind from its ID, or null for what is not one (no path in it). Pure.</summary>
         public static AudioClipKind? KindOf(string id)
         {
@@ -259,6 +376,22 @@ namespace VirtualVessel.Audio.Clips
             }
 
             return kind == AudioClipKind.SoundEffect && duration.Value.TotalSeconds > MaxEffectSeconds ? AudioClipProblem.TooLong : AudioClipProblem.None;
+        }
+
+        /// <summary>The names per language that can be shown, or null when none can. Pure.</summary>
+        public static Dictionary<string, string> CleanNames(IReadOnlyDictionary<string, string> names)
+        {
+            var clean = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, string> pair in names ?? new Dictionary<string, string>())
+            {
+                string name = CleanName(pair.Value);
+                if (!string.IsNullOrWhiteSpace(pair.Key) && name != null)
+                {
+                    clean[pair.Key] = name;
+                }
+            }
+
+            return clean.Count > 0 ? clean : null;
         }
 
         /// <summary>A new registration's profile: BGM loops by default, SE has no loop. Pure.</summary>
@@ -349,7 +482,8 @@ namespace VirtualVessel.Audio.Clips
                 TimeSpan.FromSeconds(double.IsNaN(profile.DurationSeconds) ? 0 : Math.Max(0, profile.DurationSeconds)),
                 profile.OriginalName,
                 added,
-                file);
+                file,
+                CleanNames(profile.Names));
         }
 
         // The copied file: audio and the extension it was registered with.
@@ -365,6 +499,11 @@ namespace VirtualVessel.Audio.Clips
             }
 
             return null;
+        }
+
+        private ConfigFileStore<AudioClipOrder> OrderStore(AudioClipKind kind)
+        {
+            return new ConfigFileStore<AudioClipOrder>(KindFolder(kind), OrderFile, AudioClipOrder.SchemaVersion, () => new AudioClipOrder(), _clock);
         }
 
         private ConfigFileStore<AudioClipProfile> Store(string id)

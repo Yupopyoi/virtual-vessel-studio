@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03). As an exception, the BGM and the sound effects Cards (section 14) are collapsible Cards that start open, as they are used often but their lists grow long (user decision, 2026-11-20).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -416,12 +416,13 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 
 ## 14. The BGM and Sound Effects Cards
 
-Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24).
+Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24). Both are collapsible Cards (`components.md` 3.10) that start open. As their lists grow long, the one not in use can be closed (an exception to the screen-wide rule; user decision, 2026-11-20). Whether they are open is not remembered.
 
 | Column | What it holds |
 |---|---|
+| Reorder | A "≡" mark at the row's start (`text-3`; not a button, the same mark as the Layer List's grip). Dragging it up or down moves its row; while dragging, the row is dimmed and an Accent Line marks where it lands (as the Layer List, `components.md` 3.20). The mark takes no focus. By keyboard, with the focus on one of the row's buttons, `Ctrl`+Up and Down move it by one, and the focus stays on the same control of the moved row (its Rename button if that one cannot take it) (not while typing a name). The live screen's BGM choice and sound effect buttons follow the same order |
 | Play | Icon Button. For BGM it plays the file on the stream and in recordings, and turns into stop (■) while it plays. For a sound effect each press plays it from its start, overlapping. Disabled until it is loaded, with a tooltip saying it is loading |
-| Name | Takes the rest of the width, cut with an ellipsis, its tooltip holding it whole. For BGM a Status Chip after the name says Playing, or Cannot play (by shape and text) |
+| Name | A built-in file shows its name in the screen's language until renamed (`bgm-se.md` 6.3). Takes the rest of the width, cut with an ellipsis, its tooltip holding it whole. For BGM a Status Chip after the name says Playing, or Cannot play (by shape and text) |
 | Length | Minutes and seconds, monospaced, right-aligned. Blank when the file does not say |
 | Loop | BGM only. Toggle, on by default; a change applies from the next play. Explained by a Help Hint after its heading |
 | Volume | Slider, -60 to +12 dB: the file's own, apart from the BGM and sound effects rows of the mixer. The BGM that plays takes it at once |
@@ -446,6 +447,7 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.clips.rename` | 名前を変更 | Rename |
 | `setup.clips.save` | 保存 | Save |
 | `setup.clips.delete` | 削除 | Delete |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
 | `setup.clips.name.required` | 名前を入力してください | Enter a name |
 | `setup.clips.filter` | 音声ファイル | Audio files |
 | `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |

@@ -59,9 +59,10 @@ public interface IAudioClipLibrary
     // 登録できるか、できないならなぜか（形式、読めない、SEが長すぎる）。利用者への表示に使う。
     Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // ファイルを写し、読めるかと長さを確かめる。重いのでメインスレッドの外で呼ぶ。
-    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
+    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
     CrudResult Delete(string id);                // 流しているBGMはBusy
+    CrudResult Move(string id, int position);    // 種類の一覧の中の位置（0が先頭）へ。後ろを越えたら最後
     IReadOnlyList<string> FileExtensions { get; } // 最初の版は wav、mp3
     event Action<AudioClipKind> Changed;          // 追加、変更、削除の後。プレイヤーが追う
 }
@@ -102,10 +103,12 @@ Data Rootの`Audio/`に置く（方式設計6.10、12.6）。
 ```text
 Audio/
 ├─ BGM/
+│  ├─ order.json            利用者が並べた順（下）
 │  └─ bgm-<id>/
 │     ├─ audio.mp3          元のファイルの写し（拡張子は元のまま）
 │     └─ audio-profile.json
 └─ SE/
+   ├─ order.json
    └─ se-<id>/
       ├─ audio.wav
       └─ audio-profile.json
@@ -128,6 +131,8 @@ Audio/
 - `loop`はBGMだけが使う。SEは`false`のままで、使わない（設定のファイルはnullも書くため、省けない）。
 - この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
 - `name`は1〜60文字。同じ名前を許す（IDで区別する）。
+- `names`（同梱のものだけ）：言語ごとの名前（`{ "ja": "サンプル１（ポップ）", "en": "Sample 1 (Pop)" }`）。利用者が名前を変えるまで持ち、変えたら消す（音量やループを変えても残す）。画面には`AudioClipRecord.NameIn(言語)`の名前を出す：画面の言語の名前、なければ英語、なければ`name`。項目を加えただけなので、schemaVersionは1のままとする（前の版は知らない項目として残す）。
+- 一覧（`List`）の順は、利用者が並べた順である（2026-11-20）。`order.json`（`{ "schemaVersion": 1, "ids": ["se-…", …] }`）に、種類ごとにIDを先頭から持つ。そこにないもの（並べ替えの後に追加したもの、並べ替えたことがないもの）は、その後ろに追加した順で並ぶ。消したもののIDは読み飛ばし、次の並べ替えで消える。順を1つのファイルに持つのは、並べ替えのたびに全部の`audio-profile.json`を書き換えないためである。設定画面とライブ画面のどちらも、この順で出す。
 
 ### 6.2 Audio Profileの音の元
 
@@ -159,7 +164,7 @@ StreamingAssets/Audio/BuiltIn/
 - 起動の後に、`BuiltInAudioClips`が、まだ登録していないものを`AddAsync`で登録する。ほかの登録と同じく、Data Rootへ写す。利用者は名前、音量、ループを変えられ、消せる。起動を待たせないよう、登録はバックグラウンドで行う。
 - 登録したものは、Data Rootの`Audio/built-in-audio.json`（`{ "schemaVersion": 1, "added": ["bgm-cute-pop", ...] }`）に覚える。1つ登録するたびに書く。利用者が消したものは、もう登録しない。後の版で増えたものだけを登録する。登録済みのものは、後の版で音や名前を変えても置き換えず、なくしても消さない。利用者が名前や音量を変えたかもしれない、利用者の写しだからである。効果音は、最初の公開の前に利用者と見直した（2026-11-20）：ピンポーンを高く、ブブーを明るく長く低く、ドラムロールの最後のシンバルを派手に、拍手を大勢に。「正解」を「キラキラ２」として「キラキラ１」の隣へ、「ポン」を「ポコッ」へ改名し、ファンファーレとツッコミをなくした。BGMの名前は「サンプル１（ポップ）」のように番号と種類にし、41平均律のローファイ（「サンプル６（ローファイ）」）を加えた。調律は利用者に見せない：名前とファイル名に「41」などを入れない（利用者の指示、2026-11-20）。サンプル６は、配信の後ろで濁りが気にならないよう、92BPMの明るい長調（C–G–Am–F／C–G–F–G7）にした。和音はセブンスでなく9度を足し、メロディーは短い音で動く。中立三度、テープの揺れ、ノイズは入れない。41平均律らしさは、G7の自然七度（メロディーは短く通るだけ）と、フレーズの頭のわずかなずり上げだけにする（利用者の確認、2026-11-20）。いろいろな楽器がにぎやかに鳴る「サンプル７（マーチ）」を加えた（おもちゃ箱のような曲として作ったが、名前はほかと同じく種類にする）（12平均律、132BPM）：シロフォン、チューバとピチカートの行進、グロッケン、ウッドブロック、金管の合奏、クラリネット、スライドホイッスル。トランペット、ホルン、シロフォン、ウッドブロックの音は`tools/audio/synth.py`に加えた。トランペットとホルン（チューバも同じ作り）は、人が吹く音に近づける（利用者の要望）：少し低く入って唇で音程へ上げる、タンギングと息の音、強いほど明るい音、長い音のふくらみ、遅れてかかり揺らぐビブラート、1音ごとのわずかなずれ。2本目のトランペットはハ長調の音だけで3度下を吹き、ホルンが和音を支える。
 - 登録できなかったもの（Media Foundationがないなど）は覚えず、次の起動でもう一度試す。ほかのものの登録は続ける。
-- 名前は、Windowsの表示言語に合わせて日本語か英語を選ぶ（`Localizer.ChooseInitialLocale`）。利用者の画面の言語の設定は、UIが持つため使わない。登録した後の名前は利用者のデータであり、言語を切り替えても変えない。
+- 登録には、`name`（Windowsの表示言語で選んだ名前、`Localizer.ChooseInitialLocale`）と、全部の言語の名前（`names`）を渡す。利用者が名前を変えるまでは、画面の言語に合わせて表示する（設定画面とライブ画面。言語を切り替えると出し直す）。英語の画面で曲名だけ日本語になるのを避けるためである（利用者の要望、2026-11-20）。利用者が名前を変えたら、それは利用者のデータであり、どの言語でもその名前を出す。名前の変更で、表示している名前をそのまま保存したときは、変えたことにしない。
 - ファイルはMP3ではなくWAV（モノラル、48 kHz、16 bit）とする。MP3は、エンコーダーの足す無音が頭と終わりにあり、Media Foundationはそれを除かないため、ループの継ぎ目が途切れる。モノラルにしたのは、元の曲の左右の違いが数ミリ秒の遅れだけで、大きさを半分にできるためである。合わせて約20 MB。
 - 音源は`tools/audio/build_builtin_audio.py`が作る（numpyとscipy。`tools/audio/requirements.txt`）。乱数の種が決まっているので、何度作っても同じファイルになる。BGMは音の大きさ（RMS -19 dBFS）、SEはピーク（-3 dBFS）でそろえる。
 
@@ -234,7 +239,7 @@ StreamingAssets/Audio/BuiltIn/
 | 種類 | 対象 |
 |---|---|
 | ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
-| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
+| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、同梱のものの言語ごとの名前（名前を変えるまで残ること）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
 | PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
 | 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
 

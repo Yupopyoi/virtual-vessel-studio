@@ -23,6 +23,7 @@ namespace VirtualVessel.UI.Screens
         public const string Play = "live.players.play";
         public const string Stop = "live.players.stop";
         public const string Volume = "live.players.volume";
+        public const string EffectsVolume = "live.players.effects-volume";
         public const string StopEffects = "live.players.stop-effects";
         public const string NoBgm = "live.players.no-bgm";
         public const string NoEffects = "live.players.no-effects";
@@ -30,7 +31,8 @@ namespace VirtualVessel.UI.Screens
 
     /// <summary>
     /// BGM and SE on the live screen (BGM and SE detailed design; live.md 2): choose a track, play and stop it, see how
-    /// far it is, set the BGM's volume, and press a sound effect's button. Registering files is the setup screen's.
+    /// far it is, set the BGM's and the sound effects' volumes, and press a sound effect's button. Registering files is
+    /// the setup screen's.
     /// </summary>
     public sealed class AudioPlayersPanel : VisualElement
     {
@@ -47,6 +49,8 @@ namespace VirtualVessel.UI.Screens
         private readonly IBgmPlayer _bgm;
         private readonly ISoundEffectPlayer _effects;
         private readonly IAudioSource _music;
+        private readonly IAudioSource _effectsSource;
+        private string _language;
         private readonly VisualElement _pad = new VisualElement();
         private readonly Label _time;
         private readonly Label _noBgm;
@@ -55,13 +59,15 @@ namespace VirtualVessel.UI.Screens
         private readonly List<(ActionButton Button, string Id)> _effectButtons = new List<(ActionButton, string)>();
         private volatile bool _changed = true;
 
-        /// <param name="music">The BGM source, whose volume the slider sets; null leaves the slider out.</param>
-        public AudioPlayersPanel(IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IAudioSource music)
+        /// <param name="music">The BGM source, whose volume the BGM row's slider sets; null leaves the slider out.</param>
+        /// <param name="effectsSource">The sound effects' source, for the effects row's slider; null leaves it out.</param>
+        public AudioPlayersPanel(IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IAudioSource music, IAudioSource effectsSource = null)
         {
             _library = library ?? throw new ArgumentNullException(nameof(library));
             _bgm = bgm;
             _effects = effects;
             _music = music;
+            _effectsSource = effectsSource;
             AddToClassList(UssClass);
             Card card = Ui.Card(AudioPlayersStrings.Title);
             Add(card);
@@ -75,6 +81,7 @@ namespace VirtualVessel.UI.Screens
             PlayButton = Ui.Button(AudioPlayersStrings.Play, ButtonVariant.Primary);
             PlayButton.clicked += PressPlay;
             bgmRow.Add(PlayButton);
+            // Hidden, not removed, when nothing plays, so the time and the slider after it do not move.
             State = Ui.Chip(StatusKind.Live, AudioClipStrings.BgmPlaying);
             bgmRow.Add(State);
             _time = QuietText.Of(new Label());
@@ -83,12 +90,7 @@ namespace VirtualVessel.UI.Screens
             bgmRow.Add(_time);
             if (music != null)
             {
-                Volume = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
-                Volume.Step = 1f;
-                Volume.Signed = true;
-                Volume.TooltipKey = AudioPlayersStrings.Volume;
-                Volume.SetValueWithoutNotify(music.Options.Value.GainDb);
-                Volume.RegisterValueChangedCallback(evt => _music.SetOptions(_music.Options.Value.WithGain(evt.newValue)));
+                Volume = VolumeSlider(music, AudioPlayersStrings.Volume);
                 bgmRow.Add(Volume);
             }
 
@@ -101,6 +103,12 @@ namespace VirtualVessel.UI.Screens
             effectsRow.Add(Ui.Text(AudioPlayersStrings.Effects, LabelClass, "vv-text-body"));
             _pad.AddToClassList(PadClass);
             effectsRow.Add(_pad);
+            if (effectsSource != null)
+            {
+                EffectsVolume = VolumeSlider(effectsSource, AudioPlayersStrings.EffectsVolume);
+                effectsRow.Add(EffectsVolume);
+            }
+
             StopEffectsButton = Ui.Button(AudioPlayersStrings.StopEffects);
             StopEffectsButton.clicked += () => _effects?.StopAll();
             effectsRow.Add(StopEffectsButton);
@@ -120,6 +128,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The BGM source's volume; null without the source.</summary>
         public ValueSlider Volume { get; }
+
+        /// <summary>The sound effects source's volume; null without the source.</summary>
+        public ValueSlider EffectsVolume { get; }
 
         public ActionButton StopEffectsButton { get; }
 
@@ -156,6 +167,14 @@ namespace VirtualVessel.UI.Screens
                 _changed = true;
             }
 
+            // Built-in files' names follow the screen's language until the user renames them.
+            void OnLocaleChanged(LocaleInfo locale)
+            {
+                _language = locale?.Code;
+                Refresh();
+            }
+
+            _language = services?.Localizer?.Locale?.Code;
             _library.Changed += OnChanged;
             Refresh();
             IVisualElementScheduledItem poll = schedule.Execute(() =>
@@ -168,6 +187,12 @@ namespace VirtualVessel.UI.Screens
                 ShowPlayers();
             }).Every(RefreshIntervalMs);
             var subscriptions = new List<IDisposable> { new DisposeAction(() => _library.Changed -= OnChanged), new DisposeAction(poll.Pause) };
+            if (services?.Localizer != null)
+            {
+                services.Localizer.LocaleChanged += OnLocaleChanged;
+                subscriptions.Add(new DisposeAction(() => services.Localizer.LocaleChanged -= OnLocaleChanged));
+            }
+
             if (_bgm != null)
             {
                 subscriptions.Add(_bgm.Status.Subscribe(_ => ShowPlayers()));
@@ -176,6 +201,11 @@ namespace VirtualVessel.UI.Screens
             if (_music != null)
             {
                 subscriptions.Add(_music.Options.Subscribe(options => Volume.SetValueWithoutNotify(options.GainDb)));
+            }
+
+            if (_effectsSource != null)
+            {
+                subscriptions.Add(_effectsSource.Options.Subscribe(options => EffectsVolume.SetValueWithoutNotify(options.GainDb)));
             }
 
             return new DisposeAll(subscriptions);
@@ -188,7 +218,7 @@ namespace VirtualVessel.UI.Screens
             CrudResult<IReadOnlyList<AudioClipRecord>> effects = _library.List(AudioClipKind.SoundEffect);
             _tracks.Clear();
             _tracks.AddRange(tracks.Ok ? tracks.Value : Array.Empty<AudioClipRecord>());
-            Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.Name)).ToArray());
+            Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.NameIn(_language))).ToArray());
             string chosen = ChosenTrack(_tracks.Select(track => track.Id).ToArray(), _bgm?.Status.Value.TrackId, Tracks.value);
             Tracks.SetValueWithoutNotify(chosen ?? string.Empty);
             _noBgm.style.display = _tracks.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -199,7 +229,7 @@ namespace VirtualVessel.UI.Screens
             IReadOnlyList<AudioClipRecord> list = effects.Ok ? effects.Value : Array.Empty<AudioClipRecord>();
             foreach (AudioClipRecord effect in list)
             {
-                var button = new ActionButton(null) { PlainText = effect.Name };
+                var button = new ActionButton(null) { PlainText = effect.NameIn(_language) };
                 string id = effect.Id;
                 button.clicked += () => _effects?.Play(id);
                 _pad.Add(button);
@@ -219,7 +249,7 @@ namespace VirtualVessel.UI.Screens
             PlayButton.Variant = playing ? ButtonVariant.Secondary : ButtonVariant.Primary;
             PlayButton.SetEnabled(_bgm != null && (playing || !string.IsNullOrEmpty(Tracks.value)));
             Tracks.SetEnabled(!playing);
-            State.style.display = playing || failed ? DisplayStyle.Flex : DisplayStyle.None;
+            State.style.visibility = playing || failed ? Visibility.Visible : Visibility.Hidden;
             State.Status = failed ? StatusKind.Error : StatusKind.Live;
             State.TextKey = failed ? AudioClipStrings.BgmFailed : AudioClipStrings.BgmPlaying;
             AudioClipRecord track = _tracks.Find(t => t.Id == status.TrackId);
@@ -228,6 +258,18 @@ namespace VirtualVessel.UI.Screens
             {
                 button.SetEnabled(_effects != null && _effects.IsReady(id));
             }
+        }
+
+        // A source's volume, the same value as its mixer row's.
+        private static ValueSlider VolumeSlider(IAudioSource source, string tooltipKey)
+        {
+            ValueSlider slider = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
+            slider.Step = 1f;
+            slider.Signed = true;
+            slider.TooltipKey = tooltipKey;
+            slider.SetValueWithoutNotify(source.Options.Value.GainDb);
+            slider.RegisterValueChangedCallback(evt => source.SetOptions(source.Options.Value.WithGain(evt.newValue)));
+            return slider;
         }
 
         private void PressPlay()

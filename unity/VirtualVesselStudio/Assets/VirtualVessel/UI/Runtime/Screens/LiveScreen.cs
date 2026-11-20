@@ -84,12 +84,14 @@ namespace VirtualVessel.UI.Screens
             if (services.AudioClips != null && (services.Bgm != null || services.SoundEffects != null))
             {
                 IAudioSource music = null;
+                IAudioSource effects = null;
                 foreach (IAudioSource source in services.Audio?.Sources ?? Array.Empty<IAudioSource>())
                 {
                     music = source.Role == AudioSourceRole.Music ? source : music;
+                    effects = source.Role == AudioSourceRole.SoundEffect ? source : effects;
                 }
 
-                Players = new AudioPlayersPanel(services.AudioClips, services.Bgm, services.SoundEffects, music);
+                Players = new AudioPlayersPanel(services.AudioClips, services.Bgm, services.SoundEffects, music, effects);
                 Add(Players);
             }
 
