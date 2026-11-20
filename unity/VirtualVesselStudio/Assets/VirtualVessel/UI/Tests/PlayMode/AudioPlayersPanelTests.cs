@@ -74,11 +74,15 @@ namespace VirtualVessel.UI.Tests
             _bgm.Set(new BgmStatus(BgmPlayState.Playing, "bgm-2"));
             yield return null;
             Assert.That(panel.PlayButton.TextKey, Is.EqualTo(AudioPlayersStrings.Stop));
-            Assert.That(panel.State.style.display.value, Is.EqualTo(DisplayStyle.Flex), "Playing, by shape and text.");
+            Assert.That(panel.State.style.visibility.value, Is.EqualTo(Visibility.Visible), "Playing, by shape and text.");
             Assert.That(panel.Tracks.enabledSelf, Is.False, "Not chosen again while it plays.");
 
             Submit(panel.PlayButton);
             Assert.That(_bgm.Stopped, Is.True);
+            _bgm.Set(new BgmStatus(BgmPlayState.Idle, null));
+            yield return null;
+            Assert.That(panel.State.style.visibility.value, Is.EqualTo(Visibility.Hidden), "Hidden, keeping its place.");
+            Assert.That(panel.State.style.display.value, Is.Not.EqualTo(DisplayStyle.None));
         }
 
         [UnityTest]
@@ -98,6 +102,23 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_effects.Played, Is.EqualTo(new[] { "se-1", "se-1" }));
             Submit(panel.StopEffectsButton);
             Assert.That(_effects.Stops, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator TheEffectsVolume_SetsTheEffectsSource_LikeTheBgms()
+        {
+            var music = new AudioPanelTests.FakeSource("music", VirtualVessel.Audio.AudioSourceRole.Music, null);
+            var effects = new AudioPanelTests.FakeSource("se", VirtualVessel.Audio.AudioSourceRole.SoundEffect, null);
+            var panel = new AudioPlayersPanel(_clips, _bgm, _effects, music, effects);
+            _root.Content.Add(panel);
+            yield return null;
+
+            panel.EffectsVolume.value = -12f;
+            Assert.That(effects.Options.Value.GainDb, Is.EqualTo(-12f));
+            Assert.That(music.Options.Value.GainDb, Is.EqualTo(0f), "Each slider sets its own source.");
+            effects.SetOptions(effects.Options.Value.WithGain(-3f));
+            Assert.That(panel.EffectsVolume.value, Is.EqualTo(-3f), "A change from the mixer shows here too.");
+            Assert.That(new AudioPlayersPanel(_clips, _bgm, _effects, music).EffectsVolume, Is.Null, "Left out without the source.");
         }
 
         [Test]

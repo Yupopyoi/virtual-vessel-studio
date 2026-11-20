@@ -716,6 +716,7 @@
         "live.players.play": "Play",
         "live.players.stop": "Stop",
         "live.players.volume": "The BGM volume, for the stream, recordings, and what you hear.",
+        "live.players.effects-volume": "The sound effects volume, for the stream, recordings, and what you hear.",
         "live.players.stop-effects": "Stop sound effects",
         "live.players.no-bgm": "Add BGM on the Audio page of Settings.",
         "live.players.no-effects": "Add sound effects on the Audio page of Settings.",

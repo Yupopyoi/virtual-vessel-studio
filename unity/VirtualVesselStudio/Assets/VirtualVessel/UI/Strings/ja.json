@@ -716,6 +716,7 @@
         "live.players.play": "再生",
         "live.players.stop": "停止",
         "live.players.volume": "BGMの音量です。配信と録画、自分に聞こえる音のすべてに効きます。",
+        "live.players.effects-volume": "効果音の音量です。配信と録画、自分に聞こえる音のすべてに効きます。",
         "live.players.stop-effects": "効果音を停止",
         "live.players.no-bgm": "BGMは、設定画面の「音声」で追加します。",
         "live.players.no-effects": "効果音は、設定画面の「音声」で追加します。",

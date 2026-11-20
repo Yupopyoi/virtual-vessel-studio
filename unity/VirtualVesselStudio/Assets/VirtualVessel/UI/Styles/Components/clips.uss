@@ -140,6 +140,11 @@
     margin-bottom: var(--vv-space-xs);
 }
 
+/* A chip keeps to the top by default (chip.uss); here it sits on the row's center line like the buttons. */
+.vv-players__row > .vv-chip {
+    align-self: center;
+}
+
 .vv-players__label {
     color: var(--vv-color-text-2);
     min-width: 64px;
