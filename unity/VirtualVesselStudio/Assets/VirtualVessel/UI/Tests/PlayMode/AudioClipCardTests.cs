@@ -19,6 +19,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Screens;
+using VirtualVessel.UI.Shortcuts;
 using Object = UnityEngine.Object;
 
 namespace VirtualVessel.UI.Tests
@@ -33,6 +34,7 @@ namespace VirtualVessel.UI.Tests
         private FakeBgm _bgm;
         private FakeEffects _effects;
         private FakeFiles _files;
+        private FakeKeys _keys;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -44,6 +46,7 @@ namespace VirtualVessel.UI.Tests
             _bgm = new FakeBgm();
             _effects = new FakeEffects();
             _files = new FakeFiles();
+            _keys = new FakeKeys();
             _host = new GameObject(nameof(AudioClipCardTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
@@ -56,6 +59,7 @@ namespace VirtualVessel.UI.Tests
                 Bgm = _bgm,
                 SoundEffects = _effects,
                 FileDialog = _files,
+                Shortcuts = _keys,
             }));
             yield return null;
         }
@@ -116,6 +120,63 @@ namespace VirtualVessel.UI.Tests
             row.NameInput.value = "Sunny";
             Submit(row.SaveButton);
             Assert.That(_clips.Changes.Last().Item4, Is.EqualTo("Sunny"));
+        }
+
+        [UnityTest]
+        public IEnumerator ASoundEffect_TakesKeys_WithTheGlobalKeysPaused()
+        {
+            _clips.Add(AudioClipKind.SoundEffect, "se-2", "Chime", 1, shortcut: "Ctrl+Alt+2");
+            AudioClipCard card = Open(AudioClipKind.SoundEffect);
+            yield return null;
+
+            AudioClipCard.ClipRow row = card.Rows.First(r => r.Record.Id == "se-1");
+            ShortcutButton keys = row.Shortcut;
+            Assert.That(keys.Button.TextKey, Is.EqualTo(ShortcutStrings.None));
+            Assert.That(card.Rows.First(r => r.Record.Id == "se-2").Shortcut.Button.DisplayedText, Is.EqualTo("Ctrl+Alt+2"), "Keys as they are, in every language.");
+
+            Submit(keys.Button);
+            Assert.That(keys.Waiting, Is.True);
+            Assert.That(_keys.Paused, Is.True, "The keys pressed come here, not to a sound effect.");
+            keys.Take(KeyCode.Alpha1, false, false, false);
+            Assert.That(keys.Waiting, Is.True, "A key alone is a game's.");
+            Assert.That(keys.Button.TooltipKey, Is.EqualTo(ShortcutStrings.NeedModifier));
+
+            keys.Take(KeyCode.Alpha2, true, true, false);
+            Assert.That(keys.Waiting, Is.False);
+            Assert.That(_keys.Paused, Is.False);
+            Assert.That(card.Problem.TextKey, Is.EqualTo(ShortcutStrings.Taken), "Another sound effect has those keys.");
+            Assert.That(_clips.ShortcutChanges, Is.Empty);
+
+            Submit(keys.Button);
+            keys.Take(KeyCode.Alpha1, true, true, false);
+            Assert.That(_clips.ShortcutChanges.Last(), Is.EqualTo(("se-1", "Ctrl+Alt+1")));
+            Assert.That(card.Problem.style.display.value, Is.EqualTo(DisplayStyle.None));
+
+            Submit(keys.Button);
+            keys.Take(KeyCode.Escape, false, false, false);
+            Assert.That(_clips.ShortcutChanges.Count, Is.EqualTo(1), "Esc cancels.");
+            Submit(keys.Button);
+            keys.Take(KeyCode.Delete, false, false, false);
+            Assert.That(_clips.ShortcutChanges.Last(), Is.EqualTo(("se-1", string.Empty)), "Delete removes them.");
+            Assert.That(_keys.Paused, Is.False);
+
+            Assert.That(Open(AudioClipKind.Bgm).Rows.Single().Shortcut, Is.Null, "BGM has no shortcut.");
+        }
+
+        [UnityTest]
+        public IEnumerator KeysAnotherAppHolds_AreShownOnTheirRow()
+        {
+            _clips.Add(AudioClipKind.SoundEffect, "se-2", "Chime", 1, shortcut: "Ctrl+Alt+2");
+            AudioClipCard card = Open(AudioClipKind.SoundEffect);
+            yield return null;
+
+            AudioClipCard.ClipRow row = card.Rows.First(r => r.Record.Id == "se-2");
+            Assert.That(row.State.style.display.value, Is.EqualTo(DisplayStyle.None));
+            _keys.Refused = new[] { KeyChord.Parse("Ctrl+Alt+2").Value };
+            yield return WaitFor(() => row.State.style.display.value == DisplayStyle.Flex);
+            Assert.That(row.State.Status, Is.EqualTo(StatusKind.Warning));
+            Assert.That(row.State.TextKey, Is.EqualTo(ShortcutStrings.HeldElsewhere), "By its shape and its text.");
+            Assert.That(card.Rows.First(r => r.Record.Id == "se-1").State.style.display.value, Is.EqualTo(DisplayStyle.None));
         }
 
         [UnityTest]
@@ -325,9 +386,11 @@ namespace VirtualVessel.UI.Tests
 
             public List<(string Id, int Position)> Moves { get; } = new List<(string, int)>();
 
-            public void Add(AudioClipKind kind, string id, string name, int seconds, IReadOnlyDictionary<string, string> names = null)
+            public List<(string Id, string Shortcut)> ShortcutChanges { get; } = new List<(string, string)>();
+
+            public void Add(AudioClipKind kind, string id, string name, int seconds, IReadOnlyDictionary<string, string> names = null, string shortcut = null)
             {
-                _records.Add(new AudioClipRecord(id, kind, name, new AudioClipSettings(0f, kind == AudioClipKind.Bgm), new AudioClipFile(@"C:\clips\" + id, name + ".mp3", TimeSpan.FromSeconds(seconds), DateTimeOffset.UtcNow), names));
+                _records.Add(new AudioClipRecord(id, kind, name, new AudioClipSettings(0f, kind == AudioClipKind.Bgm, shortcut), new AudioClipFile(@"C:\clips\" + id, name + ".mp3", TimeSpan.FromSeconds(seconds), DateTimeOffset.UtcNow), names));
             }
 
             public CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind)
@@ -356,7 +419,15 @@ namespace VirtualVessel.UI.Tests
 
             public CrudResult<AudioClipRecord> Update(string id, AudioClipChange change)
             {
-                Changes.Add((id, change.GainDb, change.Loop, change.Name));
+                if (change.Shortcut != null)
+                {
+                    ShortcutChanges.Add((id, change.Shortcut));
+                }
+                else
+                {
+                    Changes.Add((id, change.GainDb, change.Loop, change.Name));
+                }
+
                 return Get(id);
             }
 
@@ -380,6 +451,43 @@ namespace VirtualVessel.UI.Tests
                 _records.AddRange(same);
                 Changed?.Invoke(record.Kind);
                 return CrudResult.Success;
+            }
+        }
+
+        internal sealed class FakeKeys : IGlobalShortcuts
+        {
+            public event Action<KeyChord> Pressed
+            {
+                add
+                {
+                }
+
+                remove
+                {
+                }
+            }
+
+            public event Action RefusedChanged
+            {
+                add
+                {
+                }
+
+                remove
+                {
+                }
+            }
+
+            public IReadOnlyCollection<KeyChord> Refused { get; set; } = Array.Empty<KeyChord>();
+
+            public bool Paused { get; set; }
+
+            public void Listen(IReadOnlyCollection<KeyChord> chords)
+            {
+            }
+
+            public void Dispose()
+            {
             }
         }
 

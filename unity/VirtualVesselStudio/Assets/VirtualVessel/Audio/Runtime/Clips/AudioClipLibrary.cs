@@ -34,6 +34,12 @@ namespace VirtualVessel.Audio.Clips
         /// otherwise. Added without a new schema version: an older reader keeps it as an unknown field.
         /// </summary>
         public Dictionary<string, string> Names { get; set; }
+
+        /// <summary>
+        /// SE only: the keys that play it from any app (BGM and SE detailed design 6.1); null for none. Added without a
+        /// new schema version, like <see cref="Names"/>.
+        /// </summary>
+        public string Shortcut { get; set; }
     }
 
     /// <summary>order.json in Audio/BGM/ and Audio/SE/: the order the user put the registrations in (BGM and SE detailed design 6.1).</summary>
@@ -57,6 +63,7 @@ namespace VirtualVessel.Audio.Clips
         public const int MaxNameLength = 60;
         public const int MaxEffectSeconds = 30;
         public const float DefaultGainDb = 0f;
+        public const int MaxShortcutLength = 40;
 
         private const string BgmFolder = "BGM";
         private const string EffectFolder = "SE";
@@ -176,6 +183,12 @@ namespace VirtualVessel.Audio.Clips
                 }
             }
 
+            string shortcut = change.Shortcut?.Trim();
+            if (shortcut != null && shortcut.Length > MaxShortcutLength)
+            {
+                return CrudResult<AudioClipRecord>.Fail(CrudError.Invalid, "The shortcut is too long.");
+            }
+
             CrudResult<AudioClipRecord> current = Get(id);
             if (!current.Ok)
             {
@@ -191,6 +204,11 @@ namespace VirtualVessel.Audio.Clips
                 profile.Names = name != null ? null : profile.Names;
                 profile.GainDb = change.GainDb.HasValue ? ClampGain(change.GainDb.Value) : profile.GainDb;
                 profile.Loop = change.Loop.HasValue && current.Value.Kind == AudioClipKind.Bgm ? change.Loop.Value : profile.Loop;
+                if (shortcut != null && current.Value.Kind == AudioClipKind.SoundEffect)
+                {
+                    profile.Shortcut = shortcut.Length > 0 ? shortcut : null;
+                }
+
                 store.Save(profile);
                 return Load(id);
             }, $"Changing audio clip {id}");
@@ -362,6 +380,13 @@ namespace VirtualVessel.Audio.Clips
             return string.IsNullOrEmpty(trimmed) || trimmed.Length > MaxNameLength ? null : trimmed;
         }
 
+        /// <summary>A shortcut trimmed, or null when it is empty or longer than <see cref="MaxShortcutLength"/>. Pure.</summary>
+        public static string CleanShortcut(string shortcut)
+        {
+            string trimmed = shortcut?.Trim();
+            return string.IsNullOrEmpty(trimmed) || trimmed.Length > MaxShortcutLength ? null : trimmed;
+        }
+
         /// <summary>Why a file of this kind, with this extension and length, cannot be registered. Pure.</summary>
         public static AudioClipProblem ProblemOf(AudioClipKind kind, string extension, TimeSpan? duration)
         {
@@ -475,7 +500,7 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>
         /// The registration a profile describes, with values out of range or missing made usable: a name from the
-        /// file's, the gain in range, a loop on BGM only, no negative length. Pure.
+        /// file's, the gain in range, a loop on BGM only, a shortcut on SE only, no negative length. Pure.
         /// </summary>
         public static AudioClipRecord RecordOf(string id, AudioClipProfile profile, string filePath)
         {
@@ -486,7 +511,7 @@ namespace VirtualVessel.Audio.Clips
                 id,
                 kind,
                 CleanName(profile.Name) ?? Path.GetFileNameWithoutExtension(profile.OriginalName ?? id),
-                new AudioClipSettings(ClampGain(profile.GainDb), kind == AudioClipKind.Bgm && profile.Loop),
+                new AudioClipSettings(ClampGain(profile.GainDb), kind == AudioClipKind.Bgm && profile.Loop, kind == AudioClipKind.SoundEffect ? CleanShortcut(profile.Shortcut) : null),
                 new AudioClipFile(filePath, profile.OriginalName, duration, added),
                 CleanNames(profile.Names));
         }

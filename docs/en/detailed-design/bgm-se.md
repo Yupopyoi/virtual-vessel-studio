@@ -11,7 +11,7 @@ The app comes with BGM and SE ready to use (the user's request, 2026-11-17; 6.3)
 To be added later (the user's decision, 2026-11-16). The first version does not build them, but is shaped so that adding them needs no rework (chapter 17):
 
 - How BGM is ordered: playlists, shuffle, repeat, crossfades between tracks (system design 12.4).
-- Keyboard shortcuts for SE, and later external devices and events (system design 12.5).
+- Playing SE from external devices and events (system design 12.5). Keyboard shortcuts are built (2026-11-21; 8.3).
 - More formats: M4A (AAC) and whatever else Windows can decode.
 - BGM made inside the app (system design 16.32).
 
@@ -30,7 +30,8 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 
 - BGM and SE live in the Audio module (system design 12.15); no new module is made, so they share the mix, buses, limiter, and meters.
 - Other modules see `IAudioClipLibrary`, `IBgmPlayer`, `ISoundEffectPlayer`, and the existing `IAudioService`. No Media Foundation or WASAPI types are shown.
-- The UI asks `IBgmPlayer` and `ISoundEffectPlayer` for playback. When keyboard shortcuts or external devices are added, commands (such as `PlaySoundEffectCommand`) come with them as their way in, so the screen's buttons and the shortcuts go through the same command (chapter 17).
+- The UI asks `IBgmPlayer` and `ISoundEffectPlayer` for playback. For SE, the buttons of the setup and live screens and the shortcuts go through the same `PlaySoundEffectCommand` (system design 14.28; 8.3). External devices will come in through this command too.
+- The UI takes the shortcut keys (`VirtualVessel.UI.Shortcuts`; system design 14.27). Audio keeps the keys' text as it is, without knowing what it means.
 - BGM made in the app (system design 16.32) registers its audio in this library, using only its public API.
 
 ## 4. Main Classes and Interfaces
@@ -60,7 +61,7 @@ public interface IAudioClipLibrary
     Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // Copies the file and checks it can be read and how long it is. Heavy, so called off the main thread.
     Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
-    CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // name, volume, loop
+    CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // name, volume, loop, an SE's shortcut
     CrudResult Delete(string id);                // Busy for the BGM that plays
     CrudResult Move(string id, int position);    // To a place in its kind's list (0 is first); past the end is last
     IReadOnlyList<string> FileExtensions { get; } // wav and mp3 in the first version
@@ -122,14 +123,16 @@ Audio/
   "loop": true,
   "durationSeconds": 31.0,
   "originalName": "fuwafuwa.mp3",
-  "addedAtUtc": "2026-11-16T12:00:00Z"
+  "addedAtUtc": "2026-11-16T12:00:00Z",
+  "shortcut": "Ctrl+Alt+1"
 }
 ```
 
 - The original file is copied unchanged and decoded each time it plays. A converted copy would turn an MP3 into a WAV about ten times its size.
 - Adding copies into a sibling folder (`.part`) and then renames it, so a half-made one is never listed (as VoiceModelStore does).
 - Only BGM uses `loop`; SE keeps it `false` and does not use it (the settings files write nulls too, so it cannot be left out).
-- Fields this version does not know are written back, not dropped (CLAUDE.md 25). Examples to come: an SE's `shortcut`, how a made BGM was made (system design 16.32).
+- Fields this version does not know are written back, not dropped (CLAUDE.md 25). An example to come: how a made BGM was made (system design 16.32).
+- `shortcut` (SE only): the keys that play the SE whichever app is in use (8.3). `Ctrl`, `Alt`, `Shift`, then the key, joined by `+` (`"Ctrl+Alt+1"`); the same text in every language. Null for none; up to 40 characters. Kept here, like the volume, as a property of the material. Only a field was added, so schemaVersion stays 1.
 - `name` is 1 to 60 characters. Equal names are allowed; the ID tells them apart.
 - `names` (built-in files only): the name per language (`{ "ja": "サンプル１（ポップ）", "en": "Sample 1 (Pop)" }`). Kept until the user renames the file, then removed (changing the volume or the loop keeps it). The screens show `AudioClipRecord.NameIn(language)`: the name in the screen's language, else the English one, else `name`. As a field was only added, schemaVersion stays 1 (an earlier version keeps it as an unknown field).
 - The list (`List`) is in the order the user put the files in (2026-11-20). `order.json` (`{ "schemaVersion": 1, "ids": ["se-…", …] }`) holds each kind's IDs from the first. Those not in it (added after the last reordering, or never reordered) come after, in the order they were added. IDs of deleted files are skipped and drop out at the next reordering. The order is one file so that reordering does not rewrite every `audio-profile.json`. The setup and the live screens both show this order.
@@ -199,12 +202,27 @@ StreamingAssets/Audio/BuiltIn/
 
 - An SE's own volume (`gainDb`) is applied as it enters a voice. The SE source's volume and mute are applied in the mixer.
 
+### 8.3 Playing an SE by Shortcut
+
+During a stream another app, such as a game, is usually in front. So the SE shortcuts work while Virtual Vessel Studio is not in front (user's decision, 2026-11-21), with Windows' RegisterHotKey.
+
+1. `SoundEffectShortcuts` (a service that lives from the app's start to its end) makes the keys-to-SE map from the library's SE list. When two SE have the same keys, the one first in the list is used. It is made again when the library changes.
+2. `WindowsGlobalShortcuts` registers the keys on a thread of its own and waits for WM_HOTKEY in that thread's message loop. A hot key goes to the thread that registered it, hence the thread of its own. It does not depend on Unity's frames, so it is not delayed when frames slow down behind a game.
+3. When keys are pressed, that thread runs `PlaySoundEffectCommand`. `SoundEffectPlayer.Play` can be called from any thread (it takes a lock inside), so the press is not handed to the main thread.
+4. Keys need `Ctrl`, `Alt`, or `Shift`, so the keys a game uses alone are not taken from it. Holding keys down does not repeat (`MOD_NOREPEAT`). The keys offered are letters, digits, the number pad's digits, and F1 to F12. Punctuation keys are left out, as their place moves with the keyboard layout.
+5. Windows refuses keys another app holds. Refused keys are in `Refused`, and the setup screen shows them on their row (`setup.md` chapter 14). They are tried again each time the keys change.
+6. While the user assigns keys on the setup screen, every key is unregistered (`Paused`), so the keys pressed reach the screen and do not play a sound effect.
+
+- RegisterHotKey only tells that the registered keys were pressed. No other key input is read, and key input is not recorded.
+- On exit the thread unregisters every key before it ends; otherwise other apps could not use those keys.
+
 ## 9. Threads and Asynchrony
 
 - The mix thread (existing): only reads the deck's ring and the SE voices. No allocation, waiting locks, or file reads (audio detailed design chapter 9).
 - The deck's decoding thread (new, native, normal priority): decodes with Media Foundation and writes the ring. The ring has one writer and one reader, with no lock.
 - SE decoding: managed, off the main thread; the samples are handed to the native side under the engine's lock (a swap only, as for the preview; audio detailed design 5.5).
 - Registration (copying and checking the file): managed, off the main thread.
+- The shortcuts' thread (new, managed): registers the keys, and plays the SE when they are pressed (8.3). It does not wait for the main thread.
 
 ## 10. Settings
 
@@ -224,6 +242,8 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 | The file to play is missing or damaged | `Failed`; other audio goes on | This BGM cannot be played |
 | Decoding is late | The gap is silence and counted | Nothing; counted in diagnostics |
 | No Media Foundation (N editions) | BGM and SE cannot be used | The audio file cannot be read, with the Media Feature Pack's guidance |
+| Another app holds an SE's shortcut keys | Those keys do not play it; its button does | "Keys used by another app" on its row (a warning shape and text) |
+| Another SE has the same keys | Not assigned | Another sound effect uses these keys |
 
 - A BGM or SE failure never stops the microphone, the stream, or a recording (system design 12.11).
 
@@ -231,6 +251,7 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 
 - Logs registering, deleting, starting and ending playback, and failures. Tracks are logged by ID, without file paths or names (the names of the user's files can be personal).
 - Failures log the format, rate, channel count, and HRESULT (system design 12.14).
+- The shortcuts log the keys another app refused, when they change. Presses are not logged.
 - Metrics: `Audio/Music.Underruns`, `Audio/SoundEffect.VoicesStolen`.
 - The audio itself is never logged.
 
@@ -239,8 +260,8 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 | Kind | Target |
 |---|---|
 | Native (ctest) | The deck with written WAV and MP3 files: no silence at a loop's seam, the end notice, fades, silence when the ring is empty. SE voices: overlapping, replacing with no free voice. Mixing in stereo |
-| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), a built-in file's names per language (kept until it is renamed), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine |
-| PlayMode | The settings and live screens' controls (with their screen spec) |
+| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), a built-in file's names per language (kept until it is renamed), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine. Saving and removing an SE's shortcut. `KeyChord` read and written, the keys' map (the first for the same keys), playing the pressed SE and following the list, and with Windows itself, keys another holds are refused and taken once let go |
+| PlayMode | The settings and live screens' controls (with their screen spec). Assigning, cancelling, and removing shortcuts, refusing keys another SE has, showing keys another app holds, the live screen's tooltips |
 | Hardware (manual) | BGM and SE reach the stream and recordings, and the monitor send works |
 
 ## 15. Performance
@@ -258,6 +279,8 @@ Audio/Runtime/Clips/     IAudioClipLibrary, AudioClipLibrary, AudioClipRecord, B
 StreamingAssets/Audio/BuiltIn/  the built-in BGM and SE (6.3)
 tools/audio/             the scripts that render them
 Audio/Runtime/Playback/  IBgmPlayer, BgmPlayer, IBgmSequence, SingleTrack, ISoundEffectPlayer
+UI/Runtime/Shortcuts/    KeyChord, IGlobalShortcuts, WindowsGlobalShortcuts, SoundEffectShortcuts, ShortcutButton
+UI/Runtime/Commands/     PlaySoundEffectCommand
 UI/Runtime/Screens/      the BGM and SE Cards (settings screen), the live screen's controls
 ```
 
@@ -266,10 +289,11 @@ UI/Runtime/Screens/      the BGM and SE Cards (settings screen), the live screen
 Stages:
 
 1. Native: stereo decoding, the BGM deck (loop, end notice, fades), SE voices. Done (2026-11-17).
-2. Managed: the sources, the library (CRUD), `BgmPlayer`, `SingleTrack`, `SoundEffectPlayer`. Done. The UI calls the players' methods directly (no UI `IUiCommand` yet); commands come with keyboard shortcuts, as their way in.
+2. Managed: the sources, the library (CRUD), `BgmPlayer`, `SingleTrack`, `SoundEffectPlayer`. Done. For BGM, the UI calls the players' methods directly.
 3. Settings screen: the mixer rows, the BGM and SE Cards (`setup.md` chapter 14). Done.
 4. Live screen: choosing, playing, stopping BGM and its volume; SE buttons (`live.md`). Done.
 5. The built-in BGM and SE (6.3). Done (2026-11-17).
+6. SE shortcuts (8.3). Done (2026-11-21).
 
 An integration test through the real plugin (`AudioPlayersIntegrationTests`) registers a WAV, plays it as BGM to its end, is refused deleting it while it plays, and loads and plays it as an effect.
 
@@ -277,7 +301,6 @@ To be added later, and where (without rework):
 
 - Playlists, shuffle, repeat: `IBgmSequence` implementations and saved playlists (`Audio/Playlists/`).
 - Crossfades and gapless playback between tracks: a deck API to queue the next track, decoding two at once.
-- SE shortcuts: a `shortcut` in `audio-profile.json`, and UI key bindings that call `PlaySoundEffectCommand`.
 - M4A and others: widen `FileExtensions`. Decoding is Media Foundation's, so the change is expected to need only checking.
 - BGM made in the app (system design 16.32): registers its audio with `AddAsync`.
 

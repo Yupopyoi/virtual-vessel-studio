@@ -8,8 +8,10 @@ using VirtualVessel.Audio.Clips;
 using VirtualVessel.Audio.Playback;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Shortcuts;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -229,9 +231,11 @@ namespace VirtualVessel.UI.Screens
             IReadOnlyList<AudioClipRecord> list = effects.Ok ? effects.Value : Array.Empty<AudioClipRecord>();
             foreach (AudioClipRecord effect in list)
             {
-                var button = new ActionButton(null) { PlainText = effect.NameIn(_language) };
+                // The tooltip tells its keys, which play it from any app (BGM and SE detailed design 8.3).
+                var button = new ActionButton(null) { PlainText = effect.NameIn(_language), Shortcut = KeyChord.Parse(effect.Settings.Shortcut)?.ToString() };
                 string id = effect.Id;
-                button.clicked += () => _effects?.Play(id);
+                PlaySoundEffectCommand command = _effects != null ? new PlaySoundEffectCommand(_effects, id) : null;
+                button.clicked += () => command?.Execute();
                 _pad.Add(button);
                 _effectButtons.Add((button, id));
             }

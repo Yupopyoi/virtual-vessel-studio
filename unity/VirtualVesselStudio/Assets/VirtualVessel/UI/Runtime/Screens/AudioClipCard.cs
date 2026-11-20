@@ -1,21 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio.Clips;
 using VirtualVessel.Audio.Playback;
 using VirtualVessel.Diagnostics.Logging;
 using VirtualVessel.ProjectData.Records;
 using VirtualVessel.UI.Binding;
+using VirtualVessel.UI.Commands;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
-using VirtualVessel.UI.Frames;
-using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
-using VirtualVessel.UI.Tooltips;
+using VirtualVessel.UI.Shortcuts;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -62,7 +61,7 @@ namespace VirtualVessel.UI.Screens
     /// files in rows with their play button, name, length, loop (BGM), and volume, renaming, deleting, and reordering
     /// them, and adding a WAV or MP3 file. What plays is the players' state; the Card only shows it and asks.
     /// </summary>
-    public sealed class AudioClipCard : VisualElement
+    public sealed partial class AudioClipCard : VisualElement
     {
         public const string UssClass = "vv-clips";
         public const string ColumnsClass = UssClass + "__columns";
@@ -77,6 +76,7 @@ namespace VirtualVessel.UI.Screens
         public const string LengthColumn = CellClass + "--length";
         public const string LoopColumn = CellClass + "--loop";
         public const string GainColumn = CellClass + "--gain";
+        public const string ShortcutColumn = CellClass + "--shortcut";
         public const string ActionsColumn = CellClass + "--actions";
         public const string NameTextClass = UssClass + "__name";
         public const string NoteClass = UssClass + "__note";
@@ -93,6 +93,7 @@ namespace VirtualVessel.UI.Screens
         private readonly IBgmPlayer _bgm;
         private readonly ISoundEffectPlayer _effects;
         private readonly IFileDialog _files;
+        private readonly IGlobalShortcuts _shortcuts;
         private readonly VisualElement _rows = new VisualElement();
         private readonly Label _empty;
         private readonly StatusChip _problem;
@@ -105,8 +106,10 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The Card itself, which the user can close by its title.</summary>
         public Card Card { get; }
 
-        public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files)
+        /// <param name="shortcuts">SE only: the keys that play sound effects from any app; null leaves out their column.</param>
+        public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files, IGlobalShortcuts shortcuts = null)
         {
+            _shortcuts = kind == AudioClipKind.SoundEffect ? shortcuts : null;
             _kind = kind;
             _library = library ?? throw new ArgumentNullException(nameof(library));
             _bgm = bgm;
@@ -125,7 +128,7 @@ namespace VirtualVessel.UI.Screens
                 card.HeaderEnd.Add(StopAllButton);
             }
 
-            card.Add(Columns(kind));
+            card.Add(Columns(kind, _shortcuts != null));
             card.Add(_rows);
 
             // The landing line is drawn over the rows, not inserted between them, so the rows do not move under the
@@ -196,7 +199,11 @@ namespace VirtualVessel.UI.Screens
         {
             if (_kind == AudioClipKind.SoundEffect)
             {
-                _effects?.Play(record.Id);
+                if (_effects != null)
+                {
+                    new PlaySoundEffectCommand(_effects, record.Id).Execute();
+                }
+
                 return;
             }
 
@@ -222,6 +229,42 @@ namespace VirtualVessel.UI.Screens
             {
                 ShowFailure($"Changing {record.Id}", updated.Error, updated.Detail);
             }
+        }
+
+        /// <summary>
+        /// Gives a sound effect the keys the user pressed, or removes them with an empty text. Keys another sound effect
+        /// has are not taken from it: the user is told and chooses again.
+        /// </summary>
+        internal void ChooseShortcut(AudioClipRecord record, string shortcut)
+        {
+            _problem.style.display = DisplayStyle.None;
+            if (TakenBy(_shown.ConvertAll(row => row.Record), record.Id, shortcut) != null)
+            {
+                ShowProblem(ShortcutStrings.Taken);
+                return;
+            }
+
+            Change(record, new AudioClipChange(shortcut: shortcut));
+        }
+
+        /// <summary>The ID of another sound effect that has these keys already, or null. Pure.</summary>
+        public static string TakenBy(IReadOnlyList<AudioClipRecord> effects, string id, string shortcut)
+        {
+            KeyChord? chord = KeyChord.Parse(shortcut);
+            if (!chord.HasValue)
+            {
+                return null;
+            }
+
+            foreach (AudioClipRecord effect in effects)
+            {
+                if (effect.Id != id && KeyChord.Parse(effect.Settings.Shortcut) == chord)
+                {
+                    return effect.Id;
+                }
+            }
+
+            return null;
         }
 
         internal async void Delete(AudioClipRecord record)
@@ -281,7 +324,7 @@ namespace VirtualVessel.UI.Screens
             _shown.Clear();
             foreach (AudioClipRecord record in records)
             {
-                var row = new ClipRow(this, record, _kind, record.NameIn(_language));
+                var row = new ClipRow(this, record, _kind, record.NameIn(_language), _shortcuts);
                 _shown.Add(row);
                 _rows.Add(row.Root);
             }
@@ -349,7 +392,9 @@ namespace VirtualVessel.UI.Screens
                 }
                 else
                 {
-                    row.ShowEffect(_effects != null && _effects.IsReady(row.Record.Id));
+                    KeyChord? chord = KeyChord.Parse(row.Record.Settings.Shortcut);
+                    bool heldElsewhere = chord.HasValue && _shortcuts != null && _shortcuts.Refused.Contains(chord.Value);
+                    row.ShowEffect(_effects != null && _effects.IsReady(row.Record.Id), heldElsewhere);
                 }
             }
         }
@@ -394,103 +439,6 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
-        internal void StartDrag(ClipRow row, PointerDownEvent evt)
-        {
-            if (evt.button != 0)
-            {
-                return;
-            }
-
-            _drag = new Drag(row, evt.position.y);
-            row.Grip.CapturePointer(evt.pointerId);
-        }
-
-        internal void DragTo(PointerMoveEvent evt)
-        {
-            if (_drag == null)
-            {
-                return;
-            }
-
-            if (!_drag.Moving)
-            {
-                if (Mathf.Abs(evt.position.y - _drag.StartY) < DragThreshold)
-                {
-                    return;
-                }
-
-                _drag.Moving = true;
-                _drag.Row.Root.AddToClassList(DraggingClass);
-
-                // The rows do not move during a drag, so their places are measured once.
-                foreach (ClipRow row in _shown)
-                {
-                    _drag.Centers.Add(row.Root.worldBound.center.y);
-                    _drag.Edges.Add(row.Root.layout.yMin);
-                }
-
-                _drag.Edges.Add(_shown[_shown.Count - 1].Root.layout.yMax);
-            }
-
-            _drag.DropIndex = LayerListMath.DropIndex(_drag.Centers, evt.position.y);
-            _drop.style.top = _drag.Edges[_drag.DropIndex] - 1;
-            _drop.style.display = DisplayStyle.Flex;
-        }
-
-        internal void Drop(PointerUpEvent evt)
-        {
-            Drag drag = _drag;
-            if (drag == null)
-            {
-                return;
-            }
-
-            if (drag.Row.Grip.HasPointerCapture(evt.pointerId))
-            {
-                drag.Row.Grip.ReleasePointer(evt.pointerId);
-            }
-
-            EndDrag();
-            int from = _shown.IndexOf(drag.Row);
-            int to = LayerListMath.TargetPosition(from, drag.DropIndex);
-            if (drag.Moving && to != from)
-            {
-                Move(drag.Row.Record, to);
-            }
-        }
-
-        /// <summary>
-        /// Ctrl+Up and Ctrl+Down with the focus in a row move it by one, as in the layer list. The grip is only for the
-        /// pointer, so the keys work from the row's buttons; the rename field keeps them for its text.
-        /// </summary>
-        internal void Step(ClipRow row, KeyDownEvent evt)
-        {
-            int step = evt.keyCode == KeyCode.UpArrow ? -1 : evt.keyCode == KeyCode.DownArrow ? 1 : 0;
-            if (step == 0 || !(evt.ctrlKey || evt.commandKey) || (evt.target is VisualElement target && row.NameInput.Contains(target)))
-            {
-                return;
-            }
-
-            // Kept from the focus navigation too, which would otherwise move on from the old row after it is rebuilt.
-            evt.StopPropagation();
-            focusController?.IgnoreEvent(evt);
-            int from = _shown.IndexOf(row);
-            int to = from + step;
-            if (from >= 0 && to >= 0 && to < _shown.Count)
-            {
-                // Contains does not count the element itself.
-                var focused = evt.target as VisualElement;
-                Move(row.Record, to, row.Controls.FindIndex(control => control == focused || control.Contains(focused)));
-            }
-        }
-
-        private void EndDrag()
-        {
-            _drag?.Row.Root.RemoveFromClassList(DraggingClass);
-            _drag = null;
-            _drop.style.display = DisplayStyle.None;
-        }
-
         private void ShowProblem(string key)
         {
             _problem.TextKey = key;
@@ -504,7 +452,7 @@ namespace VirtualVessel.UI.Screens
             UiServices.Find(this)?.Log?.Warning($"{what} failed ({error}): {detail}");
         }
 
-        private static VisualElement Columns(AudioClipKind kind)
+        private static VisualElement Columns(AudioClipKind kind, bool shortcuts)
         {
             var columns = new VisualElement();
             columns.AddToClassList(ColumnsClass);
@@ -521,6 +469,14 @@ namespace VirtualVessel.UI.Screens
             }
 
             columns.Add(Heading(AudioClipStrings.Gain, GainColumn));
+            if (shortcuts)
+            {
+                VisualElement shortcut = Cell(ShortcutColumn);
+                shortcut.Add(Ui.Text(ShortcutStrings.Column, "vv-text-caption"));
+                shortcut.Add(new HelpHint(ShortcutStrings.Description));
+                columns.Add(shortcut);
+            }
+
             columns.Add(Cell(ActionsColumn));
             return columns;
         }
@@ -538,229 +494,6 @@ namespace VirtualVessel.UI.Screens
             cell.AddToClassList(CellClass);
             cell.AddToClassList(column);
             return cell;
-        }
-
-        private sealed class Drag
-        {
-            public Drag(ClipRow row, float startY)
-            {
-                Row = row;
-                StartY = startY;
-            }
-
-            public ClipRow Row { get; }
-
-            public float StartY { get; }
-
-            public bool Moving { get; set; }
-
-            public int DropIndex { get; set; }
-
-            /// <summary>Row centers in panel space, for choosing the landing row.</summary>
-            public List<float> Centers { get; } = new List<float>();
-
-            /// <summary>Row tops in the list, then the bottom of the last row, for drawing the line.</summary>
-            public List<float> Edges { get; } = new List<float>();
-        }
-
-        /// <summary>The "≡" mark at a row's start, with room around it for the pointer and the tooltip.</summary>
-        private sealed class GripHandle : VisualElement, ITooltipSource
-        {
-            public GripHandle()
-            {
-                AddToClassList(GripClass);
-                Add(new Icon(IconName.Grip));
-            }
-
-            string ITooltipSource.CurrentTooltipKey => AudioClipStrings.Move;
-
-            string ITooltipSource.Shortcut => null;
-        }
-
-        /// <summary>One registered file's row.</summary>
-        public sealed class ClipRow
-        {
-            private readonly AudioClipCard _card;
-            private readonly Label _name;
-            private readonly TextInput _rename;
-            private readonly StatusChip _state;
-
-            internal ClipRow(AudioClipCard card, AudioClipRecord record, AudioClipKind kind, string shownName)
-            {
-                ShownName = shownName;
-                _card = card;
-                Record = record;
-                Root = new VisualElement();
-                Root.AddToClassList(RowClass);
-
-                // A plain mark, not a button, as in the layer list: it takes the pointer for dragging but not the focus.
-                Grip = new GripHandle();
-                Grip.RegisterCallback<PointerDownEvent>(evt => _card.StartDrag(this, evt));
-                Grip.RegisterCallback<PointerMoveEvent>(evt => _card.DragTo(evt));
-                Grip.RegisterCallback<PointerUpEvent>(evt => _card.Drop(evt));
-                Root.RegisterCallback<KeyDownEvent>(evt => _card.Step(this, evt), TrickleDown.TrickleDown);
-                VisualElement move = Cell(MoveColumn);
-                move.Add(Grip);
-                Root.Add(move);
-
-                PlayButton = Ui.IconButton(IconName.Play).WithTooltip(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmPlay : AudioClipStrings.EffectPlay);
-                PlayButton.clicked += () => _card.Press(Record);
-                VisualElement play = Cell(PlayColumn);
-                play.Add(PlayButton);
-                Root.Add(play);
-
-                // The name and its rename field share one place, so renaming happens where the name is.
-                VisualElement name = Cell(NameColumn);
-                _name = QuietText.Of(new Label(shownName));
-                _name.AddToClassList(NameTextClass);
-                _name.AddToClassList("vv-text-body");
-                _name.tooltip = shownName;
-                name.Add(_name);
-                _rename = Ui.TextField(null);
-                _rename.TooltipKey = AudioClipStrings.Name;
-                _rename.MaxLength = AudioClipLibrary.MaxNameLength;
-                _rename.style.display = DisplayStyle.None;
-                name.Add(_rename);
-                _state = Ui.Chip(StatusKind.Live, AudioClipStrings.BgmPlaying);
-                _state.style.display = DisplayStyle.None;
-                name.Add(_state);
-                Root.Add(name);
-
-                VisualElement length = Cell(LengthColumn);
-                Label lengthText = QuietText.Of(new Label(LengthText(record.File.Duration)));
-                lengthText.AddToClassList("vv-text-body");
-                lengthText.AddToClassList("vv-mono");
-                length.Add(lengthText);
-                Root.Add(length);
-
-                if (kind == AudioClipKind.Bgm)
-                {
-                    LoopToggle = new SwitchToggle();
-                    LoopToggle.SetValueWithoutNotify(record.Settings.Loop);
-                    LoopToggle.TooltipKey = AudioClipStrings.LoopDescription;
-                    LoopToggle.RegisterValueChangedCallback(evt => _card.Change(Record, new AudioClipChange(loop: evt.newValue)));
-                    VisualElement loop = Cell(LoopColumn);
-                    loop.Add(LoopToggle);
-                    Root.Add(loop);
-                }
-
-                Gain = Ui.Slider(null, VirtualVessel.Audio.AudioSourceOptions.MinGainDb, VirtualVessel.Audio.AudioSourceOptions.MaxGainDb, "dB");
-                Gain.Step = 1f;
-                Gain.Signed = true;
-                Gain.SetValueWithoutNotify(record.Settings.GainDb);
-                Gain.RegisterValueChangedCallback(evt => _card.Change(Record, new AudioClipChange(gainDb: evt.newValue)));
-                VisualElement gain = Cell(GainColumn);
-                gain.Add(Gain);
-                Root.Add(gain);
-
-                RenameButton = Ui.Button(AudioClipStrings.Rename);
-                RenameButton.clicked += StartRename;
-                SaveButton = Ui.Button(AudioClipStrings.Save, ButtonVariant.Primary);
-                SaveButton.style.display = DisplayStyle.None;
-                SaveButton.clicked += SaveName;
-                DeleteButton = Ui.Button(AudioClipStrings.Delete);
-                DeleteButton.clicked += () => _card.Delete(Record);
-                VisualElement actions = Cell(ActionsColumn);
-                actions.Add(RenameButton);
-                actions.Add(SaveButton);
-                actions.Add(DeleteButton);
-                Root.Add(actions);
-
-                Controls = new List<VisualElement> { PlayButton };
-                if (LoopToggle != null)
-                {
-                    Controls.Add(LoopToggle);
-                }
-
-                Controls.AddRange(new VisualElement[] { Gain, RenameButton, SaveButton, DeleteButton });
-            }
-
-            public AudioClipRecord Record { get; }
-
-            /// <summary>The name as shown, in the screen's language for a built-in file not renamed.</summary>
-            public string ShownName { get; }
-
-            public VisualElement Root { get; }
-
-            /// <summary>Dragged to reorder; Ctrl+Up and Ctrl+Down with the focus in the row do the same by keys.</summary>
-            public VisualElement Grip { get; }
-
-            public IconButton PlayButton { get; }
-
-            /// <summary>BGM only.</summary>
-            public SwitchToggle LoopToggle { get; }
-
-            public ValueSlider Gain { get; }
-
-            public ActionButton RenameButton { get; }
-
-            public ActionButton SaveButton { get; }
-
-            public ActionButton DeleteButton { get; }
-
-            public TextInput NameInput => _rename;
-
-            /// <summary>The row's controls in order, to find the same one again after the rows are rebuilt.</summary>
-            internal List<VisualElement> Controls { get; }
-
-            /// <summary>Playing or failed, shown by its shape and text beside the name.</summary>
-            public StatusChip State => _state;
-
-            internal void ShowBgm(bool playing, bool failed, bool holdsFile, bool canPlay)
-            {
-                PlayButton.IconName = playing ? IconName.Stop : IconName.Play;
-                PlayButton.TooltipKey = playing ? AudioClipStrings.BgmStop : AudioClipStrings.BgmPlay;
-                PlayButton.SetEnabled(canPlay);
-                _state.style.display = playing || failed ? DisplayStyle.Flex : DisplayStyle.None;
-                _state.Status = failed ? StatusKind.Error : StatusKind.Live;
-                _state.TextKey = failed ? AudioClipStrings.BgmFailed : AudioClipStrings.BgmPlaying;
-
-                // The track that plays keeps its file open until it has faded out.
-                DeleteButton.SetEnabled(!holdsFile);
-                DeleteButton.TooltipKey = holdsFile ? AudioClipStrings.DeleteInUse : null;
-            }
-
-            internal void ShowEffect(bool ready)
-            {
-                PlayButton.SetEnabled(ready);
-                PlayButton.TooltipKey = ready ? AudioClipStrings.EffectPlay : AudioClipStrings.EffectLoading;
-            }
-
-            /// <summary>Focuses a control by its place in <see cref="Controls"/>; the rename button if it cannot.</summary>
-            internal void Focus(int control)
-            {
-                VisualElement target = control < Controls.Count ? Controls[control] : null;
-                (target != null && target.canGrabFocus ? target : RenameButton).Focus();
-            }
-
-            private void StartRename()
-            {
-                _rename.value = ShownName;
-                _rename.ErrorKey = null;
-                _rename.style.display = DisplayStyle.Flex;
-                _name.style.display = DisplayStyle.None;
-                RenameButton.style.display = DisplayStyle.None;
-                SaveButton.style.display = DisplayStyle.Flex;
-                _rename.FocusInput();
-            }
-
-            private void SaveName()
-            {
-                if (AudioClipLibrary.CleanName(_rename.value) == null)
-                {
-                    _rename.ErrorKey = AudioClipStrings.NameRequired;
-                    return;
-                }
-
-                // Saving the shown name as it is keeps a built-in file's names per language.
-                if (_rename.value.Trim() == ShownName)
-                {
-                    _card.Refresh();
-                    return;
-                }
-
-                _card.Change(Record, new AudioClipChange(name: _rename.value));
-            }
         }
     }
 }

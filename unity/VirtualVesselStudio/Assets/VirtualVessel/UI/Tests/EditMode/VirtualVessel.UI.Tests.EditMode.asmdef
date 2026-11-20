@@ -4,6 +4,7 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
+        "VirtualVessel.Audio",
         "VirtualVessel.Capture",
         "VirtualVessel.Core",
         "VirtualVessel.Diagnostics",

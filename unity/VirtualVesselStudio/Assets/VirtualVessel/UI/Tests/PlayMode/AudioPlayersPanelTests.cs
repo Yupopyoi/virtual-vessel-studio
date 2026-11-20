@@ -106,6 +106,17 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator AnEffectsKeys_AreInItsTooltip()
+        {
+            AudioPlayersPanel panel = _root.Content.Q<AudioPlayersPanel>();
+            _clips.Add(AudioClipKind.SoundEffect, "se-2", "Chime", 1, shortcut: "ctrl+alt+2");
+            _root.Localizer.SetLocale("en");
+            yield return null;
+
+            Assert.That(panel.EffectButtons.Select(b => b.Shortcut), Is.EqualTo(new[] { null, "Ctrl+Alt+2" }));
+        }
+
+        [UnityTest]
         public IEnumerator ABuiltInsName_FollowsTheScreensLanguage()
         {
             AudioPlayersPanel panel = _root.Content.Q<AudioPlayersPanel>();
