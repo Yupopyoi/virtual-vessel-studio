@@ -214,10 +214,10 @@ namespace VirtualVessel.UI.Tests
             var card = new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row, offersWindows: true);
             _root.Content.Add(card);
             yield return null;
-            Assert.That(card.Input.value, Is.EqualTo(0), "Capture boards at first.");
+            Assert.That(card.Input.value, Is.EqualTo(CaptureSourceCard.BoardInput), "Capture boards at first.");
             Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "Board A" }));
 
-            card.Input.value = 1;
+            card.Input.value = CaptureSourceCard.WindowInput;
             yield return null;
             Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "window:game.exe" }), "Only the windows.");
 
@@ -228,7 +228,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_audio.Game.Options.Value.Monitored, Is.False, "The PC plays it already; not heard twice.");
             Assert.That(row.Devices.Choices.Last().Id, Is.EqualTo("app:game.exe"));
 
-            card.Input.value = 0;
+            card.Input.value = CaptureSourceCard.BoardInput;
             yield return null;
             Assert.That(video.SelectedDeviceId, Is.Null, "A window is let go for a board to be chosen.");
             Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "Its sound goes with it.");

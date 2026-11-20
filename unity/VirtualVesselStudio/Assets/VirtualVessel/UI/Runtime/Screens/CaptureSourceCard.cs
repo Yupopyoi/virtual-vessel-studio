@@ -63,6 +63,10 @@ namespace VirtualVessel.UI.Screens
         public const string PreviewClass = UssClass + "__preview";
         public const string PreviewEmptyClass = PreviewClass + "-empty";
 
+        /// <summary>The choices of <see cref="Input"/>.</summary>
+        public const string BoardInput = "board";
+        public const string WindowInput = "window";
+
         private readonly ICaptureDeviceSource _source;
         private readonly GameAudioRow _audio;
         private readonly string _emptyChoiceKey;
@@ -124,8 +128,10 @@ namespace VirtualVessel.UI.Screens
 
             if (offersWindows)
             {
-                Input = Ui.Segmented(CaptureStrings.InputBoard, CaptureStrings.InputWindow);
-                Input.RegisterValueChangedCallback(evt => ChooseInput(evt.newValue == 1));
+                // A Select, not a Segmented: the two names did not fit the row's control (user's report, 2026-11-20).
+                Input = Ui.Select(null);
+                Input.SetChoices(new[] { SelectChoice.FromKey(BoardInput, CaptureStrings.InputBoard), SelectChoice.FromKey(WindowInput, CaptureStrings.InputWindow) });
+                Input.RegisterValueChangedCallback(evt => ChooseInput(evt.newValue == WindowInput));
                 card.Add(Ui.ControlRow(CaptureStrings.Input, Input, CaptureStrings.InputDescription));
             }
 
@@ -171,7 +177,7 @@ namespace VirtualVessel.UI.Screens
         public SelectField Devices { get; }
 
         /// <summary>Capture board or window on this PC; null for sources without windows.</summary>
-        public Segmented Input { get; }
+        public SelectField Input { get; }
 
         public SwitchToggle FlipHorizontal { get; }
 
@@ -287,7 +293,7 @@ namespace VirtualVessel.UI.Screens
                 _windows = CaptureWindow.IsWindow(_source.SelectedDeviceId);
             }
 
-            Input?.SetValueWithoutNotify(_windows ? 1 : 0);
+            Input?.SetValueWithoutNotify(_windows ? WindowInput : BoardInput);
             (StatusKind kind, string stateKey, string problemKey) = Describe(_source.State.Value, _source.Problem.Value, Input != null && _windows);
             Status.Status = kind;
             Status.TextKey = stateKey;
