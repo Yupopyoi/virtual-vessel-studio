@@ -115,6 +115,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 ### 8.2 A Congested Connection
 
 - When the send queue holds more than 3 s, video frames are dropped until the next keyframe (audio is not dropped), so a slow connection does not keep adding delay. Dropped frames are counted, and the user is told the connection cannot keep up.
+- Only while a connection is published is anything queued. What is encoded while connecting, or between connections, would be thrown away when the next connection starts from a keyframe; queued, it filled the queue past 3 s on a slow handshake and was counted as frames the connection could not keep up with (one stream lost 157 frames in its first 9 s that way).
 - If the queue stays full (30 s), the user is advised to lower the bitrate. Lowering it automatically is in 17.
 
 ### 8.3 Destinations

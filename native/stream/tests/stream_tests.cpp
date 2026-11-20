@@ -4,11 +4,13 @@
 
 #include "vv_stream.h"
 
+#include <winsock2.h>
 #include <windows.h>
 
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace
@@ -224,6 +226,55 @@ namespace
         Check(stats.state == VV_STREAM_STATE_FAILED && stats.problem == VV_STREAM_PROBLEM_UNREACHABLE, "a first connection that fails is reported as unreachable");
         vv_stream_close(stream);
     }
+
+    // A server that takes the TCP connection and then says nothing for a while, as a slow ingest server does
+    // during the handshake. What is encoded meanwhile is thrown away when the stream is published, so it must not
+    // be counted as frames the connection could not keep up with, nor warn about it (streaming detailed design 8.2).
+    void SlowServer()
+    {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+        SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        sockaddr_in address = {};
+        address.sin_family = AF_INET;
+        address.sin_port = htons(19355);
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        Check(bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0 && listen(listener, 1) == 0, "listening as a slow server");
+        SOCKET accepted = INVALID_SOCKET;
+        std::thread server([&] { accepted = accept(listener, nullptr, nullptr); });
+
+        vv_stream_config config = {};
+        config.url = "rtmp://127.0.0.1:19355/live";
+        config.key = "test-key";
+        config.width = 320;
+        config.height = 180;
+        config.fps = 30;
+        config.video_bitrate = 1'000'000;
+        vv_stream* stream = nullptr;
+        Check(vv_stream_open(&config, &stream) == VV_STREAM_OK, "opening a stream to a slow server");
+
+        // Five seconds of frames while the handshake waits: more than the queue's 3 s limit.
+        std::vector<uint8_t> frame(320 * 180 * 3 / 2, 128);
+        for (int i = 0; i < 150; i++)
+        {
+            vv_stream_push_video(stream, frame.data(), static_cast<int32_t>(frame.size()), Qpc());
+            Sleep(33);
+        }
+
+        vv_stream_stats stats = {};
+        vv_stream_get_stats(stream, &stats);
+        std::printf("slow server: state %d, pushed %lld, dropped %lld (queue %lld), queue %lld ms\n", stats.state, stats.frames_pushed, stats.frames_dropped,
+            stats.frames_dropped_queue, stats.queue_ms);
+        Check(stats.state == VV_STREAM_STATE_CONNECTING, "still connecting");
+        Check(stats.frames_dropped_queue == 0, "frames made while connecting are not counted as the connection falling behind");
+        Check(stats.queue_ms < 1000, "nothing piles up while connecting");
+
+        server.join();
+        closesocket(accepted);
+        closesocket(listener);
+        vv_stream_close(stream);
+        WSACleanup();
+    }
 }
 
 int main()
@@ -231,6 +282,7 @@ int main()
     Check(vv_stream_api_version() == VV_STREAM_API_VERSION, "the API version");
     Arguments();
     Unreachable();
+    SlowServer();
 
     char temp[MAX_PATH];
     GetTempPathA(MAX_PATH, temp);

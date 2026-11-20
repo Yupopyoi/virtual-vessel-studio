@@ -54,7 +54,7 @@ target_link_libraries(VirtualVessel.Stream.Native PRIVATE vv_stream_network mfpl
 
 # Streaming synthetic video and a tone to a local ffmpeg and reading back what arrived (needs ffmpeg and ffprobe).
 add_executable(vv_stream_tests tests/stream_tests.cpp)
-target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol)
+target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol ws2_32)
 add_test(NAME vv_stream_tests COMMAND vv_stream_tests)
 
 # The Media Foundation encoders on their own: every frame given comes back out, the held ones by draining.

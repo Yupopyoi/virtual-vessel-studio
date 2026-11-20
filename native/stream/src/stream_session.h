@@ -82,6 +82,11 @@ struct vv_stream
     std::atomic<bool> stopSending{ false };
     std::atomic<bool> requestKeyframe{ false };
 
+    // Set by the sending thread while a connection is published. Before that, and between connections, what is
+    // encoded is not queued: it would be thrown away when the next connection starts from a keyframe, and while it
+    // waited it filled the queue and was counted as frames the connection could not keep up with.
+    std::atomic<bool> publishing{ false };
+
     // The sequence headers, kept so each new connection can send them again.
     std::mutex headersMutex;
     vv::stream::Bytes videoHeader;

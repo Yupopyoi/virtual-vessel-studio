@@ -37,6 +37,7 @@ void vv_stream::Send()
         attempt = 0;
         SetState(VV_STREAM_STATE_LIVE, VV_STREAM_PROBLEM_NONE);
         bool lost = !Publish(client, error);
+        publishing = false;
         client.Close(key);
         if (!lost)
         {
@@ -91,6 +92,7 @@ bool vv_stream::Publish(RtmpClient& client, std::string& error)
     // Each connection starts at a keyframe, with the sequence headers before it, and its own zero time.
     sendQueue.Clear();
     requestKeyframe = true;
+    publishing = true;
     bool waitingForKeyframe = true;
     uint32_t zero = 0;
     int64_t flushUntil = 0;

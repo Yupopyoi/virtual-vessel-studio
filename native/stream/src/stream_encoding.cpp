@@ -184,7 +184,11 @@ void vv_stream::QueueVideo(const EncodedFrame& frame)
         packet.body = flv::Av1Frames(frame.data.data(), frame.data.size(), packet.keyframe);
     }
 
-    sendQueue.Push(std::move(packet));
+    // The sequence headers above are kept even when not publishing, for the next connection.
+    if (publishing.load())
+    {
+        sendQueue.Push(std::move(packet));
+    }
 }
 
 bool vv_stream::PumpAudio(AacEncoder& aac, int64_t untilQpc, int64_t videoEnd, std::string& error)
@@ -239,6 +243,11 @@ bool vv_stream::PumpAudio(AacEncoder& aac, int64_t untilQpc, int64_t videoEnd, s
 
 void vv_stream::QueueAudio(const std::vector<EncodedFrame>& frames)
 {
+    if (!publishing.load())
+    {
+        return;
+    }
+
     for (const EncodedFrame& frame : frames)
     {
         Packet packet;
