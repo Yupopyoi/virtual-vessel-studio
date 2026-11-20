@@ -217,8 +217,14 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Input.value, Is.EqualTo(CaptureSourceCard.BoardInput), "Capture boards at first.");
             Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "Board A" }));
 
+            // The board first, as a user who had one: its sound must not stay once a window is chosen (2026-11-20).
+            card.Devices.value = "Board A";
+            yield return null;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("board"));
+
             card.Input.value = CaptureSourceCard.WindowInput;
             yield return null;
+            Assert.That(video.SelectedDeviceId, Is.Null, "The board is let go.");
             Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "window:game.exe" }), "Only the windows.");
 
             card.Devices.value = "window:game.exe";

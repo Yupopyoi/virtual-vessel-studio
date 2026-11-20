@@ -32,6 +32,12 @@ namespace vv::audio
     // none is running. Pure.
     DWORD RootProcess(const std::vector<ProcessEntry>& processes, const std::wstring& executable);
 
+    // The process to take the sound of when the program shows a window from `windowProcess`: that process, or the
+    // one of the same file name that started it, and so on up, so the whole tree under the window's program comes
+    // with it. A browser plays a page's sound from a helper process it started. RootProcess when there is no such
+    // window. Pure.
+    DWORD ProcessFor(const std::vector<ProcessEntry>& processes, const std::wstring& executable, DWORD windowProcess);
+
     // Opens the sound of the program in shared mode as 48 kHz float stereo, with event wakes on `events`. `ended`
     // receives a handle that is signaled when the process exits, for the caller to close; the loopback itself
     // goes quiet then, without failing. E_NOTFOUND when the program is not running.

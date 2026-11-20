@@ -73,6 +73,10 @@ namespace VirtualVessel.UI.Screens
 
         // Which devices are offered while none is chosen: capture boards, or windows on this PC (setup.md 3).
         private bool _windows;
+
+        // The device the input row let go of. The next choice follows on from it, so the sound that followed the
+        // board moves to the window's (a board's sound stayed when a window was chosen, user's report 2026-11-20).
+        private string _letGo;
         private readonly KeyedText _problemText;
         private readonly Label _problem;
         private readonly Label _noVideo;
@@ -243,9 +247,11 @@ namespace VirtualVessel.UI.Screens
             return new Subscriptions(subscriptions);
         }
 
+        // A capture board's ID is its name, so one that is not plugged in now is still named; a window is not.
         private string NameOf(string deviceId)
         {
-            return _source.Devices.FirstOrDefault(device => device.Id == deviceId)?.DisplayName;
+            string listed = _source.Devices.FirstOrDefault(device => device.Id == deviceId)?.DisplayName;
+            return listed ?? (CaptureWindow.IsWindow(deviceId) ? null : deviceId);
         }
 
         private void RefreshDevices()
@@ -267,7 +273,9 @@ namespace VirtualVessel.UI.Screens
 
         private void Choose(string previousId, string nextId)
         {
-            _audio?.VideoChanged(previousId, NameOf(previousId), nextId, NameOf(nextId));
+            string previous = string.IsNullOrEmpty(previousId) ? _letGo : previousId;
+            _letGo = null;
+            _audio?.VideoChanged(previous, NameOf(previous), nextId, NameOf(nextId));
             _source.SelectDevice(string.IsNullOrEmpty(nextId) ? null : nextId);
         }
 
@@ -279,6 +287,7 @@ namespace VirtualVessel.UI.Screens
             if (chosen != null && CaptureWindow.IsWindow(chosen) != windows)
             {
                 Choose(chosen, null);
+                _letGo = chosen;
             }
 
             ShowDevices();

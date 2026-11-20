@@ -833,6 +833,21 @@ namespace
         };
         Check(RootProcess(processes, L"game.exe") == 200, "the program's first process, not the one it started");
         Check(RootProcess(processes, L"missing.exe") == 0, "a program that is not running");
+
+        // A browser: its window's process was started by another of its processes, and plays a page's sound from a
+        // helper it started; a second browser root (another profile) shows no window and was found first.
+        std::vector<ProcessEntry> browser = {
+            { 10, 4, L"msedge.exe" },
+            { 20, 4, L"msedge.exe" },
+            { 21, 20, L"msedge.exe" },
+            { 22, 20, L"msedge.exe" },
+        };
+        Check(ProcessFor(browser, L"msedge.exe", 21) == 20, "up to the root of the window's own tree");
+        Check(ProcessFor(browser, L"msedge.exe", 20) == 20, "the window's process is the root");
+        Check(ProcessFor(browser, L"msedge.exe", 0) == 10, "without a window, the first root");
+        Check(ProcessFor(browser, L"msedge.exe", 400) == 10, "a window of another program does not count");
+        std::vector<ProcessEntry> loop = { { 30, 31, L"game.exe" }, { 31, 30, L"game.exe" } };
+        Check(ProcessFor(loop, L"game.exe", 30) != 0, "reused process IDs that point at each other end");
     }
 
     // A program that plays a 440 Hz tone over and over, for the test of a program's sound: a copy of this test under

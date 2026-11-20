@@ -57,6 +57,60 @@ namespace vv::audio
             HANDLE _done;
         };
 
+        struct LargestWindow
+        {
+            const std::wstring* executable;
+            DWORD process = 0;
+            int64_t area = 0;
+        };
+
+        BOOL CALLBACK Measure(HWND window, LPARAM parameter)
+        {
+            auto largest = reinterpret_cast<LargestWindow*>(parameter);
+            RECT client = {};
+            if (!IsWindowVisible(window) || GetWindow(window, GW_OWNER) != nullptr || GetWindowTextLengthW(window) == 0 || !GetClientRect(window, &client))
+            {
+                return TRUE;
+            }
+
+            DWORD process = 0;
+            GetWindowThreadProcessId(window, &process);
+            int64_t area = static_cast<int64_t>(client.right) * client.bottom;
+            if (area <= largest->area)
+            {
+                return TRUE;
+            }
+
+            HANDLE handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process);
+            if (handle == nullptr)
+            {
+                return TRUE;
+            }
+
+            wchar_t path[MAX_PATH * 2] = {};
+            DWORD length = static_cast<DWORD>(std::size(path));
+            bool named = QueryFullProcessImageNameW(handle, 0, path, &length) != FALSE;
+            CloseHandle(handle);
+            std::wstring name(path, named ? length : 0);
+            size_t slash = name.find_last_of(L"\\/");
+            if (named && SameName(slash == std::wstring::npos ? name : name.substr(slash + 1), *largest->executable))
+            {
+                largest->process = process;
+                largest->area = area;
+            }
+
+            return TRUE;
+        }
+
+        // The process that shows the program's largest window, as Capture chooses it (capture detailed design 8.6);
+        // 0 when it shows none.
+        DWORD WindowProcess(const std::wstring& executable)
+        {
+            LargestWindow largest{ &executable };
+            EnumWindows(&Measure, reinterpret_cast<LPARAM>(&largest));
+            return largest.process;
+        }
+
         std::vector<ProcessEntry> Processes()
         {
             std::vector<ProcessEntry> processes;
@@ -150,10 +204,39 @@ namespace vv::audio
         return 0;
     }
 
+    DWORD ProcessFor(const std::vector<ProcessEntry>& processes, const std::wstring& executable, DWORD windowProcess)
+    {
+        auto find = [&](DWORD id) -> const ProcessEntry*
+        {
+            auto found = std::find_if(processes.begin(), processes.end(), [id](const ProcessEntry& process) { return process.id == id; });
+            return found != processes.end() ? &*found : nullptr;
+        };
+
+        const ProcessEntry* process = windowProcess != 0 ? find(windowProcess) : nullptr;
+        if (process == nullptr || !SameName(process->executable, executable))
+        {
+            return RootProcess(processes, executable);
+        }
+
+        // Up the program's own processes; the count bounds a loop of reused process IDs.
+        for (size_t step = 0; step < processes.size(); step++)
+        {
+            const ProcessEntry* parent = process->parent != process->id ? find(process->parent) : nullptr;
+            if (parent == nullptr || !SameName(parent->executable, executable))
+            {
+                break;
+            }
+
+            process = parent;
+        }
+
+        return process->id;
+    }
+
     HRESULT OpenApplicationLoopback(const std::wstring& executable, REFERENCE_TIME bufferDuration, HANDLE events, ComPtr<IAudioClient>& client, HANDLE& ended)
     {
         ended = nullptr;
-        DWORD process = RootProcess(Processes(), executable);
+        DWORD process = ProcessFor(Processes(), executable, WindowProcess(executable));
         if (process == 0)
         {
             return E_NOTFOUND;
