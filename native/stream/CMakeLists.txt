@@ -45,6 +45,8 @@ add_test(NAME vv_stream_network_tests COMMAND vv_stream_network_tests)
 # The plugin: the stream session, its threads, and the C API (vv_stream.h).
 add_library(VirtualVessel.Stream.Native SHARED
     src/exports.cpp
+    src/stream_encoding.cpp
+    src/stream_sending.cpp
     src/mft_encoders.cpp)
 target_include_directories(VirtualVessel.Stream.Native PUBLIC include)
 target_compile_definitions(VirtualVessel.Stream.Native PRIVATE VV_STREAM_EXPORTS)
