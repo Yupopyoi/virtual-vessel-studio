@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03). As an exception, the BGM and the sound effects Cards (section 14) are collapsible Cards that start open, as they are used often but their lists grow long (user decision, 2026-11-20).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -412,7 +412,7 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 
 ## 14. The BGM and Sound Effects Cards
 
-Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24).
+Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24). Both are collapsible Cards (`components.md` 3.10) that start open. As their lists grow long, the one not in use can be closed (an exception to the screen-wide rule; user decision, 2026-11-20). Whether they are open is not remembered.
 
 | Column | What it holds |
 |---|---|

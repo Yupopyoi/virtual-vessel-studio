@@ -102,6 +102,9 @@ namespace VirtualVessel.UI.Screens
         private string _language;
         private volatile bool _changed = true;
 
+        /// <summary>The Card itself, which the user can close by its title.</summary>
+        public Card Card { get; }
+
         public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files)
         {
             _kind = kind;
@@ -110,7 +113,10 @@ namespace VirtualVessel.UI.Screens
             _effects = effects;
             _files = files;
             AddToClassList(UssClass);
-            Card card = Ui.Card(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmTitle : AudioClipStrings.EffectsTitle);
+            // Collapsible, open at first: the lists grow long, and the user may close one to reach the other (setup.md 14).
+            Card card = Ui.Card(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmTitle : AudioClipStrings.EffectsTitle, collapsible: true);
+            card.Expanded = true;
+            Card = card;
             Add(card);
             if (kind == AudioClipKind.SoundEffect)
             {

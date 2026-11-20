@@ -228,6 +228,21 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_clips.Changes, Is.Empty, "Saving it unchanged keeps the names per language.");
         }
 
+        [UnityTest]
+        public IEnumerator TheCards_StartOpen_AndCloseByTheirTitle()
+        {
+            AudioClipCard card = Open(AudioClipKind.Bgm);
+            yield return null;
+            Assert.That(card.Card.Collapsible, Is.True);
+            Assert.That(card.Card.Expanded, Is.True, "Open at first, as they are used often.");
+            Assert.That(card.Rows.Single().Root.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            Submit(card.Card.Header);
+            yield return null;
+            Assert.That(card.Card.Expanded, Is.False);
+            Assert.That(card.Card.contentContainer.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+        }
+
         [Test]
         public void Lengths_ShowMinutesAndSeconds()
         {
