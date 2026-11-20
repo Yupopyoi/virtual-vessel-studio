@@ -1,11 +1,14 @@
-// Tests of the capture plugin. The exchange, the retry policy, and the row copy are pure and run
-// anywhere; the C ABI checks need only DXGI. `--hardware` also duplicates a real monitor for a
-// moment (nothing is kept): run it by hand on a PC with a display.
+// Tests of the capture plugin. The exchange, the retry policy, the row copy, and choosing windows are
+// pure and run anywhere; the C ABI checks need only DXGI. `--hardware` also duplicates a real monitor
+// and captures a window this program shows from a second copy of itself, for a moment (nothing is
+// kept): run it by hand on a PC with a display.
 
 #include <windows.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <set>
 #include <string>
@@ -16,6 +19,7 @@
 #include "frame_exchange.h"
 #include "retry_policy.h"
 #include "vv_capture.h"
+#include "window_capture.h"
 
 using namespace vv::capture;
 
@@ -263,6 +267,58 @@ namespace
         CHECK(PixelAt(masked, 1, 0) == 0xFFEFDFCFu);
     }
 
+
+    void Window_ExecutableName_IsTheLowerCaseFileName()
+    {
+        CHECK(ExecutableName(L"C:\\Games\\My Game\\Game.EXE") == L"game.exe");
+        CHECK(ExecutableName(L"game.exe") == L"game.exe");
+        CHECK(ExecutableName(L"") == L"");
+    }
+
+    WindowCandidate Candidate(const wchar_t* executable, DWORD process, int32_t width, int32_t height)
+    {
+        WindowCandidate window;
+        window.executable = executable;
+        window.processId = process;
+        window.width = width;
+        window.height = height;
+        window.title = executable;
+        return window;
+    }
+
+    void Window_LargestPerProgram_KeepsTheLargest_AndLeavesOutOwnAndSmallWindows()
+    {
+        std::vector<WindowCandidate> windows = {
+            Candidate(L"launcher.exe", 10, 800, 600),
+            Candidate(L"game.exe", 20, 640, 360),
+            Candidate(L"studio.exe", 30, 1920, 1080),
+            Candidate(L"game.exe", 21, 1920, 1080),
+            Candidate(L"tray.exe", 40, 32, 32),
+            Candidate(L"launcher.exe", 10, 400, 300),
+        };
+
+        std::vector<WindowCandidate> chosen = LargestPerProgram(windows, 30);
+        CHECK(chosen.size() == 2);
+        CHECK(chosen.size() == 2 && chosen[0].executable == L"launcher.exe" && chosen[0].width == 800);
+        CHECK(chosen.size() == 2 && chosen[1].executable == L"game.exe" && chosen[1].processId == 21);
+    }
+
+    void Window_ClientBox_IsTheClientAreaInTheImage_Clamped()
+    {
+        RECT frame = { 100, 50, 900, 650 };
+        RECT client = { 108, 81, 892, 642 };
+        RECT box = ClientBox(frame, client, 800, 600);
+        CHECK(box.left == 8 && box.top == 31 && box.right == 792 && box.bottom == 592);
+
+        RECT larger = { 90, 40, 950, 700 };
+        box = ClientBox(frame, larger, 800, 600);
+        CHECK(box.left == 0 && box.top == 0 && box.right == 800 && box.bottom == 600);
+
+        RECT apart = { 2000, 2000, 2100, 2100 };
+        box = ClientBox(frame, apart, 800, 600);
+        CHECK(box.right == 0 && box.bottom == 0);
+    }
+
     void Abi_ChecksItsArguments()
     {
         CHECK(vv_capture_api_version() == VV_CAPTURE_API_VERSION);
@@ -276,6 +332,17 @@ namespace
         CHECK(vv_capture_open(L"\\\\.\\DISPLAY1-but-much-longer-than-32", 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
         CHECK(vv_capture_open(L"\\\\.\\DISPLAY1", 0, nullptr) == VV_CAPTURE_INVALID_ARGUMENT);
         CHECK(vv_capture_open(L"\\\\.\\DISPLAY1", 4, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+
+        CHECK(vv_capture_list_windows(nullptr, 1) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_list_windows(nullptr, -1) == VV_CAPTURE_INVALID_ARGUMENT);
+        session = reinterpret_cast<vv_capture_session*>(1);
+        CHECK(vv_capture_open_window(nullptr, 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(session == nullptr);
+        CHECK(vv_capture_open_window(L"", 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open_window(L"game.exe", 0, nullptr) == VV_CAPTURE_INVALID_ARGUMENT);
+        CHECK(vv_capture_open_window(L"game.exe", 4, &session) == VV_CAPTURE_INVALID_ARGUMENT);
+        std::wstring tooLong(VV_CAPTURE_EXECUTABLE_LENGTH, L'a');
+        CHECK(vv_capture_open_window(tooLong.c_str(), 0, &session) == VV_CAPTURE_INVALID_ARGUMENT);
 
         vv_capture_status status = {};
         CHECK(vv_capture_get_status(nullptr, &status) == VV_CAPTURE_INVALID_ARGUMENT);
@@ -331,6 +398,173 @@ namespace
         vv_capture_close(session);
     }
 
+    void Abi_ListsWindows()
+    {
+        int32_t count = vv_capture_list_windows(nullptr, 0);
+        CHECK(count >= 0);
+        std::vector<vv_capture_window> windows(static_cast<size_t>(count > 0 ? count : 1));
+        int32_t listed = vv_capture_list_windows(windows.data(), static_cast<int32_t>(windows.size()));
+        CHECK(listed >= 0);
+        for (int32_t i = 0; i < std::min(listed, static_cast<int32_t>(windows.size())); i++)
+        {
+            const vv_capture_window& window = windows[static_cast<size_t>(i)];
+            CHECK(window.executable[0] != L'\0');
+            CHECK(window.width > 0 && window.height > 0);
+            CHECK(window.process_id != GetCurrentProcessId());
+        }
+
+        std::printf("windows: %d programs with a window\n", listed);
+    }
+
+    void Abi_AProgramThatIsNotRunning_IsLost()
+    {
+        vv_capture_session* session = nullptr;
+        CHECK(vv_capture_open_window(L"no-such-program.exe", 0, &session) == VV_CAPTURE_OK);
+        CHECK(session != nullptr);
+        vv_capture_status status = WaitForState(session, VV_CAPTURE_MONITOR_LOST, 3000);
+        CHECK(status.state == VV_CAPTURE_MONITOR_LOST);
+        vv_capture_close(session);
+    }
+
+    // The window a second copy of this program shows for the window capture test: its client area is filled
+    // with pure green, in physical pixels.
+    constexpr int TestWindowWidth = 640;
+    constexpr int TestWindowHeight = 360;
+
+    LRESULT CALLBACK TestWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+    {
+        if (message == WM_PAINT)
+        {
+            PAINTSTRUCT paint;
+            HDC dc = BeginPaint(window, &paint);
+            HBRUSH green = CreateSolidBrush(RGB(0, 255, 0));
+            RECT client;
+            GetClientRect(window, &client);
+            FillRect(dc, &client, green);
+            DeleteObject(green);
+            EndPaint(window, &paint);
+            return 0;
+        }
+
+        if (message == WM_DESTROY)
+        {
+            PostQuitMessage(0);
+            return 0;
+        }
+
+        return DefWindowProcW(window, message, wParam, lParam);
+    }
+
+    void CALLBACK CloseTestWindow(HWND window, UINT, UINT_PTR, DWORD)
+    {
+        DestroyWindow(window);
+    }
+
+    int ShowTestWindow()
+    {
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        WNDCLASSW type = {};
+        type.lpfnWndProc = TestWindowProcedure;
+        type.hInstance = GetModuleHandleW(nullptr);
+        type.lpszClassName = L"VvCaptureTestWindow";
+        type.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        RegisterClassW(&type);
+        RECT bounds = { 0, 0, TestWindowWidth, TestWindowHeight };
+        AdjustWindowRectEx(&bounds, WS_OVERLAPPEDWINDOW, FALSE, 0);
+        HWND window = CreateWindowExW(0, type.lpszClassName, L"Capture test window", WS_OVERLAPPEDWINDOW, 100, 100, bounds.right - bounds.left,
+            bounds.bottom - bounds.top, nullptr, nullptr, type.hInstance, nullptr);
+        ShowWindow(window, SW_SHOWNORMAL);
+
+        // Closes itself in case the test that started it does not.
+        SetTimer(window, 1, 20'000, &CloseTestWindow);
+        MSG message;
+        while (GetMessageW(&message, nullptr, 0, 0) > 0)
+        {
+            DispatchMessageW(&message);
+        }
+
+        return 0;
+    }
+
+    // The window closed normally, or its program ended by force: either way the source learns it is gone, and
+    // closing the session does not wait for Windows to tear the capture down.
+    void Hardware_CapturesAWindowsClientArea_AndLosesItWhenItCloses(bool endByForce)
+    {
+        wchar_t path[MAX_PATH];
+        GetModuleFileNameW(nullptr, path, MAX_PATH);
+        std::wstring command = L"\"" + std::wstring(path) + L"\" --show-window";
+        STARTUPINFOW startup = { sizeof(startup) };
+        PROCESS_INFORMATION child = {};
+        if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &child))
+        {
+            CHECK(!"the test window could not be shown");
+            return;
+        }
+
+        std::wstring executable = ExecutableName(path);
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (FindProgramWindow(executable) == nullptr && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        // Stopped by the user while the window is still there: closing waits for the thread, briefly.
+        vv_capture_session* session = nullptr;
+        CHECK(vv_capture_open_window(executable.c_str(), 0, &session) == VV_CAPTURE_OK);
+        vv_capture_status status = WaitForState(session, VV_CAPTURE_RUNNING, 3000);
+        CHECK(status.state == VV_CAPTURE_RUNNING);
+        auto stopping = std::chrono::steady_clock::now();
+        vv_capture_close(session);
+        long long stopMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - stopping).count();
+        std::printf("hardware: stopping a window capture took %lld ms\n", stopMs);
+        CHECK(stopMs < 1000);
+
+        session = nullptr;
+        CHECK(vv_capture_open_window(executable.c_str(), 0, &session) == VV_CAPTURE_OK);
+        vv_capture_frame frame = {};
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (vv_capture_take_frame(session, 0, &frame) != 1 && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        status = {};
+        vv_capture_get_status(session, &status);
+        std::printf("hardware: window frame %llu, %dx%d, state %d, error 0x%08X\n", static_cast<unsigned long long>(frame.frame_number), frame.width, frame.height,
+            status.state, static_cast<unsigned>(status.last_error));
+        CHECK(status.state == VV_CAPTURE_RUNNING);
+        CHECK(frame.width == TestWindowWidth && frame.height == TestWindowHeight);
+        if (frame.data != nullptr && frame.width > 0 && frame.height > 0)
+        {
+            // The middle and a corner: only the green client area, no title bar or border. BGRA.
+            const uint8_t* middle = frame.data + (static_cast<size_t>(frame.height / 2) * static_cast<size_t>(frame.width) + static_cast<size_t>(frame.width / 2)) * 4;
+            const uint8_t* corner = frame.data + (static_cast<size_t>(frame.height - 1) * static_cast<size_t>(frame.width)) * 4;
+            CHECK(middle[0] == 0 && middle[1] == 255 && middle[2] == 0);
+            CHECK(corner[0] == 0 && corner[1] == 255 && corner[2] == 0);
+        }
+
+        if (endByForce)
+        {
+            TerminateProcess(child.hProcess, 0);
+        }
+        else
+        {
+            PostMessageW(FindProgramWindow(executable), WM_CLOSE, 0, 0);
+        }
+
+        WaitForSingleObject(child.hProcess, 5000);
+        CloseHandle(child.hThread);
+        CloseHandle(child.hProcess);
+        status = WaitForState(session, VV_CAPTURE_MONITOR_LOST, 3000);
+        CHECK(status.state == VV_CAPTURE_MONITOR_LOST);
+
+        auto closing = std::chrono::steady_clock::now();
+        vv_capture_close(session);
+        long long closeMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - closing).count();
+        std::printf("hardware: closing the window capture took %lld ms\n", closeMs);
+        CHECK(closeMs < 1000);
+    }
+
     void Hardware_DuplicatesTheFirstMonitor()
     {
         vv_capture_monitor monitor = {};
@@ -369,6 +603,14 @@ namespace
 
 int main(int argc, char** argv)
 {
+    // Unbuffered, so what was printed survives a crash.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
+
+    if (argc > 1 && std::strcmp(argv[1], "--show-window") == 0)
+    {
+        return ShowTestWindow();
+    }
+
     Exchange_PublishedFrame_IsTakenOnce();
     Exchange_NothingNew_IsNotTaken();
     Exchange_AFrameReplacedBeforeTaken_CountsAsOverwritten();
@@ -382,10 +624,17 @@ int main(int argc, char** argv)
     Abi_ChecksItsArguments();
     Abi_ListsMonitors();
     Abi_AMonitorThatIsNotThere_IsLost();
+    Window_ExecutableName_IsTheLowerCaseFileName();
+    Window_LargestPerProgram_KeepsTheLargest_AndLeavesOutOwnAndSmallWindows();
+    Window_ClientBox_IsTheClientAreaInTheImage_Clamped();
+    Abi_ListsWindows();
+    Abi_AProgramThatIsNotRunning_IsLost();
 
     if (argc > 1 && std::strcmp(argv[1], "--hardware") == 0)
     {
         Hardware_DuplicatesTheFirstMonitor();
+        Hardware_CapturesAWindowsClientArea_AndLosesItWhenItCloses(false);
+        Hardware_CapturesAWindowsClientArea_AndLosesItWhenItCloses(true);
     }
 
     std::printf("%s: %d failed checks\n", s_failures == 0 ? "passed" : "FAILED", s_failures);
