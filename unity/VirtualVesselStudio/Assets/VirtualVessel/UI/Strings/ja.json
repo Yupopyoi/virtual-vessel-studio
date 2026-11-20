@@ -867,7 +867,7 @@
         "setup.se.empty": "効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。",
         "setup.se.loading": "読み込み中です。",
         "setup.se.shortcut": "ショートカット",
-        "setup.se.shortcut.description": "これを押してから、割り当てるキーを押します。ほかのアプリを使っている間も効果音を鳴らせます。Ctrl、Alt、Shiftのどれかと組み合わせてください。Escで取り消し、Deleteで外します。",
+        "setup.se.shortcut.description": "クリックしてから、割り当てるキーを押してください。\nCtrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。\nDeleteキーでショートカットキーを解除できます。",
         "setup.se.shortcut.none": "なし",
         "setup.se.shortcut.press": "キーを押してください",
         "setup.se.shortcut.need-modifier": "Ctrl、Alt、Shiftのどれかと一緒に押してください。",

@@ -867,7 +867,7 @@
         "setup.se.empty": "No sound effects yet. Add a WAV or MP3 file of up to 30 seconds.",
         "setup.se.loading": "Loading.",
         "setup.se.shortcut": "Shortcut",
-        "setup.se.shortcut.description": "Press this, then the keys to assign. They play the sound effect even while you use another app. Use them with Ctrl, Alt, or Shift. Esc cancels; Delete removes them.",
+        "setup.se.shortcut.description": "Click this, then press the keys to assign.\nOnly combinations with Ctrl, Alt, or Shift can be registered.\nPress Delete to remove the shortcut keys.",
         "setup.se.shortcut.none": "None",
         "setup.se.shortcut.press": "Press keys",
         "setup.se.shortcut.need-modifier": "Press it with Ctrl, Alt, or Shift.",

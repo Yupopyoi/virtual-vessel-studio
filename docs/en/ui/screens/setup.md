@@ -463,7 +463,7 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
 | `setup.se.loading` | 読み込み中です。 | Loading. |
 | `setup.se.shortcut` | ショートカット | Shortcut |
-| `setup.se.shortcut.description` | これを押してから、割り当てるキーを押します。ほかのアプリを使っている間も効果音を鳴らせます。Ctrl、Alt、Shiftのどれかと組み合わせてください。Escで取り消し、Deleteで外します。 | Press this, then the keys to assign. They play the sound effect even while you use another app. Use them with Ctrl, Alt, or Shift. Esc cancels; Delete removes them. |
+| `setup.se.shortcut.description` | クリックしてから、割り当てるキーを押してください。<br>Ctrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。<br>Deleteキーでショートカットキーを解除できます。 | Click this, then press the keys to assign.<br>Only combinations with Ctrl, Alt, or Shift can be registered.<br>Press Delete to remove the shortcut keys. |
 | `setup.se.shortcut.none` | なし | None |
 | `setup.se.shortcut.press` | キーを押してください | Press keys |
 | `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |

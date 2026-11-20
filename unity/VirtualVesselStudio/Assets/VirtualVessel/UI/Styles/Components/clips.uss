@@ -110,7 +110,13 @@
     width: 160px;
 }
 
-.vv-shortcut,
+/* A row, so the button takes the column's width but keeps a button's height. */
+.vv-shortcut {
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: center;
+}
+
 .vv-shortcut > .vv-button {
     flex-grow: 1;
 }
