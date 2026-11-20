@@ -279,7 +279,8 @@ namespace VirtualVessel.Capture.Tests
         }
     }
 
-    internal sealed class FakeDesktopDuplication : IDesktopDuplication, IDisposable
+    /// <summary>Stands in for the plugin: monitors, and windows on this PC (capture detailed design 8.6).</summary>
+    internal sealed class FakeDesktopDuplication : IDesktopDuplication, IWindowCapture, IDisposable
     {
         public FakeDesktopDuplication(params MonitorDescription[] monitors)
         {
@@ -287,6 +288,8 @@ namespace VirtualVessel.Capture.Tests
         }
 
         public List<MonitorDescription> Monitors { get; }
+
+        public List<WindowDescription> Windows { get; } = new List<WindowDescription>();
 
         public bool PluginMissing { get; set; }
 
@@ -302,6 +305,21 @@ namespace VirtualVessel.Capture.Tests
             }
 
             return Monitors.ToArray();
+        }
+
+        public IReadOnlyList<WindowDescription> ListWindows()
+        {
+            if (PluginMissing)
+            {
+                throw new CapturePluginMissingException("The plugin is missing in this test.");
+            }
+
+            return Windows.ToArray();
+        }
+
+        public IDuplicationSession OpenWindow(string executable, bool drawPointer)
+        {
+            return Open(executable, drawPointer);
         }
 
         public IDuplicationSession Open(string deviceName, bool drawPointer)

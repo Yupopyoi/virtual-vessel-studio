@@ -26,9 +26,10 @@ namespace VirtualVessel.Capture.Game
     /// <summary>
     /// A UVC camera through WebCamTexture, as the prototype did (capture detailed design 8.1): the
     /// capture board of GameCapture, and the webcam for tracking (tracking detailed design 5.4). Video
-    /// only; the board's audio comes with the Audio module.
+    /// only; the board's audio comes with the Audio module. The game screen's source adds windows on this PC
+    /// (<see cref="GameCaptureSource"/>).
     /// </summary>
-    internal sealed class WebCamCaptureSource : CaptureSourceBase
+    internal class WebCamCaptureSource : CaptureSourceBase
     {
         public const string GameSourceId = "game";
         public const string CameraSourceId = "camera";
@@ -55,7 +56,7 @@ namespace VirtualVessel.Capture.Game
         private FrameRateMeter _rate;
 
         /// <param name="inUseElsewhere">Whether another source has a device open; null when no other source opens cameras.</param>
-        private WebCamCaptureSource(string id, CaptureSourceKind kind, ICameraDevices devices, WebCamRequest request, string deviceId, CaptureFlip flip, Func<string, bool> inUseElsewhere, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
+        protected WebCamCaptureSource(string id, CaptureSourceKind kind, ICameraDevices devices, WebCamRequest request, string deviceId, CaptureFlip flip, Func<string, bool> inUseElsewhere, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log)
             : base(id, kind, clock, metrics, log)
         {
             _devices = devices ?? throw new ArgumentNullException(nameof(devices));
@@ -68,8 +69,11 @@ namespace VirtualVessel.Capture.Game
             SetFlip(flip);
         }
 
-        /// <summary>The capture board of GameCapture.</summary>
-        public static WebCamCaptureSource ForGame(ICameraDevices devices, CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log, Func<string, bool> inUseElsewhere = null)
+        /// <summary>
+        /// The game screen: a capture board, or with <paramref name="windows"/> also a game's window on this PC
+        /// (capture detailed design 8.6).
+        /// </summary>
+        public static WebCamCaptureSource ForGame(ICameraDevices devices, CaptureSettings settings, IMonotonicClock clock, IPerformanceMetrics metrics, ILog log, Func<string, bool> inUseElsewhere = null, SubScreen.IWindowCapture windows = null)
         {
             if (settings == null)
             {
@@ -77,7 +81,7 @@ namespace VirtualVessel.Capture.Game
             }
 
             var request = new WebCamRequest(settings.GameWidth, settings.GameHeight, settings.GameFrameRate);
-            return new WebCamCaptureSource(GameSourceId, CaptureSourceKind.GameCapture, devices, request, settings.GameDeviceId, settings.GameFlip, inUseElsewhere, clock, metrics, log);
+            return new GameCaptureSource(devices, windows, request, settings.GameDeviceId, settings.GameFlip, inUseElsewhere, clock, metrics, log);
         }
 
         /// <summary>
