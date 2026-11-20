@@ -204,7 +204,7 @@ namespace VirtualVessel.Audio.Clips
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 string path = Path.Combine(_builtInFolder, clip.File);
-                CrudResult<AudioClipRecord> result = await _library.AddAsync(KindOf(clip.Kind).Value, path, NameFor(clip, _language), cancellationToken).ConfigureAwait(false);
+                CrudResult<AudioClipRecord> result = await _library.AddAsync(KindOf(clip.Kind).Value, path, NameFor(clip, _language), clip.Names, cancellationToken).ConfigureAwait(false);
                 if (!result.Ok)
                 {
                     // Not remembered, so it is tried again on the next start.

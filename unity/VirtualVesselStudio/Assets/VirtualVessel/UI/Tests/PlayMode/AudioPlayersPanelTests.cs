@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -102,6 +103,20 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_effects.Played, Is.EqualTo(new[] { "se-1", "se-1" }));
             Submit(panel.StopEffectsButton);
             Assert.That(_effects.Stops, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator ABuiltInsName_FollowsTheScreensLanguage()
+        {
+            AudioPlayersPanel panel = _root.Content.Q<AudioPlayersPanel>();
+            _clips.Add(AudioClipKind.SoundEffect, "se-2", "キラキラ１", 1, new Dictionary<string, string> { ["ja"] = "キラキラ１", ["en"] = "Sparkle 1" });
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            Assert.That(panel.EffectButtons.Select(b => b.PlainText), Is.EqualTo(new[] { "<b>Ding</b>", "Sparkle 1" }));
+
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+            Assert.That(panel.EffectButtons[1].PlainText, Is.EqualTo("キラキラ１"));
         }
 
         [UnityTest]

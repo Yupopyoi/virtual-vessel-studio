@@ -207,6 +207,27 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_clips.Moves.Count, Is.EqualTo(2), "A click on the grip moves nothing.");
         }
 
+        [UnityTest]
+        public IEnumerator ABuiltInsName_FollowsTheScreensLanguage()
+        {
+            _clips.Add(AudioClipKind.Bgm, "bgm-2", "サンプル１（ポップ）", 31, new Dictionary<string, string> { ["ja"] = "サンプル１（ポップ）", ["en"] = "Sample 1 (Pop)" });
+            AudioClipCard card = Open(AudioClipKind.Bgm);
+            yield return null;
+            _root.Localizer.SetLocale("en");
+            yield return null;
+            Assert.That(card.Rows[1].ShownName, Is.EqualTo("Sample 1 (Pop)"));
+            Assert.That(card.Rows[0].ShownName, Is.EqualTo("Fluffy afternoon"), "The user's own file keeps its name.");
+
+            _root.Localizer.SetLocale("ja");
+            yield return null;
+            Assert.That(card.Rows[1].ShownName, Is.EqualTo("サンプル１（ポップ）"));
+
+            Submit(card.Rows[1].RenameButton);
+            Assert.That(card.Rows[1].NameInput.value, Is.EqualTo("サンプル１（ポップ）"), "Renaming starts from the name shown.");
+            Submit(card.Rows[1].SaveButton);
+            Assert.That(_clips.Changes, Is.Empty, "Saving it unchanged keeps the names per language.");
+        }
+
         [Test]
         public void Lengths_ShowMinutesAndSeconds()
         {
@@ -289,9 +310,9 @@ namespace VirtualVessel.UI.Tests
 
             public List<(string Id, int Position)> Moves { get; } = new List<(string, int)>();
 
-            public void Add(AudioClipKind kind, string id, string name, int seconds)
+            public void Add(AudioClipKind kind, string id, string name, int seconds, IReadOnlyDictionary<string, string> names = null)
             {
-                _records.Add(new AudioClipRecord(id, kind, name, 0f, kind == AudioClipKind.Bgm, TimeSpan.FromSeconds(seconds), name + ".mp3", DateTimeOffset.UtcNow, @"C:\clips\" + id));
+                _records.Add(new AudioClipRecord(id, kind, name, 0f, kind == AudioClipKind.Bgm, TimeSpan.FromSeconds(seconds), name + ".mp3", DateTimeOffset.UtcNow, @"C:\clips\" + id, names));
             }
 
             public CrudResult<IReadOnlyList<AudioClipRecord>> List(AudioClipKind kind)
@@ -310,7 +331,7 @@ namespace VirtualVessel.UI.Tests
                 return Task.FromResult(Problem);
             }
 
-            public Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken)
+            public Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken)
             {
                 Added.Add((kind, sourcePath));
                 Add(kind, (kind == AudioClipKind.Bgm ? "bgm-" : "se-") + (_records.Count + 1), Path.GetFileNameWithoutExtension(sourcePath), 3);

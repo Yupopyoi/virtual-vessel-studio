@@ -50,6 +50,7 @@ namespace VirtualVessel.UI.Screens
         private readonly ISoundEffectPlayer _effects;
         private readonly IAudioSource _music;
         private readonly IAudioSource _effectsSource;
+        private string _language;
         private readonly VisualElement _pad = new VisualElement();
         private readonly Label _time;
         private readonly Label _noBgm;
@@ -166,6 +167,14 @@ namespace VirtualVessel.UI.Screens
                 _changed = true;
             }
 
+            // Built-in files' names follow the screen's language until the user renames them.
+            void OnLocaleChanged(LocaleInfo locale)
+            {
+                _language = locale?.Code;
+                Refresh();
+            }
+
+            _language = services?.Localizer?.Locale?.Code;
             _library.Changed += OnChanged;
             Refresh();
             IVisualElementScheduledItem poll = schedule.Execute(() =>
@@ -178,6 +187,12 @@ namespace VirtualVessel.UI.Screens
                 ShowPlayers();
             }).Every(RefreshIntervalMs);
             var subscriptions = new List<IDisposable> { new DisposeAction(() => _library.Changed -= OnChanged), new DisposeAction(poll.Pause) };
+            if (services?.Localizer != null)
+            {
+                services.Localizer.LocaleChanged += OnLocaleChanged;
+                subscriptions.Add(new DisposeAction(() => services.Localizer.LocaleChanged -= OnLocaleChanged));
+            }
+
             if (_bgm != null)
             {
                 subscriptions.Add(_bgm.Status.Subscribe(_ => ShowPlayers()));
@@ -203,7 +218,7 @@ namespace VirtualVessel.UI.Screens
             CrudResult<IReadOnlyList<AudioClipRecord>> effects = _library.List(AudioClipKind.SoundEffect);
             _tracks.Clear();
             _tracks.AddRange(tracks.Ok ? tracks.Value : Array.Empty<AudioClipRecord>());
-            Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.Name)).ToArray());
+            Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.NameIn(_language))).ToArray());
             string chosen = ChosenTrack(_tracks.Select(track => track.Id).ToArray(), _bgm?.Status.Value.TrackId, Tracks.value);
             Tracks.SetValueWithoutNotify(chosen ?? string.Empty);
             _noBgm.style.display = _tracks.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -214,7 +229,7 @@ namespace VirtualVessel.UI.Screens
             IReadOnlyList<AudioClipRecord> list = effects.Ok ? effects.Value : Array.Empty<AudioClipRecord>();
             foreach (AudioClipRecord effect in list)
             {
-                var button = new ActionButton(null) { PlainText = effect.Name };
+                var button = new ActionButton(null) { PlainText = effect.NameIn(_language) };
                 string id = effect.Id;
                 button.clicked += () => _effects?.Play(id);
                 _pad.Add(button);

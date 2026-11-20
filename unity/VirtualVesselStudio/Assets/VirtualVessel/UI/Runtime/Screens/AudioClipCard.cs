@@ -99,6 +99,7 @@ namespace VirtualVessel.UI.Screens
         private readonly List<ClipRow> _shown = new List<ClipRow>();
         private readonly VisualElement _drop;
         private Drag _drag;
+        private string _language;
         private volatile bool _changed = true;
 
         public AudioClipCard(AudioClipKind kind, IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IFileDialog files)
@@ -274,7 +275,7 @@ namespace VirtualVessel.UI.Screens
             _shown.Clear();
             foreach (AudioClipRecord record in records)
             {
-                var row = new ClipRow(this, record, _kind);
+                var row = new ClipRow(this, record, _kind, record.NameIn(_language));
                 _shown.Add(row);
                 _rows.Add(row.Root);
             }
@@ -293,6 +294,14 @@ namespace VirtualVessel.UI.Screens
                 _changed = _changed || kind == _kind;
             }
 
+            // Built-in files' names follow the screen's language until the user renames them.
+            void OnLocaleChanged(LocaleInfo locale)
+            {
+                _language = locale?.Code;
+                Refresh();
+            }
+
+            _language = services?.Localizer?.Locale?.Code;
             _library.Changed += OnChanged;
             Refresh();
             IVisualElementScheduledItem poll = schedule.Execute(() =>
@@ -307,6 +316,12 @@ namespace VirtualVessel.UI.Screens
                 }
             }).Every(RefreshIntervalMs);
             var subscriptions = new List<IDisposable> { new DisposeAction(() => _library.Changed -= OnChanged), new DisposeAction(poll.Pause) };
+            if (services?.Localizer != null)
+            {
+                services.Localizer.LocaleChanged += OnLocaleChanged;
+                subscriptions.Add(new DisposeAction(() => services.Localizer.LocaleChanged -= OnLocaleChanged));
+            }
+
             if (_bgm != null)
             {
                 subscriptions.Add(_bgm.Status.Subscribe(_ => ShowPlayers()));
@@ -358,7 +373,7 @@ namespace VirtualVessel.UI.Screens
                     return;
                 }
 
-                CrudResult<AudioClipRecord> added = await _library.AddAsync(_kind, path, null, CancellationToken.None);
+                CrudResult<AudioClipRecord> added = await _library.AddAsync(_kind, path, null, null, CancellationToken.None);
                 if (!added.Ok)
                 {
                     ShowFailure("Adding a file", added.Error, added.Detail);
@@ -564,8 +579,9 @@ namespace VirtualVessel.UI.Screens
             private readonly TextInput _rename;
             private readonly StatusChip _state;
 
-            internal ClipRow(AudioClipCard card, AudioClipRecord record, AudioClipKind kind)
+            internal ClipRow(AudioClipCard card, AudioClipRecord record, AudioClipKind kind, string shownName)
             {
+                ShownName = shownName;
                 _card = card;
                 Record = record;
                 Root = new VisualElement();
@@ -589,10 +605,10 @@ namespace VirtualVessel.UI.Screens
 
                 // The name and its rename field share one place, so renaming happens where the name is.
                 VisualElement name = Cell(NameColumn);
-                _name = QuietText.Of(new Label(record.Name));
+                _name = QuietText.Of(new Label(shownName));
                 _name.AddToClassList(NameTextClass);
                 _name.AddToClassList("vv-text-body");
-                _name.tooltip = record.Name;
+                _name.tooltip = shownName;
                 name.Add(_name);
                 _rename = Ui.TextField(null);
                 _rename.TooltipKey = AudioClipStrings.Name;
@@ -655,6 +671,9 @@ namespace VirtualVessel.UI.Screens
 
             public AudioClipRecord Record { get; }
 
+            /// <summary>The name as shown, in the screen's language for a built-in file not renamed.</summary>
+            public string ShownName { get; }
+
             public VisualElement Root { get; }
 
             /// <summary>Dragged to reorder; Ctrl+Up and Ctrl+Down with the focus in the row do the same by keys.</summary>
@@ -710,7 +729,7 @@ namespace VirtualVessel.UI.Screens
 
             private void StartRename()
             {
-                _rename.value = Record.Name;
+                _rename.value = ShownName;
                 _rename.ErrorKey = null;
                 _rename.style.display = DisplayStyle.Flex;
                 _name.style.display = DisplayStyle.None;
@@ -724,6 +743,13 @@ namespace VirtualVessel.UI.Screens
                 if (AudioClipLibrary.CleanName(_rename.value) == null)
                 {
                     _rename.ErrorKey = AudioClipStrings.NameRequired;
+                    return;
+                }
+
+                // Saving the shown name as it is keeps a built-in file's names per language.
+                if (_rename.value.Trim() == ShownName)
+                {
+                    _card.Refresh();
                     return;
                 }
 

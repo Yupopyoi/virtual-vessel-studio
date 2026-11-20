@@ -59,7 +59,7 @@ public interface IAudioClipLibrary
     // Whether a file can be registered, and if not, why (its format, unreadable, an SE too long): for the user.
     Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // Copies the file and checks it can be read and how long it is. Heavy, so called off the main thread.
-    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
+    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // name, volume, loop
     CrudResult Delete(string id);                // Busy for the BGM that plays
     CrudResult Move(string id, int position);    // To a place in its kind's list (0 is first); past the end is last
@@ -131,6 +131,7 @@ Audio/
 - Only BGM uses `loop`; SE keeps it `false` and does not use it (the settings files write nulls too, so it cannot be left out).
 - Fields this version does not know are written back, not dropped (CLAUDE.md 25). Examples to come: an SE's `shortcut`, how a made BGM was made (system design 16.32).
 - `name` is 1 to 60 characters. Equal names are allowed; the ID tells them apart.
+- `names` (built-in files only): the name per language (`{ "ja": "サンプル１（ポップ）", "en": "Sample 1 (Pop)" }`). Kept until the user renames the file, then removed (changing the volume or the loop keeps it). The screens show `AudioClipRecord.NameIn(language)`: the name in the screen's language, else the English one, else `name`. As a field was only added, schemaVersion stays 1 (an earlier version keeps it as an unknown field).
 - The list (`List`) is in the order the user put the files in (2026-11-20). `order.json` (`{ "schemaVersion": 1, "ids": ["se-…", …] }`) holds each kind's IDs from the first. Those not in it (added after the last reordering, or never reordered) come after, in the order they were added. IDs of deleted files are skipped and drop out at the next reordering. The order is one file so that reordering does not rewrite every `audio-profile.json`. The setup and the live screens both show this order.
 
 ### 6.2 Sources in the Audio Profile
@@ -162,7 +163,7 @@ StreamingAssets/Audio/BuiltIn/
 - After start-up, `BuiltInAudioClips` registers those not registered yet, with `AddAsync`. Like any registration, they are copied into the Data Root. The user can change their names, volumes, and loops, and delete them. Registering runs in the background so start-up does not wait.
 - What was registered is remembered in the Data Root's `Audio/built-in-audio.json` (`{ "schemaVersion": 1, "added": ["bgm-cute-pop", ...] }`), written after each one. What the user deleted is not registered again. Only those added in a later version are registered.
 - One that cannot be registered (no Media Foundation, for example) is not remembered and is tried again on the next start. The others are still registered.
-- The names are in Japanese or English after Windows' display language (`Localizer.ChooseInitialLocale`). The user's screen language setting belongs to the UI and is not used. Once registered, a name is the user's data and does not change with the language.
+- A registration gets `name` (chosen by Windows' display language, `Localizer.ChooseInitialLocale`) and the names in every language (`names`). Until the user renames it, it is shown in the screen's language (on the setup and the live screens, shown again when the language is switched), so a piece's name is not Japanese on an English screen (the user's request, 2026-11-20). Once the user renames it, the name is the user's data and is shown in every language. Saving the shown name unchanged in renaming does not count as a rename.
 - The files are WAV (mono, 48 kHz, 16-bit), not MP3. An MP3 has the encoder's silence at its start and end, which Media Foundation does not remove, so a loop would break at its seam. They are mono because the pieces' only difference between left and right was a few milliseconds of delay, which halves their size. About 20 MB in all.
 - `tools/audio/build_builtin_audio.py` renders them (numpy and scipy; `tools/audio/requirements.txt`). Its random seeds are fixed, so it renders the same files every time. BGM is levelled by loudness (RMS -19 dBFS), SE by peak (-3 dBFS).
 
@@ -237,7 +238,7 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 | Kind | Target |
 |---|---|
 | Native (ctest) | The deck with written WAV and MP3 files: no silence at a loop's seam, the end notice, fades, silence when the ring is empty. SE voices: overlapping, replacing with no free voice. Mixing in stereo |
-| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine |
+| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), a built-in file's names per language (kept until it is renamed), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine |
 | PlayMode | The settings and live screens' controls (with their screen spec) |
 | Hardware (manual) | BGM and SE reach the stream and recordings, and the monitor send works |
 

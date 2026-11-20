@@ -59,7 +59,7 @@ public interface IAudioClipLibrary
     // 登録できるか、できないならなぜか（形式、読めない、SEが長すぎる）。利用者への表示に使う。
     Task<AudioClipProblem> CheckAsync(AudioClipKind kind, string sourcePath, CancellationToken cancellationToken);
     // ファイルを写し、読めるかと長さを確かめる。重いのでメインスレッドの外で呼ぶ。
-    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken);
+    Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken);
     CrudResult<AudioClipRecord> Update(string id, AudioClipChange change); // 名前、音量、ループ
     CrudResult Delete(string id);                // 流しているBGMはBusy
     CrudResult Move(string id, int position);    // 種類の一覧の中の位置（0が先頭）へ。後ろを越えたら最後
@@ -131,6 +131,7 @@ Audio/
 - `loop`はBGMだけが使う。SEは`false`のままで、使わない（設定のファイルはnullも書くため、省けない）。
 - この版が知らない項目は、消さずに書き戻す（CLAUDE.md 25章）。後で加える項目の例：SEの`shortcut`、作ったBGMの作り方（方式設計16.32）。
 - `name`は1〜60文字。同じ名前を許す（IDで区別する）。
+- `names`（同梱のものだけ）：言語ごとの名前（`{ "ja": "サンプル１（ポップ）", "en": "Sample 1 (Pop)" }`）。利用者が名前を変えるまで持ち、変えたら消す（音量やループを変えても残す）。画面には`AudioClipRecord.NameIn(言語)`の名前を出す：画面の言語の名前、なければ英語、なければ`name`。項目を加えただけなので、schemaVersionは1のままとする（前の版は知らない項目として残す）。
 - 一覧（`List`）の順は、利用者が並べた順である（2026-11-20）。`order.json`（`{ "schemaVersion": 1, "ids": ["se-…", …] }`）に、種類ごとにIDを先頭から持つ。そこにないもの（並べ替えの後に追加したもの、並べ替えたことがないもの）は、その後ろに追加した順で並ぶ。消したもののIDは読み飛ばし、次の並べ替えで消える。順を1つのファイルに持つのは、並べ替えのたびに全部の`audio-profile.json`を書き換えないためである。設定画面とライブ画面のどちらも、この順で出す。
 
 ### 6.2 Audio Profileの音の元
@@ -162,7 +163,7 @@ StreamingAssets/Audio/BuiltIn/
 - 起動の後に、`BuiltInAudioClips`が、まだ登録していないものを`AddAsync`で登録する。ほかの登録と同じく、Data Rootへ写す。利用者は名前、音量、ループを変えられ、消せる。起動を待たせないよう、登録はバックグラウンドで行う。
 - 登録したものは、Data Rootの`Audio/built-in-audio.json`（`{ "schemaVersion": 1, "added": ["bgm-cute-pop", ...] }`）に覚える。1つ登録するたびに書く。利用者が消したものは、もう登録しない。後の版で増えたものだけを登録する。
 - 登録できなかったもの（Media Foundationがないなど）は覚えず、次の起動でもう一度試す。ほかのものの登録は続ける。
-- 名前は、Windowsの表示言語に合わせて日本語か英語を選ぶ（`Localizer.ChooseInitialLocale`）。利用者の画面の言語の設定は、UIが持つため使わない。登録した後の名前は利用者のデータであり、言語を切り替えても変えない。
+- 登録には、`name`（Windowsの表示言語で選んだ名前、`Localizer.ChooseInitialLocale`）と、全部の言語の名前（`names`）を渡す。利用者が名前を変えるまでは、画面の言語に合わせて表示する（設定画面とライブ画面。言語を切り替えると出し直す）。英語の画面で曲名だけ日本語になるのを避けるためである（利用者の要望、2026-11-20）。利用者が名前を変えたら、それは利用者のデータであり、どの言語でもその名前を出す。名前の変更で、表示している名前をそのまま保存したときは、変えたことにしない。
 - ファイルはMP3ではなくWAV（モノラル、48 kHz、16 bit）とする。MP3は、エンコーダーの足す無音が頭と終わりにあり、Media Foundationはそれを除かないため、ループの継ぎ目が途切れる。モノラルにしたのは、元の曲の左右の違いが数ミリ秒の遅れだけで、大きさを半分にできるためである。合わせて約20 MB。
 - 音源は`tools/audio/build_builtin_audio.py`が作る（numpyとscipy。`tools/audio/requirements.txt`）。乱数の種が決まっているので、何度作っても同じファイルになる。BGMは音の大きさ（RMS -19 dBFS）、SEはピーク（-3 dBFS）でそろえる。
 
@@ -237,7 +238,7 @@ StreamingAssets/Audio/BuiltIn/
 | 種類 | 対象 |
 |---|---|
 | ネイティブ（ctest） | 書き出したWAVとMP3でのデッキ：ループの継ぎ目に無音がないこと、終わりの知らせ、フェード、リングが空のときの無音。SEのボイス：重ね、空きのないときの入れ替え。ステレオのまま混ぜること |
-| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
+| EditMode | `BuiltInAudioClips`：初めての起動での登録と名前の言語、2回目に足さないこと、消したものを戻さないこと、新しいものだけを足すこと、失敗したものを次に残すこと、同梱の一覧の正しさ。本物のプラグインで、同梱のファイルが全部登録できること。`AudioClipLibrary`：追加、一覧、変更、削除、並べ替え（新しいものが後ろに付くこと、消したものが隙間を残さないこと）、同梱のものの言語ごとの名前（名前を変えるまで残ること）、作りかけのフォルダー、知らない項目を残すこと、長すぎるSE。`SingleTrack`、偽のエンジンでの`BgmPlayer`の状態 |
 | PlayMode | 設定画面とライブ画面の操作（画面仕様とともに） |
 | 実機（手動） | 配信と録画にBGMとSEが入り、モニターの送りが効くこと |
 

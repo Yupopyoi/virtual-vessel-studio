@@ -28,6 +28,12 @@ namespace VirtualVessel.Audio.Clips
 
         /// <summary>ISO 8601 in UTC.</summary>
         public string AddedAtUtc { get; set; }
+
+        /// <summary>
+        /// A built-in file's names per language code until the user renames it (BGM and SE detailed design 6.3); null
+        /// otherwise. Added without a new schema version: an older reader keeps it as an unknown field.
+        /// </summary>
+        public Dictionary<string, string> Names { get; set; }
     }
 
     /// <summary>order.json in Audio/BGM/ and Audio/SE/: the order the user put the registrations in (BGM and SE detailed design 6.1).</summary>
@@ -123,7 +129,7 @@ namespace VirtualVessel.Audio.Clips
             return Task.Run(() => Check(kind, sourcePath).Problem, cancellationToken);
         }
 
-        public async Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, CancellationToken cancellationToken)
+        public async Task<CrudResult<AudioClipRecord>> AddAsync(AudioClipKind kind, string sourcePath, string name, IReadOnlyDictionary<string, string> names, CancellationToken cancellationToken)
         {
             CrudResult<AudioClipRecord> added = await Task.Run(() =>
             {
@@ -141,6 +147,7 @@ namespace VirtualVessel.Audio.Clips
 
                 string id = (kind == AudioClipKind.Bgm ? BgmPrefix : EffectPrefix) + _newId();
                 AudioClipProfile profile = NewProfile(kind, clean, info, Path.GetFileName(sourcePath), _clock.UtcNow);
+                profile.Names = CleanNames(names);
                 return CrudResult<AudioClipRecord>.Run(() =>
                 {
                     Copy(id, sourcePath);
@@ -181,6 +188,7 @@ namespace VirtualVessel.Audio.Clips
                 ConfigFileStore<AudioClipProfile> store = Store(id);
                 AudioClipProfile profile = store.Load().Value;
                 profile.Name = name ?? profile.Name;
+                profile.Names = name != null ? null : profile.Names;
                 profile.GainDb = change.GainDb.HasValue ? ClampGain(change.GainDb.Value) : profile.GainDb;
                 profile.Loop = change.Loop.HasValue && current.Value.Kind == AudioClipKind.Bgm ? change.Loop.Value : profile.Loop;
                 store.Save(profile);
@@ -370,6 +378,22 @@ namespace VirtualVessel.Audio.Clips
             return kind == AudioClipKind.SoundEffect && duration.Value.TotalSeconds > MaxEffectSeconds ? AudioClipProblem.TooLong : AudioClipProblem.None;
         }
 
+        /// <summary>The names per language that can be shown, or null when none can. Pure.</summary>
+        public static Dictionary<string, string> CleanNames(IReadOnlyDictionary<string, string> names)
+        {
+            var clean = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, string> pair in names ?? new Dictionary<string, string>())
+            {
+                string name = CleanName(pair.Value);
+                if (!string.IsNullOrWhiteSpace(pair.Key) && name != null)
+                {
+                    clean[pair.Key] = name;
+                }
+            }
+
+            return clean.Count > 0 ? clean : null;
+        }
+
         /// <summary>A new registration's profile: BGM loops by default, SE has no loop. Pure.</summary>
         public static AudioClipProfile NewProfile(AudioClipKind kind, string name, AudioFileInfo info, string originalName, DateTimeOffset now)
         {
@@ -458,7 +482,8 @@ namespace VirtualVessel.Audio.Clips
                 TimeSpan.FromSeconds(double.IsNaN(profile.DurationSeconds) ? 0 : Math.Max(0, profile.DurationSeconds)),
                 profile.OriginalName,
                 added,
-                file);
+                file,
+                CleanNames(profile.Names));
         }
 
         // The copied file: audio and the extension it was registered with.
