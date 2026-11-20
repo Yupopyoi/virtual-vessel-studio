@@ -15,6 +15,7 @@ using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Icons;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.Tooltips;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -70,6 +71,7 @@ namespace VirtualVessel.UI.Screens
         public const string DraggingClass = RowClass + "--dragging";
         public const string DropClass = UssClass + "__drop";
         public const string MoveColumn = CellClass + "--move";
+        public const string GripClass = UssClass + "__grip";
         public const string PlayColumn = CellClass + "--play";
         public const string NameColumn = CellClass + "--name";
         public const string LengthColumn = CellClass + "--length";
@@ -232,8 +234,11 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
-        /// <summary>Puts a row's file at a position in the list, and keeps the focus on its grip.</summary>
-        internal void Move(AudioClipRecord record, int position)
+        /// <summary>
+        /// Puts a row's file at a position in the list. With <paramref name="focus"/>, the place of a control in the
+        /// row's <see cref="ClipRow.Controls"/>, that control of the moved row takes the focus.
+        /// </summary>
+        internal void Move(AudioClipRecord record, int position, int focus = -1)
         {
             CrudResult moved = _library.Move(record.Id, position);
             if (!moved.Ok)
@@ -243,7 +248,10 @@ namespace VirtualVessel.UI.Screens
             }
 
             Refresh();
-            _shown.Find(row => row.Record.Id == record.Id)?.Grip.Focus();
+            if (focus >= 0)
+            {
+                _shown.Find(row => row.Record.Id == record.Id)?.Focus(focus);
+            }
         }
 
         /// <summary>Reads the library again and shows it.</summary>
@@ -430,21 +438,28 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
-        /// <summary>Ctrl+Up and Ctrl+Down on a grip move its row by one, as in the layer list.</summary>
+        /// <summary>
+        /// Ctrl+Up and Ctrl+Down with the focus in a row move it by one, as in the layer list. The grip is only for the
+        /// pointer, so the keys work from the row's buttons; the rename field keeps them for its text.
+        /// </summary>
         internal void Step(ClipRow row, KeyDownEvent evt)
         {
             int step = evt.keyCode == KeyCode.UpArrow ? -1 : evt.keyCode == KeyCode.DownArrow ? 1 : 0;
-            if (step == 0 || !(evt.ctrlKey || evt.commandKey))
+            if (step == 0 || !(evt.ctrlKey || evt.commandKey) || (evt.target is VisualElement target && row.NameInput.Contains(target)))
             {
                 return;
             }
 
+            // Kept from the focus navigation too, which would otherwise move on from the old row after it is rebuilt.
             evt.StopPropagation();
+            focusController?.IgnoreEvent(evt);
             int from = _shown.IndexOf(row);
             int to = from + step;
             if (from >= 0 && to >= 0 && to < _shown.Count)
             {
-                Move(row.Record, to);
+                // Contains does not count the element itself.
+                var focused = evt.target as VisualElement;
+                Move(row.Record, to, row.Controls.FindIndex(control => control == focused || control.Contains(focused)));
             }
         }
 
@@ -527,6 +542,20 @@ namespace VirtualVessel.UI.Screens
             public List<float> Edges { get; } = new List<float>();
         }
 
+        /// <summary>The "≡" mark at a row's start, with room around it for the pointer and the tooltip.</summary>
+        private sealed class GripHandle : VisualElement, ITooltipSource
+        {
+            public GripHandle()
+            {
+                AddToClassList(GripClass);
+                Add(new Icon(IconName.Grip));
+            }
+
+            string ITooltipSource.CurrentTooltipKey => AudioClipStrings.Move;
+
+            string ITooltipSource.Shortcut => null;
+        }
+
         /// <summary>One registered file's row.</summary>
         public sealed class ClipRow
         {
@@ -542,12 +571,12 @@ namespace VirtualVessel.UI.Screens
                 Root = new VisualElement();
                 Root.AddToClassList(RowClass);
 
-                // Registered before the button's own handling, so pressing the grip starts a drag.
-                Grip = Ui.IconButton(IconName.Grip).WithTooltip(AudioClipStrings.Move);
-                Grip.RegisterCallback<PointerDownEvent>(evt => _card.StartDrag(this, evt), TrickleDown.TrickleDown);
-                Grip.RegisterCallback<PointerMoveEvent>(evt => _card.DragTo(evt), TrickleDown.TrickleDown);
-                Grip.RegisterCallback<PointerUpEvent>(evt => _card.Drop(evt), TrickleDown.TrickleDown);
-                Grip.RegisterCallback<KeyDownEvent>(evt => _card.Step(this, evt), TrickleDown.TrickleDown);
+                // A plain mark, not a button, as in the layer list: it takes the pointer for dragging but not the focus.
+                Grip = new GripHandle();
+                Grip.RegisterCallback<PointerDownEvent>(evt => _card.StartDrag(this, evt));
+                Grip.RegisterCallback<PointerMoveEvent>(evt => _card.DragTo(evt));
+                Grip.RegisterCallback<PointerUpEvent>(evt => _card.Drop(evt));
+                Root.RegisterCallback<KeyDownEvent>(evt => _card.Step(this, evt), TrickleDown.TrickleDown);
                 VisualElement move = Cell(MoveColumn);
                 move.Add(Grip);
                 Root.Add(move);
@@ -614,14 +643,22 @@ namespace VirtualVessel.UI.Screens
                 actions.Add(SaveButton);
                 actions.Add(DeleteButton);
                 Root.Add(actions);
+
+                Controls = new List<VisualElement> { PlayButton };
+                if (LoopToggle != null)
+                {
+                    Controls.Add(LoopToggle);
+                }
+
+                Controls.AddRange(new VisualElement[] { Gain, RenameButton, SaveButton, DeleteButton });
             }
 
             public AudioClipRecord Record { get; }
 
             public VisualElement Root { get; }
 
-            /// <summary>Dragged, or Ctrl+Up and Ctrl+Down while it has the focus, to reorder.</summary>
-            public IconButton Grip { get; }
+            /// <summary>Dragged to reorder; Ctrl+Up and Ctrl+Down with the focus in the row do the same by keys.</summary>
+            public VisualElement Grip { get; }
 
             public IconButton PlayButton { get; }
 
@@ -637,6 +674,9 @@ namespace VirtualVessel.UI.Screens
             public ActionButton DeleteButton { get; }
 
             public TextInput NameInput => _rename;
+
+            /// <summary>The row's controls in order, to find the same one again after the rows are rebuilt.</summary>
+            internal List<VisualElement> Controls { get; }
 
             /// <summary>Playing or failed, shown by its shape and text beside the name.</summary>
             public StatusChip State => _state;
@@ -659,6 +699,13 @@ namespace VirtualVessel.UI.Screens
             {
                 PlayButton.SetEnabled(ready);
                 PlayButton.TooltipKey = ready ? AudioClipStrings.EffectPlay : AudioClipStrings.EffectLoading;
+            }
+
+            /// <summary>Focuses a control by its place in <see cref="Controls"/>; the rename button if it cannot.</summary>
+            internal void Focus(int control)
+            {
+                VisualElement target = control < Controls.Count ? Controls[control] : null;
+                (target != null && target.canGrabFocus ? target : RenameButton).Focus();
             }
 
             private void StartRename()

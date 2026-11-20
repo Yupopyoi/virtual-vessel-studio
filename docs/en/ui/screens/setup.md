@@ -416,7 +416,7 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 
 | Column | What it holds |
 |---|---|
-| Reorder | A "≡" Icon Button (`text-3`). Dragging it up or down moves its row; while dragging, the row is dimmed and an Accent Line marks where it lands (as the Layer List, `components.md` 3.20). With the focus, `Ctrl`+Up and Down move it by one, and the focus stays on the moved row. The live screen's BGM choice and sound effect buttons follow the same order |
+| Reorder | A "≡" mark at the row's start (`text-3`; not a button, the same mark as the Layer List's grip). Dragging it up or down moves its row; while dragging, the row is dimmed and an Accent Line marks where it lands (as the Layer List, `components.md` 3.20). The mark takes no focus. By keyboard, with the focus on one of the row's buttons, `Ctrl`+Up and Down move it by one, and the focus stays on the same control of the moved row (its Rename button if that one cannot take it) (not while typing a name). The live screen's BGM choice and sound effect buttons follow the same order |
 | Play | Icon Button. For BGM it plays the file on the stream and in recordings, and turns into stop (■) while it plays. For a sound effect each press plays it from its start, overlapping. Disabled until it is loaded, with a tooltip saying it is loading |
 | Name | Takes the rest of the width, cut with an ellipsis, its tooltip holding it whole. For BGM a Status Chip after the name says Playing, or Cannot play (by shape and text) |
 | Length | Minutes and seconds, monospaced, right-aligned. Blank when the file does not say |
@@ -443,7 +443,7 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.clips.rename` | 名前を変更 | Rename |
 | `setup.clips.save` | 保存 | Save |
 | `setup.clips.delete` | 削除 | Delete |
-| `setup.clips.move` | ドラッグで並べ替えます。Ctrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down. |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
 | `setup.clips.name.required` | 名前を入力してください | Enter a name |
 | `setup.clips.filter` | 音声ファイル | Audio files |
 | `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |

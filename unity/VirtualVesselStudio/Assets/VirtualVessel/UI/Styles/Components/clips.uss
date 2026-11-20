@@ -34,12 +34,21 @@
 }
 
 .vv-clips__cell--move {
-    width: 32px;
-    margin-right: 0;
+    width: 24px;
 }
 
-.vv-clips__cell--move > .vv-icon-button {
+/* A plain mark as in the layer list (layers.uss), in a larger box so it is easy to grab. */
+.vv-clips__grip {
+    width: 24px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
     color: var(--vv-color-text-3);
+}
+
+.vv-clips__grip > .vv-icon {
+    width: 16px;
+    height: 16px;
 }
 
 .vv-clips__cell--play {

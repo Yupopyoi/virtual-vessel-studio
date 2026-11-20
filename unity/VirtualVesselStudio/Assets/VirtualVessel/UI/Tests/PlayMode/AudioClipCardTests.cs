@@ -181,12 +181,13 @@ namespace VirtualVessel.UI.Tests
             AudioClipCard card = Open(AudioClipKind.SoundEffect);
             yield return null;
 
-            Key(card.Rows[0].Grip, KeyCode.DownArrow);
+            Assert.That(card.Rows[0].Grip.focusable, Is.False, "The grip is a mark, not a button.");
+            Key(card.Rows[0].DeleteButton, KeyCode.DownArrow);
             Assert.That(_clips.Moves, Is.Empty, "An arrow alone moves the focus, not the row.");
-            Key(card.Rows[0].Grip, KeyCode.DownArrow, EventModifiers.Control);
+            Key(card.Rows[0].DeleteButton, KeyCode.DownArrow, EventModifiers.Control);
             Assert.That(card.Rows.Select(r => r.Record.Id), Is.EqualTo(new[] { "se-2", "se-1", "se-3" }));
-            Assert.That(card.Rows[1].Grip.focusController?.focusedElement, Is.EqualTo(card.Rows[1].Grip), "The moved row keeps the focus.");
-            Key(card.Rows[0].Grip, KeyCode.UpArrow, EventModifiers.Control);
+            Assert.That(card.Rows[1].DeleteButton.focusController?.focusedElement, Is.EqualTo(card.Rows[1].DeleteButton), "The same control of the moved row keeps the focus.");
+            Key(card.Rows[0].RenameButton, KeyCode.UpArrow, EventModifiers.Control);
             Assert.That(_clips.Moves, Is.EqualTo(new[] { ("se-1", 1) }), "The first row does not go further up.");
 
             yield return null;

@@ -418,7 +418,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 
 | 列 | 内容 |
 |---|---|
-| 並べ替え | 「≡」のIcon Button（`text-3`）。つかんで上下にドラッグすると、その行を動かす。ドラッグ中は行を薄くし、落ちる位置にAccent Lineの線を出す（Layer List、`components.md` 3.20と同じ）。フォーカスがあるときは`Ctrl`+上下キーで1つずつ動き、フォーカスは動かした行に残る。並べた順はライブ画面のBGMの選択と効果音のボタンにも使う |
+| 並べ替え | 行の先頭の「≡」の印（`text-3`、ボタンではなくLayer Listのつまみと同じ印）。つかんで上下にドラッグすると、その行を動かす。ドラッグ中は行を薄くし、落ちる位置にAccent Lineの線を出す（Layer List、`components.md` 3.20と同じ）。印はフォーカスを取らない。キーボードでは、行のボタンにフォーカスがあるとき`Ctrl`+上下キーで1つずつ動き、フォーカスは動かした行の同じボタンに残る（押せない状態なら名前の変更ボタン）（名前の入力中は動かさない）。並べた順はライブ画面のBGMの選択と効果音のボタンにも使う |
 | 再生 | Icon Button。BGMは押すと配信と録画で再生し、再生中は停止の形（■）に変わる。効果音は押すたびに頭から鳴らし、重ねて鳴る。読み込みが済むまでは無効で、ツールチップで読み込み中と伝える |
 | 名前 | 残りの幅を使い、収まらなければ「…」で省略し、ツールチップで全体を出す。BGMは再生中に「再生中」、再生できないときに「再生できません」のStatus Chipを名前の後に出す（形と文字で示す） |
 | 長さ | 分:秒、等幅、右寄せ。ファイルが長さを持たないときは空ける |
@@ -445,7 +445,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.clips.rename` | 名前を変更 | Rename |
 | `setup.clips.save` | 保存 | Save |
 | `setup.clips.delete` | 削除 | Delete |
-| `setup.clips.move` | ドラッグで並べ替えます。Ctrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down. |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
 | `setup.clips.name.required` | 名前を入力してください | Enter a name |
 | `setup.clips.filter` | 音声ファイル | Audio files |
 | `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |

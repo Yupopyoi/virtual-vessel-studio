@@ -844,7 +844,7 @@
         "setup.clips.rename": "名前を変更",
         "setup.clips.save": "保存",
         "setup.clips.delete": "削除",
-        "setup.clips.move": "ドラッグで並べ替えます。Ctrl+↑↓でも動かせます。",
+        "setup.clips.move": "ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。",
         "setup.clips.name.required": "名前を入力してください",
         "setup.clips.filter": "音声ファイル",
         "setup.bgm.play": "このBGMを配信と録画で再生します。",
