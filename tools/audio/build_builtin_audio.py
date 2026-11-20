@@ -38,6 +38,7 @@ BGM = [
     ('recorder-waltz', bgm.recorder_waltz, 'サンプル３', 'Sample 3'),
     ('chat-time', bgm.calm_talk, 'サンプル４', 'Sample 4'),
     ('denpa-41', bgm.denpa_41edo, 'サンプル５', 'Sample 5'),
+    ('lofi-41', bgm.lofi_41edo, 'サンプル６', 'Sample 6'),
 ]
 
 # The IDs stay as they were when a sound is renamed or moved (the "correct" sound is now "Sparkle 2"); the user's

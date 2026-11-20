@@ -47,6 +47,15 @@
       }
     },
     {
+      "id": "bgm-lofi-41",
+      "kind": "bgm",
+      "file": "bgm/lofi-41.wav",
+      "names": {
+        "ja": "サンプル６",
+        "en": "Sample 6"
+      }
+    },
+    {
       "id": "se-chime",
       "kind": "soundEffect",
       "file": "se/chime.wav",
