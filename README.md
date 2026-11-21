@@ -11,11 +11,11 @@
 Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and content creation. It brings 3D avatars, tracking, video capture, and stages together in one app, with no separate tools to set up.
 
 > [!NOTE]
-> **v0.2.0 is an early preview.** You can move a VRM avatar with a webcam, arrange captured videos on the stream screen, mix the audio, and stream to YouTube or record. From v0.2.0, you can make a voice of your own in Voice Lab and change your voice in real time while streaming (see [Known limitations](#known-limitations)).
+> **v0.3.0 is an early preview.** You can move a VRM avatar with a webcam, arrange captured videos on the stream screen, mix the audio, and stream to YouTube or record. You can make a voice of your own in Voice Lab and change your voice in real time while streaming. From v0.3.0, you can play BGM and sound effects, take in a game running on this PC from its window, and place the avatar in a frame (see [Known limitations](#known-limitations)).
 
 ## Contents
 
-- [What you can do in v0.2.0](#what-you-can-do-in-v020)
+- [What you can do in v0.3.0](#what-you-can-do-in-v030)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Sample avatar: Otoha-chan](#sample-avatar-otoha-chan)
@@ -27,20 +27,23 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 - [For developers](#for-developers)
 - [License](#license)
 
-## What you can do in v0.2.0
+## What you can do in v0.3.0
 
 - **Sample avatar:** Otoha-chan (音葉ちゃん) comes with the app, so you can try it without a model of your own.
 - **Avatar:** register a VRM model (VRM 1.0, or VRM 0.x converted when loaded), and check the terms of use its author set.
 - **Tracking with a webcam:** the face (expressions, eyes, and mouth), the upper body, arms, hands, and fingers move the avatar. You can tune the face, how far the fingers bend, and how fast or steady the movement is.
 - **Video capture:**
   - a game screen through a capture board;
+  - a game running on this PC, from its window, with only that game's sound (from v0.3.0);
   - a second monitor.
 - **Live screen:**
   - see the stream video;
   - move and resize the videos on it;
+  - place the avatar in a frame, such as on the right with the game on the left (from v0.3.0);
   - stop a video's capture with the Del key or its menu;
   - see which of your arms and hands the camera sees.
 - **Audio:** mix your microphone and the game's audio, hear the game yourself, and delay the audio to match the avatar.
+- **BGM and sound effects** (from v0.3.0): play BGM and sound effects on the stream and in recordings, from WAV or MP3 files. Seven BGM pieces and a set of sound effects come with the app, free to use in streams and videos (CC0). Sound effects can be given shortcut keys that work while you play a game in another app.
 - **Voice conversion** (from v0.2.0): change your microphone's voice in real time into a voice made in Voice Lab, for the stream and recordings. The pitch matches your own automatically, and you can adjust the voice's finish (body, clarity, brightness, air). While it gets ready, or when it cannot convert, your microphone is kept out so your own voice does not go out.
 - **Voice Lab** (from v0.2.0): make voice candidates from words or a mood, shape the timbre, build a voice model, and register it. You can try a voice with your own voice before registering it. The first time, the app prepares the environment for making voices on this PC (agreeing to its terms is required).
 - **Streaming:** stream to YouTube, or another RTMP(S) server, with AV1 or H.264. The connection comes back by itself if it drops.
@@ -67,7 +70,7 @@ Virtual Vessel Studio is a Windows application for VTuber streaming, setup, and 
 2. (Optional) Check the download against `SHA256SUMS.txt` on the same page:
 
    ```powershell
-   Get-FileHash .\VirtualVesselStudio-v0.2.0-win-x64.zip -Algorithm SHA256
+   Get-FileHash .\VirtualVesselStudio-v0.3.0-win-x64.zip -Algorithm SHA256
    ```
 
 3. Extract the ZIP to a folder you can write to, such as `Documents\VirtualVesselStudio`. Keep all files together.
@@ -123,12 +126,14 @@ Settings are saved automatically. Tracking starts again the next time you open t
 
 1. Open **Capture (game screen)** or **Capture (sub monitor)** on the **Video** page of **Settings**.
 2. Choose the device and turn on **Capture**. Use the flip switches if the video is mirrored or upside down.
+3. For a game on this PC, choose **A window on this PC** in **Input** of **Capture (game screen)**, then the game's window. Only that game's sound comes with it. A minimized window cannot be taken in.
 
 ### 4. Arrange the stream screen
 
 1. Open **Live**.
 2. Drag a video to move it, or drag its corners to resize it. Right-click a video for more options.
 3. Change the stacking order in **Stacking order**.
+   The **Avatar** frame moves and resizes the same way, to set where the avatar appears and how much of it is shown. It is always in front.
 4. **In view** shows whether the camera sees each arm and hand. A part it cannot see rests in its default pose.
 
 ### 5. Set up the audio (optional)
@@ -136,6 +141,8 @@ Settings are saved automatically. Tracking starts again the next time you open t
 1. Open the **Audio** page of **Settings**.
 2. Choose your microphone, and set the level of each source in the mixer.
 3. The game's audio comes from the capture board. Its row is under **Capture (game screen)** on the **Video** page, which also picks a matching device for you.
+4. BGM and sound effects are in the **BGM** and **Sound effects** cards on the **Audio** page. **Add a file…** adds your own WAV or MP3 files. On **Live**, choose and play BGM, and press sound effects, in **BGM and sound effects**.
+5. To play a sound effect from another app, click its **Shortcut** button and press keys with Ctrl, Alt, or Shift.
 
 ### 6. Make a voice and use it (optional)
 
@@ -172,7 +179,7 @@ Depending on your YouTube settings, a stream may be public at once.
 
 | Limitation | Issue |
 | --- | --- |
-| BGM and sound effects are not included yet | — |
+| The avatar frame does not cut off the avatar: hands and other parts outside it are still drawn | — |
 | The converted voice arrives about 0.4 s after your own. What you hear yourself cannot be chosen yet | — |
 | Making voices in Voice Lab needs an NVIDIA GPU. Voice conversion is not checked on GPUs other than an RTX 4070 | — |
 | Voice Lab's terms are a pre-release version (0.1) and are likely to change | — |
@@ -197,7 +204,7 @@ See all [open issues](https://github.com/Yupopyoi/virtual-vessel-studio/issues).
 ## Uninstall
 
 1. Delete the folder you extracted the app to.
-2. To delete your settings, registered avatars, made voices, and logs as well, delete `%LOCALAPPDATA%\VirtualVesselStudio`. Your original `.vrm` files are not inside it.
+2. To delete your settings, registered avatars, BGM and sound effects, made voices, and logs as well, delete `%LOCALAPPDATA%\VirtualVesselStudio`. Your original `.vrm` files are not inside it.
 3. If you prepared Voice Lab's environment, delete **Voice making environment (Python)** on Voice Lab's **Made voices** tab first. After the app is gone, delete `VirtualVesselStudio` inside the folder you chose for the environment.
 
 ## For developers
