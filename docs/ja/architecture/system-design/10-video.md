@@ -470,6 +470,8 @@ YouTube Live Streaming APIからRTMPS Ingestion URL等を取得することも�
 
 その後、ユーザー操作をさらに簡略化するための機能としてYouTube API連携を追加する。
 
+なお、コメントの表示を含むAPI連携は、Googleの審査とクオータの共有の負担から、2026-11-21に見送った（利用者の決定）。経緯と、後で作るための下準備は決定記録`docs/ja/decisions/youtube-integration.md`に残す。
+
 ---
 
 ## 10.12 配信認証情報の管理方式
