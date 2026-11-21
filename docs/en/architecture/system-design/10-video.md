@@ -456,6 +456,8 @@ is completed first.
 
 YouTube API integration is then added as a function to further simplify user operation.
 
+API integration, including showing comments, was put on hold on 2026-11-21 (user's decision) because of the burden of Google's verification and the shared quota. The history, and the groundwork for building it later, are in the decision record `docs/en/decisions/youtube-integration.md`.
+
 ---
 
 ## 10.12 Management of Streaming Credentials
