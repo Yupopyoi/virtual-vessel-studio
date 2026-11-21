@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
+using VirtualVessel.Capture;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
@@ -11,20 +12,22 @@ namespace VirtualVessel.UI.Screens
 {
     /// <summary>
     /// The game audio's device on the game capture Card (setup.md 3): the board's sound is chosen where its
-    /// video is, and follows it. Capture stays video only; the UI is what joins the two (audio detailed design 18).
+    /// video is, and follows it; a game's window on this PC brings that game's own sound (audio detailed design
+    /// 8.7). Capture stays video only; the UI is what joins the two (audio detailed design 18).
     /// </summary>
     public sealed class GameAudioRow : VisualElement
     {
         private readonly IAudioService _audio;
         private readonly IAudioSource _source;
         private UiServices _services;
+        private string _video;
 
         public GameAudioRow(IAudioService audio)
         {
             _audio = audio ?? throw new ArgumentNullException(nameof(audio));
             _source = audio.Sources.First(source => source.Role == AudioSourceRole.GameAudio);
             Devices = Ui.Select(null);
-            Devices.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithDevice(evt.newValue)));
+            Devices.RegisterValueChangedCallback(evt => Choose(evt.newValue));
             SettingRow row = Ui.SettingRow(CaptureStrings.Audio, CaptureStrings.AudioDescription);
             row.Add(Devices);
             Add(row);
@@ -33,6 +36,12 @@ namespace VirtualVessel.UI.Screens
         }
 
         public SelectField Devices { get; }
+
+        /// <summary>Whether <paramref name="audio"/> has the game audio's source to choose a device for. Pure.</summary>
+        public static bool CanShow(IAudioService audio)
+        {
+            return audio?.Sources != null && audio.Sources.Any(source => source.Role == AudioSourceRole.GameAudio);
+        }
 
         /// <summary>
         /// The input device that belongs to a video device, or null. Windows names a board's sound after the
@@ -45,24 +54,91 @@ namespace VirtualVessel.UI.Screens
         }
 
         /// <summary>
-        /// The audio device after the video device changed from one name to another. A choice that has nothing
-        /// to do with the old video device is the user's own, and stays. Pure.
+        /// The sound that belongs to a video device: a window's program's own sound, or the input device named
+        /// after a capture board; null when there is none or no video device. Pure.
         /// </summary>
-        public static string Follow(IReadOnlyList<AudioDevice> devices, string chosen, string previousVideo, string nextVideo)
+        public static string Belonging(IReadOnlyList<AudioDevice> devices, CaptureDevice video)
         {
-            string next = Find(devices, nextVideo);
-            bool followed = string.IsNullOrEmpty(chosen) || chosen == Find(devices, previousVideo);
-            return next != null && followed ? next : chosen;
+            if (video == null)
+            {
+                return null;
+            }
+
+            string program = CaptureWindow.ProgramOf(video.Id);
+            return program != null ? AudioApplication.IdOf(program) : Find(devices, video.DisplayName);
         }
 
-        /// <summary>Called when the user chooses another video device.</summary>
-        public void VideoChanged(string previousName, string nextName)
+        /// <summary>
+        /// The audio device after the video device changed. A game's window always brings its own sound: the
+        /// sound left from a capture board would not be the game's (user's report, 2026-11-20); the user can still
+        /// choose another after. Otherwise a choice that has nothing to do with the old video device is the user's
+        /// own, and stays, and a window's sound does not stay without its window. A null video device is none. Pure.
+        /// </summary>
+        public static string Follow(IReadOnlyList<AudioDevice> devices, string chosen, CaptureDevice previous, CaptureDevice next)
+        {
+            if (CaptureWindow.IsWindow(next?.Id))
+            {
+                return Belonging(devices, next);
+            }
+
+            bool followed = string.IsNullOrEmpty(chosen) || chosen == Belonging(devices, previous);
+            if (!followed)
+            {
+                return chosen;
+            }
+
+            string belonging = Belonging(devices, next);
+            return belonging ?? (AudioApplication.IsApplication(chosen) ? null : chosen);
+        }
+
+        /// <summary>
+        /// Whether the game audio is heard on the monitor after its device changed. A game on this PC is heard from
+        /// the PC already, so its sound is not sent again, or it would be heard twice; back on a capture board it is
+        /// heard again (audio detailed design 8.7). Otherwise the user's choice stays. Pure.
+        /// </summary>
+        public static bool MonitoredAfter(bool monitored, string previousDevice, string nextDevice)
+        {
+            bool wasApplication = AudioApplication.IsApplication(previousDevice);
+            bool isApplication = AudioApplication.IsApplication(nextDevice);
+            return isApplication ? false : wasApplication ? true : monitored;
+        }
+
+        /// <summary>
+        /// The choices of the audio device: the input devices, and with a game's window as the video, that game's
+        /// own sound, so it can be chosen here too. Pure.
+        /// </summary>
+        public static IReadOnlyList<AudioDevice> ChoicesFor(IReadOnlyList<AudioDevice> devices, string videoId, string applicationName)
+        {
+            string program = CaptureWindow.ProgramOf(videoId);
+            if (program == null)
+            {
+                return devices;
+            }
+
+            var choices = new List<AudioDevice>(devices) { new AudioDevice(AudioApplication.IdOf(program), applicationName, false) };
+            return choices;
+        }
+
+        /// <summary>Tells the row which video device is chosen, for the game's own sound among the choices.</summary>
+        public void ShowVideo(string videoId)
+        {
+            if (_video == videoId)
+            {
+                return;
+            }
+
+            _video = videoId;
+            ShowDevices();
+        }
+
+        /// <summary>Called when the user chooses another video device; null for none.</summary>
+        public void VideoChanged(CaptureDevice previous, CaptureDevice next)
         {
             AudioSourceOptions options = _source.Options.Value;
-            string chosen = Follow(_audio.InputDevices.Value, options.DeviceId, previousName, nextName);
+            string chosen = Follow(_audio.InputDevices.Value, options.DeviceId, previous, next);
             if (chosen != options.DeviceId)
             {
-                _source.SetOptions(options.WithDevice(chosen));
+                _source.SetOptions(options.WithDevice(chosen).WithMonitored(MonitoredAfter(options.Monitored, options.DeviceId, chosen)));
             }
         }
 
@@ -84,10 +160,20 @@ namespace VirtualVessel.UI.Screens
 
         private void ShowDevices()
         {
-            string missing = _services?.Localizer?.Get(AudioStrings.MissingDevice) ?? AudioStrings.MissingDevice;
             string chosen = _source.Options.Value.DeviceId;
-            Devices.SetChoices(AudioCard.Choices(_audio.InputDevices.Value, chosen, missing));
+            string program = CaptureWindow.ProgramOf(_video);
+            string application = program != null ? AudioCard.UnlistedName(_services?.Localizer, AudioApplication.IdOf(program)) : null;
+            IReadOnlyList<AudioDevice> devices = ChoicesFor(_audio.InputDevices.Value, _video, application);
+            Devices.SetChoices(AudioCard.Choices(devices, chosen, AudioCard.UnlistedName(_services?.Localizer, chosen)));
             Devices.SetValueWithoutNotify(chosen ?? string.Empty);
+        }
+
+        // Chosen here by hand: a game's own sound is not sent to the monitor, as when it follows its window.
+        private void Choose(string deviceId)
+        {
+            AudioSourceOptions options = _source.Options.Value;
+            string chosen = string.IsNullOrEmpty(deviceId) ? null : deviceId;
+            _source.SetOptions(options.WithDevice(chosen).WithMonitored(MonitoredAfter(options.Monitored, options.DeviceId, chosen)));
         }
     }
 }

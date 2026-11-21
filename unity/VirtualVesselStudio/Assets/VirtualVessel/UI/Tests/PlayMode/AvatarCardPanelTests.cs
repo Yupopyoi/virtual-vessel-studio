@@ -10,10 +10,12 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Avatar;
+using VirtualVessel.Core.Geometry;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Screens;
 using Object = UnityEngine.Object;
@@ -223,6 +225,61 @@ namespace VirtualVessel.UI.Tests
             Assert.That(FaceTuningCard.Crop(0f, 50f), Is.EqualTo(new Rect(0f, 0f, 1f, 1f)), "Never smaller than the stream.");
         }
 
+        [Test]
+        public void ThePicture_LooksAtTheAvatarFrame_WhereverAndHoweverLargeItIs()
+        {
+            // The avatar in the stream's bottom right quarter; values exact in binary.
+            var area = new Rect(0.5f, 0f, 0.5f, 0.5f);
+            Assert.That(FaceTuningCard.Crop(100f, 100f, area), Is.EqualTo(new Rect(0.5f, 0f, 0.5f, 0.5f)), "100% shows the frame's whole height, about its middle.");
+            Assert.That(FaceTuningCard.Crop(100f, 200f, area), Is.EqualTo(new Rect(0.625f, 0.25f, 0.25f, 0.25f)), "The top of the frame, enlarged against its height.");
+            Assert.That(FaceTuningCard.Crop(0f, 200f, area), Is.EqualTo(new Rect(0.625f, 0f, 0.25f, 0.25f)), "The bottom of the frame.");
+            Assert.That(FaceTuningCard.Crop(100f, 200f, new Rect(0.75f, 0f, 0.25f, 1f)), Is.EqualTo(new Rect(0.5f, 0.5f, 0.5f, 0.5f)), "Kept within the stream at its edge.");
+            Assert.That(FaceTuningCard.Crop(100f, 200f, new Rect(0f, 0f, 1f, 1f)), Is.EqualTo(FaceTuningCard.Crop(100f, 200f)), "A full-stream frame looks as without one.");
+
+            var frame = new AvatarFrameStub(new NormalizedRect(0.5, 0.5, 0.5, 0.5));
+            Assert.That(FaceTuningCard.AreaOf(frame), Is.EqualTo(area), "The placement, from the top left, as UV from the bottom left.");
+            frame.Shown.Value = false;
+            Assert.That(FaceTuningCard.AreaOf(frame), Is.Null, "Without the avatar, the whole stream.");
+            Assert.That(FaceTuningCard.AreaOf(null), Is.Null);
+        }
+
+        /// <summary>Stands in for the avatar's frame (Stage detailed design 7.2).</summary>
+        private sealed class AvatarFrameStub : IFrameSource
+        {
+            private readonly ObservableValue<FrameLayout> _layout;
+            private readonly ObservableValue<string> _name = new ObservableValue<string>(string.Empty);
+
+            public AvatarFrameStub(NormalizedRect placement)
+            {
+                _layout = new ObservableValue<FrameLayout>(FrameLayout.Create(placement));
+            }
+
+            public ObservableValue<bool> Shown { get; } = new ObservableValue<bool>(true);
+
+            public string Id => "avatar";
+
+            public string NameKey => null;
+
+            public IReadOnlyObservable<string> DisplayName => _name;
+
+            public IReadOnlyObservable<bool> Visible => Shown;
+
+            public double SourceAspect => 1.0;
+
+            public Texture Video => null;
+
+            public IReadOnlyObservable<FrameLayout> Layout => _layout;
+
+            public void PreviewLayout(FrameLayout layout)
+            {
+            }
+
+            public Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken)
+            {
+                return Task.CompletedTask;
+            }
+        }
+
         [UnityTest]
         public IEnumerator TheLight_IsChangedBesideThePicture_AndFollowsTheStage()
         {
@@ -422,6 +479,8 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<AvatarState> State => _state;
 
             public IReadOnlyObservable<AvatarProblem> Problem => _problem;
+
+            public IReadOnlyObservable<float?> Height { get; } = new ObservableValue<float?>(null);
 
             public IReadOnlyList<string> Extensions { get; } = new[] { ".vrm" };
 

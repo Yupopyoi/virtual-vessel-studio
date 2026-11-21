@@ -26,11 +26,12 @@ It has the stream preview, starting and stopping a recording, the sound going in
 | Part | Component | Content |
 |---|---|---|
 | Stream preview | Preview (`components.md` 3.17) | `IStreamPreviewSource` (Video), at 16:9 across the screen's width (at most 960 px) |
-| Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage) |
+| Placement editing | Media Frame (3.19) | On the preview's overlay; the videos are `IFrameSource` (Stage). It includes the avatar frame: with the same operations as the game screen, it changes the avatar's position and size and the part shown (Stage detailed design 7.2). The avatar frame is always in front and cannot be flipped |
 | Streaming | Status Chip (3.13) and Buttons (3.1); `StreamControl` | Under the record control; `IStreamingService` (Streaming). What each state shows and the confirmations to start and end: streaming detailed design 18.1. Left out without streaming |
 | Recording | Status Chip (3.13) and Buttons (3.1); `RecordControl` | Right under the preview; `IRecordingService` (Video). What each state shows, the confirmation to stop, and the saved file: recording detailed design 18.1. Left out without recording |
-| Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The mute button toggles, and muted shows the crossed-out microphone (by shape). The meter is -60 to 0 dB. Left out without audio |
+| Sound going in | Per source an IconButton (3.2), its name, and a Level Meter (3.5); `AudioStrip` | Under the record control; `IAudioService` (Audio). The microphone, the game audio, BGM, then sound effects. The mute button toggles, and muted shows its icon crossed out (by shape: a note for BGM, a speaker for sound effects, a microphone for the others). The meter is -60 to 0 dB. Left out without audio |
 | In view | Status Chips (3.13), one per arm and hand | Under the preview, while tracking runs: which of the person's arms and hands the camera sees, by the person's own sides, as the avatar uses them (`LimbStatusRow`, refreshed every 0.2 s). An arm is seen with its shoulder, elbow, and wrist seen and in the image, or without only the elbow (check); partly without the wrist (warning, "wrist not seen"); otherwise not in view (outline). A hand is seen when the hand tracking finds it. The user asked to see why an arm or a hand rests (2026-10-25) |
+| BGM and sound effects | Card. The BGM row: a Select of the tracks (Dropdown 3.6), Play or Stop, a Playing Status Chip (its place kept when nothing plays, so what follows does not move), the time and length ("0:12 / 0:47", monospaced), and a Slider for the BGM volume (the mixer's BGM row's value). The sound effects row: a Button per registered sound effect (each press plays it from its start, overlapping; disabled until loaded), a Slider for the sound effects volume (the mixer's sound effects row's value), and Stop sound effects. `AudioPlayersPanel` | Under the parts in view. `IBgmPlayer`, `ISoundEffectPlayer`, `IAudioClipLibrary` (Audio; BGM and SE detailed design). Files are registered on the setup screen (`setup.md` chapter 14); without any, a line says so. A track that plays cannot be chosen again until it stops. The buttons carry the user's own names, shown as they are (not read as rich text); a sound effect with shortcut keys has them in its tooltip. The track choice and the buttons are in the order set on the setup screen |
 | Stacking order | Layer List (3.20) in a Card | Below the preview; the video in front is at the top |
 | How to edit | Description (Text 2) | "Drag a video to move it and drag its corners to resize it. Right-click for more." |
 
@@ -116,6 +117,18 @@ Pressing Go live or Record while Voice Lab is making a voice shows, in place of 
 | `live.record.problem.audio` | 音声なしで録画しています。 | Recording without audio. |
 | `live.audio.microphone` | マイク | Mic |
 | `live.audio.game` | ゲーム | Game |
+| `live.players.title` | BGM・効果音 | BGM and sound effects |
+| `live.players.bgm` | BGM | BGM |
+| `live.players.effects` | 効果音 | Sound effects |
+| `live.players.play` | 再生 | Play |
+| `live.players.stop` | 停止 | Stop |
+| `live.players.volume` | BGMの音量です。配信と録画、自分に聞こえる音のすべてに効きます。 | The BGM volume, for the stream, recordings, and what you hear. |
+| `live.players.effects-volume` | 効果音の音量です。配信と録画、自分に聞こえる音のすべてに効きます。 | The sound effects volume, for the stream, recordings, and what you hear. |
+| `live.players.stop-effects` | 効果音を停止 | Stop sound effects |
+| `live.players.no-bgm` | BGMは、設定画面の「音声」で追加します。 | Add BGM on the Audio page of Settings. |
+| `live.players.no-effects` | 効果音は、設定画面の「音声」で追加します。 | Add sound effects on the Audio page of Settings. |
+| `live.audio.music` | BGM | BGM |
+| `live.audio.sound-effect` | 効果音 | SE |
 | `live.audio.mute` | ミュート | Mute |
 | `live.audio.unmute` | ミュートを解除 | Unmute |
 | `stage.screen.game` | ゲーム画面 | Game screen |

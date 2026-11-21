@@ -104,6 +104,11 @@ public interface IStreamOutput
     int AvatarLayer { get; }                      // The Unity layer avatars use (Avatar); -1 before start
 }
 
+public interface IAvatarCamera
+{
+    void SetFraming(AvatarFraming? framing);      // how the avatar is shot (7.6); null follows the Main Camera
+}
+
 public interface IStreamScreenLayer
 {
     // Children's localPosition: x from 0 (left) to 1 (right), y from 0 (top) to 1 (bottom) is the stream
@@ -172,7 +177,7 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 |---|---|---|---|---|
 | 1 | Main Camera | Base, perspective | The stage (everything except the two layers below) | Background color |
 | 2 | Screen Camera | Overlay, orthographic | The flat video layer (`StreamScreens`) | Nothing |
-| 3 | Avatar Camera | Overlay, same position and field of view as the Main Camera | The avatar layer (`Avatar`) | Depth only |
+| 3 | Avatar Camera | Overlay, same position and field of view as the Main Camera; with an avatar frame, its framing (7.6) | The avatar layer (`Avatar`) | Depth only |
 
 - Flat videos go behind the avatar (the user's decision, 2026-10-17). The order is kept as a table so that choosing front or back per video can be added later.
 - The Screen Camera is not a child of the Main Camera. It sits at the origin with an orthographic projection and draws only the stream screen, so flat videos stay put when the Main Camera moves.
@@ -196,6 +201,14 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 
 - Until Camera Points exist, the Main Camera starts at (0, 1.25, -1.9), looking along +Z, with a vertical field of view of 30°: in front of an avatar at the default spawn point (the origin, Stage detailed design 7.1), framing its upper body. A narrow field of view keeps a close-up of the face free of wide-angle distortion.
 - The values are in `VideoSettings`; null leaves the camera as the scene put it. The original values are given back at shutdown.
+
+### 7.6 How the Avatar Is Shot (Avatar Camera)
+
+- Stage passes the framing it derives from the avatar frame (Stage detailed design 7.2) with `IAvatarCamera.SetFraming(AvatarFraming? framing)`. Null shoots from the Main Camera's position and field of view (7.2).
+- `AvatarFraming` holds the camera's world position and rotation and the projection's left, right, bottom, and top at distance 1 (a perspective projection with a shifted center).
+- With a framing, Video sets the Avatar Camera's world position, rotation, and `projectionMatrix` (`Matrix4x4.Frustum`, near 0.05 m, far 20 m) every frame. The Avatar Camera stays a child of the Main Camera; as it is set again every frame, the framing does not change when the Main Camera moves.
+- Removing the framing restores the projection with `ResetProjectionMatrix` and goes back to following the Main Camera.
+- The stage, backdrop, and flat videos are shot by the Main Camera and the Screen Camera, so they do not change.
 
 ---
 
@@ -262,6 +275,7 @@ The layers are drawn with the Universal Render Pipeline's camera stack.
 | EditMode | `ScreenLayerMath` (0-to-1 coordinates, aspect ratio), `StreamFrameMeter` (pure functions) |
 | PlayMode | A colored quad placed on the flat video layer is drawn at the right place in the Stream Render Target (pixels read back); the Main Camera clears with the background color |
 | PlayMode | At shutdown the target is removed and what was created is destroyed |
+| PlayMode | With a framing, something on the avatar layer is drawn at the frame's place (pixels read back); without it, it follows the Main Camera |
 
 ---
 

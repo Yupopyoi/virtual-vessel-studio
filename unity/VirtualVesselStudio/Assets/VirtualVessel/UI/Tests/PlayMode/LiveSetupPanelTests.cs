@@ -524,7 +524,7 @@ namespace VirtualVessel.UI.Tests
 
             public IReadOnlyObservable<CaptureFlip> Flip => _flip;
 
-            public IReadOnlyList<CaptureDevice> Devices { get; } = new[] { new CaptureDevice("Board A", "Board A"), new CaptureDevice("Board B", "Board B") };
+            public IReadOnlyList<CaptureDevice> Devices { get; set; } = new[] { new CaptureDevice("Board A", "Board A"), new CaptureDevice("Board B", "Board B") };
 
             public string SelectedDeviceId { get; private set; }
 

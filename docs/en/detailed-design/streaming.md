@@ -96,7 +96,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 - `Start` checks that a key is registered and opens the plugin. Connecting and encoding start on the plugin's threads; when `publish` is accepted, the state is `Live`.
 - A lost connection is `Reconnecting`, tried again after 1, 2, 4, 8, 15, 30 s, ... (at most 30 s apart). After 10 minutes of failures it is `Failed` and the user is told. Each reconnection starts again from a keyframe.
 - A failed stream never stops recording, the avatar, tracking, or capture (system design 10.16).
-- At shutdown a stream in progress sends what is queued and disconnects.
+- At shutdown a stream in progress sends what is queued and disconnects. Ending drains the video and audio encoders and sends the frames they still hold (a frame of lookahead video and the last partial AAC frame); without it the stream lost its last frame and about 60 ms of audio. The video drain gives up after 0.5 s.
 - The resolution, codec, destination, URL, and key cannot change while streaming (system design 10.15). The setup screen disables them then and says why.
 
 ## 8. Important Sequences
@@ -115,6 +115,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 ### 8.2 A Congested Connection
 
 - When the send queue holds more than 3 s, video frames are dropped until the next keyframe (audio is not dropped), so a slow connection does not keep adding delay. Dropped frames are counted, and the user is told the connection cannot keep up.
+- Only while a connection is published is anything queued. What is encoded while connecting, or between connections, would be thrown away when the next connection starts from a keyframe; queued, it filled the queue past 3 s on a slow handshake and was counted as frames the connection could not keep up with (one stream lost 157 frames in its first 9 s that way).
 - If the queue stays full (30 s), the user is advised to lower the bitrate. Lowering it automatically is in 17.
 
 ### 8.3 Destinations
@@ -190,7 +191,7 @@ Added to `Profiles/Streaming/<id>.json`, the streaming profile shared with recor
 
 | Kind | Target |
 |---|---|
-| Native (ctest) | FLV tags (AVC, AAC, Enhanced RTMP AV1), RTMP chunks and AMF0, the handshake, the queue and how frames are dropped when it is full, the reconnection intervals; that the key never appears in logs or error strings |
+| Native (ctest) | FLV tags (AVC, AAC, Enhanced RTMP AV1), RTMP chunks and AMF0, the handshake, the queue and how frames are dropped when it is full, the reconnection intervals; that the encoders give back every frame, the held ones by draining; that the key never appears in logs or error strings |
 | Native (integration) | On this PC, a few seconds sent to a local RTMP server (ffmpeg in listen mode, where it is on the developer's PATH), and the video and audio it received read back |
 | EditMode | `StreamingService`'s states (with a fake plugin), `StreamDestination`, settings and migration, `ICredentialStore` (a fake, and writing to and removing from Windows Credential Manager) |
 | PlayMode | The stream controls (start, the end confirmation, states, reconnecting) |

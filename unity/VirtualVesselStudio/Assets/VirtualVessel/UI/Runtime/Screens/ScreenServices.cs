@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using VirtualVessel.Audio;
+using VirtualVessel.Audio.Clips;
+using VirtualVessel.Audio.Playback;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
@@ -11,6 +13,7 @@ using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
+using VirtualVessel.UI.Shortcuts;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.Voice;
 using VirtualVessel.UI.VoiceLab;
@@ -30,6 +33,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The videos to place on the live screen (Stage).</summary>
         public IReadOnlyList<IFrameSource> FrameSources { get; set; } = Array.Empty<IFrameSource>();
+
+        /// <summary>The avatar's frame among them (Stage), so the face picture zooms about the avatar; null zooms about the stream's middle.</summary>
+        public IFrameSource AvatarFrame { get; set; }
 
         /// <summary>The capture sources (Capture); null says capture is unavailable.</summary>
         public ICaptureSources Captures { get; set; }
@@ -54,6 +60,19 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Playing samples to the user only (Audio), for Voice Lab's candidates; null leaves out the play buttons.</summary>
         public IAudioPreview AudioPreview { get; set; }
+
+        /// <summary>The registered BGM and SE (BGM and SE detailed design); null without them.</summary>
+        public IAudioClipLibrary AudioClips { get; set; }
+
+        public IBgmPlayer Bgm { get; set; }
+
+        public ISoundEffectPlayer SoundEffects { get; set; }
+
+        /// <summary>
+        /// The keys that play sound effects from any app (BGM and SE detailed design 8.3); null leaves out the
+        /// shortcut column.
+        /// </summary>
+        public IGlobalShortcuts Shortcuts { get; set; }
 
         /// <summary>Windows' own settings pages, such as microphone access; null leaves out the buttons that open them.</summary>
         public ISystemSettings SystemSettings { get; set; }

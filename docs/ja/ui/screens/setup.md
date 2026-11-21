@@ -16,7 +16,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 | ページ | Key | Card |
 |---|---|---|
 | 映像 | `setup.page.video` | 映像の取り込み（ゲーム画面、サブモニター） |
-| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、声の変換（13章、設計中） |
+| 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、BGM、効果音（14章）、声の変換（13章） |
 | アバター | `setup.page.avatar` | アバター（5章）、トラッキング（4章）、表情の調整（9章。アバターを使えるときだけ） |
 | 配信・録画 | `setup.page.output` | 録画（10章。録画を使えないときは「録画は使えません。」の一文）、配信（12章）
 | アプリ | `setup.page.app` | アプリの設定、クレジットとライセンス（8章） |
@@ -24,7 +24,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 - 最後に開いたページを`ui-settings.json`の`lastSetupPage`に保存し、次はそのページを開く（UI基盤詳細設計8.1）。知らない値のときは先頭のページを開く。
 - ページはすべて作っておき、開いているページだけを表示する。ページを切り替えても、Cardの状態は失われない。
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
-- Cardは基本的に折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。あまり使わない設定のCard（細かい設定など）は、どのページでも、折りたためるCard（`components.md` 3.10）にして閉じて始めてよい（利用者の決定、2026-11-03）。
+- Cardは基本的に折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。あまり使わない設定のCard（細かい設定など）は、どのページでも、折りたためるCard（`components.md` 3.10）にして閉じて始めてよい（利用者の決定、2026-11-03）。例外として、BGMと効果音のCard（14章）は、よく使うが一覧が長くなるため、開いて始まる折りたためるCardにする（利用者の決定、2026-11-20）。
 - 状態（Status Indicator）は、Cardのタイトル部分の右端に置く。問題の説明は本文の先頭に置く。
 
 ## 3. 映像の取り込みのCard
@@ -36,9 +36,9 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 状態 | Status Indicator（`components.md` 3.13） | 状態と、問題があればその説明（6章） |
 | 映像 | 画像（256×144、16:9に収める） | 取り込んだ映像を小さく表示し、選んだ機器が合っているか確かめられるようにする。映像がないときは「映像なし」 |
 | 取り込む | Toggle | オンで開始、オフで停止。開始していたかは保存し、次の起動で戻す |
-| 機器 | Dropdown | 見つかった機器。ゲーム画面は先頭に「カメラを選択」、サブモニターは先頭に「自動（メイン以外のモニター）」 |
-| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
-| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
+| 入力元（ゲーム画面のみ） | Dropdown（キャプチャーボード、このPCのウィンドウ） | ゲーム画面を何から取り込むか（Capture詳細設計8.6）。「このPCのウィンドウ」では、「機器」にこのPCで開いているウィンドウを、プログラムごとに1つ（いちばん大きいもの）並べる。選んでいる機器があれば、その種類を示す。種類を変えると、ほかの種類の機器の選択を外す。説明：「このPCで動かすゲームは「このPCのウィンドウ」で取り込みます。音声も、そのゲームの音だけを取り込みます。」 |
+| 機器 | Dropdown | 見つかった機器。ゲーム画面は先頭に「カメラを選択」（ウィンドウでは「ゲームのウィンドウを選択」）、サブモニターは先頭に「自動（メイン以外のモニター）」。ウィンドウは「タイトル (プログラム名)」と表示する。見つからないときは「機器が見つかりません」（ウィンドウでは「ウィンドウが見つかりません」） |
+| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。ウィンドウを選ぶと、それまでの音声の機器に関わらず、そのゲームの音だけ（「game.exe の音」、Audio詳細設計8.7）を選び、ウィンドウを選んでいる間は一覧にもそれを出す。モニターへは送らない。ゲームの音はPCから直接聞こえているので、送ると二重に聞こえる。キャプチャーボードに戻すと、モニターへ送る。音声がないときは行を置かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
 | 左右反転 | Toggle | 映像の向きを直す |
 | 上下反転 | Toggle | 映像の向きを直す |
@@ -66,7 +66,6 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 動きの速さ | Slider（1〜10、1刻み） | 平滑化の段階（Tracking詳細設計8.2）。説明：「大きくするほど動きが速く、小さくするほど揺れが少なくなります。」既定は5（2026-10-24に段階を2つ、さらに4つずらし、遅れ300ms程度までの安定な段階を5とした）。変えるとすぐに反映し、保存する |
 | 体の検出 | Segmented（軽量、標準） | Poseのモデル（Tracking詳細設計10章）。既定は標準。説明：「軽量は負荷が下がりますが、体のとらえ方が粗くなります。変えると、数秒かけて準備し直します。」トラッキング中に変えると、新しいモデルで開始し直す。保存する。Heavy（「高精度」）は出さない。利用者のカメラでは標準より悪くなった（2026-10-26） |
 | カメラ | Dropdown | 見つかった機器。先頭に「カメラを選択」。選ぶまでカメラは開かない |
-| 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。音声がないときは行を置かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
 
 ### 4.1 トラッキングの状態の表示
@@ -134,11 +133,13 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 |---|---|---|
 | 停止中 | Idle | 停止中 |
 | 機器を選ぶ必要がある | Warning | 停止中。説明：「機器でキャプチャーボードを選んでください。Webカメラで顔が映らないよう、カメラは自動では開きません。」 |
+| ウィンドウを選ぶ必要がある | Warning | 停止中。説明：「「機器」でゲームのウィンドウを選択してください。」 |
 | 開始中 | Idle | 開始中 |
 | 映像を待っている | Idle | 映像を待っています |
 | 信号がない | Warning | 映像を待っています。説明：「映像が届いていません。ゲーム機の電源とケーブル接続を確認してください。」 |
 | 取り込み中 | Success | 取り込み中 |
 | 機器が見つからない | Warning | 機器が見つかりません（探し続けています）。説明：「機器をつなぐと自動で探し直します。」 |
+| ウィンドウが見つからない | Warning | 機器が見つかりません（探し続けています）。説明：「ゲームを起動すると自動で探し直します。最小化しているウィンドウは見つかりません。」ゲームを閉じたときもこれになり、ゲームを起動し直すと自動で取り込みを始める |
 | トラッキングと同じカメラ | Error | 取り込めませんでした。説明：「同じカメラをトラッキングで使っています。別の機器を選んでください。」 |
 | 失敗 | Error | 取り込めませんでした。説明：「ほかのアプリが機器を使っている可能性があります。」 |
 
@@ -183,8 +184,8 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 |---|---|---|
 | 説明 | 説明文（Text 2） | 「トラッキングを動かし、アバターの動きを見ながら合わせます。値を大きくするほど、小さな動きで表情が出るようになります。各スライダーの下は、いまのアバターの動きです。」 |
 | 映像 | 画像（384×216、16:9） | 配信の映像の中央を拡大して表示する。表情を見やすくするため。映像がないときは「映像なし」 |
-| 映像の高さ | Slider（0〜100%、5%刻み）、映像の下 | 映像のどの高さを見せるか（0%が下端、100%が上端）。既定は85%（カメラの既定の位置で、平均的な身長のアバターの顔が入る所）。顔の位置はアバターの身長によるため、利用者が合わせる。保存はしない |
-| 拡大 | Slider（100〜400%、10%刻み）、映像の高さの下 | 映像をどれだけ拡大するか。100%で配信の映像全体、既定は220%。拡大の中心は映像の左右の中央で、映像の外は見せない。顔の大きさはアバターによるため、利用者が合わせる（利用者の要望、2026-10-21）。保存はしない |
+| 映像の高さ | Slider（0〜100%、5%刻み）、映像の下 | アバターの枠（Stage詳細設計7.2）のどの高さを見せるか（0%が枠の下端、100%が上端）。アバターがいなければ映像全体のどの高さか。既定は85%（カメラの既定の位置で、平均的な身長のアバターの顔が入る所）。顔の位置はアバターの身長によるため、利用者が合わせる。保存はしない |
+| 拡大 | Slider（100〜400%、10%刻み）、映像の高さの下 | どれだけ拡大するか。100%でアバターの枠の高さ全体（アバターがいなければ配信の映像全体）、既定は220%。左右は枠の中央を見せる。アバターを小さく置いても、端に置いても、枠を基準にするので顔を見失わない（利用者の指摘、2026-11-19）。見せる範囲は配信の映像と同じ形で、映像の外は見せない。顔の大きさはアバターによるため、利用者が合わせる（利用者の要望、2026-10-21）。保存はしない |
 | 照明の強さ | Slider（10〜150%、5%刻み）、拡大の下 | 舞台のライトの強さ（Stage詳細設計7.1）。100%が既定。説明（Caption）：「配信の照明も変わり、保存されます。」顔が白く飛ぶときに弱める（利用者の要望、2026-10-21）。顔を見ながら変えるため、映像の横に置く（利用者の決定、2026-10-21）。Stageがないときは置かない |
 | ウインク | Toggle | 片目だけを閉じられるか。説明：「オンにすると、片目だけを閉じられるようになります。顔を向けたときなどに片目が誤って閉じる場合はオフにしてください。」既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
 | 部位ごと | Slider（50〜300%、10%刻み）と、その下の帯 | 目の閉じやすさ、ウインクのしやすさ、眉の動き（驚き・怒り・悲しみ）、口の動き、視線の動き、笑顔の強さ。100%が既定。帯は、その部位のいまのアバターの動き（0〜100%）で、約50msごとに描き直す |
@@ -239,12 +240,12 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 
 ## 11. 音声のCard
 
-`IAudioService`（Audio）をミキサーの形で表示する（`AudioCard`、`components.md` 3.25）。音の元（マイク、ゲームの音声）とモニターを1行ずつ、同じ列に並べる。音の元が増えても、1行ずつ増えるだけで済む。詳細はAudio詳細設計18章。
+`IAudioService`（Audio）をミキサーの形で表示する（`AudioCard`、`components.md` 3.25）。音の元（マイク、ゲームの音声、BGM、効果音）とモニターを1行ずつ、同じ列に並べる。BGMと効果音は機器を持たず、デバイスの列は空ける（14章）。音の元が増えても、1行ずつ増えるだけで済む。詳細はAudio詳細設計18章。
 
 | 行 | 内容 |
 |---|---|
-| 音の元 | 名前と、状態のStatus Chip（オフ、開始中、動作中、ミュート中、見つかりません、使えません。形と文字で示す） |
-| デバイス | Select。先頭に「なし」。抜かれている機器は「接続されていないデバイス」として残す。ゲームの音声は、映像の取り込みのCardで選ぶ（3章）ので、ここでは無効にして機器の名前だけを見せる。モニターは出力先を選ぶ |
+| 音の元 | 名前と、状態のStatus Chip（オフ、開始中、動作中、ミュート中、未発見、使えません。形と文字で示す） |
+| デバイス | Select。先頭に「なし」。抜かれている機器は「接続されていないデバイス」として残す。このPCのゲームの音は「game.exe の音」と表示する。ゲームの音声は、映像の取り込みのCardで選ぶ（3章）ので、ここでは無効にして機器の名前だけを見せる。モニターは出力先を選ぶ |
 | 音量 | Slider、-60〜+12dB |
 | 聞く | Toggle。モニターの行にはない |
 | ノイズ除去 | Toggle。マイクの行だけ。既定はオン。声の変換を使わないときも効く（利用者の決定、2026-11-11。Audio詳細設計8.6）。ProjectのAudio Profileに保存する |
@@ -263,19 +264,22 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
 | `setup.audio.microphone` | マイク | Microphone |
 | `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.music` | BGM | BGM |
+| `setup.audio.sound-effect` | 効果音 | Sound effects |
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
 | `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.device.application` | {name} の音 | Sound of {name} |
 | `setup.audio.gain` | 音量 | Volume |
 | `setup.audio.mute` | ミュート | Mute |
 | `setup.audio.level` | レベル | Level |
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
-| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.not-found` | 未発見 | Not found |
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
@@ -409,3 +413,66 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
 | `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
+
+## 14. BGMと効果音のCard
+
+「音声」のページの、音声のCard（11章）の下に、BGMのCardと効果音のCardを置く（BGM・SE詳細設計。2026-11-17）。登録したファイルを1行ずつ、表（`components.md` 3.24）の形で並べる。どちらも折りたためるCard（`components.md` 3.10）で、開いて始まる。一覧が長くなるため、使わないほうを閉じられるようにする（画面全体の決まりの例外。利用者の決定、2026-11-20）。開閉は覚えない。
+
+| 列 | 内容 |
+|---|---|
+| 並べ替え | 行の先頭の「≡」の印（`text-3`、ボタンではなくLayer Listのつまみと同じ印）。つかんで上下にドラッグすると、その行を動かす。ドラッグ中は行を薄くし、落ちる位置にAccent Lineの線を出す（Layer List、`components.md` 3.20と同じ）。印はフォーカスを取らない。キーボードでは、行のボタンにフォーカスがあるとき`Ctrl`+上下キーで1つずつ動き、フォーカスは動かした行の同じボタンに残る（押せない状態なら名前の変更ボタン）（名前の入力中は動かさない）。並べた順はライブ画面のBGMの選択と効果音のボタンにも使う |
+| 再生 | Icon Button。BGMは押すと配信と録画で再生し、再生中は停止の形（■）に変わる。効果音は押すたびに頭から鳴らし、重ねて鳴る。読み込みが済むまでは無効で、ツールチップで読み込み中と伝える |
+| 名前 | 同梱のものは、名前を変えるまで画面の言語の名前を出す（`bgm-se.md` 6.3）。残りの幅を使い、収まらなければ「…」で省略し、ツールチップで全体を出す。BGMは再生中に「再生中」、再生できないときに「再生できません」のStatus Chipを名前の後に出す（形と文字で示す） |
+| 長さ | 分:秒、等幅、右寄せ。ファイルが長さを持たないときは空ける |
+| ループ | BGMだけ。Toggle。既定はオン。変更は次の再生から。説明は見出しの後のHelp Hint |
+| 音量 | Slider、-60〜+12 dB。そのファイルの音量で、ミキサーのBGMと効果音の行の音量とは別。再生中のBGMには、その場で反映する |
+| ショートカット | 効果音だけ。押すと「キーを押してください」になり、Accent Lineの枠で待つ。`Ctrl`、`Alt`、`Shift`のどれかと一緒に押したキーを割り当てる（どのアプリを使っていても鳴る。`bgm-se.md` 8.3）。単独のキーでは割り当てず、ツールチップで修飾キーが要ると伝える。`Esc`で取り消し、`Delete`か`Backspace`で外す。待っている間は、ほかのキーを受け取らない（Tabで離れず、`Esc`で抜ける）。キーは「Ctrl+Alt+1」のように等幅で出し、ないときは「なし」。ほかの効果音と同じキーは割り当てず、Cardの下に理由を出す。ほかのアプリがそのキーを持っているときは、名前の後に「キーをほかのアプリが使用中」のStatus Chip（警告の形と文字）を出す。説明は見出しの後のHelp Hint |
+| 操作 | 「名前を変更」（名前のあった場所で入力欄に替わり、「保存」になる。1〜60文字）、「削除」（確認のダイアログの後。元のファイルは残る）。再生中のBGMの「削除」は無効にし、ツールチップで理由を出す |
+
+- Cardの下に「ファイルを追加…」を置く。ファイルの選択の画面ではWAVとMP3を選べる。選んだファイルを確かめ、登録できないときはCardの下にその理由を出す（形式が違う、読み込めない、効果音が30秒を超える、保存できない）。名前はファイルの名前で登録し、後から変更できる。
+- 効果音のCardのタイトルの右端に「効果音を停止」を置き、鳴っている効果音をすべて止める。
+- 登録がないときは、何を追加すればよいかの一文を出す。
+- ミキサー（11章）には、BGMと効果音の行が加わる。機器を持たないので、デバイスの列は空ける。ノイズ除去の列も空ける。「聞く」は既定でオン。
+- ライブ画面の音声の表示（`live.md`）にも、BGMと効果音が加わる。BGMは音符、効果音はスピーカーの形のアイコンで、ミュート中は斜線が入る。
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.bgm.title` | BGM | BGM |
+| `setup.se.title` | 効果音 | Sound effects |
+| `setup.clips.name` | 名前 | Name |
+| `setup.clips.length` | 長さ | Length |
+| `setup.clips.loop` | ループ | Loop |
+| `setup.clips.loop.description` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
+| `setup.clips.gain` | 音量 | Volume |
+| `setup.clips.add` | ファイルを追加… | Add a file… |
+| `setup.clips.rename` | 名前を変更 | Rename |
+| `setup.clips.save` | 保存 | Save |
+| `setup.clips.delete` | 削除 | Delete |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
+| `setup.clips.name.required` | 名前を入力してください | Enter a name |
+| `setup.clips.filter` | 音声ファイル | Audio files |
+| `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |
+| `setup.bgm.stop` | このBGMを停止します。 | Stops this BGM. |
+| `setup.bgm.playing` | 再生中 | Playing |
+| `setup.bgm.failed` | 再生できません | Cannot play |
+| `setup.bgm.empty` | BGMはまだ登録されていません。WAVかMP3のファイルを追加してください。 | No BGM yet. Add a WAV or MP3 file. |
+| `setup.bgm.delete.title` | BGMの削除 | Delete the BGM |
+| `setup.bgm.delete.body` | このBGMを削除します。追加した元のファイルは削除されません。 | This BGM is deleted. The file it was added from is not. |
+| `setup.se.play` | この効果音を配信と録画で再生します。 | Plays this sound effect on the stream and in recordings. |
+| `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
+| `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
+| `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.shortcut` | ショートカット | Shortcut |
+| `setup.se.shortcut.description` | クリックしてから、割り当てるキーを押してください。<br>Ctrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。<br>Deleteキーでショートカットキーを解除できます。 | Click this, then press the keys to assign.<br>Only combinations with Ctrl, Alt, or Shift can be registered.<br>Press Delete to remove the shortcut keys. |
+| `setup.se.shortcut.none` | なし | None |
+| `setup.se.shortcut.press` | キーを押してください | Press keys |
+| `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |
+| `setup.se.shortcut.taken` | このキーはほかの効果音で使っています。別のキーを選んでください。 | Another sound effect uses these keys. Choose other keys. |
+| `setup.se.shortcut.held-elsewhere` | キーをほかのアプリが使用中 | Keys used by another app |
+| `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
+| `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
+| `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |
+| `setup.clips.problem.unsupported` | WAVかMP3のファイルを選択してください。 | Choose a WAV or MP3 file. |
+| `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
+| `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
+| `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |

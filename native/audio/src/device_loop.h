@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include <audioclient.h>
+#include <mmreg.h>
 #include <wrl/client.h>
 
 #include <atomic>
@@ -22,9 +23,14 @@ namespace vv::audio
         return static_cast<int32_t>(time * rate / 10000000);
     }
 
+    // The engine's format: 48 kHz float stereo. Pure.
+    WAVEFORMATEXTENSIBLE FloatStereo();
+
     // Opens the endpoint in shared mode with event wakes on `events`. Every result is checked: without an
-    // audio service (a server), calls can succeed and still give nothing.
-    HRESULT OpenSharedClient(const std::wstring& deviceId, REFERENCE_TIME bufferDuration, HANDLE events, Microsoft::WRL::ComPtr<IAudioClient>& client);
+    // audio service (a server), calls can succeed and still give nothing. An application ID ("app:game.exe",
+    // audio detailed design 8.7) opens that program's sound instead; `ended` then receives a handle signaled when
+    // the program exits, for the caller to close. It stays null for a device.
+    HRESULT OpenSharedClient(const std::wstring& deviceId, REFERENCE_TIME bufferDuration, HANDLE events, Microsoft::WRL::ComPtr<IAudioClient>& client, HANDLE* ended = nullptr);
 
     class DeviceLoop
     {

@@ -923,8 +923,15 @@ public interface IFrameSource
     IReadOnlyObservable<FrameLayout> Layout { get; }   // 確定した配置（Runtime State）
     void PreviewLayout(FrameLayout layout);            // LayoutChanging：ドラッグの各段階
     Task CommitLayoutAsync(FrameLayout layout, CancellationToken cancellationToken);  // LayoutCommitted
+    bool CanStopCapture => false;                      // 取り込みを止められるか（Delとメニュー）
+    void StopCapture() { }
+    bool StaysInFront => false;                        // 常に一番手前。重なり順を変えられない（アバターの枠、Stage詳細設計7.2）
+    bool CanFlip => true;                              // 左右反転できるか
 }
 ```
+
+- `StaysInFront`の枠は、重なり順の一覧で一番上に固定し、手前へ・奥へとドラッグでの並べ替えを受け付けない。ほかの枠の`Order`の振り直しにも入れない。`Order`はStageが一番手前の値に保つので、当たり判定は変えなくてよい。
+- `CanFlip`がfalseの枠では、左右反転（Menuと`H`）を使えない。
 
 - 確定は`CommandRunner`で実行する。Stageが`UserFacingException`で拒否した場合は、その文をNotificationで表示する。確定の成否にかかわらず、終わったら`Layout`の値を表示する。拒否された場合は元の配置に戻る。
 - 確定を待つ間は、操作した配置を表示し続ける。確定より後に新しい操作が始まった場合は、その操作の表示を優先する。

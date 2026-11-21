@@ -26,7 +26,7 @@ Not in this design: a virtual microphone (system design 9.4).
 - The engine runs in native code: capture, the stages that are native (gain, mute, limiter, later EQ), the mix, the buses. Managed code adds and removes sources, sets their stages and sends, and reads levels a few times a second.
 - A stage that must run in Unity (RVC on Inference Engine, system design 9.5) is not moved into native code. It reads its source's audio from the engine and writes the result back through the managed stage bridge (8.3); its latency is declared, and the mix aligns the other sources to it (8.4).
 - Other modules see `IAudioService`, the stage bridge, and the stream tap (5.3), never WASAPI types.
-- Capture's capture board source stays video only; its audio device is chosen here as the "game audio" source (system design 10.21: capture audio is routed through Audio).
+- Capture's capture board source stays video only; its audio device is chosen here as the "game audio" source (system design 10.21: capture audio is routed through Audio). A game on this PC is the same: Capture takes its window, and its sound is the game audio source's, from that program (8.7).
 - Voice (RVC) depends on Audio, not the other way round.
 
 ## 4. Main Classes and Interfaces
@@ -206,6 +206,14 @@ The prototype's results are in the [decision record](../decisions/voice-conversi
 - RNNoise's state is made under the engine's lock the first time it is turned on; the capture thread does not allocate (9). Turned off, the frames waiting to make up 10 ms are passed on as they are.
 - When voice conversion plays an audio file in place of the microphone (Diagnostics), Voice cleans the file the same way when the microphone's setting is on (`IAudioStage.Denoises`, `Denoise`), so it sounds as the microphone would.
 
+### 8.7 A Program's Sound (a Game on This PC)
+
+- The sound of a game on this PC is taken from that program alone, through Windows' process loopback (Windows 11; `ActivateAudioInterfaceAsync` with `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`), apart from the browser, notifications, and anything else the PC plays. It comes with the game's window as the video (Capture detailed design 8.6; the user's request, 2026-10-31; built 2026-11-20).
+- It is not a new kind of source: the game audio's device ID is `app:` and the program's file name, such as `app:game.exe` (`AudioApplication`, API version 12). Where a device would be opened, `OpenSharedClient` opens the program's sound instead, in shared mode as 48 kHz float stereo with event wakes, so the capture thread, the mix, and the sends are the same as a device's.
+- The process taken is the one that shows the program's largest window, as Capture chooses the window, followed up through the processes of the same file name that started it; without a window, the first one of that file name that was not started by another of the same name. Its tree comes with it (`PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE`), so a game's helper processes, and a browser's helper that plays a page's sound, are included.
+- When the program is not running, the source is `Unavailable`, and its thread tries again every second, as for an unplugged device. The loopback goes quiet when the program exits, without failing, so the thread also waits on the process and ends the capture when it exits.
+- The PC plays the game's sound to the user already, so sending it to the monitor too would be heard twice: choosing a window on the setup screen sets the game audio's monitor send to none, and going back to a capture board sets it again (setup screen 3).
+
 ## 9. Threading
 
 - One capture thread per device source and one mix thread, native, at above-normal priority (MMCSS "Audio"). No allocation, no lock held while waiting, and no logging on them; counters only.
@@ -233,7 +241,9 @@ The prototype's results are in the [decision record](../decisions/voice-conversi
 - `streamDelayMs` (8.5) was added in schema version 1 without a step: a file without it reads as 300.
 - A source's `denoise` (8.6) was also added in schema version 1 without a step: a file without it reads as on for the microphone and off for the others.
 - `monitor` and the `monitor` send were added the same way. A file without `monitor` starts on Windows' default output, and a source without the send is heard only if it is the game audio. A `deviceId` of null is the user's choice of none, and stays.
+- The BGM and SE sources (`music`, `soundEffect`) have no device; a file without them gets them with defaults ([BGM and SE detailed design](bgm-se.md) 6.2).
 - The microphone defaults to Windows' default input device on first use; the game audio has no default (a capture board must be chosen).
+- A `deviceId` of `app:` and a program's file name is that program's sound (8.7). It was added in schema version 1 without a step: an older version of the application does not find such a device and leaves the source unavailable.
 - `ProfileKind` gains `Audio`.
 
 ## 11. Storage
@@ -261,6 +271,7 @@ Settings only (10). No audio is stored by this module; recordings are written by
 |---|---|
 | Native (ctest) | The mix with synthetic signals: gains, mute, sends, limiting, drift correction, ring buffers, the tap's timing, the monitor bus (its own sends and volume, and no delay), a delayed stage and the alignment of the others. Audio files: a written WAV's rate and mono mix, and a missing file |
 | EditMode | `AudioService` with a fake engine: sources from the profile, adding and removing, device loss and return, settings and migration. `AudioFile` (skipped without the plugin) |
+| Native (this PC) | A program's sound: a copy of the test under another name plays a tone, the source with `app:` and its name runs and hears it (about -6 dB), and is unavailable once the program has exited. Program IDs and choosing the process (pure) |
 | Hardware (manual) | A real microphone and capture board: levels, unplugging, the recording's sync (recording detailed design 14) |
 
 ## 15. Performance
@@ -272,10 +283,10 @@ Settings only (10). No audio is stored by this module; recordings are written by
 ## 16. Directory / Namespace
 
 ```text
-native/audio/include/vv_audio.h        The C API (version 8: audio files)
+native/audio/include/vv_audio.h        The C API (version 12: a program's sound as a device, 8.7)
 native/audio/src/                      mixer (the mix, the buses, the tap; no threads or devices), frame_ring, fill_tracker (a ring between two clocks),
                                        dsp (gains, limiter), device_loop (a device's thread, WASAPI shared mode), device_source (capture),
-                                       device_output (the monitor's playback), audio_file (reading files with Media Foundation), exports (the engine and its mix thread)
+                                       device_output (the monitor's playback), application_loopback (a program's sound, 8.7), audio_file (reading files with Media Foundation), exports (the engine and its mix thread)
 native/audio/tests/                    The mix, drift, and timing with synthetic signals; this PC's devices (skipped on CI)
 Audio/Runtime/                         IAudioService, AudioService, AudioSettings, NativeAudioEngine (IAudioEngine), AudioFile, IAudioPreview
 Audio/Tests/EditMode/
@@ -289,9 +300,9 @@ A new module `VirtualVessel.Audio` (system design 2.4); UI references Audio, as 
 1. The microphone and the game's audio, gain and mute, the stream bus, levels, settings (this version).
 2. The monitor bus: game audio and later BGM and SE on the user's headphones, with their own sends (system design 9.4). Done.
 3. Voice conversion as a managed stage on the microphone (8.3), and the stream video delayed to match (8.4).
-4. Clip players for BGM and SE, with their files in the Data Root.
+4. Clip players for BGM and SE, with their files in the Data Root. See the [BGM and SE detailed design](bgm-se.md).
 
-Not a requirement yet, but the user wants it (2026-10-31): taking a game's sound on the same PC without a capture board (application audio loopback). When it is added: it comes as a new `AudioSourceInput`. Its sound already reaches the user directly from the game, so sending it to the monitor would be heard twice, and its default send must be none. For the video, see the open issues of `capture.md`.
+Taking a game's sound on the same PC without a capture board (application audio loopback), which the user asked for (2026-10-31), was built on 2026-11-20 (8.7). It came as the game audio source's device rather than a new `AudioSourceInput`, so the mix and the settings stayed as they were; its monitor send is none, since the PC plays it already.
 
 ## 18. UI
 
@@ -310,6 +321,6 @@ A Card on the setup screen's Audio page. As a mixer, it has a row each for the s
 Under a row, what happened and what to do, as for capture. When Windows denies microphone access, an "Open microphone privacy settings" button (`ms-settings:privacy-microphone`). Hear and Noise removal are explained in Help Hints after their headings (components 3.28). Under the table, the stream and recording audio delay (Slider, 0 to 1000 ms in 10 ms steps; 8.5).
 
 - Devices are listed again every 5 seconds while the Card is shown, so a device plugged in can be chosen.
-- The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays. The UI holds this link, so that Capture and Audio stay unconnected.
+- The game audio's device is chosen on the game capture Card (`GameAudioRow`). Only without that Card is it chosen on the audio Card. Video and sound come from the same capture board, so both can be settled where the video device is chosen (user request, 2026-10-31). Choosing a video device chooses the input device whose name contains it (ignoring spaces, symbols, and case), because Windows names a board's sound after the board, as in "Digital Audio Interface (MiraBox Capture)". Choosing a game's window always chooses that program's sound (`window:game.exe` gives `app:game.exe`, 8.7), shown as "Sound of game.exe" and listed among the choices, with no monitor send. It changes only when no audio device is chosen or the chosen one belonged to the previous video device; one the user chose apart stays, and a window's sound does not stay without its window. The UI holds this link, so that Capture and Audio stay unconnected.
 - After the sources comes the "Monitor" row: the output Select ("None" first), the volume, mute, and the level. Its state shows as a source's does.
 - On the live screen, under the record control, each source's mute IconButton (the crossed-out microphone when muted), its name, and a compact meter, so the user sees that sound is going in while recording (`live.md`).

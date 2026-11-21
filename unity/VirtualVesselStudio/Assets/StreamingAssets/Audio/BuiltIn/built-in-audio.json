@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "clips": [
+    {
+      "id": "bgm-cute-pop",
+      "kind": "bgm",
+      "file": "bgm/cute-pop.wav",
+      "names": {
+        "ja": "サンプル１（ポップ）",
+        "en": "Sample 1 (Pop)"
+      }
+    },
+    {
+      "id": "bgm-mellow-lofi",
+      "kind": "bgm",
+      "file": "bgm/mellow-lofi.wav",
+      "names": {
+        "ja": "サンプル２（ローファイ）",
+        "en": "Sample 2 (Lo-fi)"
+      }
+    },
+    {
+      "id": "bgm-recorder-waltz",
+      "kind": "bgm",
+      "file": "bgm/recorder-waltz.wav",
+      "names": {
+        "ja": "サンプル３（ワルツ）",
+        "en": "Sample 3 (Waltz)"
+      }
+    },
+    {
+      "id": "bgm-chat-time",
+      "kind": "bgm",
+      "file": "bgm/chat-time.wav",
+      "names": {
+        "ja": "サンプル４（チル）",
+        "en": "Sample 4 (Chill)"
+      }
+    },
+    {
+      "id": "bgm-chiptune",
+      "kind": "bgm",
+      "file": "bgm/chiptune.wav",
+      "names": {
+        "ja": "サンプル５（チップチューン）",
+        "en": "Sample 5 (Chiptune)"
+      }
+    },
+    {
+      "id": "bgm-night-lofi",
+      "kind": "bgm",
+      "file": "bgm/night-lofi.wav",
+      "names": {
+        "ja": "サンプル６（ローファイ）",
+        "en": "Sample 6 (Lo-fi)"
+      }
+    },
+    {
+      "id": "bgm-toy-box",
+      "kind": "bgm",
+      "file": "bgm/toy-box.wav",
+      "names": {
+        "ja": "サンプル７（マーチ）",
+        "en": "Sample 7 (March)"
+      }
+    },
+    {
+      "id": "se-chime",
+      "kind": "soundEffect",
+      "file": "se/chime.wav",
+      "names": {
+        "ja": "ピンポーン",
+        "en": "Chime"
+      }
+    },
+    {
+      "id": "se-wrong",
+      "kind": "soundEffect",
+      "file": "se/wrong.wav",
+      "names": {
+        "ja": "ブブー",
+        "en": "Wrong"
+      }
+    },
+    {
+      "id": "se-pop",
+      "kind": "soundEffect",
+      "file": "se/pop.wav",
+      "names": {
+        "ja": "ポコッ",
+        "en": "Bloop"
+      }
+    },
+    {
+      "id": "se-sparkle",
+      "kind": "soundEffect",
+      "file": "se/sparkle.wav",
+      "names": {
+        "ja": "キラキラ１",
+        "en": "Sparkle 1"
+      }
+    },
+    {
+      "id": "se-correct",
+      "kind": "soundEffect",
+      "file": "se/correct.wav",
+      "names": {
+        "ja": "キラキラ２",
+        "en": "Sparkle 2"
+      }
+    },
+    {
+      "id": "se-drumroll",
+      "kind": "soundEffect",
+      "file": "se/drumroll.wav",
+      "names": {
+        "ja": "ドラムロール",
+        "en": "Drumroll"
+      }
+    },
+    {
+      "id": "se-whoosh",
+      "kind": "soundEffect",
+      "file": "se/whoosh.wav",
+      "names": {
+        "ja": "シュッ",
+        "en": "Whoosh"
+      }
+    },
+    {
+      "id": "se-laser",
+      "kind": "soundEffect",
+      "file": "se/laser.wav",
+      "names": {
+        "ja": "ピュン",
+        "en": "Laser"
+      }
+    },
+    {
+      "id": "se-boing",
+      "kind": "soundEffect",
+      "file": "se/boing.wav",
+      "names": {
+        "ja": "ボヨン",
+        "en": "Boing"
+      }
+    },
+    {
+      "id": "se-coin",
+      "kind": "soundEffect",
+      "file": "se/coin.wav",
+      "names": {
+        "ja": "コイン",
+        "en": "Coin"
+      }
+    },
+    {
+      "id": "se-applause",
+      "kind": "soundEffect",
+      "file": "se/applause.wav",
+      "names": {
+        "ja": "拍手",
+        "en": "Applause"
+      }
+    }
+  ]
+}

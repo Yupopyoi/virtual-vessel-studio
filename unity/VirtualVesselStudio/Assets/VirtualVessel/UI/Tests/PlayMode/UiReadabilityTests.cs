@@ -47,11 +47,23 @@ namespace VirtualVessel.UI.Tests
                 Streaming = new StreamPanelTests.FakeStreaming(),
                 Audio = new AudioPanelTests.FakeAudio(),
                 SystemSettings = new AudioPanelTests.FakeSettings(),
+                AudioClips = Clips(),
+                Bgm = new AudioClipCardTests.FakeBgm(),
+                SoundEffects = new AudioClipCardTests.FakeEffects(),
                 Voice = voice,
                 VoiceLab = new FakeLab(),
                 VoiceLabLibrary = new FakeLibrary(),
             }));
             yield return null;
+        }
+
+        // A BGM and an SE, so their Cards' rows are checked too.
+        private static AudioClipCardTests.FakeClips Clips()
+        {
+            var clips = new AudioClipCardTests.FakeClips();
+            clips.Add(VirtualVessel.Audio.Clips.AudioClipKind.Bgm, "bgm-1", "A long name for a gentle waltz on a recorder", 95);
+            clips.Add(VirtualVessel.Audio.Clips.AudioClipKind.SoundEffect, "se-1", "Ding", 2);
+            return clips;
         }
 
         [UnityTearDown]

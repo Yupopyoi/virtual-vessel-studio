@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio;
+using VirtualVessel.Capture;
 using VirtualVessel.Core.State;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Controls;
@@ -108,6 +109,16 @@ namespace VirtualVessel.UI.Tests
         }
 
         [Test]
+        public void TheGameAudioRow_IsLeftOut_WhenAudioDidNotStart()
+        {
+            // A plugin of another version left audio without sources, and the whole setup screen failed to build.
+            Assert.That(GameAudioRow.CanShow(_audio), Is.True);
+            _audio.Started = false;
+            Assert.That(GameAudioRow.CanShow(_audio), Is.False);
+            Assert.That(GameAudioRow.CanShow(null), Is.False);
+        }
+
+        [Test]
         public void Find_MatchesTheVideoDevicesName_InsideTheAudioDevicesName()
         {
             var devices = new[]
@@ -122,6 +133,12 @@ namespace VirtualVessel.UI.Tests
             Assert.That(GameAudioRow.Find(devices, null), Is.Null);
         }
 
+        // A video device as the capture Card hands it over; null for none.
+        private static CaptureDevice Video(string id, string name)
+        {
+            return id == null ? null : new CaptureDevice(id, name);
+        }
+
         [Test]
         public void Follow_KeepsAChoiceThatIsTheUsersOwn()
         {
@@ -132,10 +149,54 @@ namespace VirtualVessel.UI.Tests
                 new AudioDevice("b", "Audio (Board B)", false),
             };
 
-            Assert.That(GameAudioRow.Follow(devices, string.Empty, null, "Board A"), Is.EqualTo("a"), "Nothing chosen yet.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Board B"), Is.EqualTo("b"), "It followed the old board.");
-            Assert.That(GameAudioRow.Follow(devices, "line", "Board A", "Board B"), Is.EqualTo("line"), "Chosen on purpose.");
-            Assert.That(GameAudioRow.Follow(devices, "a", "Board A", "Webcam"), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, Video(null, null), Video("Board A", "Board A")), Is.EqualTo("a"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("Board B", "Board B")), Is.EqualTo("b"), "It followed the old board.");
+            Assert.That(GameAudioRow.Follow(devices, "line", Video("Board A", "Board A"), Video("Board B", "Board B")), Is.EqualTo("line"), "Chosen on purpose.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("Webcam", "Webcam")), Is.EqualTo("a"), "No sound for the new one: nothing to go to.");
+        }
+
+        [Test]
+        public void Follow_TakesAWindowsOwnSound_AndLetsItGoWithTheWindow()
+        {
+            var devices = new[]
+            {
+                new AudioDevice("line", "Line In", false),
+                new AudioDevice("a", "Audio (Board A)", false),
+            };
+
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("Board A", "Board A"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "From a board to a game's window.");
+            Assert.That(GameAudioRow.Follow(devices, string.Empty, Video(null, null), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "Nothing chosen yet.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video("window:other.exe", "Other (other.exe)")), Is.EqualTo("app:other.exe"), "From window to window.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video("Board A", "Board A")), Is.EqualTo("a"), "Back to a board.");
+            Assert.That(GameAudioRow.Follow(devices, "app:game.exe", Video("window:game.exe", "My Game (game.exe)"), Video(null, null)), Is.Null, "A window's sound does not stay without it.");
+            Assert.That(GameAudioRow.Follow(devices, "line", Video("Board A", "Board A"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "A window always brings its own sound.");
+            Assert.That(GameAudioRow.Follow(devices, "a", Video("window:old.exe", "Old (old.exe)"), Video("window:game.exe", "My Game (game.exe)")), Is.EqualTo("app:game.exe"), "Even when a board's sound was left from before (2026-11-20).");
+        }
+
+        [Test]
+        public void ChoicesFor_OffersTheWindowsOwnSound()
+        {
+            var devices = new[] { new AudioDevice("a", "Audio (Board A)", false) };
+
+            Assert.That(GameAudioRow.ChoicesFor(devices, "Board A", "unused").Select(d => d.Id), Is.EqualTo(new[] { "a" }));
+            Assert.That(GameAudioRow.ChoicesFor(devices, "window:game.exe", "Sound of game.exe").Select(d => d.Id), Is.EqualTo(new[] { "a", "app:game.exe" }));
+            Assert.That(GameAudioRow.ChoicesFor(devices, "window:game.exe", "Sound of game.exe").Last().Name, Is.EqualTo("Sound of game.exe"));
+        }
+
+        [Test]
+        public void MonitoredAfter_LeavesOutAGameOnThisPc_WhichThePcPlaysAlready()
+        {
+            Assert.That(GameAudioRow.MonitoredAfter(true, "a", "app:game.exe"), Is.False, "Heard twice otherwise.");
+            Assert.That(GameAudioRow.MonitoredAfter(false, "app:game.exe", "a"), Is.True, "A board is heard through the monitor.");
+            Assert.That(GameAudioRow.MonitoredAfter(false, "a", "b"), Is.False, "Between boards the user's choice stays.");
+            Assert.That(GameAudioRow.MonitoredAfter(true, "a", "b"), Is.True);
+        }
+
+        [Test]
+        public void UnlistedName_NamesAProgramsSound()
+        {
+            Assert.That(AudioCard.UnlistedName(null, "app:game.exe"), Is.EqualTo("game.exe"));
+            Assert.That(AudioCard.UnlistedName(null, "{gone}"), Is.EqualTo(AudioStrings.MissingDevice));
         }
 
         [UnityTest]
@@ -156,6 +217,65 @@ namespace VirtualVessel.UI.Tests
 
             row.Devices.value = string.Empty;
             Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "It can be chosen by hand here too.");
+        }
+
+        [UnityTest]
+        public IEnumerator AWindowChosenBefore_OffersItsOwnSound_InTheAudioRow()
+        {
+            // As the user found it (2026-11-20): the window saved as the game screen, the board's sound left over.
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture)
+            {
+                Devices = new[] { new CaptureDevice("window:undertale.exe", "UNDERTALE (undertale.exe)") },
+            };
+            video.SelectDevice("window:undertale.exe");
+            _audio.Game.SetOptions(_audio.Game.Options.Value.WithDevice("board").WithMonitored(true));
+            var row = new GameAudioRow(_audio);
+            _root.Content.Add(new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row, offersWindows: true));
+            yield return null;
+            Assert.That(row.Devices.Choices.Select(c => c.Id), Does.Contain("app:undertale.exe"));
+
+            row.Devices.value = "app:undertale.exe";
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("app:undertale.exe"));
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.False, "Chosen by hand, it is not heard twice either.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheGameCaptureCard_OffersWindowsOnThisPc_WithTheGamesOwnSound()
+        {
+            var video = new LiveSetupPanelTests.FakeDeviceSource("game", VirtualVessel.Capture.CaptureSourceKind.GameCapture)
+            {
+                Devices = new[] { new CaptureDevice("Board A", "Board A"), new CaptureDevice("window:game.exe", "My Game (game.exe)") },
+            };
+            _audio.Game.SetOptions(_audio.Game.Options.Value.WithMonitored(true));
+            var row = new GameAudioRow(_audio);
+            var card = new CaptureSourceCard(video, CaptureStrings.GameTitle, CaptureStrings.ChooseCamera, row, offersWindows: true);
+            _root.Content.Add(card);
+            yield return null;
+            Assert.That(card.Input.value, Is.EqualTo(CaptureSourceCard.BoardInput), "Capture boards at first.");
+            Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "Board A" }));
+
+            // The board first, as a user who had one: its sound must not stay once a window is chosen (2026-11-20).
+            card.Devices.value = "Board A";
+            yield return null;
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("board"));
+
+            card.Input.value = CaptureSourceCard.WindowInput;
+            yield return null;
+            Assert.That(video.SelectedDeviceId, Is.Null, "The board is let go.");
+            Assert.That(card.Devices.Choices.Select(c => c.Id), Is.EqualTo(new[] { string.Empty, "window:game.exe" }), "Only the windows.");
+
+            card.Devices.value = "window:game.exe";
+            yield return null;
+            Assert.That(video.SelectedDeviceId, Is.EqualTo("window:game.exe"));
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.EqualTo("app:game.exe"), "The game's own sound.");
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.False, "The PC plays it already; not heard twice.");
+            Assert.That(row.Devices.Choices.Last().Id, Is.EqualTo("app:game.exe"));
+
+            card.Input.value = CaptureSourceCard.BoardInput;
+            yield return null;
+            Assert.That(video.SelectedDeviceId, Is.Null, "A window is let go for a board to be chosen.");
+            Assert.That(_audio.Game.Options.Value.DeviceId, Is.Null, "Its sound goes with it.");
+            Assert.That(_audio.Game.Options.Value.Monitored, Is.True, "A board is heard through the monitor again.");
         }
 
         [UnityTest]
@@ -446,7 +566,10 @@ namespace VirtualVessel.UI.Tests
 
             public FakeSource Game { get; }
 
-            public IReadOnlyList<IAudioSource> Sources => new IAudioSource[] { Microphone, Game };
+            /// <summary>False as for an audio service that did not start: it has no sources.</summary>
+            public bool Started { get; set; } = true;
+
+            public IReadOnlyList<IAudioSource> Sources => Started ? new IAudioSource[] { Microphone, Game } : Array.Empty<IAudioSource>();
 
             public IReadOnlyObservable<IReadOnlyList<AudioDevice>> InputDevices => _devices;
 

@@ -16,7 +16,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | Page | Key | Cards |
 |---|---|---|
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
-| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), voice conversion (chapter 13, being designed) |
+| Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), BGM, sound effects (chapter 14), voice conversion (chapter 13) |
 | Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
 | Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
@@ -24,7 +24,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
-- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03).
+- Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03). As an exception, the BGM and the sound effects Cards (section 14) are collapsible Cards that start open, as they are used often but their lists grow long (user decision, 2026-11-20).
 - The state (Status Indicator) sits at the right end of the Card's title band. The explanation of a problem comes first in the body.
 
 ## 3. Capture Card
@@ -36,8 +36,9 @@ One per capture source, showing `ICaptureDeviceSource` (Capture) directly.
 | State | Status Indicator (`components.md` 3.13) | The state, and an explanation when there is a problem (chapter 6) |
 | Video | Image (256×144, fitted to 16:9) | The captured video, small, to check that the chosen device is the right one; "No video" when there is none |
 | Capture | Toggle | On starts, off stops. Whether it was started is saved and restored at the next start |
-| Device | Dropdown | The devices found. The game screen starts with "Choose a camera", the sub monitor with "Automatic (not the main monitor)" |
-| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Left out when audio is not available |
+| Input (game screen only) | Dropdown (Capture board, A window on this PC) | What the game screen is taken from (Capture detailed design 8.6). With "A window on this PC", Device lists the windows open on this PC, one per program (its largest). A chosen device shows its kind. Changing the kind lets go of a device of the other kind. Explanation: "A game running on this PC is taken from its window under "A window on this PC". Only that game's sound is taken with it." |
+| Device | Dropdown | The devices found. The game screen starts with "Choose a camera" ("Choose the game's window" for windows), the sub monitor with "Automatic (not the main monitor)". A window shows as "Title (program)". With none found, "No device found" ("No window found" for windows) |
+| Audio (game screen only) | Dropdown | The audio device the game's sound comes from (`GameAudioRow`). The same setting as the game audio's device on the Audio Card (section 11); either place changes it. Choosing a video device chooses the audio device whose name matches. Choosing a window chooses only that game's sound ("Sound of game.exe", Audio detailed design 8.7) whatever audio device was chosen before, and lists it among the choices while a window is chosen, and does not send it to the monitor: the PC plays the game's sound already, so it would be heard twice. Back on a capture board it is sent to the monitor again. Left out when audio is not available |
 | Device list | Button (Secondary) "Search again" | Lists the devices again |
 | Flip left and right | Toggle | Corrects the video's orientation |
 | Flip top and bottom | Toggle | Corrects the video's orientation |
@@ -132,11 +133,13 @@ Shape, color, and text are always combined (`design-system.md` 3.4).
 |---|---|---|
 | Stopped | Idle | Stopped |
 | A device must be chosen | Warning | Stopped. Explanation: "Choose the capture board under Device. A camera is never opened by itself, so a webcam does not show you by mistake." |
+| A window must be chosen | Warning | Stopped. Explanation: "Choose the game's window under "Device"." |
 | Starting | Idle | Starting |
 | Waiting for video | Idle | Waiting for video |
 | No signal | Warning | Waiting for video. Explanation: "No video is arriving. Check the game device's power and cable connection." |
 | Capturing | Success | Capturing |
 | Device not found | Warning | Device not found; still looking. Explanation: "Connect the device and it is found again automatically." |
+| Window not found | Warning | Device not found; still looking. Explanation: "It looks again when the game starts. A minimized window cannot be found." Closing the game also shows this, and starting the game again starts capturing by itself |
 | The tracking camera | Error | Could not capture. Explanation: "Tracking uses this camera. Choose another device." |
 | Failed | Error | Could not capture. Explanation: "Another app may be using the device." |
 
@@ -181,8 +184,8 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 |---|---|---|
 | Introduction | Description (Text 2) | "With tracking running, watch the avatar's movement while you adjust. Higher values show an expression with less movement. Under each slider is how far the avatar moves now." |
 | Video | Image (384×216, 16:9) | The middle of the stream, enlarged so the expression can be seen. "No video" when there is none |
-| Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the stream is shown (0% the bottom, 100% the top). 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
-| Zoom | Slider (100 to 400%, steps of 10%), under the picture height | How much the stream is enlarged. 100% shows the whole stream; 220% at first. It zooms about the stream's horizontal middle and never shows past the stream's edges. The face's size depends on the avatar, so the user sets it (user's request, 2026-10-21). Not saved |
+| Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the avatar frame (Stage detailed design 7.2) is shown (0% the frame's bottom, 100% its top); of the whole stream without an avatar. 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
+| Zoom | Slider (100 to 400%, steps of 10%), under the picture height | How much the picture is enlarged. 100% shows the avatar frame's whole height (the whole stream without an avatar); 220% at first. Across, it shows the frame's middle. Because both follow the frame, the face stays in view however small or far to the side the avatar is placed (user's report, 2026-11-19). The picture keeps the stream's shape and never shows past the stream's edges. The face's size depends on the avatar, so the user sets it (user's request, 2026-10-21). Not saved |
 | Light brightness | Slider (10 to 150%, steps of 5%), under the zoom | The brightness of the stage's light (Stage detailed design 7.1). 100% is the default. Caption: "This also changes the light on the stream, and is saved." Lowered when the face is washed out (user's request, 2026-10-21). Beside the picture, so it is changed while watching the face (user's decision, 2026-10-21). Left out without Stage |
 | Winks | Toggle | Whether one eye may close alone. Description: "When on, one eye can close alone. Turn it off if one eye closes by mistake, such as when you turn your head." Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
@@ -237,12 +240,12 @@ Shows `IRecordingService` (Video) directly (`RecordingCard`); details in recordi
 
 ## 11. Audio Card
 
-Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio) and the monitor, in shared columns. Another source adds only a row. Details in audio detailed design 18.
+Shows `IAudioService` (Audio) as a mixer (`AudioCard`, `components.md` 3.25): a row each for the sources (the microphone, the game audio, BGM, sound effects) and the monitor, in shared columns. BGM and sound effects have no device, so their Device column is blank (chapter 14). Another source adds only a row. Details in audio detailed design 18.
 
 | Row | Content |
 |---|---|
 | Source | The name and a Status Chip of its state (Off, Starting, Running, Muted, Not found, Unavailable; a shape and text) |
-| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
+| Device | Select, "None" first; an unplugged device stays as "A device not connected now". The sound of a game on this PC shows as "Sound of game.exe". The game audio's is chosen on the capture Card (chapter 3), so here it is disabled and only shows the device's name. The monitor chooses its output |
 | Volume | Slider, -60 to +12 dB |
 | Hear | Toggle; not on the monitor's row |
 | Noise removal | Toggle, on the microphone's row only. On by default, and it works without voice conversion too (the user's decision, 2026-11-11; audio detailed design 8.6). Saved in the project's Audio Profile |
@@ -261,19 +264,22 @@ Under a row, only when there is a problem, what happened and what to do; when mi
 | `setup.audio.unavailable` | 音声は使えません。 | Audio is not available. |
 | `setup.audio.microphone` | マイク | Microphone |
 | `setup.audio.game` | ゲームの音声 | Game audio |
+| `setup.audio.music` | BGM | BGM |
+| `setup.audio.sound-effect` | 効果音 | Sound effects |
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
 | `setup.capture.audio` | 音声 | Audio |
 | `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
+| `setup.audio.device.application` | {name} の音 | Sound of {name} |
 | `setup.audio.gain` | 音量 | Volume |
 | `setup.audio.mute` | ミュート | Mute |
 | `setup.audio.level` | レベル | Level |
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
-| `setup.audio.state.not-found` | 見つかりません | Not found |
+| `setup.audio.state.not-found` | 未発見 | Not found |
 | `setup.audio.state.failed` | 使えません | Unavailable |
 | `setup.audio.state.muted` | ミュート中 | Muted |
 | `setup.audio.problem.not-found` | デバイスが接続されていません。接続すると自動で使い始めます。 | The device is not connected. It is used again as soon as it is connected. |
@@ -407,3 +413,66 @@ The converted voice is heard about 0.38 s late, which makes rhythm hard when sin
 | `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
 | `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
+
+## 14. The BGM and Sound Effects Cards
+
+Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sound effects Card (BGM and SE detailed design; 2026-11-17). The registered files are listed a row each, as a table (`components.md` 3.24). Both are collapsible Cards (`components.md` 3.10) that start open. As their lists grow long, the one not in use can be closed (an exception to the screen-wide rule; user decision, 2026-11-20). Whether they are open is not remembered.
+
+| Column | What it holds |
+|---|---|
+| Reorder | A "≡" mark at the row's start (`text-3`; not a button, the same mark as the Layer List's grip). Dragging it up or down moves its row; while dragging, the row is dimmed and an Accent Line marks where it lands (as the Layer List, `components.md` 3.20). The mark takes no focus. By keyboard, with the focus on one of the row's buttons, `Ctrl`+Up and Down move it by one, and the focus stays on the same control of the moved row (its Rename button if that one cannot take it) (not while typing a name). The live screen's BGM choice and sound effect buttons follow the same order |
+| Play | Icon Button. For BGM it plays the file on the stream and in recordings, and turns into stop (■) while it plays. For a sound effect each press plays it from its start, overlapping. Disabled until it is loaded, with a tooltip saying it is loading |
+| Name | A built-in file shows its name in the screen's language until renamed (`bgm-se.md` 6.3). Takes the rest of the width, cut with an ellipsis, its tooltip holding it whole. For BGM a Status Chip after the name says Playing, or Cannot play (by shape and text) |
+| Length | Minutes and seconds, monospaced, right-aligned. Blank when the file does not say |
+| Loop | BGM only. Toggle, on by default; a change applies from the next play. Explained by a Help Hint after its heading |
+| Volume | Slider, -60 to +12 dB: the file's own, apart from the BGM and sound effects rows of the mixer. The BGM that plays takes it at once |
+| Shortcut | Sound effects only. Pressed, it says "Press keys" and waits with an Accent Line border. Keys pressed with `Ctrl`, `Alt`, or `Shift` are assigned (they play it whichever app is in use; `bgm-se.md` 8.3). A key alone is not assigned, and the tooltip says a modifier is needed. `Esc` cancels; `Delete` or `Backspace` removes them. While it waits it takes every key (Tab does not leave it; `Esc` does). The keys are shown monospaced, as "Ctrl+Alt+1", or "None". Keys another sound effect has are not assigned, and the Card says why under the rows. When another app holds the keys, a Status Chip "Keys used by another app" (a warning shape and text) follows the name. Explained by a Help Hint after its heading |
+| Actions | Rename (the name turns into a field where it is, and the button into Save; 1 to 60 characters), Delete (after a confirmation; the original file stays). Delete is disabled for the BGM that plays, with the reason in its tooltip |
+
+- Add a file… is under the rows. The file dialog offers WAV and MP3. The chosen file is checked, and when it cannot be registered the Card says why (another format, unreadable, a sound effect over 30 seconds, cannot be saved). It is registered under its file name, which can be changed later.
+- The sound effects Card has Stop sound effects at the right of its title, stopping every sound effect that sounds.
+- With nothing registered, a line says what to add.
+- The mixer (chapter 11) gains BGM and sound effects rows. They have no device, so the Device column is blank, as is Noise removal. Hear is on by default.
+- The live screen's audio (`live.md`) gains BGM and sound effects, with a note and a speaker as their icons, crossed out when muted.
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.bgm.title` | BGM | BGM |
+| `setup.se.title` | 効果音 | Sound effects |
+| `setup.clips.name` | 名前 | Name |
+| `setup.clips.length` | 長さ | Length |
+| `setup.clips.loop` | ループ | Loop |
+| `setup.clips.loop.description` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
+| `setup.clips.gain` | 音量 | Volume |
+| `setup.clips.add` | ファイルを追加… | Add a file… |
+| `setup.clips.rename` | 名前を変更 | Rename |
+| `setup.clips.save` | 保存 | Save |
+| `setup.clips.delete` | 削除 | Delete |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
+| `setup.clips.name.required` | 名前を入力してください | Enter a name |
+| `setup.clips.filter` | 音声ファイル | Audio files |
+| `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |
+| `setup.bgm.stop` | このBGMを停止します。 | Stops this BGM. |
+| `setup.bgm.playing` | 再生中 | Playing |
+| `setup.bgm.failed` | 再生できません | Cannot play |
+| `setup.bgm.empty` | BGMはまだ登録されていません。WAVかMP3のファイルを追加してください。 | No BGM yet. Add a WAV or MP3 file. |
+| `setup.bgm.delete.title` | BGMの削除 | Delete the BGM |
+| `setup.bgm.delete.body` | このBGMを削除します。追加した元のファイルは削除されません。 | This BGM is deleted. The file it was added from is not. |
+| `setup.se.play` | この効果音を配信と録画で再生します。 | Plays this sound effect on the stream and in recordings. |
+| `setup.se.stop-all` | 効果音を停止 | Stop sound effects |
+| `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
+| `setup.se.loading` | 読み込み中です。 | Loading. |
+| `setup.se.shortcut` | ショートカット | Shortcut |
+| `setup.se.shortcut.description` | クリックしてから、割り当てるキーを押してください。<br>Ctrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。<br>Deleteキーでショートカットキーを解除できます。 | Click this, then press the keys to assign.<br>Only combinations with Ctrl, Alt, or Shift can be registered.<br>Press Delete to remove the shortcut keys. |
+| `setup.se.shortcut.none` | なし | None |
+| `setup.se.shortcut.press` | キーを押してください | Press keys |
+| `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |
+| `setup.se.shortcut.taken` | このキーはほかの効果音で使っています。別のキーを選んでください。 | Another sound effect uses these keys. Choose other keys. |
+| `setup.se.shortcut.held-elsewhere` | キーをほかのアプリが使用中 | Keys used by another app |
+| `setup.se.delete.title` | 効果音の削除 | Delete the sound effect |
+| `setup.se.delete.body` | この効果音を削除します。追加した元のファイルは削除されません。 | This sound effect is deleted. The file it was added from is not. |
+| `setup.clips.delete-in-use` | 再生中は削除できません。停止してから削除してください。 | It cannot be deleted while it plays. Stop it first. |
+| `setup.clips.problem.unsupported` | WAVかMP3のファイルを選択してください。 | Choose a WAV or MP3 file. |
+| `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
+| `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
+| `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |

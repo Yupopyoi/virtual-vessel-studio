@@ -179,6 +179,14 @@ Main Camera自体は共通化し、Stage SceneにはCamera Pointだけを持た�
 
 これにより、映像出力先は常に同じMain Cameraを参照できる。
 
+### アバターの枠
+
+3Dの舞台を持たない今の平面の構成では、アバターは、配置編集で置いたアバターの枠に合わせて、アバター専用のカメラ（Avatar Camera）が撮る（利用者の決定、2026-11-18。Stage詳細設計7.2、Video詳細設計7.6）。舞台と背景は、これまでどおりMain Cameraが撮る。
+
+アバターを画面の好きな位置と大きさに、正面から見た姿で置くためである。Main Cameraを動かすと、背景も一緒に動き、画面の端に寄せたアバターは斜めから見た姿になる。利用者が触るのは枠だけで、カメラとアバターのどちらを動かすかを選ばせない。
+
+アバターが舞台の中に立つStage Sceneでは、Main CameraとCamera Pointで撮るか、枠を使うかを、Stage Sceneの設計時に決める。
+
 ---
 
 ## 10.4 カメラ切り替え方式
@@ -461,6 +469,8 @@ YouTube Live Streaming APIからRTMPS Ingestion URL等を取得することも�
 という中核機能を先に完成させる。
 
 その後、ユーザー操作をさらに簡略化するための機能としてYouTube API連携を追加する。
+
+なお、コメントの表示を含むAPI連携は、Googleの審査とクオータの共有の負担から、2026-11-21に見送った（利用者の決定）。経緯と、後で作るための下準備は決定記録`docs/ja/decisions/youtube-integration.md`に残す。
 
 ---
 
@@ -874,6 +884,15 @@ GameCapture映像は直接配信Encoderへ送らず、Capture TextureとしてUn
 
 GameCapture音声は12章で定義するAudio Mixerへ入力し、Voice、BGM、SE等と同様に最終配信音声へMixする。
 
+### このPCのゲーム
+
+配信するPCで動くゲームは、Capture Boardを使わず、そのウィンドウから取り込める（2026-11-20に追加）。
+
+- 独立したCapture Sourceではなく、GameCaptureの入力元の1つとする。配信では同じゲーム画面であり、Stageでの配置と音声はそのまま使う。Capture Boardとウィンドウは、どちらか一方を使う。
+- 映像はWindows.Graphics.Captureでウィンドウのクライアント領域を取り込み、Capture Textureとして渡す。音声はAudio Moduleが、同じプログラムの音だけをWindowsのプロセスのループバックで取る（12.16）。
+- ウィンドウはプログラムで選び、ゲームを起動し直しても選んだままになる。利用者が選ぶまで、どのウィンドウも取り込まない。
+- 詳細はCapture詳細設計8.6、Audio詳細設計8.7。
+
 ### 採用理由
 
 ゲーム映像をUnity Scene内へ取り込むことで、
@@ -887,6 +906,8 @@ GameCapture音声は12章で定義するAudio Mixerへ入力し、Voice、BGM、
 をUnity上で一体として構成できる。
 
 また、映像・音声取得Pluginへの依存をAdapter内部に限定することで、将来Plugin実装を変更した場合の影響を小さくする。
+
+このPCのゲームをGameCaptureの入力元とするのは、利用者にとってはCapture Boardのゲームと同じ「ゲーム画面」であり、配置や音声の設定を2つに分けると、どちらを使っているかを利用者が管理しなければならなくなるためである。
 
 ---
 

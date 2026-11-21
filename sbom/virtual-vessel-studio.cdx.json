@@ -30,6 +30,30 @@
   },
   "components": [
     {
+      "type": "file",
+      "bom-ref": "virtual-vessel-studio:built-in-audio",
+      "supplier": {
+        "name": "Virtual Vessel Studio project"
+      },
+      "name": "Virtual Vessel Studio built-in BGM and sound effects",
+      "version": "2026-11-20",
+      "licenses": [
+        {
+          "license": {
+            "id": "CC0-1.0"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "The project's own BGM and sound effects in StreamingAssets/Audio/BuiltIn, rendered by tools/audio/build_builtin_audio.py. Released under CC0 so they can be used in streams and videos without credit; the code that makes them stays Apache-2.0.",
+      "properties": [
+        {
+          "name": "virtual-vessel-studio:license-file",
+          "value": "licenses/built-in-audio-LICENSE.txt"
+        }
+      ]
+    },
+    {
       "type": "framework",
       "bom-ref": "unity-engine",
       "supplier": {
@@ -880,7 +904,25 @@
         }
       ],
       "scope": "required",
-      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine) are only linked against and not distributed."
+      "description": "Linked statically into VirtualVessel.Capture.Native.dll (native/capture), VirtualVessel.Encode.Native.dll (native/encode), and VirtualVessel.Audio.Native.dll (native/audio), so users need no Visual C++ redistributable. The version is the toolset of the machine that builds the DLLs. Windows system libraries (d3d11, dxgi, user32; Media Foundation's mfplat, mfreadwrite, mfuuid, and ole32 for the encoder, whose H.264 encoder is the system's or the GPU driver's; WASAPI through ole32 and avrt for the audio engine, and mmdevapi for a program's sound; dwmapi and windowsapp for window capture) are only linked against and not distributed."
+    },
+    {
+      "type": "library",
+      "bom-ref": "cppwinrt",
+      "supplier": {
+        "name": "Microsoft"
+      },
+      "name": "C++/WinRT",
+      "version": "2.0.250303.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "scope": "required",
+      "description": "Header-only projection of the Windows Runtime, from the Windows SDK (10.0.28000.0). Compiled into VirtualVessel.Capture.Native.dll (native/capture) for window capture with Windows.Graphics.Capture (capture detailed design 8.6)."
     },
     {
       "type": "application",
@@ -2303,6 +2345,38 @@
       ],
       "scope": "excluded",
       "description": "Tests for services/voice-lab (dev group); not distributed."
+    },
+    {
+      "type": "library",
+      "bom-ref": "tool:audio:numpy",
+      "name": "numpy",
+      "version": "2.1.3",
+      "purl": "pkg:pypi/numpy@2.1.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Renders the built-in BGM and sound effects (tools/audio/build_builtin_audio.py, pinned in tools/audio/requirements.txt); a developer tool, not distributed. The rendered WAV files are the project's own."
+    },
+    {
+      "type": "library",
+      "bom-ref": "tool:audio:scipy",
+      "name": "scipy",
+      "version": "1.15.2",
+      "purl": "pkg:pypi/scipy@1.15.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "scope": "excluded",
+      "description": "Renders the built-in BGM and sound effects (tools/audio/build_builtin_audio.py, pinned in tools/audio/requirements.txt); a developer tool, not distributed. The rendered WAV files are the project's own."
     },
     {
       "type": "library",

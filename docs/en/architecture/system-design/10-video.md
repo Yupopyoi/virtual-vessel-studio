@@ -173,6 +173,14 @@ Making the main camera itself common and giving stage scenes only camera points 
 
 This allows the video output to always reference the same main camera.
 
+### The Avatar Frame
+
+In the present flat composition, with no 3D stage, the avatar is shot by its own camera (the Avatar Camera) to fit the avatar frame placed in the placement editor (the user's decision, 2026-11-18; Stage detailed design 7.2, Video detailed design 7.6). The stage and backdrop are shot by the Main Camera as before.
+
+This puts the avatar wherever the user likes on the screen, at any size, seen from the front. Moving the Main Camera would move the backdrop too, and an avatar moved to the side of the screen would be seen at an angle. The user handles only the frame and never chooses whether the camera or the avatar moves.
+
+For Stage Scenes where the avatar stands in the stage, whether it is shot by the Main Camera and Camera Points or by the frame is decided with the Stage Scene design.
+
 ---
 
 ## 10.4 Camera Switching
@@ -447,6 +455,8 @@ By first making direct streaming with the stream URL and stream key work, the co
 is completed first.
 
 YouTube API integration is then added as a function to further simplify user operation.
+
+API integration, including showing comments, was put on hold on 2026-11-21 (user's decision) because of the burden of Google's verification and the shared quota. The history, and the groundwork for building it later, are in the decision record `docs/en/decisions/youtube-integration.md`.
 
 ---
 
@@ -846,6 +856,15 @@ GameCapture video is not sent directly to the streaming encoder but is passed to
 
 GameCapture audio is input to the audio mixer defined in Chapter 12 and mixed into the final streaming audio in the same way as voice, BGM, SE, etc.
 
+### A Game on This PC
+
+A game running on the streaming PC can be taken from its window, without a capture board (added 2026-11-20).
+
+- It is an input of GameCapture, not a capture source of its own. On the stream it is the same game screen, so its placement on the stage and its audio stay as they are. Either the capture board or the window is used, not both.
+- The video is the window's client area, taken with Windows.Graphics.Capture and passed on as a capture texture. The Audio module takes only that program's sound, through Windows' process loopback (12.16).
+- The window is chosen by its program, so the choice holds after the game is started again. No window is captured until the user chooses one.
+- The details are in Capture detailed design 8.6 and Audio detailed design 8.7.
+
 ### Rationale
 
 Bringing game video into the Unity scene allows
@@ -859,6 +878,8 @@ Bringing game video into the Unity scene allows
 to be composed together in Unity.
 
 Also, limiting the dependency on the video / audio acquisition plugin to the inside of the adapter reduces the impact if the plugin implementation changes in the future.
+
+A game on this PC is an input of GameCapture because to the user it is the same "game screen" as a game through a capture board; splitting its placement and audio settings in two would leave the user to keep track of which one is in use.
 
 ---
 

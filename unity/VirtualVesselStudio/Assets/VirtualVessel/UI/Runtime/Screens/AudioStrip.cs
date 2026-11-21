@@ -62,10 +62,10 @@ namespace VirtualVessel.UI.Screens
                 _source = source;
                 Root = new VisualElement();
                 Root.AddToClassList(SourceClass);
-                Mute = Ui.IconButton(IconName.Mic, toggle: true);
+                Mute = Ui.IconButton(AudioStrings.IconOf(source.Role, false), toggle: true);
                 Mute.RegisterCallback<ChangeEvent<bool>>(evt => _source.SetOptions(_source.Options.Value.WithMuted(evt.newValue)));
                 Root.Add(Mute);
-                Root.Add(Ui.Text(source.Role == AudioSourceRole.Microphone ? AudioStrings.LiveMicrophone : AudioStrings.LiveGameAudio, "vv-text-caption"));
+                Root.Add(Ui.Text(AudioStrings.LiveNameOf(source.Role), "vv-text-caption"));
                 Meter = new LevelMeter { Segments = 16 };
                 Meter.AddToClassList(MeterClass);
                 Root.Add(Meter);
@@ -91,7 +91,7 @@ namespace VirtualVessel.UI.Screens
             private void Show(AudioSourceOptions options)
             {
                 Mute.SetValueWithoutNotify(options.Muted);
-                Mute.IconName = options.Muted ? IconName.MicOff : IconName.Mic;
+                Mute.IconName = AudioStrings.IconOf(_source.Role, options.Muted);
                 Mute.TooltipKey = options.Muted ? AudioStrings.LiveUnmute : AudioStrings.LiveMute;
             }
         }

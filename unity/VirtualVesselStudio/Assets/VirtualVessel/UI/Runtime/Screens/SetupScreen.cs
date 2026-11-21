@@ -1,5 +1,6 @@
 using System;
 using UnityEngine.UIElements;
+using VirtualVessel.Audio.Clips;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
@@ -92,17 +93,24 @@ namespace VirtualVessel.UI.Screens
             {
                 if (source is ICaptureDeviceSource device && source.Kind != CaptureSourceKind.Camera)
                 {
-                    GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && services.Audio != null ? new GameAudioRow(services.Audio) : null;
-                    page.Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), gameAudio));
+                    // Audio that did not start (its plugin missing or another version) has no sources: the Card goes without the row.
+                    GameAudioRow gameAudio = source.Kind == CaptureSourceKind.GameCapture && GameAudioRow.CanShow(services.Audio) ? new GameAudioRow(services.Audio) : null;
+                    page.Add(new CaptureSourceCard(device, TitleKey(source), EmptyChoiceKey(source), gameAudio, source.Kind == CaptureSourceKind.GameCapture));
                 }
             }
         }
 
-        // The microphone and the game's audio; the voice conversion under the microphone, since it converts it (setup
-        // screen 13).
+        // The sources' mixer, then BGM and SE, then the voice conversion, since it converts the microphone (setup screen
+        // 11, 14, 13).
         private static void FillAudio(VisualElement page, ScreenServices services, bool gameAudioOnVideo)
         {
             AddOr(page, services.Audio != null, () => new AudioCard(services.Audio, services.SystemSettings, gameAudioOnVideo), AudioStrings.Unavailable);
+            if (services.Audio != null && services.AudioClips != null)
+            {
+                page.Add(new AudioClipCard(AudioClipKind.Bgm, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
+                page.Add(new AudioClipCard(AudioClipKind.SoundEffect, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog, services.Shortcuts));
+            }
+
             if (services.Audio != null && services.Voice != null)
             {
                 page.Add(new VoiceCard(services.Voice));
@@ -117,7 +125,7 @@ namespace VirtualVessel.UI.Screens
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)
             {
-                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting));
+                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting, services.AvatarFrame));
             }
         }
 

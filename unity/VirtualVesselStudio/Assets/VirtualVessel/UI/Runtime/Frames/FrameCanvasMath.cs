@@ -299,6 +299,26 @@ namespace VirtualVessel.UI.Frames
             return action == FrameAction.ToggleLock || action == FrameAction.ToggleFlip;
         }
 
+        /// <summary>
+        /// Whether a frame takes <paramref name="action"/>: one that cannot flip refuses flipping, and one that stays in
+        /// front refuses changes to the stacking order (UI foundation detailed design 9.8). Pure.
+        /// </summary>
+        public static bool Supports(FrameAction action, bool canFlip, bool staysInFront)
+        {
+            switch (action)
+            {
+                case FrameAction.ToggleFlip:
+                    return canFlip;
+                case FrameAction.BringForward:
+                case FrameAction.SendBackward:
+                case FrameAction.BringToFront:
+                case FrameAction.SendToBack:
+                    return !staysInFront;
+                default:
+                    return true;
+            }
+        }
+
         /// <summary>Indices of the layouts from front to back.</summary>
         public static int[] FrontToBack(IReadOnlyList<FrameLayout> layouts)
         {

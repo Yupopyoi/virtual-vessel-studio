@@ -6,9 +6,12 @@ using VirtualVessel.Application.Hosting;
 using VirtualVessel.Application.Logging;
 using VirtualVessel.Application.Session;
 using VirtualVessel.Audio;
+using VirtualVessel.Audio.Clips;
+using VirtualVessel.Audio.Playback;
 using VirtualVessel.Avatar;
 using VirtualVessel.Capture;
 using VirtualVessel.Core.Lifecycle;
+using VirtualVessel.Core.State;
 using VirtualVessel.Core.Threading;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Logging;
@@ -24,9 +27,11 @@ using VirtualVessel.Tracking.Recording;
 using VirtualVessel.UI;
 using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
+using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Screens;
 using VirtualVessel.UI.Settings;
+using VirtualVessel.UI.Shortcuts;
 using VirtualVessel.UI.Streaming;
 using VirtualVessel.UI.VoiceLab;
 using VirtualVessel.Video;
@@ -52,6 +57,10 @@ namespace VirtualVessel.Application.Startup
             public Lazy<OpenedProject> Project;
             public CaptureService Capture;
             public AudioService Audio;
+            public AudioClipLibrary Clips;
+            public BgmPlayer Bgm;
+            public SoundEffectPlayer SoundEffects;
+            public SoundEffectShortcuts EffectShortcuts;
             public VoiceService Voice;
             public VideoService Video;
             public StageService Stage;
@@ -60,6 +69,10 @@ namespace VirtualVessel.Application.Startup
             public TrackingService Tracking;
             public TrackingRecordings Recordings;
             public AvatarService Avatar;
+
+            // The avatar's height for Stage's avatar frame. Stage starts before Avatar, which stands at Stage's spawn
+            // point, so Stage gets this relay and Avatar fills it once it starts (Stage detailed design 7.2).
+            public readonly ObservableValue<float?> AvatarHeight = new ObservableValue<float?>(null);
 
             public ILog Log(string module, string category)
             {
@@ -138,6 +151,65 @@ namespace VirtualVessel.Application.Startup
                 ServiceCriticality.Optional,
                 () => built.Audio = CreateAudio(context, built.Project.Value, built.Metrics, built.Log("Audio", "Sources")),
                 new[] { LoggingService.ServiceName });
+        }
+
+        // BGM and SE (BGM and SE detailed design): the registered files in the Data Root, and the players over the audio
+        // engine's deck and voices. Optional, like Audio: without them the rest runs, and the Cards say so.
+        private static IEnumerable<ApplicationServiceDescriptor> AudioPlayerDescriptors(ApplicationCompositionContext context, Built built)
+        {
+            if (context.FrameLoop == null || built.Project == null)
+            {
+                yield break;
+            }
+
+            yield return new ApplicationServiceDescriptor(
+                BgmPlayer.ServiceName,
+                ServiceCriticality.Optional,
+                () =>
+                {
+                    built.Clips = new AudioClipLibrary(context.DataRoot.GetDirectory(DataRootDirectory.Audio), context.SystemClock, AudioFile.Probe, () => Guid.NewGuid().ToString("N").Substring(0, 12));
+                    built.Bgm = new BgmPlayer(() => built.Audio?.PlayerEngine, built.Clips, context.FrameLoop, context.MonotonicClock, built.Log("Audio", "BGM"), built.Metrics);
+
+                    // A track that plays has its file open; it is not deleted until it has stopped.
+                    BgmPlayer bgm = built.Bgm;
+                    built.Clips.InUse = id => bgm.Status.Value.HoldsTrack && bgm.Status.Value.TrackId == id;
+                    return built.Bgm;
+                },
+                new[] { LoggingService.ServiceName, AudioService.ServiceName });
+
+            yield return new ApplicationServiceDescriptor(
+                SoundEffectPlayer.ServiceName,
+                ServiceCriticality.Optional,
+                () => built.SoundEffects = new SoundEffectPlayer(() => built.Audio?.PlayerEngine, built.Clips, built.Log("Audio", "SoundEffects"), built.Metrics),
+                new[] { LoggingService.ServiceName, AudioService.ServiceName, BgmPlayer.ServiceName });
+
+            // Keys that play sound effects from any app, so they work while the user is in a game (BGM and SE detailed
+            // design 8.3). Windows only; without it, the sound effects still play from their buttons.
+            if (UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsPlayer || UnityEngine.Application.platform == UnityEngine.RuntimePlatform.WindowsEditor)
+            {
+                yield return new ApplicationServiceDescriptor(
+                    SoundEffectShortcuts.ServiceName,
+                    ServiceCriticality.Optional,
+                    () =>
+                    {
+                        ILog log = built.Log("UI", "Shortcuts");
+                        return built.EffectShortcuts = new SoundEffectShortcuts(built.Clips, built.SoundEffects, new WindowsGlobalShortcuts(log), log);
+                    },
+                    new[] { LoggingService.ServiceName, SoundEffectPlayer.ServiceName });
+            }
+
+            // The BGM and SE that come with the app, added once to the library in the system's language.
+            yield return new ApplicationServiceDescriptor(
+                BuiltInAudioClips.ServiceName,
+                ServiceCriticality.Optional,
+                () => new BuiltInAudioClips(
+                    built.Clips,
+                    Path.Combine(UnityEngine.Application.streamingAssetsPath, BuiltInAudioClips.Folder),
+                    context.DataRoot.GetDirectory(DataRootDirectory.Audio),
+                    Localizer.ChooseInitialLocale(UnityEngine.Application.systemLanguage, new[] { "ja", BuiltInAudioClips.FallbackLanguage }),
+                    context.SystemClock,
+                    built.Log("Audio", "BuiltIn")),
+                new[] { LoggingService.ServiceName, BgmPlayer.ServiceName, SoundEffectPlayer.ServiceName });
         }
 
         // The voice conversion, a stage on the microphone. Its models stay outside the repository, in the Data Root;
@@ -240,7 +312,9 @@ namespace VirtualVessel.Application.Startup
                         context.FrameLoop,
                         StageService.CreateStore(built.Project.Value.Directory, context.SystemClock),
                         context.MonotonicClock,
-                        built.Log("Stage", "Screens")),
+                        built.Log("Stage", "Screens"),
+                        built.Video,
+                        built.AvatarHeight),
                     new[] { LoggingService.ServiceName, CaptureService.ServiceName, VideoService.ServiceName });
             }
         }
@@ -286,7 +360,12 @@ namespace VirtualVessel.Application.Startup
                 AvatarService.ServiceName,
                 ServiceCriticality.Optional,
                 // Tracking, when it started, was created just before: its frame work runs first each frame.
-                () => built.Avatar = CreateAvatar(context, built.Project.Value, built.Video, built.Stage, built.Tracking, built.Metrics, built.Log("Avatar", "Avatars")),
+                () =>
+                {
+                    built.Avatar = CreateAvatar(context, built.Project.Value, built.Video, built.Stage, built.Tracking, built.Metrics, built.Log("Avatar", "Avatars"));
+                    built.Avatar.Height.Subscribe(height => built.AvatarHeight.Value = height);
+                    return built.Avatar;
+                },
                 new[] { LoggingService.ServiceName, VideoService.ServiceName, StageService.ServiceName });
         }
 
@@ -331,6 +410,7 @@ namespace VirtualVessel.Application.Startup
             {
                 StreamPreview = built.Video?.Preview,
                 FrameSources = built.Stage?.Screens,
+                AvatarFrame = built.Stage?.AvatarFrameSource,
                 Captures = built.Capture,
                 Audio = built.Audio,
                 Voice = built.Voice,
@@ -339,6 +419,10 @@ namespace VirtualVessel.Application.Startup
                 VoiceLabLibrary = voiceLab.Library,
                 VoiceLabSetup = PauseWhileLive(CreateVoiceLabSetup(context, voiceLab, built.Log("VoiceLab", "Activation")), built.Streaming, built.Recording),
                 AudioPreview = built.Audio,
+                AudioClips = built.Clips,
+                Bgm = built.Bgm,
+                SoundEffects = built.SoundEffects,
+                Shortcuts = built.EffectShortcuts?.Keys,
                 SystemSettings = new WindowsSystemSettings(),
                 Recording = built.Recording,
                 Streaming = built.Streaming,

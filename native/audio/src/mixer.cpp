@@ -68,6 +68,15 @@ namespace vv::audio
         if (Used(id))
         {
             _slots[id].used = false;
+            _slots[id].provider = nullptr;
+        }
+    }
+
+    void Mixer::SetProvider(int id, BlockProvider* provider)
+    {
+        if (Used(id))
+        {
+            _slots[id].provider = provider;
         }
     }
 
@@ -283,6 +292,12 @@ namespace vv::audio
 
     bool Mixer::ReadSource(Slot& slot)
     {
+        // A player keeps the mix's time itself: no fill to follow, no drift to correct.
+        if (slot.provider != nullptr)
+        {
+            return slot.provider->ReadBlock(_scratch.data());
+        }
+
         FillStep step = slot.fill.Next(slot.input->Available(), BlockFrames, !slot.stage.load());
         if (step.ranDry)
         {

@@ -1,7 +1,8 @@
 // VirtualVessel.Capture.Native: monitor capture through DXGI Desktop Duplication, for
-// SubScreenCapture (capture detailed design 8.2).
+// SubScreenCapture (capture detailed design 8.2), and window capture through Windows.Graphics.Capture,
+// for a game on this PC (capture detailed design 8.6).
 //
-// A session duplicates one monitor on a thread of its own and hands frames over through three
+// A session captures one monitor or window on a thread of its own and hands frames over through three
 // buffers in turn, so neither side waits for the other. The caller uses a session from one thread
 // at a time (the managed main thread); the capture thread never calls back into the caller.
 
@@ -23,7 +24,7 @@ extern "C"
 #endif
 
 // Changes whenever a function or a structure changes; the managed side refuses another version.
-#define VV_CAPTURE_API_VERSION 2
+#define VV_CAPTURE_API_VERSION 3
 
 // Function results.
 #define VV_CAPTURE_OK 0
@@ -35,13 +36,26 @@ extern "C"
 #define VV_CAPTURE_STARTING 0       // Looking for the monitor and creating the duplication.
 #define VV_CAPTURE_RUNNING 1        // Duplicating. A frame comes whenever the screen changes.
 #define VV_CAPTURE_RECOVERING 2     // The duplication was lost (a mode change, the secure desktop) and is being created again.
-#define VV_CAPTURE_MONITOR_LOST 3   // The monitor is not connected any more. The session has stopped.
+#define VV_CAPTURE_MONITOR_LOST 3   // The monitor is not connected any more, or the window was closed. The session has stopped.
 #define VV_CAPTURE_FAILED 4         // It gave up; last_error has the HRESULT. The session has stopped.
 
 #define VV_CAPTURE_DEVICE_NAME_LENGTH 32
+#define VV_CAPTURE_EXECUTABLE_LENGTH 260
+#define VV_CAPTURE_TITLE_LENGTH 128
 
 // Flags of vv_capture_open.
 #define VV_CAPTURE_DRAW_POINTER 1u  // Draw the mouse pointer into the frames, as the screen shows it.
+
+// A window that can be captured: the largest window of one program. Windows are chosen by their program,
+// so the choice still holds after the game is started again.
+typedef struct vv_capture_window
+{
+    wchar_t executable[VV_CAPTURE_EXECUTABLE_LENGTH];  // The program's file name, such as game.exe.
+    wchar_t title[VV_CAPTURE_TITLE_LENGTH];            // The window's title, cut to fit.
+    uint32_t process_id;
+    int32_t width;          // The window's client area in physical pixels.
+    int32_t height;
+} vv_capture_window;
 
 typedef struct vv_capture_monitor
 {
@@ -88,6 +102,15 @@ VV_CAPTURE_API int32_t vv_capture_list_monitors(vv_capture_monitor* monitors, in
 // the outcome comes through vv_capture_get_status. `flags` are VV_CAPTURE_DRAW_POINTER or 0. The
 // session must be closed.
 VV_CAPTURE_API int32_t vv_capture_open(const wchar_t* device_name, uint32_t flags, vv_capture_session** session);
+
+// Writes up to `capacity` windows that can be captured, one per program (its largest), leaving out this
+// process's own windows, and returns how many there are (possibly more than `capacity`), or a negative result.
+VV_CAPTURE_API int32_t vv_capture_list_windows(vv_capture_window* windows, int32_t capacity);
+
+// Starts capturing the largest window of the program `executable` (a file name, as in vv_capture_window) on a
+// thread of its own and returns at once; only its client area is captured. `flags` are VV_CAPTURE_DRAW_POINTER
+// or 0. When the window is closed the session ends with VV_CAPTURE_MONITOR_LOST. The session must be closed.
+VV_CAPTURE_API int32_t vv_capture_open_window(const wchar_t* executable, uint32_t flags, vv_capture_session** session);
 
 // Stops the thread, waiting for it (about 100 ms at most), and releases everything. Accepts null.
 VV_CAPTURE_API void vv_capture_close(vv_capture_session* session);

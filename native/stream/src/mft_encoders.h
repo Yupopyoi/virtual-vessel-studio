@@ -49,6 +49,10 @@ namespace vv::stream
         // Encodes one NV12 frame (rows top to bottom) and appends what the encoder gave back.
         bool Encode(const uint8_t* nv12, size_t length, int64_t time, bool forceKeyframe, std::vector<EncodedFrame>& out, std::string& error);
 
+        // Ends the stream and appends the frames the encoder still held, waiting at most timeoutMs for them. An
+        // encoder keeps a frame or two for its lookahead, so without this the last frames of a stream are lost.
+        bool Drain(int timeoutMs, std::vector<EncodedFrame>& out, std::string& error);
+
         bool Hardware() const
         {
             return _hardware;
@@ -80,6 +84,9 @@ namespace vv::stream
 
         // Encodes 48 kHz stereo 16-bit PCM and appends the AAC frames it completes (1024 samples each).
         bool Encode(const int16_t* pcm, size_t frames, int64_t time, std::vector<EncodedFrame>& out, std::string& error);
+
+        // Ends the stream and appends the AAC frames still held, the last one completed with silence.
+        bool Drain(std::vector<EncodedFrame>& out, std::string& error);
 
     private:
         Microsoft::WRL::ComPtr<IMFTransform> _transform;

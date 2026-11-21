@@ -21,7 +21,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="hear">The control of the Hear column, or null for a blank there.</param>
         /// <param name="denoise">The control of the Noise removal column, or null for a blank there.</param>
-        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear, SwitchToggle denoise = null)
+        /// <param name="hasDevice">False for BGM and SE, which play from a player: the Device column is blank.</param>
+        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear, SwitchToggle denoise = null, bool hasDevice = true)
         {
             Root = new VisualElement();
             Root.AddToClassList(AudioCard.GroupClass);
@@ -49,7 +50,7 @@ namespace VirtualVessel.UI.Screens
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => SetDevice(evt.newValue));
-            row.Add(Cell(deviceKey, Devices, AudioCard.DeviceColumn));
+            row.Add(hasDevice ? Cell(deviceKey, Devices, AudioCard.DeviceColumn) : EmptyCell(AudioCard.DeviceColumn));
 
             Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
             Gain.Step = 1f;
@@ -86,7 +87,7 @@ namespace VirtualVessel.UI.Screens
         public LevelMeter Meter { get; }
 
         /// <summary>The chosen device.</summary>
-        protected abstract string DeviceId { get; }
+        protected internal abstract string DeviceId { get; }
 
         /// <summary>The level now, in dBFS.</summary>
         protected abstract float PeakDb { get; }
@@ -205,7 +206,7 @@ namespace VirtualVessel.UI.Screens
         }
     }
 
-    /// <summary>A source's row: the microphone or the game audio.</summary>
+    /// <summary>A source's row: the microphone, the game audio, BGM, or SE.</summary>
     public sealed class AudioSourceRow : AudioMixerRow
     {
         private readonly IAudioSource _source;
@@ -218,7 +219,7 @@ namespace VirtualVessel.UI.Screens
 
         // Noise removal is for a voice; the game's own sound is left as it is.
         private AudioSourceRow(IAudioSource source, ISystemSettings systemSettings, bool deviceElsewhere, SwitchToggle monitored, SwitchToggle denoise)
-            : base(source.Role == AudioSourceRole.Microphone ? AudioStrings.Microphone : AudioStrings.GameAudio, AudioStrings.Device, monitored, denoise)
+            : base(AudioStrings.NameOf(source.Role), AudioStrings.Device, monitored, denoise, hasDevice: !AudioSettings.IsPlayer(source.Role))
         {
             _source = source;
             Monitored = monitored;
@@ -250,7 +251,7 @@ namespace VirtualVessel.UI.Screens
         /// <summary>Noise removal; null for a source other than the microphone.</summary>
         public SwitchToggle Denoise { get; }
 
-        protected override string DeviceId => _source.Options.Value.DeviceId;
+        protected internal override string DeviceId => _source.Options.Value.DeviceId;
 
         protected override float PeakDb => _source.PeakDb;
 
@@ -298,7 +299,7 @@ namespace VirtualVessel.UI.Screens
             Show();
         }
 
-        protected override string DeviceId => _monitor.Options.Value.DeviceId;
+        protected internal override string DeviceId => _monitor.Options.Value.DeviceId;
 
         protected override float PeakDb => _monitor.PeakDb;
 

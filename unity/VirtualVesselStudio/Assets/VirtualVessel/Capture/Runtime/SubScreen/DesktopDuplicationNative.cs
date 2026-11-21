@@ -5,21 +5,23 @@ using System.Runtime.InteropServices;
 namespace VirtualVessel.Capture.SubScreen
 {
     /// <summary>
-    /// <see cref="IDesktopDuplication"/> through VirtualVessel.Capture.Native.dll, built from
-    /// native/capture (capture detailed design 8.2). Its types stay inside this class.
+    /// <see cref="IDesktopDuplication"/> and <see cref="IWindowCapture"/> through VirtualVessel.Capture.Native.dll,
+    /// built from native/capture (capture detailed design 8.2, 8.6). Its types stay inside this class.
     /// </summary>
-    internal sealed class DesktopDuplicationNative : IDesktopDuplication
+    internal sealed class DesktopDuplicationNative : IDesktopDuplication, IWindowCapture
     {
         // With the extension, because Windows would read ".Native" as one and not add ".dll".
         private const string Library = "VirtualVessel.Capture.Native.dll";
 
         // vv_capture.h: VV_CAPTURE_API_VERSION.
-        private const int ApiVersion = 2;
+        private const int ApiVersion = 3;
 
         // vv_capture.h: VV_CAPTURE_DRAW_POINTER.
         private const uint DrawPointerFlag = 1;
 
         private const int MonitorCapacity = 16;
+
+        private const int WindowCapacity = 128;
 
         private bool _loaded;
 
@@ -50,6 +52,38 @@ namespace VirtualVessel.Capture.SubScreen
             if (result != 0)
             {
                 throw new InvalidOperationException($"Duplicating '{deviceName}' could not start: result {result}.");
+            }
+
+            return new Session(handle);
+        }
+
+        public IReadOnlyList<WindowDescription> ListWindows()
+        {
+            EnsureLoaded();
+            var buffer = new NativeWindow[WindowCapacity];
+            int count = ListWindowsNative(buffer, buffer.Length);
+            if (count < 0)
+            {
+                throw new InvalidOperationException($"Listing the windows failed with result {count}.");
+            }
+
+            var windows = new WindowDescription[Math.Min(count, buffer.Length)];
+            for (int i = 0; i < windows.Length; i++)
+            {
+                NativeWindow window = buffer[i];
+                windows[i] = new WindowDescription(window.Executable, window.Title, window.Width, window.Height);
+            }
+
+            return windows;
+        }
+
+        public IDuplicationSession OpenWindow(string executable, bool drawPointer)
+        {
+            EnsureLoaded();
+            int result = OpenWindowNative(executable, drawPointer ? DrawPointerFlag : 0, out IntPtr handle);
+            if (result != 0)
+            {
+                throw new InvalidOperationException($"Capturing the window of '{executable}' could not start: result {result}.");
             }
 
             return new Session(handle);
@@ -89,6 +123,12 @@ namespace VirtualVessel.Capture.SubScreen
         [DllImport(Library, EntryPoint = "vv_capture_open", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
         private static extern int OpenNative(string deviceName, uint flags, out IntPtr session);
 
+        [DllImport(Library, EntryPoint = "vv_capture_list_windows", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int ListWindowsNative([Out] NativeWindow[] windows, int capacity);
+
+        [DllImport(Library, EntryPoint = "vv_capture_open_window", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+        private static extern int OpenWindowNative(string executable, uint flags, out IntPtr session);
+
         [DllImport(Library, EntryPoint = "vv_capture_close", CallingConvention = CallingConvention.Cdecl)]
         private static extern void CloseNative(IntPtr session);
 
@@ -98,7 +138,7 @@ namespace VirtualVessel.Capture.SubScreen
         [DllImport(Library, EntryPoint = "vv_capture_take_frame", CallingConvention = CallingConvention.Cdecl)]
         private static extern int TakeFrameNative(IntPtr session, ulong after, out NativeFrame frame);
 
-        // The layouts of vv_capture_monitor, vv_capture_status, and vv_capture_frame.
+        // The layouts of vv_capture_monitor, vv_capture_window, vv_capture_status, and vv_capture_frame.
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct NativeMonitor
         {
@@ -112,6 +152,18 @@ namespace VirtualVessel.Capture.SubScreen
             public int Bottom;
             public int Rotation;
             public int IsPrimary;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct NativeWindow
+        {
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string Executable;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string Title;
+            public uint ProcessId;
+            public int Width;
+            public int Height;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -145,7 +197,7 @@ namespace VirtualVessel.Capture.SubScreen
                 _handle = handle;
             }
 
-            // A backstop for a session nobody disposed: its thread would keep a duplication of the monitor.
+            // A backstop for a session nobody disposed: its thread would keep capturing the monitor or window.
             ~Session()
             {
                 Close();

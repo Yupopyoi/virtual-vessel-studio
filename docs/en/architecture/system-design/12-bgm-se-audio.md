@@ -111,6 +111,8 @@ The following may be added in the future as needed:
 - fade out
 - repeat
 
+BGM made inside the app (16.32) is registered and managed the same way.
+
 ### Rationale
 
 A structure that plays audio files by specifying their paths directly may break settings when files are moved, etc.
@@ -159,6 +161,8 @@ Data/
            ├─ audio.*
            └─ audio-profile.json
 ```
+
+The app comes with BGM and SE ready to use. On the first start, they are copied here and registered like any other. The user can rename and delete them, and deleted ones do not come back (BGM and SE detailed design 6.3).
 
 ### Rationale
 
@@ -427,6 +431,8 @@ For game / capture audio, at least the following can be controlled:
 - effects as needed
 
 SubScreenCapture targets video only in the initial implementation, and a function that automatically obtains desktop audio is not required.
+
+When a game on this PC is taken from its window (10.21), its sound is taken from that program alone and handled as the same game audio source. It is taken per program, not as the PC's whole sound (desktop audio), so the browser and notifications stay out of the stream. The PC plays the game's sound to the user directly, so it is not sent to the monitor output.
 
 ### Rationale
 

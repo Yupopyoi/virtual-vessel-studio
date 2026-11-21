@@ -29,7 +29,10 @@ namespace vv::audio
     {
         HANDLE packets = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         ComPtr<IAudioClient> client;
-        HRESULT hr = OpenSharedClient(deviceId, BufferDuration, packets, client);
+
+        // A program's sound goes quiet when the program exits, without failing; its process tells.
+        HANDLE ended = nullptr;
+        HRESULT hr = OpenSharedClient(deviceId, BufferDuration, packets, client, &ended);
         ComPtr<IAudioCaptureClient> capture;
         if (SUCCEEDED(hr))
         {
@@ -53,10 +56,18 @@ namespace vv::audio
             _loop.Running();
         }
 
-        HANDLE waits[] = { packets, _loop.Wake() };
+        HANDLE waits[] = { packets, _loop.Wake(), ended };
+        DWORD waitCount = ended != nullptr ? 3 : 2;
         while (SUCCEEDED(hr) && _loop.Runs(version))
         {
-            WaitForMultipleObjects(2, waits, FALSE, PacketWaitMilliseconds);
+            WaitForMultipleObjects(waitCount, waits, FALSE, PacketWaitMilliseconds);
+            if (ended != nullptr && WaitForSingleObject(ended, 0) == WAIT_OBJECT_0)
+            {
+                // Like an unplugged device: unavailable, and tried again every second until the program runs again.
+                hr = HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+                break;
+            }
+
             UINT32 next = 0;
             while (SUCCEEDED(hr = capture->GetNextPacketSize(&next)) && next > 0)
             {
@@ -79,6 +90,11 @@ namespace vv::audio
         if (client)
         {
             client->Stop();
+        }
+
+        if (ended != nullptr)
+        {
+            CloseHandle(ended);
         }
 
         CloseHandle(packets);

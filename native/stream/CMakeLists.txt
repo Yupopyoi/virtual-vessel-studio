@@ -45,6 +45,8 @@ add_test(NAME vv_stream_network_tests COMMAND vv_stream_network_tests)
 # The plugin: the stream session, its threads, and the C API (vv_stream.h).
 add_library(VirtualVessel.Stream.Native SHARED
     src/exports.cpp
+    src/stream_encoding.cpp
+    src/stream_sending.cpp
     src/mft_encoders.cpp)
 target_include_directories(VirtualVessel.Stream.Native PUBLIC include)
 target_compile_definitions(VirtualVessel.Stream.Native PRIVATE VV_STREAM_EXPORTS)
@@ -52,5 +54,10 @@ target_link_libraries(VirtualVessel.Stream.Native PRIVATE vv_stream_network mfpl
 
 # Streaming synthetic video and a tone to a local ffmpeg and reading back what arrived (needs ffmpeg and ffprobe).
 add_executable(vv_stream_tests tests/stream_tests.cpp)
-target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol)
+target_link_libraries(vv_stream_tests PRIVATE VirtualVessel.Stream.Native vv_stream_protocol ws2_32)
 add_test(NAME vv_stream_tests COMMAND vv_stream_tests)
+
+# The Media Foundation encoders on their own: every frame given comes back out, the held ones by draining.
+add_executable(vv_stream_encoder_tests tests/encoder_tests.cpp src/mft_encoders.cpp)
+target_link_libraries(vv_stream_encoder_tests PRIVATE vv_stream_protocol mfplat mfuuid ole32)
+add_test(NAME vv_stream_encoder_tests COMMAND vv_stream_encoder_tests)

@@ -7,7 +7,7 @@
 対象は以下とする。
 
 - Capture Sourceの共通の契約（`IVideoCaptureSource`）と状態
-- GameCapture：Capture Board（Nintendo Switch等のゲーム機器）の映像
+- GameCapture：Capture Board（Nintendo Switch等のゲーム機器）の映像、またはこのPCのゲームのウィンドウ（8.6）
 - SubScreenCapture：PCのサブモニターの映像（DXGI Desktop Duplication）
 - Capture Sourceの起動・停止、異常時の縮退、診断
 - Native Plugin（SubScreenCapture）の構成とビルド
@@ -96,8 +96,11 @@ flowchart LR
 | `CaptureSourceInfo` | Struct | 実際の解像度、Frame Rate、機器の表示名 |
 | `CaptureService` | Class（`IApplicationService`） | Sourceの生成・起動・停止・毎Frameの更新、計測 |
 | `WebCamCaptureSource` | Class | `WebCamTexture`によるSource。GameCapture（`game`）とトラッキング用カメラ（`camera`、8.5） |
+| `GameCaptureSource` | Class | ゲーム画面（`game`）。このPCのゲームのウィンドウも取り込む`WebCamCaptureSource`（8.6） |
+| `CaptureWindow` | Static class | ウィンドウの機器ID（`window:game.exe`）。UIが見分けるために使う（8.6） |
+| `NativeFrames` | Class（internal） | Native SessionのStateとFrameをMain Threadで扱う。サブモニターとウィンドウで共有する（8.2、8.6） |
 | `SubScreenCaptureSource` | Class | Native PluginによるSubScreenCapture |
-| `IDesktopDuplication` | Interface（internal） | Native Pluginの呼び出しの境界。Testでは偽物に差し替える |
+| `IDesktopDuplication`、`IWindowCapture` | Interface（internal） | Native Plugin（モニター、ウィンドウ）の呼び出しの境界。Testでは偽物に差し替える |
 | `ICameraDevices` | Interface（internal） | `WebCamTexture`の境界。Testでは偽物に差し替える |
 | `CaptureStateMachine` | Static Class | 状態の遷移の判断（純粋関数） |
 | `IFrameLoop` | Interface（Core） | 毎Frame、Main Threadで呼ぶ処理を登録する（Application基盤詳細設計に追加） |
@@ -187,7 +190,8 @@ public sealed class CaptureDevice
 
 | Source | `Id` | `DisplayName` |
 |---|---|---|
-| GameCapture | `WebCamDevice.name` | 同じ |
+| GameCapture（キャプチャーボード） | `WebCamDevice.name` | 同じ |
+| GameCapture（このPCのウィンドウ） | `window:`とプログラムのファイル名。例えば`window:game.exe`（8.6） | 「タイトル (プログラム名)」。例えば「My Game (game.exe)」 |
 | SubScreenCapture | モニターのDevice名（例：`\\.\DISPLAY2`） | 「DISPLAY2 (1920×1080)」のように、Device名と解像度。言葉を含めず、どの言語でも同じに読める。番号や主モニターの印を付けた、翻訳した表示名はSetup画面で作る（17章） |
 
 GameCaptureは、利用者が選ぶまで機器を開かない。最初に見つかったカメラがWebカメラで、利用者の顔や部屋を映してしまうことがあるためである。選ばずに開始すると`Stopped`（`DeviceNotChosen`）になり、その後に機器を選ぶと、待っていた開始がそのまま続く。
@@ -298,6 +302,21 @@ Tracking詳細設計5.4のため、3つ目のSourceとしてトラッキング�
 - 開始と停止はTrackingが行う（Tracking詳細設計7.2）。選んだ機器と開始していたかは、他のSourceと同じく`capture-settings.json`に保存する。
 - すべてのSourceは、届いたFrameの数（`FrameCount`）と最新のFrameの時刻（`LastFrameTimestamp`）を出す。Trackingは、同じ映像を2回推論しないためと、映像の時刻を観測の時刻にするために使う。
 
+### 8.6 このPCのゲーム（ウィンドウ）
+
+配信するPCで動くゲームを、キャプチャーボードを使わず、そのウィンドウから取り込む（利用者の要望、2026-10-31。2026-11-20に実装）。
+
+- 独立したSourceではなく、ゲーム画面（`game`）の入力元の1つとする（利用者の決定、2026-11-20）。ウィンドウも配信では同じゲーム画面であり、ステージでの配置、反転、音声の行はそのまま使う。キャプチャーボードとウィンドウは、どちらか一方を使う。`GameCaptureSource`（`WebCamCaptureSource`にウィンドウを加えたもの）は、キャプチャーボードの次にウィンドウを並べ、選んだ機器で使う方が決まる。セットアップ画面は、入力元の行で2つを分けて見せる（セットアップ画面3章）。
+- ウィンドウの機器IDは`window:`とプログラムのファイル名で、例えば`window:game.exe`とする（`CaptureWindow`）。タイトルやハンドルではなくプログラムで選ぶので、ゲームを起動し直しても選んだままになる。表示名は「タイトル (プログラム名)」。プログラムのウィンドウが複数あれば、いちばん大きいものを取り込む。このアプリ自身のウィンドウは並べない。
+- PluginはWindows.Graphics.Capture（Windows 10 1903以降）で、専用のThreadで取り込み、モニターと同じ3つのBufferでFrameを渡す（8.2）。`vv_capture_list_windows`、`vv_capture_open_window`（C APIの版3）。Managed側も、モニターと同じように読む（`NativeFrames`。SubScreenCaptureと共有）。
+- クライアント領域だけを残す。ウィンドウ表示のゲームのタイトルバーと枠は入れない。クライアント領域は毎Frame、物理ピクセルで求めるので、ウィンドウを動かしても大きさを変えても合ったままになる。
+- マウスカーソルは取り込まない。ゲームは自分のカーソルを描くので、Windowsのカーソルが二重に見えるためである（利用者の選択、2026-11-20）。Windows 11には、取り込むウィンドウの周りに描く黄色い枠を出さないよう求める。
+- 動きのないウィンドウはFrameを送らないが、`NoSignal`にはしない。最小化したウィンドウもFrameを送らず、一覧にも出ない。
+- ウィンドウが閉じる（ゲームが終了する）と、Sessionは`VV_CAPTURE_MONITOR_LOST`で終わり、Sourceは`Unavailable`になる。2秒ごとにプログラムを探し、ゲームを起動し直すと再び取り込む。
+- 強制終了した（タスクマネージャー、クラッシュ）プログラムの取り込みを閉じると、Windowsの中で止まったままになることがあった。Windows 11 build 26300のNativeのテストで約半数。普通にウィンドウを閉じたときは一度もない（2026-11-20）。そこで、ウィンドウがなくなったときは、取り込みのObjectを専用のThreadで閉じ、そのThreadの終わりを待たない。Sourceを閉じる側が待つことはない。
+- Pluginは、プロセスのマルチスレッドのCOM Apartmentを、プロセスが終わるまで保つ（`CoIncrementMTAUsage`）。C++/WinRTは取得したFactoryを使い回す。最後の取り込みのThreadがApartmentを抜けるとCOMがApartmentを片付け、次の取り込みが解放済みのFactoryを呼んで、Nativeのテストが落ちた。
+- ゲームの音は、Audioが同じプログラムから取る（Audio詳細設計8.7）。キャプチャーボードの音と同じく、セットアップ画面が両者をつなぐ。
+
 ---
 
 ## 9. Thread / async
@@ -374,7 +393,7 @@ public sealed class CaptureSettings
 
 ## 13. セキュリティとプライバシー
 
-- 取り込む画面は利用者の画面であり、個人の情報を含み得る。利用者が開始したSourceだけを取り込み、選んだモニターだけを複製する。
+- 取り込む画面は利用者の画面であり、個人の情報を含み得る。利用者が開始したSourceだけを取り込み、選んだモニターか、選んだプログラムのウィンドウだけを取り込む。ウィンドウを既定で選ぶことはない。ゲーム画面は利用者が選ぶまで何も開かない（6.3）ので、ブラウザやチャット等のほかのプログラムのウィンドウを勝手に映さない。選んだゲームが閉じても、同じプログラムを待ち、別のウィンドウへは移らない。
 - 取り込んだ映像は、Processの外へ出さない。試作の名前付き共有メモリは使わない（8.2）。
 - 映像の内容をファイル、Log、診断へ残さない。
 - Native Pluginへ渡す値（モニターのDevice名の長さ、Pointer、個数）は、Native側でも確かめる。
@@ -390,10 +409,11 @@ public sealed class CaptureSettings
 | EditMode | 反転したRender Textureの画素を読み戻し、左右が入れ替わっていること。Capture Boardが選ぶまで開かれないこと |
 | EditMode | `WebCamCaptureSource`（`game`、`camera`）、`SubScreenCaptureSource`を偽の`ICameraDevices`、`IDesktopDuplication`で動かし、状態、`Unavailable`からの復帰、選び直し、停止時の解放、`DeviceInUse`、Frameの数と時刻を確かめる |
 | EditMode | `FrameLoop`の順序、例外の分離、登録の解除 |
+| EditMode | `GameCaptureSource`を偽のPluginで動かす（`GameCaptureSourceTests`）：キャプチャーボードの次にウィンドウが並ぶこと、ウィンドウをカーソルなしで取り込み、動きがなくても`NoSignal`にしないこと、閉じたゲームを待って再び取り込むこと、キャプチャーボードへの切り替え、Pluginがなくてもキャプチャーボードは選べること |
 | EditMode | 偽のFrameを`SubScreenCaptureSource`へ渡し、実際の`Texture2D`へBGRAのまま転送されること |
 | 実機 | 実際のPluginとモニターでSubScreenCaptureが映ること。実際のCapture BoardでGameCaptureが映ること。`[Explicit]`を付け、名前を指定したときだけ動かす。`ACCESS_LOST`（解像度の変更）からの復帰は、手で解像度を変えて確かめる |
 | 性能 | 1920×1080と3840×2160の転送時間（`SubScreenCaptureHardwareTests.Upload_Timing`、実行時は`Capture/subscreen.Upload`）を記録する |
-| Native | `vv_capture_tests`（CTest）：3つのBufferの受け渡し（Threadをまたぐ場合を含む）、作り直しの方針、行のコピー（下の行から）、マウスカーソルの合成（3種の形、端での切り取り）、C ABIの引数の確認、存在しないモニター。`--hardware`を付けると、実際のモニターを一度だけ複製する。`tools/native/build-capture.ps1`がビルドと実行を行う |
+| Native | `vv_capture_tests`（CTest）：3つのBufferの受け渡し（Threadをまたぐ場合を含む）、作り直しの方針、行のコピー（下の行から）、マウスカーソルの合成（3種の形、端での切り取り）、C ABIの引数の確認、存在しないモニター、プログラムごとに1つのウィンドウを選ぶこと、ウィンドウの画像の中のクライアント領域、動いていないプログラム。`--hardware`を付けると、実際のモニターを一度だけ複製し、自分のもう1つのコピーが出す緑のウィンドウを取り込む：クライアント領域だけで640×360になること、普通に閉じたときと強制終了したときにウィンドウを失ったと分かり、1秒以内に閉じられること。`tools/native/build-capture.ps1`がビルドと実行を行う |
 
 ---
 
@@ -420,7 +440,9 @@ Assets/VirtualVessel/Capture/
 │  ├─ CapturePluginMissingException.cs   Native Pluginがない、または版が違う
 │  ├─ FrameRateMeter.cs        実際に届くFrame Rateを数える（純粋）
 │  ├─ CaptureService.cs        CaptureService, CaptureSettings
-│  ├─ Game/          WebCamCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
+│  ├─ CaptureWindow.cs         このPCのウィンドウの機器ID（純粋）
+│  ├─ NativeFrames.cs          Native SessionのFrameをMain Threadで扱う
+│  ├─ Game/          WebCamCaptureSource, GameCaptureSource, ICameraDevices, UnityCameraDevices     VirtualVessel.Capture.Game
 │  └─ SubScreen/     SubScreenCaptureSource, IDesktopDuplication, DesktopDuplicationNative   VirtualVessel.Capture.SubScreen
 ├─ Plugins/x86_64/   VirtualVessel.Capture.Native.dll（ビルドして置く。Gitの管理外。17章）
 └─ Tests/
@@ -432,7 +454,9 @@ native/capture/
 ├─ include/vv_capture.h        C ABIの宣言
 ├─ src/
 │  ├─ exports.cpp              C ABIの実装。引数を確かめ、C++の例外を外へ出さない
-│  ├─ capture_session.*        1つのモニターを複製するThreadと状態
+│  ├─ session_core.*           SessionのThread、状態、Frame。モニターとウィンドウで共有する
+│  ├─ capture_session.*        1つのモニターの複製
+│  ├─ window_capture.*         ウィンドウの列挙、Windows.Graphics.Captureによる取り込み（8.6）
 │  ├─ desktop_duplication.*    モニターの列挙、複製の作成、Frameの取得
 │  ├─ frame_exchange.*         3つのBufferの受け渡し（手順は純粋関数）
 │  └─ retry_policy.h           作り直しの方針（純粋関数）
@@ -453,7 +477,7 @@ tools/native/build-capture.ps1  ビルド、テスト、Unityへのコピー
 | Capture設定の保存先 | 完了（2026-10-27）：ProjectのCapture Profile、`Profiles/Capture/<ProfileId>.json`。形式は`capture-settings.json`のまま（Project Data詳細設計6章） |
 | 翻訳したモニターの表示名（番号、主モニターの印） | Setup画面の仕様の作成時。`CaptureDevice`に必要な情報を加える |
 | 縦置きモニターの向きの補正 | 必要になった時点で |
-| キャプチャーボードなしで同じPCのゲームを取り込むこと | 要件にはまだないが、利用者が望んでいる（2026-10-31）。加えるときは、ウィンドウの取り込みを新しい`IVideoCaptureSource`として足し、音はAudioの新しい音の元とする（`audio.md`17章）。 |
+| キャプチャーボードなしで同じPCのゲームを取り込むこと | 完了（2026-11-20）：このPCのウィンドウを、独立したSourceではなくゲーム画面の入力元とした。配置と音声の行を1つのままにするため（8.6）。音は同じプログラムから取る（`audio.md`8.7） |
 | GPU間で直接共有する方式 | 転送時間の計測結果を見て判断する |
 | Capture Setup画面、Live画面の操作 | 決定：セットアップ画面のCaptureのCard（`docs/ja/ui/screens/setup.md`）。ライブ画面には取り込みの操作を置かない |
 

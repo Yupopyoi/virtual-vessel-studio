@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
+using VirtualVessel.Audio;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Frames;
@@ -79,6 +80,21 @@ namespace VirtualVessel.UI.Screens
                 Add(Limbs);
             }
 
+            // BGM and SE played while live (BGM and SE detailed design); they are registered on the setup screen.
+            if (services.AudioClips != null && (services.Bgm != null || services.SoundEffects != null))
+            {
+                IAudioSource music = null;
+                IAudioSource effects = null;
+                foreach (IAudioSource source in services.Audio?.Sources ?? Array.Empty<IAudioSource>())
+                {
+                    music = source.Role == AudioSourceRole.Music ? source : music;
+                    effects = source.Role == AudioSourceRole.SoundEffect ? source : effects;
+                }
+
+                Players = new AudioPlayersPanel(services.AudioClips, services.Bgm, services.SoundEffects, music, effects);
+                Add(Players);
+            }
+
             Canvas = new FrameCanvas();
             Canvas.SetSources(frames ?? Array.Empty<IFrameSource>());
             if (preview != null && frames != null && frames.Count > 0)
@@ -140,6 +156,9 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The sources' levels and mute buttons; null without audio.</summary>
         public AudioStrip Audio { get; }
+
+        /// <summary>BGM and SE; null without them.</summary>
+        public AudioPlayersPanel Players { get; }
 
         /// <summary>The arms and hands in view; null without tracking.</summary>
         public LimbStatusRow Limbs { get; }

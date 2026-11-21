@@ -253,6 +253,56 @@ namespace VirtualVessel.Capture
             Apply(CaptureEvent.DeviceMissing);
         }
 
+        /// <summary>
+        /// The per-frame work of a source captured by the native plugin (a monitor or a window, capture detailed
+        /// design 8.2, 8.6): reports what the session did and shows each new frame.
+        /// </summary>
+        internal void TickNative(NativeFrames frames, long now)
+        {
+            if (!frames.IsOpen)
+            {
+                return;
+            }
+
+            NativeTick tick = frames.Tick(now, _clock.Frequency);
+            switch (tick)
+            {
+                case NativeTick.Starting:
+                    return;
+                case NativeTick.Lost:
+                    ReportDeviceLost();
+                    return;
+                case NativeTick.Failed:
+                    throw new InvalidOperationException($"Capturing '{OpenDevice?.Id}' failed with HRESULT 0x{frames.LastError:X8}.");
+            }
+
+            // Running, or recovering with the last image kept.
+            if (_status.State == CaptureState.Starting)
+            {
+                Apply(CaptureEvent.Opened);
+            }
+
+            CaptureSourceInfo info = _info.Value;
+            if (tick == NativeTick.Running)
+            {
+                // A still screen or window sends no frames; that is not a failure, but nothing is arriving.
+                if (info.FrameRate != frames.Rate)
+                {
+                    _info.Value = new CaptureSourceInfo(info.Width, info.Height, frames.Rate, info.DeviceName);
+                }
+
+                return;
+            }
+
+            if (frames.Texture != _raw)
+            {
+                SetTexture(frames.Texture);
+            }
+
+            ReportFrame(now);
+            _info.Value = new CaptureSourceInfo(frames.Texture.width, frames.Texture.height, frames.Rate, OpenDevice?.DisplayName);
+        }
+
         /// <summary>The source's own texture; <see cref="Texture"/> shows it, or a mirrored copy of it.</summary>
         protected void SetTexture(Texture texture)
         {

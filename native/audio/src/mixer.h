@@ -3,6 +3,7 @@
 // thread, and the tests call it directly with synthetic input.
 #pragma once
 
+#include "block_provider.h"
 #include "denoiser.h"
 #include "dsp.h"
 #include "fill_tracker.h"
@@ -80,6 +81,10 @@ namespace vv::audio
             return average + (value - average) * 0.02f;
         }
 
+        // A player in place of a device (BGM and SE detailed design 4): the mix reads a block from it instead of the
+        // source's input. Null goes back to the input. Called under the engine's lock.
+        void SetProvider(int id, BlockProvider* provider);
+
         void SetGain(int id, float gainDb, bool muted);
         void SetSend(int id, int bus, float sendDb);
 
@@ -154,6 +159,7 @@ namespace vv::audio
         struct Slot
         {
             bool used = false;
+            BlockProvider* provider = nullptr;
             std::unique_ptr<FrameRing> input;
             std::unique_ptr<FrameRing> stageInput;
             std::atomic<bool> stage{ false };
