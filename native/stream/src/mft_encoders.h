@@ -38,9 +38,13 @@ namespace vv::stream
         int keyframeSeconds = 2;
     };
 
+    // Each encoder owns its transform and shuts it down when destroyed, so it is not copied.
     class VideoEncoder
     {
     public:
+        VideoEncoder() = default;
+        VideoEncoder(const VideoEncoder&) = delete;
+        VideoEncoder& operator=(const VideoEncoder&) = delete;
         ~VideoEncoder();
 
         // Finds an encoder for the codec: hardware first, then (for H.264) Microsoft's software encoder.
@@ -64,6 +68,7 @@ namespace vv::stream
         bool TakeOutput(std::vector<EncodedFrame>& out, std::string& error);
 
         VideoEncoderConfig _config;
+        Microsoft::WRL::ComPtr<IMFActivate> _activate; // Made the transform; shut down with it.
         Microsoft::WRL::ComPtr<IMFTransform> _transform;
         Microsoft::WRL::ComPtr<IMFMediaEventGenerator> _events; // Only for asynchronous (hardware) encoders.
         DWORD _inputStream = 0;
@@ -78,6 +83,9 @@ namespace vv::stream
     class AacEncoder
     {
     public:
+        AacEncoder() = default;
+        AacEncoder(const AacEncoder&) = delete;
+        AacEncoder& operator=(const AacEncoder&) = delete;
         ~AacEncoder();
 
         bool Open(int bitrate, std::string& error);
@@ -89,6 +97,7 @@ namespace vv::stream
         bool Drain(std::vector<EncodedFrame>& out, std::string& error);
 
     private:
+        Microsoft::WRL::ComPtr<IMFActivate> _activate;
         Microsoft::WRL::ComPtr<IMFTransform> _transform;
         DWORD _outputSize = 0;
     };

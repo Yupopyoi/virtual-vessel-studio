@@ -96,7 +96,7 @@ Idle ──Start──▶ Connecting ──publish accepted──▶ Live ──
 - `Start` checks that a key is registered and opens the plugin. Connecting and encoding start on the plugin's threads; when `publish` is accepted, the state is `Live`.
 - A lost connection is `Reconnecting`, tried again after 1, 2, 4, 8, 15, 30 s, ... (at most 30 s apart). After 10 minutes of failures it is `Failed` and the user is told. Each reconnection starts again from a keyframe.
 - A failed stream never stops recording, the avatar, tracking, or capture (system design 10.16).
-- At shutdown a stream in progress sends what is queued and disconnects. Ending drains the video and audio encoders and sends the frames they still hold (a frame of lookahead video and the last partial AAC frame); without it the stream lost its last frame and about 60 ms of audio. The video drain gives up after 0.5 s.
+- At shutdown a stream in progress sends what is queued and disconnects. Ending drains the video and audio encoders and sends the frames they still hold (a frame of lookahead video and the last partial AAC frame); without it the stream lost its last frame and about 60 ms of audio. The video drain gives up after 0.5 s. The encoders are then ended through the activation objects that made them (`IMFActivate::ShutdownObject`). Hardware encoders run their own threads, and released without it they can still run after `MFShutdown`.
 - The resolution, codec, destination, URL, and key cannot change while streaming (system design 10.15). The setup screen disables them then and says why.
 
 ## 8. Important Sequences
