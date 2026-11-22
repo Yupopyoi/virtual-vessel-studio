@@ -424,6 +424,17 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_stageView.Opens, Is.Zero, "Another page closes it.");
         }
 
+        [UnityTest]
+        public IEnumerator ControlsOnOneRow_AreSApart()
+        {
+            // Measured on the real styles (components.md 3.9): the space never reached them before (2026-11-22).
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.RemoveButton.worldBound.xMin - card.AddButton.worldBound.xMax, Is.EqualTo(8f).Within(0.5f), "The title band's buttons.");
+            Assert.That(card.ColorChoice.worldBound.xMin - card.Swatch.worldBound.xMax, Is.EqualTo(8f).Within(0.5f), "The swatch and the color.");
+            Assert.That(card.ColorChoice.worldBound.xMax, Is.LessThanOrEqualTo(card.Settings.contentContainer.worldBound.xMax + 0.5f), "Still inside, though the row is pulled left.");
+        }
+
         [Test]
         public void AMarker_IsPickedNearItsCenter_AndTheNearestWins()
         {
