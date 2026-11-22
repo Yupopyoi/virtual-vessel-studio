@@ -503,7 +503,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | 上下の向き | Slider（-30〜90°、5°刻み） | 0°が顔の高さ、90°が真上 |
 | 距離 | Slider（0.5〜5m、0.1m刻み） | スポットだけ。全体のときは無効にし、ツールチップで理由を示す |
 | 光の広がり | Slider（10〜120°、5°刻み） | スポットだけ。全体のときは無効 |
-| 明るさ | Slider（10〜200%、5%刻み） | 100%が初めの明るさ |
+| 明るさ | Slider（10〜200%、5%刻み） | 既定は70% |
 | 色 | 色の見本とDropdown（白、ピンク、オレンジ、黄色、緑、水色、青、紫、カスタム）。「カスタム」にすると、それまでの色から始める | 色は名前でも伝える（色だけに頼らない） |
 | 色温度 | Slider（2700〜9000K、100K刻み） | 白だけ。ほかの色のときは無効 |
 | カラーコード | 文字の入力（`#RRGGBB`） | 色の「カスタム」だけ。Enterか、入力を離れたときに反映する。読めないときは入力の下に理由を出す。ほかの色のときは無効で、その色のコードを表示する |
@@ -547,7 +547,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.spot-angle` | 光の広がり | Spread |
 | `setup.lighting.spot-angle.help` | スポットライトの光が広がる角度です。小さくするほど、狭い範囲だけを照らします。 | The angle of the spot's cone. Smaller lights a narrower area. |
 | `setup.lighting.intensity` | 明るさ | Brightness |
-| `setup.lighting.intensity.help` | このライトの明るさです。100%が初めの明るさです。顔が白くなりすぎる場合は下げてください。 | This light's brightness. 100% is how it started. Lower it if the face looks washed out. |
+| `setup.lighting.intensity.help` | このライトの明るさです。既定は70%です。顔が白くなりすぎる場合は下げてください。 | This light's brightness, 70% by default. Lower it if the face looks washed out. |
 | `setup.lighting.color` | 色 | Color |
 | `setup.lighting.color.help` | 光の色です。「白」では、下の色温度で暖かい色から冷たい色まで変えられます。 | The light's color. With White, the color temperature below makes it warmer or cooler. |
 | `setup.lighting.color.white` | 白 | White |

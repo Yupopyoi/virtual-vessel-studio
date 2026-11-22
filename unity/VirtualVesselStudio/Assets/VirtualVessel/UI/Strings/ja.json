@@ -1075,7 +1075,7 @@
         "setup.lighting.spot-angle": "光の広がり",
         "setup.lighting.spot-angle.help": "スポットライトの光が広がる角度です。小さくするほど、狭い範囲だけを照らします。",
         "setup.lighting.intensity": "明るさ",
-        "setup.lighting.intensity.help": "このライトの明るさです。100%が初めの明るさです。顔が白くなりすぎる場合は下げてください。",
+        "setup.lighting.intensity.help": "このライトの明るさです。既定は70%です。顔が白くなりすぎる場合は下げてください。",
         "setup.lighting.color": "色",
         "setup.lighting.color.help": "光の色です。「白」では、下の色温度で暖かい色から冷たい色まで変えられます。",
         "setup.lighting.color.white": "白",

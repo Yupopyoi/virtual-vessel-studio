@@ -31,7 +31,7 @@ namespace VirtualVessel.Stage
             return Target + Offset(light.Yaw, light.Pitch) * light.Distance;
         }
 
-        /// <summary>The light's rotation, toward <see cref="Target"/>; the default light gets (35°, 15°, 0°) as before.</summary>
+        /// <summary>The light's rotation, toward <see cref="Target"/>.</summary>
         public static Quaternion Rotation(StageLight light)
         {
             Vector3 forward = -Offset(light.Yaw, light.Pitch);

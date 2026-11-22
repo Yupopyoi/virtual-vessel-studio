@@ -64,10 +64,10 @@ namespace VirtualVessel.UI.Lighting
         }
 
         /// <summary>
-        /// The light the stage started with: from above the camera and a little to its left (Stage
-        /// detailed design 7.1), white at daylight.
+        /// The light the stage starts with (Stage detailed design 7.1): from the front, high above (75°), at 70%, white at
+        /// daylight; the user's choice after trying the lights (2026-11-22).
         /// </summary>
-        public static StageLight Default => new StageLight(StageLightKind.Directional, -15f, 35f, 2f, 1f, StageLightColors.White, 6500f, 50f);
+        public static StageLight Default => new StageLight(StageLightKind.Directional, 0f, 75f, 2f, 0.7f, StageLightColors.White, 6500f, 50f);
 
         /// <summary>A spot added by the user: from the right, at the face's height, to light the other side.</summary>
         public static StageLight Added => new StageLight(StageLightKind.Spot, 45f, 15f, 2f, 1f, StageLightColors.White, 6500f, 50f);

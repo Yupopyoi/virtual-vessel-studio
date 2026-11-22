@@ -503,7 +503,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | Up and down | Slider (-30 to 90°, steps of 5°) | 0° is the face's height, 90° straight above |
 | Distance | Slider (0.5 to 5 m, steps of 0.1 m) | Spot only. Disabled for a whole-stage light, with the reason in its tooltip |
 | Spread | Slider (10 to 120°, steps of 5°) | Spot only. Disabled for a whole-stage light |
-| Brightness | Slider (10 to 200%, steps of 5%) | 100% is how it started |
+| Brightness | Slider (10 to 200%, steps of 5%) | 70% by default |
 | Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple, Custom). Custom starts from the color the light had | The color is also told by its name (not by color alone) |
 | Color temperature | Slider (2700 to 9000 K, steps of 100 K) | White only. Disabled for the other colors |
 | Color code | Text input (`#RRGGBB`) | Custom color only. Applies on Enter or on leaving the field; a code that cannot be read says why under the field. For the other colors it is disabled and shows that color's code |
@@ -547,7 +547,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.spot-angle` | 光の広がり | Spread |
 | `setup.lighting.spot-angle.help` | スポットライトの光が広がる角度です。小さくするほど、狭い範囲だけを照らします。 | The angle of the spot's cone. Smaller lights a narrower area. |
 | `setup.lighting.intensity` | 明るさ | Brightness |
-| `setup.lighting.intensity.help` | このライトの明るさです。100%が初めの明るさです。顔が白くなりすぎる場合は下げてください。 | This light's brightness. 100% is how it started. Lower it if the face looks washed out. |
+| `setup.lighting.intensity.help` | このライトの明るさです。既定は70%です。顔が白くなりすぎる場合は下げてください。 | This light's brightness, 70% by default. Lower it if the face looks washed out. |
 | `setup.lighting.color` | 色 | Color |
 | `setup.lighting.color.help` | 光の色です。「白」では、下の色温度で暖かい色から冷たい色まで変えられます。 | The light's color. With White, the color temperature below makes it warmer or cooler. |
 | `setup.lighting.color.white` | 白 | White |

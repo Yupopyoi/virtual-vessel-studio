@@ -298,7 +298,7 @@ namespace VirtualVessel.UI.Tests
             LightingCard card = _root.Content.Q<LightingCard>();
             Assert.That(card, Is.Not.Null, "On the avatar page, with the stage.");
             yield return null;
-            Assert.That(card.Intensity.value, Is.EqualTo(100f), "100% is the light as made.");
+            Assert.That(card.Intensity.value, Is.EqualTo(70f).Within(1e-3f), "70% by default.");
             Assert.That(card.Kind.value, Is.EqualTo(0), "The whole stage, as the light always was.");
             Assert.That(card.Distance.enabledSelf, Is.False, "A whole-stage light has no distance.");
             Assert.That(card.Query<SettingRow>().ToList().Where(row => string.IsNullOrEmpty(row.HelpKey)), Is.Empty, "Every row is explained.");
@@ -465,7 +465,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Kind.value, Is.EqualTo(1), "Added as a spot.");
             card.Intensity.value = 50f;
             Assert.That(_lighting.Lighting.Value.Lights[1].Intensity, Is.EqualTo(0.5f).Within(1e-5f));
-            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(1f), "The first is left as it was.");
+            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(StageLight.Default.Intensity), "The first is left as it was.");
 
             Submit(card.AddButton);
             Submit(card.AddButton);

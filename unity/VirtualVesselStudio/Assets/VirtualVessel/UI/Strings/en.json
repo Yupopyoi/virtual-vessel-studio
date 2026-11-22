@@ -1075,7 +1075,7 @@
         "setup.lighting.spot-angle": "Spread",
         "setup.lighting.spot-angle.help": "The angle of the spot's cone. Smaller lights a narrower area.",
         "setup.lighting.intensity": "Brightness",
-        "setup.lighting.intensity.help": "This light's brightness. 100% is how it started. Lower it if the face looks washed out.",
+        "setup.lighting.intensity.help": "This light's brightness, 70% by default. Lower it if the face looks washed out.",
         "setup.lighting.color": "Color",
         "setup.lighting.color.help": "The light's color. With White, the color temperature below makes it warmer or cooler.",
         "setup.lighting.color.white": "White",

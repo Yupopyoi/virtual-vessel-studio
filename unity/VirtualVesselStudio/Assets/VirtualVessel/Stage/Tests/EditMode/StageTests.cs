@@ -97,7 +97,7 @@ namespace VirtualVessel.Stage.Tests
             StageLighting old = StageService.LightingFor(new StageSettings { LightIntensity = 0.6f });
             Assert.That(old.Lights.Count, Is.EqualTo(1));
             Assert.That(old.Lights[0], Is.EqualTo(StageLight.Default.WithIntensity(0.6f)));
-            Assert.That(StageService.LightingFor(new StageSettings { LightIntensity = float.NaN }).Lights[0].Intensity, Is.EqualTo(1f));
+            Assert.That(StageService.LightingFor(new StageSettings { LightIntensity = float.NaN }).Lights[0].Intensity, Is.EqualTo(StageLight.Default.Intensity));
             Assert.That(new StageSettings { LightIntensity = 0.6f }.Clone().LightIntensity, Is.EqualTo(0.6f));
         }
 
@@ -153,10 +153,12 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
-        public void TheDefaultLight_ComesFromWhereItAlwaysDid()
+        public void TheDefaultLight_ComesFromTheFront_HighAbove()
         {
+            // The user's choice after trying the lights (2026-11-22): left and right 0°, up and down 75°, 70%.
             Quaternion rotation = StageLightPlacement.Rotation(StageLight.Default);
-            Assert.That(Quaternion.Angle(rotation, Quaternion.Euler(35f, 15f, 0f)), Is.LessThan(0.01f));
+            Assert.That(Quaternion.Angle(rotation, Quaternion.Euler(75f, 0f, 0f)), Is.LessThan(0.01f));
+            Assert.That(StageLight.Default.Intensity, Is.EqualTo(0.7f));
         }
 
         [Test]
@@ -230,7 +232,8 @@ namespace VirtualVessel.Stage.Tests
             Light light = _stage.DefaultLight;
             Assert.That(light, Is.Not.Null);
             Assert.That(light.type, Is.EqualTo(LightType.Directional));
-            Assert.That(light.transform.forward.z, Is.GreaterThan(0.5f), "Lights the avatar's front.");
+            Assert.That(light.transform.forward.z, Is.GreaterThan(0.2f), "Lights the avatar's front, not its back.");
+            Assert.That(light.transform.forward.y, Is.LessThan(-0.9f), "From high above (75°, the user's choice).");
             GameObject backdrop = _stage.Backdrop;
             Assert.That(backdrop, Is.Not.Null);
             Assert.That(backdrop.transform.position.z, Is.GreaterThan(0f), "Behind the avatar, away from the camera.");
@@ -271,7 +274,7 @@ namespace VirtualVessel.Stage.Tests
             using IDisposable subscription = _stage.Lighting.Subscribe(seen.Add);
             Assert.That(_stage.Lights.Count, Is.EqualTo(1));
             Assert.That(_stage.DefaultLight.type, Is.EqualTo(LightType.Directional));
-            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(1f));
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(0.7f).Within(1e-5f), "70% by default.");
 
             StageLighting dimmer = _stage.Lighting.Value.WithLight(0, StageLight.Default.WithIntensity(0.6f));
             _stage.SetLighting(dimmer);
