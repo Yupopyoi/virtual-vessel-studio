@@ -27,7 +27,7 @@ namespace VirtualVessel.UI.Controls
         }
 
         /// <summary>The links, in the order of the Cards; for tests.</summary>
-        public IReadOnlyList<Button> Links => Children().OfType<Button>().ToList();
+        public IReadOnlyList<ActionButton> Links => Children().OfType<ActionButton>().ToList();
 
         /// <summary>Makes a link for each Card that has a title, in order. With fewer than two, the index hides.</summary>
         public void SetCards(IEnumerable<Card> cards)
@@ -36,12 +36,12 @@ namespace VirtualVessel.UI.Controls
             _targets.Clear();
             foreach (Card card in (cards ?? Enumerable.Empty<Card>()).Where(card => card != null && !string.IsNullOrEmpty(card.TitleKey)))
             {
+                // The app's button, whose label carries the font: a plain Button's own text was measured as nothing
+                // here, and the links shrank to their padding with their names drawn over each other (2026-11-22).
                 Card target = card;
-                var link = new Button(() => JumpTo(target));
+                ActionButton link = Ui.Button(card.TitleKey);
                 link.AddToClassList(LinkClass);
-                link.AddToClassList("vv-text-body");
-                new KeyedText(link, text => link.text = text).Key = card.TitleKey;
-                FocusRing.Attach(link);
+                link.clicked += () => JumpTo(target);
                 Add(link);
                 _targets.Add(card);
             }

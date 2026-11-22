@@ -131,8 +131,12 @@ namespace VirtualVessel.UI.Tests
             VisualElement video = screen.Query(className: SetupScreen.PageClass).ToList()[SetupScreen.VideoPage];
             PageIndex index = video.Q<PageIndex>();
             Assert.That(video.IndexOf(index), Is.Zero, "At the top of the page.");
-            Assert.That(index.Links.Select(link => link.text), Is.EqualTo(new[] { _root.Localizer.Get(CaptureStrings.GameTitle), _root.Localizer.Get(CaptureStrings.SubScreenTitle) }));
+            Assert.That(index.Links.Select(link => link.TextKey), Is.EqualTo(new[] { CaptureStrings.GameTitle, CaptureStrings.SubScreenTitle }));
             Assert.That(index.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(index.Links[0].layout.width, Is.GreaterThan(80f), "Wide enough for its name.");
+            Rect first = index.Links[0].layout;
+            Rect second = index.Links[1].layout;
+            Assert.That(second.xMin >= first.xMax + 7.5f || second.yMin >= first.yMax + 7.5f, Is.True, "S apart, beside it or wrapped below it.");
 
             // The avatar page here has only the tracking Card: nothing to choose between.
             VisualElement avatar = screen.Query(className: SetupScreen.PageClass).ToList()[SetupScreen.AvatarPage];

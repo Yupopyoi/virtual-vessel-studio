@@ -38,6 +38,7 @@
     align-items: center;
 }
 
+/* App buttons made quieter (two classes, so this wins over the button's own look). */
 .vv-page-index > .vv-page-index__link {
     margin: 0 var(--vv-space-s) var(--vv-space-s) 0;
     padding: 4px 10px;
