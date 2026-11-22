@@ -17,7 +17,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 |---|---|---|
 | Video | `setup.page.video` | Capture (game screen, sub monitor) |
 | Audio | `setup.page.audio` | Audio (chapter 11; without audio, the line "Audio is not available."), BGM, sound effects (chapter 14), voice conversion (chapter 13) |
-| Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available) |
+| Avatar | `setup.page.avatar` | Avatar (chapter 5), tracking (chapter 4), face tuning (chapter 9; only when avatars are available), lighting (chapter 15; only with Stage) |
 | Streaming and recording | `setup.page.output` | Recording (chapter 10; without recording, the line "Recording is not available."), streaming (chapter 12) |
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
 
@@ -188,7 +188,6 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 | Video | Image (384×216, 16:9) | The middle of the stream, enlarged so the expression can be seen. "No video" when there is none |
 | Picture height | Slider (0 to 100%, steps of 5%), under the video | Which height of the avatar frame (Stage detailed design 7.2) is shown (0% the frame's bottom, 100% its top); of the whole stream without an avatar. 85% at first (where the camera's default position puts the face of an avatar of average height). The face's height depends on the avatar's, so the user sets it. Not saved |
 | Zoom | Slider (100 to 400%, steps of 10%), under the picture height | How much the picture is enlarged. 100% shows the avatar frame's whole height (the whole stream without an avatar); 220% at first. Across, it shows the frame's middle. Because both follow the frame, the face stays in view however small or far to the side the avatar is placed (user's report, 2026-11-19). The picture keeps the stream's shape and never shows past the stream's edges. The face's size depends on the avatar, so the user sets it (user's request, 2026-10-21). Not saved |
-| Light brightness | Slider (10 to 150%, steps of 5%), under the zoom | The brightness of the stage's light (Stage detailed design 7.1). 100% is the default. Its Help Hint says that it changes the stream's light too and is saved. Lowered when the face is washed out (user's request, 2026-10-21). Beside the picture, so it is changed while watching the face (user's decision, 2026-10-21). Left out without Stage |
 | Winks | Toggle | Whether one eye may close alone. Off by default. While off, "Winking" is disabled |
 | Per part | Slider (50 to 300%, steps of 10%) with a bar under it | Eye closing, winking, brows (surprise, anger, sadness), mouth, gaze, and smile. 100% is the default. The bar is how far the avatar moves that part now (0 to 100%), redrawn about every 50 ms |
 | Finger bend, thumb bend | Slider (50–200%, in 10% steps) | How strongly the fingers bend (avatar detailed design 7.5). 100% is the default. Both sliders have the same Help Hint. The hands are seen with the picture's height and zoom |
@@ -198,7 +197,6 @@ Tunes, part by part and while watching the avatar, how strongly the user's face 
 - The bars are progress bars (`components.md` 3.15) without a title; the introduction says what they show.
 - A change applies to the avatar on the stream at once and is saved (`avatar-settings.json`).
 - When avatars are unavailable (no Avatar), this Card is not placed. While no avatar is chosen, the bars stay still.
-- The light's brightness reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3). "Reset" puts back only the face tuning, not the light.
 - The crop is made by placing the whole stream enlarged inside a frame, shifting it, and hiding what is outside the frame. Changing the shown part of Unity's Image (its UV rectangle) was not redrawn (2026-10-21).
 
 ## 10. Recording Card
@@ -490,3 +488,76 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
 | `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
 | `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |
+
+## 15. Lighting Card
+
+Builds the stage's lights (Stage detailed design 7.3). It replaces the provisional brightness slider, which was in the face tuning Card (2026-10-21) (user's request, 2026-11-22). On the avatar page, under the face tuning, since both are judged by looking at the face on the stream. Left out without Stage.
+
+| Row | Component | Content |
+|---|---|---|
+| Video | Image (16:9) | The whole stream, so the face stays in view while a light moves. "No video" when there is none |
+| Right of the title band | Button (Secondary) "Add a light", "Remove this light" | An added light is a spot from the right (left and right 45°, up and down 15°, distance 2 m), and becomes the chosen one. With four lights adding is disabled, with one removing is, and their tooltips say why |
+| Light | Segmented (1 to 4) | The light the rows below change. Lights not made yet are disabled |
+| Kind | Segmented (Whole stage, Spot) | A directional light, or a spot aimed at the face |
+| Left and right | Slider (-180 to 180°, steps of 5°) | 0° is the front (the camera's side), plus the screen's right |
+| Up and down | Slider (-30 to 90°, steps of 5°) | 0° is the face's height, 90° straight above |
+| Distance | Slider (0.5 to 5 m, steps of 0.1 m) | Spot only. Disabled for a whole-stage light, with the reason in its tooltip |
+| Spread | Slider (10 to 120°, steps of 5°) | Spot only. Disabled for a whole-stage light |
+| Brightness | Slider (10 to 200%, steps of 5%) | 100% is how it started |
+| Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple) | The color is also told by its name (not by color alone) |
+| Color temperature | Slider (2700 to 9000 K, steps of 100 K) | White only. Disabled for the other colors |
+| Ambient light | Slider (0 to 200%, steps of 5%) | Shared by all lights |
+| Reset the lighting | Button (Secondary) "Reset" | Back to one light as it started, and the ambient light at 100% |
+
+- A change reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3).
+- Disabled rows stay in view, so the user sees what a spot or white would add.
+- The Japanese text is provisional, for the user to proofread (`ui-guidelines.md`).
+
+### 15.1 Strings
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.lighting.title` | 照明 | Lighting |
+| `setup.lighting.light` | ライト | Light |
+| `setup.lighting.light.help` | 下の設定を変えるライトを選択します。ライトは4つまで追加できます。 | Choose the light the settings below change. Up to four lights can be added. |
+| `setup.lighting.light.1` | 1 | 1 |
+| `setup.lighting.light.2` | 2 | 2 |
+| `setup.lighting.light.3` | 3 | 3 |
+| `setup.lighting.light.4` | 4 | 4 |
+| `setup.lighting.add` | ライトを追加 | Add a light |
+| `setup.lighting.add.full` | ライトは4つまでです。 | There can be up to four lights. |
+| `setup.lighting.remove` | このライトを削除 | Remove this light |
+| `setup.lighting.remove.last` | ライトは1つ以上必要です。 | At least one light is needed. |
+| `setup.lighting.kind` | 種類 | Kind |
+| `setup.lighting.kind.help` | 「全体」は、ステージ全体を同じ向きから照らします。「スポット」は、アバターの顔に向けた光で、当たる範囲を絞れます。 | Whole stage lights everything from one direction. Spot is aimed at the avatar's face, and its cone can be narrowed. |
+| `setup.lighting.kind.directional` | 全体 | Whole stage |
+| `setup.lighting.kind.spot` | スポット | Spot |
+| `setup.lighting.yaw` | 左右の向き | Left and right |
+| `setup.lighting.yaw.help` | アバターから見て、光が来る方向です。0°が正面（カメラの側）で、プラスにすると画面の右から照らします。 | Where the light comes from around the avatar. 0° is the front (the camera's side); a plus value lights from the screen's right. |
+| `setup.lighting.pitch` | 上下の向き | Up and down |
+| `setup.lighting.pitch.help` | 光が来る高さです。0°が顔と同じ高さで、90°が真上です。マイナスにすると下から照らします。 | How high the light comes from. 0° is the face's height and 90° straight above; a minus value lights from below. |
+| `setup.lighting.distance` | 距離 | Distance |
+| `setup.lighting.distance.help` | スポットライトから顔までの距離です。遠くするほど、光の当たる範囲が広がります。明るさは変わりません。 | How far the spot is from the face. Farther lights a wider area; the brightness stays the same. |
+| `setup.lighting.spot-only` | スポットライトで使います。 | Used by a spot. |
+| `setup.lighting.spot-angle` | 光の広がり | Spread |
+| `setup.lighting.spot-angle.help` | スポットライトの光が広がる角度です。小さくするほど、狭い範囲だけを照らします。 | The angle of the spot's cone. Smaller lights a narrower area. |
+| `setup.lighting.intensity` | 明るさ | Brightness |
+| `setup.lighting.intensity.help` | このライトの明るさです。100%が初めの明るさです。顔が白くなりすぎる場合は下げてください。 | This light's brightness. 100% is how it started. Lower it if the face looks washed out. |
+| `setup.lighting.color` | 色 | Color |
+| `setup.lighting.color.help` | 光の色です。「白」では、下の色温度で暖かい色から冷たい色まで変えられます。 | The light's color. With White, the color temperature below makes it warmer or cooler. |
+| `setup.lighting.color.white` | 白 | White |
+| `setup.lighting.color.pink` | ピンク | Pink |
+| `setup.lighting.color.orange` | オレンジ | Orange |
+| `setup.lighting.color.yellow` | 黄色 | Yellow |
+| `setup.lighting.color.green` | 緑 | Green |
+| `setup.lighting.color.sky` | 水色 | Sky blue |
+| `setup.lighting.color.blue` | 青 | Blue |
+| `setup.lighting.color.purple` | 紫 | Purple |
+| `setup.lighting.temperature` | 色温度 | Color temperature |
+| `setup.lighting.temperature.help` | 白い光の色合いです。小さくするほど暖かい色（電球の色）に、大きくするほど冷たい色になります。6500 Kが昼の光です。 | The shade of the white light. Lower is warmer, like a light bulb; higher is cooler. 6500 K is daylight. |
+| `setup.lighting.white-only` | 色が「白」のときに使います。 | Used when the color is White. |
+| `setup.lighting.ambient` | 環境光 | Ambient light |
+| `setup.lighting.ambient.help` | ライトが当たらない影の側の明るさです。下げると影が濃くなり、スポットライトが目立ちます。すべてのライトに共通です。 | How bright the shade is where no light reaches. Lower makes the shadows deeper and a spot stand out. It is shared by all lights. |
+| `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |
+| `setup.lighting.reset.help` | ライトを1つにし、向き、明るさ、色と環境光を初めの状態に戻します。 | Goes back to one light, with its direction, brightness, and color, and the ambient light, as they started. |
+| `setup.lighting.reset.button` | 既定に戻す | Reset |

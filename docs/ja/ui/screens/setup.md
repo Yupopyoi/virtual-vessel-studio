@@ -17,7 +17,7 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 |---|---|---|
 | 映像 | `setup.page.video` | 映像の取り込み（ゲーム画面、サブモニター） |
 | 音声 | `setup.page.audio` | 音声（11章。音声を使えないときは「音声は使えません。」の一文）、BGM、効果音（14章）、声の変換（13章） |
-| アバター | `setup.page.avatar` | アバター（5章）、トラッキング（4章）、表情の調整（9章。アバターを使えるときだけ） |
+| アバター | `setup.page.avatar` | アバター（5章）、トラッキング（4章）、表情の調整（9章。アバターを使えるときだけ）、照明（15章。Stageを使えるときだけ） |
 | 配信・録画 | `setup.page.output` | 録画（10章。録画を使えないときは「録画は使えません。」の一文）、配信（12章）
 | アプリ | `setup.page.app` | アプリの設定、クレジットとライセンス（8章） |
 
@@ -188,7 +188,6 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | 映像 | 画像（384×216、16:9） | 配信の映像の中央を拡大して表示する。表情を見やすくするため。映像がないときは「映像なし」 |
 | 映像の高さ | Slider（0〜100%、5%刻み）、映像の下 | アバターの枠（Stage詳細設計7.2）のどの高さを見せるか（0%が枠の下端、100%が上端）。アバターがいなければ映像全体のどの高さか。既定は85%（カメラの既定の位置で、平均的な身長のアバターの顔が入る所）。顔の位置はアバターの身長によるため、利用者が合わせる。保存はしない |
 | 拡大 | Slider（100〜400%、10%刻み）、映像の高さの下 | どれだけ拡大するか。100%でアバターの枠の高さ全体（アバターがいなければ配信の映像全体）、既定は220%。左右は枠の中央を見せる。アバターを小さく置いても、端に置いても、枠を基準にするので顔を見失わない（利用者の指摘、2026-11-19）。見せる範囲は配信の映像と同じ形で、映像の外は見せない。顔の大きさはアバターによるため、利用者が合わせる（利用者の要望、2026-10-21）。保存はしない |
-| 照明の強さ | Slider（10〜150%、5%刻み）、拡大の下 | 舞台のライトの強さ（Stage詳細設計7.1）。100%が既定。配信の照明も変わり保存されることは、Help Hintで伝える。顔が白く飛ぶときに弱める（利用者の要望、2026-10-21）。顔を見ながら変えるため、映像の横に置く（利用者の決定、2026-10-21）。Stageがないときは置かない |
 | ウインク | Toggle | 片目だけを閉じられるか。既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
 | 部位ごと | Slider（50〜300%、10%刻み）と、その下の帯 | 目の閉じやすさ、ウインクのしやすさ、眉の動き（驚き・怒り・悲しみ）、口の動き、視線の動き、笑顔の強さ。100%が既定。帯は、その部位のいまのアバターの動き（0〜100%）で、約50msごとに描き直す |
 | 指の曲がり、親指の曲がり | Slider（50〜200%、10%刻み） | 指の曲がる強さ（Avatar詳細設計7.5）。100%が既定。2つのSliderに同じHelp Hintを付ける。手は「映像の高さ」と「拡大」で見る |
@@ -198,7 +197,6 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 - 帯は進捗のBar（`components.md` 3.15）を使い、見出しは付けない（説明文で意味を伝える）。
 - 変えるとすぐに配信中のアバターへ反映し、保存する（`avatar-settings.json`）。
 - アバターを使えないとき（Avatarがない）は、このCardを置かない。アバターを選んでいないときは、帯は動かない。
-- 照明の強さは、すぐに配信へ反映し、`stage-settings.json`へ保存する（Stage詳細設計6.3）。「既定に戻す」は表情の調整だけを戻し、照明の強さは戻さない。
 - 切り抜きは、映像全体を枠の中で拡大して置き、位置をずらし、枠の外を隠して行う。UnityのImageの表示範囲（UV）を変える方法では、変えても描き直されなかったため（2026-10-21）。
 
 ## 10. 録画のCard
@@ -490,3 +488,76 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.clips.problem.unreadable` | 音声ファイルを読み込めませんでした。ファイルが壊れていないか確認してください。 | The audio file could not be read. Check that it is not damaged. |
 | `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
 | `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |
+
+## 15. 照明のCard
+
+舞台のライトを組み立てる（Stage詳細設計7.3）。強さだけを変えられた仮のSlider（表情の調整のCardにあった。2026-10-21）を置き換える（利用者の要望、2026-11-22）。アバターのページの、表情の調整の下に置く。どちらも配信の顔を見て決めるため。Stageがないときは置かない。
+
+| 行 | 部品 | 内容 |
+|---|---|---|
+| 映像 | 画像（16:9）| 配信の映像全体。ライトを動かす間も顔が見えるように。映像がないときは「映像なし」 |
+| タイトル部分の右 | Button（Secondary）「ライトを追加」「このライトを削除」 | 追加したライトは、右からのスポット（左右45°、上下15°、距離2m）で、それを選んだ状態にする。4つのときは追加を、1つのときは削除を無効にし、ツールチップで理由を示す |
+| ライト | Segmented（1〜4） | 下の行で変えるライト。まだないライトは無効 |
+| 種類 | Segmented（全体、スポット） | 平行光か、顔へ向けたスポット |
+| 左右の向き | Slider（-180〜180°、5°刻み） | 0°が正面（カメラの側）、プラスが画面の右 |
+| 上下の向き | Slider（-30〜90°、5°刻み） | 0°が顔の高さ、90°が真上 |
+| 距離 | Slider（0.5〜5m、0.1m刻み） | スポットだけ。全体のときは無効にし、ツールチップで理由を示す |
+| 光の広がり | Slider（10〜120°、5°刻み） | スポットだけ。全体のときは無効 |
+| 明るさ | Slider（10〜200%、5%刻み） | 100%が初めの明るさ |
+| 色 | 色の見本とDropdown（白、ピンク、オレンジ、黄色、緑、水色、青、紫） | 色は名前でも伝える（色だけに頼らない） |
+| 色温度 | Slider（2700〜9000K、100K刻み） | 白だけ。ほかの色のときは無効 |
+| 環境光 | Slider（0〜200%、5%刻み） | すべてのライトに共通 |
+| 照明を既定に戻す | Button（Secondary）「既定に戻す」 | ライト1つの初めの状態と、環境光100%に戻す |
+
+- 変えるとすぐに配信へ反映し、`stage-settings.json`へ保存する（Stage詳細設計6.3）。
+- 無効の行も隠さずに見せる。スポットや白にすると何が増えるかが分かるように。
+- 日本語の文は仮で、利用者が校正する（`ui-guidelines.md`）。
+
+### 15.1 文字列
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.lighting.title` | 照明 | Lighting |
+| `setup.lighting.light` | ライト | Light |
+| `setup.lighting.light.help` | 下の設定を変えるライトを選択します。ライトは4つまで追加できます。 | Choose the light the settings below change. Up to four lights can be added. |
+| `setup.lighting.light.1` | 1 | 1 |
+| `setup.lighting.light.2` | 2 | 2 |
+| `setup.lighting.light.3` | 3 | 3 |
+| `setup.lighting.light.4` | 4 | 4 |
+| `setup.lighting.add` | ライトを追加 | Add a light |
+| `setup.lighting.add.full` | ライトは4つまでです。 | There can be up to four lights. |
+| `setup.lighting.remove` | このライトを削除 | Remove this light |
+| `setup.lighting.remove.last` | ライトは1つ以上必要です。 | At least one light is needed. |
+| `setup.lighting.kind` | 種類 | Kind |
+| `setup.lighting.kind.help` | 「全体」は、ステージ全体を同じ向きから照らします。「スポット」は、アバターの顔に向けた光で、当たる範囲を絞れます。 | Whole stage lights everything from one direction. Spot is aimed at the avatar's face, and its cone can be narrowed. |
+| `setup.lighting.kind.directional` | 全体 | Whole stage |
+| `setup.lighting.kind.spot` | スポット | Spot |
+| `setup.lighting.yaw` | 左右の向き | Left and right |
+| `setup.lighting.yaw.help` | アバターから見て、光が来る方向です。0°が正面（カメラの側）で、プラスにすると画面の右から照らします。 | Where the light comes from around the avatar. 0° is the front (the camera's side); a plus value lights from the screen's right. |
+| `setup.lighting.pitch` | 上下の向き | Up and down |
+| `setup.lighting.pitch.help` | 光が来る高さです。0°が顔と同じ高さで、90°が真上です。マイナスにすると下から照らします。 | How high the light comes from. 0° is the face's height and 90° straight above; a minus value lights from below. |
+| `setup.lighting.distance` | 距離 | Distance |
+| `setup.lighting.distance.help` | スポットライトから顔までの距離です。遠くするほど、光の当たる範囲が広がります。明るさは変わりません。 | How far the spot is from the face. Farther lights a wider area; the brightness stays the same. |
+| `setup.lighting.spot-only` | スポットライトで使います。 | Used by a spot. |
+| `setup.lighting.spot-angle` | 光の広がり | Spread |
+| `setup.lighting.spot-angle.help` | スポットライトの光が広がる角度です。小さくするほど、狭い範囲だけを照らします。 | The angle of the spot's cone. Smaller lights a narrower area. |
+| `setup.lighting.intensity` | 明るさ | Brightness |
+| `setup.lighting.intensity.help` | このライトの明るさです。100%が初めの明るさです。顔が白くなりすぎる場合は下げてください。 | This light's brightness. 100% is how it started. Lower it if the face looks washed out. |
+| `setup.lighting.color` | 色 | Color |
+| `setup.lighting.color.help` | 光の色です。「白」では、下の色温度で暖かい色から冷たい色まで変えられます。 | The light's color. With White, the color temperature below makes it warmer or cooler. |
+| `setup.lighting.color.white` | 白 | White |
+| `setup.lighting.color.pink` | ピンク | Pink |
+| `setup.lighting.color.orange` | オレンジ | Orange |
+| `setup.lighting.color.yellow` | 黄色 | Yellow |
+| `setup.lighting.color.green` | 緑 | Green |
+| `setup.lighting.color.sky` | 水色 | Sky blue |
+| `setup.lighting.color.blue` | 青 | Blue |
+| `setup.lighting.color.purple` | 紫 | Purple |
+| `setup.lighting.temperature` | 色温度 | Color temperature |
+| `setup.lighting.temperature.help` | 白い光の色合いです。小さくするほど暖かい色（電球の色）に、大きくするほど冷たい色になります。6500 Kが昼の光です。 | The shade of the white light. Lower is warmer, like a light bulb; higher is cooler. 6500 K is daylight. |
+| `setup.lighting.white-only` | 色が「白」のときに使います。 | Used when the color is White. |
+| `setup.lighting.ambient` | 環境光 | Ambient light |
+| `setup.lighting.ambient.help` | ライトが当たらない影の側の明るさです。下げると影が濃くなり、スポットライトが目立ちます。すべてのライトに共通です。 | How bright the shade is where no light reaches. Lower makes the shadows deeper and a spot stand out. It is shared by all lights. |
+| `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |
+| `setup.lighting.reset.help` | ライトを1つにし、向き、明るさ、色と環境光を初めの状態に戻します。 | Goes back to one light, with its direction, brightness, and color, and the ambient light, as they started. |
+| `setup.lighting.reset.button` | 既定に戻す | Reset |

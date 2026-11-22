@@ -88,15 +88,79 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
-        public void TheLight_IsTheDefaultUntilChanged_AndASavedValueIsKeptInRange()
+        public void TheLighting_IsTheDefaultUntilChanged_AndTheOldBrightnessIsKept()
         {
-            Assert.That(StageService.IntensityFor(new StageSettings()), Is.EqualTo(StageLightIntensity.Default));
-            Assert.That(StageService.IntensityFor(null), Is.EqualTo(StageLightIntensity.Default));
-            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0.6f }), Is.EqualTo(0.6f));
-            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 9f }), Is.EqualTo(StageLightIntensity.Max), "A hand-edited value is read as the nearest end.");
-            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = 0f }), Is.EqualTo(StageLightIntensity.Min), "Never dark.");
-            Assert.That(StageService.IntensityFor(new StageSettings { LightIntensity = float.NaN }), Is.EqualTo(StageLightIntensity.Default));
+            Assert.That(StageService.LightingFor(new StageSettings()), Is.EqualTo(StageLighting.Default));
+            Assert.That(StageService.LightingFor(null), Is.EqualTo(StageLighting.Default));
+
+            // A file of version 0.3 has only the one light's brightness.
+            StageLighting old = StageService.LightingFor(new StageSettings { LightIntensity = 0.6f });
+            Assert.That(old.Lights.Count, Is.EqualTo(1));
+            Assert.That(old.Lights[0], Is.EqualTo(StageLight.Default.WithIntensity(0.6f)));
+            Assert.That(StageService.LightingFor(new StageSettings { LightIntensity = float.NaN }).Lights[0].Intensity, Is.EqualTo(1f));
             Assert.That(new StageSettings { LightIntensity = 0.6f }.Clone().LightIntensity, Is.EqualTo(0.6f));
+        }
+
+        [Test]
+        public void SavedLights_AreRead_WithinTheLimits_AndAMissingFieldTakesTheDefault()
+        {
+            var settings = new StageSettings
+            {
+                LightIntensity = 0.6f,
+                AmbientLight = 9f,
+                Lights = new List<LightSettings>
+                {
+                    new LightSettings { Kind = "spot", Yaw = 400f, Pitch = 20f, Distance = 3f, Intensity = 1.2f, Color = "pink", Temperature = 5000f, SpotAngle = 30f },
+                    new LightSettings { Kind = "laser", Color = "rainbow" },
+                    null,
+                    new LightSettings(), new LightSettings(), new LightSettings(),
+                },
+            };
+
+            StageLighting lighting = StageService.LightingFor(settings);
+            Assert.That(lighting.Lights.Count, Is.EqualTo(StageLighting.MaxLights), "At most four.");
+            Assert.That(lighting.Lights[0], Is.EqualTo(new StageLight(StageLightKind.Spot, StageLight.MaxYaw, 20f, 3f, 1.2f, StageLightColors.Pink, 5000f, 30f)));
+            Assert.That(lighting.Lights[1], Is.EqualTo(StageLight.Default), "An unknown kind and color, and missing fields, are the default's.");
+            Assert.That(lighting.Ambient, Is.EqualTo(StageLighting.MaxAmbient));
+            Assert.That(StageService.LightingFor(new StageSettings { Lights = new List<LightSettings>() }), Is.EqualTo(StageLighting.Default), "Never without a light.");
+
+            StageSettings copy = settings.Clone();
+            copy.Lights[0].Yaw = 0f;
+            Assert.That(settings.Lights[0].Yaw, Is.EqualTo(400f), "The copy is deep.");
+        }
+
+        [Test]
+        public void TheDefaultLight_ComesFromWhereItAlwaysDid()
+        {
+            Quaternion rotation = StageLightPlacement.Rotation(StageLight.Default);
+            Assert.That(Quaternion.Angle(rotation, Quaternion.Euler(35f, 15f, 0f)), Is.LessThan(0.01f));
+        }
+
+        [Test]
+        public void ALight_StandsAroundTheFace_AndAimsAtIt()
+        {
+            StageLight right = StageLight.Default.WithKind(StageLightKind.Spot).WithYaw(90f).WithPitch(0f).WithDistance(2f);
+            Vector3 position = StageLightPlacement.Position(right);
+            Assert.That(position.x, Is.EqualTo(2f).Within(1e-4f), "A positive yaw is on the screen's right.");
+            Assert.That(position.y, Is.EqualTo(StageLightPlacement.Target.y).Within(1e-4f));
+            Vector3 forward = StageLightPlacement.Rotation(right) * Vector3.forward;
+            Assert.That(Vector3.Angle(forward, StageLightPlacement.Target - position), Is.LessThan(0.01f));
+
+            StageLight front = right.WithYaw(0f);
+            Assert.That(StageLightPlacement.Position(front).z, Is.LessThan(0f), "Yaw 0 is on the camera's side.");
+
+            StageLight above = right.WithPitch(90f);
+            Vector3 down = StageLightPlacement.Rotation(above) * Vector3.forward;
+            Assert.That(Vector3.Angle(down, Vector3.down), Is.LessThan(0.01f), "Straight above still aims down.");
+        }
+
+        [Test]
+        public void ASpot_IsRaisedByItsDistanceSquared_SoTheFaceGetsTheSameLight()
+        {
+            StageLight spot = StageLight.Default.WithKind(StageLightKind.Spot).WithDistance(3f).WithIntensity(0.5f);
+            Assert.That(StageLightPlacement.UnityIntensity(spot), Is.EqualTo(4.5f).Within(1e-4f));
+            Assert.That(StageLightPlacement.UnityIntensity(spot.WithKind(StageLightKind.Directional)), Is.EqualTo(0.5f));
+            Assert.That(StageLightPlacement.Range(spot), Is.GreaterThan(spot.Distance));
         }
     }
 
@@ -178,18 +242,31 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
-        public void ChangingTheLight_AppliesAtOnce_AndIsSaved_AfterTheDelay()
+        public void ChangingTheLights_AppliesAtOnce_AndIsSaved_AfterTheDelay()
         {
-            var seen = new List<float>();
-            using IDisposable subscription = _stage.Intensity.Subscribe(seen.Add);
-            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Default));
+            var seen = new List<StageLighting>();
+            using IDisposable subscription = _stage.Lighting.Subscribe(seen.Add);
+            Assert.That(_stage.Lights.Count, Is.EqualTo(1));
+            Assert.That(_stage.DefaultLight.type, Is.EqualTo(LightType.Directional));
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(1f));
 
-            _stage.SetIntensity(0.6f);
+            StageLighting dimmer = _stage.Lighting.Value.WithLight(0, StageLight.Default.WithIntensity(0.6f));
+            _stage.SetLighting(dimmer);
             Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(0.6f));
-            Assert.That(_stage.Intensity.Value, Is.EqualTo(0.6f));
-            _stage.SetIntensity(5f);
-            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "Kept within the range.");
-            Assert.That(seen, Is.EqualTo(new[] { 0.6f, StageLightIntensity.Max }));
+            StageLighting withSpot = dimmer.WithAdded(StageLight.Added.WithColor(StageLightColors.Sky).WithIntensity(9f));
+            _stage.SetLighting(withSpot);
+            Assert.That(_stage.Lights.Count, Is.EqualTo(2));
+            Assert.That(_stage.Lights[1].type, Is.EqualTo(LightType.Spot));
+            Assert.That(_stage.Lights[1].color, Is.EqualTo(StageLightColors.ColorOf(StageLight.Added.WithColor(StageLightColors.Sky))));
+            Assert.That(_stage.Lighting.Value.Lights[1].Intensity, Is.EqualTo(StageLight.MaxIntensity), "Kept within the range.");
+            Assert.That(seen.Count, Is.EqualTo(2));
+
+            // Removing a light takes its object away.
+            Light spot = _stage.Lights[1];
+            _stage.SetLighting(_stage.Lighting.Value.WithRemoved(1));
+            Assert.That(_stage.Lights.Count, Is.EqualTo(1));
+            Assert.That(spot == null, Is.True, "Destroyed.");
+            _stage.SetLighting(withSpot);
 
             string file = Path.Combine(_directory, StageSettings.FileName);
             _loop.Tick(null);
@@ -200,8 +277,21 @@ namespace VirtualVessel.Stage.Tests
 
             _stage.Dispose();
             _stage = Create();
-            Assert.That(_stage.Intensity.Value, Is.EqualTo(StageLightIntensity.Max));
-            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(StageLightIntensity.Max), "The new light starts as saved.");
+            Assert.That(_stage.Lighting.Value, Is.EqualTo(withSpot.Normalized()));
+            Assert.That(_stage.Lights.Count, Is.EqualTo(2), "The new lights start as saved.");
+            Assert.That(_stage.DefaultLight.intensity, Is.EqualTo(0.6f));
+        }
+
+        [Test]
+        public void TheAmbientLight_ScalesTheScenes_AndIsPutBackOnDispose()
+        {
+            UnityEngine.Rendering.SphericalHarmonicsL2 scene = RenderSettings.ambientProbe;
+            _stage.SetLighting(_stage.Lighting.Value.WithAmbient(0.5f));
+            Assert.That(RenderSettings.ambientProbe, Is.EqualTo(scene * 0.5f));
+
+            _stage.Dispose();
+            Assert.That(RenderSettings.ambientProbe, Is.EqualTo(scene));
+            _stage = Create();
         }
 
         [Test]

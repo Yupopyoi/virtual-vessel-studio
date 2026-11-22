@@ -66,15 +66,18 @@ flowchart LR
 |---|---|---|
 | `StageService` | Class（`IApplicationService`） | Stream Screenを作り、配置を読み込み、保存する |
 | `CaptureScreen` | Class（UIの`IFrameSource`） | 1つのCapture Sourceの板と配置。編集を受け付ける |
-| `StageSettings` | Class | 保存する内容（映像ごとの配置、ライトの強さ） |
+| `StageSettings` | Class | 保存する内容（映像ごとの配置、ライト、環境光） |
 | `ScreenPlacementMath` | Static Class | 配置から板の位置、大きさ、UVを求める（純粋関数） |
-| `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、既定のライトの向き、背景の位置と大きさ |
+| `StageDefaults` | Static Class | 初めて使うときの配置、アバターの既定のSpawn Point、背景の位置と大きさ |
 | `DefaultBackdrop` | Static Class | 仮の背景の画像をコードで描く（純粋関数、7.1） |
 | `IAvatarSpawnPoints` | Interface | アバターの立つ位置（7.1） |
 | `AvatarFrame` | Class（UIの`IFrameSource`） | アバターの枠。配置からAvatar Cameraの写し方を決める（7.2） |
 | `AvatarFramingMath` | Static Class | アバターの枠から、カメラの位置と投影を求める（純粋関数、7.2） |
-| `IStageLighting`（UI） | Interface | ライトの強さ。設定画面が変え、Stageが実装する（7.1） |
-| `StageLightIntensity`（UI） | Static Class | ライトの強さの範囲と既定、範囲に収める関数（純粋関数） |
+| `IStageLighting`（UI） | Interface | ライトと環境光。設定画面が変え、Stageが実装する（7.3） |
+| `StageLight`、`StageLighting`（UI） | Class（不変） | 1つのライトと、ライトの一覧と環境光。範囲と既定、範囲に収める関数（純粋関数） |
+| `StageLightColors`（UI） | Static Class | ライトの色の一覧と、色温度から色を求める関数（純粋関数） |
+| `StageLightPlacement` | Static Class | ライトの位置、向き、Unityに渡す強さを求める（純粋関数、7.3） |
+| `StageLightRig` | Class（internal） | Unityのライトを作り、消し、値を合わせる。環境光を変え、終了時に戻す |
 
 ---
 
@@ -85,15 +88,15 @@ public sealed class StageService : IApplicationService, IAvatarSpawnPoints, ISta
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // 配置編集へ渡す。重なり順ではなくSourceの順
     public IAvatarSpawnPoints SpawnPoints { get; }        // アバターの立つ位置（7.1）
-    public IReadOnlyObservable<float> Intensity { get; }  // ライトの強さ（7.1）。1が作ったときのライト
-    public void SetIntensity(float intensity);            // すぐにライトへ反映し、保存する。Main Threadから
+    public IReadOnlyObservable<StageLighting> Lighting { get; }  // ライトと環境光（7.3）
+    public void SetLighting(StageLighting lighting);             // 範囲に収め、すぐに反映し、保存する。Main Threadから
 }
 
 // UI（VirtualVessel.UI.Lighting）。StageはUIを参照するため、窓口はUIに置く（IFrameSourceと同じ）
 public interface IStageLighting
 {
-    IReadOnlyObservable<float> Intensity { get; }
-    void SetIntensity(float intensity);
+    IReadOnlyObservable<StageLighting> Lighting { get; }
+    void SetLighting(StageLighting lighting);
 }
 
 public interface IAvatarSpawnPoints
@@ -104,7 +107,7 @@ public interface IAvatarSpawnPoints
 
 - Compositionは`Screens`をUIへ渡す。UIは`IFrameSource`だけを見る。
 - Compositionは`SpawnPoints.Default`を、`AvatarPlacement`の一部としてAvatarへ渡す（Avatar詳細設計3章）。
-- Compositionは`StageService`を`IStageLighting`としてUIへ渡す。設定画面の表情の調整のCardが、映像の横で強さを変える（UI `setup.md` 9章）。
+- Compositionは`StageService`を`IStageLighting`としてUIへ渡す。設定画面のアバターのページの照明のCardが変える（UI `setup.md` 15章）。
 
 ---
 
@@ -138,15 +141,21 @@ public interface IAvatarSpawnPoints
     "game": { "placement": [0, 0, 1, 1], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 0 },
     "subscreen": { "placement": [0.66, 0.04, 0.3, 0.3], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 1 }
   },
-  "lightIntensity": 0.7
+  "lightIntensity": null,
+  "lights": [
+    { "kind": "directional", "yaw": -15, "pitch": 35, "distance": 2, "intensity": 0.7, "color": "white", "temperature": 6500, "spotAngle": 50 },
+    { "kind": "spot", "yaw": 45, "pitch": 15, "distance": 2, "intensity": 1, "color": "pink", "temperature": 6500, "spotAngle": 50 }
+  ],
+  "ambientLight": 1
 }
 ```
 
 - Projectのフォルダー（`Projects/<ProjectId>/`、Project Data詳細設計6章）に置き、`ConfigFileStore`（ProjectData）で読み書きする。壊れていたら退避して既定に戻す。段階7の後のリファクタリングまでは設定のFolderにあり、最初のProjectがその写しを取った。
 - 知らないIdの配置は消さずに残す（CLAUDE.md 25章）。
 - 確定（`LayoutCommitted`）のたびに、最後の確定から0.5秒後に保存する。終了時に未保存の分を保存する。
-- `lightIntensity`はライトの強さ（7.1）。変えるまでは`null`で、既定（1）を使う。既定を良くしたとき、変えていない利用者にも届くようにするため。範囲の外の値（手で書き換えたファイル等）は近い端として、数でない値は既定として読む。Sliderで続けて変えている間は保存せず、最後の変更から0.5秒後に保存する。
-- `lightIntensity`がない古いファイルは既定で読むため、版（`schemaVersion`）は1のままとする。
+- `lights`はライトの一覧、`ambientLight`は環境光の倍率（7.3）。変えるまでは`null`で、既定を使う。既定を良くしたとき、変えていない利用者にも届くようにするため。範囲の外の値（手で書き換えたファイル等）は近い端として、数でない値、ない項目、知らない種類と色は既定のライトの値として読む。5つ目からのライトは読まない。Sliderで続けて変えている間は保存せず、最後の変更から0.5秒後に保存する。
+- `lightIntensity`は、ライトが1つだった版（0.3まで）の強さである。`lights`がないときに、1つ目のライトの強さとして読む。ライトを保存するときは`null`にする。強さは`lights`に移っているため、値は失われない。
+- 項目を足しただけで、古いファイルもそのまま読めるため、版（`schemaVersion`）は1のままとする。
 
 ### 6.4 名前の翻訳
 
@@ -172,9 +181,8 @@ public interface IAvatarSpawnPoints
 ### 7.1 アバターのSpawn Pointとライト（Stage Sceneができるまで）
 
 - Stage Sceneが自分のSpawn Pointを持つまでは（方式設計11.6）、Spawn Pointを1つだけ出す：原点で、-ZにあるMain Camera（Video詳細設計7.5）の方へ180°向ける。
-- Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時に平行光のライト`StageDefaultLight`を作る：カメラの上の少し左から（回転35°、15°、0°）、影なし。自分のライトを持つStage Sceneができたら、それに置き換える。
-- ライトの強さは、利用者が設定画面で変えられる（`IStageLighting`。利用者の要望、2026-10-21）。強さ1のライトでは、顔が白く飛んで表情が見にくかったため。範囲は10〜150%、既定は100%（強さ1）。強さは作ったときのライトに掛ける倍率とし、Stage Sceneができたときもその照明全体の明るさの調整として使えるようにする（17章）。
-- 方式設計11.7では、照明はStageが管理する。強さの設定もStageが持ち、`stage-settings.json`に保存する（6.3）。配信の映像も変わるため、表示を見るためだけの映像の高さや拡大（UI `setup.md` 9章）とは違い、保存する。
+- Persistent Sceneにはライトがなく、光を受けるアバターの材質（MToon）が暗くなる。そのため、Stageは起動時にライトを作る。既定は平行光の`StageDefaultLight`1つ：カメラの上の少し左から（回転35°、15°、0°）、影なし。利用者は、ライトを足し、向き、強さ、色を変えられる（7.3）。自分のライトを持つStage Sceneができたら、それに置き換える。
+- 方式設計11.7では、照明はStageが管理する。ライトの設定もStageが持ち、`stage-settings.json`に保存する（6.3）。配信の映像も変わるため、表示を見るためだけの映像の高さや拡大（UI `setup.md` 9章）とは違い、保存する。
 - Stage Sceneが自分の背景を持つまでは、Stageがアバターの後ろに仮の背景を置く（利用者の要望、2026-10-24）。画像は、紫から藍、紺への暗いグラデーションに、アバターの後ろのやわらかな明るさ、淡い水玉、アバターから離れた左右の帯のパステル色の星とハートを描く。最初にパステル調を試したが、利用者は暗いものを選んだ。`DefaultBackdrop`（純粋関数）がコードで1600×900に描くため、画像ファイルは同梱しない。描くのにEditorで起動時に1回、約0.37秒かかる。画像は、アバターの2m後ろ、カメラの高さに置いた板（`StageBackdrop`）に貼る。板は4.27×2.4mで、既定のカメラの視野（Video詳細設計7.5）に約15%の余裕を足した大きさとする。Main Cameraが、平面の映像とアバターの下に描く。光を受けず、Stream Screenと同じShaderを使う。既定のライトとともに破棄する。
 
 ### 7.2 アバターの枠（配置編集）
@@ -192,6 +200,20 @@ public interface IAvatarSpawnPoints
 - 保存がないときの配置は、これまでの写り方に近い中央の上半身とする。範囲は(0.21, 0, 0.58, 0.58)、枠は配信画面の高さいっぱいで中央（16:9では(0.219, 0, 0.5625, 1)）。
 - アバターがないとき（Avatarがない、選んでいない、読み込めない）は、枠を非表示にし（`Visible`がfalse）、Avatar Cameraの写し方を外す（Main Cameraに合わせる元の動き。Video詳細設計7.2）。
 - アバターの高さは、Avatarが`IAvatarService.Height`で出し、CompositionがStageへ渡す（StageはAvatarを参照しない）。
+
+### 7.3 ライトと環境光（利用者の要望、2026-11-22）
+
+Stage Sceneができるまでの仮の照明を、利用者が組み立てられるようにする。強さだけを変えられた仮のSlider（2026-10-21）を置き換える。
+
+- ライトは1〜4つ。URPは、1つの物体をメインのライトと追加のライト（物体ごとに4つまで）で照らすため、4つまでならすべてのライトがアバターに当たる。最後の1つは消せない。
+- ライトの種類は「全体」（平行光）か「スポット」。スポットは常にアバターの顔（`StageLightPlacement.Target`、Spawn Pointの上1.3m）へ向ける。
+- 位置は、顔を中心にした角度で決める。左右の向き（-180〜180°。0°がカメラの側、プラスが画面の右）、上下の向き（-30〜90°。0°が顔の高さ、90°が真上）、スポットは距離（0.5〜5m）も。真上と真下では、向きの基準をカメラの方向にする（Unityの`LookRotation`が決まらないため）。
+- 強さは10〜200%。スポットは距離の2乗で暗くなるため、Unityへは強さ×距離²を渡す。同じ強さなら、平行光でもスポットでも、どの距離でも顔の明るさがそろう。スポットの届く範囲は距離の3倍とし、範囲の端の減り方が顔に出ないようにする。
+- 色は、白と7つの舞台の色（ピンク、オレンジ、黄色、緑、水色、青、紫）。白は色温度（2700〜9000K、既定6500K）で決める。色温度からの色は、黒体の色の近似式（Tanner Helland）で求める（純粋関数）。舞台の色は、顔が見えなくならないよう淡くする。
+- スポットの光の広がりは10〜120°（既定50°）。内側の60%から外へなだらかに暗くし、光の縁を目立たせない。
+- 環境光は、ライトが当たらない影の側の明るさ。Sceneの環境光（`RenderSettings.ambientProbe`）に掛ける倍率（0〜200%、既定100%）とする。既定では今までの見た目のまま変わらない。起動時のSceneの環境光を覚えておき、終了時に戻す。
+- 影は付けない（7.1と同じ）。
+- 値は`StageLighting.Normalized`（純粋関数）で範囲に収めてから反映する。UIから来た値も、保存から読んだ値も同じ規則で扱う。
 
 ---
 
@@ -255,7 +277,7 @@ public interface IAvatarSpawnPoints
 |---|---|
 | EditMode | `ScreenPlacementMath`（位置、大きさ、UV、上下の入れ替え、左右反転、重なり）、`StageSettings`の読み書きと既定（純粋関数と偽のStore） |
 | EditMode | `CaptureScreen`：映像の変化で表示が切り替わる、確定で保存が予約される、不正な配置を拒否する |
-| EditMode | ライトの強さ：既定、範囲に収める、保存した値の読み込み（純粋関数）、変えるとすぐにライトへ反映し、遅れて保存し、次の起動で読み戻す |
+| EditMode | ライト：既定、範囲に収める、0.3の強さの読み込み、保存したライトの読み込み（純粋関数）。位置と向き（既定のライトが今までの向きになること、顔へ向くこと、真上）、スポットの強さ。変えるとすぐにライトを作り直し、遅れて保存し、次の起動で読み戻す。環境光を掛け、終了時に戻す |
 | EditMode | `AvatarFramingMath`：範囲の中心が枠の中心に、範囲の高さが枠の高さに写ること、身長によらないこと、既定の配置。`AvatarFrame`：アバターの有無で表示とカメラの写し方が切り替わる、確定で保存する、重なり順を固定する |
 | PlayMode | 置いた映像が、Stream Render Targetの決めた位置に描かれること（画素を読み戻す） |
 
@@ -275,7 +297,8 @@ Assets/VirtualVessel/Stage/
 ├─ Runtime/                          VirtualVessel.Stage
 │  ├─ StageService.cs
 │  ├─ CaptureScreen.cs
-│  ├─ StageSettings.cs
+│  ├─ StageSettings.cs               StageSettings, ScreenSettings, LightSettings
+│  ├─ StageLightRig.cs               StageLightPlacement, StageLightRig（7.3）
 │  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
 │  ├─ DefaultBackdrop.cs             仮の背景の画像
 │  ├─ IAvatarSpawnPoints.cs
@@ -298,7 +321,8 @@ Assets/VirtualVessel/Stage/
 | 3Dの舞台の中のScreen Surface | Stage Sceneの設計時 |
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
 | 配置をProject / Profileへ移す | 完了（2026-10-27）：配置はProjectのものなので、`stage-settings.json`はProjectのフォルダーにある（Project Data詳細設計6章） |
-| Stage Sceneの照明とライトの強さ | Stage Sceneの設計時。強さを、Stage Sceneの照明全体に掛ける倍率として使うかを決める |
+| Stage Sceneの照明と利用者のライト | Stage Sceneの設計時。利用者のライト（7.3）を、Stage Sceneのライトに足すか、置き換えるかを決める |
+| ライトをプレビューの上で動かす | 要望が出た時点で。今は角度のSliderで動かす |
 
 ---
 

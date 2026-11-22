@@ -291,29 +291,78 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheLight_IsChangedBesideThePicture_AndFollowsTheStage()
+        public IEnumerator TheLightingCard_ChangesTheChosenLight_AndFollowsTheStage()
         {
-            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
-            card.Q<Card>().Expanded = true;
+            LightingCard card = _root.Content.Q<LightingCard>();
+            Assert.That(card, Is.Not.Null, "On the avatar page, with the stage.");
             yield return null;
-            Assert.That(card.Light, Is.Not.Null);
-            Assert.That(card.Light.value, Is.EqualTo(100f), "100% is the light as made.");
-            Assert.That(card.Light.LowValue, Is.EqualTo(StageLightIntensity.Min * 100f));
+            Assert.That(card.Intensity.value, Is.EqualTo(100f), "100% is the light as made.");
+            Assert.That(card.Kind.value, Is.EqualTo(0), "The whole stage, as the light always was.");
+            Assert.That(card.Distance.enabledSelf, Is.False, "A whole-stage light has no distance.");
+            Assert.That(card.Query<SettingRow>().ToList().Where(row => string.IsNullOrEmpty(row.HelpKey)), Is.Empty, "Every row is explained.");
 
-            card.Light.value = 60f;
-            Assert.That(_lighting.Intensity.Value, Is.EqualTo(0.6f).Within(1e-5f));
+            card.Intensity.value = 60f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(0.6f).Within(1e-5f));
+            card.Kind.value = 1;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Kind, Is.EqualTo(StageLightKind.Spot));
+            Assert.That(card.Distance.enabledSelf, Is.True);
+            card.Yaw.value = 40f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Yaw, Is.EqualTo(40f));
 
-            _lighting.SetIntensity(1.2f);
-            Assert.That(card.Light.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
-            Assert.That(card.Light.HelpKey, Is.EqualTo(FaceTuningStrings.LightHelp), "Says the stream changes too.");
+            // A stage color has no temperature.
+            Assert.That(card.Temperature.enabledSelf, Is.True);
+            card.ColorChoice.value = StageLightColors.Pink;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo(StageLightColors.Pink));
+            Assert.That(card.Temperature.enabledSelf, Is.False);
+            Assert.That(card.Temperature.TooltipKey, Is.EqualTo(LightingStrings.WhiteOnly), "Says why.");
+            Assert.That(card.Swatch.style.backgroundColor.value, Is.EqualTo(StageLightColors.ColorOf(_lighting.Lighting.Value.Lights[0])));
+
+            _lighting.SetLighting(_lighting.Lighting.Value.WithAmbient(0.4f).WithLight(0, StageLight.Default.WithIntensity(1.2f)));
+            Assert.That(card.Intensity.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
+            Assert.That(card.Ambient.value, Is.EqualTo(40f).Within(1e-3f));
+            Assert.That(card.Kind.value, Is.EqualTo(0));
+        }
+
+        [UnityTest]
+        public IEnumerator Lights_AreAddedUpToFour_AndTheLastOneStays()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.RemoveButton.enabledSelf, Is.False, "Never without a light.");
+            Assert.That(card.LightChoice.IsItemEnabled(1), Is.False);
+
+            Submit(card.AddButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(2));
+            Assert.That(card.Selected, Is.EqualTo(1), "The new light is the one being set.");
+            Assert.That(card.Kind.value, Is.EqualTo(1), "Added as a spot.");
+            card.Intensity.value = 50f;
+            Assert.That(_lighting.Lighting.Value.Lights[1].Intensity, Is.EqualTo(0.5f).Within(1e-5f));
+            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(1f), "The first is left as it was.");
+
+            Submit(card.AddButton);
+            Submit(card.AddButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(StageLighting.MaxLights));
+            Assert.That(card.AddButton.enabledSelf, Is.False);
+            Assert.That(card.AddButton.TooltipKey, Is.EqualTo(LightingStrings.AddFull));
+
+            Submit(card.RemoveButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(3));
+            Assert.That(card.Selected, Is.EqualTo(2), "The light before the removed one.");
+
+            card.LightChoice.value = 0;
+            Submit(card.ResetButton);
+            Assert.That(_lighting.Lighting.Value, Is.EqualTo(StageLighting.Default));
+            Assert.That(card.Selected, Is.EqualTo(0));
         }
 
         [Test]
-        public void TheLight_IsLeftOut_WithoutTheStage()
+        public void TheChosenLight_IsTheLastOne_WhenItIsGone()
         {
-            var card = new FaceTuningCard(_avatars, null);
-
-            Assert.That(card.Light, Is.Null);
+            StageLighting two = StageLighting.Default.WithAdded(StageLight.Added);
+            Assert.That(LightingCard.SelectedIn(two, 1), Is.EqualTo(1));
+            Assert.That(LightingCard.SelectedIn(two, 3), Is.EqualTo(1));
+            Assert.That(LightingCard.SelectedIn(StageLighting.Default, 1), Is.EqualTo(0));
+            Assert.That(LightingCard.SelectedIn(StageLighting.Default, -1), Is.EqualTo(0));
         }
 
         [Test]
@@ -494,13 +543,13 @@ namespace VirtualVessel.UI.Tests
 
         private sealed class FakeLighting : IStageLighting
         {
-            private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
+            private readonly ObservableValue<StageLighting> _lighting = new ObservableValue<StageLighting>(StageLighting.Default);
 
-            public IReadOnlyObservable<float> Intensity => _intensity;
+            public IReadOnlyObservable<StageLighting> Lighting => _lighting;
 
-            public void SetIntensity(float intensity)
+            public void SetLighting(StageLighting lighting)
             {
-                _intensity.Value = StageLightIntensity.Clamp(intensity);
+                _lighting.Value = lighting.Normalized();
             }
         }
 

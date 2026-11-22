@@ -134,7 +134,13 @@ namespace VirtualVessel.UI.Screens
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)
             {
-                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting, services.AvatarFrame));
+                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.AvatarFrame));
+            }
+
+            // By the face tuning: both are judged by looking at the face on the stream.
+            if (services.Lighting != null)
+            {
+                page.Add(new LightingCard(services.Lighting, services.StreamPreview));
             }
         }
 

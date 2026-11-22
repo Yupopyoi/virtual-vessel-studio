@@ -457,3 +457,17 @@
 .vv-face-card__part > .vv-progress > .vv-progress__header {
     display: none;
 }
+
+/* Lighting (setup.md 15): the light's color beside its name, framed so white shows on a light background. */
+.vv-lighting-card__swatch {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-width: 1px;
+    border-color: var(--vv-color-border);
+    border-radius: var(--vv-radius-s);
+}
+
+.vv-lighting-card .vv-setting-row__controls > .vv-select {
+    flex-grow: 1;
+}
