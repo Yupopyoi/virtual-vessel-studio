@@ -83,6 +83,19 @@ namespace VirtualVessel.UI.StageEditing
         public override int GetHashCode() => HashCode.Combine(ItemId, Uv);
     }
 
+    /// <summary>
+    /// The user's choice of which way a drag turns the stage view (setup.md 15.2): people expect either way, so each
+    /// direction can be turned around (user's request, 2026-11-22). Saved with the UI settings.
+    /// </summary>
+    public interface IStageViewPreferences
+    {
+        bool StageViewInvertX { get; }
+
+        bool StageViewInvertY { get; }
+
+        void SetStageViewInvert(bool invertX, bool invertY);
+    }
+
     /// <summary>The ids of the stage view's editable things.</summary>
     public static class StageViewItems
     {

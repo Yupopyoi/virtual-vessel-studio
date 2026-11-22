@@ -556,3 +556,15 @@
     margin-top: var(--vv-space-m);
     margin-right: var(--vv-space-m);
 }
+
+/* Under the stage view: which way a drag turns it (setup.md 15.2). */
+.vv-lighting-card__view-options {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--vv-space-s);
+}
+
+.vv-lighting-card__view-options > .vv-switch {
+    margin-right: var(--vv-space-m);
+}

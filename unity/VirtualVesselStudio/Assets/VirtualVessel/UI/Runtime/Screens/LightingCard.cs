@@ -63,6 +63,9 @@ namespace VirtualVessel.UI.Screens
         public const string TabPlacement = "setup.lighting.tab.placement";
         public const string TabStream = "setup.lighting.tab.stream";
         public const string ViewHelp = "setup.lighting.view.help";
+        public const string InvertX = "setup.lighting.invert-x";
+        public const string InvertY = "setup.lighting.invert-y";
+        public const string InvertHelp = "setup.lighting.invert.help";
 
         /// <summary>The string table key of a light color's name.</summary>
         public static string ColorName(string colorId) => "setup.lighting.color." + colorId;
@@ -83,6 +86,7 @@ namespace VirtualVessel.UI.Screens
         public const string PictureClass = UssClass + "__picture";
         public const string PictureTabsClass = UssClass + "__picture-tabs";
         public const string FrameClass = UssClass + "__frame";
+        public const string ViewOptionsClass = UssClass + "__view-options";
         public const string SettingsClass = UssClass + "__settings";
 
         private const float PercentPerUnit = 100f;
@@ -96,7 +100,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <param name="stream">The stream video, to watch the light on the avatar; null shows no picture.</param>
         /// <param name="stageView">The 3D view to see and drag the lights in (setup.md 15.2); null shows the stream alone.</param>
-        public LightingCard(IStageLighting lighting, IStreamPreviewSource stream, IStageView stageView = null)
+        /// <param name="preferences">Which way a drag turns the view, kept with the UI settings; null shows no choice.</param>
+        public LightingCard(IStageLighting lighting, IStreamPreviewSource stream, IStageView stageView = null, IStageViewPreferences preferences = null)
         {
             _lighting = lighting ?? throw new ArgumentNullException(nameof(lighting));
             _stream = stream;
@@ -113,8 +118,16 @@ namespace VirtualVessel.UI.Screens
             layout.Add(picture);
             var frame = new VisualElement();
             frame.AddToClassList(FrameClass);
+            // Filling the frame: grown inside the centered frame it had no width, and the stream did not show (user's
+            // report, 2026-11-22).
             Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
-            Preview.style.flexGrow = 1;
+            Preview.style.position = Position.Absolute;
+            Preview.style.left = 0;
+            Preview.style.top = 0;
+            Preview.style.right = 0;
+            Preview.style.bottom = 0;
+            Preview.style.alignItems = Align.Center;
+            Preview.style.justifyContent = Justify.Center;
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Preview.Add(_noVideo);
             frame.Add(Preview);
@@ -145,6 +158,25 @@ namespace VirtualVessel.UI.Screens
             }
 
             picture.Add(frame);
+
+            // Under the view: which way a drag turns it, as people expect either (user's request, 2026-11-22).
+            if (View != null && preferences != null)
+            {
+                View.Preferences = preferences;
+                InvertXToggle = Ui.Toggle(LightingStrings.InvertX);
+                InvertYToggle = Ui.Toggle(LightingStrings.InvertY);
+                InvertXToggle.SetValueWithoutNotify(preferences.StageViewInvertX);
+                InvertYToggle.SetValueWithoutNotify(preferences.StageViewInvertY);
+                InvertXToggle.RegisterValueChangedCallback(evt => preferences.SetStageViewInvert(evt.newValue, preferences.StageViewInvertY));
+                InvertYToggle.RegisterValueChangedCallback(evt => preferences.SetStageViewInvert(preferences.StageViewInvertX, evt.newValue));
+                ViewOptions = new VisualElement();
+                ViewOptions.AddToClassList(ViewOptionsClass);
+                ViewOptions.Add(InvertXToggle);
+                ViewOptions.Add(InvertYToggle);
+                ViewOptions.Add(new HelpHint(LightingStrings.InvertHelp));
+                picture.Add(ViewOptions);
+            }
+
             ShowPicture(0);
             Settings = new ScrollView(ScrollViewMode.Vertical);
             Settings.AddToClassList(SettingsClass);
@@ -241,6 +273,13 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>Placement or the stream; null without the stage view.</summary>
         public TabBar PictureTabs { get; }
+
+        /// <summary>The drag direction choices under the view; null without them.</summary>
+        public VisualElement ViewOptions { get; }
+
+        public SwitchToggle InvertXToggle { get; }
+
+        public SwitchToggle InvertYToggle { get; }
 
         /// <summary>The settings beside the picture, scrolled on their own.</summary>
         public ScrollView Settings { get; }
@@ -346,6 +385,10 @@ namespace VirtualVessel.UI.Screens
             }
 
             Preview.style.display = placement ? DisplayStyle.None : DisplayStyle.Flex;
+            if (ViewOptions != null)
+            {
+                ViewOptions.style.display = placement ? DisplayStyle.Flex : DisplayStyle.None;
+            }
         }
 
         private IDisposable Attach()

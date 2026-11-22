@@ -704,7 +704,9 @@ public interface IUiCommand
   "fontSet": "NotoSans",
   "developerMode": false,
   "lastScreen": "live",
-  "lastSetupPage": "video"
+  "lastSetupPage": "video",
+  "stageViewInvertX": false,
+  "stageViewInvertY": false
 }
 ```
 
@@ -719,6 +721,7 @@ public interface IUiCommand
 | `developerMode` | `false` | |
 | `lastScreen` | `live` | |
 | `lastSetupPage` | なし（先頭のページ） | 設定画面で最後に開いたページ（`video`、`audio`、`avatar`、`output`、`app`） |
+| `stageViewInvertX`、`stageViewInvertY` | false | ステージビューでドラッグしたときに視点が回る向きを、左右、上下で反転するか（UI `setup.md` 15.2）。人によって自然に感じる向きが違うため（利用者の要望、2026-11-22） |
 
 - 読み書きはProjectDataの`ConfigFileStore`が行う（8.3）。
 - 知らない値（存在しないパレット名等）は既定値として扱い、ファイルの値は上書きするまで残す。

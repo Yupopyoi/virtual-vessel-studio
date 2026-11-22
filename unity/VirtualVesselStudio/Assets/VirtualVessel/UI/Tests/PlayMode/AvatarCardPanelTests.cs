@@ -389,10 +389,22 @@ namespace VirtualVessel.UI.Tests
             Submit(card.AddButton);
             Assert.That(_stageView.Selected, Is.EqualTo(StageEditing.StageViewItems.Light(1)), "The new light is chosen in the view too.");
 
+            // Which way a drag turns the view, kept with the UI settings.
+            Assert.That(card.InvertXToggle, Is.Not.Null);
+            card.InvertXToggle.value = true;
+            Assert.That(_root.Settings.StageViewInvertX, Is.True);
+            Assert.That(_root.Settings.StageViewInvertY, Is.False);
+            card.InvertYToggle.value = true;
+            Assert.That(_root.Settings.StageViewInvertY, Is.True);
+            Assert.That(card.View.Preferences, Is.SameAs(_root.Settings));
+
             card.PictureTabs.value = 1;
             Assert.That(card.View.IsOpen, Is.False, "The stream Tab closes it.");
             Assert.That(_stageView.Opens, Is.Zero);
+            Assert.That(card.ViewOptions.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Only with Placement.");
+            yield return null;
             Assert.That(card.Preview.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(card.Preview.resolvedStyle.width, Is.GreaterThan(100f), "Fills the frame (it had no width, user's report).");
 
             card.PictureTabs.value = 0;
             ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AudioPage;

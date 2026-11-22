@@ -495,7 +495,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 
 | Row | Component | Content |
 |---|---|---|
-| Video | "Placement" and "Stream" Tabs over an image (16:9), on the left | "Placement" is the stage view (15.2). "Stream" is the whole stream, "No video" when there is none. So the face stays in view while a light moves |
+| Video | "Placement" and "Stream" Tabs over an image (448×252, 16:9), on the left | "Placement" is the stage view (15.2). "Stream" is the whole stream, "No video" when there is none. So the face stays in view while a light moves |
 | Right of the title band | Button (Secondary) "Add a light", "Remove this light" | An added light is a spot from the right (left and right 45°, up and down 15°, distance 2 m), and becomes the chosen one. With four lights adding is disabled, with one removing is, and their tooltips say why |
 | Light | Segmented (1 to 4) | The light the rows below change. Lights not made yet are disabled |
 | Kind | Segmented (Whole stage, Spot) | A directional light, or a spot aimed at the face |
@@ -577,6 +577,9 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.tab.placement` | 配置 | Placement |
 | `setup.lighting.tab.stream` | 配信の映像 | Stream |
 | `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
+| `setup.lighting.invert-x` | 左右を反転 | Reverse left and right |
+| `setup.lighting.invert-y` | 上下を反転 | Reverse up and down |
+| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。人によって自然に感じる向きが違うため、選べるようにしています。 | Reverses which way the view turns when you drag on empty space. People find different directions natural, so it can be chosen. |
 
 ### 15.2 The Placement View (Stage View)
 
@@ -587,6 +590,7 @@ The picture's place switches between "Placement" and "Stream" Tabs (`components.
 | View | The stage view's image (16:9, 448 px wide): the stage, the backdrop quad, the avatar, guides (light directions, spot cones), and the stream camera's position |
 | Markers | A circle with the light's number (1 to 4) at each light. Filled with the light's color, with text and frame in a readable color. The chosen light's is larger with a white frame. Hidden when not in view (behind the camera and the like) |
 | Help Hint beside the Tabs | How to operate it (the table below, shortened) |
+| Under the view | Toggles "Reverse left and right" and "Reverse up and down" with a Help Hint. They reverse which way the view turns when dragging on empty space; people find different directions natural (user's request, 2026-11-22). Saved in `ui-settings.json` (UI foundation detailed design 8.1). Shown only with "Placement" |
 
 | Input | Result |
 |---|---|

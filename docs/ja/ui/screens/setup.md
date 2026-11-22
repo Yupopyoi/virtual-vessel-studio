@@ -495,7 +495,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 
 | 行 | 部品 | 内容 |
 |---|---|---|
-| 映像 | 「配置」と「配信の映像」のTabと画像（16:9）、左 | 「配置」はステージビュー（15.2）。「配信の映像」は配信の映像全体で、映像がないときは「映像なし」。ライトを動かす間も顔が見えるように |
+| 映像 | 「配置」と「配信の映像」のTabと画像（448×252、16:9）、左 | 「配置」はステージビュー（15.2）。「配信の映像」は配信の映像全体で、映像がないときは「映像なし」。ライトを動かす間も顔が見えるように |
 | タイトル部分の右 | Button（Secondary）「ライトを追加」「このライトを削除」 | 追加したライトは、右からのスポット（左右45°、上下15°、距離2m）で、それを選んだ状態にする。4つのときは追加を、1つのときは削除を無効にし、ツールチップで理由を示す |
 | ライト | Segmented（1〜4） | 下の行で変えるライト。まだないライトは無効 |
 | 種類 | Segmented（全体、スポット） | 平行光か、顔へ向けたスポット |
@@ -577,6 +577,9 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.tab.placement` | 配置 | Placement |
 | `setup.lighting.tab.stream` | 配信の映像 | Stream |
 | `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
+| `setup.lighting.invert-x` | 左右を反転 | Reverse left and right |
+| `setup.lighting.invert-y` | 上下を反転 | Reverse up and down |
+| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。人によって自然に感じる向きが違うため、選べるようにしています。 | Reverses which way the view turns when you drag on empty space. People find different directions natural, so it can be chosen. |
 
 ### 15.2 配置の表示（ステージビュー）
 
@@ -587,6 +590,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | 表示 | ステージビューの画像（16:9、幅448px）。舞台、背景の板、アバター、案内の線（光の向き、スポットの円錐）、配信のカメラの位置 |
 | 印 | ライトの位置に、番号（1〜4）を書いた丸。地は光の色、文字と枠は読める色。選んでいるライトは大きく、白い枠。カメラの後ろ等で見えないときは出さない |
 | Tabの横のHelp Hint | 操作の説明（下の表を短く） |
+| 表示の下 | Toggle「左右を反転」「上下を反転」とHelp Hint。何もない所をドラッグしたときに視点が回る向きを反転する。人によって自然に感じる向きが違うため選べる（利用者の要望、2026-11-22）。`ui-settings.json`に保存する（UI基盤詳細設計8.1）。「配置」のときだけ出す |
 
 | 操作 | 結果 |
 |---|---|
