@@ -342,7 +342,7 @@ namespace VirtualVessel.UI.Tests
             Rect register = card.RegisterButton.worldBound;
             Rect sampleButton = card.SampleButton.worldBound;
             Rect body = card.Q<Card>().worldBound;
-            Assert.That(sampleButton.yMin, Is.GreaterThanOrEqualTo(register.yMax), "Under the register button.");
+            Assert.That(sampleButton.yMin - register.yMax, Is.EqualTo(8f).Within(0.5f), "Under the register button, S (8px) apart.");
             Assert.That(sampleButton.xMax, Is.LessThanOrEqualTo(body.xMax + 0.5f), "Not past the Card.");
             Assert.That(sampleButton.xMax, Is.EqualTo(register.xMax).Within(0.5f), "Right-aligned like a row's control.");
 
