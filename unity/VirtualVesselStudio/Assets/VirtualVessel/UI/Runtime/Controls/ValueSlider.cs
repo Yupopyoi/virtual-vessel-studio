@@ -18,6 +18,7 @@ namespace VirtualVessel.UI.Controls
 
         private readonly KeyedText _label;
         private readonly Label _valueText;
+        private readonly HelpHint _help;
         private readonly KeyedText _valueName;
         private IReadOnlyList<string> _valueKeys;
         private readonly VisualElement _track;
@@ -42,7 +43,14 @@ namespace VirtualVessel.UI.Controls
             _valueText = new Label();
             _valueText.AddToClassList(UssClass + "__value");
             _valueText.AddToClassList("vv-mono");
-            header.Add(label);
+            // The label and, when the slider has one, its help hint (components.md 3.28) on the left.
+            var heading = new VisualElement();
+            heading.AddToClassList(UssClass + "__heading");
+            heading.Add(label);
+            _help = new HelpHint(null);
+            _help.style.display = DisplayStyle.None;
+            heading.Add(_help);
+            header.Add(heading);
             header.Add(_valueText);
             // Only with value keys: without them the number is the text.
             _valueName = new KeyedText(_valueText, text =>
@@ -91,6 +99,21 @@ namespace VirtualVessel.UI.Controls
             get => _label.Key;
             set => _label.Key = value;
         }
+
+        /// <summary>The explanation behind a help hint after the label; null for no hint.</summary>
+        [UxmlAttribute("help-key")]
+        public string HelpKey
+        {
+            get => _help.TooltipKey;
+            set
+            {
+                _help.TooltipKey = value;
+                _help.style.display = string.IsNullOrEmpty(value) ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+        }
+
+        /// <summary>The help hint after the label, shown when <see cref="HelpKey"/> is set.</summary>
+        public HelpHint Help => _help;
 
         [UxmlAttribute("tooltip-key")]
         public string TooltipKey { get; set; }

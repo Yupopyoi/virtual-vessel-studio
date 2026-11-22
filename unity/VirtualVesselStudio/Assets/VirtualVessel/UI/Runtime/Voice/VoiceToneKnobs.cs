@@ -13,15 +13,19 @@ namespace VirtualVessel.UI.Voice
         public const string Title = "voice.tone.title";
         public const string Note = "voice.tone.note";
         public const string Body = "voice.tone.body";
+        public const string BodyHelp = "voice.tone.body.help";
         public const string BodyLow = "voice.tone.body.low";
         public const string BodyHigh = "voice.tone.body.high";
         public const string Clarity = "voice.tone.clarity";
+        public const string ClarityHelp = "voice.tone.clarity.help";
         public const string ClarityLow = "voice.tone.clarity.low";
         public const string ClarityHigh = "voice.tone.clarity.high";
         public const string Brightness = "voice.tone.brightness";
+        public const string BrightnessHelp = "voice.tone.brightness.help";
         public const string BrightnessLow = "voice.tone.brightness.low";
         public const string BrightnessHigh = "voice.tone.brightness.high";
         public const string Air = "voice.tone.air";
+        public const string AirHelp = "voice.tone.air.help";
         public const string AirLow = "voice.tone.air.low";
         public const string AirHigh = "voice.tone.air.high";
         public const string Reset = "voice.tone.reset";
@@ -37,10 +41,10 @@ namespace VirtualVessel.UI.Voice
         {
             Add(Ui.Text(VoiceToneStrings.Title, "vv-text-body", "vv-bold", VoiceLabScreen.SubheadClass, VoiceLabScreen.GapClass));
             Add(Ui.Text(VoiceToneStrings.Note, VoiceLabScreen.NoteClass, "vv-text-body"));
-            BodyKnob = Knob(VoiceToneStrings.Body, VoiceToneStrings.BodyLow, VoiceToneStrings.BodyHigh);
-            ClarityKnob = Knob(VoiceToneStrings.Clarity, VoiceToneStrings.ClarityLow, VoiceToneStrings.ClarityHigh);
-            BrightnessKnob = Knob(VoiceToneStrings.Brightness, VoiceToneStrings.BrightnessLow, VoiceToneStrings.BrightnessHigh);
-            AirKnob = Knob(VoiceToneStrings.Air, VoiceToneStrings.AirLow, VoiceToneStrings.AirHigh);
+            BodyKnob = Knob(VoiceToneStrings.Body, VoiceToneStrings.BodyHelp, VoiceToneStrings.BodyLow, VoiceToneStrings.BodyHigh);
+            ClarityKnob = Knob(VoiceToneStrings.Clarity, VoiceToneStrings.ClarityHelp, VoiceToneStrings.ClarityLow, VoiceToneStrings.ClarityHigh);
+            BrightnessKnob = Knob(VoiceToneStrings.Brightness, VoiceToneStrings.BrightnessHelp, VoiceToneStrings.BrightnessLow, VoiceToneStrings.BrightnessHigh);
+            AirKnob = Knob(VoiceToneStrings.Air, VoiceToneStrings.AirHelp, VoiceToneStrings.AirLow, VoiceToneStrings.AirHigh);
             ResetButton = Ui.Button(VoiceToneStrings.Reset);
             ResetButton.clicked += () =>
             {
@@ -74,9 +78,10 @@ namespace VirtualVessel.UI.Voice
             AirKnob.SetValueWithoutNotify(tone.Air);
         }
 
-        private ValueSlider Knob(string nameKey, string lowKey, string highKey)
+        private ValueSlider Knob(string nameKey, string helpKey, string lowKey, string highKey)
         {
             ValueSlider knob = Ui.Slider(nameKey, -VoiceTone.Limit, VoiceTone.Limit, "dB");
+            knob.HelpKey = helpKey;
             knob.Step = 1f;
             knob.Signed = true;
             knob.RegisterValueChangedCallback(_ => Changed?.Invoke(Tone));

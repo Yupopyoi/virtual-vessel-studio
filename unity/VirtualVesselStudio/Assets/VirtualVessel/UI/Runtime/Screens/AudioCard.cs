@@ -22,12 +22,16 @@ namespace VirtualVessel.UI.Screens
         public const string GameAudio = "setup.audio.game";
         public const string Source = "setup.audio.source";
         public const string Device = "setup.audio.device";
+        public const string DeviceHelp = "setup.audio.device.help";
         public const string NoDevice = "setup.audio.device.none";
         public const string MissingDevice = "setup.audio.device.missing";
         public const string ApplicationSound = "setup.audio.device.application";
         public const string Gain = "setup.audio.gain";
+        public const string GainHelp = "setup.audio.gain.help";
         public const string Mute = "setup.audio.mute";
+        public const string MuteHelp = "setup.audio.mute.help";
         public const string Level = "setup.audio.level";
+        public const string LevelHelp = "setup.audio.level.help";
         public const string Off = "setup.audio.state.off";
         public const string Starting = "setup.audio.state.starting";
         public const string Running = "setup.audio.state.running";
@@ -40,14 +44,15 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemFailed = "setup.audio.problem.failed";
         public const string OpenPrivacy = "setup.audio.open-privacy";
         public const string Monitored = "setup.audio.monitored";
-        public const string MonitoredDescription = "setup.audio.monitored.description";
+        public const string MonitoredHelp = "setup.audio.monitored.help";
         public const string Denoise = "setup.audio.denoise";
-        public const string DenoiseDescription = "setup.audio.denoise.description";
+        public const string DenoiseHelp = "setup.audio.denoise.help";
         public const string GameDeviceNote = "setup.audio.game-device";
         public const string Monitor = "setup.audio.monitor";
         public const string MonitorDevice = "setup.audio.monitor.device";
+        public const string MonitorHelp = "setup.audio.monitor.help";
         public const string Delay = "setup.audio.delay";
-        public const string DelayDescription = "setup.audio.delay.description";
+        public const string DelayHelp = "setup.audio.delay.help";
         public const string Music = "setup.audio.music";
         public const string SoundEffect = "setup.audio.sound-effect";
         public const string LiveMicrophone = "live.audio.microphone";
@@ -150,7 +155,7 @@ namespace VirtualVessel.UI.Screens
             Delay = Ui.Slider(null, 0, AudioSettings.MaxStreamDelayMs, "ms");
             Delay.Step = 10f;
             Delay.RegisterValueChangedCallback(evt => _audio.SetStreamDelay(TimeSpan.FromMilliseconds(evt.newValue)));
-            SettingRow delay = Ui.SettingRow(AudioStrings.Delay, AudioStrings.DelayDescription);
+            SettingRow delay = Ui.SettingRow(AudioStrings.Delay, helpKey: AudioStrings.DelayHelp);
             delay.Add(Delay);
             card.Add(delay);
 

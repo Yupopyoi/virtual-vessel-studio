@@ -21,16 +21,21 @@ namespace VirtualVessel.UI.Screens
         public const string Title = "setup.avatar.title";
         public const string Unavailable = "setup.avatar.unavailable";
         public const string Use = "setup.avatar.use";
+        public const string UseHelp = "setup.avatar.use.help";
         public const string None = "setup.avatar.none";
         public const string Unusable = "setup.avatar.unusable";
         public const string NoThumbnail = "setup.avatar.nothumbnail";
         public const string Format = "setup.avatar.format";
+        public const string FormatHelp = "setup.avatar.format.help";
         public const string FormatValue = "setup.avatar.format.value";
         public const string FormatConverted = "setup.avatar.format.converted";
         public const string Register = "setup.avatar.register";
+        public const string RegisterHelp = "setup.avatar.register.help";
         public const string RegisterButton = "setup.avatar.register.button";
         public const string SampleButton = "setup.avatar.sample.button";
+        public const string SampleHelp = "setup.avatar.sample.help";
         public const string Remove = "setup.avatar.remove";
+        public const string RemoveHelp = "setup.avatar.remove.help";
         public const string RemoveButton = "setup.avatar.remove.button";
         public const string FileFilter = "setup.avatar.filter";
         public const string FileTitle = "setup.avatar.filetitle";
@@ -160,30 +165,30 @@ namespace VirtualVessel.UI.Screens
 
             Choice = Ui.Select(null);
             Choice.RegisterValueChangedCallback(evt => _ = SelectAsync(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
-            card.Add(Ui.ControlRow(AvatarStrings.Use, Choice));
+            card.Add(Ui.ControlRow(AvatarStrings.Use, Choice, helpKey: AvatarStrings.UseHelp));
 
             _format = new Label();
             _format.AddToClassList(CaptureSourceCard.InfoClass);
             _format.AddToClassList("vv-text-body");
-            card.Add(Ui.ControlRow(AvatarStrings.Format, _format));
+            card.Add(Ui.ControlRow(AvatarStrings.Format, _format, helpKey: AvatarStrings.FormatHelp));
 
             RegisterButton = Ui.Button(AvatarStrings.RegisterButton, ButtonVariant.Primary);
             RegisterButton.clicked += () => _ = RegisterAsync(PickFileAsync);
             RegisterButton.SetEnabled(files != null);
 
             // Registers the shipped sample without the file screen; its terms are confirmed as for any model.
-            SampleButton = Ui.Button(AvatarStrings.SampleButton);
+            SampleButton = Ui.Button(AvatarStrings.SampleButton).WithTooltip(AvatarStrings.SampleHelp);
             SampleButton.clicked += () => _ = RegisterAsync(PickSampleAsync);
             SampleButton.style.display = sample == null ? DisplayStyle.None : DisplayStyle.Flex;
             var registerControls = new VisualElement();
             registerControls.AddToClassList(SettingRow.ControlsClass);
             registerControls.Add(RegisterButton);
             registerControls.Add(SampleButton);
-            card.Add(Ui.ControlRow(AvatarStrings.Register, registerControls));
+            card.Add(Ui.ControlRow(AvatarStrings.Register, registerControls, helpKey: AvatarStrings.RegisterHelp));
 
             RemoveButton = Ui.Button(AvatarStrings.RemoveButton, ButtonVariant.Danger);
             RemoveButton.clicked += () => _ = RemoveAsync();
-            card.Add(Ui.ControlRow(AvatarStrings.Remove, RemoveButton));
+            card.Add(Ui.ControlRow(AvatarStrings.Remove, RemoveButton, helpKey: AvatarStrings.RemoveHelp));
 
             card.Add(Ui.Text(AvatarStrings.LicenseTitle, "vv-bold", LicenseClass + "-title"));
             _license = new VisualElement();

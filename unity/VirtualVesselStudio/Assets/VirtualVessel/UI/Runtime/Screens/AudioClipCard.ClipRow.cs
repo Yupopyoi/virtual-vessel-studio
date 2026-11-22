@@ -14,13 +14,16 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The "≡" mark at a row's start, with room around it for the pointer and the tooltip.</summary>
         private sealed class GripHandle : VisualElement, ITooltipSource
         {
-            public GripHandle()
+            private readonly string _tooltipKey;
+
+            public GripHandle(string tooltipKey)
             {
+                _tooltipKey = tooltipKey;
                 AddToClassList(GripClass);
                 Add(new Icon(IconName.Grip));
             }
 
-            string ITooltipSource.CurrentTooltipKey => AudioClipStrings.Move;
+            string ITooltipSource.CurrentTooltipKey => _tooltipKey;
 
             string ITooltipSource.Shortcut => null;
         }
@@ -42,7 +45,7 @@ namespace VirtualVessel.UI.Screens
                 Root.AddToClassList(RowClass);
 
                 // A plain mark, not a button, as in the layer list: it takes the pointer for dragging but not the focus.
-                Grip = new GripHandle();
+                Grip = new GripHandle(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmMove : AudioClipStrings.Move);
                 Grip.RegisterCallback<PointerDownEvent>(evt => _card.StartDrag(this, evt));
                 Grip.RegisterCallback<PointerMoveEvent>(evt => _card.DragTo(evt));
                 Grip.RegisterCallback<PointerUpEvent>(evt => _card.Drop(evt));
@@ -85,7 +88,7 @@ namespace VirtualVessel.UI.Screens
                 {
                     LoopToggle = new SwitchToggle();
                     LoopToggle.SetValueWithoutNotify(record.Settings.Loop);
-                    LoopToggle.TooltipKey = AudioClipStrings.LoopDescription;
+                    LoopToggle.TooltipKey = AudioClipStrings.LoopHelp;
                     LoopToggle.RegisterValueChangedCallback(evt => _card.Change(Record, new AudioClipChange(loop: evt.newValue)));
                     VisualElement loop = Cell(LoopColumn);
                     loop.Add(LoopToggle);

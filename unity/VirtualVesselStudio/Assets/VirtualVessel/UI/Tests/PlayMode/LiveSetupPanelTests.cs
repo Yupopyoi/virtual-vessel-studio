@@ -95,6 +95,31 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_root.Settings.LastSetupPage, Is.EqualTo("avatar"));
         }
 
+        [UnityTest]
+        public IEnumerator EverySettingRow_IsExplainedBehindAHelpHint_NotInLinesUnderIt()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            var screen = (SetupScreen)_root.Shell.Host.GetScreen("setup");
+
+            // The tracking camera's search is the one row whose help is not written yet.
+            List<SettingRow> rows = screen.Query<SettingRow>().ToList()
+                .Where(row => !(row.NameKey == CaptureStrings.Refresh && row.GetFirstAncestorOfType<TrackingCard>() != null))
+                .ToList();
+            Assert.That(rows.Count, Is.GreaterThan(10));
+            Assert.That(rows.Where(row => string.IsNullOrEmpty(row.HelpKey)).Select(row => row.NameKey), Is.Empty);
+            Assert.That(rows.Where(row => !string.IsNullOrEmpty(row.DescriptionKey)).Select(row => row.NameKey), Is.Empty, "Only notes for a situation go under a row.");
+
+            CaptureSourceCard[] cards = screen.Query<CaptureSourceCard>().ToList().ToArray();
+            Assert.That(DeviceHelp(cards[0]), Is.EqualTo(CaptureStrings.DeviceHelp), "The game screen: a board or a window.");
+            Assert.That(DeviceHelp(cards[1]), Is.EqualTo(CaptureStrings.SubScreenDeviceHelp), "The sub monitor: a monitor.");
+        }
+
+        private static string DeviceHelp(CaptureSourceCard card)
+        {
+            return card.Query<SettingRow>().ToList().First(row => row.NameKey == CaptureStrings.Device).HelpKey;
+        }
+
         [Test]
         public void PageOf_FallsBackToTheFirstPage_ForAnIdNotKnown()
         {

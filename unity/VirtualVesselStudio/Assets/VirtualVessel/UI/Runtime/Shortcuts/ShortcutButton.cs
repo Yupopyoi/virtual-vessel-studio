@@ -11,7 +11,7 @@ namespace VirtualVessel.UI.Shortcuts
     public static class ShortcutStrings
     {
         public const string Column = "setup.se.shortcut";
-        public const string Description = "setup.se.shortcut.description";
+        public const string Help = "setup.se.shortcut.help";
         public const string None = "setup.se.shortcut.none";
         public const string Press = "setup.se.shortcut.press";
         public const string NeedModifier = "setup.se.shortcut.need-modifier";
@@ -37,7 +37,7 @@ namespace VirtualVessel.UI.Shortcuts
             _keys = keys;
             _shortcut = shortcut;
             AddToClassList(UssClass);
-            Button = Ui.Button(null).WithTooltip(ShortcutStrings.Description);
+            Button = Ui.Button(null).WithTooltip(ShortcutStrings.Help);
             Button.AddToClassList("vv-mono");
             Button.clicked += Toggle;
             Button.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
@@ -120,7 +120,7 @@ namespace VirtualVessel.UI.Shortcuts
             }
 
             RemoveFromClassList(WaitingClass);
-            Button.TooltipKey = ShortcutStrings.Description;
+            Button.TooltipKey = ShortcutStrings.Help;
             Show();
         }
 

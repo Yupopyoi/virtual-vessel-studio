@@ -27,13 +27,18 @@ namespace VirtualVessel.UI.Screens
         public const string Name = "setup.clips.name";
         public const string Length = "setup.clips.length";
         public const string Loop = "setup.clips.loop";
-        public const string LoopDescription = "setup.clips.loop.description";
+        public const string LoopHelp = "setup.clips.loop.help";
         public const string Gain = "setup.clips.gain";
         public const string Add = "setup.clips.add";
         public const string Rename = "setup.clips.rename";
         public const string Save = "setup.clips.save";
         public const string Delete = "setup.clips.delete";
         public const string Move = "setup.clips.move";
+        public const string BgmMove = "setup.bgm.move";
+        public const string BgmAddHelp = "setup.bgm.add.help";
+        public const string BgmGainHelp = "setup.bgm.gain.help";
+        public const string EffectAddHelp = "setup.se.add.help";
+        public const string EffectGainHelp = "setup.se.gain.help";
         public const string NameRequired = "setup.clips.name.required";
         public const string Filter = "setup.clips.filter";
         public const string BgmPlay = "setup.bgm.play";
@@ -143,7 +148,7 @@ namespace VirtualVessel.UI.Screens
             _problem.style.display = DisplayStyle.None;
             card.Add(_problem);
 
-            AddButton = Ui.Button(AudioClipStrings.Add);
+            AddButton = Ui.Button(AudioClipStrings.Add).WithTooltip(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmAddHelp : AudioClipStrings.EffectAddHelp);
             AddButton.clicked += () => _ = AddFileAsync();
             AddButton.SetEnabled(files != null);
             var actions = new VisualElement();
@@ -464,16 +469,19 @@ namespace VirtualVessel.UI.Screens
             {
                 VisualElement loop = Cell(LoopColumn);
                 loop.Add(Ui.Text(AudioClipStrings.Loop, "vv-text-caption"));
-                loop.Add(new HelpHint(AudioClipStrings.LoopDescription));
+                loop.Add(new HelpHint(AudioClipStrings.LoopHelp));
                 columns.Add(loop);
             }
 
-            columns.Add(Heading(AudioClipStrings.Gain, GainColumn));
+            VisualElement gain = Cell(GainColumn);
+            gain.Add(Ui.Text(AudioClipStrings.Gain, "vv-text-caption"));
+            gain.Add(new HelpHint(kind == AudioClipKind.Bgm ? AudioClipStrings.BgmGainHelp : AudioClipStrings.EffectGainHelp));
+            columns.Add(gain);
             if (shortcuts)
             {
                 VisualElement shortcut = Cell(ShortcutColumn);
                 shortcut.Add(Ui.Text(ShortcutStrings.Column, "vv-text-caption"));
-                shortcut.Add(new HelpHint(ShortcutStrings.Description));
+                shortcut.Add(new HelpHint(ShortcutStrings.Help));
                 columns.Add(shortcut);
             }
 

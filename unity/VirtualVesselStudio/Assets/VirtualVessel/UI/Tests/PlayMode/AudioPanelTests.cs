@@ -302,7 +302,11 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             List<string> hints = card.Query<HelpHint>().ToList().Select(h => h.TooltipKey).Where(k => k != null).Distinct().ToList();
 
-            Assert.That(hints, Is.EquivalentTo(new[] { AudioStrings.MonitoredDescription, AudioStrings.DenoiseDescription }));
+            Assert.That(hints, Is.EquivalentTo(new[]
+            {
+                AudioStrings.DeviceHelp, AudioStrings.GainHelp, AudioStrings.MonitoredHelp, AudioStrings.DenoiseHelp,
+                AudioStrings.MuteHelp, AudioStrings.LevelHelp, AudioStrings.MonitorHelp, AudioStrings.DelayHelp,
+            }));
             Assert.That(card.Query<HelpHint>().ToList().Where(h => h.TooltipKey != null).All(h => h.focusable), Is.True, "Reachable from the keyboard.");
             Assert.That(card.Query<Label>().ToList().Where(l => l.ClassListContains(AudioCard.NoteClass)), Is.Empty, "No notes under the table.");
         }

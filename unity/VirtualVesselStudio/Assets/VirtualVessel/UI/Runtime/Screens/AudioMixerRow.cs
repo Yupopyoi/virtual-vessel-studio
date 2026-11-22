@@ -22,7 +22,8 @@ namespace VirtualVessel.UI.Screens
         /// <param name="hear">The control of the Hear column, or null for a blank there.</param>
         /// <param name="denoise">The control of the Noise removal column, or null for a blank there.</param>
         /// <param name="hasDevice">False for BGM and SE, which play from a player: the Device column is blank.</param>
-        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear, SwitchToggle denoise = null, bool hasDevice = true)
+        /// <param name="nameHelpKey">An explanation of the whole row, behind a help hint after its name; null for none.</param>
+        protected AudioMixerRow(string nameKey, string deviceKey, SwitchToggle hear, SwitchToggle denoise = null, bool hasDevice = true, string nameHelpKey = null)
         {
             Root = new VisualElement();
             Root.AddToClassList(AudioCard.GroupClass);
@@ -30,6 +31,10 @@ namespace VirtualVessel.UI.Screens
             var heading = new VisualElement();
             heading.AddToClassList(AudioCard.HeadingClass);
             heading.Add(Ui.Text(nameKey, "vv-text-body"));
+            if (nameHelpKey != null)
+            {
+                heading.Add(new HelpHint(nameHelpKey));
+            }
             Status = Ui.Chip(StatusKind.Idle, AudioStrings.Off);
             heading.Add(Status);
 
@@ -50,23 +55,24 @@ namespace VirtualVessel.UI.Screens
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => SetDevice(evt.newValue));
-            row.Add(hasDevice ? Cell(deviceKey, Devices, AudioCard.DeviceColumn) : EmptyCell(AudioCard.DeviceColumn));
+            // A row explained as a whole explains its device too, so the cell has no hint of its own.
+            row.Add(hasDevice ? Cell(deviceKey, Devices, AudioCard.DeviceColumn, nameHelpKey == null ? AudioStrings.DeviceHelp : null) : EmptyCell(AudioCard.DeviceColumn));
 
             Gain = Ui.Slider(null, AudioSourceOptions.MinGainDb, AudioSourceOptions.MaxGainDb, "dB");
             Gain.Step = 1f;
             Gain.Signed = true;
             Gain.RegisterValueChangedCallback(evt => SetGain(evt.newValue));
-            row.Add(Cell(AudioStrings.Gain, Gain, AudioCard.GainColumn));
+            row.Add(Cell(AudioStrings.Gain, Gain, AudioCard.GainColumn, AudioStrings.GainHelp));
 
-            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription) : EmptyCell(AudioCard.ToggleColumn));
-            row.Add(denoise != null ? Cell(AudioStrings.Denoise, denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription) : EmptyCell(AudioCard.DenoiseColumn));
+            row.Add(hear != null ? Cell(AudioStrings.Monitored, hear, AudioCard.ToggleColumn, AudioStrings.MonitoredHelp) : EmptyCell(AudioCard.ToggleColumn));
+            row.Add(denoise != null ? Cell(AudioStrings.Denoise, denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseHelp) : EmptyCell(AudioCard.DenoiseColumn));
 
             Mute = new SwitchToggle();
             Mute.RegisterValueChangedCallback(evt => SetMuted(evt.newValue));
-            row.Add(Cell(AudioStrings.Mute, Mute, AudioCard.ToggleColumn));
+            row.Add(Cell(AudioStrings.Mute, Mute, AudioCard.ToggleColumn, AudioStrings.MuteHelp));
 
             Meter = new LevelMeter();
-            row.Add(Cell(AudioStrings.Level, Meter, AudioCard.LevelColumn));
+            row.Add(Cell(AudioStrings.Level, Meter, AudioCard.LevelColumn, AudioStrings.LevelHelp));
         }
 
         public VisualElement Root { get; }
@@ -98,12 +104,12 @@ namespace VirtualVessel.UI.Screens
             var columns = new VisualElement();
             columns.AddToClassList(AudioCard.ColumnsClass);
             columns.Add(Heading(AudioStrings.Source, AudioCard.NameColumn));
-            columns.Add(Heading(AudioStrings.Device, AudioCard.DeviceColumn));
-            columns.Add(Heading(AudioStrings.Gain, AudioCard.GainColumn));
-            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn, AudioStrings.MonitoredDescription));
-            columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseDescription));
-            columns.Add(Heading(AudioStrings.Mute, AudioCard.ToggleColumn));
-            columns.Add(Heading(AudioStrings.Level, AudioCard.LevelColumn));
+            columns.Add(Heading(AudioStrings.Device, AudioCard.DeviceColumn, AudioStrings.DeviceHelp));
+            columns.Add(Heading(AudioStrings.Gain, AudioCard.GainColumn, AudioStrings.GainHelp));
+            columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn, AudioStrings.MonitoredHelp));
+            columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseHelp));
+            columns.Add(Heading(AudioStrings.Mute, AudioCard.ToggleColumn, AudioStrings.MuteHelp));
+            columns.Add(Heading(AudioStrings.Level, AudioCard.LevelColumn, AudioStrings.LevelHelp));
             return columns;
         }
 
@@ -228,7 +234,7 @@ namespace VirtualVessel.UI.Screens
             Denoise?.RegisterValueChangedCallback(evt => _source.SetOptions(_source.Options.Value.WithDenoise(evt.newValue)));
             if (Denoise != null)
             {
-                Denoise.TooltipKey = AudioStrings.DenoiseDescription;
+                Denoise.TooltipKey = AudioStrings.DenoiseHelp;
             }
 
             // Only when Windows denies access: the one problem the user fixes in Windows' own settings.
@@ -293,7 +299,7 @@ namespace VirtualVessel.UI.Screens
         private readonly IAudioMonitor _monitor;
 
         public AudioMonitorRow(IAudioMonitor monitor)
-            : base(AudioStrings.Monitor, AudioStrings.MonitorDevice, hear: null)
+            : base(AudioStrings.Monitor, AudioStrings.MonitorDevice, hear: null, nameHelpKey: AudioStrings.MonitorHelp)
         {
             _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
             Show();

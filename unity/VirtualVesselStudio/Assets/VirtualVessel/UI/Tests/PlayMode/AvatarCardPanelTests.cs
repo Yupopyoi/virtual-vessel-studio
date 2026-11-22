@@ -305,7 +305,7 @@ namespace VirtualVessel.UI.Tests
 
             _lighting.SetIntensity(1.2f);
             Assert.That(card.Light.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
-            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Not.Null, "Says the stream changes too.");
+            Assert.That(card.Light.HelpKey, Is.EqualTo(FaceTuningStrings.LightHelp), "Says the stream changes too.");
         }
 
         [Test]
@@ -314,7 +314,6 @@ namespace VirtualVessel.UI.Tests
             var card = new FaceTuningCard(_avatars, null);
 
             Assert.That(card.Light, Is.Null);
-            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Null);
         }
 
         [Test]

@@ -20,22 +20,29 @@ namespace VirtualVessel.UI.Screens
         public const string Title = "setup.face.title";
         public const string Intro = "setup.face.intro";
         public const string Eyes = "setup.face.eyes";
+        public const string EyesHelp = "setup.face.eyes.help";
         public const string Wink = "setup.face.wink";
+        public const string WinkHelp = "setup.face.wink.help";
         public const string Brows = "setup.face.brows";
+        public const string BrowsHelp = "setup.face.brows.help";
         public const string Mouth = "setup.face.mouth";
+        public const string MouthHelp = "setup.face.mouth.help";
         public const string Gaze = "setup.face.gaze";
+        public const string GazeHelp = "setup.face.gaze.help";
         public const string Smile = "setup.face.smile";
+        public const string SmileHelp = "setup.face.smile.help";
         public const string Fingers = "setup.face.fingers";
         public const string Thumb = "setup.face.thumb";
-        public const string FingersDescription = "setup.face.fingers.description";
+        public const string FingersHelp = "setup.face.fingers.help";
         public const string Reset = "setup.face.reset";
         public const string ResetButton = "setup.face.reset.button";
         public const string PictureHeight = "setup.face.picture.height";
         public const string PictureZoom = "setup.face.picture.zoom";
+        public const string PictureHelp = "setup.face.picture.help";
         public const string Light = "setup.face.light";
-        public const string LightDescription = "setup.face.light.description";
+        public const string LightHelp = "setup.face.light.help";
         public const string Winks = "setup.face.winks";
-        public const string WinksDescription = "setup.face.winks.description";
+        public const string WinksHelp = "setup.face.winks.help";
     }
 
     /// <summary>
@@ -53,8 +60,6 @@ namespace VirtualVessel.UI.Screens
         public const string PreviewClass = UssClass + "__preview";
         public const string PartsClass = UssClass + "__parts";
         public const string PartClass = UssClass + "__part";
-        public const string LightNoteClass = UssClass + "__light-note";
-        public const string FingersNoteClass = UssClass + "__fingers-note";
 
         /// <summary>The sliders show percent: 100 is the default sensitivity.</summary>
         public const float PercentPerUnit = 100f;
@@ -88,6 +93,17 @@ namespace VirtualVessel.UI.Screens
             FaceTuningStrings.Mouth,
             FaceTuningStrings.Gaze,
             FaceTuningStrings.Smile,
+        };
+
+        // In the order of s_partKeys.
+        private static readonly string[] s_partHelpKeys =
+        {
+            FaceTuningStrings.EyesHelp,
+            FaceTuningStrings.WinkHelp,
+            FaceTuningStrings.BrowsHelp,
+            FaceTuningStrings.MouthHelp,
+            FaceTuningStrings.GazeHelp,
+            FaceTuningStrings.SmileHelp,
         };
 
         private readonly IAvatarService _avatars;
@@ -141,9 +157,9 @@ namespace VirtualVessel.UI.Screens
             Place(Preview, Crop(DefaultPictureHeight, DefaultZoom, AreaOf(_avatarFrame)));
             var picture = new VisualElement();
             picture.AddToClassList(PictureClass);
-            PictureHeight = Percent(FaceTuningStrings.PictureHeight, 0f, 100f, 5f, value => ShowPicture());
+            PictureHeight = Percent(FaceTuningStrings.PictureHeight, FaceTuningStrings.PictureHelp, 0f, 100f, 5f, value => ShowPicture());
             PictureHeight.SetValueWithoutNotify(DefaultPictureHeight);
-            PictureZoom = Percent(FaceTuningStrings.PictureZoom, MinZoom, MaxZoom, 10f, value => ShowPicture());
+            PictureZoom = Percent(FaceTuningStrings.PictureZoom, FaceTuningStrings.PictureHelp, MinZoom, MaxZoom, 10f, value => ShowPicture());
             PictureZoom.SetValueWithoutNotify(DefaultZoom);
             picture.Add(Frame);
             picture.Add(PictureHeight);
@@ -153,9 +169,8 @@ namespace VirtualVessel.UI.Screens
             // washed-out face is seen there.
             if (withLight)
             {
-                Light = Percent(FaceTuningStrings.Light, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, 5f, value => _lighting.SetIntensity(value / PercentPerUnit));
+                Light = Percent(FaceTuningStrings.Light, FaceTuningStrings.LightHelp, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, 5f, value => _lighting.SetIntensity(value / PercentPerUnit));
                 picture.Add(Light);
-                picture.Add(Ui.Text(FaceTuningStrings.LightDescription, LightNoteClass, "vv-text-caption"));
             }
 
             return picture;
@@ -171,7 +186,7 @@ namespace VirtualVessel.UI.Screens
             // matters while it may.
             WinksToggle = new SwitchToggle();
             WinksToggle.RegisterValueChangedCallback(evt => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.WithWinks(evt.newValue)));
-            SettingRow winks = Ui.SettingRow(FaceTuningStrings.Winks, FaceTuningStrings.WinksDescription);
+            SettingRow winks = Ui.SettingRow(FaceTuningStrings.Winks, helpKey: FaceTuningStrings.WinksHelp);
             winks.Add(WinksToggle);
             parts.Add(winks);
 
@@ -180,7 +195,7 @@ namespace VirtualVessel.UI.Screens
                 var part = (FaceTuningPart)i;
                 var block = new VisualElement();
                 block.AddToClassList(PartClass);
-                ValueSlider slider = Percent(s_partKeys[i], FaceTuning.Min * PercentPerUnit, FaceTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.With(part, value / PercentPerUnit)));
+                ValueSlider slider = Percent(s_partKeys[i], s_partHelpKeys[i], FaceTuning.Min * PercentPerUnit, FaceTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFaceTuning(_avatars.FaceTuning.Value.With(part, value / PercentPerUnit)));
                 ProgressMeter meter = Ui.Progress(null);
                 block.Add(slider);
                 block.Add(meter);
@@ -190,11 +205,10 @@ namespace VirtualVessel.UI.Screens
             }
 
             // The stream beside them shows the hands too, with the picture's height and zoom.
-            Fingers = Percent(FaceTuningStrings.Fingers, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithBend(value / PercentPerUnit)));
+            Fingers = Percent(FaceTuningStrings.Fingers, FaceTuningStrings.FingersHelp, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithBend(value / PercentPerUnit)));
             parts.Add(Fingers);
-            Thumb = Percent(FaceTuningStrings.Thumb, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithThumb(value / PercentPerUnit)));
+            Thumb = Percent(FaceTuningStrings.Thumb, FaceTuningStrings.FingersHelp, FingerTuning.Min * PercentPerUnit, FingerTuning.Max * PercentPerUnit, 10f, value => _avatars.SetFingerTuning(_avatars.FingerTuning.Value.WithThumb(value / PercentPerUnit)));
             parts.Add(Thumb);
-            parts.Add(Ui.Text(FaceTuningStrings.FingersDescription, FingersNoteClass, "vv-text-caption"));
 
             ResetButton = Ui.Button(FaceTuningStrings.ResetButton);
             ResetButton.clicked += () =>
@@ -209,9 +223,10 @@ namespace VirtualVessel.UI.Screens
         }
 
         // A slider in percent, in steps, that calls changed with each new value.
-        private static ValueSlider Percent(string labelKey, float low, float high, float step, Action<float> changed)
+        private static ValueSlider Percent(string labelKey, string helpKey, float low, float high, float step, Action<float> changed)
         {
             ValueSlider slider = Ui.Slider(labelKey, low, high, "%");
+            slider.HelpKey = helpKey;
             slider.Step = step;
             slider.RegisterValueChangedCallback(evt => changed(evt.newValue));
             return slider;

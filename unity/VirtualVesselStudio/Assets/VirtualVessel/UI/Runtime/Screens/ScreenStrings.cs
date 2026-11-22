@@ -24,11 +24,15 @@ namespace VirtualVessel.UI.Screens
 
         public const string AppSettingsTitle = "settings.title";
         public const string Language = "settings.language";
+        public const string LanguageHelp = "settings.language.help";
         public const string Palette = "settings.palette";
+        public const string PaletteHelp = "settings.palette.help";
         public const string Background = "settings.background";
+        public const string BackgroundHelp = "settings.background.help";
         public const string Dark = "settings.dark";
         public const string Light = "settings.light";
         public const string Scale = "settings.scale";
+        public const string ScaleHelp = "settings.scale.help";
         public const string Scale100 = "settings.scale.100";
         public const string Scale110 = "settings.scale.110";
         public const string Scale125 = "settings.scale.125";
@@ -36,12 +40,12 @@ namespace VirtualVessel.UI.Screens
         public const string Scale175 = "settings.scale.175";
         public const string Scale200 = "settings.scale.200";
         public const string Motion = "settings.motion";
-        public const string MotionDescription = "settings.motion.description";
+        public const string MotionHelp = "settings.motion.help";
         public const string MotionSystem = "settings.motion.system";
         public const string MotionOn = "settings.motion.on";
         public const string MotionOff = "settings.motion.off";
         public const string Developer = "settings.developer";
-        public const string DeveloperDescription = "settings.developer.description";
+        public const string DeveloperHelp = "settings.developer.help";
 
         public const string Metrics = "diagnostics.metrics";
         public const string DetailedOn = "diagnostics.detailed-on";
