@@ -300,6 +300,15 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Kind.value, Is.EqualTo(0), "The whole stage, as the light always was.");
             Assert.That(card.Distance.enabledSelf, Is.False, "A whole-stage light has no distance.");
             Assert.That(card.Query<SettingRow>().ToList().Where(row => string.IsNullOrEmpty(row.HelpKey)), Is.Empty, "Every row is explained.");
+            Assert.That(card.Query<ValueSlider>().ToList().Where(slider => string.IsNullOrEmpty(slider.HelpKey)), Is.Empty, "Every slider too.");
+
+            // Measured on the real styles: the settings scroll beside the picture, so the avatar stays in view
+            // however long the list is (user's report, 2026-11-22).
+            Rect picture = card.Preview.worldBound;
+            Rect settings = card.Settings.worldBound;
+            Assert.That(settings.xMin >= picture.xMax - 0.5f || settings.yMin >= picture.yMax - 0.5f, Is.True, "Beside the picture, or under it on a narrow window.");
+            Assert.That(settings.height, Is.LessThanOrEqualTo(480.5f), "Scrolled, not as long as the list.");
+            Assert.That(card.Settings.contentContainer.worldBound.height, Is.GreaterThan(settings.height), "The list is longer than what shows.");
 
             card.Intensity.value = 60f;
             Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(0.6f).Within(1e-5f));

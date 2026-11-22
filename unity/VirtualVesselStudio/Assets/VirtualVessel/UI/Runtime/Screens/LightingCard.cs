@@ -47,7 +47,6 @@ namespace VirtualVessel.UI.Screens
         public const string Code = "setup.lighting.code";
         public const string CodeHelp = "setup.lighting.code.help";
         public const string CodeInvalid = "setup.lighting.code.invalid";
-        public const string Rgb = "setup.lighting.rgb";
         public const string RgbHelp = "setup.lighting.rgb.help";
         public const string Red = "setup.lighting.rgb.r";
         public const string Green = "setup.lighting.rgb.g";
@@ -69,12 +68,16 @@ namespace VirtualVessel.UI.Screens
     /// The stage's lights on the avatar page (docs/&lt;lang&gt;/ui/screens/setup.md 15): up to four lights,
     /// each a whole-stage light or a spot, placed by angles around the avatar, with its brightness and
     /// color, and the ambient light. Each change applies at once and is saved by Stage. The stream is
-    /// shown above, so the face stays in view while the light moves.
+    /// on the left and the settings scroll on its right, so the avatar stays in view while any light
+    /// moves (user's report, 2026-11-22: below a long list, the picture was out of sight).
     /// </summary>
     public sealed class LightingCard : VisualElement
     {
         public const string UssClass = "vv-lighting-card";
         public const string SwatchClass = UssClass + "__swatch";
+        public const string LayoutClass = UssClass + "__layout";
+        public const string PictureClass = UssClass + "__picture";
+        public const string SettingsClass = UssClass + "__settings";
 
         private const float PercentPerUnit = 100f;
 
@@ -95,11 +98,18 @@ namespace VirtualVessel.UI.Screens
             Card card = Ui.Card(LightingStrings.Title);
             Add(card);
 
+            var layout = new VisualElement();
+            layout.AddToClassList(LayoutClass);
+            card.Add(layout);
             Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
-            Preview.AddToClassList(CaptureSourceCard.PreviewClass);
+            Preview.AddToClassList(PictureClass);
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Preview.Add(_noVideo);
-            card.Add(Preview);
+            layout.Add(Preview);
+            Settings = new ScrollView(ScrollViewMode.Vertical);
+            Settings.AddToClassList(SettingsClass);
+            layout.Add(Settings);
+            VisualElement rows = Settings.contentContainer;
 
             // Which light the rows below change; the lights not made yet cannot be chosen.
             LightChoice = Ui.Segmented(s_lightKeys);
@@ -108,7 +118,7 @@ namespace VirtualVessel.UI.Screens
                 _selected = evt.newValue;
                 Show();
             });
-            card.Add(Ui.ControlRow(LightingStrings.Light, LightChoice, helpKey: LightingStrings.LightHelp));
+            rows.Add(Ui.ControlRow(LightingStrings.Light, LightChoice, helpKey: LightingStrings.LightHelp));
 
             // Adding and removing act on the whole list, so they sit in the title band, as the sound effects'
             // "stop all" does.
@@ -124,16 +134,16 @@ namespace VirtualVessel.UI.Screens
 
             Kind = Ui.Segmented(LightingStrings.KindDirectional, LightingStrings.KindSpot);
             Kind.RegisterValueChangedCallback(evt => Change(light => light.WithKind(evt.newValue == 1 ? StageLightKind.Spot : StageLightKind.Directional)));
-            card.Add(Ui.ControlRow(LightingStrings.Kind, Kind, helpKey: LightingStrings.KindHelp));
+            rows.Add(Ui.ControlRow(LightingStrings.Kind, Kind, helpKey: LightingStrings.KindHelp));
 
-            Yaw = Slider(card, LightingStrings.Yaw, LightingStrings.YawHelp, StageLight.MinYaw, StageLight.MaxYaw, 5f, "°", value => Change(light => light.WithYaw(value)));
+            Yaw = Slider(rows, LightingStrings.Yaw, LightingStrings.YawHelp, StageLight.MinYaw, StageLight.MaxYaw, 5f, "°", value => Change(light => light.WithYaw(value)));
             Yaw.Signed = true;
-            Pitch = Slider(card, LightingStrings.Pitch, LightingStrings.PitchHelp, StageLight.MinPitch, StageLight.MaxPitch, 5f, "°", value => Change(light => light.WithPitch(value)));
+            Pitch = Slider(rows, LightingStrings.Pitch, LightingStrings.PitchHelp, StageLight.MinPitch, StageLight.MaxPitch, 5f, "°", value => Change(light => light.WithPitch(value)));
             Pitch.Signed = true;
-            Distance = Slider(card, LightingStrings.Distance, LightingStrings.DistanceHelp, StageLight.MinDistance, StageLight.MaxDistance, 0.1f, "m", value => Change(light => light.WithDistance(value)));
+            Distance = Slider(rows, LightingStrings.Distance, LightingStrings.DistanceHelp, StageLight.MinDistance, StageLight.MaxDistance, 0.1f, "m", value => Change(light => light.WithDistance(value)));
             Distance.Decimals = 1;
-            SpotAngle = Slider(card, LightingStrings.SpotAngle, LightingStrings.SpotAngleHelp, StageLight.MinSpotAngle, StageLight.MaxSpotAngle, 5f, "°", value => Change(light => light.WithSpotAngle(value)));
-            Intensity = Slider(card, LightingStrings.Intensity, LightingStrings.IntensityHelp, StageLight.MinIntensity * PercentPerUnit, StageLight.MaxIntensity * PercentPerUnit, 5f, "%", value => Change(light => light.WithIntensity(value / PercentPerUnit)));
+            SpotAngle = Slider(rows, LightingStrings.SpotAngle, LightingStrings.SpotAngleHelp, StageLight.MinSpotAngle, StageLight.MaxSpotAngle, 5f, "°", value => Change(light => light.WithSpotAngle(value)));
+            Intensity = Slider(rows, LightingStrings.Intensity, LightingStrings.IntensityHelp, StageLight.MinIntensity * PercentPerUnit, StageLight.MaxIntensity * PercentPerUnit, 5f, "%", value => Change(light => light.WithIntensity(value / PercentPerUnit)));
 
             ColorChoice = Ui.Select(null);
             ColorChoice.SetChoices(StageLightColors.Ids.Append(StageLightColors.Custom).Select(id => SelectChoice.FromKey(id, LightingStrings.ColorName(id))));
@@ -148,8 +158,8 @@ namespace VirtualVessel.UI.Screens
             color.AddToClassList(SettingRow.ControlsClass);
             color.Add(Swatch);
             color.Add(ColorChoice);
-            card.Add(Ui.ControlRow(LightingStrings.Color, color, helpKey: LightingStrings.ColorHelp));
-            Temperature = Slider(card, LightingStrings.Temperature, LightingStrings.TemperatureHelp, StageLight.MinTemperature, StageLight.MaxTemperature, 100f, "K", value => Change(light => light.WithTemperature(value)));
+            rows.Add(Ui.ControlRow(LightingStrings.Color, color, helpKey: LightingStrings.ColorHelp));
+            Temperature = Slider(rows, LightingStrings.Temperature, LightingStrings.TemperatureHelp, StageLight.MinTemperature, StageLight.MaxTemperature, 100f, "K", value => Change(light => light.WithTemperature(value)));
 
             // A color of the user's own, by its code or by its red, green, and blue (user's request, 2026-11-22).
             // The code applies on leaving the field or on Enter, not on each key: half a code is not a color.
@@ -163,17 +173,15 @@ namespace VirtualVessel.UI.Screens
                     ApplyCode();
                 }
             });
-            card.Add(Ui.ControlRow(LightingStrings.Code, CodeField, helpKey: LightingStrings.CodeHelp));
+            rows.Add(Ui.ControlRow(LightingStrings.Code, CodeField, helpKey: LightingStrings.CodeHelp));
             RedSlider = Channel(LightingStrings.Red, 0);
             GreenSlider = Channel(LightingStrings.Green, 1);
             BlueSlider = Channel(LightingStrings.Blue, 2);
-            var channels = new VisualElement();
-            channels.Add(RedSlider);
-            channels.Add(GreenSlider);
-            channels.Add(BlueSlider);
-            card.Add(Ui.ControlRow(LightingStrings.Rgb, channels, helpKey: LightingStrings.RgbHelp));
+            rows.Add(RedSlider);
+            rows.Add(GreenSlider);
+            rows.Add(BlueSlider);
 
-            Ambient = Slider(card, LightingStrings.Ambient, LightingStrings.AmbientHelp, StageLighting.MinAmbient * PercentPerUnit, StageLighting.MaxAmbient * PercentPerUnit, 5f, "%", value => _lighting.SetLighting(_lighting.Lighting.Value.WithAmbient(value / PercentPerUnit)));
+            Ambient = Slider(rows, LightingStrings.Ambient, LightingStrings.AmbientHelp, StageLighting.MinAmbient * PercentPerUnit, StageLighting.MaxAmbient * PercentPerUnit, 5f, "%", value => _lighting.SetLighting(_lighting.Lighting.Value.WithAmbient(value / PercentPerUnit)));
 
             ResetButton = Ui.Button(LightingStrings.ResetButton);
             ResetButton.clicked += () =>
@@ -181,12 +189,15 @@ namespace VirtualVessel.UI.Screens
                 _selected = 0;
                 _lighting.SetLighting(StageLighting.Default);
             };
-            card.Add(Ui.ControlRow(LightingStrings.Reset, ResetButton, helpKey: LightingStrings.ResetHelp));
+            rows.Add(Ui.ControlRow(LightingStrings.Reset, ResetButton, helpKey: LightingStrings.ResetHelp));
 
             PanelLifetime.WhileAttached(this, _ => Attach());
         }
 
         public Image Preview { get; }
+
+        /// <summary>The settings beside the picture, scrolled on their own.</summary>
+        public ScrollView Settings { get; }
 
         public Segmented LightChoice { get; }
 
@@ -233,12 +244,15 @@ namespace VirtualVessel.UI.Screens
             return Math.Max(0, Math.Min(selected, lighting.Lights.Count - 1));
         }
 
-        private static ValueSlider Slider(Card card, string nameKey, string helpKey, float low, float high, float step, string unit, Action<float> changed)
+        // A slider with its name above it, as in the face tuning Card: a Setting Row each made the list too long
+        // to keep beside the picture.
+        private static ValueSlider Slider(VisualElement rows, string nameKey, string helpKey, float low, float high, float step, string unit, Action<float> changed)
         {
-            ValueSlider slider = Ui.Slider(null, low, high, unit);
+            ValueSlider slider = Ui.Slider(nameKey, low, high, unit);
             slider.Step = step;
+            slider.HelpKey = helpKey;
             slider.RegisterValueChangedCallback(evt => changed(evt.newValue));
-            card.Add(Ui.ControlRow(nameKey, slider, helpKey: helpKey));
+            rows.Add(slider);
             return slider;
         }
 
@@ -258,6 +272,7 @@ namespace VirtualVessel.UI.Screens
         {
             ValueSlider slider = Ui.Slider(labelKey, 0f, 255f);
             slider.Step = 1f;
+            slider.HelpKey = LightingStrings.RgbHelp;
             slider.RegisterValueChangedCallback(evt => Change(light => light.WithColor(WithChannel(StageLightColors.ColorOf(light), channel, (int)evt.newValue))));
             return slider;
         }

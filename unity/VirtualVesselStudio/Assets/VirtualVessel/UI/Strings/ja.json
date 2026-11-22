@@ -1093,7 +1093,6 @@
         "setup.lighting.code": "カラーコード",
         "setup.lighting.code.help": "光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。",
         "setup.lighting.code.invalid": "「#」と6桁の英数字（0〜9、A〜F）で入力してください。",
-        "setup.lighting.rgb": "RGB",
         "setup.lighting.rgb.help": "光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。",
         "setup.lighting.rgb.r": "R",
         "setup.lighting.rgb.g": "G",

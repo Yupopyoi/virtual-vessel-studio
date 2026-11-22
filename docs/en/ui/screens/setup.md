@@ -495,7 +495,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 
 | Row | Component | Content |
 |---|---|---|
-| Video | Image (16:9) | The whole stream, so the face stays in view while a light moves. "No video" when there is none |
+| Video | Image (384×216, 16:9), on the left | The whole stream, so the face stays in view while a light moves. "No video" when there is none |
 | Right of the title band | Button (Secondary) "Add a light", "Remove this light" | An added light is a spot from the right (left and right 45°, up and down 15°, distance 2 m), and becomes the chosen one. With four lights adding is disabled, with one removing is, and their tooltips say why |
 | Light | Segmented (1 to 4) | The light the rows below change. Lights not made yet are disabled |
 | Kind | Segmented (Whole stage, Spot) | A directional light, or a spot aimed at the face |
@@ -507,10 +507,12 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple, Custom). Custom starts from the color the light had | The color is also told by its name (not by color alone) |
 | Color temperature | Slider (2700 to 9000 K, steps of 100 K) | White only. Disabled for the other colors |
 | Color code | Text input (`#RRGGBB`) | Custom color only. Applies on Enter or on leaving the field; a code that cannot be read says why under the field. For the other colors it is disabled and shows that color's code |
-| RGB | Three sliders (R, G, B, 0 to 255 each), one under another | Custom color only. Disabled for the other colors |
+| R, G, B | Sliders (0 to 255 each) | Custom color only. Disabled for the other colors. All three have the same Help Hint |
 | Ambient light | Slider (0 to 200%, steps of 5%) | Shared by all lights |
 | Reset the lighting | Button (Secondary) "Reset" | Back to one light as it started, and the ambient light at 100% |
 
+- The video is on the left and the settings on the right, at most 480 px tall and scrolled inside, so the avatar stays in view whichever light moves (user's report, 2026-11-22: with the settings under the video, the video went off the screen). On a narrow window the settings wrap below the video.
+- Sliders are not Setting Rows: as in the face tuning Card, the name is above with its Help Hint. As rows, each was tall and the list grew too long.
 - A change reaches the stream at once and is saved in `stage-settings.json` (Stage detailed design 6.3).
 - Disabled rows stay in view, so the user sees what a spot or white would add.
 - The Japanese text is provisional, for the user to proofread (`ui-guidelines.md`).
@@ -562,7 +564,6 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.code` | カラーコード | Color code |
 | `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
 | `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
-| `setup.lighting.rgb` | RGB | RGB |
 | `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
 | `setup.lighting.rgb.r` | R | R |
 | `setup.lighting.rgb.g` | G | G |

@@ -471,3 +471,36 @@
 .vv-lighting-card .vv-setting-row__controls > .vv-select {
     flex-grow: 1;
 }
+
+/* The picture on the left and the settings scrolling on its right, so the avatar stays in view (setup.md 15).
+   On a narrow window the settings wrap below the picture. */
+.vv-lighting-card__layout {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.vv-lighting-card__picture {
+    flex-shrink: 0;
+    width: 384px;
+    height: 216px;
+    margin: var(--vv-space-m) var(--vv-space-l) 0 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--vv-radius-s);
+    background-color: var(--vv-color-surface-3);
+}
+
+.vv-lighting-card__settings {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 320px;
+    min-width: 320px;
+    max-height: 480px;
+    margin-top: var(--vv-space-m);
+}
+
+.vv-lighting-card__settings .vv-slider {
+    margin-top: var(--vv-space-m);
+    margin-right: var(--vv-space-m);
+}
