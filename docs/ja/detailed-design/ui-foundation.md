@@ -670,7 +670,7 @@ public interface IUiCommand
 - 処理はPlayModeのTest（`UiScreenshotCaptureRun.Capture`）として書き、Unity Test Frameworkで実行する。`[Explicit]`を付け、名前を指定したときだけ動かす。通常のTestの実行では動かない。Batch Modeでも、`-nographics`を付けなければ動く。
 - 実行方法は次の2つとする。
   - Unityのメニュー「Virtual Vessel/UI/Capture Screenshots」（`UiScreenshotCapture`、Editor）。終わると保存先のフォルダを開く。
-  - `tools/ui/capture-ui.ps1`。Unityを閉じた状態でBatch Modeで実行する。`-Screens`で画面を絞り、`-Quick`で組み合わせを減らせる。
+  - `tools/ui/capture-ui.ps1`。Unityを閉じた状態でBatch Modeで実行する。`-Screens`で画面を絞り、`-Quick`で組み合わせを減らせる。設定画面は、ページごとに`setup`（映像）、`setup-audio`、`setup-avatar`、`setup-output`、`setup-app`として撮る（2026-11-22。長いページの下のCardも確かめるため）。アバターと照明は、テストの偽物で表示する。
 - 書き出す組み合わせは`UiShotPlan.Create`（純粋関数）が決める。画面ごとに次を書き出す（`ui-guidelines.md` 5章）。
   - ダーク・ライト×日本語・英語（1600×900、UIの大きさ100%、Lavender）
   - 明るいアクセント色のパレット（Lemon、ライト、日本語）

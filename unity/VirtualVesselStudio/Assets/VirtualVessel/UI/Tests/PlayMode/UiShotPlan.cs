@@ -104,7 +104,20 @@ namespace VirtualVessel.UI.Tests
         /// <summary>A palette with a bright accent, to check contrast on the light background.</summary>
         public const string BrightPalette = "lemon";
 
-        public static readonly string[] AllScreens = { "live", "setup", "lab", "diagnostics", "gallery" };
+        /// <summary>The screens; "setup-avatar" and the like are the settings screen at that page.</summary>
+        public static readonly string[] AllScreens = { "live", "setup", "setup-audio", "setup-avatar", "setup-output", "setup-app", "lab", "diagnostics", "gallery" };
+
+        /// <summary>The screen to open for a shot's screen name: "setup-avatar" is the settings screen. Pure.</summary>
+        public static string ScreenOf(string shotScreen)
+        {
+            return shotScreen != null && shotScreen.StartsWith("setup-", StringComparison.Ordinal) ? "setup" : shotScreen;
+        }
+
+        /// <summary>The settings page of a shot's screen name, or null for none. Pure.</summary>
+        public static string SetupPageOf(string shotScreen)
+        {
+            return shotScreen == "setup" ? "video" : shotScreen != null && shotScreen.StartsWith("setup-", StringComparison.Ordinal) ? shotScreen.Substring("setup-".Length) : null;
+        }
 
         public static IReadOnlyList<UiShot> Create(UiShotOptions options)
         {

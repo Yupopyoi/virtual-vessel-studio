@@ -507,7 +507,8 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple, Custom). Custom starts from the color the light had | The color is also told by its name (not by color alone) |
 | Color temperature | Slider (2700 to 9000 K, steps of 100 K) | White only. Disabled for the other colors |
 | Color code | Text input (`#RRGGBB`) | Custom color only. Applies on Enter or on leaving the field; a code that cannot be read says why under the field. For the other colors it is disabled and shows that color's code |
-| R, G, B | Sliders (0 to 255 each) | Custom color only. Disabled for the other colors. All three have the same Help Hint |
+| Color by | Dropdown (RGB, HSV) | Whether the three sliders below set the color as RGB or HSV (user's request, 2026-11-22). Not saved. Custom color only |
+| R, G, B / H, S, V | Sliders: RGB 0 to 255 each; HSV H 0 to 360°, S and V 0 to 100% | Custom color only. Disabled for the other colors. All three have the same Help Hint |
 | Ambient light | Slider (0 to 200%, steps of 5%) | Shared by all lights |
 | Reset the lighting | Button (Secondary) "Reset" | Back to one light as it started, and the ambient light at 100% |
 
@@ -564,6 +565,14 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.code` | カラーコード | Color code |
 | `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
 | `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
+| `setup.lighting.channels` | 色の指定 | Color by |
+| `setup.lighting.channels.help` | 下のスライダーで、色をRGBとHSVのどちらで決めるかを選びます。 | Choose whether the sliders below set the color as RGB or HSV. |
+| `setup.lighting.channels.rgb` | RGB | RGB |
+| `setup.lighting.channels.hsv` | HSV | HSV |
+| `setup.lighting.hsv.h` | H | H |
+| `setup.lighting.hsv.s` | S | S |
+| `setup.lighting.hsv.v` | V | V |
+| `setup.lighting.hsv.help` | 光の色を、色相（H、0〜360°）、彩度（S、0〜100%）、明度（V、0〜100%）で決めます。 | Sets the light's color by hue (H, 0–360°), saturation (S, 0–100%), and value (V, 0–100%). |
 | `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
 | `setup.lighting.rgb.r` | R | R |
 | `setup.lighting.rgb.g` | G | G |
@@ -579,7 +588,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
 | `setup.lighting.invert-x` | 左右を反転 | Reverse left and right |
 | `setup.lighting.invert-y` | 上下を反転 | Reverse up and down |
-| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。人によって自然に感じる向きが違うため、選べるようにしています。 | Reverses which way the view turns when you drag on empty space. People find different directions natural, so it can be chosen. |
+| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。 | Reverses which way the view turns when you drag on empty space. |
 
 ### 15.2 The Placement View (Stage View)
 
@@ -596,7 +605,7 @@ The picture's place switches between "Placement" and "Stream" Tabs (`components.
 |---|---|
 | Click a marker | Chooses that light (the Light segmented control follows) |
 | Drag a marker | The light moves on a sphere, still facing the face. The left-right and up-down sliders follow |
-| Drag on empty space | Orbits the view. The stage turns with the pointer (dragging right turns it right, as in Unity's Scene View) |
+| Drag on empty space | Orbits the view. Left and right, the stage turns with the pointer (dragging right turns it right, as in Unity's Scene View). Up and down, the viewpoint follows the pointer (dragging down raises it; user decision, 2026-11-22). Both can be reversed |
 | Middle-button drag, or drag with Shift | Moves the pivot |
 | Wheel | Zooms in and out |
 | Double-click on empty space | Resets the view |

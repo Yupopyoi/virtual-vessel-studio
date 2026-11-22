@@ -364,6 +364,18 @@ namespace VirtualVessel.UI.Tests
             card.RedSlider.value = 16f;
             Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#10FF80"));
             Assert.That(LightingCard.WithChannel(new Color(1f, 0f, 0f), 2, 255), Is.EqualTo("#FF00FF"));
+
+            // The same sliders as hue, saturation, and value.
+            card.ChannelMode.value = "hsv";
+            Assert.That(card.RedSlider.LabelKey, Is.EqualTo(LightingStrings.Hue));
+            Assert.That(card.RedSlider.HighValue, Is.EqualTo(360f));
+            card.CodeField.value = "#FF0000";
+            PressEnter(card.CodeField);
+            Assert.That(card.BlueSlider.value, Is.EqualTo(100f), "Full value.");
+            card.RedSlider.value = 120f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#00FF00"), "Hue 120° is green.");
+            Assert.That(LightingCard.WithHsvChannel(new Color(1f, 0f, 0f), 1, 0f), Is.EqualTo("#FFFFFF"), "No saturation is white.");
+            Assert.That(LightingCard.ToHsv(new Color(0f, 0f, 1f)), Is.EqualTo(new Vector3(240f, 100f, 100f)));
         }
 
         private static void PressEnter(VisualElement target)
@@ -646,7 +658,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeStageView : StageEditing.IStageView
+        internal sealed class FakeStageView : StageEditing.IStageView
         {
             private readonly ObservableValue<Texture> _image = new ObservableValue<Texture>(null);
             private readonly ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>> _markers = new ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>>(Array.Empty<StageEditing.StageViewMarker>());
@@ -724,7 +736,7 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeLighting : IStageLighting
+        internal sealed class FakeLighting : IStageLighting
         {
             private readonly ObservableValue<StageLighting> _lighting = new ObservableValue<StageLighting>(StageLighting.Default);
 

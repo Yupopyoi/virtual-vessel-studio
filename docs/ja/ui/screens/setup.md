@@ -507,7 +507,8 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | 色 | 色の見本とDropdown（白、ピンク、オレンジ、黄色、緑、水色、青、紫、カスタム）。「カスタム」にすると、それまでの色から始める | 色は名前でも伝える（色だけに頼らない） |
 | 色温度 | Slider（2700〜9000K、100K刻み） | 白だけ。ほかの色のときは無効 |
 | カラーコード | 文字の入力（`#RRGGBB`） | 色の「カスタム」だけ。Enterか、入力を離れたときに反映する。読めないときは入力の下に理由を出す。ほかの色のときは無効で、その色のコードを表示する |
-| R、G、B | Slider（各0〜255） | 色の「カスタム」だけ。ほかの色のときは無効。3つに同じHelp Hintを付ける |
+| 色の指定 | Dropdown（RGB、HSV） | 下の3つのSliderで、色をRGBとHSVのどちらで決めるか（利用者の要望、2026-11-22）。保存しない。色の「カスタム」だけ |
+| R、G、B／H、S、V | Slider。RGBは各0〜255、HSVはHが0〜360°、SとVが0〜100% | 色の「カスタム」だけ。ほかの色のときは無効。3つに同じHelp Hintを付ける |
 | 環境光 | Slider（0〜200%、5%刻み） | すべてのライトに共通 |
 | 照明を既定に戻す | Button（Secondary）「既定に戻す」 | ライト1つの初めの状態と、環境光100%に戻す |
 
@@ -564,6 +565,14 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.code` | カラーコード | Color code |
 | `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
 | `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
+| `setup.lighting.channels` | 色の指定 | Color by |
+| `setup.lighting.channels.help` | 下のスライダーで、色をRGBとHSVのどちらで決めるかを選びます。 | Choose whether the sliders below set the color as RGB or HSV. |
+| `setup.lighting.channels.rgb` | RGB | RGB |
+| `setup.lighting.channels.hsv` | HSV | HSV |
+| `setup.lighting.hsv.h` | H | H |
+| `setup.lighting.hsv.s` | S | S |
+| `setup.lighting.hsv.v` | V | V |
+| `setup.lighting.hsv.help` | 光の色を、色相（H、0〜360°）、彩度（S、0〜100%）、明度（V、0〜100%）で決めます。 | Sets the light's color by hue (H, 0–360°), saturation (S, 0–100%), and value (V, 0–100%). |
 | `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
 | `setup.lighting.rgb.r` | R | R |
 | `setup.lighting.rgb.g` | G | G |
@@ -579,7 +588,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
 | `setup.lighting.invert-x` | 左右を反転 | Reverse left and right |
 | `setup.lighting.invert-y` | 上下を反転 | Reverse up and down |
-| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。人によって自然に感じる向きが違うため、選べるようにしています。 | Reverses which way the view turns when you drag on empty space. People find different directions natural, so it can be chosen. |
+| `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。 | Reverses which way the view turns when you drag on empty space. |
 
 ### 15.2 配置の表示（ステージビュー）
 
@@ -596,7 +605,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 |---|---|
 | 印をクリック | そのライトを選ぶ（「ライト」のSegmentedも変わる） |
 | 印をドラッグ | ライトが顔を向いたまま球の上を動く。「左右の向き」「上下の向き」のSliderも動く |
-| 何もない所をドラッグ | 視点を回す。舞台がポインターについて回る（右へドラッグすると右へ回る。UnityのScene Viewと同じ） |
+| 何もない所をドラッグ | 視点を回す。左右は舞台がポインターについて回る（右へドラッグすると右へ回る。UnityのScene Viewと同じ）。上下は視点がポインターについて動く（下へドラッグすると視点が上がる。利用者の決定、2026-11-22）。どちらも反転できる |
 | 中ボタンでドラッグ、またはShiftを押してドラッグ | 中心を動かす |
 | ホイール | 寄る・引く |
 | 何もない所をダブルクリック | 視点を既定に戻す |

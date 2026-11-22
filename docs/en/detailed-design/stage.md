@@ -280,7 +280,7 @@ public readonly struct StageViewMarker
 #### 7.4.4 Viewpoint
 
 - The viewpoint is on a sphere around the pivot, set by the left-right angle, the up-down angle (-10 to 80°), and the distance (1.5 to 10 m) (`StageViewMath.Pose`, pure). By default the pivot is the face (`StageLightPlacement.Target`), at -35° left-right, 22° up-down, and 5.2 m.
-- The stage turns with the pointer (as in Unity's Scene View): dragging right turns the stage to the right (the viewpoint goes around to the left), and dragging up turns it upward. The mockup first had it the other way, which was the opposite of what the user expected (2026-11-22). People find different directions natural, so left-right and up-down can each be reversed (UI `setup.md` 15.2; a UI setting Stage does not know).
+- The stage turns with the pointer (as in Unity's Scene View): dragging right turns the stage to the right (the viewpoint goes around to the left). Up and down, the viewpoint follows the pointer: dragging down raises it (the user's decision after trying it, 2026-11-22). The mockup first had it the other way, which was the opposite of what the user expected (2026-11-22). People find different directions natural, so left-right and up-down can each be reversed (UI `setup.md` 15.2; a UI setting Stage does not know).
 - One wheel step changes the distance by 10%. Moving the pivot follows the pointer on a plane parallel to the view.
 
 #### 7.4.5 Handles

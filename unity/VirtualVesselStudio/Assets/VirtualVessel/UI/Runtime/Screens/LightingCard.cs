@@ -52,6 +52,14 @@ namespace VirtualVessel.UI.Screens
         public const string Red = "setup.lighting.rgb.r";
         public const string Green = "setup.lighting.rgb.g";
         public const string Blue = "setup.lighting.rgb.b";
+        public const string Channels = "setup.lighting.channels";
+        public const string ChannelsHelp = "setup.lighting.channels.help";
+        public const string ChannelsRgb = "setup.lighting.channels.rgb";
+        public const string ChannelsHsv = "setup.lighting.channels.hsv";
+        public const string Hue = "setup.lighting.hsv.h";
+        public const string Saturation = "setup.lighting.hsv.s";
+        public const string Value = "setup.lighting.hsv.v";
+        public const string HsvHelp = "setup.lighting.hsv.help";
         public const string CustomOnly = "setup.lighting.custom-only";
         public const string SpotAngle = "setup.lighting.spot-angle";
         public const string SpotAngleHelp = "setup.lighting.spot-angle.help";
@@ -97,6 +105,7 @@ namespace VirtualVessel.UI.Screens
         private readonly IStreamPreviewSource _stream;
         private readonly Label _noVideo;
         private int _selected;
+        private bool _hsv;
 
         /// <param name="stream">The stream video, to watch the light on the avatar; null shows no picture.</param>
         /// <param name="stageView">The 3D view to see and drag the lights in (setup.md 15.2); null shows the stream alone.</param>
@@ -246,6 +255,18 @@ namespace VirtualVessel.UI.Screens
                 }
             });
             rows.Add(Ui.ControlRow(LightingStrings.Code, CodeField, helpKey: LightingStrings.CodeHelp));
+
+            // RGB or HSV for the three sliders below (user's request, 2026-11-22); not saved, as it only changes how
+            // the same color is set.
+            ChannelMode = Ui.Select(null);
+            ChannelMode.SetChoices(new[] { SelectChoice.FromKey(RgbMode, LightingStrings.ChannelsRgb), SelectChoice.FromKey(HsvMode, LightingStrings.ChannelsHsv) });
+            ChannelMode.SetValueWithoutNotify(RgbMode);
+            ChannelMode.RegisterValueChangedCallback(evt =>
+            {
+                _hsv = evt.newValue == HsvMode;
+                Show();
+            });
+            rows.Add(Ui.ControlRow(LightingStrings.Channels, ChannelMode, helpKey: LightingStrings.ChannelsHelp));
             RedSlider = Channel(LightingStrings.Red, 0);
             GreenSlider = Channel(LightingStrings.Green, 1);
             BlueSlider = Channel(LightingStrings.Blue, 2);
@@ -353,14 +374,61 @@ namespace VirtualVessel.UI.Screens
             return StageLightColors.ToCode(StageLightColors.FromBytes(channel == 0 ? value : r, channel == 1 ? value : g, channel == 2 ? value : b));
         }
 
+        /// <summary>
+        /// <paramref name="color"/> as hue (0–360), saturation (0–100), and value (0–100), the sliders' units in HSV. Pure.
+        /// </summary>
+        public static Vector3 ToHsv(Color color)
+        {
+            Color.RGBToHSV(color, out float h, out float s, out float v);
+            return new Vector3(Mathf.Round(h * 360f), Mathf.Round(s * 100f), Mathf.Round(v * 100f));
+        }
+
+        /// <summary>
+        /// <paramref name="color"/> with one HSV channel (0 hue in degrees, 1 saturation and 2 value in percent) set to
+        /// <paramref name="value"/>, as a color code. Pure.
+        /// </summary>
+        public static string WithHsvChannel(Color color, int channel, float value)
+        {
+            Vector3 hsv = ToHsv(color);
+            hsv[channel] = value;
+            Color result = Color.HSVToRGB(Mathf.Repeat(hsv.x, 360f) / 360f, Mathf.Clamp01(hsv.y / 100f), Mathf.Clamp01(hsv.z / 100f));
+            return StageLightColors.ToCode(result);
+        }
+
+        private const string RgbMode = "rgb";
+        private const string HsvMode = "hsv";
+
         private ValueSlider Channel(string labelKey, int channel)
         {
             ValueSlider slider = Ui.Slider(labelKey, 0f, 255f);
             slider.Step = 1f;
             slider.HelpKey = LightingStrings.RgbHelp;
-            slider.RegisterValueChangedCallback(evt => Change(light => light.WithColor(WithChannel(StageLightColors.ColorOf(light), channel, (int)evt.newValue))));
+            slider.RegisterValueChangedCallback(evt => Change(light => light.WithColor(_hsv
+                ? WithHsvChannel(StageLightColors.ColorOf(light), channel, evt.newValue)
+                : WithChannel(StageLightColors.ColorOf(light), channel, (int)evt.newValue))));
             return slider;
         }
+
+        // The three sliders as R, G, B (0–255) or H (0–360°), S and V (0–100%).
+        private void ShowChannels(Color color)
+        {
+            ValueSlider[] sliders = { RedSlider, GreenSlider, BlueSlider };
+            string[] rgbKeys = { LightingStrings.Red, LightingStrings.Green, LightingStrings.Blue };
+            string[] hsvKeys = { LightingStrings.Hue, LightingStrings.Saturation, LightingStrings.Value };
+            Vector3 values = _hsv ? ToHsv(color) : new Vector3(StageLightColors.Byte(color.r), StageLightColors.Byte(color.g), StageLightColors.Byte(color.b));
+            for (int i = 0; i < sliders.Length; i++)
+            {
+                ValueSlider slider = sliders[i];
+                slider.LabelKey = _hsv ? hsvKeys[i] : rgbKeys[i];
+                slider.HelpKey = _hsv ? LightingStrings.HsvHelp : LightingStrings.RgbHelp;
+                slider.Unit = _hsv ? (i == 0 ? "°" : "%") : null;
+                slider.HighValue = _hsv ? (i == 0 ? 360f : 100f) : 255f;
+                slider.SetValueWithoutNotify(values[i]);
+            }
+        }
+
+        /// <summary>RGB or HSV for the custom color's sliders.</summary>
+        public SelectField ChannelMode { get; }
 
         private void ApplyCode()
         {
@@ -478,9 +546,7 @@ namespace VirtualVessel.UI.Screens
                 CodeField.ErrorKey = null;
             }
 
-            RedSlider.SetValueWithoutNotify(StageLightColors.Byte(color.r));
-            GreenSlider.SetValueWithoutNotify(StageLightColors.Byte(color.g));
-            BlueSlider.SetValueWithoutNotify(StageLightColors.Byte(color.b));
+            ShowChannels(color);
             Ambient.SetValueWithoutNotify(lighting.Ambient * PercentPerUnit);
 
             // A whole-stage light has no place or cone, and a stage color no temperature; they stay in view,
@@ -490,6 +556,8 @@ namespace VirtualVessel.UI.Screens
             Enable(Temperature, light.ColorId == StageLightColors.White, LightingStrings.WhiteOnly);
             CodeField.SetEnabled(custom);
             CodeField.TooltipKey = custom ? null : LightingStrings.CustomOnly;
+            ChannelMode.SetEnabled(custom);
+            ChannelMode.TooltipKey = custom ? null : LightingStrings.CustomOnly;
             Enable(RedSlider, custom, LightingStrings.CustomOnly);
             Enable(GreenSlider, custom, LightingStrings.CustomOnly);
             Enable(BlueSlider, custom, LightingStrings.CustomOnly);

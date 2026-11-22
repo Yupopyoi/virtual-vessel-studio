@@ -670,7 +670,7 @@ A development tool that writes the real UI's screens to PNG for the visual revie
 - The work is a PlayMode test (`UiScreenshotCaptureRun.Capture`) run by the Unity Test Framework. It is marked `[Explicit]`, so it runs only when named and never in a normal test run. It runs in batch mode as long as `-nographics` is not given.
 - There are two ways to run it:
   - The Unity menu "Virtual Vessel/UI/Capture Screenshots" (`UiScreenshotCapture`, Editor), which opens the output folder when done.
-  - `tools/ui/capture-ui.ps1`, which runs Unity in batch mode while the Editor is closed. `-Screens` limits the screens, and `-Quick` reduces the combinations.
+  - `tools/ui/capture-ui.ps1`, which runs Unity in batch mode while the Editor is closed. `-Screens` limits the screens, and `-Quick` reduces the combinations. The settings screen is written page by page as `setup` (video), `setup-audio`, `setup-avatar`, `setup-output`, and `setup-app` (2026-11-22, so the Cards further down long pages are checked too). The avatar and lighting are shown with the tests' fakes.
 - `UiShotPlan.Create` (a pure function) decides the combinations. For each screen it writes (`ui-guidelines.md` chapter 5):
   - dark and light × Japanese and English (1600×900, UI size 100%, Lavender);
   - a palette with a bright accent (Lemon, light, Japanese);

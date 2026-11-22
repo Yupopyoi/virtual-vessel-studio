@@ -54,7 +54,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null) }));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null), Avatars = new AvatarCardPanelTests.FakeAvatars(), Lighting = new AvatarCardPanelTests.FakeLighting(), StageView = new AvatarCardPanelTests.FakeStageView() }));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;
@@ -67,7 +67,13 @@ namespace VirtualVessel.UI.Tests
                     root.Settings.SetBackground(shot.Background == "light" ? ThemeBackground.Light : ThemeBackground.Dark);
                     root.Settings.SetPalette(shot.Palette);
                     root.Settings.SetUiScale(shot.Scale);
-                    root.Shell.Open(shot.Screen);
+                    root.Shell.Open(UiShotPlan.ScreenOf(shot.Screen));
+                    string setupPage = UiShotPlan.SetupPageOf(shot.Screen);
+                    if (setupPage != null)
+                    {
+                        ((SetupScreen)root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.PageOf(setupPage);
+                    }
+
                     target = Resize(root, target, shot.Width, shot.Height);
                     yield return Settle();
 
@@ -137,7 +143,7 @@ namespace VirtualVessel.UI.Tests
         /// <summary>The image height that shows the whole page: the window plus what scrolls below it.</summary>
         private static int FullHeight(UiRoot root, UiShot shot)
         {
-            var page = (ScrollView)root.Shell.Host.GetPage(shot.Screen);
+            var page = (ScrollView)root.Shell.Host.GetPage(UiShotPlan.ScreenOf(shot.Screen));
             float hidden = page.contentContainer.layout.height - page.contentViewport.layout.height;
             return hidden > 0f ? shot.Height + Mathf.CeilToInt(hidden * shot.Scale) : shot.Height;
         }

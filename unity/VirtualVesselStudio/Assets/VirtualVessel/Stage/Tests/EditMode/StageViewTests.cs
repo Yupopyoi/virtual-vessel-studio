@@ -42,11 +42,11 @@ namespace VirtualVessel.Stage.Tests
         [Test]
         public void TheStage_TurnsWithThePointer()
         {
-            // As in Unity's Scene View: the viewpoint moves the other way to the pointer (user's report on the mockup, 2026-11-22).
+            // Left and right as in Unity's Scene View; up and down the other way, the user's choice (2026-11-22).
             Assert.That(StageViewPanel.OrbitFor(new Vector2(10f, 0f)).x, Is.LessThan(0f), "Dragging right moves the viewpoint left.");
-            Assert.That(StageViewPanel.OrbitFor(new Vector2(0f, 10f)).y, Is.LessThan(0f), "Dragging down lowers the viewpoint.");
-            Assert.That(StageViewPanel.OrbitFor(new Vector2(10f, 10f), invertX: true, invertY: false), Is.EqualTo(new Vector2(4f, -3f)), "Each direction can be reversed.");
-            Assert.That(StageViewPanel.OrbitFor(new Vector2(10f, 10f), invertX: false, invertY: true), Is.EqualTo(new Vector2(-4f, 3f)));
+            Assert.That(StageViewPanel.OrbitFor(new Vector2(0f, 10f)).y, Is.GreaterThan(0f), "Dragging down raises the viewpoint.");
+            Assert.That(StageViewPanel.OrbitFor(new Vector2(10f, 10f), invertX: true, invertY: false), Is.EqualTo(new Vector2(4f, 3f)), "Each direction can be reversed.");
+            Assert.That(StageViewPanel.OrbitFor(new Vector2(10f, 10f), invertX: false, invertY: true), Is.EqualTo(new Vector2(-4f, -3f)));
         }
 
         [Test]

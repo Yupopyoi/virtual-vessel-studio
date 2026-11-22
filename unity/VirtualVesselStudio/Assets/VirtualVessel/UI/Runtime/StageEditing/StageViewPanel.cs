@@ -137,13 +137,14 @@ namespace VirtualVessel.UI.StageEditing
         }
 
         /// <summary>
-        /// The orbit for a drag of <paramref name="pixels"/> (right and down positive). By default the stage turns with
-        /// the pointer, so the viewpoint moves the other way (Stage detailed design 7.4.4); each direction can be turned
-        /// around, as people expect either (user's request, 2026-11-22). Pure.
+        /// The orbit for a drag of <paramref name="pixels"/> (right and down positive) (Stage detailed design 7.4.4). By
+        /// default, left and right the stage turns with the pointer, so the viewpoint moves the other way; up and down the
+        /// viewpoint follows the pointer: dragging down raises it (the user's choice, 2026-11-22). Each direction can be
+        /// turned around, as people expect either. Pure.
         /// </summary>
         public static Vector2 OrbitFor(Vector2 pixels, bool invertX = false, bool invertY = false)
         {
-            return new Vector2((invertX ? 1f : -1f) * pixels.x * OrbitPerPixelX, (invertY ? 1f : -1f) * pixels.y * OrbitPerPixelY);
+            return new Vector2((invertX ? 1f : -1f) * pixels.x * OrbitPerPixelX, (invertY ? -1f : 1f) * pixels.y * OrbitPerPixelY);
         }
 
         /// <summary>Which way a drag turns the view; null keeps the default.</summary>
