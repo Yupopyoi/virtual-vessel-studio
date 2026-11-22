@@ -457,6 +457,7 @@ namespace VirtualVessel.UI.Tests
             LightingCard card = _root.Content.Q<LightingCard>();
             yield return null;
             Assert.That(card.RemoveButton.enabledSelf, Is.False, "Never without a light.");
+            Assert.That(card.RemoveButton.resolvedStyle.opacity, Is.EqualTo(1f), "Disabled but opaque, so it reads on the title band.");
             Assert.That(card.LightChoice.IsItemEnabled(1), Is.False);
 
             Submit(card.AddButton);
