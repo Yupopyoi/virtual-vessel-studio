@@ -22,4 +22,5 @@
 | [tracking-processing.md](tracking-processing.md) | Tracking詳細設計8章と9章：平滑化、外れ値の除去、奥行きの補正、基準の姿勢、体の2D、背景の除去 |
 | [recording.md](recording.md) | 録画詳細設計1章、5.1、10章：既定のAV1となければのH.264、H.264のプロファイル、色の情報 |
 | [youtube-integration.md](youtube-integration.md) | 方式設計10.11：YouTube APIでの連携（ログイン、コメントの表示）を見送った理由と、後で作るための下準備 |
+| [setup-guidance.md](setup-guidance.md) | 方式設計14.32：初回の案内の画面を作らず、設定の画面のヘルプで説明する理由 |
 | [voice-conversion.md](voice-conversion.md) | Voice詳細設計、Voice Lab詳細設計：試作の測定、アクティベーション、ライセンス、重みの差し替え |
