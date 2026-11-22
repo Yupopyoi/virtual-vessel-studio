@@ -434,6 +434,7 @@ namespace VirtualVessel.Application.Startup
                 SampleAvatar = ExistingOrNull(GetSampleAvatar(context.Environment, UnityEngine.Application.dataPath)),
                 Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, built.Log("UI", "Credits")),
                 Lighting = built.Stage,
+                StageView = built.Stage?.View,
             };
         }
 

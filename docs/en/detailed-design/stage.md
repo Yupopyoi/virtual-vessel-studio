@@ -240,7 +240,7 @@ A 3D view for building the stage while looking at it in Setup, corresponding to 
 #### 7.4.2 Interface
 
 ```csharp
-// UI (VirtualVessel.UI.StageView). Stage references the UI, so the interface is in the UI (as IStageLighting is)
+// UI (VirtualVessel.UI.StageEditing). Stage references the UI, so the interface is in the UI (as IStageLighting is)
 public interface IStageView
 {
     IReadOnlyObservable<Texture> Image { get; }             // The render target while open; null when closed
@@ -297,10 +297,10 @@ public readonly struct StageViewMarker
 
 #### 7.4.6 Guides
 
-- Line meshes are drawn with `Graphics.RenderMesh` with `RenderParams.camera` set to the stage view camera, so only that camera draws them, not the Main Camera, the Avatar Camera, or the Screen Camera, and no new layer is needed.
+- The line meshes are on objects that are active only while the stage view camera renders (switched on in `RenderPipelineManager.beginCameraRendering` and off in `endCameraRendering`). Only that camera draws them, not the Main Camera, the Avatar Camera, or the Screen Camera, and no new layer is needed. Drawing with a camera given (`Graphics.RenderMesh` with `RenderParams.camera`, `Graphics.DrawMesh`) was not drawn by this camera under URP, so it is not used (2026-11-22).
 - Lights: a spot has a line to the face and its cone (a ring at the face and four lines from the light to the ring). A whole-stage light has five parallel arrows toward the face from 2.4 m away. They are in the light's color; the chosen light is bold, the others faint.
-- A camera-shaped marker shows the stream camera's position, as a guide to which way the stream looks.
-- Lines use an unlit shader (`StageGuide.shader`, in Resources) and follow depth; only the chosen thing's lines show faintly when hidden.
+- A camera-shaped marker shows the stream camera's position, as a guide to which way the stream looks. Stage does not know the Main Camera's position, so it is not drawn until Video offers it (chapter 17).
+- Lines use an unlit shader (`StageGuide.shader`, in Resources) and follow depth; only the chosen thing's lines are drawn without the depth test, so they show even behind something.
 
 #### 7.4.7 With 3D Stages
 
@@ -428,6 +428,7 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Stage Scene lighting and the user's lights | With the Stage Scene design. Decide whether the user's lights (7.3) are added to a Stage Scene's lights or replace them |
 | Where positions moved in the stage view are saved | With the Stage Scene design: the project's stage settings or the stage's definition (7.4.7) |
 | Move, rotate, and scale handles | When Camera Points, Spawn Points, and Screen Surfaces are edited (7.4.5) |
+| The stream camera's marker in the stage view | When Video adds an interface giving the stream camera's position (7.4.6) |
 
 ---
 

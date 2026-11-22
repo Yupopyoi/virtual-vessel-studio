@@ -482,13 +482,65 @@
 
 .vv-lighting-card__picture {
     flex-shrink: 0;
-    width: 384px;
-    height: 216px;
+    width: 448px;
     margin: var(--vv-space-m) var(--vv-space-l) 0 0;
+}
+
+.vv-lighting-card__picture-tabs {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--vv-space-s);
+}
+
+/* 16:9: the stage view's render target is made in this shape (setup.md 15.2). */
+.vv-lighting-card__frame {
+    width: 448px;
+    height: 252px;
     align-items: center;
     justify-content: center;
     border-radius: var(--vv-radius-s);
     background-color: var(--vv-color-surface-3);
+    overflow: hidden;
+}
+
+/* Stage view (setup.md 15.2): the view's image filling the frame, and a numbered marker on each light. */
+.vv-stage-view {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.vv-stage-view__image {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.vv-stage-view__marker {
+    width: 22px;
+    height: 22px;
+    border-radius: 11px;
+    border-width: 1px;
+    border-color: var(--vv-color-on-accent);
+    color: var(--vv-color-on-accent);
+    -unity-font-style: bold;
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    padding: 0;
+}
+
+/* The chosen light: larger, with a light ring, so it is told by shape and not by color alone. */
+.vv-stage-view__marker--chosen {
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    border-width: 3px;
+    border-color: var(--vv-color-text);
+    font-size: 14px;
 }
 
 .vv-lighting-card__settings {

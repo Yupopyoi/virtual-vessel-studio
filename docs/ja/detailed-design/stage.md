@@ -240,7 +240,7 @@ Setupで舞台を見ながら組み立てる3Dの表示。UnityのScene Viewに�
 #### 7.4.2 窓口
 
 ```csharp
-// UI（VirtualVessel.UI.StageView）。StageはUIを参照するため、窓口はUIに置く（IStageLightingと同じ）
+// UI（VirtualVessel.UI.StageEditing）。StageはUIを参照するため、窓口はUIに置く（IStageLightingと同じ）
 public interface IStageView
 {
     IReadOnlyObservable<Texture> Image { get; }             // 開いている間の描画先。閉じているとnull
@@ -297,10 +297,10 @@ public readonly struct StageViewMarker
 
 #### 7.4.6 案内の線
 
-- 線のMeshを作り、`Graphics.RenderMesh`で、`RenderParams.camera`をステージビューのカメラにして描く。そのカメラにだけ描かれ、Main Camera、Avatar Camera、Screen Cameraには描かれない。新しい層を足さずに済む。
+- 線のMeshを持つ物を置き、ステージビューのカメラが描く間だけ有効にする（`RenderPipelineManager.beginCameraRendering`で有効、`endCameraRendering`で無効）。そのカメラにだけ描かれ、Main Camera、Avatar Camera、Screen Cameraには描かれない。新しい層を足さずに済む。カメラを指定して描く方法（`Graphics.RenderMesh`の`RenderParams.camera`、`Graphics.DrawMesh`）は、URPのこのカメラでは描かれなかったため使わない（2026-11-22）。
 - ライト：スポットは顔への線と、光の円錐（顔の位置の輪と、ライトから輪への4本の線）。全体のライトは、半径2.4mの位置から顔の方向へ5本の平行な矢印。色は光の色。選んでいるライトは太く、ほかは薄く描く。
-- 配信のカメラの位置に、カメラの形の印を描く。見る方向の目安にするため。
-- 線は光を受けないShader（`StageGuide.shader`、Resources）で、奥行きの前後に従う。選んでいる物の線だけは、隠れていても薄く見えるようにする。
+- 配信のカメラの位置に、カメラの形の印を描く。見る方向の目安にするため。StageはMain Cameraの位置を知らないため、Videoから位置を受け取る窓口ができるまでは描かない（17章）。
+- 線は光を受けないShader（`StageGuide.shader`、Resources）で、奥行きの前後に従う。選んでいる物の線だけは、前に物があっても見えるよう、奥行きを比べずに描く。
 
 #### 7.4.7 3Dの舞台を扱うとき
 
@@ -428,6 +428,7 @@ Assets/VirtualVessel/Stage/
 | Stage Sceneの照明と利用者のライト | Stage Sceneの設計時。利用者のライト（7.3）を、Stage Sceneのライトに足すか、置き換えるかを決める |
 | ステージビューで動かした位置の保存先 | Stage Sceneの設計時。Projectの舞台の設定か、Stageの定義か（7.4.7） |
 | 移動、回転、大きさの取っ手 | Camera Point、Spawn Point、Screen Surfaceを編集するとき（7.4.5） |
+| ステージビューに配信のカメラの印を描く | Videoが配信のカメラの位置を出す窓口を足すとき（7.4.6） |
 
 ---
 

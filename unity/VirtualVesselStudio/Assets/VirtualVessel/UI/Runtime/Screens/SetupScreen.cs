@@ -140,7 +140,7 @@ namespace VirtualVessel.UI.Screens
             // By the face tuning: both are judged by looking at the face on the stream.
             if (services.Lighting != null)
             {
-                page.Add(new LightingCard(services.Lighting, services.StreamPreview));
+                page.Add(new LightingCard(services.Lighting, services.StreamPreview, services.StageView));
             }
         }
 

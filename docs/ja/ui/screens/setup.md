@@ -574,6 +574,9 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |
 | `setup.lighting.reset.help` | ライトを1つにし、向き、明るさ、色と環境光を初めの状態に戻します。 | Goes back to one light, with its direction, brightness, and color, and the ambient light, as they started. |
 | `setup.lighting.reset.button` | 既定に戻す | Reset |
+| `setup.lighting.tab.placement` | 配置 | Placement |
+| `setup.lighting.tab.stream` | 配信の映像 | Stream |
+| `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
 
 ### 15.2 配置の表示（ステージビュー）
 

@@ -46,6 +46,7 @@ namespace VirtualVessel.Stage
         private readonly ObservableValue<StageLighting> _lighting = new ObservableValue<StageLighting>(StageLighting.Default);
         private StageSettings _settings = new StageSettings();
         private StageLightRig _lights;
+        private readonly StageView _view;
         private GameObject _backdrop;
         private Material _backdropMaterial;
         private Texture2D _backdropTexture;
@@ -62,6 +63,7 @@ namespace VirtualVessel.Stage
             _log = log;
             _avatarCamera = avatarCamera;
             _avatarHeight = avatarHeight;
+            _view = new StageView(this, frameLoop, () => _output.Screens?.Layer ?? -1);
             _saves = new ConfigSaveScheduler<StageSettings>(store, clock, s_saveDelay, failure => _log?.Warning($"Failed to save the stage settings to {store.FilePath}.", failure));
         }
 
@@ -78,6 +80,9 @@ namespace VirtualVessel.Stage
         public Pose Default => StageDefaults.AvatarSpawn;
 
         public IReadOnlyObservable<StageLighting> Lighting => _lighting;
+
+        /// <summary>The 3D view for placing things in Setup (7.4); it draws only while the settings screen opens it.</summary>
+        public StageView View => _view;
 
         /// <summary>The lights Unity renders, in order; for tests.</summary>
         internal IReadOnlyList<Light> Lights => _lights?.Lights ?? Array.Empty<Light>();
@@ -150,6 +155,7 @@ namespace VirtualVessel.Stage
             // The persistent scene has no light, and lit avatar materials would be black without one.
             _lights = new StageLightRig();
             _lights.Apply(_lighting.Value);
+
 
             CreateBackdrop(quad, shader);
             _tick = _frameLoop.Register(_saves.Tick);
@@ -228,6 +234,7 @@ namespace VirtualVessel.Stage
             _backdrop = null;
             _backdropMaterial = null;
             _backdropTexture = null;
+            _view.Dispose();
             _lights?.Dispose();
             _lights = null;
         }

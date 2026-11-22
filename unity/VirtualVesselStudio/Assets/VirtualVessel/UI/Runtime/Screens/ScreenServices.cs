@@ -11,6 +11,7 @@ using VirtualVessel.UI.Credits;
 using VirtualVessel.UI.Dialogs;
 using VirtualVessel.UI.Frames;
 using VirtualVessel.UI.Lighting;
+using VirtualVessel.UI.StageEditing;
 using VirtualVessel.UI.Preview;
 using VirtualVessel.UI.Recording;
 using VirtualVessel.UI.Shortcuts;
@@ -106,5 +107,8 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>The stage's light (Stage); null leaves it out.</summary>
         public IStageLighting Lighting { get; set; }
+
+        /// <summary>The 3D view for placing the lights (Stage detailed design 7.4); null without Stage.</summary>
+        public IStageView StageView { get; set; }
     }
 }

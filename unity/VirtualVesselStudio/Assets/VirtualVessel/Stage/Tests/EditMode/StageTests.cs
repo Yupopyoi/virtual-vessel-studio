@@ -505,9 +505,10 @@ namespace VirtualVessel.Stage.Tests
 
     internal sealed class FakeOutput : IStreamOutput, IStreamScreenLayer
     {
-        public FakeOutput(Transform root)
+        public FakeOutput(Transform root, int layer = 0)
         {
             Root = root;
+            Layer = layer;
         }
 
         public IReadOnlyObservable<Texture> Video { get; } = new ObservableValue<Texture>(null);
@@ -518,7 +519,7 @@ namespace VirtualVessel.Stage.Tests
 
         public Transform Root { get; }
 
-        public int Layer => 0;
+        public int Layer { get; }
 
         public int AvatarLayer => 0;
     }

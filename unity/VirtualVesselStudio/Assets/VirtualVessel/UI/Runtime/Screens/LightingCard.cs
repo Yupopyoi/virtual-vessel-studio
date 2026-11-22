@@ -8,6 +8,7 @@ using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Preview;
+using VirtualVessel.UI.StageEditing;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -59,6 +60,9 @@ namespace VirtualVessel.UI.Screens
         public const string Reset = "setup.lighting.reset";
         public const string ResetHelp = "setup.lighting.reset.help";
         public const string ResetButton = "setup.lighting.reset.button";
+        public const string TabPlacement = "setup.lighting.tab.placement";
+        public const string TabStream = "setup.lighting.tab.stream";
+        public const string ViewHelp = "setup.lighting.view.help";
 
         /// <summary>The string table key of a light color's name.</summary>
         public static string ColorName(string colorId) => "setup.lighting.color." + colorId;
@@ -77,6 +81,8 @@ namespace VirtualVessel.UI.Screens
         public const string SwatchClass = UssClass + "__swatch";
         public const string LayoutClass = UssClass + "__layout";
         public const string PictureClass = UssClass + "__picture";
+        public const string PictureTabsClass = UssClass + "__picture-tabs";
+        public const string FrameClass = UssClass + "__frame";
         public const string SettingsClass = UssClass + "__settings";
 
         private const float PercentPerUnit = 100f;
@@ -89,7 +95,8 @@ namespace VirtualVessel.UI.Screens
         private int _selected;
 
         /// <param name="stream">The stream video, to watch the light on the avatar; null shows no picture.</param>
-        public LightingCard(IStageLighting lighting, IStreamPreviewSource stream)
+        /// <param name="stageView">The 3D view to see and drag the lights in (setup.md 15.2); null shows the stream alone.</param>
+        public LightingCard(IStageLighting lighting, IStreamPreviewSource stream, IStageView stageView = null)
         {
             _lighting = lighting ?? throw new ArgumentNullException(nameof(lighting));
             _stream = stream;
@@ -101,11 +108,44 @@ namespace VirtualVessel.UI.Screens
             var layout = new VisualElement();
             layout.AddToClassList(LayoutClass);
             card.Add(layout);
+            var picture = new VisualElement();
+            picture.AddToClassList(PictureClass);
+            layout.Add(picture);
+            var frame = new VisualElement();
+            frame.AddToClassList(FrameClass);
             Preview = new Image { scaleMode = ScaleMode.ScaleToFit, pickingMode = PickingMode.Ignore };
-            Preview.AddToClassList(PictureClass);
+            Preview.style.flexGrow = 1;
             _noVideo = Ui.Text(CaptureStrings.NoVideo, CaptureSourceCard.PreviewEmptyClass, "vv-text-caption");
             Preview.Add(_noVideo);
-            layout.Add(Preview);
+            frame.Add(Preview);
+
+            // The placement view first: where each light is and which way it shines, which numbers alone did not
+            // show (user's request, 2026-11-22). The stream stays one Tab away.
+            if (stageView != null)
+            {
+                View = new StageViewPanel(stageView);
+                View.ItemChosen += id =>
+                {
+                    int index = StageViewItems.LightIndex(id);
+                    if (index >= 0)
+                    {
+                        _selected = index;
+                        Show();
+                    }
+                };
+                View.NudgeRequested += step => Change(light => light.WithYaw(Mathf.Repeat(light.Yaw + step.x + 180f, 360f) - 180f).WithPitch(light.Pitch + step.y));
+                frame.Add(View);
+                PictureTabs = Ui.Tabs(LightingStrings.TabPlacement, LightingStrings.TabStream);
+                PictureTabs.RegisterValueChangedCallback(evt => ShowPicture(evt.newValue));
+                var tabs = new VisualElement();
+                tabs.AddToClassList(PictureTabsClass);
+                tabs.Add(PictureTabs);
+                tabs.Add(new HelpHint(LightingStrings.ViewHelp));
+                picture.Add(tabs);
+            }
+
+            picture.Add(frame);
+            ShowPicture(0);
             Settings = new ScrollView(ScrollViewMode.Vertical);
             Settings.AddToClassList(SettingsClass);
             layout.Add(Settings);
@@ -195,6 +235,12 @@ namespace VirtualVessel.UI.Screens
         }
 
         public Image Preview { get; }
+
+        /// <summary>The placement view; null without the stage view.</summary>
+        public StageViewPanel View { get; }
+
+        /// <summary>Placement or the stream; null without the stage view.</summary>
+        public TabBar PictureTabs { get; }
 
         /// <summary>The settings beside the picture, scrolled on their own.</summary>
         public ScrollView Settings { get; }
@@ -289,6 +335,19 @@ namespace VirtualVessel.UI.Screens
             Change(light => light.WithColor(StageLightColors.ToCode(color)));
         }
 
+        // Placement (0) or the stream (1); without the stage view, the stream alone.
+        private void ShowPicture(int tab)
+        {
+            bool placement = View != null && tab == 0;
+            if (View != null)
+            {
+                View.Active = placement;
+                View.style.display = placement ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+
+            Preview.style.display = placement ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
         private IDisposable Attach()
         {
             var subscriptions = new List<IDisposable> { _lighting.Lighting.Subscribe(_ => Show()) };
@@ -346,6 +405,10 @@ namespace VirtualVessel.UI.Screens
             }
 
             LightChoice.SetValueWithoutNotify(_selected);
+            if (View != null)
+            {
+                View.Chosen = StageViewItems.Light(_selected);
+            }
             AddButton.SetEnabled(lighting.CanAdd);
             AddButton.TooltipKey = lighting.CanAdd ? null : LightingStrings.AddFull;
             RemoveButton.SetEnabled(lighting.CanRemove);

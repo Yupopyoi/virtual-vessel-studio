@@ -31,6 +31,7 @@ namespace VirtualVessel.UI.Tests
         private FakeAvatars _avatars;
         private FakeFiles _files;
         private FakeLighting _lighting;
+        private FakeStageView _stageView;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -39,6 +40,7 @@ namespace VirtualVessel.UI.Tests
             _avatars = new FakeAvatars();
             _files = new FakeFiles();
             _lighting = new FakeLighting();
+            _stageView = new FakeStageView();
             Build(sample: null);
             yield return null;
         }
@@ -54,7 +56,7 @@ namespace VirtualVessel.UI.Tests
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting }));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting, StageView = _stageView }));
             _root.Shell.Open("setup");
             ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
         }
@@ -304,7 +306,7 @@ namespace VirtualVessel.UI.Tests
 
             // Measured on the real styles: the settings scroll beside the picture, so the avatar stays in view
             // however long the list is (user's report, 2026-11-22).
-            Rect picture = card.Preview.worldBound;
+            Rect picture = card.Q(className: LightingCard.PictureClass).worldBound;
             Rect settings = card.Settings.worldBound;
             Assert.That(settings.xMin >= picture.xMax - 0.5f || settings.yMin >= picture.yMax - 0.5f, Is.True, "Beside the picture, or under it on a narrow window.");
             Assert.That(settings.height, Is.LessThanOrEqualTo(480.5f), "Scrolled, not as long as the list.");
@@ -369,6 +371,49 @@ namespace VirtualVessel.UI.Tests
             using KeyDownEvent enter = KeyDownEvent.GetPooled('\n', KeyCode.Return, EventModifiers.None);
             enter.target = target;
             target.SendEvent(enter);
+        }
+
+        [UnityTest]
+        public IEnumerator ThePlacementView_IsOpenOnlyWhileShown_AndFollowsTheChosenLight()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            Assert.That(card.View, Is.Not.Null);
+            Assert.That(card.PictureTabs.value, Is.EqualTo(0), "Placement first.");
+
+            // The view checks now and then whether it is shown.
+            yield return new WaitForSeconds(0.4f);
+            Assert.That(card.View.IsOpen, Is.True);
+            Assert.That(_stageView.Opens, Is.EqualTo(1));
+            Assert.That(_stageView.Selected, Is.EqualTo(StageEditing.StageViewItems.Light(0)));
+
+            Submit(card.AddButton);
+            Assert.That(_stageView.Selected, Is.EqualTo(StageEditing.StageViewItems.Light(1)), "The new light is chosen in the view too.");
+
+            card.PictureTabs.value = 1;
+            Assert.That(card.View.IsOpen, Is.False, "The stream Tab closes it.");
+            Assert.That(_stageView.Opens, Is.Zero);
+            Assert.That(card.Preview.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            card.PictureTabs.value = 0;
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AudioPage;
+            yield return new WaitForSeconds(0.4f);
+            Assert.That(_stageView.Opens, Is.Zero, "Another page closes it.");
+        }
+
+        [Test]
+        public void AMarker_IsPickedNearItsCenter_AndTheNearestWins()
+        {
+            var markers = new[]
+            {
+                new StageEditing.StageViewMarker("light:0", "1", new Vector2(0.5f, 0.5f), true, Color.white),
+                new StageEditing.StageViewMarker("light:1", "2", new Vector2(0.55f, 0.5f), true, Color.white),
+                new StageEditing.StageViewMarker("light:2", "3", new Vector2(0.2f, 0.2f), false, Color.white),
+            };
+            var size = new Vector2(400f, 200f);
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(204f, 100f), size), Is.EqualTo("light:0"));
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(218f, 100f), size), Is.EqualTo("light:1"));
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(80f, 40f), size), Is.Null, "Not one out of view.");
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(300f, 100f), size), Is.Null);
         }
 
         [UnityTest]
@@ -586,6 +631,84 @@ namespace VirtualVessel.UI.Tests
             public Task<string> PickFolderAsync(string title)
             {
                 return Task.FromResult<string>(null);
+            }
+        }
+
+        private sealed class FakeStageView : StageEditing.IStageView
+        {
+            private readonly ObservableValue<Texture> _image = new ObservableValue<Texture>(null);
+            private readonly ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>> _markers = new ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>>(Array.Empty<StageEditing.StageViewMarker>());
+
+            public int Opens { get; private set; }
+
+            public string Selected { get; private set; }
+
+            public IReadOnlyObservable<Texture> Image => _image;
+
+            public IReadOnlyObservable<IReadOnlyList<StageEditing.StageViewMarker>> Markers => _markers;
+
+            public IDisposable Open(int width, int height)
+            {
+                Opens++;
+                bool closed = false;
+                return new DisposeAction(() =>
+                {
+                    if (!closed)
+                    {
+                        closed = true;
+                        Opens--;
+                    }
+                });
+            }
+
+            public void Orbit(Vector2 degrees)
+            {
+            }
+
+            public void Zoom(float steps)
+            {
+            }
+
+            public void Pan(Vector2 viewFraction)
+            {
+            }
+
+            public void ResetView()
+            {
+            }
+
+            public void Frame(string itemId)
+            {
+            }
+
+            public void Select(string itemId)
+            {
+                Selected = itemId;
+            }
+
+            public bool BeginDrag(string itemId, Vector2 uv)
+            {
+                return false;
+            }
+
+            public void DragTo(Vector2 uv)
+            {
+            }
+
+            public void EndDrag()
+            {
+            }
+
+            private sealed class DisposeAction : IDisposable
+            {
+                private readonly Action _action;
+
+                public DisposeAction(Action action)
+                {
+                    _action = action;
+                }
+
+                public void Dispose() => _action();
             }
         }
 
