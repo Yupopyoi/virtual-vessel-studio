@@ -504,8 +504,10 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | 距離 | Slider（0.5〜5m、0.1m刻み） | スポットだけ。全体のときは無効にし、ツールチップで理由を示す |
 | 光の広がり | Slider（10〜120°、5°刻み） | スポットだけ。全体のときは無効 |
 | 明るさ | Slider（10〜200%、5%刻み） | 100%が初めの明るさ |
-| 色 | 色の見本とDropdown（白、ピンク、オレンジ、黄色、緑、水色、青、紫） | 色は名前でも伝える（色だけに頼らない） |
+| 色 | 色の見本とDropdown（白、ピンク、オレンジ、黄色、緑、水色、青、紫、カスタム）。「カスタム」にすると、それまでの色から始める | 色は名前でも伝える（色だけに頼らない） |
 | 色温度 | Slider（2700〜9000K、100K刻み） | 白だけ。ほかの色のときは無効 |
+| カラーコード | 文字の入力（`#RRGGBB`） | 色の「カスタム」だけ。Enterか、入力を離れたときに反映する。読めないときは入力の下に理由を出す。ほかの色のときは無効で、その色のコードを表示する |
+| RGB | Slider（R、G、B、各0〜255）を縦に3つ | 色の「カスタム」だけ。ほかの色のときは無効 |
 | 環境光 | Slider（0〜200%、5%刻み） | すべてのライトに共通 |
 | 照明を既定に戻す | Button（Secondary）「既定に戻す」 | ライト1つの初めの状態と、環境光100%に戻す |
 
@@ -553,9 +555,19 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.color.sky` | 水色 | Sky blue |
 | `setup.lighting.color.blue` | 青 | Blue |
 | `setup.lighting.color.purple` | 紫 | Purple |
+| `setup.lighting.color.custom` | カスタム | Custom |
 | `setup.lighting.temperature` | 色温度 | Color temperature |
 | `setup.lighting.temperature.help` | 白い光の色合いです。小さくするほど暖かい色（電球の色）に、大きくするほど冷たい色になります。6500 Kが昼の光です。 | The shade of the white light. Lower is warmer, like a light bulb; higher is cooler. 6500 K is daylight. |
 | `setup.lighting.white-only` | 色が「白」のときに使います。 | Used when the color is White. |
+| `setup.lighting.code` | カラーコード | Color code |
+| `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
+| `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
+| `setup.lighting.rgb` | RGB | RGB |
+| `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
+| `setup.lighting.rgb.r` | R | R |
+| `setup.lighting.rgb.g` | G | G |
+| `setup.lighting.rgb.b` | B | B |
+| `setup.lighting.custom-only` | 色が「カスタム」のときに使います。 | Used when the color is Custom. |
 | `setup.lighting.ambient` | 環境光 | Ambient light |
 | `setup.lighting.ambient.help` | ライトが当たらない影の側の明るさです。下げると影が濃くなり、スポットライトが目立ちます。すべてのライトに共通です。 | How bright the shade is where no light reaches. Lower makes the shadows deeper and a spot stand out. It is shared by all lights. |
 | `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |

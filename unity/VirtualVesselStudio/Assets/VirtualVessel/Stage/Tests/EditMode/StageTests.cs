@@ -130,6 +130,29 @@ namespace VirtualVessel.Stage.Tests
         }
 
         [Test]
+        public void AColorCode_IsReadInEitherCase_AndKeptInCapitals()
+        {
+            Assert.That(StageLightColors.TryParse("#ff88cc", out Color color), Is.True);
+            Assert.That(StageLightColors.ToCode(color), Is.EqualTo("#FF88CC"));
+            Assert.That(StageLightColors.TryParse(" 00ff00 ", out Color green), Is.True, "Without # and with spaces.");
+            Assert.That(green, Is.EqualTo(new Color(0f, 1f, 0f)));
+            Assert.That(StageLightColors.TryParse("#12345", out _), Is.False);
+            Assert.That(StageLightColors.TryParse("#GGGGGG", out _), Is.False);
+            Assert.That(StageLightColors.TryParse("#-12345", out _), Is.False);
+            Assert.That(StageLightColors.TryParse(null, out _), Is.False);
+
+            Assert.That(StageLightColors.Normalize("#ff88cc"), Is.EqualTo("#FF88CC"));
+            Assert.That(StageLightColors.Normalize(StageLightColors.Pink), Is.EqualTo(StageLightColors.Pink));
+            Assert.That(StageLightColors.Normalize("rainbow"), Is.Null);
+            Assert.That(StageLightColors.ColorOf(StageLight.Default.WithColor("#FF0000")), Is.EqualTo(new Color(1f, 0f, 0f)));
+
+            var settings = new StageSettings { Lights = new List<LightSettings> { new LightSettings { Color = "#ff88cc" }, new LightSettings { Color = "#nope" } } };
+            StageLighting lighting = StageService.LightingFor(settings);
+            Assert.That(lighting.Lights[0].ColorId, Is.EqualTo("#FF88CC"), "A saved code is kept.");
+            Assert.That(lighting.Lights[1].ColorId, Is.EqualTo(StageLightColors.White), "A broken one is white.");
+        }
+
+        [Test]
         public void TheDefaultLight_ComesFromWhereItAlwaysDid()
         {
             Quaternion rotation = StageLightPlacement.Rotation(StageLight.Default);

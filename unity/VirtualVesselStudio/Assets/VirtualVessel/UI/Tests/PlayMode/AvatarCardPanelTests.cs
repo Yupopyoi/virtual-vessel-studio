@@ -324,6 +324,45 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator ACustomColor_IsSetByItsCode_OrByItsChannels()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.CodeField.enabledSelf, Is.False, "Only for a custom color.");
+            Assert.That(card.CodeField.value, Is.EqualTo(StageLightColors.ToCode(StageLightColors.ColorOf(StageLight.Default))), "A named color's code can be read.");
+
+            card.ColorChoice.value = StageLightColors.Pink;
+            card.ColorChoice.value = StageLightColors.Custom;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo(StageLightColors.ToCode(StageLightColors.ColorOf(StageLight.Default.WithColor(StageLightColors.Pink)))), "Starts from the color it had.");
+            Assert.That(card.CodeField.enabledSelf, Is.True);
+            Assert.That(card.Temperature.enabledSelf, Is.False);
+
+            card.CodeField.value = "#nope";
+            PressEnter(card.CodeField);
+
+            yield return null;
+            Assert.That(card.CodeField.ErrorKey, Is.EqualTo(LightingStrings.CodeInvalid));
+            card.CodeField.value = "#00ff80";
+            PressEnter(card.CodeField);
+
+            yield return null;
+            Assert.That(card.CodeField.ErrorKey, Is.Null);
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#00FF80"));
+            Assert.That(card.GreenSlider.value, Is.EqualTo(255f));
+
+            card.RedSlider.value = 16f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#10FF80"));
+            Assert.That(LightingCard.WithChannel(new Color(1f, 0f, 0f), 2, 255), Is.EqualTo("#FF00FF"));
+        }
+
+        private static void PressEnter(VisualElement target)
+        {
+            using KeyDownEvent enter = KeyDownEvent.GetPooled('\n', KeyCode.Return, EventModifiers.None);
+            enter.target = target;
+            target.SendEvent(enter);
+        }
+
+        [UnityTest]
         public IEnumerator Lights_AreAddedUpToFour_AndTheLastOneStays()
         {
             LightingCard card = _root.Content.Q<LightingCard>();

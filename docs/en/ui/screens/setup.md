@@ -504,8 +504,10 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | Distance | Slider (0.5 to 5 m, steps of 0.1 m) | Spot only. Disabled for a whole-stage light, with the reason in its tooltip |
 | Spread | Slider (10 to 120°, steps of 5°) | Spot only. Disabled for a whole-stage light |
 | Brightness | Slider (10 to 200%, steps of 5%) | 100% is how it started |
-| Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple) | The color is also told by its name (not by color alone) |
+| Color | A swatch and a Dropdown (White, Pink, Orange, Yellow, Green, Sky blue, Blue, Purple, Custom). Custom starts from the color the light had | The color is also told by its name (not by color alone) |
 | Color temperature | Slider (2700 to 9000 K, steps of 100 K) | White only. Disabled for the other colors |
+| Color code | Text input (`#RRGGBB`) | Custom color only. Applies on Enter or on leaving the field; a code that cannot be read says why under the field. For the other colors it is disabled and shows that color's code |
+| RGB | Three sliders (R, G, B, 0 to 255 each), one under another | Custom color only. Disabled for the other colors |
 | Ambient light | Slider (0 to 200%, steps of 5%) | Shared by all lights |
 | Reset the lighting | Button (Secondary) "Reset" | Back to one light as it started, and the ambient light at 100% |
 
@@ -553,9 +555,19 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.color.sky` | 水色 | Sky blue |
 | `setup.lighting.color.blue` | 青 | Blue |
 | `setup.lighting.color.purple` | 紫 | Purple |
+| `setup.lighting.color.custom` | カスタム | Custom |
 | `setup.lighting.temperature` | 色温度 | Color temperature |
 | `setup.lighting.temperature.help` | 白い光の色合いです。小さくするほど暖かい色（電球の色）に、大きくするほど冷たい色になります。6500 Kが昼の光です。 | The shade of the white light. Lower is warmer, like a light bulb; higher is cooler. 6500 K is daylight. |
 | `setup.lighting.white-only` | 色が「白」のときに使います。 | Used when the color is White. |
+| `setup.lighting.code` | カラーコード | Color code |
+| `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
+| `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
+| `setup.lighting.rgb` | RGB | RGB |
+| `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
+| `setup.lighting.rgb.r` | R | R |
+| `setup.lighting.rgb.g` | G | G |
+| `setup.lighting.rgb.b` | B | B |
+| `setup.lighting.custom-only` | 色が「カスタム」のときに使います。 | Used when the color is Custom. |
 | `setup.lighting.ambient` | 環境光 | Ambient light |
 | `setup.lighting.ambient.help` | ライトが当たらない影の側の明るさです。下げると影が濃くなり、スポットライトが目立ちます。すべてのライトに共通です。 | How bright the shade is where no light reaches. Lower makes the shadows deeper and a spot stand out. It is shared by all lights. |
 | `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |

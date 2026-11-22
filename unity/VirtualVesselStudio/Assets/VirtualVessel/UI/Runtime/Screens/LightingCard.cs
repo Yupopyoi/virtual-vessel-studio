@@ -44,6 +44,15 @@ namespace VirtualVessel.UI.Screens
         public const string Temperature = "setup.lighting.temperature";
         public const string TemperatureHelp = "setup.lighting.temperature.help";
         public const string WhiteOnly = "setup.lighting.white-only";
+        public const string Code = "setup.lighting.code";
+        public const string CodeHelp = "setup.lighting.code.help";
+        public const string CodeInvalid = "setup.lighting.code.invalid";
+        public const string Rgb = "setup.lighting.rgb";
+        public const string RgbHelp = "setup.lighting.rgb.help";
+        public const string Red = "setup.lighting.rgb.r";
+        public const string Green = "setup.lighting.rgb.g";
+        public const string Blue = "setup.lighting.rgb.b";
+        public const string CustomOnly = "setup.lighting.custom-only";
         public const string SpotAngle = "setup.lighting.spot-angle";
         public const string SpotAngleHelp = "setup.lighting.spot-angle.help";
         public const string Ambient = "setup.lighting.ambient";
@@ -127,8 +136,10 @@ namespace VirtualVessel.UI.Screens
             Intensity = Slider(card, LightingStrings.Intensity, LightingStrings.IntensityHelp, StageLight.MinIntensity * PercentPerUnit, StageLight.MaxIntensity * PercentPerUnit, 5f, "%", value => Change(light => light.WithIntensity(value / PercentPerUnit)));
 
             ColorChoice = Ui.Select(null);
-            ColorChoice.SetChoices(StageLightColors.Ids.Select(id => SelectChoice.FromKey(id, LightingStrings.ColorName(id))));
-            ColorChoice.RegisterValueChangedCallback(evt => Change(light => light.WithColor(evt.newValue)));
+            ColorChoice.SetChoices(StageLightColors.Ids.Append(StageLightColors.Custom).Select(id => SelectChoice.FromKey(id, LightingStrings.ColorName(id))));
+
+            // "Custom" starts from the color the light has, so a stage color can be adjusted from where it is.
+            ColorChoice.RegisterValueChangedCallback(evt => Change(light => light.WithColor(evt.newValue == StageLightColors.Custom ? StageLightColors.ToCode(StageLightColors.ColorOf(light)) : evt.newValue)));
 
             // The color itself beside its name; the name is what tells the colors apart (components.md 2).
             Swatch = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -139,6 +150,28 @@ namespace VirtualVessel.UI.Screens
             color.Add(ColorChoice);
             card.Add(Ui.ControlRow(LightingStrings.Color, color, helpKey: LightingStrings.ColorHelp));
             Temperature = Slider(card, LightingStrings.Temperature, LightingStrings.TemperatureHelp, StageLight.MinTemperature, StageLight.MaxTemperature, 100f, "K", value => Change(light => light.WithTemperature(value)));
+
+            // A color of the user's own, by its code or by its red, green, and blue (user's request, 2026-11-22).
+            // The code applies on leaving the field or on Enter, not on each key: half a code is not a color.
+            CodeField = Ui.TextField(null);
+            CodeField.MaxLength = 7;
+            CodeField.RegisterCallback<FocusOutEvent>(_ => ApplyCode());
+            CodeField.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
+                {
+                    ApplyCode();
+                }
+            });
+            card.Add(Ui.ControlRow(LightingStrings.Code, CodeField, helpKey: LightingStrings.CodeHelp));
+            RedSlider = Channel(LightingStrings.Red, 0);
+            GreenSlider = Channel(LightingStrings.Green, 1);
+            BlueSlider = Channel(LightingStrings.Blue, 2);
+            var channels = new VisualElement();
+            channels.Add(RedSlider);
+            channels.Add(GreenSlider);
+            channels.Add(BlueSlider);
+            card.Add(Ui.ControlRow(LightingStrings.Rgb, channels, helpKey: LightingStrings.RgbHelp));
 
             Ambient = Slider(card, LightingStrings.Ambient, LightingStrings.AmbientHelp, StageLighting.MinAmbient * PercentPerUnit, StageLighting.MaxAmbient * PercentPerUnit, 5f, "%", value => _lighting.SetLighting(_lighting.Lighting.Value.WithAmbient(value / PercentPerUnit)));
 
@@ -179,6 +212,14 @@ namespace VirtualVessel.UI.Screens
 
         public ValueSlider Temperature { get; }
 
+        public TextInput CodeField { get; }
+
+        public ValueSlider RedSlider { get; }
+
+        public ValueSlider GreenSlider { get; }
+
+        public ValueSlider BlueSlider { get; }
+
         public ValueSlider Ambient { get; }
 
         public ActionButton ResetButton { get; }
@@ -199,6 +240,38 @@ namespace VirtualVessel.UI.Screens
             slider.RegisterValueChangedCallback(evt => changed(evt.newValue));
             card.Add(Ui.ControlRow(nameKey, slider, helpKey: helpKey));
             return slider;
+        }
+
+        /// <summary>
+        /// <paramref name="color"/> with one 0–255 channel (0 red, 1 green, 2 blue) set to <paramref name="value"/>,
+        /// as a color code. Pure.
+        /// </summary>
+        public static string WithChannel(Color color, int channel, int value)
+        {
+            int r = StageLightColors.Byte(color.r);
+            int g = StageLightColors.Byte(color.g);
+            int b = StageLightColors.Byte(color.b);
+            return StageLightColors.ToCode(StageLightColors.FromBytes(channel == 0 ? value : r, channel == 1 ? value : g, channel == 2 ? value : b));
+        }
+
+        private ValueSlider Channel(string labelKey, int channel)
+        {
+            ValueSlider slider = Ui.Slider(labelKey, 0f, 255f);
+            slider.Step = 1f;
+            slider.RegisterValueChangedCallback(evt => Change(light => light.WithColor(WithChannel(StageLightColors.ColorOf(light), channel, (int)evt.newValue))));
+            return slider;
+        }
+
+        private void ApplyCode()
+        {
+            if (!StageLightColors.TryParse(CodeField.value, out Color color))
+            {
+                CodeField.ErrorKey = LightingStrings.CodeInvalid;
+                return;
+            }
+
+            CodeField.ErrorKey = null;
+            Change(light => light.WithColor(StageLightColors.ToCode(color)));
         }
 
         private IDisposable Attach()
@@ -270,9 +343,23 @@ namespace VirtualVessel.UI.Screens
             Distance.SetValueWithoutNotify(light.Distance);
             SpotAngle.SetValueWithoutNotify(light.SpotAngle);
             Intensity.SetValueWithoutNotify(light.Intensity * PercentPerUnit);
-            ColorChoice.SetValueWithoutNotify(light.ColorId);
-            Swatch.style.backgroundColor = StageLightColors.ColorOf(light);
+            bool custom = StageLightColors.IsCode(light.ColorId);
+            Color color = StageLightColors.ColorOf(light);
+            ColorChoice.SetValueWithoutNotify(custom ? StageLightColors.Custom : light.ColorId);
+            Swatch.style.backgroundColor = color;
             Temperature.SetValueWithoutNotify(light.Temperature);
+
+            // The code and the channels always show the light's color, so a named color's code can be read too;
+            // the field is not rewritten while the user is typing in it.
+            if (!(CodeField.focusController?.focusedElement is VisualElement focused && CodeField.Contains(focused)))
+            {
+                CodeField.SetValueWithoutNotify(StageLightColors.ToCode(color));
+                CodeField.ErrorKey = null;
+            }
+
+            RedSlider.SetValueWithoutNotify(StageLightColors.Byte(color.r));
+            GreenSlider.SetValueWithoutNotify(StageLightColors.Byte(color.g));
+            BlueSlider.SetValueWithoutNotify(StageLightColors.Byte(color.b));
             Ambient.SetValueWithoutNotify(lighting.Ambient * PercentPerUnit);
 
             // A whole-stage light has no place or cone, and a stage color no temperature; they stay in view,
@@ -280,6 +367,11 @@ namespace VirtualVessel.UI.Screens
             Enable(Distance, spot, LightingStrings.SpotOnly);
             Enable(SpotAngle, spot, LightingStrings.SpotOnly);
             Enable(Temperature, light.ColorId == StageLightColors.White, LightingStrings.WhiteOnly);
+            CodeField.SetEnabled(custom);
+            CodeField.TooltipKey = custom ? null : LightingStrings.CustomOnly;
+            Enable(RedSlider, custom, LightingStrings.CustomOnly);
+            Enable(GreenSlider, custom, LightingStrings.CustomOnly);
+            Enable(BlueSlider, custom, LightingStrings.CustomOnly);
         }
 
         private static void Enable(ValueSlider slider, bool enabled, string reasonKey)

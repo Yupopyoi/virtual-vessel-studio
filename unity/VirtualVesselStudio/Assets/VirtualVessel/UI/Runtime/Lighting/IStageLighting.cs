@@ -86,7 +86,10 @@ namespace VirtualVessel.UI.Lighting
         /// <summary>1 is the light as the stage started with it.</summary>
         public float Intensity { get; }
 
-        /// <summary>One of <see cref="StageLightColors"/>; white follows <see cref="Temperature"/>.</summary>
+        /// <summary>
+        /// One of <see cref="StageLightColors.Ids"/>, where white follows <see cref="Temperature"/>, or a color
+        /// of the user's own as "#RRGGBB".
+        /// </summary>
         public string ColorId { get; }
 
         /// <summary>Kelvin of the white light: lower is warmer.</summary>
@@ -125,7 +128,7 @@ namespace VirtualVessel.UI.Lighting
                 Clamp(Pitch, MinPitch, MaxPitch, d.Pitch),
                 Clamp(Distance, MinDistance, MaxDistance, d.Distance),
                 Clamp(Intensity, MinIntensity, MaxIntensity, d.Intensity),
-                StageLightColors.IsKnown(ColorId) ? ColorId : StageLightColors.White,
+                StageLightColors.Normalize(ColorId) ?? StageLightColors.White,
                 Clamp(Temperature, MinTemperature, MaxTemperature, d.Temperature),
                 Clamp(SpotAngle, MinSpotAngle, MaxSpotAngle, d.SpotAngle));
         }
@@ -225,9 +228,14 @@ namespace VirtualVessel.UI.Lighting
         public override int GetHashCode() => HashCode.Combine(Ambient, Lights.Count);
     }
 
-    /// <summary>The colors a light can have: white at a chosen temperature, or one of a few stage colors.</summary>
+    /// <summary>
+    /// The colors a light can have: white at a chosen temperature, one of a few stage colors, or the user's
+    /// own, written as a color code "#RRGGBB" (user's request, 2026-11-22).
+    /// </summary>
     public static class StageLightColors
     {
+        /// <summary>The settings screen's choice for a color of the user's own; never a light's <see cref="StageLight.ColorId"/>.</summary>
+        public const string Custom = "custom";
         public const string White = "white";
         public const string Pink = "pink";
         public const string Orange = "orange";
@@ -252,9 +260,24 @@ namespace VirtualVessel.UI.Lighting
             [Purple] = new Color(0.76f, 0.58f, 1f),
         };
 
-        public static bool IsKnown(string id) => id == White || (id != null && s_colors.ContainsKey(id));
+        /// <summary>Whether <paramref name="id"/> is a color code rather than a named color. Pure.</summary>
+        public static bool IsCode(string id) => TryParse(id, out _);
 
-        /// <summary>The light's color: white by its temperature, else the stage color. Pure.</summary>
+        /// <summary>
+        /// <paramref name="id"/> as a light keeps it: a named color as it is, a color code as "#RRGGBB" in capitals,
+        /// or null for anything else. Pure.
+        /// </summary>
+        public static string Normalize(string id)
+        {
+            if (id == White || (id != null && s_colors.ContainsKey(id)))
+            {
+                return id;
+            }
+
+            return TryParse(id, out Color color) ? ToCode(color) : null;
+        }
+
+        /// <summary>The light's color: white by its temperature, a stage color, or its color code. Pure.</summary>
         public static Color ColorOf(StageLight light)
         {
             if (light == null)
@@ -262,7 +285,56 @@ namespace VirtualVessel.UI.Lighting
                 throw new ArgumentNullException(nameof(light));
             }
 
-            return light.ColorId != null && s_colors.TryGetValue(light.ColorId, out Color color) ? color : FromTemperature(light.Temperature);
+            if (light.ColorId != null && s_colors.TryGetValue(light.ColorId, out Color color))
+            {
+                return color;
+            }
+
+            return TryParse(light.ColorId, out Color code) ? code : FromTemperature(light.Temperature);
+        }
+
+        /// <summary>"#RRGGBB" for <paramref name="color"/>, each channel rounded to 0–255. Pure.</summary>
+        public static string ToCode(Color color)
+        {
+            return "#" + Byte(color.r).ToString("X2") + Byte(color.g).ToString("X2") + Byte(color.b).ToString("X2");
+        }
+
+        /// <summary>The color from 0–255 channels. Pure.</summary>
+        public static Color FromBytes(int r, int g, int b)
+        {
+            return new Color(Math.Min(255, Math.Max(0, r)) / 255f, Math.Min(255, Math.Max(0, g)) / 255f, Math.Min(255, Math.Max(0, b)) / 255f);
+        }
+
+        /// <summary>A channel of <paramref name="color"/> as 0–255. Pure.</summary>
+        public static int Byte(float channel)
+        {
+            return (int)Math.Round(Math.Min(1f, Math.Max(0f, channel)) * 255f);
+        }
+
+        /// <summary>
+        /// Reads a color code: "#RRGGBB" or "RRGGBB", in either case, with spaces around it allowed. Pure.
+        /// </summary>
+        public static bool TryParse(string text, out Color color)
+        {
+            color = default;
+            string code = text?.Trim();
+            if (string.IsNullOrEmpty(code))
+            {
+                return false;
+            }
+
+            if (code[0] == '#')
+            {
+                code = code.Substring(1);
+            }
+
+            if (code.Length != 6 || !int.TryParse(code, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int value))
+            {
+                return false;
+            }
+
+            color = FromBytes((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+            return true;
         }
 
         /// <summary>
