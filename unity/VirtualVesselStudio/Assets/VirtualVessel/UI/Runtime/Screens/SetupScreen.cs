@@ -120,7 +120,7 @@ namespace VirtualVessel.UI.Screens
         private static void FillAvatar(VisualElement page, ScreenServices services)
         {
             IAvatarService avatars = services.Avatars;
-            AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog), AvatarStrings.Unavailable);
+            AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog, services.SampleAvatar), AvatarStrings.Unavailable);
             ICaptureDeviceSource camera = services.Captures?.Find(CaptureService.TrackingCameraId) as ICaptureDeviceSource;
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)

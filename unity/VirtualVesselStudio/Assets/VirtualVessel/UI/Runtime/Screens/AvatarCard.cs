@@ -29,6 +29,7 @@ namespace VirtualVessel.UI.Screens
         public const string FormatConverted = "setup.avatar.format.converted";
         public const string Register = "setup.avatar.register";
         public const string RegisterButton = "setup.avatar.register.button";
+        public const string SampleButton = "setup.avatar.sample.button";
         public const string Remove = "setup.avatar.remove";
         public const string RemoveButton = "setup.avatar.remove.button";
         public const string FileFilter = "setup.avatar.filter";
@@ -115,6 +116,7 @@ namespace VirtualVessel.UI.Screens
 
         private readonly IAvatarService _avatars;
         private readonly IFileDialog _files;
+        private readonly string _sample;
         private readonly KeyedText _problemText;
         private readonly Label _problem;
         private readonly Image _thumbnail;
@@ -127,10 +129,12 @@ namespace VirtualVessel.UI.Screens
         private string _shownThumbnail;
         private bool _busy;
 
-        public AvatarCard(IAvatarService avatars, IFileDialog files)
+        /// <param name="sample">The sample model shipped with the application; null hides "Use the sample avatar".</param>
+        public AvatarCard(IAvatarService avatars, IFileDialog files, string sample = null)
         {
             _avatars = avatars ?? throw new ArgumentNullException(nameof(avatars));
             _files = files;
+            _sample = sample;
             AddToClassList(UssClass);
             AddToClassList(CaptureSourceCard.UssClass);
             Card card = Ui.Card(AvatarStrings.Title);
@@ -164,9 +168,18 @@ namespace VirtualVessel.UI.Screens
             card.Add(Ui.ControlRow(AvatarStrings.Format, _format));
 
             RegisterButton = Ui.Button(AvatarStrings.RegisterButton, ButtonVariant.Primary);
-            RegisterButton.clicked += () => _ = RegisterAsync();
+            RegisterButton.clicked += () => _ = RegisterAsync(PickFileAsync);
             RegisterButton.SetEnabled(files != null);
-            card.Add(Ui.ControlRow(AvatarStrings.Register, RegisterButton));
+
+            // Registers the shipped sample without the file screen; its terms are confirmed as for any model.
+            SampleButton = Ui.Button(AvatarStrings.SampleButton);
+            SampleButton.clicked += () => _ = RegisterAsync(PickSampleAsync);
+            SampleButton.style.display = sample == null ? DisplayStyle.None : DisplayStyle.Flex;
+            var registerControls = new VisualElement();
+            registerControls.AddToClassList(SettingRow.ControlsClass);
+            registerControls.Add(RegisterButton);
+            registerControls.Add(SampleButton);
+            card.Add(Ui.ControlRow(AvatarStrings.Register, registerControls));
 
             RemoveButton = Ui.Button(AvatarStrings.RemoveButton, ButtonVariant.Danger);
             RemoveButton.clicked += () => _ = RemoveAsync();
@@ -188,6 +201,9 @@ namespace VirtualVessel.UI.Screens
         public SelectField Choice { get; }
 
         public ActionButton RegisterButton { get; }
+
+        /// <summary>"Use the sample avatar"; hidden when the application has no sample.</summary>
+        public ActionButton SampleButton { get; }
 
         public ActionButton RemoveButton { get; }
 
@@ -391,6 +407,7 @@ namespace VirtualVessel.UI.Screens
             ShowLicense(_license, entry?.Profile == null ? null : LicenseLines(entry.Profile.DisplayName, entry.Profile.License), interactive: true);
             bool loading = _avatars.State.Value == AvatarState.Loading;
             RegisterButton.SetEnabled(_files != null && !_busy && !loading);
+            SampleButton.SetEnabled(_sample != null && !_busy && !loading);
             RemoveButton.SetEnabled(current != null && !_busy && !loading);
             Choice.SetEnabled(!_busy);
         }
@@ -476,16 +493,26 @@ namespace VirtualVessel.UI.Screens
             await Guarded(() => _avatars.SelectAsync(avatarId, CancellationToken.None));
         }
 
-        private async Task RegisterAsync()
+        private Task<string> PickFileAsync()
+        {
+            var options = new FileDialogOptions
+            {
+                Title = _localizer?.Get(AvatarStrings.FileTitle),
+                Filters = new[] { new FileFilter(_localizer?.Get(AvatarStrings.FileFilter) ?? "VRM", _avatars.Extensions) },
+            };
+            return _files.OpenAsync(options);
+        }
+
+        private Task<string> PickSampleAsync()
+        {
+            return Task.FromResult(_sample);
+        }
+
+        private async Task RegisterAsync(Func<Task<string>> pick)
         {
             await Guarded(async () =>
             {
-                var options = new FileDialogOptions
-                {
-                    Title = _localizer?.Get(AvatarStrings.FileTitle),
-                    Filters = new[] { new FileFilter(_localizer?.Get(AvatarStrings.FileFilter) ?? "VRM", _avatars.Extensions) },
-                };
-                string path = await _files.OpenAsync(options);
+                string path = await pick();
                 if (path == null)
                 {
                     return;

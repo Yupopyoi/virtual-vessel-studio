@@ -921,6 +921,7 @@
         "setup.avatar.format.converted": "{format} {version}（読み込むときに1.0へ変換）",
         "setup.avatar.register": "登録",
         "setup.avatar.register.button": "アバターを登録…",
+        "setup.avatar.sample.button": "サンプルのアバターを使う",
         "setup.avatar.remove": "登録の解除",
         "setup.avatar.remove.button": "登録を解除",
         "setup.avatar.filter": "VRMファイル",

@@ -921,6 +921,7 @@
         "setup.avatar.format.converted": "{format} {version} (converted to 1.0 when loaded)",
         "setup.avatar.register": "Register",
         "setup.avatar.register.button": "Register an avatar…",
+        "setup.avatar.sample.button": "Use the sample avatar",
         "setup.avatar.remove": "Unregister",
         "setup.avatar.remove.button": "Unregister",
         "setup.avatar.filter": "VRM files",

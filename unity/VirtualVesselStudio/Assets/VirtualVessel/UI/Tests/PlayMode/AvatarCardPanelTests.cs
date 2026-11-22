@@ -39,14 +39,24 @@ namespace VirtualVessel.UI.Tests
             _avatars = new FakeAvatars();
             _files = new FakeFiles();
             _lighting = new FakeLighting();
+            Build(sample: null);
+            yield return null;
+        }
+
+        private void Build(string sample)
+        {
+            if (_host != null)
+            {
+                Object.DestroyImmediate(_host);
+            }
+
             _host = new GameObject(nameof(AvatarCardPanelTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, Lighting = _lighting }));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting }));
             _root.Shell.Open("setup");
             ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
-            yield return null;
         }
 
         [TearDown]
@@ -320,6 +330,29 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheSample_IsRegisteredWithoutTheFileScreen_AfterItsTermsAreShown()
+        {
+            Assert.That(_root.Content.Q<AvatarCard>().SampleButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Hidden without a sample.");
+
+            Build(sample: "C:\\app\\Samples\\otoha-chan.vrm");
+            yield return null;
+            AvatarCard card = _root.Content.Q<AvatarCard>();
+            Assert.That(card.SampleButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            Submit(card.SampleButton);
+            yield return null;
+            yield return null;
+            ConfirmDialog dialog = _root.Dialogs.Current;
+            Assert.That(dialog, Is.Not.Null, "Its terms are asked about as for any model.");
+            Submit(dialog.Confirm);
+            yield return null;
+            yield return null;
+
+            Assert.That(_avatars.Imported, Is.EqualTo(new[] { "C:\\app\\Samples\\otoha-chan.vrm" }));
+            Assert.That(_files.Opened, Is.Zero, "No file screen.");
+        }
+
+        [UnityTest]
         public IEnumerator CancelingTheFileScreen_RegistersNothing()
         {
             AvatarCard card = _root.Content.Q<AvatarCard>();
@@ -437,8 +470,11 @@ namespace VirtualVessel.UI.Tests
         {
             public string Path { get; set; }
 
+            public int Opened { get; private set; }
+
             public Task<string> OpenAsync(FileDialogOptions options)
             {
+                Opened++;
                 Assert.That(options.Filters.Single().Extensions, Is.EqualTo(new[] { ".vrm" }));
                 return Task.FromResult(Path);
             }

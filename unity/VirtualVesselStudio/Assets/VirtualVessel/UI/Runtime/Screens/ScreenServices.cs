@@ -98,6 +98,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The file-picking screen, such as for registering avatars; null disables picking files.</summary>
         public IFileDialog FileDialog { get; set; }
 
+        /// <summary>The sample model shipped with the application, registered without picking a file; null hides that button.</summary>
+        public string SampleAvatar { get; set; }
+
         /// <summary>The shipped license files for the credits; null leaves the credits out.</summary>
         public ICreditFiles Credits { get; set; }
 
