@@ -78,6 +78,10 @@ flowchart LR
 | `StageLightColors`（UI） | Static Class | ライトの色の一覧と、色温度から色を求める関数（純粋関数） |
 | `StageLightPlacement` | Static Class | ライトの位置、向き、Unityに渡す強さを求める（純粋関数、7.3） |
 | `StageLightRig` | Class（internal） | Unityのライトを作り、消し、値を合わせる。環境光を変え、終了時に戻す |
+| `StageView` | Class | ステージビュー（7.4）。`IStageView`（UI）を実装する。カメラと描画先、視点、案内の線、ドラッグ |
+| `StageViewMath` | Static Class | 視点の位置と向き、画面の点からの光線、点の画面上の位置、球の上の取っ手（純粋関数） |
+| `IStageViewItem` | Interface（internal） | ステージビューで編集できる物。印の位置、案内の線、取っ手の種類 |
+| `IStageView`、`StageViewMarker`（UI） | Interface、Struct | ステージビューの窓口と、印の位置 |
 
 ---
 
@@ -215,6 +219,101 @@ Stage Sceneができるまでの仮の照明を、利用者が組み立てられ
 - 影は付けない（7.1と同じ）。
 - 値は`StageLighting.Normalized`（純粋関数）で範囲に収めてから反映する。UIから来た値も、保存から読んだ値も同じ規則で扱う。
 
+### 7.4 ステージビュー（方式設計11.15）
+
+Setupで舞台を見ながら組み立てる3Dの表示。UnityのScene Viewにあたる。最初はライトの配置に使い（利用者の要望、2026-11-22。数値だけでは、ライトがどこにあり、光がどちらへ向かうか分からなかった）、3Dの舞台を扱うときにCamera Point、Spawn Point、Screen Surface、小物にも使う。そのため、表示と操作の仕組みを、編集する物の種類から切り離して作る。
+
+#### 7.4.1 構成
+
+| 部分 | 持ち主 | 役割 |
+|---|---|---|
+| ステージビューのカメラ | Stage（`StageView`） | 舞台とアバターを、配信とは別の描画先へ描く |
+| 視点 | Stage（`StageViewMath`、純粋関数） | 中心（Pivot）の周りを回る視点。回す、寄る・引く、中心を動かす、戻す |
+| 編集できる物 | Stage（`IStageViewItem`、internal） | 種類ごとに、印の位置、案内の線（Guide）、取っ手（Handle）の種類を持つ。今はライト（`LightViewItem`）だけ |
+| 案内の線 | Stage（`StageViewGuides`） | 光の向き、スポットの円錐等を、ステージビューのカメラにだけ描く線 |
+| 印 | UI（照明のCard） | 物の位置に置く番号の印。Stageが毎Frame出す画面上の位置に、UIの部品として置く |
+| 操作 | UI | ポインターとキーボードを、視点の操作、選択、ドラッグの命令へ変える |
+
+- 印をUIの部品にするのは、番号の文字を読みやすく描き、色だけに頼らない形（番号と枠）にし、Focusとツールチップを通常の部品と同じに扱うため。3Dの中に文字を描くより簡単で、トークンにも従える。
+- 線と円錐は3Dの位置にあるため、Stageがステージビューのカメラに描く。
+
+#### 7.4.2 窓口
+
+```csharp
+// UI（VirtualVessel.UI.StageView）。StageはUIを参照するため、窓口はUIに置く（IStageLightingと同じ）
+public interface IStageView
+{
+    IReadOnlyObservable<Texture> Image { get; }             // 開いている間の描画先。閉じているとnull
+    IReadOnlyObservable<IReadOnlyList<StageViewMarker>> Markers { get; }  // 印の位置。開いている間、毎Frame
+    IDisposable Open(int width, int height);                  // 描き始める。最後の1つを閉じると止めて解放する
+    void Orbit(Vector2 degrees);                              // x：左右、y：上下
+    void Zoom(float steps);                                   // プラスで寄る
+    void Pan(Vector2 viewFraction);                           // 中心を画面の割合だけ動かす
+    void ResetView();
+    void Frame(string itemId);                                // その物を中心にする
+    void Select(string itemId);                               // 選んでいる物（太く描く）。nullで選ばない
+    bool BeginDrag(string itemId, Vector2 uv);                // 取っ手のない物はfalse
+    void DragTo(Vector2 uv);
+    void EndDrag();
+}
+
+public readonly struct StageViewMarker
+{
+    public string ItemId { get; }      // "light:0"など。種類:番号
+    public string Label { get; }       // 印の文字（"1"）
+    public Vector2 Uv { get; }         // 画面上の位置（左上0、右下1）
+    public bool Visible { get; }       // カメラの後ろ等で見えない
+    public Color Color { get; }        // ライトなら光の色
+}
+```
+
+- 選ぶこと自体はUIの状態とする（照明のCardの「ライト」の選択と同じもの）。Stageは、`Markers`と案内の線を描くために、選んでいる物を`Select(string itemId)`で受け取る。
+- ドラッグの結果は、物の通常の窓口へ渡す。ライトは`StageService.SetLighting`を通り、範囲に収められ、保存される（7.3、6.3）。ステージビューは保存を持たない。
+
+#### 7.4.3 カメラと描画先
+
+- `Open`の最初の呼び出しで、カメラと描画先（`RenderTexture`、UIの表示の大きさ、最大960×540、MSAA 4×）を作る。最後の`Dispose`で破棄する。StageのDisposeでも破棄する。
+- カメラはBaseのカメラとし、Main CameraのStack（Video詳細設計7.2）に入れない。`MainCamera`のTagも付けない。描く層は、平面の映像の層（`StreamScreens`）以外すべて（舞台、背景の板、アバターの層）。平面の映像は配信の画面に重ねる2Dのため、3Dの表示には出さない。
+- 縦の画角は40°。背景は舞台の暗い色で消去する。
+- 開いている間だけ`enabled`にする。配信だけしているときは描かない。開いている間は、舞台とアバターを2回描く（配信とステージビュー）ため、その分GPUを使う。
+
+#### 7.4.4 視点
+
+- 視点は中心の周りの球の上にあり、左右の角度、上下の角度（-10〜80°）、距離（1.5〜10m）で決める（`StageViewMath.Pose`、純粋関数）。既定は中心が顔（`StageLightPlacement.Target`）、左右-35°、上下22°、距離5.2m。
+- 回す向きは、舞台がポインターについて回る向きとする（UnityのScene Viewと同じ）。右へドラッグすると舞台が右へ回る（視点は左へ回り込む）。上へドラッグすると舞台が上へ回る。見本で逆にしたとき、利用者の想像と逆だった（2026-11-22）。
+- ホイール1段で距離を10%変える。中心の移動は、画面に平行な面の上で、ポインターと同じだけ動く。
+
+#### 7.4.5 取っ手
+
+| 取っ手 | 動き | 使う物 |
+|---|---|---|
+| 球の上（Orbit） | 中心からの距離を保ち、向きを中心へ向けたまま、球の上を動く。ポインターからの光線と球の交点で決め、当たらないときは光線の最も近い点を球へ写す（純粋関数） | ライト（今） |
+| 移動（Move） | 3本の軸か、床の面の上を動く | Spawn Point、Camera Point、Screen Surface、小物（将来） |
+| 回転（Rotate） | 軸の周りの輪で回す | Camera Point、Screen Surface、小物（将来） |
+| 大きさ（Scale） | 枠の角で大きさを変える | Screen Surface、小物（将来） |
+
+- 取っ手は`IStageViewItem`が種類を返し、`StageView`が共通に扱う。新しい物を足すときは、その物の`IStageViewItem`を足す。
+- ライトのドラッグは、左右と上下の向きを1°単位で変える。距離はSliderで変える（球の大きさが変わると、ドラッグの手応えが変わるため）。
+
+#### 7.4.6 案内の線
+
+- 線のMeshを作り、`Graphics.RenderMesh`で、`RenderParams.camera`をステージビューのカメラにして描く。そのカメラにだけ描かれ、Main Camera、Avatar Camera、Screen Cameraには描かれない。新しい層を足さずに済む。
+- ライト：スポットは顔への線と、光の円錐（顔の位置の輪と、ライトから輪への4本の線）。全体のライトは、半径2.4mの位置から顔の方向へ5本の平行な矢印。色は光の色。選んでいるライトは太く、ほかは薄く描く。
+- 配信のカメラの位置に、カメラの形の印を描く。見る方向の目安にするため。
+- 線は光を受けないShader（`StageGuide.shader`、Resources）で、奥行きの前後に従う。選んでいる物の線だけは、隠れていても薄く見えるようにする。
+
+#### 7.4.7 3Dの舞台を扱うとき
+
+- Stage Sceneを読み込むと、ステージビューのカメラは同じSceneを写すため、その舞台がそのまま見える。
+- Stage SceneのCamera Point、Spawn Point、Screen Surfaceは、それぞれの`IStageViewItem`として登録する。Camera Pointは視野の四角錐、Spawn Pointは足元の輪と向きの矢印、Screen Surfaceは枠で示す。
+- Camera Pointを選ぶと、その視点から写した見え方を確かめられるようにする（配信のカメラを動かすのではなく、ステージビューのカメラをその位置へ移す）。
+- 利用者が動かした位置の保存先（Projectの舞台の設定か、Stageの定義か）は、Stage Sceneの設計時に決める（17章）。
+
+#### 7.4.8 配信に出ないことの確かめ
+
+- PlayModeのテストで、案内の線をはっきりした色で描いた状態の配信の描画先（Stream Render Target）を読み戻し、線の位置の画素が線の色でないことを確かめる。
+- EditModeのテストで、ステージビューのカメラの描画先がStream Render Targetでないこと、Main CameraのStackに入っていないこと、閉じると破棄されることを確かめる。
+
 ---
 
 ## 8. 主要Sequence
@@ -280,6 +379,8 @@ Stage Sceneができるまでの仮の照明を、利用者が組み立てられ
 | EditMode | ライト：既定、範囲に収める、0.3の強さの読み込み、保存したライトの読み込み（純粋関数）。位置と向き（既定のライトが今までの向きになること、顔へ向くこと、真上）、スポットの強さ。変えるとすぐにライトを作り直し、遅れて保存し、次の起動で読み戻す。環境光を掛け、終了時に戻す |
 | EditMode | `AvatarFramingMath`：範囲の中心が枠の中心に、範囲の高さが枠の高さに写ること、身長によらないこと、既定の配置。`AvatarFrame`：アバターの有無で表示とカメラの写し方が切り替わる、確定で保存する、重なり順を固定する |
 | PlayMode | 置いた映像が、Stream Render Targetの決めた位置に描かれること（画素を読み戻す） |
+| EditMode | `StageViewMath`：視点の位置、回す向き、光線、画面上の位置、球の上の取っ手（当たる、外れる）。`StageView`：開くとカメラと描画先を作り、配信の描画先と別でStackに入らない、閉じると破棄する、ライトのドラッグが照明の設定を変える |
+| PlayMode | ステージビューの案内の線が、配信の描画先に描かれないこと（画素を読み戻す、7.4.8） |
 
 ---
 
@@ -299,6 +400,9 @@ Assets/VirtualVessel/Stage/
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs               StageSettings, ScreenSettings, LightSettings
 │  ├─ StageLightRig.cs               StageLightPlacement, StageLightRig（7.3）
+│  ├─ StageView.cs                   StageView, StageViewMath, IStageViewItem, LightViewItem（7.4）
+│  ├─ StageViewGuides.cs             案内の線のMesh
+│  ├─ Resources/StageGuide.shader    案内の線のShader（光を受けない）
 │  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
 │  ├─ DefaultBackdrop.cs             仮の背景の画像
 │  ├─ IAvatarSpawnPoints.cs
@@ -322,7 +426,8 @@ Assets/VirtualVessel/Stage/
 | 映像を配信に出さずに取り込みだけ続ける切り替え | 要望が出た時点で |
 | 配置をProject / Profileへ移す | 完了（2026-10-27）：配置はProjectのものなので、`stage-settings.json`はProjectのフォルダーにある（Project Data詳細設計6章） |
 | Stage Sceneの照明と利用者のライト | Stage Sceneの設計時。利用者のライト（7.3）を、Stage Sceneのライトに足すか、置き換えるかを決める |
-| ライトをプレビューの上で動かす | 要望が出た時点で。今は角度のSliderで動かす |
+| ステージビューで動かした位置の保存先 | Stage Sceneの設計時。Projectの舞台の設定か、Stageの定義か（7.4.7） |
+| 移動、回転、大きさの取っ手 | Camera Point、Spawn Point、Screen Surfaceを編集するとき（7.4.5） |
 
 ---
 

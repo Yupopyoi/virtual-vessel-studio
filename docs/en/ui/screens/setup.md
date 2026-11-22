@@ -495,7 +495,7 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 
 | Row | Component | Content |
 |---|---|---|
-| Video | Image (384×216, 16:9), on the left | The whole stream, so the face stays in view while a light moves. "No video" when there is none |
+| Video | "Placement" and "Stream" Tabs over an image (16:9), on the left | "Placement" is the stage view (15.2). "Stream" is the whole stream, "No video" when there is none. So the face stays in view while a light moves |
 | Right of the title band | Button (Secondary) "Add a light", "Remove this light" | An added light is a spot from the right (left and right 45°, up and down 15°, distance 2 m), and becomes the chosen one. With four lights adding is disabled, with one removing is, and their tooltips say why |
 | Light | Segmented (1 to 4) | The light the rows below change. Lights not made yet are disabled |
 | Kind | Segmented (Whole stage, Spot) | A directional light, or a spot aimed at the face |
@@ -574,3 +574,30 @@ Builds the stage's lights (Stage detailed design 7.3). It replaces the provision
 | `setup.lighting.reset` | 照明を既定に戻す | Reset the lighting |
 | `setup.lighting.reset.help` | ライトを1つにし、向き、明るさ、色と環境光を初めの状態に戻します。 | Goes back to one light, with its direction, brightness, and color, and the ambient light, as they started. |
 | `setup.lighting.reset.button` | 既定に戻す | Reset |
+
+### 15.2 The Placement View (Stage View)
+
+The picture's place switches between "Placement" and "Stream" Tabs (`components.md` 3.8), "Placement" by default. "Placement" shows the lights' positions and directions in 3D and moves them by dragging (Stage detailed design 7.4, system design 11.15); "Stream" is the preview as before. User's request (2026-11-22): from numbers alone it was unclear where a light is and which way its light goes.
+
+| Element | Content |
+|---|---|
+| View | The stage view's image (16:9, 448 px wide): the stage, the backdrop quad, the avatar, guides (light directions, spot cones), and the stream camera's position |
+| Markers | A circle with the light's number (1 to 4) at each light. Filled with the light's color, with text and frame in a readable color. The chosen light's is larger with a white frame. Hidden when not in view (behind the camera and the like) |
+| Help Hint beside the Tabs | How to operate it (the table below, shortened) |
+
+| Input | Result |
+|---|---|
+| Click a marker | Chooses that light (the Light segmented control follows) |
+| Drag a marker | The light moves on a sphere, still facing the face. The left-right and up-down sliders follow |
+| Drag on empty space | Orbits the view. The stage turns with the pointer (dragging right turns it right, as in Unity's Scene View) |
+| Middle-button drag, or drag with Shift | Moves the pivot |
+| Wheel | Zooms in and out |
+| Double-click on empty space | Resets the view |
+| Arrow keys with the view focused | Move the chosen light by 5° (left-right, up-down); with Shift they orbit the view |
+| F | Puts the chosen light at the pivot |
+
+- The stage view is open (`IStageView.Open`) only while "Placement" is shown. It closes when the Tab changes, the Card is out of view, another page opens, or the Setup screen is left.
+- While dragging, each change reaches the stream; it is saved 0.5 s after the last change (Stage detailed design 6.3).
+- The sliders stay, for exact values and keyboard-only use.
+- When the stage view cannot be used (no render target, for example), the "Placement" Tab is disabled with the reason in its tooltip, and "Stream" is shown.
+- The text is provisional, for the user to proofread.

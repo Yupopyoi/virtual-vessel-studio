@@ -78,6 +78,10 @@ flowchart LR
 | `StageLightColors` (UI) | Static Class | The lights' colors, and a function from color temperature to color (pure) |
 | `StageLightPlacement` | Static Class | A light's position, rotation, and the intensity given to Unity (pure, 7.3) |
 | `StageLightRig` | Class (internal) | Creates, removes, and sets Unity's lights; changes the ambient light and puts it back at shutdown |
+| `StageView` | Class | The stage view (7.4). Implements `IStageView` (UI): the camera and render target, the viewpoint, the guides, and drags |
+| `StageViewMath` | Static Class | The viewpoint's position and rotation, a ray from a point on the view, a point's position on the view, the handle on a sphere (pure) |
+| `IStageViewItem` | Interface (internal) | A thing editable in the stage view: its marker position, guides, and kind of handle |
+| `IStageView`, `StageViewMarker` (UI) | Interface, Struct | The stage view's interface, and a marker's position |
 
 ---
 
@@ -215,6 +219,101 @@ Until Stage Scenes exist, the user can build the provisional lighting. This repl
 - No shadows (as in 7.1).
 - Values go through `StageLighting.Normalized` (pure) before they apply, whether they come from the UI or from the file.
 
+### 7.4 Stage View (system design 11.15)
+
+A 3D view for building the stage while looking at it in Setup, corresponding to Unity's Scene View. It is first used to place lights (user's request, 2026-11-22: from numbers alone it was unclear where a light is and which way its light goes), and with 3D stages also for Camera Points, Spawn Points, Screen Surfaces, and props. So the view and its operation are built apart from the kinds of things they edit.
+
+#### 7.4.1 Parts
+
+| Part | Owner | Role |
+|---|---|---|
+| Stage view camera | Stage (`StageView`) | Draws the stage and the avatar into a render target separate from the stream |
+| Viewpoint | Stage (`StageViewMath`, pure) | A viewpoint going around a pivot: orbit, zoom, move the pivot, reset |
+| Editable things | Stage (`IStageViewItem`, internal) | Per kind: where its marker is, its guides, and its kind of handle. Only lights for now (`LightViewItem`) |
+| Guides | Stage (`StageViewGuides`) | Lines such as a light's direction and a spot's cone, drawn only by the stage view camera |
+| Markers | UI (the lighting Card) | Numbered markers at the things' positions, placed as UI elements where Stage says each frame |
+| Input | UI | Turns pointer and keyboard input into view control, selection, and drag commands |
+
+- Markers are UI elements so that their numbers are drawn legibly, they do not rely on color alone (a number and a frame), and focus and tooltips work as on any other element. That is simpler than drawing text in 3D, and follows the tokens.
+- Lines and cones are at 3D positions, so Stage draws them with the stage view camera.
+
+#### 7.4.2 Interface
+
+```csharp
+// UI (VirtualVessel.UI.StageView). Stage references the UI, so the interface is in the UI (as IStageLighting is)
+public interface IStageView
+{
+    IReadOnlyObservable<Texture> Image { get; }             // The render target while open; null when closed
+    IReadOnlyObservable<IReadOnlyList<StageViewMarker>> Markers { get; }  // Marker positions; every frame while open
+    IDisposable Open(int width, int height);                  // Starts drawing; closing the last one stops and releases it
+    void Orbit(Vector2 degrees);                              // x: left and right, y: up and down
+    void Zoom(float steps);                                   // Plus comes closer
+    void Pan(Vector2 viewFraction);                           // Moves the pivot by a fraction of the view
+    void ResetView();
+    void Frame(string itemId);                                // Puts that thing at the pivot
+    void Select(string itemId);                               // The chosen thing (drawn bolder); null for none
+    bool BeginDrag(string itemId, Vector2 uv);                // False for a thing without a handle
+    void DragTo(Vector2 uv);
+    void EndDrag();
+}
+
+public readonly struct StageViewMarker
+{
+    public string ItemId { get; }      // Such as "light:0": kind:index
+    public string Label { get; }       // The marker's text ("1")
+    public Vector2 Uv { get; }         // Position on the view (top left 0, bottom right 1)
+    public bool Visible { get; }       // False behind the camera and the like
+    public Color Color { get; }        // A light's color for a light
+}
+```
+
+- Which thing is chosen is the UI's state (the same as the lighting Card's light choice). Stage gets it through `Select(string itemId)` to draw the markers and guides.
+- A drag's result goes to the thing's normal interface. A light goes through `StageService.SetLighting`, is kept in range, and is saved (7.3, 6.3). The stage view saves nothing itself.
+
+#### 7.4.3 Camera and Render Target
+
+- The first `Open` creates the camera and the render target (a `RenderTexture` the size of the UI's view, at most 960 × 540, 4× MSAA). The last `Dispose` destroys them; so does Stage's Dispose.
+- It is a Base camera, not in the Main Camera's stack (video detailed design 7.2), and has no `MainCamera` tag. It draws every layer except the flat videos' (`StreamScreens`): the stage, the backdrop quad, and the avatar's layer. The flat videos are 2D laid over the stream, so they are not in the 3D view.
+- The vertical view is 40°. It clears to the stage's dark color.
+- It is `enabled` only while open; during a stream alone it does not draw. While open, the stage and the avatar are drawn twice (the stream and the stage view), which uses that much more GPU.
+
+#### 7.4.4 Viewpoint
+
+- The viewpoint is on a sphere around the pivot, set by the left-right angle, the up-down angle (-10 to 80°), and the distance (1.5 to 10 m) (`StageViewMath.Pose`, pure). By default the pivot is the face (`StageLightPlacement.Target`), at -35° left-right, 22° up-down, and 5.2 m.
+- The stage turns with the pointer (as in Unity's Scene View): dragging right turns the stage to the right (the viewpoint goes around to the left), and dragging up turns it upward. The mockup first had it the other way, which was the opposite of what the user expected (2026-11-22).
+- One wheel step changes the distance by 10%. Moving the pivot follows the pointer on a plane parallel to the view.
+
+#### 7.4.5 Handles
+
+| Handle | Movement | Used by |
+|---|---|---|
+| On a sphere (Orbit) | Keeps its distance from the center and faces the center while moving on the sphere. Set by where the pointer's ray meets the sphere; when it misses, the ray's nearest point is projected onto the sphere (pure) | Lights (now) |
+| Move | Along three axes or on the floor | Spawn Points, Camera Points, Screen Surfaces, props (later) |
+| Rotate | With rings around the axes | Camera Points, Screen Surfaces, props (later) |
+| Scale | With the frame's corners | Screen Surfaces, props (later) |
+
+- An `IStageViewItem` returns its kind of handle, and `StageView` handles them all the same way. A new kind of thing adds its own `IStageViewItem`.
+- Dragging a light changes its left-right and up-down angles in 1° steps. The distance is changed with its slider (a sphere changing size would change how the drag feels).
+
+#### 7.4.6 Guides
+
+- Line meshes are drawn with `Graphics.RenderMesh` with `RenderParams.camera` set to the stage view camera, so only that camera draws them, not the Main Camera, the Avatar Camera, or the Screen Camera, and no new layer is needed.
+- Lights: a spot has a line to the face and its cone (a ring at the face and four lines from the light to the ring). A whole-stage light has five parallel arrows toward the face from 2.4 m away. They are in the light's color; the chosen light is bold, the others faint.
+- A camera-shaped marker shows the stream camera's position, as a guide to which way the stream looks.
+- Lines use an unlit shader (`StageGuide.shader`, in Resources) and follow depth; only the chosen thing's lines show faintly when hidden.
+
+#### 7.4.7 With 3D Stages
+
+- When a Stage Scene is loaded, the stage view camera shows the same scene, so the stage is seen as it is.
+- A Stage Scene's Camera Points, Spawn Points, and Screen Surfaces are each registered as `IStageViewItem`s. A Camera Point shows its view frustum, a Spawn Point a ring at the feet with an arrow for its direction, and a Screen Surface its frame.
+- Choosing a Camera Point lets the user check the view from it (by moving the stage view camera there, not the stream camera).
+- Where positions the user moved are saved (the project's stage settings or the stage's definition) is decided with the Stage Scene design (chapter 17).
+
+#### 7.4.8 Checking That It Never Reaches the Stream
+
+- A PlayMode test draws the guides in a distinct color, reads back the stream render target, and checks that the pixels where the guides are do not have the guides' color.
+- EditMode tests check that the stage view camera's render target is not the stream render target, that the camera is not in the Main Camera's stack, and that closing destroys it.
+
 ---
 
 ## 8. Main Sequences
@@ -280,6 +379,8 @@ Until Stage Scenes exist, the user can build the provisional lighting. This repl
 | EditMode | Lights: the default, keeping values in range, reading the brightness of 0.3 and saved lights (pure functions). Position and rotation (the default light keeps its old direction, lights aim at the face, straight above), a spot's intensity. A change rebuilds the lights at once, is saved after the delay, and is read back on the next start. The ambient light is scaled and put back at shutdown |
 | EditMode | `AvatarFramingMath`: the center of the part shown lands on the frame's center and its height on the frame's height, independent of the avatar's height, and the default placement. `AvatarFrame`: showing and the camera's framing follow whether there is an avatar, a confirmation saves, the stacking order stays fixed |
 | PlayMode | A placed video is drawn at the decided place in the Stream Render Target (pixels read back) |
+| EditMode | `StageViewMath`: the viewpoint's position, the orbit direction, rays, positions on the view, the handle on a sphere (hit and miss). `StageView`: opening creates the camera and a render target apart from the stream's and outside the stack, closing destroys them, dragging a light changes the lighting |
+| PlayMode | The stage view's guides are not drawn into the stream render target (reading pixels back, 7.4.8) |
 
 ---
 
@@ -299,6 +400,9 @@ Assets/VirtualVessel/Stage/
 │  ├─ CaptureScreen.cs
 │  ├─ StageSettings.cs               StageSettings, ScreenSettings, LightSettings
 │  ├─ StageLightRig.cs               StageLightPlacement, StageLightRig (7.3)
+│  ├─ StageView.cs                   StageView, StageViewMath, IStageViewItem, LightViewItem (7.4)
+│  ├─ StageViewGuides.cs             The guides' line meshes
+│  ├─ Resources/StageGuide.shader    The guides' shader (unlit)
 │  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
 │  ├─ DefaultBackdrop.cs             The provisional backdrop's picture
 │  ├─ IAvatarSpawnPoints.cs
@@ -322,7 +426,8 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Keeping a capture running without showing it on the stream | When it is asked for |
 | Moving placements into Project / Profile | Done (2026-10-27): `stage-settings.json` is in the project's folder, as the layout belongs to the project (project data detailed design 6) |
 | Stage Scene lighting and the user's lights | With the Stage Scene design. Decide whether the user's lights (7.3) are added to a Stage Scene's lights or replace them |
-| Moving a light on the preview | When asked for. For now the angle sliders move it |
+| Where positions moved in the stage view are saved | With the Stage Scene design: the project's stage settings or the stage's definition (7.4.7) |
+| Move, rotate, and scale handles | When Camera Points, Spawn Points, and Screen Surfaces are edited (7.4.5) |
 
 ---
 

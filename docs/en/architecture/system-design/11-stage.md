@@ -448,3 +448,33 @@ This allows each stage to change its configuration, for example to
 Giving the capture side knowledge of positions on the stage or material configuration tightly couples video input and stage representation.
 
 The separation of responsibilities, with the Capture module handling video acquisition and the Stage module handling video placement, is maintained.
+
+---
+
+## 11.15 Stage View (Setup)
+
+A 3D view for building the stage while looking at it in Setup is placed in the Stage module. It corresponds to Unity's Scene View. Its first use is placing lights (2026-11-22); when 3D stages (Stage Scenes) are handled, the same view is used to place Camera Points, Avatar Spawn Points, Screen Surfaces, and stage props (11.11 Setup).
+
+Conceptually:
+
+```text
+Stage module (Setup)
+    Stage view camera (a render target separate from the stream)
+    + markers (gizmos) of editable things and handles to move them
+        ↓ image
+UI (settings screen)
+    ↑ view control, selection, drag
+```
+
+- The stage view camera draws into a render target of its own, separate from the Main Camera. It is not part of the Video module's camera stack (chapter 10) and never appears in the stream.
+- Markers and handles are drawn only by the stage view camera. The stream's cameras do not show them.
+- It draws only while the view is open. With Setup not open during a stream, it costs nothing.
+- Editable things (lights, and later Camera Points and the like) are registered inside the Stage module as "editable things", each with its marker, hit test, and kind of handle. The view and its operation are the same whatever kind of thing they are.
+- The UI only shows the image and turns pointer and keyboard input into view control, selection, and drag commands. Stage does the 3D work (hit tests, how handles move).
+- Edits apply and are saved through each thing's normal interface (for lights, the lighting settings). The view keeps no saved state of its own.
+
+### Rationale
+
+The positions and directions of 3D things are hard to grasp from numbers alone (user's remark, 2026-11-22). Once Stage Scenes are handled, the kinds of things to place grow. Rather than a dedicated screen per kind, a shared view and operation like the Scene View, prepared first, means adding a kind only adds an "editable thing".
+
+A camera and render target separate from the stream structurally prevent Setup's view or markers from mixing into the stream (CLAUDE.md chapter 7: a diagnostic camera must not become the stream output).
