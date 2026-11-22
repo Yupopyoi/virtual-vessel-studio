@@ -70,6 +70,9 @@ namespace VirtualVessel.UI.Screens
             Section(GalleryStrings.Menu, Menus(), _columns[1]);
             Section(GalleryStrings.Steps, Steps(), _columns[0]);
             Section(GalleryStrings.Table, Table(), this);
+
+            // The page index's sample links to this screen's own sections, so it can be tried.
+            _sections[GalleryStrings.Tabs].Q<PageIndex>()?.SetCards(_sections.Values);
         }
 
         /// <summary>The section cards by their title key.</summary>
@@ -179,6 +182,7 @@ namespace VirtualVessel.UI.Screens
         private static IEnumerable<VisualElement> Tabs()
         {
             yield return Ui.Tabs(GalleryStrings.TabAvatar, GalleryStrings.TabVoice, GalleryStrings.TabStage);
+            yield return new PageIndex();
             SettingRow row = Ui.SettingRow(GalleryStrings.Noise, GalleryStrings.NoiseDescription);
             row.HelpKey = GalleryStrings.NoiseHelp;
             row.Add(Ui.Segmented(GalleryStrings.Weak, GalleryStrings.Strong));

@@ -22,6 +22,7 @@ The Cards are divided into pages by subject, switched by Tabs at the top of the 
 | App | `setup.page.app` | App settings, credits and licenses (chapter 8) |
 
 - The page last opened is saved as `lastSetupPage` in `ui-settings.json` and opens next time (UI foundation detailed design 8.1). A value not known opens the first page.
+- Each page starts with links to its Cards (Page Index, `components.md` 3.29) (user's request, 2026-11-22).
 - All pages are built, and only the open one shows. Switching pages loses no Card's state.
 - The tracking camera has no capture Card; it is chosen in the tracking Card.
 - Cards mostly do not collapse. With pages, closing them to keep the screen short is no longer needed. A Card of settings used seldom (such as detailed ones) may, on any page, be a collapsible Card (`components.md` 3.10) that starts closed (user decision, 2026-11-03). As an exception, the BGM and the sound effects Cards (section 14) are collapsible Cards that start open, as they are used often but their lists grow long (user decision, 2026-11-20).

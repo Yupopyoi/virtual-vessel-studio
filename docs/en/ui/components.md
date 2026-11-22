@@ -269,6 +269,15 @@ The frame for editing the placement of a video (game screen, second monitor, and
 - It keeps the screen short (the user's request, 2026-11-11). What the user must read to avoid a mistake (losing data, for example) is written on the screen, not hidden here.
 - Why a control is disabled goes in that control's tooltip (3.12), not in a Help Hint.
 
+### 3.29 Page Index
+
+- A row of links to a page's Cards, under the page's Tabs (3.8), using the Cards' titles. Pages had grown long and reaching a Card took effort (user's request, 2026-11-22).
+- Links look like small buttons (13px, Text 2, on Surface 2 with a 1px border and Radius Control). On hover the fill becomes Surface 3 and the text Text. They are quieter than the Tabs and look different from them, S (8px) apart.
+- Pressing one scrolls until the Card's top edge is M (16px) below the top of the screen, opening the Card if it is closed, and moves focus to the Card's title if it can take focus.
+- They take keyboard focus and are pressed with Enter or Space.
+- Not shown on a page with fewer than two Cards.
+- It scrolls with the screen (not fixed).
+
 ## 4. Adding a Component
 
 1. Confirm that the existing components are not enough.

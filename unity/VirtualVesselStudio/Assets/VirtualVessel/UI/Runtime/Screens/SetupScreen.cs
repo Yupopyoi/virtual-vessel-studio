@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio.Clips;
 using VirtualVessel.Avatar;
@@ -63,6 +64,14 @@ namespace VirtualVessel.UI.Screens
             FillAvatar(_pages[AvatarPage], services);
             FillOutput(_pages[OutputPage], services);
             FillApp(_pages[AppPage], services, appSettings);
+
+            // A link per Card at the top of each page, as pages grew long (user's request, 2026-11-22).
+            foreach (VisualElement page in _pages)
+            {
+                var index = new PageIndex();
+                index.SetCards(PageIndex.CardsOf(page).ToList());
+                page.Insert(0, index);
+            }
 
             Tabs.SetValueWithoutNotify(PageOf(pageId));
             ShowPage(Tabs.value);
