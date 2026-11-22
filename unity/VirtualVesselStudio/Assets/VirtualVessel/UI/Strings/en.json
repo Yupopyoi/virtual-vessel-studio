@@ -534,7 +534,7 @@
         "settings.motion": "Reduce motion",
         "settings.motion.help": "Reduces movement and blinking on screen. With Match Windows settings, it does so when Animation effects is off in Windows. It does not change the stream or recordings.",
         "settings.motion.system": "Match Windows settings",
-        "settings.motion.on": "On",
+        "settings.motion.on": "On (reduce motion)",
         "settings.motion.off": "Off",
         "settings.developer": "Developer Mode",
         "settings.developer.help": "Shows the Diagnostics screen and information for developers. It is not needed for normal streaming.",

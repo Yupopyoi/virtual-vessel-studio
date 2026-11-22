@@ -338,6 +338,14 @@ namespace VirtualVessel.UI.Tests
             AvatarCard card = _root.Content.Q<AvatarCard>();
             Assert.That(card.SampleButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
 
+            // Measured on the real styles: one above the other, both inside the Card (user's report, 2026-11-22).
+            Rect register = card.RegisterButton.worldBound;
+            Rect sampleButton = card.SampleButton.worldBound;
+            Rect body = card.Q<Card>().worldBound;
+            Assert.That(sampleButton.yMin, Is.GreaterThanOrEqualTo(register.yMax), "Under the register button.");
+            Assert.That(sampleButton.xMax, Is.LessThanOrEqualTo(body.xMax + 0.5f), "Not past the Card.");
+            Assert.That(sampleButton.xMax, Is.EqualTo(register.xMax).Within(0.5f), "Right-aligned like a row's control.");
+
             Submit(card.SampleButton);
             yield return null;
             yield return null;

@@ -518,7 +518,7 @@ The delay and the position numbers are current defaults and may change. The numb
 | Palette | Dropdown | The palette names in `ThemeAssets` |
 | Background | Segmented | Dark, Light |
 | UI size | Dropdown (five or more choices) | 100%, 110%, 125%, 150%, 175%, 200% |
-| Reduce motion | Dropdown (a long choice) | Match Windows settings, On, Off. The description says motion stops when Animation effects is off in Windows |
+| Reduce motion | Dropdown (a long choice) | Match Windows settings, On (reduce motion), Off. "On" alone did not say what is on, so the brackets add it (user decision, 2026-11-22). The Help Hint says motion stops when Animation effects is off in Windows |
 | Developer Mode | Toggle | Shows the Diagnostics screen |
 
 - A chosen value goes to `UiSettingsService`, which applies and saves it (7.9). When a setting changes elsewhere, the controls follow with `SetValueWithoutNotify`.

@@ -333,6 +333,20 @@
     overflow: hidden;
 }
 
+/* Register and the sample, one above the other, at the right like any row's control. */
+.vv-avatar-card__register-buttons {
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.vv-avatar-card__register-buttons > * {
+    margin-top: var(--vv-space-s);
+}
+
+.vv-avatar-card__register-buttons > *:first-child {
+    margin-top: 0;
+}
+
 .vv-avatar-card__license-title {
     margin-top: var(--vv-space-m);
     color: var(--vv-color-text);

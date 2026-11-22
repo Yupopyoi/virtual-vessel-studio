@@ -119,6 +119,9 @@ namespace VirtualVessel.UI.Screens
         public const string LicenseClass = UssClass + "__license";
         public const string LicenseLineClass = UssClass + "__license-line";
 
+        /// <summary>The two register buttons, one above the other: side by side they overflowed the 260px control (user's report, 2026-11-22).</summary>
+        public const string RegisterButtonsClass = UssClass + "__register-buttons";
+
         private readonly IAvatarService _avatars;
         private readonly IFileDialog _files;
         private readonly string _sample;
@@ -181,7 +184,7 @@ namespace VirtualVessel.UI.Screens
             SampleButton.clicked += () => _ = RegisterAsync(PickSampleAsync);
             SampleButton.style.display = sample == null ? DisplayStyle.None : DisplayStyle.Flex;
             var registerControls = new VisualElement();
-            registerControls.AddToClassList(SettingRow.ControlsClass);
+            registerControls.AddToClassList(RegisterButtonsClass);
             registerControls.Add(RegisterButton);
             registerControls.Add(SampleButton);
             card.Add(Ui.ControlRow(AvatarStrings.Register, registerControls, helpKey: AvatarStrings.RegisterHelp));

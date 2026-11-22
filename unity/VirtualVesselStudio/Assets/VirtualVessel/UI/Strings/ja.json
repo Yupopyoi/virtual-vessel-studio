@@ -534,7 +534,7 @@
         "settings.motion": "動きを減らす",
         "settings.motion.help": "画面の動きと点滅を抑制します。「Windowsの設定に合わせる」では、Windowsの「アニメーション効果」がオフの場合に抑制します。配信と録画の映像には影響しません。",
         "settings.motion.system": "Windowsの設定に合わせる",
-        "settings.motion.on": "オン",
+        "settings.motion.on": "オン（動きを減らす）",
         "settings.motion.off": "オフ",
         "settings.developer": "Developer Mode",
         "settings.developer.help": "アプリ診断画面と、開発者向けの情報を表示します。通常の配信には必要ありません。",
