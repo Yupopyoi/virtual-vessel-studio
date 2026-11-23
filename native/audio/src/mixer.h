@@ -85,6 +85,16 @@ namespace vv::audio
         // source's input. Null goes back to the input. Called under the engine's lock.
         void SetProvider(int id, BlockProvider* provider);
 
+        // Ducking (BGM and SE detailed design 8.4): `ducked` is lowered by depthDb while `key`'s level, after its gain
+        // and mute, is at or above thresholdDb. Any thread; the mix reads the values as atomics.
+        void SetDucking(int key, int ducked, bool enabled, float depthDb, float thresholdDb);
+
+        // How far the ducked source is lowered now, in dB (0 when it is not).
+        float DuckGainDb() const
+        {
+            return LinearToDb(_duckApplied.load());
+        }
+
         void SetGain(int id, float gainDb, bool muted);
         void SetSend(int id, int bus, float sendDb);
 
@@ -200,6 +210,16 @@ namespace vv::audio
 
         int64_t _frequency;
         Slot _slots[MaxSources];
+
+        // Ducking: set from any thread, worked out by the mix.
+        std::atomic<int> _duckKey{ -1 };
+        std::atomic<int> _duckTarget{ -1 };
+        std::atomic<bool> _duckEnabled{ false };
+        std::atomic<float> _duckDepth{ 0.25f };
+        std::atomic<float> _duckThreshold{ 0.01f };
+        std::atomic<float> _duckApplied{ 1.0f };
+        DuckState _duck;          // Mix thread only.
+        float _duckKeyPeak = 0.0f; // Mix thread only: the key's level in the block before.
         std::vector<float> _scratch;
         std::vector<float> _block;
         LimiterState _limiter;

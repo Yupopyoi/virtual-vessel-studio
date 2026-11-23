@@ -42,6 +42,7 @@ add_library(vv_audio_core STATIC
     src/device_source.cpp
     src/audio_file.cpp
     src/bgm_deck.cpp
+    src/bgm_crossfade.cpp
     src/clip_convert.cpp
     src/clip_source.cpp
     src/sound_effects.cpp)

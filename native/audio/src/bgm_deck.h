@@ -44,21 +44,27 @@ namespace vv::audio
         // Opens a file on the deck's thread; Media Foundation's by default, synthetic sound in the tests.
         using Opener = std::function<std::unique_ptr<ClipSource>(const std::wstring&, HRESULT&)>;
 
-        explicit BgmDeck(Opener opener = OpenMediaFile);
+        // generations: a count shared with another deck, so plays on either have their own numbers (8.5); null
+        // gives this deck its own.
+        explicit BgmDeck(Opener opener = OpenMediaFile, std::shared_ptr<std::atomic<int64_t>> generations = nullptr);
         ~BgmDeck() override;
 
         BgmDeck(const BgmDeck&) = delete;
         BgmDeck& operator=(const BgmDeck&) = delete;
 
-        // Any thread but the mix's. Play fades out what plays, then starts the track from its beginning; it returns
-        // the play's generation, which the status names when it ends.
-        int64_t Play(const std::wstring& path, bool loop, float gainDb);
-        void Stop();
+        // Any thread but the mix's. Play fades out what plays, then starts the track from its beginning, coming up
+        // over fadeInFrames; it returns the play's generation, which the status names when it ends. Stop comes down
+        // over fadeOutFrames; a fade already under way takes the new length from where it is.
+        int64_t Play(const std::wstring& path, bool loop, float gainDb, int fadeInFrames = FadeInFrames);
+        void Stop(int fadeOutFrames = FadeOutFrames);
         void SetGain(float gainDb);
         BgmStatus Status() const;
 
         // The mix thread.
         bool ReadBlock(float* block) override;
+
+        // Whether a track is on: starting, playing, or coming down.
+        bool Busy() const;
 
         // The fades' lengths, in frames at 48 kHz. Pure values for the tests.
         static constexpr int FadeOutFrames = 14400; // 0.3 s
@@ -94,7 +100,7 @@ namespace vv::audio
         bool _pending = false;
         Request _request;
         bool _stop = false;
-        int64_t _nextGeneration = 0;
+        std::shared_ptr<std::atomic<int64_t>> _generations;
 
         // The deck's thread only.
         std::unique_ptr<ClipSource> _source;
@@ -109,6 +115,8 @@ namespace vv::audio
         std::atomic<int32_t> _state{ static_cast<int32_t>(BgmState::Idle) };
         std::atomic<int32_t> _error{ 0 };
         std::atomic<float> _trackGain{ 1.0f };
+        std::atomic<int> _fadeInFrames{ FadeInFrames };
+        std::atomic<int> _fadeOutFrames{ FadeOutFrames };
         std::atomic<bool> _endWritten{ false };   // The deck wrote the last frame of a track that does not loop.
         std::atomic<bool> _drained{ true };       // The mix finished a fade out and emptied the ring.
         std::atomic<int64_t> _generation{ 0 };
