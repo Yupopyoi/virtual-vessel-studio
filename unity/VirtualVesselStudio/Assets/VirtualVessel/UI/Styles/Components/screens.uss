@@ -527,12 +527,12 @@
 }
 
 .vv-stage-view__marker {
-    width: 22px;
-    height: 22px;
-    border-radius: 11px;
-    border-width: 1px;
-    border-color: var(--vv-color-on-accent);
-    color: var(--vv-color-on-accent);
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    border-width: 3px;
+    background-color: var(--vv-color-surface);
+    color: var(--vv-color-text);
     -unity-font-style: bold;
     font-size: 12px;
     -unity-text-align: middle-center;
@@ -541,11 +541,11 @@
 
 /* The chosen light: larger, with a light ring, so it is told by shape and not by color alone. */
 .vv-stage-view__marker--chosen {
-    width: 28px;
-    height: 28px;
-    border-radius: 14px;
-    border-width: 3px;
-    border-color: var(--vv-color-text);
+    width: 30px;
+    height: 30px;
+    border-radius: 15px;
+    border-width: 4px;
+    background-color: var(--vv-color-surface-3);
     font-size: 14px;
 }
 

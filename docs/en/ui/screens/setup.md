@@ -626,7 +626,7 @@ The picture's place switches between "Placement" and "Stream" Tabs (`components.
 | Element | Content |
 |---|---|
 | View | The stage view's image (16:9, 448 px wide): the stage, the backdrop quad, the avatar, guides (light directions, spot cones), and the stream camera's position |
-| Markers | A circle with the light's number (1 to 4) at each light. Filled with the light's color, with text and frame in a readable color. The chosen light's is larger with a white frame. Hidden when not in view (behind the camera and the like) |
+| Markers | A circle with the light's number (1 to 4) at each light. On `surface` with `text`, and a thick ring in the light's color, so the number can be read whatever the light's color (dark colors could not be, 2026-11-23). The chosen light's is larger, with a thicker ring, on `surface-3`. Hidden when not in view (behind the camera and the like) |
 | Help Hint beside the Tabs | How to operate it (the table below, shortened) |
 | Under the view | Toggles "Reverse left and right" and "Reverse up and down" with a Help Hint. They reverse which way the view turns when dragging on empty space; people find different directions natural (user's request, 2026-11-22). Saved in `ui-settings.json` (UI foundation detailed design 8.1). Shown only with "Placement" |
 
