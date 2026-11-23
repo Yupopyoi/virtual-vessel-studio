@@ -15,6 +15,8 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 - More formats: M4A (AAC) and whatever else Windows can decode.
 - BGM made inside the app (system design 16.32).
 
+A crossfade when switching tracks (8.5) and ducking, lowering BGM only while the user talks (8.4), were added (the user's request, 2026-11-23).
+
 ## 2. Responsibilities
 
 | Responsibility | Owner |
@@ -49,6 +51,9 @@ To be added later (the user's decision, 2026-11-16). The first version does not 
 | `AudioSourceRole.Music`, `SoundEffect` | Enum values | Sources that become mixer rows (planned in audio detailed design chapter 4) |
 | The native BGM deck | C++ | A decoding thread reads the file ahead into a ring; the mix thread reads from it |
 | The native SE voices | C++ | Play SE held in memory, overlapped up to a fixed number |
+| `BgmMixOptions` | Struct | Ducking (on or off, how far, how loud a voice it reacts to) and the crossfade's length. `IAudioService` holds it, saved in the Audio Profile (6.2) |
+| The native crossfade (`BgmCrossfader`) | C++ | Holds two BGM decks, takes them in turn when switching, and adds the two into one source (8.5) |
+| The native ducking | C++ | In the mixer, lowers the BGM source by how loud the microphone's block is (8.4) |
 
 ## 5. Public API
 
@@ -94,6 +99,24 @@ public interface ISoundEffectPlayer
 - The BGM that plays cannot be deleted (`Busy`): the deck's thread has its file open. Its Delete is disabled with the reason. An SE does not keep its file open once loaded, so it can always be deleted; the SE player then removes it from the engine.
 - A `BgmCue` holds a track's ID and whether it loops. The first version's `SingleTrack` returns the chosen track once, following its loop setting. Playlists and shuffle are added as new `IBgmSequence` implementations (chapter 17); the player and the native deck do not change.
 - Playback never rebuilds the audio pipeline during a stream (system design 12.11). The sources and buses exist from start-up.
+
+`IAudioService` (audio detailed design 5) gains how BGM is mixed (2026-11-23):
+
+```csharp
+IReadOnlyObservable<BgmMixOptions> BgmMix { get; } // ducking and the crossfade, saved in the Audio Profile
+void SetBgmMix(BgmMixOptions options);             // applies at once
+IReadOnlyObservable<bool> Ducking { get; }          // whether BGM is lowered under the voice now (every 0.1 s)
+
+public readonly struct BgmMixOptions
+{
+    bool Ducking { get; }            // off by default (the user's decision, 2026-11-23)
+    float DuckDepthDb { get; }       // how far: -24 to -3 dB, default -12
+    float DuckThresholdDb { get; }   // how loud a voice it reacts to: -60 to -20 dBFS, default -40
+    float CrossfadeSeconds { get; }  // a switch's length: 0 to 5 s, default 2; 0 is the switch as before
+}
+```
+
+- How BGM is mixed is the mixer's work, so it is on `IAudioService`, not `IBgmPlayer`. `BgmPlayer` does not change.
 
 ## 6. Data Model
 
@@ -146,6 +169,7 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 ```
 
 - Older files without them get them with defaults: BGM -6 dB, SE 0 dB, sent to both the stream and the monitor (the defaults of audio detailed design 5.2).
+- How BGM is mixed (`BgmMixOptions`, chapter 5) is in the Audio Profile's `bgm` (2026-11-23): `"bgm": { "ducking": false, "duckDepthDb": -12, "duckThresholdDb": -40, "crossfadeSeconds": 2 }`. Only fields were added, so schemaVersion stays 1. A file without it reads the defaults, and values out of range are brought into range.
 - The last BGM played, and whether it was playing, are not saved, so BGM never starts by itself at start-up. When playlists are added, only the chosen playlist is saved.
 
 ### 6.3 Built-in BGM and SE
@@ -190,7 +214,7 @@ StreamingAssets/Audio/BuiltIn/
 5. A looped track goes back to its start on the decoding thread and goes on writing, so no silence comes at the seam.
 6. When a track not looped ends, the deck says so. `BgmPlayer` calls `Next` and plays the next track if there is one, or goes `Idle`.
 
-- Switching and stopping bring what plays down over about 0.3 s, and a new track up from its start over about 0.05 s, so nothing clicks.
+- Stopping brings what plays down over about 0.3 s, and a track started when nothing plays comes up from its start over about 0.05 s, so nothing clicks. Switching while a track plays is a crossfade (8.5). With a length of 0 s, what plays comes down over about 0.3 s and the new track up over about 0.05 s.
 - An empty ring (decoding late) is played as silence and counted (`Audio/Music.Underruns`).
 
 ### 8.2 Playing an SE
@@ -216,9 +240,35 @@ During a stream another app, such as a game, is usually in front. So the SE shor
 - RegisterHotKey only tells that the registered keys were pressed. No other key input is read, and key input is not recorded.
 - On exit the thread unregisters every key before it ends; otherwise other apps could not use those keys.
 
+### 8.4 Lowering BGM Under the Voice (Ducking)
+
+BGM is lowered only while the user talks and comes back after (the user's request, 2026-11-23). It is off by default; the setup screen's BGM Card turns it on and off and sets how far and how loud a voice it reacts to. The live screen has its on and off too (`setup.md` chapter 14, `live.md`).
+
+1. The mix thread measures the level (peak) of the microphone source's block, after its gain and mute. It is after the voice conversion stage (audio detailed design 8.3), so the converted voice is measured. A muted microphone has no voice, so nothing is lowered.
+2. At the start of the next block, BGM is lowered if that level is at or above "how loud a voice it reacts to". It stays lowered for about 0.4 s after the level falls below (so it does not move between words), then comes back. It goes down over about 30 ms and back over about 0.5 s, smoothly (`Duck`, a pure function in dsp.h).
+3. The lowering multiplies the BGM source's gain. It works on both the stream and the monitor, and the level meter shows the lowered level. SE and the game audio are not lowered.
+
+- The sources are mixed in a fixed order, so the microphone's level is that of the block before (10 ms earlier). It is not a delay one can hear.
+- Native API: `vv_audio_set_ducking(engine, key_source, ducked_source, enabled, depth_db, threshold_db)`, and `vv_audio_get_ducking(engine, &gain_db)` for how far it is lowered now (API version 13). Settings are passed as atomics; the mix thread takes no lock.
+- `IAudioService.Ducking` is true while it is lowered by more than 1 dB. The setup screen shows "Lowering" from it, as a guide for setting how loud a voice it reacts to.
+
+### 8.5 A Crossfade When Switching Tracks
+
+Playing another track while one plays brings the old one down while the new one comes up from its start (the user's request, 2026-11-23). The length is 0 to 5 s, 2 by default. It applies to switching only; stopping still fades over about 0.3 s (the user's decision, 2026-11-23).
+
+1. The native `BgmCrossfader` holds two BGM decks (8.1). The mix thread adds their two blocks and reads them as one BGM source.
+2. `Play` while a track plays asks the current deck to come down over the length, and the other deck to bring the new track up over the same length. A deck that has come down drops what it read ahead and is free.
+3. When nothing plays, when the length is 0, and when a track not looped ends and the next follows, one deck plays as before.
+4. Switching again to a deck still coming down (two switches within the length) shortens its fade to about 0.3 s before the next track starts, so the new track does not wait long.
+
+- The two decks share one count for the plays' generations. The status is that of the deck asked last, and underruns are the two added. `BgmPlayer` does not change.
+- The gains move in straight lines. With the built-in BGM, whose loudness is matched (6.3), the overlap does not swell much.
+- Native API: `vv_audio_bgm_set_crossfade(engine, milliseconds)` (API version 13). It applies from the next switch.
+- The second deck adds a ring (about 1.6 MB) and a decoding thread. While unused, the thread only waits.
+
 ## 9. Threads and Asynchrony
 
-- The mix thread (existing): only reads the deck's ring and the SE voices. No allocation, waiting locks, or file reads (audio detailed design chapter 9).
+- The mix thread (existing): only reads the deck's ring and the SE voices. Ducking (8.4) is worked out here too. No allocation, waiting locks, or file reads (audio detailed design chapter 9).
 - The deck's decoding thread (new, native, normal priority): decodes with Media Foundation and writes the ring. The ring has one writer and one reader, with no lock.
 - SE decoding: managed, off the main thread; the samples are handed to the native side under the engine's lock (a swap only, as for the preview; audio detailed design 5.5).
 - Registration (copying and checking the file): managed, off the main thread.
@@ -227,6 +277,7 @@ During a stream another app, such as a game, is usually in front. So the SE shor
 ## 10. Settings
 
 - The sources' volume, mute, and sends (6.2).
+- How BGM is mixed (ducking, the crossfade): the Audio Profile's `bgm` (6.2).
 - Each track's and SE's volume and loop are in its registration file (6.1), not the Project's Profile: they belong to the material and stay the same across Projects.
 
 ## 11. Storage
@@ -252,6 +303,7 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 - Logs registering, deleting, starting and ending playback, and failures. Tracks are logged by ID, without file paths or names (the names of the user's files can be personal).
 - Failures log the format, rate, channel count, and HRESULT (system design 12.14).
 - The shortcuts log the keys another app refused, when they change. Presses are not logged.
+- Changes to how BGM is mixed are logged with their values. Lowering and coming back are not, as they happen often.
 - Metrics: `Audio/Music.Underruns`, `Audio/SoundEffect.VoicesStolen`.
 - The audio itself is never logged.
 
@@ -259,8 +311,8 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 
 | Kind | Target |
 |---|---|
-| Native (ctest) | The deck with written WAV and MP3 files: no silence at a loop's seam, the end notice, fades, silence when the ring is empty. SE voices: overlapping, replacing with no free voice. Mixing in stereo |
-| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), a built-in file's names per language (kept until it is renamed), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine. Saving and removing an SE's shortcut. `KeyChord` read and written, the keys' map (the first for the same keys), playing the pressed SE and following the list, and with Windows itself, keys another holds are refused and taken once let go |
+| Native (ctest) | The deck with written WAV and MP3 files: no silence at a loop's seam, the end notice, fades, silence when the ring is empty. SE voices: overlapping, replacing with no free voice. Mixing in stereo. Ducking: `Duck`'s steps (down, holding, back, off); in the mixer, BGM lowered only while there is voice, SE not lowered, a muted microphone not lowering it. Crossfade: the two tracks overlap, the old one goes, the new one comes up; 0 s as before; two switches in a row |
+| EditMode | `BuiltInAudioClips`: registering on the first start and the names' language, not adding again, not bringing back deleted ones, adding only new ones, leaving failed ones for the next start, the shipped list being well formed. Through the real plugin, every shipped file registers. `AudioClipLibrary`: add, list, change, delete, reorder (a new one comes last, a deleted one leaves no gap), a built-in file's names per language (kept until it is renamed), half-made folders, keeping unknown fields, an SE too long. `SingleTrack`, `BgmPlayer`'s states with a fake engine. `BgmMixOptions`' ranges and saving, an older file's defaults, passing them to the engine, `Ducking` following it. Saving and removing an SE's shortcut. `KeyChord` read and written, the keys' map (the first for the same keys), playing the pressed SE and following the list, and with Windows itself, keys another holds are refused and taken once let go |
 | PlayMode | The settings and live screens' controls (with their screen spec). Assigning, cancelling, and removing shortcuts, refusing keys another SE has, showing keys another app holds, the live screen's tooltips |
 | Hardware (manual) | BGM and SE reach the stream and recordings, and the monitor send works |
 
@@ -273,8 +325,8 @@ As in 6.1 and 6.2. BGM and SE files are the user's assets (CLAUDE.md 25).
 ## 16. Folder / Namespace
 
 ```text
-native/audio/src/        bgm_deck (the decoding thread and ring), sound_effects (the voices), audio_file (adds stereo decoding)
-native/audio/include/    vv_audio.h (API version 11)
+native/audio/src/        bgm_deck (the decoding thread and ring), bgm_crossfade (the two decks), mixer (ducking), sound_effects (the voices), audio_file (adds stereo decoding)
+native/audio/include/    vv_audio.h (API version 13)
 Audio/Runtime/Clips/     IAudioClipLibrary, AudioClipLibrary, AudioClipRecord, BuiltInAudioClips
 StreamingAssets/Audio/BuiltIn/  the built-in BGM and SE (6.3)
 tools/audio/             the scripts that render them
@@ -294,17 +346,17 @@ Stages:
 4. Live screen: choosing, playing, stopping BGM and its volume; SE buttons (`live.md`). Done.
 5. The built-in BGM and SE (6.3). Done (2026-11-17).
 6. SE shortcuts (8.3). Done (2026-11-21).
+7. Ducking (8.4) and the crossfade when switching tracks (8.5). The live screen can switch tracks while one plays.
 
 An integration test through the real plugin (`AudioPlayersIntegrationTests`) registers a WAV, plays it as BGM to its end, is refused deleting it while it plays, and loads and plays it as an effect.
 
 To be added later, and where (without rework):
 
 - Playlists, shuffle, repeat: `IBgmSequence` implementations and saved playlists (`Audio/Playlists/`).
-- Crossfades and gapless playback between tracks: a deck API to queue the next track, decoding two at once.
+- Crossfades and gapless playback between a playlist's tracks: with the two decks (8.5), the next track starts before the current one ends.
 - M4A and others: widen `FileExtensions`. Decoding is Media Foundation's, so the change is expected to need only checking.
 - BGM made in the app (system design 16.32): registers its audio with `AddAsync`.
 
 Open issues:
 
 - Limits on the number of SE and their memory.
-- Lowering BGM under the voice (ducking), if the user asks for it.
