@@ -160,9 +160,10 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.Codec.value, Is.EqualTo((int)RecordingCodec.Av1), "AV1 first, as recommended.");
             card.Codec.value = (int)RecordingCodec.H264;
             Assert.That(_recording.Options.Value.Codec, Is.EqualTo(RecordingCodec.H264));
-            Assert.That(card.CodecRow.DescriptionKey, Is.EqualTo(RecordingCardStrings.CodecDescription));
+            Assert.That(card.CodecRow.DescriptionKey, Is.Null, "Nothing under the row while AV1 can be chosen.");
+            Assert.That(card.CodecRow.HelpKey, Is.EqualTo(RecordingCardStrings.CodecHelp));
 
-            // A GPU without an AV1 encoder: AV1 is shown but cannot be chosen, and the description says why.
+            // A GPU without an AV1 encoder: AV1 is shown but cannot be chosen, and the line under the row says why.
             _recording.SetOptions(new RecordingOptions("C:\\Videos\\Virtual Vessel Studio", RecordingQuality.High, RecordingCodec.H264, false, 1920, 1080, 30));
             yield return null;
             Assert.That(card.Codec.IsItemEnabled((int)RecordingCodec.Av1), Is.False);

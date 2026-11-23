@@ -20,23 +20,25 @@ namespace VirtualVessel.UI.Screens
         public const string Title = "setup.recording.title";
         public const string Unavailable = "setup.recording.unavailable";
         public const string Folder = "setup.recording.folder";
-        public const string FolderDescription = "setup.recording.folder.description";
+        public const string FolderHelp = "setup.recording.folder.help";
         public const string FolderPick = "setup.recording.folder.pick";
         public const string FolderPickTitle = "setup.recording.folder.pick-title";
         public const string FolderOpen = "setup.recording.folder.open";
         public const string Quality = "setup.recording.quality";
-        public const string QualityDescription = "setup.recording.quality.description";
+        public const string QualityHelp = "setup.recording.quality.help";
         public const string QualityStandard = "setup.recording.quality.standard";
         public const string QualityHigh = "setup.recording.quality.high";
         public const string Codec = "setup.recording.codec";
-        public const string CodecDescription = "setup.recording.codec.description";
+        public const string CodecHelp = "setup.recording.codec.help";
         public const string CodecNoAv1 = "setup.recording.codec.no-av1";
         public const string CodecAv1 = "setup.recording.codec.av1";
         public const string CodecH264 = "setup.recording.codec.h264";
         public const string Free = "setup.recording.free";
+        public const string FreeHelp = "setup.recording.free.help";
         public const string FreeValue = "setup.recording.free.value";
         public const string FreeUnknown = "setup.recording.free.unknown";
         public const string Format = "setup.recording.format";
+        public const string FormatHelp = "setup.recording.format.help";
         public const string FormatValue = "setup.recording.format.value";
     }
 
@@ -82,35 +84,36 @@ namespace VirtualVessel.UI.Screens
             folderButtons.Add(PickButton);
             folderButtons.Add(OpenButton);
             // The path under the row's name, where a long one can wrap; only the buttons are on the right.
-            SettingRow folder = Ui.SettingRow(RecordingCardStrings.Folder, RecordingCardStrings.FolderDescription);
+            SettingRow folder = Ui.SettingRow(RecordingCardStrings.Folder, helpKey: RecordingCardStrings.FolderHelp);
             folder.TextArea.Add(FolderText);
             folder.Add(folderButtons);
             card.Add(folder);
 
             Quality = Ui.Segmented(RecordingCardStrings.QualityStandard, RecordingCardStrings.QualityHigh);
             Quality.RegisterValueChangedCallback(evt => _recording.SetOptions(_recording.Options.Value.WithQuality((RecordingQuality)evt.newValue)));
-            SettingRow quality = Ui.SettingRow(RecordingCardStrings.Quality, RecordingCardStrings.QualityDescription);
+            SettingRow quality = Ui.SettingRow(RecordingCardStrings.Quality, helpKey: RecordingCardStrings.QualityHelp);
             quality.Add(Quality);
             card.Add(quality);
 
-            // AV1 first, as recommended; without an AV1 encoder it is shown but cannot be chosen, and the description says why.
+            // AV1 first, as recommended; without an AV1 encoder it is shown but cannot be chosen, and the line under the
+            // row says why (a note for that situation, so on the screen rather than behind the help hint).
             Codec = Ui.Segmented(RecordingCardStrings.CodecAv1, RecordingCardStrings.CodecH264);
             Codec.RegisterValueChangedCallback(evt => _recording.SetOptions(_recording.Options.Value.WithCodec((RecordingCodec)evt.newValue)));
-            CodecRow = Ui.SettingRow(RecordingCardStrings.Codec, RecordingCardStrings.CodecDescription);
+            CodecRow = Ui.SettingRow(RecordingCardStrings.Codec, helpKey: RecordingCardStrings.CodecHelp);
             CodecRow.Add(Codec);
             card.Add(CodecRow);
 
             FreeText = new Label();
             FreeText.AddToClassList(ValueClass);
             FreeText.AddToClassList("vv-text-mono");
-            SettingRow free = Ui.SettingRow(RecordingCardStrings.Free);
+            SettingRow free = Ui.SettingRow(RecordingCardStrings.Free, helpKey: RecordingCardStrings.FreeHelp);
             free.Add(FreeText);
             card.Add(free);
 
             FormatText = new Label();
             FormatText.AddToClassList(ValueClass);
             FormatText.AddToClassList("vv-text-body");
-            SettingRow format = Ui.SettingRow(RecordingCardStrings.Format);
+            SettingRow format = Ui.SettingRow(RecordingCardStrings.Format, helpKey: RecordingCardStrings.FormatHelp);
             format.Add(FormatText);
             card.Add(format);
 
@@ -180,7 +183,7 @@ namespace VirtualVessel.UI.Screens
             Quality.SetValueWithoutNotify((int)options.Quality);
             Codec.SetItemEnabled((int)RecordingCodec.Av1, options.Av1Available);
             Codec.SetValueWithoutNotify((int)options.Codec);
-            CodecRow.DescriptionKey = options.Av1Available ? RecordingCardStrings.CodecDescription : RecordingCardStrings.CodecNoAv1;
+            CodecRow.DescriptionKey = options.Av1Available ? null : RecordingCardStrings.CodecNoAv1;
             FormatText.text = _services?.Localizer?.Get(RecordingCardStrings.FormatValue, ("width", options.Width), ("height", options.Height), ("rate", options.FrameRate))
                 ?? $"{options.Width}×{options.Height}, {options.FrameRate} fps";
             ShowFree();

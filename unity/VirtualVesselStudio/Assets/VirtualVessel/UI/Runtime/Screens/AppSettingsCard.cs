@@ -38,23 +38,23 @@ namespace VirtualVessel.UI.Screens
             Language = Ui.Select(null);
             Language.SetChoices(languages.Select(locale => SelectChoice.FromText(locale.Code, locale.DisplayName)));
             Language.RegisterValueChangedCallback(evt => _settings.SetLanguage(evt.newValue));
-            card.Add(Ui.ControlRow(ScreenStrings.Language, Language));
+            card.Add(Ui.ControlRow(ScreenStrings.Language, Language, helpKey: ScreenStrings.LanguageHelp));
 
             Palette = Ui.Select(null);
             Palette.SetChoices(theme.PaletteIds.Select(id => SelectChoice.FromText(id, theme.GetPaletteName(id) ?? id)));
             Palette.RegisterValueChangedCallback(evt => _settings.SetPalette(evt.newValue));
-            card.Add(Ui.ControlRow(ScreenStrings.Palette, Palette));
+            card.Add(Ui.ControlRow(ScreenStrings.Palette, Palette, helpKey: ScreenStrings.PaletteHelp));
 
             Background = Ui.Segmented(ScreenStrings.Dark, ScreenStrings.Light);
             Background.RegisterValueChangedCallback(evt => _settings.SetBackground(evt.newValue == 1 ? ThemeBackground.Light : ThemeBackground.Dark));
-            card.Add(Ui.ControlRow(ScreenStrings.Background, Background));
+            card.Add(Ui.ControlRow(ScreenStrings.Background, Background, helpKey: ScreenStrings.BackgroundHelp));
 
             // Six steps, and a long "Match Windows settings": dropdowns, as components.md 3.18 asks for
             // five or more choices or long labels.
             Scale = Ui.Select(null);
             Scale.SetChoices(s_scaleKeys.Select((key, index) => SelectChoice.FromKey(ScaleId(UiSettingsResolver.UiScales[index]), key)));
             Scale.RegisterValueChangedCallback(evt => _settings.SetUiScale(ParseScaleId(evt.newValue)));
-            card.Add(Ui.ControlRow(ScreenStrings.Scale, Scale));
+            card.Add(Ui.ControlRow(ScreenStrings.Scale, Scale, helpKey: ScreenStrings.ScaleHelp));
 
             Motion = Ui.Select(null);
             Motion.SetChoices(new[]
@@ -64,11 +64,11 @@ namespace VirtualVessel.UI.Screens
                 SelectChoice.FromKey(UiSettingsResolver.MotionOff, ScreenStrings.MotionOff),
             });
             Motion.RegisterValueChangedCallback(evt => _settings.SetReducedMotion(ParseMotionId(evt.newValue)));
-            card.Add(Ui.ControlRow(ScreenStrings.Motion, Motion, ScreenStrings.MotionDescription));
+            card.Add(Ui.ControlRow(ScreenStrings.Motion, Motion, helpKey: ScreenStrings.MotionHelp));
 
             Developer = new SwitchToggle();
             Developer.RegisterValueChangedCallback(evt => _settings.SetDeveloperMode(evt.newValue));
-            card.Add(Ui.ControlRow(ScreenStrings.Developer, Developer, ScreenStrings.DeveloperDescription));
+            card.Add(Ui.ControlRow(ScreenStrings.Developer, Developer, helpKey: ScreenStrings.DeveloperHelp));
 
             Show(settings.Current);
             RegisterCallback<AttachToPanelEvent>(_ =>

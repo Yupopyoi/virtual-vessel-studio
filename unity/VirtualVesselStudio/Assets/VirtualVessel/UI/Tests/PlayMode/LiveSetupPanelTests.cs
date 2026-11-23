@@ -84,15 +84,87 @@ namespace VirtualVessel.UI.Tests
             Assert.That(screen.Q<TrackingCard>().parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
 
             // Measured on the real styles: everything on a page keeps M (16px) from the next, whichever module built it.
+            // The page index, then the two capture Cards.
             List<VisualElement> items = capture.parent.Children().ToList();
-            Assert.That(items.Count, Is.EqualTo(2));
-            Assert.That(items[1].worldBound.yMin - items[0].worldBound.yMax, Is.EqualTo(16f).Within(0.5f));
+            Assert.That(items.Count, Is.EqualTo(3));
+            Assert.That(items[0], Is.InstanceOf<PageIndex>());
+            Assert.That(items[2].worldBound.yMin - items[1].worldBound.yMax, Is.EqualTo(16f).Within(0.5f));
 
             screen.Tabs.value = SetupScreen.AvatarPage;
             yield return null;
             Assert.That(capture.parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
             Assert.That(screen.Q<TrackingCard>().parent.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
             Assert.That(_root.Settings.LastSetupPage, Is.EqualTo("avatar"));
+        }
+
+        [UnityTest]
+        public IEnumerator EverySettingRow_IsExplainedBehindAHelpHint_NotInLinesUnderIt()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            var screen = (SetupScreen)_root.Shell.Host.GetScreen("setup");
+
+            // The tracking camera's search is the one row whose help is not written yet.
+            List<SettingRow> rows = screen.Query<SettingRow>().ToList()
+                .Where(row => !(row.NameKey == CaptureStrings.Refresh && row.GetFirstAncestorOfType<TrackingCard>() != null))
+                .ToList();
+            Assert.That(rows.Count, Is.GreaterThan(10));
+            Assert.That(rows.Where(row => string.IsNullOrEmpty(row.HelpKey)).Select(row => row.NameKey), Is.Empty);
+            Assert.That(rows.Where(row => !string.IsNullOrEmpty(row.DescriptionKey)).Select(row => row.NameKey), Is.Empty, "Only notes for a situation go under a row.");
+
+            CaptureSourceCard[] cards = screen.Query<CaptureSourceCard>().ToList().ToArray();
+            Assert.That(DeviceHelp(cards[0]), Is.EqualTo(CaptureStrings.DeviceHelp), "The game screen: a board or a window.");
+            Assert.That(DeviceHelp(cards[1]), Is.EqualTo(CaptureStrings.SubScreenDeviceHelp), "The sub monitor: a monitor.");
+        }
+
+        private static string DeviceHelp(CaptureSourceCard card)
+        {
+            return card.Query<SettingRow>().ToList().First(row => row.NameKey == CaptureStrings.Device).HelpKey;
+        }
+
+        [UnityTest]
+        public IEnumerator EachPage_StartsWithLinksToItsCards_AndALinkScrollsToItsCard()
+        {
+            _root.Shell.Open("setup");
+            yield return null;
+            var screen = (SetupScreen)_root.Shell.Host.GetScreen("setup");
+            VisualElement video = screen.Query(className: SetupScreen.PageClass).ToList()[SetupScreen.VideoPage];
+            PageIndex index = video.Q<PageIndex>();
+            Assert.That(video.IndexOf(index), Is.Zero, "At the top of the page.");
+            Assert.That(index.Links.Select(link => link.TextKey), Is.EqualTo(new[] { CaptureStrings.GameTitle, CaptureStrings.SubScreenTitle }));
+            Assert.That(index.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(index.Links[0].layout.width, Is.GreaterThan(80f), "Wide enough for its name.");
+            Rect first = index.Links[0].layout;
+            Rect second = index.Links[1].layout;
+            Assert.That(second.xMin >= first.xMax + 7.5f || second.yMin >= first.yMax + 7.5f, Is.True, "S apart, beside it or wrapped below it.");
+
+            // The avatar page here has only the tracking Card: nothing to choose between.
+            VisualElement avatar = screen.Query(className: SetupScreen.PageClass).ToList()[SetupScreen.AvatarPage];
+            screen.Tabs.value = SetupScreen.AvatarPage;
+            yield return null;
+            Assert.That(avatar.Q<PageIndex>().resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
+
+            // The app page's last Card is far down; its link brings it up.
+            screen.Tabs.value = SetupScreen.AppPage;
+            yield return null;
+            VisualElement app = screen.Query(className: SetupScreen.PageClass).ToList()[SetupScreen.AppPage];
+            PageIndex appIndex = app.Q<PageIndex>();
+            Card last = PageIndex.CardsOf(app).Last();
+            ScrollView scroll = screen.GetFirstAncestorOfType<ScrollView>();
+            float before = scroll.scrollOffset.y;
+            Submit(appIndex.Links.Last());
+            yield return null;
+            yield return null;
+            Assert.That(last.Expanded, Is.True, "Opened if it was closed.");
+            Assert.That(scroll.scrollOffset.y, Is.GreaterThan(before), "Scrolled down to it.");
+        }
+
+        [Test]
+        public void ALink_PutsItsCardJustBelowTheTop_WithinTheScrollRange()
+        {
+            Assert.That(PageIndex.OffsetFor(cardTop: 900f, contentTop: 100f, maxOffset: 2000f), Is.EqualTo(800f - PageIndex.TopMargin));
+            Assert.That(PageIndex.OffsetFor(cardTop: 900f, contentTop: 100f, maxOffset: 300f), Is.EqualTo(300f), "Not past the end.");
+            Assert.That(PageIndex.OffsetFor(cardTop: 105f, contentTop: 100f, maxOffset: 300f), Is.Zero, "Not before the start.");
         }
 
         [Test]

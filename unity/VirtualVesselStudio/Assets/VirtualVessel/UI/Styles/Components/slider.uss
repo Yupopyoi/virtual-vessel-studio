@@ -10,6 +10,12 @@
     margin-bottom: 4px;
 }
 
+.vv-slider__heading {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 1;
+}
+
 .vv-slider__label {
     color: var(--vv-color-text-2);
 }

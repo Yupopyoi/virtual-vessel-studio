@@ -30,3 +30,27 @@
 .vv-tabs:disabled .vv-tabs__tab {
     color: var(--vv-color-disabled);
 }
+
+/* Page index (components.md 3.29): a link per Card under a page's tabs, quieter than the tabs above it. */
+.vv-page-index {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* App buttons made quieter (two classes, so this wins over the button's own look). */
+.vv-page-index > .vv-page-index__link {
+    margin: 0 var(--vv-space-s) var(--vv-space-s) 0;
+    padding: 4px 10px;
+    border-width: 1px;
+    border-color: var(--vv-color-border);
+    border-radius: var(--vv-radius-control);
+    background-color: var(--vv-color-surface-2);
+    color: var(--vv-color-text-2);
+    font-size: 13px;
+}
+
+.vv-page-index > .vv-page-index__link:hover {
+    background-color: var(--vv-color-surface-3);
+    color: var(--vv-color-text);
+}

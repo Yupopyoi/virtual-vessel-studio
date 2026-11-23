@@ -330,6 +330,10 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
 .tab { border: 0; background: transparent; padding: 8px 14px; cursor: pointer; color: var(--text-2); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent-line); }
+/* Page index (components.md 3.29): links to the page's Cards under its tabs, quieter than the tabs. */
+.page-index { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.page-index button { font: inherit; font-size: 13px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 4px 10px; cursor: pointer; }
+.page-index button:hover { background: var(--surface-3); color: var(--text); }
 
 .setting-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 260px); gap: var(--space-m); align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .setting-row:last-child { border-bottom: 0; }
@@ -773,6 +777,9 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
             <button class="tab" role="tab" aria-selected="false" data-i18n="c.tab2">音声</button>
             <button class="tab" role="tab" aria-selected="false" data-i18n="c.tab3">映像</button>
           </div>
+          <nav class="page-index" aria-label="Page index">
+            <button data-i18n="c.idx1">音声</button><button data-i18n="c.idx2">BGM</button><button data-i18n="c.idx3">効果音</button><button data-i18n="c.idx4">声の変換</button>
+          </nav>
           <div>
             <div class="setting-row">
               <div><div class="name" data-i18n="c.row1">マイクの入力デバイス</div><div class="desc" data-i18n="c.row1d">声を拾うマイクを選びます</div></div>
@@ -905,7 +912,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     "c.buttons": "Buttons", "c.start": "Start streaming", "c.test": "Test recording", "c.disabled": "Preparing…",
     "c.toggles": "Toggles and icon buttons", "c.status": "Status", "c.connected": "Connected", "c.failed": "Failed", "c.idle": "Stopped",
     "c.fields": "Fields", "c.titlefield": "Stream title", "c.rate": "Sample rate", "c.key": "Stream key", "c.keyerr": "Enter your stream key.",
-    "c.tabs": "Tabs and setting rows", "c.tab1": "General", "c.tab2": "Audio", "c.tab3": "Video",
+    "c.tabs": "Tabs and setting rows", "c.tab1": "General", "c.tab2": "Audio", "c.tab3": "Video", "c.idx1": "Audio", "c.idx2": "BGM", "c.idx3": "Sound effects", "c.idx4": "Voice conversion",
     "c.row1": "Microphone input device", "c.row1d": "Choose the microphone that picks up your voice",
     "c.row2": "Noise suppression", "c.row2d": "Reduces keyboard and air-conditioner noise",
     "c.notices": "Notices and progress", "c.ok": "Voice model registered", "c.okd": "You can now pick Kirara v3 on the live screen.",

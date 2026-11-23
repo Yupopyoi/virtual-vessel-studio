@@ -137,6 +137,19 @@ namespace VirtualVessel.Application.Startup
         }
 
         /// <summary>
+        /// The sample model that releases ship as <c>Samples/otoha-chan.vrm</c> next to the application (development
+        /// workflow 21), or the repository's copy in <c>tests/samples</c> in the Editor. Pure: whether it exists is
+        /// checked by the caller.
+        /// </summary>
+        public static string GetSampleAvatar(RuntimeEnvironment environment, string dataPath)
+        {
+            string folder = GetCreditFolder(environment, dataPath);
+            return environment == RuntimeEnvironment.Editor
+                ? Path.Combine(folder, "tests", "samples", "otoha-chan.vrm")
+                : Path.Combine(folder, "Samples", "otoha-chan.vrm");
+        }
+
+        /// <summary>
         /// Pauses Voice Lab's preparation while streaming or recording, whichever screen is open (Voice Lab detailed design
         /// 8.1.1): the services' states are watched here, for the app's lifetime, not by the Voice Lab screen.
         /// </summary>

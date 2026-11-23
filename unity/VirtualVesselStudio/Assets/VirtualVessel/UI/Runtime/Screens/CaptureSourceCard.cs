@@ -17,17 +17,23 @@ namespace VirtualVessel.UI.Screens
         public const string SubScreenTitle = "setup.capture.subscreen.title";
         public const string Unavailable = "setup.capture.unavailable";
         public const string Capture = "setup.capture.capture";
+        public const string CaptureHelp = "setup.capture.capture.help";
         public const string Device = "setup.capture.device";
+        public const string DeviceHelp = "setup.capture.device.help";
+        public const string SubScreenDeviceHelp = "setup.capture.device.subscreen.help";
         public const string Audio = "setup.capture.audio";
-        public const string AudioDescription = "setup.capture.audio.description";
+        public const string AudioHelp = "setup.capture.audio.help";
         public const string ChooseCamera = "setup.capture.device.choose";
         public const string AutomaticMonitor = "setup.capture.device.automatic";
         public const string NoDevice = "setup.capture.device.none";
         public const string Refresh = "setup.capture.refresh";
+        public const string RefreshHelp = "setup.capture.refresh.help";
         public const string RefreshButton = "setup.capture.refresh.button";
         public const string FlipHorizontal = "setup.capture.flip.horizontal";
         public const string FlipVertical = "setup.capture.flip.vertical";
+        public const string FlipHelp = "setup.capture.flip.help";
         public const string Pointer = "setup.capture.pointer";
+        public const string PointerHelp = "setup.capture.pointer.help";
         public const string Stopped = "setup.capture.state.stopped";
         public const string Starting = "setup.capture.state.starting";
         public const string Ready = "setup.capture.state.ready";
@@ -41,7 +47,7 @@ namespace VirtualVessel.UI.Screens
         public const string ProblemInUse = "setup.capture.problem.inuse";
         public const string NoVideo = "setup.capture.preview.none";
         public const string Input = "setup.capture.input";
-        public const string InputDescription = "setup.capture.input.description";
+        public const string InputHelp = "setup.capture.input.help";
         public const string InputBoard = "setup.capture.input.board";
         public const string InputWindow = "setup.capture.input.window";
         public const string ChooseWindow = "setup.capture.device.window.choose";
@@ -128,7 +134,7 @@ namespace VirtualVessel.UI.Screens
                     _source.Stop();
                 }
             });
-            card.Add(Ui.ControlRow(CaptureStrings.Capture, Capture));
+            card.Add(Ui.ControlRow(CaptureStrings.Capture, Capture, helpKey: CaptureStrings.CaptureHelp));
 
             if (offersWindows)
             {
@@ -136,12 +142,13 @@ namespace VirtualVessel.UI.Screens
                 Input = Ui.Select(null);
                 Input.SetChoices(new[] { SelectChoice.FromKey(BoardInput, CaptureStrings.InputBoard), SelectChoice.FromKey(WindowInput, CaptureStrings.InputWindow) });
                 Input.RegisterValueChangedCallback(evt => ChooseInput(evt.newValue == WindowInput));
-                card.Add(Ui.ControlRow(CaptureStrings.Input, Input, CaptureStrings.InputDescription));
+                card.Add(Ui.ControlRow(CaptureStrings.Input, Input, helpKey: CaptureStrings.InputHelp));
             }
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => Choose(evt.previousValue, evt.newValue));
-            card.Add(Ui.ControlRow(CaptureStrings.Device, Devices));
+            // Only the game screen offers windows; the other source is the sub monitor.
+            card.Add(Ui.ControlRow(CaptureStrings.Device, Devices, helpKey: offersWindows ? CaptureStrings.DeviceHelp : CaptureStrings.SubScreenDeviceHelp));
             if (audio != null)
             {
                 card.Add(audio);
@@ -149,7 +156,7 @@ namespace VirtualVessel.UI.Screens
 
             ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
             refresh.clicked += RefreshDevices;
-            card.Add(Ui.ControlRow(CaptureStrings.Refresh, refresh));
+            card.Add(Ui.ControlRow(CaptureStrings.Refresh, refresh, helpKey: CaptureStrings.RefreshHelp));
 
             FlipHorizontal = FlipToggle(card, CaptureStrings.FlipHorizontal, CaptureFlip.Horizontal);
             FlipVertical = FlipToggle(card, CaptureStrings.FlipVertical, CaptureFlip.Vertical);
@@ -157,7 +164,7 @@ namespace VirtualVessel.UI.Screens
             {
                 Pointer = new SwitchToggle();
                 Pointer.RegisterValueChangedCallback(evt => pointer.SetDrawPointer(evt.newValue));
-                card.Add(Ui.ControlRow(CaptureStrings.Pointer, Pointer));
+                card.Add(Ui.ControlRow(CaptureStrings.Pointer, Pointer, helpKey: CaptureStrings.PointerHelp));
             }
 
             Info = new Label();
@@ -338,7 +345,7 @@ namespace VirtualVessel.UI.Screens
         {
             var toggle = new SwitchToggle();
             toggle.RegisterValueChangedCallback(evt => _source.SetFlip(evt.newValue ? _source.Flip.Value | part : _source.Flip.Value & ~part));
-            card.Add(Ui.ControlRow(nameKey, toggle));
+            card.Add(Ui.ControlRow(nameKey, toggle, helpKey: CaptureStrings.FlipHelp));
             return toggle;
         }
 

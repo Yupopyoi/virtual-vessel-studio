@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine.UIElements;
 using VirtualVessel.Audio.Clips;
 using VirtualVessel.Avatar;
@@ -64,6 +65,14 @@ namespace VirtualVessel.UI.Screens
             FillOutput(_pages[OutputPage], services);
             FillApp(_pages[AppPage], services, appSettings);
 
+            // A link per Card at the top of each page, as pages grew long (user's request, 2026-11-22).
+            foreach (VisualElement page in _pages)
+            {
+                var index = new PageIndex();
+                index.SetCards(PageIndex.CardsOf(page).ToList());
+                page.Insert(0, index);
+            }
+
             Tabs.SetValueWithoutNotify(PageOf(pageId));
             ShowPage(Tabs.value);
             Tabs.RegisterValueChangedCallback(evt =>
@@ -120,7 +129,7 @@ namespace VirtualVessel.UI.Screens
         private static void FillAvatar(VisualElement page, ScreenServices services)
         {
             IAvatarService avatars = services.Avatars;
-            AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog), AvatarStrings.Unavailable);
+            AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog, services.SampleAvatar), AvatarStrings.Unavailable);
             ICaptureDeviceSource camera = services.Captures?.Find(CaptureService.TrackingCameraId) as ICaptureDeviceSource;
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)

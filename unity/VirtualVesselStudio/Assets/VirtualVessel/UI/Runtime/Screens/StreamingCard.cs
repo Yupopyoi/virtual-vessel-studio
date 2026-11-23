@@ -19,15 +19,16 @@ namespace VirtualVessel.UI.Screens
         public const string Unavailable = "setup.streaming.unavailable";
         public const string Locked = "setup.streaming.locked";
         public const string Destination = "setup.streaming.destination";
+        public const string DestinationHelp = "setup.streaming.destination.help";
         public const string DestinationYouTube = "setup.streaming.destination.youtube";
         public const string DestinationCustom = "setup.streaming.destination.custom";
         public const string Url = "setup.streaming.url";
-        public const string UrlDescription = "setup.streaming.url.description";
+        public const string UrlHelp = "setup.streaming.url.help";
         public const string UrlPlaceholder = "setup.streaming.url.placeholder";
         public const string UrlInvalid = "setup.streaming.url.invalid";
         public const string UrlUnencrypted = "setup.streaming.url.unencrypted";
         public const string Key = "setup.streaming.key";
-        public const string KeyDescription = "setup.streaming.key.description";
+        public const string KeyHelp = "setup.streaming.key.help";
         public const string KeyRegistered = "setup.streaming.key.registered";
         public const string KeyNotRegistered = "setup.streaming.key.not-registered";
         public const string KeyRegister = "setup.streaming.key.register";
@@ -41,14 +42,14 @@ namespace VirtualVessel.UI.Screens
         public const string KeyRemoveBody = "setup.streaming.key.remove.body";
         public const string KeyRemoveConfirm = "setup.streaming.key.remove.confirm";
         public const string Codec = "setup.streaming.codec";
-        public const string CodecDescription = "setup.streaming.codec.description";
+        public const string CodecHelp = "setup.streaming.codec.help";
         public const string CodecNoAv1 = "setup.streaming.codec.no-av1";
         public const string CodecAv1 = "setup.streaming.codec.av1";
         public const string CodecH264 = "setup.streaming.codec.h264";
         public const string Bitrate = "setup.streaming.bitrate";
-        public const string BitrateDescription = "setup.streaming.bitrate.description";
+        public const string BitrateHelp = "setup.streaming.bitrate.help";
         public const string Test = "setup.streaming.test";
-        public const string TestDescription = "setup.streaming.test.description";
+        public const string TestHelp = "setup.streaming.test.help";
         public const string TestRun = "setup.streaming.test.run";
         public const string TestOk = "setup.streaming.test.ok";
     }
@@ -89,7 +90,7 @@ namespace VirtualVessel.UI.Screens
 
             Destination = Ui.Segmented(StreamingCardStrings.DestinationYouTube, StreamingCardStrings.DestinationCustom);
             Destination.RegisterValueChangedCallback(evt => _streaming.SetOptions(_streaming.Options.Value.WithDestination((StreamDestinationKind)evt.newValue)));
-            Rows.Add(AddRow(card, StreamingCardStrings.Destination, null, Destination));
+            Rows.Add(AddRow(card, StreamingCardStrings.Destination, StreamingCardStrings.DestinationHelp, Destination));
 
             Url = Ui.TextField(null);
             Url.PlaceholderKey = StreamingCardStrings.UrlPlaceholder;
@@ -97,7 +98,7 @@ namespace VirtualVessel.UI.Screens
 
             // On leaving the field, not on each key: the service tidies the URL, and rewriting the text under the caret would fight the typing.
             Url.RegisterCallback<FocusOutEvent>(_ => ApplyUrl());
-            SettingRow url = Ui.SettingRow(StreamingCardStrings.Url, StreamingCardStrings.UrlDescription);
+            SettingRow url = Ui.SettingRow(StreamingCardStrings.Url, helpKey: StreamingCardStrings.UrlHelp);
             url.TextArea.Add(Url);
             UrlNote = Note(url.TextArea);
             _urlNoteText = new KeyedText(UrlNote, text => UrlNote.text = text);
@@ -116,7 +117,7 @@ namespace VirtualVessel.UI.Screens
             keyButtons.AddToClassList(ButtonsClass);
             keyButtons.Add(RegisterButton);
             keyButtons.Add(RemoveButton);
-            SettingRow key = Ui.SettingRow(StreamingCardStrings.Key, StreamingCardStrings.KeyDescription);
+            SettingRow key = Ui.SettingRow(StreamingCardStrings.Key, helpKey: StreamingCardStrings.KeyHelp);
             key.TextArea.Add(KeyText);
             key.Add(keyButtons);
             card.Add(key);
@@ -124,17 +125,17 @@ namespace VirtualVessel.UI.Screens
 
             Codec = Ui.Segmented(StreamingCardStrings.CodecAv1, StreamingCardStrings.CodecH264);
             Codec.RegisterValueChangedCallback(evt => _streaming.SetOptions(_streaming.Options.Value.WithCodec((StreamingCodec)evt.newValue)));
-            CodecRow = AddRow(card, StreamingCardStrings.Codec, StreamingCardStrings.CodecDescription, Codec);
+            CodecRow = AddRow(card, StreamingCardStrings.Codec, StreamingCardStrings.CodecHelp, Codec);
             Rows.Add(CodecRow);
 
             Bitrate = Ui.Slider(null, MinMegabits, MaxMegabits, "Mbps");
             Bitrate.Step = MegabitStep;
             Bitrate.Decimals = 1;
             Bitrate.RegisterValueChangedCallback(evt => _streaming.SetOptions(_streaming.Options.Value.WithVideoBitrate(Bits(evt.newValue))));
-            Rows.Add(AddRow(card, StreamingCardStrings.Bitrate, StreamingCardStrings.BitrateDescription, Bitrate));
+            Rows.Add(AddRow(card, StreamingCardStrings.Bitrate, StreamingCardStrings.BitrateHelp, Bitrate));
 
             TestButton = Ui.Button(StreamingCardStrings.TestRun).Bind(new UiCommand(TestAsync));
-            SettingRow test = Ui.SettingRow(StreamingCardStrings.Test, StreamingCardStrings.TestDescription);
+            SettingRow test = Ui.SettingRow(StreamingCardStrings.Test, helpKey: StreamingCardStrings.TestHelp);
             test.Add(TestButton);
             TestResult = Note(test.TextArea);
             _testText = new KeyedText(TestResult, text => TestResult.text = text);
@@ -199,10 +200,9 @@ namespace VirtualVessel.UI.Screens
             return note;
         }
 
-        private static SettingRow AddRow(Card card, string nameKey, string descriptionKey, VisualElement control)
+        private static SettingRow AddRow(Card card, string nameKey, string helpKey, VisualElement control)
         {
-            SettingRow row = Ui.SettingRow(nameKey, descriptionKey);
-            row.Add(control);
+            SettingRow row = Ui.ControlRow(nameKey, control, helpKey: helpKey);
             card.Add(row);
             return row;
         }
@@ -293,7 +293,7 @@ namespace VirtualVessel.UI.Screens
             ShowKey(null);
             Codec.SetItemEnabled((int)StreamingCodec.Av1, options.Av1Available);
             Codec.SetValueWithoutNotify((int)options.Codec);
-            CodecRow.DescriptionKey = options.Av1Available ? StreamingCardStrings.CodecDescription : StreamingCardStrings.CodecNoAv1;
+            CodecRow.DescriptionKey = options.Av1Available ? null : StreamingCardStrings.CodecNoAv1;
             Bitrate.SetValueWithoutNotify(options.VideoBitrate / MegabitsToBits);
         }
     }

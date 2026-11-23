@@ -46,15 +46,19 @@ namespace VirtualVessel.UI.Controls
             return new Card(titleKey, alternate, collapsible);
         }
 
-        public static SettingRow SettingRow(string nameKey, string descriptionKey = null)
+        /// <summary>
+        /// A Setting Row. The description is for a note that shows only in some situations; what explains the setting
+        /// goes behind the help hint (components.md 3.9).
+        /// </summary>
+        public static SettingRow SettingRow(string nameKey, string descriptionKey = null, string helpKey = null)
         {
-            return new SettingRow(nameKey, descriptionKey);
+            return new SettingRow(nameKey, descriptionKey) { HelpKey = helpKey };
         }
 
         /// <summary>A Setting Row with its control, as most rows are made.</summary>
-        public static SettingRow ControlRow(string nameKey, VisualElement control, string descriptionKey = null)
+        public static SettingRow ControlRow(string nameKey, VisualElement control, string descriptionKey = null, string helpKey = null)
         {
-            SettingRow row = SettingRow(nameKey, descriptionKey);
+            SettingRow row = SettingRow(nameKey, descriptionKey, helpKey);
             row.Add(control);
             return row;
         }

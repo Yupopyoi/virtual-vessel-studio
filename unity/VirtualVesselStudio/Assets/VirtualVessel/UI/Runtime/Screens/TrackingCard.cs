@@ -290,16 +290,16 @@ namespace VirtualVessel.UI.Screens
                     _tracking.Stop();
                 }
             });
-            card.Add(Row(TrackingStrings.Track, Track));
+            card.Add(Row(TrackingStrings.Track, Track, TrackingStrings.TrackHelp));
 
             MirrorToggle = new SwitchToggle();
             MirrorToggle.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithMirror(evt.newValue)));
-            card.Add(Row(TrackingStrings.Mirror, MirrorToggle));
+            card.Add(Row(TrackingStrings.Mirror, MirrorToggle, TrackingStrings.MirrorHelp));
 
             // Full body is shown so users know it is coming, and cannot be chosen yet (tracking detailed design 6.5).
             Range = Ui.Segmented(TrackingStrings.RangeUpper, TrackingStrings.RangeFull);
             Range.SetItemEnabled(1, false);
-            card.Add(Row(TrackingStrings.Range, Range, TrackingStrings.RangeDescription));
+            card.Add(Row(TrackingStrings.Range, Range, TrackingStrings.RangeHelp));
 
             // A part turned off is not inferred, which lowers the load (tracking detailed design 6.5).
             FaceToggle = Ui.Toggle(TrackingStrings.Face);
@@ -313,37 +313,35 @@ namespace VirtualVessel.UI.Screens
                 parts.Add(toggle);
             }
 
-            card.Add(Row(TrackingStrings.Parts, parts, TrackingStrings.PartsDescription));
+            card.Add(Row(TrackingStrings.Parts, parts, TrackingStrings.PartsHelp));
 
             // The camera sees depth poorly; 2D keeps only what it sees well (tracking detailed design 8.6).
             Depth = Ui.Segmented(TrackingStrings.Depth3D, TrackingStrings.Depth2D);
             Depth.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithBodyDepth(evt.newValue == 1 ? BodyDepth.Flat : BodyDepth.Tracked)));
-            card.Add(Row(TrackingStrings.Depth, Depth, TrackingStrings.DepthDescription));
+            card.Add(Row(TrackingStrings.Depth, Depth, TrackingStrings.DepthHelp));
 
             // Fast and steady trade against each other; the user picks a level (tracking detailed design 8.2).
             Speed = Ui.Slider(null, SmoothingLevel.Min, SmoothingLevel.Max);
             Speed.Step = 1f;
             Speed.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithSmoothing(LevelOf(evt.newValue))));
-            card.Add(Row(TrackingStrings.Speed, Speed, TrackingStrings.SpeedDescription));
+            card.Add(Row(TrackingStrings.Speed, Speed, TrackingStrings.SpeedHelp));
 
             Model = Ui.Segmented(TrackingStrings.ModelLite, TrackingStrings.ModelFull);
             Model.RegisterValueChangedCallback(evt => _tracking.SetOptions(_tracking.Options.Value.WithPoseModel((PoseModel)evt.newValue)));
-            card.Add(Row(TrackingStrings.Model, Model, TrackingStrings.ModelDescription));
+            card.Add(Row(TrackingStrings.Model, Model, TrackingStrings.ModelHelp));
 
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => _camera.SelectDevice(string.IsNullOrEmpty(evt.newValue) ? null : evt.newValue));
-            card.Add(Row(TrackingStrings.Camera, Devices));
+            card.Add(Row(TrackingStrings.Camera, Devices, TrackingStrings.CameraHelp));
 
             ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
             refresh.clicked += RefreshDevices;
             card.Add(Row(CaptureStrings.Refresh, refresh));
         }
 
-        private static SettingRow Row(string nameKey, VisualElement control, string descriptionKey = null)
+        private static SettingRow Row(string nameKey, VisualElement control, string helpKey = null)
         {
-            SettingRow row = Ui.SettingRow(nameKey, descriptionKey);
-            row.Add(control);
-            return row;
+            return Ui.ControlRow(nameKey, control, helpKey: helpKey);
         }
     }
 }

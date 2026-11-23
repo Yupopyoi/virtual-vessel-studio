@@ -518,7 +518,7 @@ public interface IUiCommand
 | パレット | Dropdown | `ThemeAssets`のパレット名 |
 | 背景 | Segmented | ダーク、ライト |
 | UIの大きさ | Dropdown（選択肢が5個以上のため） | 100%、110%、125%、150%、175%、200% |
-| 動きを減らす | Dropdown（選択肢の文字が長いため） | Windowsの設定に合わせる、オン、オフ。説明に、Windowsの「アニメーション効果」がオフのときに止まることを書く |
+| 動きを減らす | Dropdown（選択肢の文字が長いため） | Windowsの設定に合わせる、オン（動きを減らす）、オフ。「オン」だけでは何がオンか分かりにくいため、括弧で補う（利用者の決定、2026-11-22）。Help Hintに、Windowsの「アニメーション効果」がオフのときに止まることを書く |
 | Developer Mode | Toggle | 診断の画面を表示する |
 
 - 選んだ値は`UiSettingsService`へ渡し、すぐに反映して保存する（7.9）。設定が別の場所で変わったときは、表示を`SetValueWithoutNotify`で合わせる。

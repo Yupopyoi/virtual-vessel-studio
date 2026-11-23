@@ -28,7 +28,7 @@ namespace VirtualVessel.UI.Screens
             _source = audio.Sources.First(source => source.Role == AudioSourceRole.GameAudio);
             Devices = Ui.Select(null);
             Devices.RegisterValueChangedCallback(evt => Choose(evt.newValue));
-            SettingRow row = Ui.SettingRow(CaptureStrings.Audio, CaptureStrings.AudioDescription);
+            SettingRow row = Ui.SettingRow(CaptureStrings.Audio, helpKey: CaptureStrings.AudioHelp);
             row.Add(Devices);
             Add(row);
             PanelLifetime.WhileAttached(this, Attach);

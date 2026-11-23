@@ -101,7 +101,7 @@ For each component, the following states are defined:
 - Rows are separated by a 1px divider.
 - The control fits in 260px. Segmented items have short names ("Standard", "AV1"), and anything more goes in the description. A value too long for it, such as a folder's path, goes under the description (`SettingRow.TextArea`) instead of on the right, and wraps there, so every row's control lines up.
 - Values are in Text, more readable than the description.
-- What only some need to read goes in a Help Hint after the name (3.28, `SettingRow.HelpKey`), not in more lines of description.
+- A setting is explained in a Help Hint after its name (3.28, `SettingRow.HelpKey`), not in the description line. The description line is for a note that shows in a situation (not encrypted, AV1 not available, and so on) (user decision, 2026-11-22).
 - More than one control on a row (a button and a toggle, for example) has the S space (8px) between them (`SettingRow.ControlsClass`).
 - On narrow screens the control moves below the description. The name and description keep at least 240px: UI Toolkit breaks the line by the minimum width, not by the basis alone, so without it the text was squeezed beside the control, one character a line.
 
@@ -263,11 +263,20 @@ The frame for editing the placement of a video (game screen, second monitor, and
 
 ### 3.28 Help Hint
 
-- A 16px Info icon after a name or a column heading, in Text 3, Text on hover, XS (4px) after the name.
-- Its tooltip (3.12) explains the item. It is not about an action, so it may be more than one sentence, but at most three, within the 260px width.
+- A 16px Info icon after a name, a column heading, or a slider's name (`ValueSlider.HelpKey`), in Text 3, Text on hover, XS (4px) after the name.
+- Its tooltip (3.12) explains the item. It is not about an action, so it may be more than one sentence, but at most five, within the 260px width (raised from three; user decision, 2026-11-22).
 - It takes keyboard focus, and shows the tooltip on focus too.
 - It keeps the screen short (the user's request, 2026-11-11). What the user must read to avoid a mistake (losing data, for example) is written on the screen, not hidden here.
 - Why a control is disabled goes in that control's tooltip (3.12), not in a Help Hint.
+
+### 3.29 Page Index
+
+- A row of links to a page's Cards, under the page's Tabs (3.8), using the Cards' titles. Pages had grown long and reaching a Card took effort (user's request, 2026-11-22).
+- Links look like small buttons (13px, Text 2, on Surface 2 with a 1px border and Radius Control). On hover the fill becomes Surface 3 and the text Text. They are quieter than the Tabs and look different from them, S (8px) apart.
+- Pressing one scrolls until the Card's top edge is M (16px) below the top of the screen, opening the Card if it is closed, and moves focus to the Card's title if it can take focus.
+- They take keyboard focus and are pressed with Enter or Space.
+- Not shown on a page with fewer than two Cards.
+- It scrolls with the screen (not fixed).
 
 ## 4. Adding a Component
 

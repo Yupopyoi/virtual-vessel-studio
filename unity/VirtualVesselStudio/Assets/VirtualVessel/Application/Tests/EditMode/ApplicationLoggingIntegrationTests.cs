@@ -214,6 +214,14 @@ namespace VirtualVessel.Application.Tests
             Assert.That(ApplicationComposition.GetCreditFolder(environment, dataPath), Is.EqualTo(expected));
         }
 
+        // Where build-release.ps1 puts the sample (Samples/otoha-chan.vrm), and where the repository keeps it.
+        [TestCase(RuntimeEnvironment.Editor, @"C:\repo\unity\VirtualVesselStudio\Assets", @"C:\repo\tests\samples\otoha-chan.vrm")]
+        [TestCase(RuntimeEnvironment.Player, @"C:\Apps\VirtualVesselStudio\VirtualVesselStudio_Data", @"C:\Apps\VirtualVesselStudio\Samples\otoha-chan.vrm")]
+        public void GetSampleAvatar_IsTheRepositorysCopyInTheEditor_AndTheShippedOneInABuild(RuntimeEnvironment environment, string dataPath, string expected)
+        {
+            Assert.That(ApplicationComposition.GetSampleAvatar(environment, dataPath), Is.EqualTo(expected));
+        }
+
         [Test]
         public async Task Runtime_WithRealComposition_WritesFoundationLogsToFile()
         {

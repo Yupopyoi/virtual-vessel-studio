@@ -22,10 +22,12 @@ Cardを主題ごとのページに分け、画面の上のTab（`components.md` 
 | アプリ | `setup.page.app` | アプリの設定、クレジットとライセンス（8章） |
 
 - 最後に開いたページを`ui-settings.json`の`lastSetupPage`に保存し、次はそのページを開く（UI基盤詳細設計8.1）。知らない値のときは先頭のページを開く。
+- 各ページの上に、そのページのCardへのリンク（Page Index、`components.md` 3.29）を置く（利用者の要望、2026-11-22）。
 - ページはすべて作っておき、開いているページだけを表示する。ページを切り替えても、Cardの状態は失われない。
 - トラッキング用カメラは、取り込みのCardを持たない。トラッキングのCardで選ぶ。
 - Cardは基本的に折りたたまない。ページに分けたことで、閉じて画面を短くする必要がなくなった。あまり使わない設定のCard（細かい設定など）は、どのページでも、折りたためるCard（`components.md` 3.10）にして閉じて始めてよい（利用者の決定、2026-11-03）。例外として、BGMと効果音のCard（14章）は、よく使うが一覧が長くなるため、開いて始まる折りたためるCardにする（利用者の決定、2026-11-20）。
 - 状態（Status Indicator）は、Cardのタイトル部分の右端に置く。問題の説明は本文の先頭に置く。
+- 設定の説明は、行の下に書かず、設定名の後のHelp Hint（`components.md` 3.28）に置く。初回の案内を作らないため、設定の説明はここで行う（決定記録`setup-guidance.md`）。行の下には、状況で出る注意（「rtmp:// は暗号化されません」「このPCのGPUはAV1に対応していない」など）だけを置く。表の列は、見出しの後に置く。文はstring table（`.help`で終わるキー）にあり、日本語は利用者が校正した（2026-11-22）。
 
 ## 3. 映像の取り込みのCard
 
@@ -36,7 +38,7 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 状態 | Status Indicator（`components.md` 3.13） | 状態と、問題があればその説明（6章） |
 | 映像 | 画像（256×144、16:9に収める） | 取り込んだ映像を小さく表示し、選んだ機器が合っているか確かめられるようにする。映像がないときは「映像なし」 |
 | 取り込む | Toggle | オンで開始、オフで停止。開始していたかは保存し、次の起動で戻す |
-| 入力元（ゲーム画面のみ） | Dropdown（キャプチャーボード、このPCのウィンドウ） | ゲーム画面を何から取り込むか（Capture詳細設計8.6）。「このPCのウィンドウ」では、「機器」にこのPCで開いているウィンドウを、プログラムごとに1つ（いちばん大きいもの）並べる。選んでいる機器があれば、その種類を示す。種類を変えると、ほかの種類の機器の選択を外す。説明：「このPCで動かすゲームは「このPCのウィンドウ」で取り込みます。音声も、そのゲームの音だけを取り込みます。」 |
+| 入力元（ゲーム画面のみ） | Dropdown（キャプチャーボード、このPCのウィンドウ） | ゲーム画面を何から取り込むか（Capture詳細設計8.6）。「このPCのウィンドウ」では、「機器」にこのPCで開いているウィンドウを、プログラムごとに1つ（いちばん大きいもの）並べる。選んでいる機器があれば、その種類を示す。種類を変えると、ほかの種類の機器の選択を外す。 |
 | 機器 | Dropdown | 見つかった機器。ゲーム画面は先頭に「カメラを選択」（ウィンドウでは「ゲームのウィンドウを選択」）、サブモニターは先頭に「自動（メイン以外のモニター）」。ウィンドウは「タイトル (プログラム名)」と表示する。見つからないときは「機器が見つかりません」（ウィンドウでは「ウィンドウが見つかりません」） |
 | 音声（ゲーム画面のみ） | Dropdown | ゲームの音を取り込む音声の機器（`GameAudioRow`）。音声のCard（11章）の「ゲームの音声」のデバイスと同じ設定で、どちらから変えてもよい。映像の機器を選ぶと、名前が一致する音声の機器を自動で選ぶ。ウィンドウを選ぶと、それまでの音声の機器に関わらず、そのゲームの音だけ（「game.exe の音」、Audio詳細設計8.7）を選び、ウィンドウを選んでいる間は一覧にもそれを出す。モニターへは送らない。ゲームの音はPCから直接聞こえているので、送ると二重に聞こえる。キャプチャーボードに戻すと、モニターへ送る。音声がないときは行を置かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
@@ -60,11 +62,11 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 負荷 | 説明文（等幅、Text 2） | 1秒ごと：「アプリ 60 fps · トラッキング 30 回/秒 · CPU 12% · GPU 8%」。CPUはこのアプリが全コアのうち使った割合、GPUは1Frameのうちこのアプリの描画にGPUを使った時間の割合（UnityのFrameTimingManager。分からない環境では「—」）。システム全体のGPU使用率はUnityから読めないため出さない |
 | トラッキングする | Toggle | オンで開始（カメラも開く）、オフで停止。開始していたかは保存し、次の起動で戻す |
 | 鏡写しにする | Toggle | 既定はオン。カメラの映像と点を左右反転して、鏡のように見せる。アバターも同じ設定に従う（Tracking詳細設計10章） |
-| 動かす範囲 | Segmented（上半身、全身（準備中）） | 上半身。全身はまだ選べないが、今後対応することが分かるよう、無効の色で表示する（Tracking詳細設計6.5、`components.md` 3.18）。説明：「座って配信するときの範囲です。全身はこれから対応します。」英語：Upper body、Full body (soon) |
-| 使う部分 | Toggle「顔」「体」「手」を縦に並べる | 既定はすべてオン。切った部分は推論しないため負荷が下がり、その部分は動かない（Tracking詳細設計6.5）。「手」は両手と指をまとめて切り替える。説明：「使わない部分を切ると、負荷が下がります。切った部分は動きません。」どの言語でも行のControl（最大260px）に収まるよう、縦に並べる。変えるとすぐに反映し、保存する |
-| 体の動き | Segmented（3D、2D） | 既定は3D。2Dでは、体の奥行きを使わず、正面から見た動きだけでアバターを動かす（Tracking詳細設計8.6）。説明：「2Dでは、カメラへ近づく・離れる動きを使わず、正面から見た動きだけでアバターを動かします。腕の向きが安定します。」変えるとすぐに反映し、保存する |
-| 動きの速さ | Slider（1〜10、1刻み） | 平滑化の段階（Tracking詳細設計8.2）。説明：「大きくするほど動きが速く、小さくするほど揺れが少なくなります。」既定は5（2026-10-24に段階を2つ、さらに4つずらし、遅れ300ms程度までの安定な段階を5とした）。変えるとすぐに反映し、保存する |
-| 体の検出 | Segmented（軽量、標準） | Poseのモデル（Tracking詳細設計10章）。既定は標準。説明：「軽量は負荷が下がりますが、体のとらえ方が粗くなります。変えると、数秒かけて準備し直します。」トラッキング中に変えると、新しいモデルで開始し直す。保存する。Heavy（「高精度」）は出さない。利用者のカメラでは標準より悪くなった（2026-10-26） |
+| 動かす範囲 | Segmented（上半身、全身（準備中）） | 上半身。全身はまだ選べないが、今後対応することが分かるよう、無効の色で表示する（Tracking詳細設計6.5、`components.md` 3.18）。英語：Upper body、Full body (soon) |
+| 使う部分 | Toggle「顔」「体」「手」を縦に並べる | 既定はすべてオン。切った部分は推論しないため負荷が下がり、その部分は動かない（Tracking詳細設計6.5）。「手」は両手と指をまとめて切り替える。どの言語でも行のControl（最大260px）に収まるよう、縦に並べる。変えるとすぐに反映し、保存する |
+| 体の動き | Segmented（3D、2D） | 既定は3D。2Dでは、体の奥行きを使わず、正面から見た動きだけでアバターを動かす（Tracking詳細設計8.6）。変えるとすぐに反映し、保存する |
+| 動きの速さ | Slider（1〜10、1刻み） | 平滑化の段階（Tracking詳細設計8.2）。既定は5（2026-10-24に段階を2つ、さらに4つずらし、遅れ300ms程度までの安定な段階を5とした）。変えるとすぐに反映し、保存する |
+| 体の検出 | Segmented（軽量、標準） | Poseのモデル（Tracking詳細設計10章）。既定は標準。トラッキング中に変えると、新しいモデルで開始し直す。保存する。Heavy（「高精度」）は出さない。利用者のカメラでは標準より悪くなった（2026-10-26） |
 | カメラ | Dropdown | 見つかった機器。先頭に「カメラを選択」。選ぶまでカメラは開かない |
 | 機器の一覧 | Button（Secondary）「探し直す」 | 機器の一覧を取り直す |
 
@@ -94,7 +96,7 @@ Capture Sourceごとに1枚。`ICaptureDeviceSource`（Capture）を直接表示
 | 画像 | 画像（96×96、正方形に収める） | 使うアバターのモデルに入っている画像。なければ「画像なし」 |
 | 使うアバター | Dropdown | 先頭に「なし」、続けて登録したアバターの名前。読み込めないアバターは「読み込めないアバター」。選ぶとすぐ読み込んで差し替える |
 | 形式 | 説明文（Text 2） | 「VRM 1.0」。VRM 0.xは「VRM 0.x（読み込むときに1.0へ変換）」。なければ「—」 |
-| 登録 | Button（Primary）「アバターを登録…」 | ファイルを選ぶ画面（VRMファイルだけ）を開き、確認のダイアログ（5.2）の後に登録する |
+| 登録 | Button（Primary）「アバターを登録…」、Button（Secondary）「サンプルのアバターを使う」 | 「アバターを登録…」は、ファイルを選ぶ画面（VRMファイルだけ）を開き、確認のダイアログ（5.2）の後に登録する。「サンプルのアバターを使う」は、アプリに付属のサンプル（`Samples\otoha-chan.vrm`。Editorでは`tests/samples/`）を、ファイルを選ばずに同じ確認の後で登録する。サンプルがないときは出さない（利用者の決定、2026-11-22。決定記録`setup-guidance.md`）。2つのボタンは縦に並べる。横に並べると操作部品の260pxからはみ出したため（利用者の指摘、2026-11-22） |
 | 登録の解除 | Button（Danger）「登録を解除」 | 使っているアバターの登録を解除する。Dangerの確認ダイアログ（「このアプリにコピーしたモデルを削除します。元のファイルは残ります。」）を経てから行う |
 | 利用条件（モデルの作者による） | 名前と値の行の並び（値はText 2） | モデル名、作者、アバターとして使える人、商用利用、過度な暴力表現、過度な性的表現、政治・宗教での利用、反社会的・憎悪表現、クレジット表記、再配布、改変、（VRM 0.xのみ）ライセンス名、ライセンスのURL、その他の条件のURL。ファイルに書かれていない条件は「記載なし」。`https`のURLだけ横に「開く」ボタンを置き、押したときだけブラウザで開く |
 
@@ -186,10 +188,10 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | 映像 | 画像（384×216、16:9） | 配信の映像の中央を拡大して表示する。表情を見やすくするため。映像がないときは「映像なし」 |
 | 映像の高さ | Slider（0〜100%、5%刻み）、映像の下 | アバターの枠（Stage詳細設計7.2）のどの高さを見せるか（0%が枠の下端、100%が上端）。アバターがいなければ映像全体のどの高さか。既定は85%（カメラの既定の位置で、平均的な身長のアバターの顔が入る所）。顔の位置はアバターの身長によるため、利用者が合わせる。保存はしない |
 | 拡大 | Slider（100〜400%、10%刻み）、映像の高さの下 | どれだけ拡大するか。100%でアバターの枠の高さ全体（アバターがいなければ配信の映像全体）、既定は220%。左右は枠の中央を見せる。アバターを小さく置いても、端に置いても、枠を基準にするので顔を見失わない（利用者の指摘、2026-11-19）。見せる範囲は配信の映像と同じ形で、映像の外は見せない。顔の大きさはアバターによるため、利用者が合わせる（利用者の要望、2026-10-21）。保存はしない |
-| 照明の強さ | Slider（10〜150%、5%刻み）、拡大の下 | 舞台のライトの強さ（Stage詳細設計7.1）。100%が既定。説明（Caption）：「配信の照明も変わり、保存されます。」顔が白く飛ぶときに弱める（利用者の要望、2026-10-21）。顔を見ながら変えるため、映像の横に置く（利用者の決定、2026-10-21）。Stageがないときは置かない |
-| ウインク | Toggle | 片目だけを閉じられるか。説明：「オンにすると、片目だけを閉じられるようになります。顔を向けたときなどに片目が誤って閉じる場合はオフにしてください。」既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
+| 照明の強さ | Slider（10〜150%、5%刻み）、拡大の下 | 舞台のライトの強さ（Stage詳細設計7.1）。100%が既定。配信の照明も変わり保存されることは、Help Hintで伝える。顔が白く飛ぶときに弱める（利用者の要望、2026-10-21）。顔を見ながら変えるため、映像の横に置く（利用者の決定、2026-10-21）。Stageがないときは置かない |
+| ウインク | Toggle | 片目だけを閉じられるか。既定はオフ。オフの間、「ウインクのしやすさ」は無効にする |
 | 部位ごと | Slider（50〜300%、10%刻み）と、その下の帯 | 目の閉じやすさ、ウインクのしやすさ、眉の動き（驚き・怒り・悲しみ）、口の動き、視線の動き、笑顔の強さ。100%が既定。帯は、その部位のいまのアバターの動き（0〜100%）で、約50msごとに描き直す |
-| 指の曲がり、親指の曲がり | Slider（50〜200%、10%刻み） | 指の曲がる強さ（Avatar詳細設計7.5）。100%が既定。説明（Caption）：「指が曲がりきらないときは上げ、曲がりすぎるときは下げます。手のひらを開いたときは、どの値でも開いたままです。」手は「映像の高さ」と「拡大」で見る |
+| 指の曲がり、親指の曲がり | Slider（50〜200%、10%刻み） | 指の曲がる強さ（Avatar詳細設計7.5）。100%が既定。2つのSliderに同じHelp Hintを付ける。手は「映像の高さ」と「拡大」で見る |
 | すべて既定に戻す | Button（Secondary）「既定に戻す」 | すべての部位と指を100%へ戻し、ウインクをオフにする |
 
 - 映像を左、スライダーを右に並べ、どのスライダーを動かしている間もアバターが見えるようにする。窓が狭いときは、スライダーを映像の下へ回す。
@@ -206,8 +208,8 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | 行 | 内容 |
 |---|---|
 | 保存先 | 右に「変更…」（Windowsのフォルダーを選ぶ画面）と「開く」（エクスプローラー）。フォルダーのパスは説明の下に置き、そこで折り返す（`components.md` 3.9） |
-| 画質 | Segmented：標準、高画質。ビットレート（6 Mbps、12 Mbps）は説明に書く |
-| 形式 | Segmented：AV1、H.264。AV1がおすすめであることと、H.264を選ぶときは説明に書く。GPUにAV1のエンコーダーがないときは、AV1を選べず、説明がその理由を示す（録画詳細設計18.2） |
+| 画質 | Segmented：標準、高画質。ビットレート（6 Mbps、12 Mbps）はHelp Hintに書く |
+| 形式 | Segmented：AV1、H.264。AV1がおすすめであることと、H.264を選ぶときはHelp Hintに書く。GPUにAV1のエンコーダーがないときは、AV1を選べず、行の下の説明がその理由を示す（録画詳細設計18.2） |
 | 空き容量 | 保存先のドライブの空き。Cardを表示している間、10秒ごとに読み直す |
 | 映像 | 大きさ、Frame Rate、容器（1920×1080・30 fps・MP4）。当面は変えられない |
 
@@ -219,23 +221,25 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.recording.title` | 録画 | Recording |
 | `setup.recording.unavailable` | 録画は使えません。 | Recording is not available. |
 | `setup.recording.folder` | 保存先 | Folder |
-| `setup.recording.folder.description` | 録画したファイルを保存するフォルダーです。次の録画から使われます。 | Where recordings are saved. Used from the next recording. |
+| `setup.recording.folder.help` | 録画したファイルを保存するフォルダーです。変更は次の録画から反映されます。 | Where recordings are saved. A change applies from the next recording. |
 | `setup.recording.folder.pick` | 変更… | Change… |
 | `setup.recording.folder.pick-title` | 録画の保存先を選んでください | Choose where to save recordings |
 | `setup.recording.folder.open` | 開く | Open |
 | `setup.recording.quality` | 画質 | Quality |
-| `setup.recording.quality.description` | 標準は6 Mbps、高画質は12 Mbpsです。高画質はきれいですが、ファイルが約2倍の大きさになります。 | Standard is 6 Mbps and High 12 Mbps. High looks better, and its files are about twice as large. |
+| `setup.recording.quality.help` | 標準は6 Mbps、高画質は12 Mbpsです。高画質ではきれいに映りますが、ファイルの大きさが約2倍になります。1時間の録画で、標準は約2.7 GB、高画質は約5.4 GBです。 | Standard is 6 Mbps and High 12 Mbps. High looks better, and its files are about twice as large. An hour of recording is about 2.7 GB in Standard and about 5.4 GB in High. |
 | `setup.recording.quality.standard` | 標準 | Standard |
 | `setup.recording.quality.high` | 高画質 | High |
 | `setup.recording.codec` | 形式 | Format |
-| `setup.recording.codec.description` | AV1がおすすめです。同じ画質でファイルが小さくなります。古い編集ソフトやスマートフォンで開けないときは、H.264を選んでください。 | AV1 is recommended: smaller files at the same quality. Choose H.264 if an older editor or phone cannot open the files. |
+| `setup.recording.codec.help` | AV1を推奨します。同じ画質で、ファイルが小さくなります。古い編集ソフトを使用するなどで録画ファイルを開けない場合は、H.264を選択してください。 | AV1 is recommended: smaller files at the same quality. If the files cannot be opened, for example in an older editor, choose H.264. |
 | `setup.recording.codec.no-av1` | このPCのGPUはAV1に対応していないため、H.264で録画します。 | This PC's GPU does not support AV1, so recordings use H.264. |
 | `setup.recording.codec.av1` | AV1 | AV1 |
 | `setup.recording.codec.h264` | H.264 | H.264 |
 | `setup.recording.free` | 空き容量 | Free space |
+| `setup.recording.free.help` | 保存先のドライブの空き容量です。10秒ごとに取得します。 | The free space on the folder's drive, read every 10 seconds. |
 | `setup.recording.free.value` | {size} GB | {size} GB |
 | `setup.recording.free.unknown` | わかりません | Unknown |
 | `setup.recording.format` | 映像 | Video |
+| `setup.recording.format.help` | 録画する映像の解像度とフレームレートです。 | The resolution and frame rate of the recorded video. |
 | `setup.recording.format.value` | {width}×{height}・{rate} fps・MP4 | {width}×{height}, {rate} fps, MP4 |
 
 ## 11. 音声のCard
@@ -252,7 +256,7 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | ミュート | Toggle |
 | レベル | Level Meter、-60〜0dB |
 
-行の下に、問題があるときだけ、何が起きたかと対処を出す。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」を置く。「聞く」と「ノイズ除去」の説明は、列の見出しの後のHelp Hint（components.md 3.28）に置き、表の下に文を並べない（利用者の要望、2026-11-11）。ゲームの音声の機器を「映像」のページで選ぶことは、無効にした機器の選択のツールチップで伝える。表の下に、配信・録画の音声の遅延（Slider、0〜1000ms、既定300ms。Audio詳細設計8.5）を置く。
+行の下に、問題があるときだけ、何が起きたかと対処を出す。マイクへのアクセスが許可されていないときは「マイクのプライバシー設定を開く」を置く。各列の説明は、列の見出しの後のHelp Hint（components.md 3.28）に置き、表の下に文を並べない（利用者の要望、2026-11-11）。モニターの行は、出力先の説明を行の名前の後のHelp Hintに置く。ゲームの音声の機器を「映像」のページで選ぶことは、無効にした機器の選択のツールチップで伝える。表の下に、配信・録画の音声の遅延（Slider、0〜1000ms、既定300ms。Audio詳細設計8.5）を置く。
 
 - Cardの幅が870pxより狭いときは列の見出しを隠し、行を折り返して、操作部品ごとに名前を添える。
 - Cardを表示している間、機器を5秒ごとに数え直す。
@@ -268,14 +272,18 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.audio.sound-effect` | 効果音 | Sound effects |
 | `setup.audio.source` | 音の元 | Source |
 | `setup.audio.device` | デバイス | Device |
+| `setup.audio.device.help` | 音声入力に使う機器です。なお、ゲームの音声の機器は「映像」ページで選択してください。 | The device the sound comes in from. The game audio's device is chosen on the Video page. |
 | `setup.capture.audio` | 音声 | Audio |
-| `setup.capture.audio.description` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。 | The device the game's sound comes from. Choosing a video device chooses its audio too. |
+| `setup.capture.audio.help` | ゲームの音を取り込む機器です。映像の機器を選択すると、同じ機器の音声が自動で選択されます。「音声」ページの「ゲームの音声」と同じ設定です。 | The device the game's sound comes from. Choosing a video device chooses its audio too. It is the same setting as Game audio on the Audio page. |
 | `setup.audio.device.none` | なし | None |
 | `setup.audio.device.missing` | 接続されていないデバイス | A device not connected now |
 | `setup.audio.device.application` | {name} の音 | Sound of {name} |
 | `setup.audio.gain` | 音量 | Volume |
+| `setup.audio.gain.help` | 配信と録画に入れる音量です。0 dBが元の大きさです。 | The volume in the stream and recordings. 0 dB is the original level. |
 | `setup.audio.mute` | ミュート | Mute |
+| `setup.audio.mute.help` | オンの間、その音を配信と録画に入れないようにします。 | While on, the sound is kept out of the stream and recordings. |
 | `setup.audio.level` | レベル | Level |
+| `setup.audio.level.help` | 現在の音の大きさです。メーターが右端に届く場合は、音が割れる可能性があるため、音量を下げてください。 | How loud the sound is now. If the meter reaches the right end, the sound may distort, so lower the volume. |
 | `setup.audio.state.off` | オフ | Off |
 | `setup.audio.state.starting` | 開始中 | Starting |
 | `setup.audio.state.running` | 動作中 | Running |
@@ -288,14 +296,15 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.audio.problem.failed` | デバイスを開けませんでした。もう一度選び直してください。続く場合は診断画面のログを確認してください。 | The device could not be opened. Choose it again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.audio.open-privacy` | マイクのプライバシー設定を開く | Open microphone privacy settings |
 | `setup.audio.monitored` | 聞く | Hear |
-| `setup.audio.monitored.description` | 「モニター」の出力先から聞こえます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンの使用を推奨します。 | Plays the source on the monitor output, without changing the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
+| `setup.audio.monitored.help` | 「モニター」の出力先から聞くことができます。配信と録画には影響しません。スピーカーではマイクに音が入るため、ヘッドホンの使用を推奨します。 | Lets you hear the source on the Monitor output. It does not change the stream or recordings. Headphones are recommended: speakers leak into the microphone. |
 | `setup.audio.denoise` | ノイズ除去 | Noise removal |
-| `setup.audio.denoise.description` | 話していない間の、キーボードやマウスなどの音を抑えます。声の変換を使わないときも効きます。 | Reduces keyboard, mouse, and other sounds while you are not speaking, with or without voice conversion. |
+| `setup.audio.denoise.help` | 話していない間の、キーボードやマウスなどの音を除去します。声の変換を使わない場合にも有効です。 | Removes keyboard, mouse, and other sounds while you are not speaking. It works without voice conversion too. |
 | `setup.audio.game-device` | ゲームの音声の機器は、「映像」のページで選びます。 | The game audio's device is chosen on the Video page. |
 | `setup.audio.monitor` | モニター | Monitor |
 | `setup.audio.monitor.device` | 出力先 | Output |
+| `setup.audio.monitor.help` | 自分で聞く音を出す機器です。ヘッドホンを選択することを推奨します。配信と録画には影響しません。 | The device that plays what you hear yourself. Headphones are recommended. It does not change the stream or recordings. |
 | `setup.audio.delay` | 配信・録画の音声の遅延 | Stream and recording audio delay |
-| `setup.audio.delay.description` | アバターの動きは、カメラから読み取るぶん声より遅れます。配信と録画の音声をこの分だけ遅らせて合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, since its motion is read from the camera. Streaming and recording get the sound this much later to match. What you hear is not delayed. |
+| `setup.audio.delay.help` | アバターの動きは、カメラの映像から読み取る分だけ、声より遅れます。配信と録画の音声をこの時間だけ遅らせて、動きに合わせます。自分に聞こえる音は遅れません。 | The avatar moves later than your voice, by the time it takes to read the motion from the camera. Streaming and recording get the sound this much later to match the motion. What you hear is not delayed. |
 
 ## 12. 配信のCard
 
@@ -307,15 +316,16 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.streaming.unavailable` | 配信は使えません。 | Streaming is not available. |
 | `setup.streaming.locked` | 配信中は変更できません。 | These cannot change while streaming. |
 | `setup.streaming.destination` | 配信先 | Destination |
+| `setup.streaming.destination.help` | YouTubeか、ほかのRTMP(S)のサーバーを選択します。 | Choose YouTube or another RTMP(S) server. |
 | `setup.streaming.destination.youtube` | YouTube | YouTube |
 | `setup.streaming.destination.custom` | 他のサーバー | Other server |
 | `setup.streaming.url` | サーバーのURL | Server URL |
-| `setup.streaming.url.description` | YouTubeは既定のままで使えます。rtmp:// か rtmps:// で始まるURLです。 | YouTube works with the default. The URL starts with rtmp:// or rtmps://. |
+| `setup.streaming.url.help` | YouTubeは既定のままで使用できます。ほかのサーバーでは、rtmp:// か rtmps:// で始まるURLを入力してください。 | YouTube works with the default. For another server, enter a URL that starts with rtmp:// or rtmps://. |
 | `setup.streaming.url.placeholder` | rtmps://example.com/live | rtmps://example.com/live |
 | `setup.streaming.url.invalid` | rtmp:// または rtmps:// で始まるURLを入力してください。 | Enter a URL that starts with rtmp:// or rtmps://. |
 | `setup.streaming.url.unencrypted` | rtmp:// は暗号化されません。ストリームキーも暗号化されずに送られます。rtmps:// を使用することを推奨します。 | rtmp:// is not encrypted, and neither is the stream key sent over it. rtmps:// is recommended. |
 | `setup.streaming.key` | ストリームキー | Stream key |
-| `setup.streaming.key.description` | Windowsの資格情報マネージャーに保存します。 | Saved in Windows Credential Manager. |
+| `setup.streaming.key.help` | YouTube Studioの「ライブ配信」に表示されるキーです。キーを知っている人は、このチャンネルで配信できるため、ほかの人に見せないでください。アプリはWindowsの資格情報マネージャーに保存し、登録したあとは表示しません。 | The key shown under Go live in YouTube Studio. Anyone who knows it can stream on your channel, so do not show it to others. The app saves it in Windows Credential Manager and does not show it after it is registered. |
 | `setup.streaming.key.registered` | 登録済み | Registered |
 | `setup.streaming.key.not-registered` | 未登録 | Not registered |
 | `setup.streaming.key.register` | 登録… | Register… |
@@ -329,14 +339,14 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 | `setup.streaming.key.remove.body` | 配信するには、もう一度登録が必要です。 | You will need to register it again to stream. |
 | `setup.streaming.key.remove.confirm` | 削除 | Remove |
 | `setup.streaming.codec` | 形式 | Format |
-| `setup.streaming.codec.description` | AV1を推奨します。同じビットレートできれいに映ります。配信が正常に行えない場合は、H.264を選択してください。 | AV1 is recommended: it looks better at the same bitrate. If the stream does not work properly, choose H.264. |
+| `setup.streaming.codec.help` | AV1を推奨します。同じビットレートできれいに映ります。配信が正常に行えない場合は、H.264を選択してください。 | AV1 is recommended: it looks better at the same bitrate. If the stream does not work properly, choose H.264. |
 | `setup.streaming.codec.no-av1` | このPCのGPU、または配信先がAV1に対応していないため、H.264で配信を行います。 | This PC's GPU or the destination does not support AV1, so the stream uses H.264. |
 | `setup.streaming.codec.av1` | AV1 | AV1 |
 | `setup.streaming.codec.h264` | H.264 | H.264 |
 | `setup.streaming.bitrate` | 映像のビットレート | Video bitrate |
-| `setup.streaming.bitrate.description` | 1080p 30 fpsならば、6 Mbpsを推奨します。回線の上り速度より低くしてください。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. |
+| `setup.streaming.bitrate.help` | 1080p 30 fpsの場合は、6 Mbpsを推奨します。回線の上りの速度より低くしてください。高くするほどきれいに映りますが、回線に余裕がないと配信が途切れます。 | 6 Mbps is recommended for 1080p at 30 fps. Keep it below your connection's upload speed. Higher looks better, but without room on the connection the stream breaks up. |
 | `setup.streaming.test` | 接続テスト | Connection test |
-| `setup.streaming.test.description` | サーバーに接続可能であるかを確かめます。配信は開始しません。 | Checks that the server can be reached. The stream does not start. |
+| `setup.streaming.test.help` | サーバーに接続できるかを確認します。配信は開始しません。 | Checks that the server can be reached. The stream does not start. |
 | `setup.streaming.test.run` | テスト | Test |
 | `setup.streaming.test.ok` | 接続できました。 | Connected. |
 
@@ -354,11 +364,11 @@ Cardは2枚に分け、アプリの設定のページの最後に、次の順で
 |---|---|---|
 | 声を変換する | Toggle | オフでは元の声のまま配信と録画に入る。オンにしてから声の準備ができるまでと、変換できないときは、マイクの音を入れない（Voice詳細設計12章）。その間もオンと表示し、声やGPUがなくても押せる。オフにすれば元の声に戻せるようにするためである。前回の状態を保存し、起動時に戻す。声を変えて配信する人には、起動時にオフで地声が乗るほうが重い失敗であるため（利用者の決定、2026-11-10） |
 | 声 | Select | Voice Labで作った、使える声。試作の声は開発者用なので出さない（診断画面にだけ出す）。選ぶとVoice Profileに保存する（Voice詳細設計6.2） |
-| 高さを自動で合わせる | Toggle、「測り直す」 | 説明の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
-| 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。説明は自動のオンとオフで変わる。説明の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
+| 高さを自動で合わせる | Toggle、「測り直す」 | 名前の下に「自分の声 200 Hz → この声 285 Hz（+6）」。測る前は「測定前」 |
+| 高さの調整 | Slider | -24〜+24半音。自動がオンなら自動の量に足す。Help Hintの文は自動のオンとオフで変わる。名前の下に「変換後の高さ 317 Hz（合計 +8）」（利用者の確認、2026-11-10） |
 | 声の仕上げ | Slider 4つ、「仕上げを元に戻す」 | 選んだ声の厚み、こもり、明るさ、空気感（-6〜+6 dB）。動かすとその声に保存し、配信にすぐかかる。声がないときは無効（Voice詳細設計8.6。利用者の決定、2026-11-15） |
 
-「声を変換する」の名前の後のHelp Hintに「声の変換にはGPUを使用します。」を置く（利用者の要望、2026-11-11。画面の文字を増やさない）。
+「声を変換する」のHelp Hintで、声の変換にGPUを使うことも伝える（利用者の要望、2026-11-11。画面の文字を増やさない）。
 
 - 使えるGPUがないとき：Cardの先頭に「このPCでは声の変換を使用できません」とその理由を出し、すべての行を無効にする（13.3）。
 - 声がないとき：Cardの先頭に「声がありません」と「Voice Labを開く」を出し、ほかの行を無効にする。
@@ -400,19 +410,18 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.voice.failed.body` | 元の声が流れないよう、配信と録画にマイクの音を入れていません。やり直すには、「声を変換する」をオフにしてからオンにしてください。オフのままにすると、元の声が入ります。解決しない場合は、診断画面のログを確認してください。 | Your microphone is kept out of the stream and recordings, so your own voice does not go out. To try again, turn Convert my voice off and on. Left off, your own voice goes out. If it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.failed.body-pass-through` | 配信と録画には元の声が流れています。もう一度オンにしてください。解決しない場合は、診断画面のログを確認してください。 | The stream and recordings get your own voice. Turn it on again; if it keeps happening, check the log on the Diagnostics screen. |
 | `setup.voice.enabled` | 声を変換する | Convert my voice |
-| `setup.voice.enabled.body` | オフの場合、元の声が配信と録画に入ります。オンにしてから声の準備ができるまでと、変換できないときは、マイクの音を入れません。起動時は前回の状態に戻ります。 | Off, your own voice goes to the stream and recordings. On, the microphone is kept out until the voice is ready, and whenever it cannot convert. It starts as it was last time. |
+| `setup.voice.enabled.help` | オフの場合、元の声が配信と録画に入ります。オンの場合、声の準備を進めている間と、変換に失敗したときは、マイクの音を入れません。声の変換にはGPUを使用します。 | Off, your own voice goes to the stream and recordings. On, the microphone is kept out while the voice gets ready and whenever conversion fails. Voice conversion uses the GPU. |
 | `setup.voice.voice` | 声 | Voice |
-| `setup.voice.voice.body` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
+| `setup.voice.voice.help` | Voice Labで作成した声から選択します。 | Choose from the voices made in Voice Lab. |
 | `setup.voice.auto-pitch` | 高さを自動で合わせる | Match the pitch automatically |
-| `setup.voice.auto-pitch.body` | 自分の声の高さを測定し、選択した声の高さに合わせます。 | Measures your voice and moves it to the chosen voice's pitch. |
+| `setup.voice.auto-pitch.help` | 自分の声の高さを測定し、選択した声の高さに合わせます。「測り直す」で測定をやり直せます。 | Measures your voice and moves it to the chosen voice's pitch. Measure again measures it once more. |
 | `setup.voice.pitch-match` | 自分の声 {user} → この声 {voice}（{shift}） | Your voice {user} → this voice {voice} ({shift}) |
 | `setup.voice.unmeasured` | 測定前 | not measured |
 | `setup.voice.remeasure` | 測り直す | Measure again |
 | `setup.voice.adjust` | 高さの調整 | Pitch adjustment |
-| `setup.voice.adjust.body-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
-| `setup.voice.adjust.body-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
+| `setup.voice.adjust.help-auto` | 半音単位で調整します。自動で合わせた高さに加算されます。 | In semitones, added to the automatic match. |
+| `setup.voice.adjust.help-manual` | 半音単位で調整します。男声を女声にする場合は、+12前後が目安です。 | In semitones. From a man's voice to a woman's, about +12. |
 | `setup.voice.final` | 変換後の高さ {hz}（合計 {total}） | Converted pitch {hz} (total {total}) |
-| `setup.voice.gpu` | 声の変換にはGPUを使用します。 | Voice conversion uses the GPU. |
 
 ## 14. BGMと効果音のCard
 
@@ -438,17 +447,22 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | Key | 日本語 | English |
 |---|---|---|
 | `setup.bgm.title` | BGM | BGM |
+| `setup.bgm.add.help` | WAVまたはMP3のファイルを追加します。アプリはファイルの複製をローカルに保存します。 | Adds a WAV or MP3 file. The app keeps a copy of the file on this PC. |
+| `setup.bgm.gain.help` | このBGMの音量です。再生している間も変更できます。 | This BGM's volume. It can be changed while it plays. |
 | `setup.se.title` | 効果音 | Sound effects |
+| `setup.se.add.help` | 30秒までのWAVまたはMP3のファイルを追加します。アプリはファイルの複製をローカルに保存します。 | Adds a WAV or MP3 file of up to 30 seconds. The app keeps a copy of the file on this PC. |
+| `setup.se.gain.help` | この効果音の音量です。鳴らしている間も変更できます。 | This sound effect's volume. It can be changed while it plays. |
 | `setup.clips.name` | 名前 | Name |
 | `setup.clips.length` | 長さ | Length |
 | `setup.clips.loop` | ループ | Loop |
-| `setup.clips.loop.description` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
+| `setup.clips.loop.help` | 曲の終わりで先頭に戻り、繰り返し再生します。変更は次の再生から反映されます。 | Plays again from the start at the end. A change applies from the next play. |
 | `setup.clips.gain` | 音量 | Volume |
 | `setup.clips.add` | ファイルを追加… | Add a file… |
 | `setup.clips.rename` | 名前を変更 | Rename |
 | `setup.clips.save` | 保存 | Save |
 | `setup.clips.delete` | 削除 | Delete |
-| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選んでCtrl+↑↓でも動かせます。 | Drag to reorder, or press Ctrl+Up or Ctrl+Down on the row's buttons. |
+| `setup.clips.move` | ドラッグで並べ替えます。行のボタンを選択したうえで、Ctrl+↑↓を押下しても移動可能です。 | Drag to reorder, or select one of the row's buttons and press Ctrl+Up or Ctrl+Down. |
+| `setup.bgm.move` | ドラッグで並べ替えます。行のボタンを選択したうえで、Ctrl+↑↓を押下しても移動可能です。BGMの並び順は、ライブ画面の一覧にも反映されます。 | Drag to reorder, or select one of the row's buttons and press Ctrl+Up or Ctrl+Down. The Live screen's list follows the same order. |
 | `setup.clips.name.required` | 名前を入力してください | Enter a name |
 | `setup.clips.filter` | 音声ファイル | Audio files |
 | `setup.bgm.play` | このBGMを配信と録画で再生します。 | Plays this BGM on the stream and in recordings. |
@@ -463,7 +477,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.se.empty` | 効果音はまだ登録されていません。30秒までのWAVかMP3のファイルを追加してください。 | No sound effects yet. Add a WAV or MP3 file of up to 30 seconds. |
 | `setup.se.loading` | 読み込み中です。 | Loading. |
 | `setup.se.shortcut` | ショートカット | Shortcut |
-| `setup.se.shortcut.description` | クリックしてから、割り当てるキーを押してください。<br>Ctrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。<br>Deleteキーでショートカットキーを解除できます。 | Click this, then press the keys to assign.<br>Only combinations with Ctrl, Alt, or Shift can be registered.<br>Press Delete to remove the shortcut keys. |
+| `setup.se.shortcut.help` | クリックしてから、割り当てるキーを押してください。<br>Ctrl、Alt、Shiftのいずれかとの組み合わせのみ登録可能です。<br>Deleteキーでショートカットキーを解除できます。<br>ほかのアプリを使用している間も鳴らせます。 | Click this, then press the keys to assign.<br>Only combinations with Ctrl, Alt, or Shift can be registered.<br>Press Delete to remove the shortcut keys.<br>It plays while you use other apps too. |
 | `setup.se.shortcut.none` | なし | None |
 | `setup.se.shortcut.press` | キーを押してください | Press keys |
 | `setup.se.shortcut.need-modifier` | Ctrl、Alt、Shiftのどれかと一緒に押してください。 | Press it with Ctrl, Alt, or Shift. |

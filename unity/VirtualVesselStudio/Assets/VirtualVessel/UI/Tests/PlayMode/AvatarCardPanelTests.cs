@@ -39,14 +39,24 @@ namespace VirtualVessel.UI.Tests
             _avatars = new FakeAvatars();
             _files = new FakeFiles();
             _lighting = new FakeLighting();
+            Build(sample: null);
+            yield return null;
+        }
+
+        private void Build(string sample)
+        {
+            if (_host != null)
+            {
+                Object.DestroyImmediate(_host);
+            }
+
             _host = new GameObject(nameof(AvatarCardPanelTests));
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, Lighting = _lighting }));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting }));
             _root.Shell.Open("setup");
             ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
-            yield return null;
         }
 
         [TearDown]
@@ -295,7 +305,7 @@ namespace VirtualVessel.UI.Tests
 
             _lighting.SetIntensity(1.2f);
             Assert.That(card.Light.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
-            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Not.Null, "Says the stream changes too.");
+            Assert.That(card.Light.HelpKey, Is.EqualTo(FaceTuningStrings.LightHelp), "Says the stream changes too.");
         }
 
         [Test]
@@ -304,7 +314,6 @@ namespace VirtualVessel.UI.Tests
             var card = new FaceTuningCard(_avatars, null);
 
             Assert.That(card.Light, Is.Null);
-            Assert.That(card.Q<Label>(className: FaceTuningCard.LightNoteClass), Is.Null);
         }
 
         [Test]
@@ -317,6 +326,37 @@ namespace VirtualVessel.UI.Tests
             face[FacePart.BrowDown] = 0.5f;
             Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Eyes), Is.EqualTo(0.8f));
             Assert.That(FaceTuningCard.Movement(face, FaceTuningPart.Brows), Is.EqualTo(0.5f));
+        }
+
+        [UnityTest]
+        public IEnumerator TheSample_IsRegisteredWithoutTheFileScreen_AfterItsTermsAreShown()
+        {
+            Assert.That(_root.Content.Q<AvatarCard>().SampleButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Hidden without a sample.");
+
+            Build(sample: "C:\\app\\Samples\\otoha-chan.vrm");
+            yield return null;
+            AvatarCard card = _root.Content.Q<AvatarCard>();
+            Assert.That(card.SampleButton.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+
+            // Measured on the real styles: one above the other, both inside the Card (user's report, 2026-11-22).
+            Rect register = card.RegisterButton.worldBound;
+            Rect sampleButton = card.SampleButton.worldBound;
+            Rect body = card.Q<Card>().worldBound;
+            Assert.That(sampleButton.yMin - register.yMax, Is.EqualTo(8f).Within(0.5f), "Under the register button, S (8px) apart.");
+            Assert.That(sampleButton.xMax, Is.LessThanOrEqualTo(body.xMax + 0.5f), "Not past the Card.");
+            Assert.That(sampleButton.xMax, Is.EqualTo(register.xMax).Within(0.5f), "Right-aligned like a row's control.");
+
+            Submit(card.SampleButton);
+            yield return null;
+            yield return null;
+            ConfirmDialog dialog = _root.Dialogs.Current;
+            Assert.That(dialog, Is.Not.Null, "Its terms are asked about as for any model.");
+            Submit(dialog.Confirm);
+            yield return null;
+            yield return null;
+
+            Assert.That(_avatars.Imported, Is.EqualTo(new[] { "C:\\app\\Samples\\otoha-chan.vrm" }));
+            Assert.That(_files.Opened, Is.Zero, "No file screen.");
         }
 
         [UnityTest]
@@ -437,8 +477,11 @@ namespace VirtualVessel.UI.Tests
         {
             public string Path { get; set; }
 
+            public int Opened { get; private set; }
+
             public Task<string> OpenAsync(FileDialogOptions options)
             {
+                Opened++;
                 Assert.That(options.Filters.Single().Extensions, Is.EqualTo(new[] { ".vrm" }));
                 return Task.FromResult(Path);
             }

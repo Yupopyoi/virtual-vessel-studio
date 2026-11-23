@@ -29,19 +29,18 @@ namespace VirtualVessel.UI.Screens
         public const string FailedBody = "setup.voice.failed.body";
         public const string FailedBodyPassThrough = "setup.voice.failed.body-pass-through";
         public const string Enabled = "setup.voice.enabled";
-        public const string EnabledBody = "setup.voice.enabled.body";
+        public const string EnabledHelp = "setup.voice.enabled.help";
         public const string Voice = "setup.voice.voice";
-        public const string VoiceBody = "setup.voice.voice.body";
+        public const string VoiceHelp = "setup.voice.voice.help";
         public const string AutoPitch = "setup.voice.auto-pitch";
-        public const string AutoPitchBody = "setup.voice.auto-pitch.body";
+        public const string AutoPitchHelp = "setup.voice.auto-pitch.help";
         public const string PitchMatch = "setup.voice.pitch-match";
         public const string Unmeasured = "setup.voice.unmeasured";
         public const string Remeasure = "setup.voice.remeasure";
         public const string Adjust = "setup.voice.adjust";
-        public const string AdjustBodyAuto = "setup.voice.adjust.body-auto";
-        public const string AdjustBodyManual = "setup.voice.adjust.body-manual";
+        public const string AdjustHelpAuto = "setup.voice.adjust.help-auto";
+        public const string AdjustHelpManual = "setup.voice.adjust.help-manual";
         public const string Final = "setup.voice.final";
-        public const string Gpu = "setup.voice.gpu";
     }
 
     /// <summary>
@@ -93,8 +92,7 @@ namespace VirtualVessel.UI.Screens
 
             EnabledToggle = Ui.Toggle(null);
             EnabledToggle.RegisterValueChangedCallback(evt => _voice.SetEnabled(evt.newValue));
-            _enabledRow = Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledBody, EnabledToggle);
-            _enabledRow.HelpKey = VoiceCardStrings.Gpu;
+            _enabledRow = Row(VoiceCardStrings.Enabled, VoiceCardStrings.EnabledHelp, EnabledToggle);
             card.Add(_enabledRow);
 
             VoiceChoice = Ui.Select(null);
@@ -106,7 +104,7 @@ namespace VirtualVessel.UI.Screens
                     ToneKnobs.SetTone(_voice.Tone);
                 }
             });
-            card.Add(Row(VoiceCardStrings.Voice, VoiceCardStrings.VoiceBody, VoiceChoice));
+            card.Add(Row(VoiceCardStrings.Voice, VoiceCardStrings.VoiceHelp, VoiceChoice));
 
             AutoPitchToggle = Ui.Toggle(null);
             AutoPitchToggle.RegisterValueChangedCallback(evt =>
@@ -124,7 +122,7 @@ namespace VirtualVessel.UI.Screens
             autoControls.AddToClassList(SettingRow.ControlsClass);
             autoControls.Add(remeasure);
             autoControls.Add(AutoPitchToggle);
-            SettingRow auto = Row(VoiceCardStrings.AutoPitch, VoiceCardStrings.AutoPitchBody, autoControls);
+            SettingRow auto = Row(VoiceCardStrings.AutoPitch, VoiceCardStrings.AutoPitchHelp, autoControls);
             _pitchLine = Text();
             auto.TextArea.Add(_pitchLine);
             card.Add(auto);
@@ -137,7 +135,7 @@ namespace VirtualVessel.UI.Screens
                 _voice.Semitones = evt.newValue;
                 Refresh();
             });
-            SettingRow adjust = Row(VoiceCardStrings.Adjust, VoiceCardStrings.AdjustBodyAuto, Adjustment);
+            SettingRow adjust = Row(VoiceCardStrings.Adjust, VoiceCardStrings.AdjustHelpAuto, Adjustment);
             _finalLine = Text();
             adjust.TextArea.Add(_finalLine);
             AdjustRow = adjust;
@@ -244,9 +242,9 @@ namespace VirtualVessel.UI.Screens
             return label;
         }
 
-        private SettingRow Row(string nameKey, string descriptionKey, VisualElement control)
+        private SettingRow Row(string nameKey, string helpKey, VisualElement control)
         {
-            SettingRow row = Ui.SettingRow(nameKey, descriptionKey);
+            SettingRow row = Ui.SettingRow(nameKey, helpKey: helpKey);
             row.Add(control);
             _rows.Add(row);
             return row;
@@ -325,7 +323,7 @@ namespace VirtualVessel.UI.Screens
             }
 
             EnabledToggle.SetValueWithoutNotify(ShowsOn(state, muting));
-            AdjustRow.DescriptionKey = _voice.AutoPitch ? VoiceCardStrings.AdjustBodyAuto : VoiceCardStrings.AdjustBodyManual;
+            AdjustRow.HelpKey = _voice.AutoPitch ? VoiceCardStrings.AdjustHelpAuto : VoiceCardStrings.AdjustHelpManual;
 
             ILocalizer localizer = UiServices.Find(this)?.Localizer;
             if (localizer == null)

@@ -22,4 +22,5 @@ Why the design is as it is. A detailed design (`docs/en/detailed-design/`) descr
 | [tracking-processing.md](tracking-processing.md) | Tracking detailed design chapters 8 and 9: smoothing, outlier removal, depth corrections, the reference pose, the body in 2D, and background removal |
 | [recording.md](recording.md) | Recording detailed design chapters 1, 5.1, and 10: AV1 by default and H.264 as the fallback, the H.264 profile, and the color tags |
 | [youtube-integration.md](youtube-integration.md) | System design 10.11: why integration through the YouTube API (sign-in, showing comments) is on hold, and the groundwork for building it later |
+| [setup-guidance.md](setup-guidance.md) | System design 14.32: why there is no first-run guide screen, and the settings screen's help explains instead |
 | [voice-conversion.md](voice-conversion.md) | Voice and Voice Lab detailed design: prototype measurements, activation, licenses, swapping weights |

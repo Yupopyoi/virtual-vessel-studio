@@ -431,9 +431,16 @@ namespace VirtualVessel.Application.Startup
                 TrackingRecordings = built.Recordings,
                 Avatars = built.Avatar,
                 FileDialog = new WindowsFileDialog(),
+                SampleAvatar = ExistingOrNull(GetSampleAvatar(context.Environment, UnityEngine.Application.dataPath)),
                 Credits = CreateCreditFiles(context.Environment, UnityEngine.Application.dataPath, built.Log("UI", "Credits")),
                 Lighting = built.Stage,
             };
+        }
+
+        // A clone without the sample (or a package built without it) shows no sample button.
+        private static string ExistingOrNull(string path)
+        {
+            return File.Exists(path) ? path : null;
         }
 
         // Voice Lab's preparation (Voice Lab detailed design 8.1): its scripts, the shared models' folder in the Data

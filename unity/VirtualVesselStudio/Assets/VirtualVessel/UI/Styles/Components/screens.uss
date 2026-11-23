@@ -333,6 +333,24 @@
     overflow: hidden;
 }
 
+/* Register and the sample, one above the other, at the right like any row's control. */
+.vv-avatar-card__register-buttons {
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+/* S between the buttons (user's report, 2026-11-22: they touched). USS has no :first-child, and a rule using it reached
+   every button, so each button gets the space above it and the column is pulled up by the same amount. The buttons are
+   named by their class: a rule with the universal selector (*) did not reach them. */
+.vv-avatar-card .vv-avatar-card__register-buttons {
+    /* -S: USS has no calc(). */
+    margin-top: -8px;
+}
+
+.vv-avatar-card__register-buttons > .vv-button {
+    margin-top: var(--vv-space-s);
+}
+
 .vv-avatar-card__license-title {
     margin-top: var(--vv-space-m);
     color: var(--vv-color-text);
@@ -404,14 +422,6 @@
 
 .vv-face-card__picture > .vv-slider {
     margin-top: var(--vv-space-s);
-}
-
-/* The stage light changes the stream too; the note under its slider says so. */
-.vv-face-card__light-note,
-.vv-face-card__fingers-note {
-    margin-top: var(--vv-space-xs);
-    white-space: normal;
-    color: var(--vv-color-text-2);
 }
 
 /* The frame the enlarged stream is seen through; the image inside is placed by the Card. */
