@@ -336,7 +336,7 @@ namespace VirtualVessel.UI.Screens
 
             ActionButton refresh = Ui.Button(CaptureStrings.RefreshButton);
             refresh.clicked += RefreshDevices;
-            card.Add(Row(CaptureStrings.Refresh, refresh));
+            card.Add(Row(CaptureStrings.Refresh, refresh, TrackingStrings.RefreshHelp));
         }
 
         private static SettingRow Row(string nameKey, VisualElement control, string helpKey = null)

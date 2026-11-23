@@ -563,17 +563,17 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.temperature.help` | 白い光の色合いです。小さくするほど暖かい色（電球の色）に、大きくするほど冷たい色になります。6500 Kが昼の光です。 | The shade of the white light. Lower is warmer, like a light bulb; higher is cooler. 6500 K is daylight. |
 | `setup.lighting.white-only` | 色が「白」のときに使います。 | Used when the color is White. |
 | `setup.lighting.code` | カラーコード | Color code |
-| `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。入力したあと、Enterキーを押すか、ほかの場所をクリックすると反映されます。 | Enter the light's color like "#FF88CC". It applies when you press Enter or click elsewhere. |
+| `setup.lighting.code.help` | 光の色を「#FF88CC」のような形で入力します。 | Enter the light's color like "#FF88CC". |
 | `setup.lighting.code.invalid` | 「#」と6桁の英数字（0〜9、A〜F）で入力してください。 | Enter # and six characters from 0–9 and A–F. |
 | `setup.lighting.channels` | 色の指定 | Color by |
-| `setup.lighting.channels.help` | 下のスライダーで、色をRGBとHSVのどちらで決めるかを選びます。 | Choose whether the sliders below set the color as RGB or HSV. |
+| `setup.lighting.channels.help` | RGBとHSVのどちらで指定するかを選択します。 | Choose whether to set the color as RGB or HSV. |
 | `setup.lighting.channels.rgb` | RGB | RGB |
 | `setup.lighting.channels.hsv` | HSV | HSV |
 | `setup.lighting.hsv.h` | H | H |
 | `setup.lighting.hsv.s` | S | S |
 | `setup.lighting.hsv.v` | V | V |
-| `setup.lighting.hsv.help` | 光の色を、色相（H、0〜360°）、彩度（S、0〜100%）、明度（V、0〜100%）で決めます。 | Sets the light's color by hue (H, 0–360°), saturation (S, 0–100%), and value (V, 0–100%). |
-| `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で決めます。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
+| `setup.lighting.hsv.help` | 光の色を、色相（H、0〜360°）、彩度（S、0〜100%）、明度（V、0〜100%）で指定します。 | Sets the light's color by hue (H, 0–360°), saturation (S, 0–100%), and value (V, 0–100%). |
+| `setup.lighting.rgb.help` | 光の色を、赤（R）、緑（G）、青（B）の強さ（0〜255）で指定します。 | Sets the light's color by how much red (R), green (G), and blue (B) it has, from 0 to 255. |
 | `setup.lighting.rgb.r` | R | R |
 | `setup.lighting.rgb.g` | G | G |
 | `setup.lighting.rgb.b` | B | B |
@@ -585,7 +585,7 @@ GPUが足りないPCでは、この機能を使うべきでない（利用者の
 | `setup.lighting.reset.button` | 既定に戻す | Reset |
 | `setup.lighting.tab.placement` | 配置 | Placement |
 | `setup.lighting.tab.stream` | 配信の映像 | Stream |
-| `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイールで寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
+| `setup.lighting.view.help` | 番号の印をドラッグすると、ライトが顔を向いたまま動きます。何もない所をドラッグすると視点が回り、ホイール操作で寄ったり引いたりできます。Shiftを押しながらドラッグすると、見る中心が動きます。ダブルクリックで視点が戻ります。 | Drag a numbered marker to move its light; it keeps facing the face. Drag elsewhere to turn the view, and use the wheel to zoom. Drag with Shift to move the center of the view. Double-click to reset the view. |
 | `setup.lighting.invert-x` | 左右を反転 | Reverse left and right |
 | `setup.lighting.invert-y` | 上下を反転 | Reverse up and down |
 | `setup.lighting.invert.help` | 何もない所をドラッグしたときに、視点が回る向きを反転します。 | Reverses which way the view turns when you drag on empty space. |
