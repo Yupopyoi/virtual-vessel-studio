@@ -135,6 +135,11 @@
     width: 56px;
 }
 
+/* Wide enough for "ミュート" and its help hint, which ran over the level's heading in the toggle column (2026-11-23). */
+.vv-audio-card__cell--mute {
+    width: 88px;
+}
+
 /* The Voice Card's values and notes under a row's description (setup.md 13). */
 .vv-voice-settings__note {
     margin-top: 2px;
@@ -143,8 +148,9 @@
 }
 
 /* Wider than the other toggles' columns, for its heading and help hint. */
+/* Wide enough for "Noise removal" and its help hint (2026-11-23). */
 .vv-audio-card__cell--denoise {
-    width: 96px;
+    width: 120px;
 }
 
 /* A heading, or a control's name, with its help hint after it. */

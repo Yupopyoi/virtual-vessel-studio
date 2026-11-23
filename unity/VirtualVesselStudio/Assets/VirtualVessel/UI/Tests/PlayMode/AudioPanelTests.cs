@@ -596,6 +596,20 @@ namespace VirtualVessel.UI.Tests
                 _delay.Set(delay);
             }
 
+            private readonly ObservableValue<BgmMixOptions> _bgmMix = new ObservableValue<BgmMixOptions>(BgmMixOptions.Default);
+
+            public IReadOnlyObservable<BgmMixOptions> BgmMix => _bgmMix;
+
+            public void SetBgmMix(BgmMixOptions options)
+            {
+                _bgmMix.Set(options);
+            }
+
+            /// <summary>Set by a test, as the engine would every tenth of a second.</summary>
+            public ObservableValue<bool> DuckingNow { get; } = new ObservableValue<bool>(false);
+
+            public IReadOnlyObservable<bool> Ducking => DuckingNow;
+
             public void RefreshDevices()
             {
             }

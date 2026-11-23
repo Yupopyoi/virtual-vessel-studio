@@ -256,6 +256,15 @@ namespace vv::audio
         }
     }
 
+    void Mixer::SetDucking(int key, int ducked, bool enabled, float depthDb, float thresholdDb)
+    {
+        _duckKey = key;
+        _duckTarget = ducked;
+        _duckDepth = DbToLinear(depthDb > 0.0f ? 0.0f : depthDb);
+        _duckThreshold = DbToLinear(thresholdDb > 0.0f ? 0.0f : thresholdDb);
+        _duckEnabled = enabled;
+    }
+
     void Mixer::SetSend(int id, int bus, float sendDb)
     {
         if (!Used(id))
@@ -346,20 +355,34 @@ namespace vv::audio
             }
         }
 
-        for (Slot& slot : _slots)
+        // Ducking from the voice's level in the block before: the sources are mixed in a fixed order, so the voice
+        // may come after the source it lowers. 10 ms is not a delay one can hear (BGM and SE detailed design 8.4).
+        int duckKey = _duckKey.load();
+        int duckTarget = _duckTarget.load();
+        _duck = Duck(_duck, _duckKeyPeak, _duckThreshold.load(), _duckDepth.load(), _duckEnabled.load() && Used(duckKey) && Used(duckTarget));
+        _duckApplied = _duck.gain;
+        _duckKeyPeak = 0.0f;
+
+        for (int index = 0; index < MaxSources; index++)
         {
+            Slot& slot = _slots[index];
             if (!slot.used || !ReadSource(slot))
             {
                 continue;
             }
 
             // The meter shows the level after the gain and before mute, so a muted microphone still shows it hears.
-            float gain = slot.gain.load();
+            // A ducked source's meter shows it lowered.
+            float gain = slot.gain.load() * (index == duckTarget ? _duck.gain : 1.0f);
             bool muted = slot.muted.load();
             float output = muted ? 0.0f : slot.send.load();
             float monitor = muted ? 0.0f : slot.monitorSend.load();
             float peak = ApplyRamp(_scratch.data(), BlockFrames, Channels, slot.appliedGain, gain);
             RaisePeak(slot.peak, peak);
+            if (index == duckKey && !muted)
+            {
+                _duckKeyPeak = peak;
+            }
             slot.appliedGain = gain;
             if (monitor > 0.0f || slot.appliedMonitor > 0.0f)
             {

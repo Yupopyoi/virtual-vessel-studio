@@ -498,8 +498,29 @@ namespace VirtualVessel.Audio.Tests
             }
         }
 
-        private sealed class FakePlayerEngine : IAudioEngine, IAudioPlayerEngine
+        internal sealed class FakePlayerEngine : IAudioEngine, IAudioPlayerEngine, IAudioMixEngine
         {
+            public (int Key, int Ducked, bool Enabled, float DepthDb, float ThresholdDb) Ducking { get; private set; }
+
+            public TimeSpan Crossfade { get; private set; }
+
+            public float DuckingDb { get; set; }
+
+            public void SetDucking(int keySource, int duckedSource, bool enabled, float depthDb, float thresholdDb)
+            {
+                Ducking = (keySource, duckedSource, enabled, depthDb, thresholdDb);
+            }
+
+            public float GetDuckingDb()
+            {
+                return DuckingDb;
+            }
+
+            public void SetBgmCrossfade(TimeSpan length)
+            {
+                Crossfade = length;
+            }
+
             public List<AudioPlayer> Players { get; } = new List<AudioPlayer>();
 
             public Dictionary<int, string> Devices { get; } = new Dictionary<int, string>();
@@ -645,7 +666,7 @@ namespace VirtualVessel.Audio.Tests
             }
         }
 
-        private sealed class ManualClock : IMonotonicClock
+        internal sealed class ManualClock : IMonotonicClock
         {
             private long _now = 1_000_000;
 

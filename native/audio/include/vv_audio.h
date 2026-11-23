@@ -34,7 +34,9 @@ extern "C"
 //     a file (vv_audio_probe_file).
 // 12: a program's sound as a source's device: vv_audio_set_device takes "app:<file name>", such as
 //     "app:game.exe" (audio detailed design 8.7).
-#define VV_AUDIO_API_VERSION 12
+// 13: a crossfade when switching BGM (vv_audio_bgm_set_crossfade) and ducking (vv_audio_set_ducking,
+//     vv_audio_get_ducking) (BGM and SE detailed design 8.4, 8.5).
+#define VV_AUDIO_API_VERSION 13
 
 #define VV_AUDIO_OK 0
 #define VV_AUDIO_INVALID_ARGUMENT (-1)
@@ -238,6 +240,17 @@ VV_AUDIO_API int32_t vv_audio_bgm_stop(vv_audio_engine* engine);
 // The track's own volume, apart from the BGM source's: applied at once, without a click.
 VV_AUDIO_API int32_t vv_audio_bgm_set_gain(vv_audio_engine* engine, float gain_db);
 VV_AUDIO_API int32_t vv_audio_bgm_get_status(vv_audio_engine* engine, vv_audio_bgm_status* status);
+
+// How long a switch to another track while one plays takes, the old coming down as the new comes up; up to 5000.
+// 0 switches as before. It applies from the next switch; stopping is not changed.
+VV_AUDIO_API int32_t vv_audio_bgm_set_crossfade(vv_audio_engine* engine, int32_t milliseconds);
+
+// Lowers ducked_source by depth_db (negative) while key_source's level, after its gain and mute, is at or above
+// threshold_db (dBFS), and brings it back after the level falls below. enabled 0 turns it off.
+VV_AUDIO_API int32_t vv_audio_set_ducking(vv_audio_engine* engine, int32_t key_source, int32_t ducked_source, int32_t enabled, float depth_db, float threshold_db);
+
+// How far the ducked source is lowered now, in dB: 0 when it is not.
+VV_AUDIO_API int32_t vv_audio_get_ducking(vv_audio_engine* engine, float* gain_db);
 
 // SE: decoded whole when loaded (from any thread but the mix's), then played at once, overlapping.
 #define VV_AUDIO_MAX_EFFECT_SECONDS 30

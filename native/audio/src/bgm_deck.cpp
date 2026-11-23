@@ -15,12 +15,13 @@ namespace vv::audio
         constexpr size_t RingFrames = 131072;
         constexpr size_t AheadFrames = 72000;
 
-        // How long a switch waits for the mix to fade out what plays; the mix stops only with the engine.
-        constexpr auto FadeWait = std::chrono::seconds(2);
+        // How long a switch waits for the mix to fade out what plays, beyond the fade itself; the mix stops only with
+        // the engine.
+        constexpr auto FadeWaitMargin = std::chrono::seconds(2);
     }
 
-    BgmDeck::BgmDeck(Opener opener)
-        : _opener(std::move(opener)), _ring(RingFrames)
+    BgmDeck::BgmDeck(Opener opener, std::shared_ptr<std::atomic<int64_t>> generations)
+        : _opener(std::move(opener)), _ring(RingFrames), _generations(generations ? std::move(generations) : std::make_shared<std::atomic<int64_t>>(0))
     {
         _thread = std::thread([this] { Run(); });
     }
@@ -39,13 +40,17 @@ namespace vv::audio
         }
     }
 
-    int64_t BgmDeck::Play(const std::wstring& path, bool loop, float gainDb)
+    int64_t BgmDeck::Play(const std::wstring& path, bool loop, float gainDb, int fadeInFrames)
     {
         SetGain(gainDb);
+
+        // What plays here now comes down quickly, so the new track does not wait for a long fade (8.5).
+        _fadeOutFrames = FadeOutFrames;
+        _fadeInFrames = fadeInFrames > 0 ? fadeInFrames : 1;
         int64_t generation = 0;
         {
             std::lock_guard<std::mutex> guard(_lock);
-            generation = ++_nextGeneration;
+            generation = ++*_generations;
             _request = Request{ true, path, loop, generation };
             _pending = true;
         }
@@ -56,8 +61,9 @@ namespace vv::audio
         return generation;
     }
 
-    void BgmDeck::Stop()
+    void BgmDeck::Stop(int fadeOutFrames)
     {
+        _fadeOutFrames = fadeOutFrames > 0 ? fadeOutFrames : 1;
         {
             std::lock_guard<std::mutex> guard(_lock);
             _request = Request{};
@@ -70,6 +76,12 @@ namespace vv::audio
     void BgmDeck::SetGain(float gainDb)
     {
         _trackGain = DbToLinear(ClampGainDb(gainDb));
+    }
+
+    bool BgmDeck::Busy() const
+    {
+        BgmState state = static_cast<BgmState>(_state.load());
+        return state == BgmState::Starting || state == BgmState::Playing || state == BgmState::Stopping;
     }
 
     BgmStatus BgmDeck::Status() const
@@ -112,7 +124,7 @@ namespace vv::audio
 
         bool fading = phase == static_cast<int32_t>(Phase::FadingOut);
         float target = fading ? 0.0f : _trackGain.load();
-        float step = 1.0f / static_cast<float>(fading ? FadeOutFrames : FadeInFrames);
+        float step = 1.0f / static_cast<float>(fading ? _fadeOutFrames.load() : _fadeInFrames.load());
         for (int i = 0; i < BlockFrames; i++)
         {
             _gain = _gain < target ? (_gain + step < target ? _gain + step : target) : (_gain - step > target ? _gain - step : target);
@@ -211,7 +223,8 @@ namespace vv::audio
         _state = static_cast<int32_t>(BgmState::Stopping);
         _drained.store(false, std::memory_order_release);
         _phase.store(static_cast<int32_t>(Phase::FadingOut), std::memory_order_release);
-        auto until = std::chrono::steady_clock::now() + FadeWait;
+        auto fade = std::chrono::milliseconds((static_cast<int64_t>(_fadeOutFrames.load()) * 1000) / SampleRate);
+        auto until = std::chrono::steady_clock::now() + fade + FadeWaitMargin;
         while (!_drained.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < until)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));

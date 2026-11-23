@@ -5,7 +5,9 @@
 #include "vv_audio.h"
 
 #include "audio_file.h"
+#include "bgm_crossfade.h"
 #include "bgm_deck.h"
+#include "dsp.h"
 #include "clip_convert.h"
 #include "clip_source.h"
 #include "mixer.h"
@@ -365,6 +367,197 @@ namespace
         vv_audio_destroy(engine);
     }
 
+    // Ducking (BGM and SE detailed design 8.4): the pure steps, then in the mixer.
+    void DuckSteps()
+    {
+        float depth = DbToLinear(-12.0f);
+        float threshold = DbToLinear(-40.0f);
+        DuckState state;
+        for (int i = 0; i < 20; i++)
+        {
+            state = Duck(state, 0.5f, threshold, depth, true);
+        }
+
+        Check(std::fabs(state.gain - depth) < 0.01f, "a voice lowers it within 0.2 s");
+        for (int i = 0; i < DuckHoldBlocks - 1; i++)
+        {
+            state = Duck(state, 0.0f, threshold, depth, true);
+        }
+
+        Check(std::fabs(state.gain - depth) < 0.01f, "it stays down between words");
+        for (int i = 0; i < 300; i++)
+        {
+            state = Duck(state, 0.0f, threshold, depth, true);
+        }
+
+        Check(state.gain > 0.99f, "and comes back after");
+        DuckState quiet = Duck(DuckState{}, DbToLinear(-50.0f), threshold, depth, true);
+        Check(quiet.gain == 1.0f, "a voice under the threshold lowers nothing");
+        DuckState off = Duck(DuckState{ depth, DuckHoldBlocks }, 0.5f, threshold, depth, false);
+        Check(off.gain > depth && off.hold == 0, "turned off, it comes back");
+        float step = Duck(DuckState{}, 0.5f, threshold, depth, true).gain;
+        Check(step < 1.0f && step > depth, "it moves smoothly, not at once");
+    }
+
+    class Level final : public BlockProvider
+    {
+    public:
+        explicit Level(float value)
+            : Value(value)
+        {
+        }
+
+        bool ReadBlock(float* block) override
+        {
+            std::fill(block, block + (static_cast<size_t>(BlockFrames) * Channels), Value);
+            return true;
+        }
+
+        float Value;
+    };
+
+    void MixerDucking()
+    {
+        Mixer mixer(SampleRate);
+        int music = -1;
+        int voice = -1;
+        int effects = -1;
+        mixer.Add(&music);
+        mixer.Add(&voice);
+        mixer.Add(&effects);
+        Level bgm(0.25f);
+        Level talk(0.0f);
+        Level se(0.25f);
+        mixer.SetProvider(music, &bgm);
+        mixer.SetProvider(voice, &talk);
+        mixer.SetProvider(effects, &se);
+        mixer.SetDucking(voice, music, true, -12.0f, -40.0f);
+        int64_t at = 0;
+        auto mix = [&mixer, &at](int blocks)
+        {
+            for (int i = 0; i < blocks; i++)
+            {
+                mixer.MixBlock(at);
+                at += BlockFrames;
+            }
+        };
+
+        mix(10);
+        mixer.TakeCounters(music);
+        mix(1);
+        Check(std::fabs(mixer.TakeCounters(music).peak - 0.25f) < 1e-4f, "without a voice, BGM is as it is");
+
+        talk.Value = 0.3f;
+        mix(30);
+        mixer.TakeCounters(music);
+        mixer.TakeCounters(effects);
+        mix(1);
+        Check(std::fabs(mixer.TakeCounters(music).peak - (0.25f * DbToLinear(-12.0f))) < 0.003f, "while talking, BGM is lowered 12 dB");
+        Check(std::fabs(mixer.TakeCounters(effects).peak - 0.25f) < 1e-4f, "and sound effects are not");
+        Check(std::fabs(mixer.DuckGainDb() + 12.0f) < 0.3f, "how far it is lowered is read back");
+
+        // A muted microphone is not a voice.
+        mixer.SetGain(voice, 0.0f, true);
+        mix(DuckHoldBlocks + 300);
+        Check(mixer.DuckGainDb() > -0.2f, "muted, BGM comes back");
+
+        mixer.SetGain(voice, 0.0f, false);
+        mixer.SetDucking(voice, music, false, -12.0f, -40.0f);
+        mix(300);
+        Check(mixer.DuckGainDb() > -0.2f, "turned off, nothing is lowered");
+    }
+
+    BgmDeck::Opener ByName()
+    {
+        return [](const std::wstring& path, HRESULT& result) -> std::unique_ptr<ClipSource>
+        {
+            result = S_OK;
+            float value = path == L"a" ? 0.5f : (path == L"b" ? 0.25f : 0.125f);
+            return std::make_unique<SteadySource>(value, SampleRate * 20);
+        };
+    }
+
+    std::vector<float> ReadFor(BgmCrossfader& decks, int blocks)
+    {
+        std::vector<float> out;
+        std::vector<float> block(static_cast<size_t>(BlockFrames) * Channels);
+        for (int b = 0; b < blocks; b++)
+        {
+            if (!decks.ReadBlock(block.data()))
+            {
+                std::fill(block.begin(), block.end(), 0.0f);
+            }
+
+            for (int i = 0; i < BlockFrames; i++)
+            {
+                out.push_back(block[static_cast<size_t>(i) * Channels]);
+            }
+
+            // About real time, so the decks' threads keep up and take their requests as they would.
+            std::this_thread::sleep_for(std::chrono::milliseconds(b % 2 == 0 ? 10 : 9));
+        }
+
+        return out;
+    }
+
+    // The crossfade (BGM and SE detailed design 8.5).
+    void Crossfade()
+    {
+        BgmCrossfader decks(ByName());
+        decks.SetCrossfade(SampleRate / 2);
+        decks.Play(L"a", true, 0.0f);
+        ReadFor(decks, 20);
+        int64_t second = decks.Play(L"b", true, 0.0f);
+        std::vector<float> out = ReadFor(decks, 90);
+        bool together = false;
+        for (float v : out)
+        {
+            together = together || (v > 0.3f && v < 0.45f);
+        }
+
+        Check(together, "the two tracks are heard together while they cross");
+        Check(std::fabs(out.back() - 0.25f) < 1e-4f, "and only the new one after");
+        Check(LargestStep(out, 0, out.size()) < 0.001f, "without a click");
+        Check(decks.Status().generation == second && decks.Status().state == BgmState::Playing, "the status is the new track's");
+
+        // Twice within the length: the third track does not wait for the first's long fade.
+        decks.SetCrossfade(SampleRate);
+        decks.Play(L"a", true, 0.0f);
+        ReadFor(decks, 10);
+        int64_t third = decks.Play(L"c", true, 0.0f);
+        std::vector<float> later = ReadFor(decks, 160);
+        Check(std::fabs(later.back() - 0.125f) < 1e-4f, "two switches in a row end on the last track");
+        Check(decks.Status().generation == third, "which the status names");
+
+        // Stopping is not a crossfade.
+        decks.Stop();
+        ReadFor(decks, 50);
+        Check(decks.Status().state == BgmState::Idle, "stopping stops both");
+        Check(!BgmCrossfader::Crossfades(false, SampleRate) && !BgmCrossfader::Crossfades(true, 0) && BgmCrossfader::Crossfades(true, 1), "only a switch while playing crossfades");
+
+        // A length of 0 switches as one deck does: the old one goes before the new one comes.
+        BgmCrossfader single(ByName());
+        single.Play(L"a", true, 0.0f);
+        ReadFor(single, 20);
+        single.Play(L"b", true, 0.0f);
+        std::vector<float> plain = ReadFor(single, 60);
+        float lowest = *std::min_element(plain.begin(), plain.end());
+        Check(lowest < 0.01f, "with no crossfade, there is silence between the two");
+        Check(std::fabs(plain.back() - 0.25f) < 1e-4f, "and the new one plays");
+
+        // Through the engine.
+        vv_audio_engine* engine = nullptr;
+        vv_audio_create(&engine);
+        Check(vv_audio_bgm_set_crossfade(engine, -1) == VV_AUDIO_INVALID_ARGUMENT, "a negative length is refused");
+        Check(vv_audio_bgm_set_crossfade(engine, 2000) == VV_AUDIO_OK, "a length is set before the BGM source");
+        int32_t bgm = -1;
+        vv_audio_add_player_source(engine, VV_AUDIO_PLAYER_BGM, &bgm);
+        Check(vv_audio_set_ducking(engine, 15, bgm, 1, -12.0f, -40.0f) == VV_AUDIO_NOT_FOUND, "ducking needs both sources");
+        float gain = 1.0f;
+        Check(vv_audio_get_ducking(engine, &gain) == VV_AUDIO_OK && gain == 0.0f, "and lowers nothing until set");
+        vv_audio_destroy(engine);
+    }
+
     std::wstring WriteWav(const wchar_t* name, int rate, int channels, int frames, float frequency)
     {
         std::vector<int16_t> pcm(static_cast<size_t>(frames) * channels);
@@ -468,6 +661,9 @@ int main()
     Step("failure", Failure);
     Step("effects", Effects);
     Step("a player in the mixer", MixerSource);
+    Step("ducking's steps", DuckSteps);
+    Step("ducking in the mixer", MixerDucking);
+    Step("crossfade", Crossfade);
     Step("files", Files);
     std::printf(s_failures == 0 ? "PASS\n" : "FAIL (%d)\n", s_failures);
     return s_failures == 0 ? 0 : 1;

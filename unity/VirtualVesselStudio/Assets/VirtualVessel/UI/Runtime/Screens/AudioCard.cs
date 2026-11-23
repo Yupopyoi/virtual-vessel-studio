@@ -116,6 +116,7 @@ namespace VirtualVessel.UI.Screens
         public const string DeviceColumn = CellClass + "--device";
         public const string GainColumn = CellClass + "--gain";
         public const string ToggleColumn = CellClass + "--toggle";
+        public const string MuteColumn = CellClass + "--mute";
         public const string DenoiseColumn = CellClass + "--denoise";
         public const string HelpCellClass = CellClass + "--help";
         public const string LevelColumn = CellClass + "--level";

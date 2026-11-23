@@ -105,10 +105,10 @@ namespace VirtualVessel.Audio
     /// <c>VirtualVessel.Audio.Native</c> (native/audio/include/vv_audio.h): WASAPI capture, the mix, and the
     /// stream tap, on threads of its own. Calls come from the main thread.
     /// </summary>
-    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine, IAudioPlayerEngine
+    public sealed class NativeAudioEngine : IAudioEngine, IAudioStageEngine, IAudioPreviewEngine, IAudioPlayerEngine, IAudioMixEngine
     {
         private const string Library = "VirtualVessel.Audio.Native";
-        private const int ApiVersion = 12;
+        private const int ApiVersion = 13;
         private const int ReaderRecording = 0;
         private const int ReaderStreaming = 1;
         private const int Ok = 0;
@@ -250,6 +250,21 @@ namespace VirtualVessel.Audio
             return vv_audio_bgm_get_status(_engine, out BgmStatus status) == Ok
                 ? new BgmEngineStatus((BgmEngineState)status.State, status.Error, status.Generation, status.FinishedGeneration, status.PlayedFrames, status.LengthFrames, status.Underruns)
                 : default;
+        }
+
+        public void SetDucking(int keySource, int duckedSource, bool enabled, float depthDb, float thresholdDb)
+        {
+            vv_audio_set_ducking(_engine, keySource, duckedSource, enabled ? 1 : 0, depthDb, thresholdDb);
+        }
+
+        public float GetDuckingDb()
+        {
+            return vv_audio_get_ducking(_engine, out float gainDb) == Ok ? gainDb : 0f;
+        }
+
+        public void SetBgmCrossfade(TimeSpan length)
+        {
+            vv_audio_bgm_set_crossfade(_engine, (int)Math.Round(Math.Max(0, length.TotalMilliseconds)));
         }
 
         public AudioEffectLoad LoadEffect(string path)
@@ -557,6 +572,15 @@ namespace VirtualVessel.Audio
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_bgm_set_gain(IntPtr engine, float gainDb);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_bgm_set_crossfade(IntPtr engine, int milliseconds);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_set_ducking(IntPtr engine, int keySource, int duckedSource, int enabled, float depthDb, float thresholdDb);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int vv_audio_get_ducking(IntPtr engine, out float gainDb);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         private static extern int vv_audio_bgm_get_status(IntPtr engine, out BgmStatus status);

@@ -489,6 +489,35 @@ Under the audio Card (chapter 11) on the Audio page are the BGM Card and the sou
 | `setup.clips.problem.too-long` | 効果音は30秒までです。短いファイルを選択してください。 | Sound effects can be up to 30 seconds. Choose a shorter file. |
 | `setup.clips.problem.storage` | ファイルを保存できませんでした。保存先の空き容量を確認してください。 | The file could not be saved. Check the free space where it is kept. |
 
+### 14.1 How BGM Is Mixed
+
+Under the BGM Card's list and "Add a file…", past a dividing rule, are the settings for how BGM is mixed (`bgm-se.md` 8.4, 8.5; 2026-11-23). The values are `IAudioService.BgmMix`, saved in the project's Audio Profile.
+
+| Row | Content |
+|---|---|
+| Automatically lower the BGM volume while I talk | Setting Row. Toggle, off by default (the user's decision, 2026-11-23). While on, a Status Chip before the Toggle says "Lowering" (the success shape) while BGM is lowered under the voice, and "Not lowering" (the idle shape) otherwise, as a guide for setting the voice level |
+| How far to lower | Slider (its name above it), -24 to -3 dB in 1 dB steps, -12 by default. Disabled while off, with the reason in its tooltip |
+| Voice level to react to | Slider, -60 to -20 dB in 1 dB steps, -40 by default. Disabled while off |
+| Switching tracks | Slider, 0 to 5 s in 0.5 s steps, 1 by default. How long the old track comes down while the new one comes up when another track is played during playback. 0 stops the old track before the new one starts. It does not apply to stopping |
+
+- The live screen's BGM row has ducking's on and off too (`live.md` chapter 2), showing the same value.
+
+The Japanese text is provisional until the user proofreads it.
+
+| Key | 日本語 | English |
+|---|---|---|
+| `setup.bgm.ducking` | 話している間に自動でBGMの音量を下げる | Automatically lower the BGM volume while I talk |
+| `setup.bgm.ducking.help` | マイクの声を検知している間だけ、BGMの音量を下げます。話し終えると、少し間を置いて元に戻ります。 | Lowers the BGM only while your microphone picks up your voice. It comes back shortly after you stop talking. |
+| `setup.bgm.ducking.now` | 下げています | Lowering |
+| `setup.bgm.ducking.not-now` | 下げていません | Not lowering |
+| `setup.bgm.duck-depth` | 下げる量 | How far to lower |
+| `setup.bgm.duck-depth.help` | 話している間に、BGMの音量をどれだけ下げるかです。 | How much the BGM is lowered while you talk. |
+| `setup.bgm.duck-threshold` | 反応する声の大きさ | Voice level to react to |
+| `setup.bgm.duck-threshold.help` | この大きさより大きな声で、BGMを下げます。話してもBGMが下がらない場合は値を下げ、物音で下がる場合は値を上げてください。 | A voice louder than this lowers the BGM. If talking does not lower it, lower this value; if noises lower it, raise this value. |
+| `setup.bgm.ducking-only` | 「話している間に自動でBGMの音量を下げる」がオンのときに使います。 | Used when Automatically lower the BGM volume while I talk is on. |
+| `setup.bgm.crossfade` | 曲の切り替え | Switching tracks |
+| `setup.bgm.crossfade.help` | 再生中に別の曲を再生したとき、前の曲を下げながら次の曲を上げる長さです。0秒にすると、前の曲を止めてから次の曲を始めます。 | How long the previous track fades out while the next fades in when you play another track during playback. At 0 seconds, the previous track stops before the next starts. |
+
 ## 15. Lighting Card
 
 Builds the stage's lights (Stage detailed design 7.3). It replaces the provisional brightness slider, which was in the face tuning Card (2026-10-21) (user's request, 2026-11-22). On the avatar page, under the face tuning, since both are judged by looking at the face on the stream. Left out without Stage.

@@ -3,7 +3,7 @@
 #include "vv_audio.h"
 
 #include "audio_file.h"
-#include "bgm_deck.h"
+#include "bgm_crossfade.h"
 #include "clip_source.h"
 #include "sound_effects.h"
 #include "device_output.h"
@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -94,9 +95,10 @@ struct vv_audio_engine
     std::mutex lock;
     std::unique_ptr<DeviceSource> sources[vv::audio::MaxSources];
 
-    // The players (BGM and SE detailed design). The deck is made with the first BGM source; its thread stops with
-    // the engine, after the mix.
-    std::unique_ptr<vv::audio::BgmDeck> bgm;
+    // The players (BGM and SE detailed design). The decks are made with the first BGM source; their threads stop
+    // with the engine, after the mix. The crossfade's length is kept here, as it may be set before that.
+    std::unique_ptr<vv::audio::BgmCrossfader> bgm;
+    std::atomic<int> crossfadeFrames{ 0 };
     vv::audio::SoundEffects effects;
     std::atomic<bool> stop{ false };
     std::thread mixThread;
@@ -720,12 +722,21 @@ extern "C"
 
         try
         {
+            // Made outside the lock (it starts the decks' threads), then put in place under it, where the crossfade's
+            // setter looks for it.
+            std::unique_ptr<vv::audio::BgmCrossfader> decks;
             if (player == VV_AUDIO_PLAYER_BGM && !engine->bgm)
             {
-                engine->bgm = std::make_unique<vv::audio::BgmDeck>();
+                decks = std::make_unique<vv::audio::BgmCrossfader>();
             }
 
             std::lock_guard<std::mutex> guard(engine->lock);
+            if (decks)
+            {
+                engine->bgm = std::move(decks);
+                engine->bgm->SetCrossfade(engine->crossfadeFrames.load());
+            }
+
             int id = -1;
             if (!engine->mixer.Add(&id))
             {
@@ -832,6 +843,51 @@ extern "C"
             engine->bgm->SetGain(gain_db);
         }
 
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_bgm_set_crossfade(vv_audio_engine* engine, int32_t milliseconds)
+    {
+        if (engine == nullptr || milliseconds < 0)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        int frames = static_cast<int>(std::min<int64_t>((static_cast<int64_t>(milliseconds) * vv::audio::SampleRate) / 1000, vv::audio::BgmCrossfader::MaxCrossfadeFrames));
+        engine->crossfadeFrames = frames;
+        std::lock_guard<std::mutex> guard(engine->lock);
+        if (engine->bgm)
+        {
+            engine->bgm->SetCrossfade(frames);
+        }
+
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_set_ducking(vv_audio_engine* engine, int32_t key_source, int32_t ducked_source, int32_t enabled, float depth_db, float threshold_db)
+    {
+        if (engine == nullptr || std::isnan(depth_db) || std::isnan(threshold_db))
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        if (enabled != 0 && (!engine->mixer.Used(key_source) || !engine->mixer.Used(ducked_source)))
+        {
+            return VV_AUDIO_NOT_FOUND;
+        }
+
+        engine->mixer.SetDucking(key_source, ducked_source, enabled != 0, depth_db, threshold_db);
+        return VV_AUDIO_OK;
+    }
+
+    int32_t vv_audio_get_ducking(vv_audio_engine* engine, float* gain_db)
+    {
+        if (engine == nullptr || gain_db == nullptr)
+        {
+            return VV_AUDIO_INVALID_ARGUMENT;
+        }
+
+        *gain_db = engine->mixer.DuckGainDb();
         return VV_AUDIO_OK;
     }
 

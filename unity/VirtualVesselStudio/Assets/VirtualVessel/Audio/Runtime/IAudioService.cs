@@ -360,6 +360,15 @@ namespace VirtualVessel.Audio
         /// <summary>Kept within 0 to <see cref="AudioSettings.MaxStreamDelayMs"/> ms and saved in the audio profile.</summary>
         void SetStreamDelay(TimeSpan delay);
 
+        /// <summary>How BGM is mixed: ducking and the crossfade (BGM and SE detailed design 5).</summary>
+        IReadOnlyObservable<BgmMixOptions> BgmMix { get; }
+
+        /// <summary>Applied at once and saved in the audio profile.</summary>
+        void SetBgmMix(BgmMixOptions options);
+
+        /// <summary>Whether BGM is lowered under the voice now, read every tenth of a second (BGM and SE detailed design 8.4).</summary>
+        IReadOnlyObservable<bool> Ducking { get; }
+
         /// <summary>The stream bus for recording; it keeps its own place, apart from <see cref="StreamingTap"/>.</summary>
         AudioStreamTap RecordingTap { get; }
 

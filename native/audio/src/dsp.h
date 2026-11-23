@@ -89,6 +89,45 @@ namespace vv::audio
         return peak;
     }
 
+    // Ducking (BGM and SE detailed design 8.4): one source lowered while another, the voice, is heard. Worked out
+    // once per block from the voice's level in the block before.
+    struct DuckState
+    {
+        float gain = 1.0f; // Linear, applied to the lowered source.
+        int hold = 0;      // Blocks left before it comes back.
+    };
+
+    // About 0.4 s kept down after the voice falls below the threshold, so it does not move between words.
+    constexpr int DuckHoldBlocks = 40;
+
+    // Per 10 ms block: down with a time constant of about 30 ms, back with one of about 0.5 s.
+    constexpr float DuckAttack = 0.283468689f;  // 1 - exp(-10 / 30)
+    constexpr float DuckRelease = 0.019801327f; // 1 - exp(-10 / 500)
+
+    // The next block's state from the voice's peak (linear), the threshold and depth (linear gains). Pure.
+    inline DuckState Duck(DuckState state, float voicePeak, float threshold, float depth, bool enabled)
+    {
+        float target = 1.0f;
+        if (!enabled)
+        {
+            state.hold = 0;
+        }
+        else if (voicePeak >= threshold && voicePeak > 0.0f)
+        {
+            state.hold = DuckHoldBlocks;
+            target = depth;
+        }
+        else if (state.hold > 0)
+        {
+            state.hold--;
+            target = depth;
+        }
+
+        float rate = target < state.gain ? DuckAttack : DuckRelease;
+        state.gain += (target - state.gain) * rate;
+        return state;
+    }
+
     // A peak limiter without lookahead: the gain drops at once to keep every sample under the ceiling and
     // comes back over about 50 ms, so a loud moment is held down without pumping the rest.
     struct LimiterState

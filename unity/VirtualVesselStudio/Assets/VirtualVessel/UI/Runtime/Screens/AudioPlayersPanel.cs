@@ -24,6 +24,9 @@ namespace VirtualVessel.UI.Screens
         public const string Effects = "live.players.effects";
         public const string Play = "live.players.play";
         public const string Stop = "live.players.stop";
+        public const string Switch = "live.players.switch";
+        public const string Ducking = "live.players.ducking";
+        public const string DuckingHelp = "live.players.ducking.help";
         public const string Volume = "live.players.volume";
         public const string EffectsVolume = "live.players.effects-volume";
         public const string StopEffects = "live.players.stop-effects";
@@ -31,10 +34,18 @@ namespace VirtualVessel.UI.Screens
         public const string NoEffects = "live.players.no-effects";
     }
 
+    /// <summary>What the live screen's BGM button does.</summary>
+    public enum BgmAction
+    {
+        Play,
+        Stop,
+        Switch,
+    }
+
     /// <summary>
-    /// BGM and SE on the live screen (BGM and SE detailed design; live.md 2): choose a track, play and stop it, see how
-    /// far it is, set the BGM's and the sound effects' volumes, and press a sound effect's button. Registering files is
-    /// the setup screen's.
+    /// BGM and SE on the live screen (BGM and SE detailed design; live.md 2): choose a track, play, stop, or switch to
+    /// it, see how far it is, set the BGM's and the sound effects' volumes, lower BGM while talking, and press a sound
+    /// effect's button. Registering files is the setup screen's.
     /// </summary>
     public sealed class AudioPlayersPanel : VisualElement
     {
@@ -59,12 +70,16 @@ namespace VirtualVessel.UI.Screens
         private readonly Label _noEffects;
         private readonly List<AudioClipRecord> _tracks = new List<AudioClipRecord>();
         private readonly List<(ActionButton Button, string Id)> _effectButtons = new List<(ActionButton, string)>();
+        private readonly IAudioService _audio;
+        private string _shownPlaying;
         private volatile bool _changed = true;
 
         /// <param name="music">The BGM source, whose volume the BGM row's slider sets; null leaves the slider out.</param>
         /// <param name="effectsSource">The sound effects' source, for the effects row's slider; null leaves it out.</param>
-        public AudioPlayersPanel(IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IAudioSource music, IAudioSource effectsSource = null)
+        /// <param name="audio">For lowering BGM while the user talks (live.md 2); null leaves its toggle out.</param>
+        public AudioPlayersPanel(IAudioClipLibrary library, IBgmPlayer bgm, ISoundEffectPlayer effects, IAudioSource music, IAudioSource effectsSource = null, IAudioService audio = null)
         {
+            _audio = audio;
             _library = library ?? throw new ArgumentNullException(nameof(library));
             _bgm = bgm;
             _effects = effects;
@@ -94,6 +109,14 @@ namespace VirtualVessel.UI.Screens
             {
                 Volume = VolumeSlider(music, AudioPlayersStrings.Volume);
                 bgmRow.Add(Volume);
+            }
+
+            if (audio != null)
+            {
+                DuckingToggle = Ui.Toggle(AudioPlayersStrings.Ducking);
+                DuckingToggle.TooltipKey = AudioPlayersStrings.DuckingHelp;
+                DuckingToggle.RegisterValueChangedCallback(evt => audio.SetBgmMix(audio.BgmMix.Value.WithDucking(evt.newValue)));
+                bgmRow.Add(DuckingToggle);
             }
 
             card.Add(bgmRow);
@@ -131,6 +154,9 @@ namespace VirtualVessel.UI.Screens
         /// <summary>The BGM source's volume; null without the source.</summary>
         public ValueSlider Volume { get; }
 
+        /// <summary>Lowering BGM while the user talks; null without the audio service.</summary>
+        public SwitchToggle DuckingToggle { get; }
+
         /// <summary>The sound effects source's volume; null without the source.</summary>
         public ValueSlider EffectsVolume { get; }
 
@@ -148,6 +174,17 @@ namespace VirtualVessel.UI.Screens
             }
 
             return AudioClipCard.LengthText(TimeSpan.FromSeconds(Math.Max(1, progress.Value * length.TotalSeconds))) + " / " + AudioClipCard.LengthText(length);
+        }
+
+        /// <summary>What the BGM button does: play the chosen track, stop the one playing, or switch to the chosen one. Pure.</summary>
+        public static BgmAction ActionFor(bool playing, string playingId, string chosen)
+        {
+            if (!playing)
+            {
+                return BgmAction.Play;
+            }
+
+            return string.IsNullOrEmpty(chosen) || chosen == playingId ? BgmAction.Stop : BgmAction.Switch;
         }
 
         /// <summary>Which track the list shows: the one playing, else the one chosen if it is still there, else the first. Pure.</summary>
@@ -205,12 +242,26 @@ namespace VirtualVessel.UI.Screens
                 subscriptions.Add(_music.Options.Subscribe(options => Volume.SetValueWithoutNotify(options.GainDb)));
             }
 
+            if (_audio != null)
+            {
+                DuckingToggle.SetValueWithoutNotify(_audio.BgmMix.Value.Ducking);
+                subscriptions.Add(_audio.BgmMix.Subscribe(options => DuckingToggle.SetValueWithoutNotify(options.Ducking)));
+            }
+
+            Tracks.RegisterValueChangedCallback(OnTrackChosen);
+            subscriptions.Add(new DisposeAction(() => Tracks.UnregisterValueChangedCallback(OnTrackChosen)));
+
             if (_effectsSource != null)
             {
                 subscriptions.Add(_effectsSource.Options.Subscribe(options => EffectsVolume.SetValueWithoutNotify(options.GainDb)));
             }
 
             return new DisposeAll(subscriptions);
+        }
+
+        private void OnTrackChosen(ChangeEvent<string> evt)
+        {
+            ShowPlayers();
         }
 
         private void Refresh()
@@ -221,7 +272,9 @@ namespace VirtualVessel.UI.Screens
             _tracks.Clear();
             _tracks.AddRange(tracks.Ok ? tracks.Value : Array.Empty<AudioClipRecord>());
             Tracks.SetChoices(_tracks.Select(track => SelectChoice.FromText(track.Id, track.NameIn(_language))).ToArray());
-            string chosen = ChosenTrack(_tracks.Select(track => track.Id).ToArray(), _bgm?.Status.Value.TrackId, Tracks.value);
+            // A track the user chose to switch to is kept while another plays.
+            string[] ids = _tracks.Select(track => track.Id).ToArray();
+            string chosen = ChosenTrack(ids, ids.Contains(Tracks.value) ? null : _bgm?.Status.Value.TrackId, Tracks.value);
             Tracks.SetValueWithoutNotify(chosen ?? string.Empty);
             _noBgm.style.display = _tracks.Count == 0 ? DisplayStyle.Flex : DisplayStyle.None;
             Tracks.parent.style.display = _tracks.Count == 0 ? DisplayStyle.None : DisplayStyle.Flex;
@@ -249,10 +302,21 @@ namespace VirtualVessel.UI.Screens
         {
             BgmStatus status = _bgm?.Status.Value ?? default;
             (bool playing, bool failed) = AudioClipCard.RowState(status, status.TrackId);
-            PlayButton.TextKey = playing ? AudioPlayersStrings.Stop : AudioPlayersStrings.Play;
-            PlayButton.Variant = playing ? ButtonVariant.Secondary : ButtonVariant.Primary;
+
+            // A track started elsewhere (the setup screen) is shown as the one chosen.
+            if (playing && status.TrackId != _shownPlaying && _tracks.Exists(t => t.Id == status.TrackId))
+            {
+                Tracks.SetValueWithoutNotify(status.TrackId);
+            }
+
+            _shownPlaying = playing ? status.TrackId : null;
+
+            // Another track can be chosen while one plays; the button then switches to it, crossing the two
+            // (BGM and SE detailed design 8.5).
+            BgmAction action = ActionFor(playing, status.TrackId, Tracks.value);
+            PlayButton.TextKey = action == BgmAction.Stop ? AudioPlayersStrings.Stop : (action == BgmAction.Switch ? AudioPlayersStrings.Switch : AudioPlayersStrings.Play);
+            PlayButton.Variant = action == BgmAction.Stop ? ButtonVariant.Secondary : ButtonVariant.Primary;
             PlayButton.SetEnabled(_bgm != null && (playing || !string.IsNullOrEmpty(Tracks.value)));
-            Tracks.SetEnabled(!playing);
             State.style.visibility = playing || failed ? Visibility.Visible : Visibility.Hidden;
             State.Status = failed ? StatusKind.Error : StatusKind.Live;
             State.TextKey = failed ? AudioClipStrings.BgmFailed : AudioClipStrings.BgmPlaying;
@@ -284,7 +348,7 @@ namespace VirtualVessel.UI.Screens
             }
 
             BgmStatus status = _bgm.Status.Value;
-            if (AudioClipCard.RowState(status, status.TrackId).Playing)
+            if (ActionFor(AudioClipCard.RowState(status, status.TrackId).Playing, status.TrackId, Tracks.value) == BgmAction.Stop)
             {
                 _bgm.Stop();
                 return;
