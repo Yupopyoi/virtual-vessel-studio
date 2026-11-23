@@ -435,6 +435,31 @@ namespace VirtualVessel.UI.Tests
             Assert.That(card.ColorChoice.worldBound.xMax, Is.LessThanOrEqualTo(card.Settings.contentContainer.worldBound.xMax + 0.5f), "Still inside, though the row is pulled left.");
         }
 
+        [UnityTest]
+        public IEnumerator AMarkersNumber_CanBeRead_WhateverTheLightsColor()
+        {
+            // A dark custom color made the number unreadable on a filled marker (2026-11-23): the color is now its ring.
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return new WaitForSeconds(0.4f);
+            var dark = new Color(0.1f, 0.05f, 0.2f);
+            _stageView.SetMarkers(
+                new StageEditing.StageViewMarker("light:0", "1", new Vector2(0.5f, 0.5f), true, dark),
+                new StageEditing.StageViewMarker("light:1", "2", new Vector2(0.3f, 0.5f), true, Color.white));
+            yield return null;
+
+            foreach (Label marker in card.View.MarkerLabels)
+            {
+                Color fill = marker.resolvedStyle.backgroundColor;
+                Color text = marker.resolvedStyle.color;
+                float Luminance(Color c) => (0.2126f * c.linear.r) + (0.7152f * c.linear.g) + (0.0722f * c.linear.b);
+                float lighter = Mathf.Max(Luminance(fill), Luminance(text));
+                float darker = Mathf.Min(Luminance(fill), Luminance(text));
+                Assert.That((lighter + 0.05f) / (darker + 0.05f), Is.GreaterThanOrEqualTo(4.5f), $"Marker {marker.text}: the number on its fill.");
+            }
+
+            Assert.That(card.View.MarkerLabels[0].resolvedStyle.borderTopColor, Is.EqualTo(dark), "The light's color is the ring.");
+        }
+
         [Test]
         public void AMarker_IsPickedNearItsCenter_AndTheNearestWins()
         {
@@ -682,6 +707,11 @@ namespace VirtualVessel.UI.Tests
             public IReadOnlyObservable<Texture> Image => _image;
 
             public IReadOnlyObservable<IReadOnlyList<StageEditing.StageViewMarker>> Markers => _markers;
+
+            public void SetMarkers(params StageEditing.StageViewMarker[] markers)
+            {
+                _markers.Value = markers;
+            }
 
             public IDisposable Open(int width, int height)
             {

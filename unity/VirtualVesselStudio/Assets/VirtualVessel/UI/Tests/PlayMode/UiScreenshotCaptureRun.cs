@@ -54,7 +54,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null), Avatars = new AvatarCardPanelTests.FakeAvatars(), Lighting = new AvatarCardPanelTests.FakeLighting(), StageView = new AvatarCardPanelTests.FakeStageView() }));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null), Avatars = new AvatarCardPanelTests.FakeAvatars(), Lighting = new AvatarCardPanelTests.FakeLighting(), StageView = SampleStageView() }));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;
@@ -108,6 +108,17 @@ namespace VirtualVessel.UI.Tests
 
                 Directory.Delete(config, recursive: true);
             }
+        }
+
+        // Markers in a dark, a light, and a mid color, so a shot shows that every number can be read.
+        private static AvatarCardPanelTests.FakeStageView SampleStageView()
+        {
+            var view = new AvatarCardPanelTests.FakeStageView();
+            view.SetMarkers(
+                new StageEditing.StageViewMarker("light:0", "1", new Vector2(0.35f, 0.4f), true, new Color(0.1f, 0.05f, 0.2f)),
+                new StageEditing.StageViewMarker("light:1", "2", new Vector2(0.55f, 0.3f), true, Color.white),
+                new StageEditing.StageViewMarker("light:2", "3", new Vector2(0.7f, 0.6f), true, new Color(1f, 0.85f, 0.3f)));
+            return view;
         }
 
         private static IEnumerator Settle()
