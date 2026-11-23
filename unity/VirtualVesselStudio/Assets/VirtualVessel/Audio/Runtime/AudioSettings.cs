@@ -50,11 +50,17 @@ namespace VirtualVessel.Audio
         /// </summary>
         public AudioMonitorSettings Monitor { get; set; }
 
+        /// <summary>
+        /// How BGM is mixed (BGM and SE detailed design 6.2). Added in version 1 without a step: a file without it reads
+        /// the defaults.
+        /// </summary>
+        public BgmMixSettings Bgm { get; set; }
+
         public static IReadOnlyList<ConfigMigration> Migrations { get; } = Array.Empty<ConfigMigration>();
 
         public AudioSettings Clone()
         {
-            var clone = new AudioSettings { Sources = new List<AudioSourceSettings>(), StreamDelayMs = StreamDelayMs, Monitor = Monitor?.Clone() };
+            var clone = new AudioSettings { Sources = new List<AudioSourceSettings>(), StreamDelayMs = StreamDelayMs, Monitor = Monitor?.Clone(), Bgm = Bgm?.Clone() };
             foreach (AudioSourceSettings source in Sources ?? new List<AudioSourceSettings>())
             {
                 clone.Sources.Add(source?.Clone());
@@ -148,6 +154,38 @@ namespace VirtualVessel.Audio
                 SoundEffectRole => AudioSourceRole.SoundEffect,
                 _ => null,
             };
+        }
+    }
+
+    /// <summary>How BGM is mixed, in the audio profile; a field left out reads its default.</summary>
+    public sealed class BgmMixSettings
+    {
+        public bool? Ducking { get; set; }
+
+        public float? DuckDepthDb { get; set; }
+
+        public float? DuckThresholdDb { get; set; }
+
+        public float? CrossfadeSeconds { get; set; }
+
+        public BgmMixSettings Clone()
+        {
+            return (BgmMixSettings)MemberwiseClone();
+        }
+
+        /// <summary>What the user sees, in range. Null settings are the defaults. Pure.</summary>
+        public static BgmMixOptions ToOptions(BgmMixSettings settings)
+        {
+            BgmMixOptions defaults = BgmMixOptions.Default;
+            return settings == null
+                ? defaults
+                : new BgmMixOptions(settings.Ducking ?? defaults.Ducking, settings.DuckDepthDb ?? defaults.DuckDepthDb, settings.DuckThresholdDb ?? defaults.DuckThresholdDb, settings.CrossfadeSeconds ?? defaults.CrossfadeSeconds);
+        }
+
+        /// <summary>The settings for the user's options. Pure.</summary>
+        public static BgmMixSettings Of(BgmMixOptions options)
+        {
+            return new BgmMixSettings { Ducking = options.Ducking, DuckDepthDb = options.DuckDepthDb, DuckThresholdDb = options.DuckThresholdDb, CrossfadeSeconds = options.CrossfadeSeconds };
         }
     }
 

@@ -35,6 +35,8 @@ namespace VirtualVessel.Audio
         private readonly ObservableValue<IReadOnlyList<AudioDevice>> _outputs = new ObservableValue<IReadOnlyList<AudioDevice>>(Array.Empty<AudioDevice>());
         private readonly List<Source> _sources = new List<Source>();
         private readonly ObservableValue<TimeSpan> _streamDelay = new ObservableValue<TimeSpan>(TimeSpan.FromMilliseconds(AudioSettings.DefaultStreamDelayMs));
+        private readonly ObservableValue<BgmMixOptions> _bgmMix = new ObservableValue<BgmMixOptions>(BgmMixOptions.Default);
+        private readonly ObservableValue<bool> _ducking = new ObservableValue<bool>(false);
         private AudioSettings _settings;
         private IAudioEngine _engine;
         private MonitorOutput _monitor;
@@ -134,6 +136,10 @@ namespace VirtualVessel.Audio
 
         public IReadOnlyObservable<TimeSpan> StreamDelay => _streamDelay;
 
+        public IReadOnlyObservable<BgmMixOptions> BgmMix => _bgmMix;
+
+        public IReadOnlyObservable<bool> Ducking => _ducking;
+
         /// <summary>The BGM and SE players; null before this service has started, or with an engine without them.</summary>
         public IAudioPlayerEngine PlayerEngine => _engine as IAudioPlayerEngine;
 
@@ -181,6 +187,9 @@ namespace VirtualVessel.Audio
             _log?.Information($"Audio monitor on {DeviceName(_monitor.Options.Value.DeviceId, outputs)}.");
             _streamDelay.Set(TimeSpan.FromMilliseconds(AudioSettings.ClampDelayMs(_settings.StreamDelayMs)));
             _engine.SetStreamDelay(_streamDelay.Value);
+            _bgmMix.Set(BgmMixSettings.ToOptions(_settings.Bgm));
+            ApplyBgmMix(_bgmMix.Value);
+            _log?.Information($"BGM mix: {_bgmMix.Value}.");
             _tick = _frameLoop.Register(Tick);
             _log?.Information($"Audio started: {devices.Count} input device(s), stream latency {StreamLatency.TotalMilliseconds:0} ms, recording and streaming {_streamDelay.Value.TotalMilliseconds:0} ms later.");
             return Task.CompletedTask;
@@ -198,6 +207,41 @@ namespace VirtualVessel.Audio
             _settings = _settings.Clone();
             _settings.StreamDelayMs = (int)clamped.TotalMilliseconds;
             _saves?.Changed(_settings.Clone());
+        }
+
+        public void SetBgmMix(BgmMixOptions options)
+        {
+            if (!_bgmMix.Set(options))
+            {
+                return;
+            }
+
+            ApplyBgmMix(options);
+            _settings = _settings.Clone();
+            _settings.Bgm = BgmMixSettings.Of(options);
+            _saves?.Changed(_settings.Clone());
+            _log?.Information($"BGM mix: {options}.");
+        }
+
+        /// <summary>Whether a level reads as BGM lowered, for the screens. Pure.</summary>
+        public static bool IsDucked(float duckingDb)
+        {
+            return duckingDb < BgmMixOptions.DuckingShownBelowDb;
+        }
+
+        // The microphone lowers the BGM source (BGM and SE detailed design 8.4); an engine without mixing has neither.
+        private void ApplyBgmMix(BgmMixOptions options)
+        {
+            if (!(_engine is IAudioMixEngine mix))
+            {
+                return;
+            }
+
+            Source microphone = _sources.Find(source => source.Role == AudioSourceRole.Microphone);
+            Source music = _sources.Find(source => source.Role == AudioSourceRole.Music);
+            bool enabled = options.Ducking && microphone != null && music != null;
+            mix.SetDucking(microphone?.Engine ?? -1, music?.Engine ?? -1, enabled, options.DuckDepthDb, options.DuckThresholdDb);
+            mix.SetBgmCrossfade(TimeSpan.FromSeconds(options.CrossfadeSeconds));
         }
 
         public void RefreshDevices()
@@ -275,6 +319,7 @@ namespace VirtualVessel.Audio
                 }
             }
 
+            _ducking.Set(_engine is IAudioMixEngine mix && IsDucked(mix.GetDuckingDb()));
             AudioEngineStatus monitor = _engine.GetMonitorStatus();
             AudioSourceState before = _monitor.State.Value;
             _monitor.Update(monitor);
