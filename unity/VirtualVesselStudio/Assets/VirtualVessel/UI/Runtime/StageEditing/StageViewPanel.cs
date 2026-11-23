@@ -112,6 +112,16 @@ namespace VirtualVessel.UI.StageEditing
             }
         }
 
+        /// <summary>A marker's ring in its thing's color, opaque so a faint color still shows as a ring.</summary>
+        private static void SetRingColor(IStyle style, Color color)
+        {
+            color.a = 1f;
+            style.borderTopColor = color;
+            style.borderRightColor = color;
+            style.borderBottomColor = color;
+            style.borderLeftColor = color;
+        }
+
         /// <summary>The marker nearest to <paramref name="point"/> within <see cref="PickRadius"/>, the nearest drawn on top winning; null for none. Pure.</summary>
         public static string Pick(IReadOnlyList<StageViewMarker> markers, Vector2 point, Vector2 size)
         {
@@ -205,6 +215,9 @@ namespace VirtualVessel.UI.StageEditing
                 _open = _view.Open(Mathf.RoundToInt(size.x * scale), Mathf.RoundToInt(size.y * scale));
                 _openSize = size;
                 _view.Select(_chosen);
+
+                // Markers the view already had are shown now, not only when it next sends them.
+                ShowMarkers();
             }
         }
 
@@ -240,7 +253,9 @@ namespace VirtualVessel.UI.StageEditing
 
                 StageViewMarker marker = _markers[i];
                 label.text = marker.Label;
-                label.style.backgroundColor = marker.Color;
+                // The light's color is the ring, not the fill: a number on a fill of any color the user picks could not
+                // always be read (dark custom colors were not, 2026-11-23). On the theme's surface it always is.
+                SetRingColor(label.style, marker.Color);
                 label.EnableInClassList(ChosenClass, marker.ItemId == _chosen);
 
                 // Centered on the point; the class sets the size.
