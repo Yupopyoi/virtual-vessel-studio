@@ -69,7 +69,7 @@ namespace VirtualVessel.UI.Screens
 
             Mute = new SwitchToggle();
             Mute.RegisterValueChangedCallback(evt => SetMuted(evt.newValue));
-            row.Add(Cell(AudioStrings.Mute, Mute, AudioCard.ToggleColumn, AudioStrings.MuteHelp));
+            row.Add(Cell(AudioStrings.Mute, Mute, AudioCard.MuteColumn, AudioStrings.MuteHelp));
 
             Meter = new LevelMeter();
             row.Add(Cell(AudioStrings.Level, Meter, AudioCard.LevelColumn, AudioStrings.LevelHelp));
@@ -108,7 +108,7 @@ namespace VirtualVessel.UI.Screens
             columns.Add(Heading(AudioStrings.Gain, AudioCard.GainColumn, AudioStrings.GainHelp));
             columns.Add(Heading(AudioStrings.Monitored, AudioCard.ToggleColumn, AudioStrings.MonitoredHelp));
             columns.Add(Heading(AudioStrings.Denoise, AudioCard.DenoiseColumn, AudioStrings.DenoiseHelp));
-            columns.Add(Heading(AudioStrings.Mute, AudioCard.ToggleColumn, AudioStrings.MuteHelp));
+            columns.Add(Heading(AudioStrings.Mute, AudioCard.MuteColumn, AudioStrings.MuteHelp));
             columns.Add(Heading(AudioStrings.Level, AudioCard.LevelColumn, AudioStrings.LevelHelp));
             return columns;
         }
