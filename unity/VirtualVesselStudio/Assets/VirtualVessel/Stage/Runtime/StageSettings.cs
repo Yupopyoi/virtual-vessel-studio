@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using VirtualVessel.Core.Geometry;
+using VirtualVessel.UI.Lighting;
 
 namespace VirtualVessel.Stage
 {
@@ -17,14 +19,25 @@ namespace VirtualVessel.Stage
         public Dictionary<string, ScreenSettings> Screens { get; set; } = new Dictionary<string, ScreenSettings>();
 
         /// <summary>
-        /// The scale of the stage's light the user chose (Stage detailed design 7.1); null until changed,
-        /// so the default reaches users who never changed it.
+        /// The scale of the one light of version 0.3 (Stage detailed design 7.1). Read while
+        /// <see cref="Lights"/> is null, as the first light's brightness; written as null once the lights are saved.
         /// </summary>
         public float? LightIntensity { get; set; }
 
+        /// <summary>The lights the user set (7.3); null until changed, so the default reaches users who never changed it.</summary>
+        public List<LightSettings> Lights { get; set; }
+
+        /// <summary>The scale of the scene's ambient light (7.3); null until changed.</summary>
+        public float? AmbientLight { get; set; }
+
         public StageSettings Clone()
         {
-            var copy = new StageSettings { LightIntensity = LightIntensity };
+            var copy = new StageSettings
+            {
+                LightIntensity = LightIntensity,
+                Lights = Lights?.Select(light => light?.Clone()).ToList(),
+                AmbientLight = AmbientLight,
+            };
             foreach (KeyValuePair<string, ScreenSettings> pair in Screens ?? new Dictionary<string, ScreenSettings>())
             {
                 copy.Screens[pair.Key] = pair.Value?.Clone();
@@ -97,6 +110,60 @@ namespace VirtualVessel.Stage
             }
 
             return new NormalizedRect(values[0], values[1], values[2], values[3]);
+        }
+    }
+
+    /// <summary>
+    /// One light in the file (Stage detailed design 6.3). A missing or damaged field takes the default
+    /// light's value, so a hand-edited file still loads.
+    /// </summary>
+    public sealed class LightSettings
+    {
+        public const string DirectionalKind = "directional";
+        public const string SpotKind = "spot";
+
+        public string Kind { get; set; }
+
+        public float? Yaw { get; set; }
+
+        public float? Pitch { get; set; }
+
+        public float? Distance { get; set; }
+
+        public float? Intensity { get; set; }
+
+        public string Color { get; set; }
+
+        public float? Temperature { get; set; }
+
+        public float? SpotAngle { get; set; }
+
+        public static LightSettings From(StageLight light)
+        {
+            return new LightSettings
+            {
+                Kind = light.Kind == StageLightKind.Spot ? SpotKind : DirectionalKind,
+                Yaw = light.Yaw,
+                Pitch = light.Pitch,
+                Distance = light.Distance,
+                Intensity = light.Intensity,
+                Color = light.ColorId,
+                Temperature = light.Temperature,
+                SpotAngle = light.SpotAngle,
+            };
+        }
+
+        /// <summary>The light this entry describes, within the limits. Pure.</summary>
+        public StageLight ToLight()
+        {
+            StageLight d = StageLight.Default;
+            StageLightKind kind = Kind == SpotKind ? StageLightKind.Spot : StageLightKind.Directional;
+            return new StageLight(kind, Yaw ?? d.Yaw, Pitch ?? d.Pitch, Distance ?? d.Distance, Intensity ?? d.Intensity, Color ?? d.ColorId, Temperature ?? d.Temperature, SpotAngle ?? d.SpotAngle).Normalized();
+        }
+
+        public LightSettings Clone()
+        {
+            return (LightSettings)MemberwiseClone();
         }
     }
 }

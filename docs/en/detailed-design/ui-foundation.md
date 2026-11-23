@@ -670,7 +670,7 @@ A development tool that writes the real UI's screens to PNG for the visual revie
 - The work is a PlayMode test (`UiScreenshotCaptureRun.Capture`) run by the Unity Test Framework. It is marked `[Explicit]`, so it runs only when named and never in a normal test run. It runs in batch mode as long as `-nographics` is not given.
 - There are two ways to run it:
   - The Unity menu "Virtual Vessel/UI/Capture Screenshots" (`UiScreenshotCapture`, Editor), which opens the output folder when done.
-  - `tools/ui/capture-ui.ps1`, which runs Unity in batch mode while the Editor is closed. `-Screens` limits the screens, and `-Quick` reduces the combinations.
+  - `tools/ui/capture-ui.ps1`, which runs Unity in batch mode while the Editor is closed. `-Screens` limits the screens, and `-Quick` reduces the combinations. The settings screen is written page by page as `setup` (video), `setup-audio`, `setup-avatar`, `setup-output`, and `setup-app` (2026-11-22, so the Cards further down long pages are checked too). The avatar and lighting are shown with the tests' fakes.
 - `UiShotPlan.Create` (a pure function) decides the combinations. For each screen it writes (`ui-guidelines.md` chapter 5):
   - dark and light × Japanese and English (1600×900, UI size 100%, Lavender);
   - a palette with a bright accent (Lemon, light, Japanese);
@@ -704,7 +704,9 @@ A development tool that writes the real UI's screens to PNG for the visual revie
   "fontSet": "NotoSans",
   "developerMode": false,
   "lastScreen": "live",
-  "lastSetupPage": "video"
+  "lastSetupPage": "video",
+  "stageViewInvertX": false,
+  "stageViewInvertY": false
 }
 ```
 
@@ -719,6 +721,7 @@ A development tool that writes the real UI's screens to PNG for the visual revie
 | `developerMode` | `false` | |
 | `lastScreen` | `live` | |
 | `lastSetupPage` | none (the first page) | The page last opened on the settings screen (`video`, `audio`, `avatar`, `output`, `app`) |
+| `stageViewInvertX`, `stageViewInvertY` | false | Whether a drag in the stage view turns it the other way, left-right and up-down (UI `setup.md` 15.2). People find different directions natural (user's request, 2026-11-22) |
 
 - ProjectData's `ConfigFileStore` reads and writes the file (8.3).
 - Unknown values (such as a palette name that does not exist) are treated as the default, and the file keeps its value until overwritten.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -19,8 +20,8 @@ namespace VirtualVessel.Stage
     /// <summary>
     /// Puts each capture video on the stream screen where the placement editor put it, and saves the
     /// placements (Stage detailed design 7). Until Stage Scenes exist it also gives the avatar a
-    /// default spawn point and a light, whose brightness the user may change (Stage detailed design
-    /// 7.1), and frames the avatar where its frame in the placement editor is (7.2). An Optional application service.
+    /// default spawn point and lights the user sets up (Stage detailed design 7.1, 7.3), and frames the
+    /// avatar where its frame in the placement editor is (7.2). An Optional application service.
     /// </summary>
     public sealed class StageService : IApplicationService, IAvatarSpawnPoints, IStageLighting
     {
@@ -42,9 +43,10 @@ namespace VirtualVessel.Stage
         private readonly List<CaptureScreen> _screens = new List<CaptureScreen>();
         private readonly List<IFrameSource> _frames = new List<IFrameSource>();
         private AvatarFrame _avatarFrame;
-        private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
+        private readonly ObservableValue<StageLighting> _lighting = new ObservableValue<StageLighting>(StageLighting.Default);
         private StageSettings _settings = new StageSettings();
-        private GameObject _light;
+        private StageLightRig _lights;
+        private readonly StageView _view;
         private GameObject _backdrop;
         private Material _backdropMaterial;
         private Texture2D _backdropTexture;
@@ -61,6 +63,7 @@ namespace VirtualVessel.Stage
             _log = log;
             _avatarCamera = avatarCamera;
             _avatarHeight = avatarHeight;
+            _view = new StageView(this, frameLoop, () => _output.Screens?.Layer ?? -1);
             _saves = new ConfigSaveScheduler<StageSettings>(store, clock, s_saveDelay, failure => _log?.Warning($"Failed to save the stage settings to {store.FilePath}.", failure));
         }
 
@@ -76,10 +79,16 @@ namespace VirtualVessel.Stage
 
         public Pose Default => StageDefaults.AvatarSpawn;
 
-        public IReadOnlyObservable<float> Intensity => _intensity;
+        public IReadOnlyObservable<StageLighting> Lighting => _lighting;
 
-        /// <summary>The default light; for tests.</summary>
-        internal Light DefaultLight => _light != null ? _light.GetComponent<Light>() : null;
+        /// <summary>The 3D view for placing things in Setup (7.4); it draws only while the settings screen opens it.</summary>
+        public StageView View => _view;
+
+        /// <summary>The lights Unity renders, in order; for tests.</summary>
+        internal IReadOnlyList<Light> Lights => _lights?.Lights ?? Array.Empty<Light>();
+
+        /// <summary>The first light, which the stage always has; for tests.</summary>
+        internal Light DefaultLight => Lights.Count > 0 ? Lights[0] : null;
 
         internal GameObject Backdrop => _backdrop;
 
@@ -121,7 +130,7 @@ namespace VirtualVessel.Stage
 
             ConfigLoadResult<StageSettings> loaded = _store.Load();
             _settings = loaded.Value?.Clone() ?? new StageSettings();
-            _intensity.Value = IntensityFor(_settings);
+            _lighting.Value = LightingFor(_settings);
             Mesh quad = Resources.GetBuiltinResource<Mesh>("Quad.fbx");
             foreach (IVideoCaptureSource source in _captures.Sources)
             {
@@ -144,12 +153,9 @@ namespace VirtualVessel.Stage
             }
 
             // The persistent scene has no light, and lit avatar materials would be black without one.
-            _light = new GameObject("StageDefaultLight");
-            _light.transform.rotation = StageDefaults.LightRotation;
-            Light light = _light.AddComponent<Light>();
-            light.type = LightType.Directional;
-            light.intensity = _intensity.Value;
-            light.shadows = LightShadows.None;
+            _lights = new StageLightRig();
+            _lights.Apply(_lighting.Value);
+
 
             CreateBackdrop(quad, shader);
             _tick = _frameLoop.Register(_saves.Tick);
@@ -157,30 +163,43 @@ namespace VirtualVessel.Stage
             return Task.CompletedTask;
         }
 
-        /// <summary>The light's scale to use: the saved one within the range, else the default. Pure.</summary>
-        public static float IntensityFor(StageSettings settings)
+        /// <summary>
+        /// The lighting to use: the saved lights, else the one light of version 0.3 at its saved
+        /// brightness, else the default (6.3). Pure.
+        /// </summary>
+        public static StageLighting LightingFor(StageSettings settings)
         {
-            return settings?.LightIntensity is float saved ? StageLightIntensity.Clamp(saved) : StageLightIntensity.Default;
+            float ambient = settings?.AmbientLight ?? StageLighting.DefaultAmbient;
+            if (settings?.Lights != null)
+            {
+                return new StageLighting(settings.Lights.Where(light => light != null).Select(light => light.ToLight()).ToArray(), ambient).Normalized();
+            }
+
+            StageLight first = settings?.LightIntensity is float saved ? StageLight.Default.WithIntensity(saved) : StageLight.Default;
+            return new StageLighting(new[] { first }, ambient).Normalized();
         }
 
-        /// <summary>Main thread: changes the light, which Unity reads when it renders.</summary>
-        public void SetIntensity(float intensity)
+        /// <summary>Main thread: changes the lights, which Unity reads when it renders.</summary>
+        public void SetLighting(StageLighting lighting)
         {
-            float next = StageLightIntensity.Clamp(intensity);
-            if (!_intensity.Set(next))
+            if (lighting == null)
+            {
+                throw new ArgumentNullException(nameof(lighting));
+            }
+
+            StageLighting next = lighting.Normalized();
+            if (!_lighting.Set(next))
             {
                 return;
             }
 
-            Light light = DefaultLight;
-            if (light != null)
-            {
-                light.intensity = next;
-            }
+            _lights?.Apply(next);
 
             // A slider gives many values while dragged; the save waits until they stop (6.3).
             StageSettings settings = _settings.Clone();
-            settings.LightIntensity = next;
+            settings.Lights = next.Lights.Select(LightSettings.From).ToList();
+            settings.AmbientLight = next.Ambient;
+            settings.LightIntensity = null;
             _settings = settings;
             _saves.Changed(settings.Clone());
         }
@@ -215,8 +234,9 @@ namespace VirtualVessel.Stage
             _backdrop = null;
             _backdropMaterial = null;
             _backdropTexture = null;
-            Destroy(_light);
-            _light = null;
+            _view.Dispose();
+            _lights?.Dispose();
+            _lights = null;
         }
 
         /// <summary>

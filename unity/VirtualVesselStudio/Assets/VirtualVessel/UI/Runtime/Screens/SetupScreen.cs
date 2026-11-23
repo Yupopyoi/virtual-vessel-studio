@@ -7,6 +7,7 @@ using VirtualVessel.Capture;
 using VirtualVessel.Tracking;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Localization;
+using VirtualVessel.UI.StageEditing;
 
 namespace VirtualVessel.UI.Screens
 {
@@ -45,7 +46,8 @@ namespace VirtualVessel.UI.Screens
         /// <param name="appSettings">The app settings Card, which the UI root builds from the UI's own settings.</param>
         /// <param name="pageId">The page to open with: the one saved last time, or null for the first.</param>
         /// <param name="pageChanged">Called with the id of a page the user opens.</param>
-        public SetupScreen(ScreenServices services, VisualElement appSettings, string pageId = null, Action<string> pageChanged = null)
+        /// <param name="viewPreferences">Which way a drag turns the lighting's stage view (setup.md 15.2); null shows no choice.</param>
+        public SetupScreen(ScreenServices services, VisualElement appSettings, string pageId = null, Action<string> pageChanged = null, IStageViewPreferences viewPreferences = null)
         {
             services ??= new ScreenServices();
             AddToClassList(UssClass);
@@ -61,7 +63,7 @@ namespace VirtualVessel.UI.Screens
 
             FillVideo(_pages[VideoPage], services);
             FillAudio(_pages[AudioPage], services, _pages[VideoPage].Q<GameAudioRow>() != null);
-            FillAvatar(_pages[AvatarPage], services);
+            FillAvatar(_pages[AvatarPage], services, viewPreferences);
             FillOutput(_pages[OutputPage], services);
             FillApp(_pages[AppPage], services, appSettings);
 
@@ -126,7 +128,7 @@ namespace VirtualVessel.UI.Screens
             }
         }
 
-        private static void FillAvatar(VisualElement page, ScreenServices services)
+        private static void FillAvatar(VisualElement page, ScreenServices services, IStageViewPreferences viewPreferences)
         {
             IAvatarService avatars = services.Avatars;
             AddOr(page, avatars != null, () => new AvatarCard(avatars, services.FileDialog, services.SampleAvatar), AvatarStrings.Unavailable);
@@ -134,7 +136,13 @@ namespace VirtualVessel.UI.Screens
             AddOr(page, services.Tracking != null && camera != null, () => new TrackingCard(services.Tracking, camera), TrackingStrings.Unavailable);
             if (avatars != null)
             {
-                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.Lighting, services.AvatarFrame));
+                page.Add(new FaceTuningCard(avatars, services.StreamPreview, services.AvatarFrame));
+            }
+
+            // By the face tuning: both are judged by looking at the face on the stream.
+            if (services.Lighting != null)
+            {
+                page.Add(new LightingCard(services.Lighting, services.StreamPreview, services.StageView, viewPreferences));
             }
         }
 

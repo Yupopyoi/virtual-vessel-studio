@@ -55,8 +55,13 @@
     border-color: var(--vv-color-live);
 }
 
-/* Disabled (components.md 2): Surface 2 background, Disabled text, no glow. */
+/*
+ * Disabled (components.md 2): Surface 2 background, Disabled text, no glow. Opaque: Unity's default theme made a
+ * disabled button half transparent, and on a Card's colored title band its text could hardly be read (user's report,
+ * 2026-11-22).
+ */
 .vv-button:disabled {
+    opacity: 1;
     background-color: var(--vv-color-surface-2);
     border-color: var(--vv-color-border);
     color: var(--vv-color-disabled);

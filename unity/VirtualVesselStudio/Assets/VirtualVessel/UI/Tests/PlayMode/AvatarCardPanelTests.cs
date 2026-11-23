@@ -31,6 +31,7 @@ namespace VirtualVessel.UI.Tests
         private FakeAvatars _avatars;
         private FakeFiles _files;
         private FakeLighting _lighting;
+        private FakeStageView _stageView;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -39,6 +40,7 @@ namespace VirtualVessel.UI.Tests
             _avatars = new FakeAvatars();
             _files = new FakeFiles();
             _lighting = new FakeLighting();
+            _stageView = new FakeStageView();
             Build(sample: null);
             yield return null;
         }
@@ -54,7 +56,7 @@ namespace VirtualVessel.UI.Tests
             _host.AddComponent<UIDocument>();
             _root = _host.AddComponent<UiRoot>();
             _root.SetAssets(UnityEditor.AssetDatabase.LoadAssetAtPath<UiAssets>("Assets/VirtualVessel/UI/UiAssets.asset"));
-            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting }));
+            _root.Build(new UiRootContext(_directory, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, screens: new ScreenServices { Avatars = _avatars, FileDialog = _files, SampleAvatar = sample, Lighting = _lighting, StageView = _stageView }));
             _root.Shell.Open("setup");
             ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AvatarPage;
         }
@@ -291,29 +293,205 @@ namespace VirtualVessel.UI.Tests
         }
 
         [UnityTest]
-        public IEnumerator TheLight_IsChangedBesideThePicture_AndFollowsTheStage()
+        public IEnumerator TheLightingCard_ChangesTheChosenLight_AndFollowsTheStage()
         {
-            FaceTuningCard card = _root.Content.Q<FaceTuningCard>();
-            card.Q<Card>().Expanded = true;
+            LightingCard card = _root.Content.Q<LightingCard>();
+            Assert.That(card, Is.Not.Null, "On the avatar page, with the stage.");
             yield return null;
-            Assert.That(card.Light, Is.Not.Null);
-            Assert.That(card.Light.value, Is.EqualTo(100f), "100% is the light as made.");
-            Assert.That(card.Light.LowValue, Is.EqualTo(StageLightIntensity.Min * 100f));
+            Assert.That(card.Intensity.value, Is.EqualTo(70f).Within(1e-3f), "70% by default.");
+            Assert.That(card.Kind.value, Is.EqualTo(0), "The whole stage, as the light always was.");
+            Assert.That(card.Distance.enabledSelf, Is.False, "A whole-stage light has no distance.");
+            Assert.That(card.Query<SettingRow>().ToList().Where(row => string.IsNullOrEmpty(row.HelpKey)), Is.Empty, "Every row is explained.");
+            Assert.That(card.Query<ValueSlider>().ToList().Where(slider => string.IsNullOrEmpty(slider.HelpKey)), Is.Empty, "Every slider too.");
 
-            card.Light.value = 60f;
-            Assert.That(_lighting.Intensity.Value, Is.EqualTo(0.6f).Within(1e-5f));
+            // Measured on the real styles: the settings scroll beside the picture, so the avatar stays in view
+            // however long the list is (user's report, 2026-11-22).
+            Rect picture = card.Q(className: LightingCard.PictureClass).worldBound;
+            Rect settings = card.Settings.worldBound;
+            Assert.That(settings.xMin >= picture.xMax - 0.5f || settings.yMin >= picture.yMax - 0.5f, Is.True, "Beside the picture, or under it on a narrow window.");
+            Assert.That(settings.height, Is.LessThanOrEqualTo(480.5f), "Scrolled, not as long as the list.");
+            Assert.That(card.Settings.contentContainer.worldBound.height, Is.GreaterThan(settings.height), "The list is longer than what shows.");
 
-            _lighting.SetIntensity(1.2f);
-            Assert.That(card.Light.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
-            Assert.That(card.Light.HelpKey, Is.EqualTo(FaceTuningStrings.LightHelp), "Says the stream changes too.");
+            card.Intensity.value = 60f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(0.6f).Within(1e-5f));
+            card.Kind.value = 1;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Kind, Is.EqualTo(StageLightKind.Spot));
+            Assert.That(card.Distance.enabledSelf, Is.True);
+            card.Yaw.value = 40f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].Yaw, Is.EqualTo(40f));
+
+            // A stage color has no temperature.
+            Assert.That(card.Temperature.enabledSelf, Is.True);
+            card.ColorChoice.value = StageLightColors.Pink;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo(StageLightColors.Pink));
+            Assert.That(card.Temperature.enabledSelf, Is.False);
+            Assert.That(card.Temperature.TooltipKey, Is.EqualTo(LightingStrings.WhiteOnly), "Says why.");
+            Assert.That(card.Swatch.style.backgroundColor.value, Is.EqualTo(StageLightColors.ColorOf(_lighting.Lighting.Value.Lights[0])));
+
+            _lighting.SetLighting(_lighting.Lighting.Value.WithAmbient(0.4f).WithLight(0, StageLight.Default.WithIntensity(1.2f)));
+            Assert.That(card.Intensity.value, Is.EqualTo(120f).Within(1e-3f), "Follows a change made elsewhere.");
+            Assert.That(card.Ambient.value, Is.EqualTo(40f).Within(1e-3f));
+            Assert.That(card.Kind.value, Is.EqualTo(0));
+        }
+
+        [UnityTest]
+        public IEnumerator ACustomColor_IsSetByItsCode_OrByItsChannels()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.CodeField.enabledSelf, Is.False, "Only for a custom color.");
+            Assert.That(card.CodeField.value, Is.EqualTo(StageLightColors.ToCode(StageLightColors.ColorOf(StageLight.Default))), "A named color's code can be read.");
+
+            card.ColorChoice.value = StageLightColors.Pink;
+            card.ColorChoice.value = StageLightColors.Custom;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo(StageLightColors.ToCode(StageLightColors.ColorOf(StageLight.Default.WithColor(StageLightColors.Pink)))), "Starts from the color it had.");
+            Assert.That(card.CodeField.enabledSelf, Is.True);
+            Assert.That(card.Temperature.enabledSelf, Is.False);
+
+            card.CodeField.value = "#nope";
+            PressEnter(card.CodeField);
+
+            yield return null;
+            Assert.That(card.CodeField.ErrorKey, Is.EqualTo(LightingStrings.CodeInvalid));
+            card.CodeField.value = "#00ff80";
+            PressEnter(card.CodeField);
+
+            yield return null;
+            Assert.That(card.CodeField.ErrorKey, Is.Null);
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#00FF80"));
+            Assert.That(card.GreenSlider.value, Is.EqualTo(255f));
+
+            card.RedSlider.value = 16f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#10FF80"));
+            Assert.That(LightingCard.WithChannel(new Color(1f, 0f, 0f), 2, 255), Is.EqualTo("#FF00FF"));
+
+            // The same sliders as hue, saturation, and value.
+            card.ChannelMode.value = "hsv";
+            Assert.That(card.RedSlider.LabelKey, Is.EqualTo(LightingStrings.Hue));
+            Assert.That(card.RedSlider.HighValue, Is.EqualTo(360f));
+            card.CodeField.value = "#FF0000";
+            PressEnter(card.CodeField);
+            Assert.That(card.BlueSlider.value, Is.EqualTo(100f), "Full value.");
+            card.RedSlider.value = 120f;
+            Assert.That(_lighting.Lighting.Value.Lights[0].ColorId, Is.EqualTo("#00FF00"), "Hue 120° is green.");
+            Assert.That(LightingCard.WithHsvChannel(new Color(1f, 0f, 0f), 1, 0f), Is.EqualTo("#FFFFFF"), "No saturation is white.");
+            Assert.That(LightingCard.ToHsv(new Color(0f, 0f, 1f)), Is.EqualTo(new Vector3(240f, 100f, 100f)));
+        }
+
+        private static void PressEnter(VisualElement target)
+        {
+            using KeyDownEvent enter = KeyDownEvent.GetPooled('\n', KeyCode.Return, EventModifiers.None);
+            enter.target = target;
+            target.SendEvent(enter);
+        }
+
+        [UnityTest]
+        public IEnumerator ThePlacementView_IsOpenOnlyWhileShown_AndFollowsTheChosenLight()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            Assert.That(card.View, Is.Not.Null);
+            Assert.That(card.PictureTabs.value, Is.EqualTo(0), "Placement first.");
+
+            // The view checks now and then whether it is shown.
+            yield return new WaitForSeconds(0.4f);
+            Assert.That(card.View.IsOpen, Is.True);
+            Assert.That(_stageView.Opens, Is.EqualTo(1));
+            Assert.That(_stageView.Selected, Is.EqualTo(StageEditing.StageViewItems.Light(0)));
+
+            Submit(card.AddButton);
+            Assert.That(_stageView.Selected, Is.EqualTo(StageEditing.StageViewItems.Light(1)), "The new light is chosen in the view too.");
+
+            // Which way a drag turns the view, kept with the UI settings.
+            Assert.That(card.InvertXToggle, Is.Not.Null);
+            card.InvertXToggle.value = true;
+            Assert.That(_root.Settings.StageViewInvertX, Is.True);
+            Assert.That(_root.Settings.StageViewInvertY, Is.False);
+            card.InvertYToggle.value = true;
+            Assert.That(_root.Settings.StageViewInvertY, Is.True);
+            Assert.That(card.View.Preferences, Is.SameAs(_root.Settings));
+
+            card.PictureTabs.value = 1;
+            Assert.That(card.View.IsOpen, Is.False, "The stream Tab closes it.");
+            Assert.That(_stageView.Opens, Is.Zero);
+            Assert.That(card.ViewOptions.resolvedStyle.display, Is.EqualTo(DisplayStyle.None), "Only with Placement.");
+            yield return null;
+            Assert.That(card.Preview.resolvedStyle.display, Is.EqualTo(DisplayStyle.Flex));
+            Assert.That(card.Preview.resolvedStyle.width, Is.GreaterThan(100f), "Fills the frame (it had no width, user's report).");
+
+            card.PictureTabs.value = 0;
+            ((SetupScreen)_root.Shell.Host.GetScreen("setup")).Tabs.value = SetupScreen.AudioPage;
+            yield return new WaitForSeconds(0.4f);
+            Assert.That(_stageView.Opens, Is.Zero, "Another page closes it.");
+        }
+
+        [UnityTest]
+        public IEnumerator ControlsOnOneRow_AreSApart()
+        {
+            // Measured on the real styles (components.md 3.9): the space never reached them before (2026-11-22).
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.RemoveButton.worldBound.xMin - card.AddButton.worldBound.xMax, Is.EqualTo(8f).Within(0.5f), "The title band's buttons.");
+            Assert.That(card.ColorChoice.worldBound.xMin - card.Swatch.worldBound.xMax, Is.EqualTo(8f).Within(0.5f), "The swatch and the color.");
+            Assert.That(card.ColorChoice.worldBound.xMax, Is.LessThanOrEqualTo(card.Settings.contentContainer.worldBound.xMax + 0.5f), "Still inside, though the row is pulled left.");
         }
 
         [Test]
-        public void TheLight_IsLeftOut_WithoutTheStage()
+        public void AMarker_IsPickedNearItsCenter_AndTheNearestWins()
         {
-            var card = new FaceTuningCard(_avatars, null);
+            var markers = new[]
+            {
+                new StageEditing.StageViewMarker("light:0", "1", new Vector2(0.5f, 0.5f), true, Color.white),
+                new StageEditing.StageViewMarker("light:1", "2", new Vector2(0.55f, 0.5f), true, Color.white),
+                new StageEditing.StageViewMarker("light:2", "3", new Vector2(0.2f, 0.2f), false, Color.white),
+            };
+            var size = new Vector2(400f, 200f);
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(204f, 100f), size), Is.EqualTo("light:0"));
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(218f, 100f), size), Is.EqualTo("light:1"));
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(80f, 40f), size), Is.Null, "Not one out of view.");
+            Assert.That(StageEditing.StageViewPanel.Pick(markers, new Vector2(300f, 100f), size), Is.Null);
+        }
 
-            Assert.That(card.Light, Is.Null);
+        [UnityTest]
+        public IEnumerator Lights_AreAddedUpToFour_AndTheLastOneStays()
+        {
+            LightingCard card = _root.Content.Q<LightingCard>();
+            yield return null;
+            Assert.That(card.RemoveButton.enabledSelf, Is.False, "Never without a light.");
+            Assert.That(card.RemoveButton.resolvedStyle.opacity, Is.EqualTo(1f), "Disabled but opaque, so it reads on the title band.");
+            Assert.That(card.LightChoice.IsItemEnabled(1), Is.False);
+
+            Submit(card.AddButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(2));
+            Assert.That(card.Selected, Is.EqualTo(1), "The new light is the one being set.");
+            Assert.That(card.Kind.value, Is.EqualTo(1), "Added as a spot.");
+            card.Intensity.value = 50f;
+            Assert.That(_lighting.Lighting.Value.Lights[1].Intensity, Is.EqualTo(0.5f).Within(1e-5f));
+            Assert.That(_lighting.Lighting.Value.Lights[0].Intensity, Is.EqualTo(StageLight.Default.Intensity), "The first is left as it was.");
+
+            Submit(card.AddButton);
+            Submit(card.AddButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(StageLighting.MaxLights));
+            Assert.That(card.AddButton.enabledSelf, Is.False);
+            Assert.That(card.AddButton.TooltipKey, Is.EqualTo(LightingStrings.AddFull));
+
+            Submit(card.RemoveButton);
+            Assert.That(_lighting.Lighting.Value.Lights.Count, Is.EqualTo(3));
+            Assert.That(card.Selected, Is.EqualTo(2), "The light before the removed one.");
+
+            card.LightChoice.value = 0;
+            Submit(card.ResetButton);
+            Assert.That(_lighting.Lighting.Value, Is.EqualTo(StageLighting.Default));
+            Assert.That(card.Selected, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TheChosenLight_IsTheLastOne_WhenItIsGone()
+        {
+            StageLighting two = StageLighting.Default.WithAdded(StageLight.Added);
+            Assert.That(LightingCard.SelectedIn(two, 1), Is.EqualTo(1));
+            Assert.That(LightingCard.SelectedIn(two, 3), Is.EqualTo(1));
+            Assert.That(LightingCard.SelectedIn(StageLighting.Default, 1), Is.EqualTo(0));
+            Assert.That(LightingCard.SelectedIn(StageLighting.Default, -1), Is.EqualTo(0));
         }
 
         [Test]
@@ -492,15 +670,93 @@ namespace VirtualVessel.UI.Tests
             }
         }
 
-        private sealed class FakeLighting : IStageLighting
+        internal sealed class FakeStageView : StageEditing.IStageView
         {
-            private readonly ObservableValue<float> _intensity = new ObservableValue<float>(StageLightIntensity.Default);
+            private readonly ObservableValue<Texture> _image = new ObservableValue<Texture>(null);
+            private readonly ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>> _markers = new ObservableValue<IReadOnlyList<StageEditing.StageViewMarker>>(Array.Empty<StageEditing.StageViewMarker>());
 
-            public IReadOnlyObservable<float> Intensity => _intensity;
+            public int Opens { get; private set; }
 
-            public void SetIntensity(float intensity)
+            public string Selected { get; private set; }
+
+            public IReadOnlyObservable<Texture> Image => _image;
+
+            public IReadOnlyObservable<IReadOnlyList<StageEditing.StageViewMarker>> Markers => _markers;
+
+            public IDisposable Open(int width, int height)
             {
-                _intensity.Value = StageLightIntensity.Clamp(intensity);
+                Opens++;
+                bool closed = false;
+                return new DisposeAction(() =>
+                {
+                    if (!closed)
+                    {
+                        closed = true;
+                        Opens--;
+                    }
+                });
+            }
+
+            public void Orbit(Vector2 degrees)
+            {
+            }
+
+            public void Zoom(float steps)
+            {
+            }
+
+            public void Pan(Vector2 viewFraction)
+            {
+            }
+
+            public void ResetView()
+            {
+            }
+
+            public void Frame(string itemId)
+            {
+            }
+
+            public void Select(string itemId)
+            {
+                Selected = itemId;
+            }
+
+            public bool BeginDrag(string itemId, Vector2 uv)
+            {
+                return false;
+            }
+
+            public void DragTo(Vector2 uv)
+            {
+            }
+
+            public void EndDrag()
+            {
+            }
+
+            private sealed class DisposeAction : IDisposable
+            {
+                private readonly Action _action;
+
+                public DisposeAction(Action action)
+                {
+                    _action = action;
+                }
+
+                public void Dispose() => _action();
+            }
+        }
+
+        internal sealed class FakeLighting : IStageLighting
+        {
+            private readonly ObservableValue<StageLighting> _lighting = new ObservableValue<StageLighting>(StageLighting.Default);
+
+            public IReadOnlyObservable<StageLighting> Lighting => _lighting;
+
+            public void SetLighting(StageLighting lighting)
+            {
+                _lighting.Value = lighting.Normalized();
             }
         }
 

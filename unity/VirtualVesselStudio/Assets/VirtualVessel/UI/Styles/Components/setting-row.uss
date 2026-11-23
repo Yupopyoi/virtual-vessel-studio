@@ -11,10 +11,6 @@
     border-color: var(--vv-color-border);
 }
 
-.vv-setting-row:last-child {
-    border-bottom-width: 0;
-}
-
 .vv-setting-row__text {
     flex-grow: 1;
     flex-shrink: 1;
@@ -43,17 +39,18 @@
 }
 
 /* More than one control on a row, such as a button and a toggle: the S space between them (components.md 3.11). */
+/* S between the controls (components.md 3.9). USS has no :first-child: a rule using it reached every control and
+   took the space away again, so the controls were never spaced (2026-11-22). Each control gets S on its left and the
+   row is pulled left by the same amount instead. */
 .vv-setting-row__controls {
     flex-direction: row;
     align-items: center;
+    /* -S: USS has no calc(). */
+    margin-left: -8px;
 }
 
 .vv-setting-row__controls > * {
     margin-left: var(--vv-space-s);
-}
-
-.vv-setting-row__controls > *:first-child {
-    margin-left: 0;
 }
 
 .vv-setting-row__control {

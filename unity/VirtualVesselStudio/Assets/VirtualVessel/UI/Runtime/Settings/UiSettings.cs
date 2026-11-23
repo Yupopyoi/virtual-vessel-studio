@@ -35,6 +35,12 @@ namespace VirtualVessel.UI.Settings
         /// <summary>The page last open on the settings screen, or null for the first.</summary>
         public string LastSetupPage { get; set; }
 
+        /// <summary>Whether dragging in the stage view turns it the other way, left and right (setup.md 15.2).</summary>
+        public bool StageViewInvertX { get; set; }
+
+        /// <summary>Whether dragging in the stage view turns it the other way, up and down (setup.md 15.2).</summary>
+        public bool StageViewInvertY { get; set; }
+
         /// <summary>The settings for a first start, in <paramref name="language"/> chosen from the OS.</summary>
         public static UiSettings CreateDefault(string language)
         {
@@ -56,7 +62,9 @@ namespace VirtualVessel.UI.Settings
                 && string.Equals(a.FontSet, b.FontSet, StringComparison.Ordinal)
                 && a.DeveloperMode == b.DeveloperMode
                 && string.Equals(a.LastScreen, b.LastScreen, StringComparison.Ordinal)
-                && string.Equals(a.LastSetupPage, b.LastSetupPage, StringComparison.Ordinal);
+                && string.Equals(a.LastSetupPage, b.LastSetupPage, StringComparison.Ordinal)
+                && a.StageViewInvertX == b.StageViewInvertX
+                && a.StageViewInvertY == b.StageViewInvertY;
         }
     }
 }

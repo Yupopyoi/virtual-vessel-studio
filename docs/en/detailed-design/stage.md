@@ -66,15 +66,22 @@ flowchart LR
 |---|---|---|
 | `StageService` | Class (`IApplicationService`) | Creates the Stream Screens, loads placements, and saves them |
 | `CaptureScreen` | Class (the UI's `IFrameSource`) | One capture source's quad and placement; accepts edits |
-| `StageSettings` | Class | What is saved (a placement per video, the light's brightness) |
+| `StageSettings` | Class | What is saved (a placement per video, the lights, the ambient light) |
 | `ScreenPlacementMath` | Static class | The quad's position, size, and UVs from a placement (pure functions) |
-| `StageDefaults` | Static class | Placements for the first use, the default avatar spawn point, the default light's direction, and the backdrop's place and size |
+| `StageDefaults` | Static class | Placements for the first use, the default avatar spawn point, and the backdrop's place and size |
 | `DefaultBackdrop` | Static class | The provisional backdrop's picture, drawn in code (pure function, 7.1) |
 | `IAvatarSpawnPoints` | Interface | Where avatars stand (7.1) |
 | `AvatarFrame` | Class (the UI's `IFrameSource`) | The avatar frame; sets the Avatar Camera's framing from its placement (7.2) |
 | `AvatarFramingMath` | Static class | The camera's position and projection from the avatar frame (pure functions, 7.2) |
-| `IStageLighting` (UI) | Interface | The light's brightness. The settings screen changes it; Stage implements it (7.1) |
-| `StageLightIntensity` (UI) | Static Class | The brightness's range and default, and a function that keeps a value in range (pure) |
+| `IStageLighting` (UI) | Interface | The lights and the ambient light. The settings screen changes them; Stage implements it (7.3) |
+| `StageLight`, `StageLighting` (UI) | Class (immutable) | One light, and the list of lights with the ambient light. Their ranges and defaults, and functions that keep values in range (pure) |
+| `StageLightColors` (UI) | Static Class | The lights' colors, and a function from color temperature to color (pure) |
+| `StageLightPlacement` | Static Class | A light's position, rotation, and the intensity given to Unity (pure, 7.3) |
+| `StageLightRig` | Class (internal) | Creates, removes, and sets Unity's lights; changes the ambient light and puts it back at shutdown |
+| `StageView` | Class | The stage view (7.4). Implements `IStageView` (UI): the camera and render target, the viewpoint, the guides, and drags |
+| `StageViewMath` | Static Class | The viewpoint's position and rotation, a ray from a point on the view, a point's position on the view, the handle on a sphere (pure) |
+| `IStageViewItem` | Interface (internal) | A thing editable in the stage view: its marker position, guides, and kind of handle |
+| `IStageView`, `StageViewMarker` (UI) | Interface, Struct | The stage view's interface, and a marker's position |
 
 ---
 
@@ -85,15 +92,15 @@ public sealed class StageService : IApplicationService, IAvatarSpawnPoints, ISta
 {
     public IReadOnlyList<IFrameSource> Screens { get; }   // Passed to the placement editor; in source order, not stacking order
     public IAvatarSpawnPoints SpawnPoints { get; }        // Where avatars stand (7.1)
-    public IReadOnlyObservable<float> Intensity { get; }  // The light's brightness (7.1); 1 is the light as made
-    public void SetIntensity(float intensity);            // Applies to the light at once and saves; from the main thread
+    public IReadOnlyObservable<StageLighting> Lighting { get; }  // The lights and the ambient light (7.3)
+    public void SetLighting(StageLighting lighting);             // Keeps it in range, applies it at once, and saves; from the main thread
 }
 
 // UI (VirtualVessel.UI.Lighting). Stage references UI, so the contract is in UI (as IFrameSource is)
 public interface IStageLighting
 {
-    IReadOnlyObservable<float> Intensity { get; }
-    void SetIntensity(float intensity);
+    IReadOnlyObservable<StageLighting> Lighting { get; }
+    void SetLighting(StageLighting lighting);
 }
 
 public interface IAvatarSpawnPoints
@@ -104,7 +111,7 @@ public interface IAvatarSpawnPoints
 
 - The composition passes `Screens` to the UI. The UI sees only `IFrameSource`.
 - The composition passes `SpawnPoints.Default` to Avatar as part of `AvatarPlacement` (Avatar detailed design 3).
-- The composition passes `StageService` to the UI as `IStageLighting`. The face tuning Card on the settings screen changes the brightness beside its picture (UI `setup.md` 9).
+- The composition passes `StageService` to the UI as `IStageLighting`. The lighting Card on the settings screen's avatar page changes it (UI `setup.md` 15).
 
 ---
 
@@ -138,15 +145,21 @@ public interface IAvatarSpawnPoints
     "game": { "placement": [0, 0, 1, 1], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 0 },
     "subscreen": { "placement": [0.66, 0.04, 0.3, 0.3], "crop": [0, 0, 1, 1], "flipHorizontal": false, "locked": false, "allowOutside": false, "order": 1 }
   },
-  "lightIntensity": 0.7
+  "lightIntensity": null,
+  "lights": [
+    { "kind": "directional", "yaw": -15, "pitch": 35, "distance": 2, "intensity": 0.7, "color": "white", "temperature": 6500, "spotAngle": 50 },
+    { "kind": "spot", "yaw": 45, "pitch": 15, "distance": 2, "intensity": 1, "color": "pink", "temperature": 6500, "spotAngle": 50 }
+  ],
+  "ambientLight": 1
 }
 ```
 
 - Kept in the project's folder (`Projects/<ProjectId>/`, project data detailed design 6) and read and written with `ConfigFileStore` (ProjectData). A broken file is moved aside and the defaults are used. Until the refactoring after step 7 it was in the settings folder; the first project took a copy of it.
 - Placements of unknown ids are kept, not deleted (CLAUDE.md chapter 25).
 - After each confirmation (`LayoutCommitted`), the file is saved 0.5 seconds after the last one. Anything unsaved is saved at shutdown.
-- `lightIntensity` is the light's brightness (7.1). It is `null` until changed, and the default (1) is used, so a better default reaches users who never changed it. A value outside the range (a hand-edited file, for example) is read as the nearest end, and a value that is not a number as the default. While a slider keeps changing it, nothing is saved; it is saved 0.5 seconds after the last change.
-- Older files without `lightIntensity` read the default, so the version (`schemaVersion`) stays 1.
+- `lights` is the list of lights and `ambientLight` the ambient light's scale (7.3). They are `null` until changed, and the defaults are used, so a better default reaches users who never changed them. A value outside the range (a hand-edited file, for example) is read as the nearest end; a value that is not a number, a missing field, and an unknown kind or color take the default light's value. Lights after the fourth are not read. While a slider keeps changing them, nothing is saved; they are saved 0.5 seconds after the last change.
+- `lightIntensity` is the brightness of the one light of the versions up to 0.3. While `lights` is missing, it is read as the first light's brightness. When the lights are saved it is written as `null`; the brightness is then in `lights`, so nothing is lost.
+- Fields were only added and older files read as they are, so the version (`schemaVersion`) stays 1.
 
 ### 6.4 Translating Names
 
@@ -172,9 +185,8 @@ public interface IAvatarSpawnPoints
 ### 7.1 Avatar Spawn Point and Light (until Stage Scenes)
 
 - Until Stage Scenes provide their own (system design 11.6), there is one spawn point: the origin, turned 180° to face the Main Camera on -Z (Video detailed design 7.5).
-- The persistent scene has no light, and lit avatar materials (MToon) would be dark without one. At start Stage creates a directional light, `StageDefaultLight`: from above the camera and a little to its left (rotation 35°, 15°, 0°), no shadows. A Stage Scene with its own lights will replace it.
-- The user can change the light's brightness on the settings screen (`IStageLighting`; user's request, 2026-10-21). Under a light of intensity 1, the face was washed out and its expression hard to see. The range is 10 to 150%, and the default is 100% (intensity 1). The brightness scales the light as made, so that with Stage Scenes it can still adjust how bright the whole lighting is (chapter 17).
-- In system design 11.7, Stage manages the lighting. Stage also owns the brightness setting and saves it in `stage-settings.json` (6.3). It changes the stream too, so unlike the picture's height and zoom, which are only for looking (UI `setup.md` 9), it is saved.
+- The persistent scene has no light, and lit avatar materials (MToon) would be dark without one. At start Stage creates the lights. By default there is one directional light, `StageDefaultLight`: from the front, high above (left-right 0°, up-down 75°; rotation 75°, 0°, 0°), at 70%, no shadows (the user's decision after trying it, 2026-11-22; before, from above the camera and a little to its left, rotation 35°, 15°, 0°, at 100%). The user can add lights and change their direction, brightness, and color (7.3). A Stage Scene with its own lights will replace them.
+- In system design 11.7, Stage manages the lighting. Stage also owns the light settings and saves them in `stage-settings.json` (6.3). They change the stream too, so unlike the picture's height and zoom, which are only for looking (UI `setup.md` 9), they are saved.
 - Until a Stage Scene brings its own backdrop, Stage puts up a provisional one behind the avatar (the user's request, 2026-10-24). The picture is a dark gradient from plum through indigo to navy, with a soft glow behind the avatar, faint polka dots, and pastel stars and hearts in the side bands, away from the avatar. A pastel version was tried first; the user preferred a dark one. `DefaultBackdrop` (pure) draws it in code at 1600 × 900, so no image file is bundled; this takes about 0.37 s once at start in the Editor. It sits on a quad (`StageBackdrop`) 2 m behind the avatar at the camera's height. The quad is 4.27 × 2.4 m, the default camera's view (video detailed design 7.5) with about 15% to spare. The Main Camera draws it, under the flat videos and the avatar. It is unlit, with the stream screens' shader. It is removed with the default light.
 
 ### 7.2 The Avatar Frame (placement editor)
@@ -192,6 +204,115 @@ The user's request (2026-11-18): put the avatar on the right of the screen and t
 - Without a saved placement, it is close to how the avatar was shown before: the upper body in the middle. The part shown is (0.21, 0, 0.58, 0.58), and the frame is the stream's full height, centered ((0.219, 0, 0.5625, 1) at 16:9).
 - Without an avatar (no Avatar, none chosen, or it cannot be loaded), the frame is hidden (`Visible` is false) and the Avatar Camera's framing is removed (back to following the Main Camera, Video detailed design 7.2).
 - Avatar gives the avatar's height as `IAvatarService.Height`, and the composition passes it to Stage (Stage does not reference Avatar).
+
+### 7.3 Lights and Ambient Light (user's request, 2026-11-22)
+
+Until Stage Scenes exist, the user can build the provisional lighting. This replaces the provisional brightness slider (2026-10-21).
+
+- One to four lights. URP lights an object with the main light and additional lights (up to four per object), so with four every light reaches the avatar. The last light cannot be removed.
+- A light is "Whole stage" (directional) or "Spot". A spot always aims at the avatar's face (`StageLightPlacement.Target`, 1.3 m above the spawn point).
+- It is placed by angles around the face: left and right (-180 to 180°; 0° is the camera's side, plus the screen's right), up and down (-30 to 90°; 0° is the face's height, 90° straight above), and for a spot the distance (0.5 to 5 m). Straight above or below, the up direction is the camera's way, as Unity's `LookRotation` is undefined there.
+- Brightness is 10 to 200%. A spot dims with the square of its distance, so Unity gets the brightness × distance². At the same brightness, the face is as bright under a directional light as under a spot at any distance. A spot reaches three times its distance, so the fall-off at the end of its range does not show on the face.
+- Colors are white and seven stage colors (pink, orange, yellow, green, sky blue, blue, purple). White follows the color temperature (2700 to 9000 K, 6500 K by default), turned into a color by an approximation of black-body colors (Tanner Helland; pure). The stage colors are light, so the face stays visible. A color of the user's own is set by a color code (`#RRGGBB`) or RGB (0 to 255 each), and saved in `color` as its code (user's request, 2026-11-22). A code that cannot be read is read as white.
+- A spot's spread is 10 to 120° (50° by default). It dims softly from 60% of the cone outward, so its edge does not stand out.
+- The ambient light is how bright the shade is where no light reaches. It is a scale (0 to 200%, 100% by default) of the scene's ambient light (`RenderSettings.ambientProbe`), so the default looks as before. The scene's ambient light at start is kept and put back at shutdown.
+- No shadows (as in 7.1).
+- Values go through `StageLighting.Normalized` (pure) before they apply, whether they come from the UI or from the file.
+
+### 7.4 Stage View (system design 11.15)
+
+A 3D view for building the stage while looking at it in Setup, corresponding to Unity's Scene View. It is first used to place lights (user's request, 2026-11-22: from numbers alone it was unclear where a light is and which way its light goes), and with 3D stages also for Camera Points, Spawn Points, Screen Surfaces, and props. So the view and its operation are built apart from the kinds of things they edit.
+
+#### 7.4.1 Parts
+
+| Part | Owner | Role |
+|---|---|---|
+| Stage view camera | Stage (`StageView`) | Draws the stage and the avatar into a render target separate from the stream |
+| Viewpoint | Stage (`StageViewMath`, pure) | A viewpoint going around a pivot: orbit, zoom, move the pivot, reset |
+| Editable things | Stage (`IStageViewItem`, internal) | Per kind: where its marker is, its guides, and its kind of handle. Only lights for now (`LightViewItem`) |
+| Guides | Stage (`StageViewGuides`) | Lines such as a light's direction and a spot's cone, drawn only by the stage view camera |
+| Markers | UI (the lighting Card) | Numbered markers at the things' positions, placed as UI elements where Stage says each frame |
+| Input | UI | Turns pointer and keyboard input into view control, selection, and drag commands |
+
+- Markers are UI elements so that their numbers are drawn legibly, they do not rely on color alone (a number and a frame), and focus and tooltips work as on any other element. That is simpler than drawing text in 3D, and follows the tokens.
+- Lines and cones are at 3D positions, so Stage draws them with the stage view camera.
+
+#### 7.4.2 Interface
+
+```csharp
+// UI (VirtualVessel.UI.StageEditing). Stage references the UI, so the interface is in the UI (as IStageLighting is)
+public interface IStageView
+{
+    IReadOnlyObservable<Texture> Image { get; }             // The render target while open; null when closed
+    IReadOnlyObservable<IReadOnlyList<StageViewMarker>> Markers { get; }  // Marker positions; every frame while open
+    IDisposable Open(int width, int height);                  // Starts drawing; closing the last one stops and releases it
+    void Orbit(Vector2 degrees);                              // x: left and right, y: up and down
+    void Zoom(float steps);                                   // Plus comes closer
+    void Pan(Vector2 viewFraction);                           // Moves the pivot by a fraction of the view
+    void ResetView();
+    void Frame(string itemId);                                // Puts that thing at the pivot
+    void Select(string itemId);                               // The chosen thing (drawn bolder); null for none
+    bool BeginDrag(string itemId, Vector2 uv);                // False for a thing without a handle
+    void DragTo(Vector2 uv);
+    void EndDrag();
+}
+
+public readonly struct StageViewMarker
+{
+    public string ItemId { get; }      // Such as "light:0": kind:index
+    public string Label { get; }       // The marker's text ("1")
+    public Vector2 Uv { get; }         // Position on the view (top left 0, bottom right 1)
+    public bool Visible { get; }       // False behind the camera and the like
+    public Color Color { get; }        // A light's color for a light
+}
+```
+
+- Which thing is chosen is the UI's state (the same as the lighting Card's light choice). Stage gets it through `Select(string itemId)` to draw the markers and guides.
+- A drag's result goes to the thing's normal interface. A light goes through `StageService.SetLighting`, is kept in range, and is saved (7.3, 6.3). The stage view saves nothing itself.
+
+#### 7.4.3 Camera and Render Target
+
+- The first `Open` creates the camera and the render target (a `RenderTexture` the size of the UI's view, at most 960 × 540, 4× MSAA). The last `Dispose` destroys them; so does Stage's Dispose.
+- It is a Base camera, not in the Main Camera's stack (video detailed design 7.2), and has no `MainCamera` tag. It draws every layer except the flat videos' (`StreamScreens`): the stage, the backdrop quad, and the avatar's layer. The flat videos are 2D laid over the stream, so they are not in the 3D view.
+- The vertical view is 40°. It clears to the stage's dark color.
+- It is `enabled` only while open; during a stream alone it does not draw. While open, the stage and the avatar are drawn twice (the stream and the stage view), which uses that much more GPU.
+
+#### 7.4.4 Viewpoint
+
+- The viewpoint is on a sphere around the pivot, set by the left-right angle, the up-down angle (-10 to 80°), and the distance (1.5 to 10 m) (`StageViewMath.Pose`, pure). By default the pivot is the face (`StageLightPlacement.Target`), at -35° left-right, 22° up-down, and 5.2 m.
+- The stage turns with the pointer (as in Unity's Scene View): dragging right turns the stage to the right (the viewpoint goes around to the left). Up and down, the viewpoint follows the pointer: dragging down raises it (the user's decision after trying it, 2026-11-22). The mockup first had it the other way, which was the opposite of what the user expected (2026-11-22). People find different directions natural, so left-right and up-down can each be reversed (UI `setup.md` 15.2; a UI setting Stage does not know).
+- One wheel step changes the distance by 10%. Moving the pivot follows the pointer on a plane parallel to the view.
+
+#### 7.4.5 Handles
+
+| Handle | Movement | Used by |
+|---|---|---|
+| On a sphere (Orbit) | Keeps its distance from the center and faces the center while moving on the sphere. Set by where the pointer's ray meets the sphere; when it misses, the ray's nearest point is projected onto the sphere (pure) | Lights (now) |
+| Move | Along three axes or on the floor | Spawn Points, Camera Points, Screen Surfaces, props (later) |
+| Rotate | With rings around the axes | Camera Points, Screen Surfaces, props (later) |
+| Scale | With the frame's corners | Screen Surfaces, props (later) |
+
+- An `IStageViewItem` returns its kind of handle, and `StageView` handles them all the same way. A new kind of thing adds its own `IStageViewItem`.
+- Dragging a light changes its left-right and up-down angles in 1° steps. The distance is changed with its slider (a sphere changing size would change how the drag feels).
+
+#### 7.4.6 Guides
+
+- The line meshes are on objects that are active only while the stage view camera renders (switched on in `RenderPipelineManager.beginCameraRendering` and off in `endCameraRendering`). Only that camera draws them, not the Main Camera, the Avatar Camera, or the Screen Camera, and no new layer is needed. Drawing with a camera given (`Graphics.RenderMesh` with `RenderParams.camera`, `Graphics.DrawMesh`) was not drawn by this camera under URP, so it is not used (2026-11-22).
+- Lights: a spot has a line to the face and its cone (a ring at the face and four lines from the light to the ring). A whole-stage light has five parallel arrows toward the face from 2.4 m away. They are in the light's color; the chosen light is bold, the others faint.
+- A camera-shaped marker shows the stream camera's position, as a guide to which way the stream looks. Stage does not know the Main Camera's position, so it is not drawn until Video offers it (chapter 17).
+- Lines use an unlit shader (`StageGuide.shader`, in Resources) and follow depth; only the chosen thing's lines are drawn without the depth test, so they show even behind something.
+
+#### 7.4.7 With 3D Stages
+
+- When a Stage Scene is loaded, the stage view camera shows the same scene, so the stage is seen as it is.
+- A Stage Scene's Camera Points, Spawn Points, and Screen Surfaces are each registered as `IStageViewItem`s. A Camera Point shows its view frustum, a Spawn Point a ring at the feet with an arrow for its direction, and a Screen Surface its frame.
+- Choosing a Camera Point lets the user check the view from it (by moving the stage view camera there, not the stream camera).
+- Where positions the user moved are saved (the project's stage settings or the stage's definition) is decided with the Stage Scene design (chapter 17).
+
+#### 7.4.8 Checking That It Never Reaches the Stream
+
+- A PlayMode test draws the guides in a distinct color, reads back the stream render target, and checks that the pixels where the guides are do not have the guides' color.
+- EditMode tests check that the stage view camera's render target is not the stream render target, that the camera is not in the Main Camera's stack, and that closing destroys it.
 
 ---
 
@@ -255,9 +376,11 @@ The user's request (2026-11-18): put the avatar on the right of the screen and t
 |---|---|
 | EditMode | `ScreenPlacementMath` (position, size, UVs, the top-bottom swap, left-right flip, stacking) and reading, writing, and defaults of `StageSettings` (pure functions and a fake store) |
 | EditMode | `CaptureScreen`: the display follows the video, a confirmation schedules a save, invalid placements are rejected |
-| EditMode | The light's brightness: the default, keeping it in range, reading a saved value (pure functions); a change applies to the light at once, is saved after the delay, and is read back on the next start |
+| EditMode | Lights: the default, keeping values in range, reading the brightness of 0.3 and saved lights (pure functions). Position and rotation (the default light's direction and brightness, lights aim at the face, straight above), a spot's intensity. A change rebuilds the lights at once, is saved after the delay, and is read back on the next start. The ambient light is scaled and put back at shutdown |
 | EditMode | `AvatarFramingMath`: the center of the part shown lands on the frame's center and its height on the frame's height, independent of the avatar's height, and the default placement. `AvatarFrame`: showing and the camera's framing follow whether there is an avatar, a confirmation saves, the stacking order stays fixed |
 | PlayMode | A placed video is drawn at the decided place in the Stream Render Target (pixels read back) |
+| EditMode | `StageViewMath`: the viewpoint's position, the orbit direction, rays, positions on the view, the handle on a sphere (hit and miss). `StageView`: opening creates the camera and a render target apart from the stream's and outside the stack, closing destroys them, dragging a light changes the lighting |
+| PlayMode | The stage view's guides are not drawn into the stream render target (reading pixels back, 7.4.8) |
 
 ---
 
@@ -275,7 +398,11 @@ Assets/VirtualVessel/Stage/
 ├─ Runtime/                          VirtualVessel.Stage
 │  ├─ StageService.cs
 │  ├─ CaptureScreen.cs
-│  ├─ StageSettings.cs
+│  ├─ StageSettings.cs               StageSettings, ScreenSettings, LightSettings
+│  ├─ StageLightRig.cs               StageLightPlacement, StageLightRig (7.3)
+│  ├─ StageView.cs                   StageView, StageViewMath, IStageViewItem, LightViewItem (7.4)
+│  ├─ StageViewGuides.cs             The guides' line meshes
+│  ├─ Resources/StageGuide.shader    The guides' shader (unlit)
 │  ├─ ScreenPlacementMath.cs        ScreenPlacementMath, StageDefaults
 │  ├─ DefaultBackdrop.cs             The provisional backdrop's picture
 │  ├─ IAvatarSpawnPoints.cs
@@ -298,7 +425,10 @@ References: Core, Diagnostics, ProjectData, Capture, Video, UI.
 | Screen Surfaces inside a 3D stage | With the Stage Scene design |
 | Keeping a capture running without showing it on the stream | When it is asked for |
 | Moving placements into Project / Profile | Done (2026-10-27): `stage-settings.json` is in the project's folder, as the layout belongs to the project (project data detailed design 6) |
-| Stage Scene lighting and the light's brightness | With the Stage Scene design. Decide whether the brightness scales the whole lighting of a Stage Scene |
+| Stage Scene lighting and the user's lights | With the Stage Scene design. Decide whether the user's lights (7.3) are added to a Stage Scene's lights or replace them |
+| Where positions moved in the stage view are saved | With the Stage Scene design: the project's stage settings or the stage's definition (7.4.7) |
+| Move, rotate, and scale handles | When Camera Points, Spawn Points, and Screen Surfaces are edited (7.4.5) |
+| The stream camera's marker in the stage view | When Video adds an interface giving the stream camera's position (7.4.6) |
 
 ---
 

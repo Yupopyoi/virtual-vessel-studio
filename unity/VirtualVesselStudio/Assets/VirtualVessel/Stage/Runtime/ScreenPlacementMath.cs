@@ -75,12 +75,6 @@ namespace VirtualVessel.Stage
         public static Pose AvatarSpawn => new Pose(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
 
         /// <summary>
-        /// The default light's direction: from above the camera and a little to its left, so the face is
-        /// lit from the front with soft shading toward one side.
-        /// </summary>
-        public static Quaternion LightRotation => Quaternion.Euler(35f, 15f, 0f);
-
-        /// <summary>
         /// Where the provisional backdrop stands: 2 m behind the avatar, at the camera's height, facing it
         /// (video detailed design 7.5: from (0, 1.25, -1.9) with a vertical view of 30°).
         /// </summary>

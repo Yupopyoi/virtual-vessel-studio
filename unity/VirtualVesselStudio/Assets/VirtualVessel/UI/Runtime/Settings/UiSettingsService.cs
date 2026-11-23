@@ -18,7 +18,7 @@ namespace VirtualVessel.UI.Settings
     /// worker thread, one at a time in order, so a slow disk never stalls a frame; the outcome is
     /// picked up by <see cref="Tick"/> on the main thread.
     /// </remarks>
-    public sealed class UiSettingsService
+    public sealed class UiSettingsService : StageEditing.IStageViewPreferences
     {
         public static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(0.5);
 
@@ -138,6 +138,19 @@ namespace VirtualVessel.UI.Settings
         public void SetLastSetupPage(string page)
         {
             Change(settings => settings.LastSetupPage = page);
+        }
+
+        public bool StageViewInvertX => _stored.StageViewInvertX;
+
+        public bool StageViewInvertY => _stored.StageViewInvertY;
+
+        public void SetStageViewInvert(bool invertX, bool invertY)
+        {
+            Change(settings =>
+            {
+                settings.StageViewInvertX = invertX;
+                settings.StageViewInvertY = invertY;
+            });
         }
 
         /// <summary>Call once per frame: reports finished saves and starts a save when it is due.</summary>

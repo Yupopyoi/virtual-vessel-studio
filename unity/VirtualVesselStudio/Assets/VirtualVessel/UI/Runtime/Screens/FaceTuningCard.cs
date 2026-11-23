@@ -7,7 +7,6 @@ using VirtualVessel.Core.Geometry;
 using VirtualVessel.UI.Binding;
 using VirtualVessel.UI.Controls;
 using VirtualVessel.UI.Frames;
-using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.Localization;
 using VirtualVessel.UI.Preview;
 
@@ -39,8 +38,6 @@ namespace VirtualVessel.UI.Screens
         public const string PictureHeight = "setup.face.picture.height";
         public const string PictureZoom = "setup.face.picture.zoom";
         public const string PictureHelp = "setup.face.picture.help";
-        public const string Light = "setup.face.light";
-        public const string LightHelp = "setup.face.light.help";
         public const string Winks = "setup.face.winks";
         public const string WinksHelp = "setup.face.winks.help";
     }
@@ -108,16 +105,14 @@ namespace VirtualVessel.UI.Screens
 
         private readonly IAvatarService _avatars;
         private readonly IStreamPreviewSource _stream;
-        private readonly IStageLighting _lighting;
         private readonly IFrameSource _avatarFrame;
         private Label _noVideo;
         private readonly ValueSlider[] _sliders = new ValueSlider[FaceTuning.PartCount];
         private readonly ProgressMeter[] _meters = new ProgressMeter[FaceTuning.PartCount];
 
         /// <param name="stream">The stream video, to watch the avatar; null shows no picture.</param>
-        /// <param name="lighting">The stage's light; null leaves its slider out.</param>
         /// <param name="avatarFrame">The avatar's frame (Stage detailed design 7.2), to zoom about the avatar; null zooms about the stream's middle.</param>
-        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream, IStageLighting lighting = null, IFrameSource avatarFrame = null)
+        public FaceTuningCard(IAvatarService avatars, IStreamPreviewSource stream, IFrameSource avatarFrame = null)
         {
             _avatars = avatars ?? throw new ArgumentNullException(nameof(avatars));
             _stream = stream;
@@ -128,13 +123,11 @@ namespace VirtualVessel.UI.Screens
             Add(card);
             card.Add(Ui.Text(FaceTuningStrings.Intro, IntroClass, "vv-text-body"));
 
-            _lighting = lighting;
-
             // The stream beside the sliders, so the avatar stays in view while any part is tuned; on a narrow window
             // the sliders wrap below it.
             var layout = new VisualElement();
             layout.AddToClassList(LayoutClass);
-            layout.Add(BuildPicture(lighting != null));
+            layout.Add(BuildPicture());
             layout.Add(BuildParts());
             card.Add(layout);
 
@@ -145,7 +138,7 @@ namespace VirtualVessel.UI.Screens
         // rectangle, does the cropping: a changed UV rectangle was not redrawn. The face sits higher or lower, and
         // looks larger or smaller, with the avatar; the user moves and zooms the picture to it. Not saved: it is only
         // for looking while tuning.
-        private VisualElement BuildPicture(bool withLight)
+        private VisualElement BuildPicture()
         {
             Frame = new VisualElement { pickingMode = PickingMode.Ignore };
             Frame.AddToClassList(PreviewClass);
@@ -164,15 +157,6 @@ namespace VirtualVessel.UI.Screens
             picture.Add(Frame);
             picture.Add(PictureHeight);
             picture.Add(PictureZoom);
-
-            // The light is the stage's and changes the stream too, so it is saved; it sits by the picture because a
-            // washed-out face is seen there.
-            if (withLight)
-            {
-                Light = Percent(FaceTuningStrings.Light, FaceTuningStrings.LightHelp, StageLightIntensity.Min * PercentPerUnit, StageLightIntensity.Max * PercentPerUnit, 5f, value => _lighting.SetIntensity(value / PercentPerUnit));
-                picture.Add(Light);
-            }
-
             return picture;
         }
 
@@ -261,9 +245,6 @@ namespace VirtualVessel.UI.Screens
 
         /// <summary>How much the picture enlarges the stream, in percent.</summary>
         public ValueSlider PictureZoom { get; private set; }
-
-        /// <summary>The stage light's scale in percent; null without the stage.</summary>
-        public ValueSlider Light { get; private set; }
 
         /// <summary>
         /// Where the whole stream goes, in percent of the frame, so that the frame shows
@@ -354,11 +335,6 @@ namespace VirtualVessel.UI.Screens
             }
 
             ShowVideo(_stream?.Video.Value);
-            if (_lighting != null)
-            {
-                subscriptions.Add(_lighting.Intensity.Subscribe(ShowLight));
-                ShowLight(_lighting.Intensity.Value);
-            }
 
             // The avatar may have been moved on the live screen since; the picture follows it.
             if (_avatarFrame != null)
@@ -386,11 +362,6 @@ namespace VirtualVessel.UI.Screens
         {
             Fingers.SetValueWithoutNotify(tuning.Bend * PercentPerUnit);
             Thumb.SetValueWithoutNotify(tuning.Thumb * PercentPerUnit);
-        }
-
-        private void ShowLight(float intensity)
-        {
-            Light.SetValueWithoutNotify(intensity * PercentPerUnit);
         }
 
         private void ShowMovement()
