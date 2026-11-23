@@ -7,6 +7,7 @@ using UnityEngine;
 using VirtualVessel.Core.Time;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.StageEditing;
+using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage.Tests
 {
@@ -93,6 +94,8 @@ namespace VirtualVessel.Stage.Tests
         private GameObject _root;
         private FakeSource _game;
         private FakeSource _sub;
+        private FakeOutput _output;
+        private Core.Lifecycle.FrameLoop _frameLoop;
         private StageService _stage;
 
         [SetUp]
@@ -102,7 +105,7 @@ namespace VirtualVessel.Stage.Tests
             _root = new GameObject("StreamScreens");
             _game = new FakeSource("game");
             _sub = new FakeSource("subscreen");
-            _stage = new StageService(new FakeSources(_game, _sub), new FakeOutput(_root.transform, layer: 5), new Core.Lifecycle.FrameLoop(), StageService.CreateStore(_directory, new UtcSystemClock()), new ManualClock(), null);
+            _stage = new StageService(new FakeSources(_game, _sub), _output = new FakeOutput(_root.transform, layer: 5), _frameLoop = new Core.Lifecycle.FrameLoop(), StageService.CreateStore(_directory, new UtcSystemClock()), new ManualClock(), null);
             _stage.InitializeAsync(CancellationToken.None).Wait();
         }
 
@@ -186,6 +189,39 @@ namespace VirtualVessel.Stage.Tests
             {
                 guides.Dispose();
             }
+        }
+
+        [Test]
+        public void TheStreamCamerasFrame_HasItsViewsShape_InFrontOfIt()
+        {
+            var pose = new StreamCameraPose(new Vector3(0f, 1.3f, -3f), Quaternion.identity, 40f, 16f / 9f);
+            Vector3[] corners = StageViewGuides.CameraFrame(pose, 1f);
+
+            float halfHeight = Mathf.Tan(20f * Mathf.Deg2Rad);
+            Assert.That(corners[0], Is.EqualTo(new Vector3(-halfHeight * 16f / 9f, 1.3f + halfHeight, -2f)), "Top left, 1 m in front.");
+            Assert.That(corners[2], Is.EqualTo(new Vector3(halfHeight * 16f / 9f, 1.3f - halfHeight, -2f)), "Bottom right.");
+        }
+
+        [Test]
+        public void TheStreamCamera_IsDrawnWhenVideoGivesItsPlace()
+        {
+            StageView view = _stage.View;
+            using IDisposable open = view.Open(640, 360);
+            int lightOnly = view.Guides.SegmentCount;
+
+            _output.Camera = new StreamCameraPose(new Vector3(0f, 1.3f, -3f), Quaternion.identity, 40f, 16f / 9f);
+            TickView();
+            Assert.That(view.Guides.SegmentCount, Is.EqualTo(lightOnly + 4 + 4 + 3), "Four lines to the frame, the frame, and the triangle on top.");
+
+            _output.Camera = null;
+            TickView();
+            Assert.That(view.Guides.SegmentCount, Is.EqualTo(lightOnly), "Nothing before the video starts.");
+        }
+
+        // Nothing drives the frame loop in EditMode; the view's frame runs when the test asks.
+        private void TickView()
+        {
+            _frameLoop.Tick(exception => throw exception);
         }
     }
 }

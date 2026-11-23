@@ -32,6 +32,7 @@ namespace VirtualVessel.UI.Screens
         public const string ModelFull = "setup.tracking.model.full";
         public const string Camera = "setup.tracking.camera";
         public const string CameraHelp = "setup.tracking.camera.help";
+        public const string RefreshHelp = "setup.tracking.refresh.help";
         public const string Face = "setup.tracking.part.face";
         public const string Body = "setup.tracking.part.body";
         public const string LeftHand = "setup.tracking.part.lefthand";

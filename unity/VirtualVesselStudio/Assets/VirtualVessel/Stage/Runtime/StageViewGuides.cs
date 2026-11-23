@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VirtualVessel.UI.Lighting;
+using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage
 {
@@ -22,6 +23,12 @@ namespace VirtualVessel.Stage
 
         /// <summary>The others are faint, so the chosen light stands out.</summary>
         public const float FaintAlpha = 0.35f;
+
+        /// <summary>How far in front of the stream camera its frame is drawn: a small camera shape, not its whole view.</summary>
+        public const float CameraFrameDepth = 0.6f;
+
+        /// <summary>A neutral color: the camera is not a light, so it takes none of the lights' colors.</summary>
+        public static readonly Color CameraColor = new Color(0.86f, 0.86f, 0.92f, 0.9f);
 
         private readonly Lines _depth;
         private readonly Lines _onTop;
@@ -124,6 +131,43 @@ namespace VirtualVessel.Stage
                 guides.Add(head, head - direction * 0.12f + right * 0.06f, color, chosen);
                 guides.Add(head, head - direction * 0.12f - right * 0.06f, color, chosen);
             }
+        }
+
+        /// <summary>
+        /// The corners of the stream camera's frame <paramref name="depth"/> in front of it, top left, top right, bottom
+        /// right, bottom left, as its lens sees them. Pure.
+        /// </summary>
+        public static Vector3[] CameraFrame(StreamCameraPose pose, float depth)
+        {
+            float halfHeight = Mathf.Tan(pose.FieldOfView * 0.5f * Mathf.Deg2Rad) * depth;
+            float halfWidth = halfHeight * pose.Aspect;
+            Vector3 center = pose.Position + pose.Rotation * Vector3.forward * depth;
+            Vector3 right = pose.Rotation * Vector3.right * halfWidth;
+            Vector3 up = pose.Rotation * Vector3.up * halfHeight;
+            return new[] { center - right + up, center + right + up, center + right - up, center - right - up };
+        }
+
+        /// <summary>
+        /// The stream camera as a camera shape (Stage detailed design 7.4.6): lines from the lens to a frame of its view's
+        /// shape, and a triangle on the frame's top so its up reads. It follows depth, like the lights that are not chosen.
+        /// </summary>
+        public static void AddCamera(StageViewGuides guides, StreamCameraPose pose)
+        {
+            Vector3[] corners = CameraFrame(pose, CameraFrameDepth);
+            for (int i = 0; i < corners.Length; i++)
+            {
+                guides.Add(pose.Position, corners[i], CameraColor, false);
+                guides.Add(corners[i], corners[(i + 1) % corners.Length], CameraColor, false);
+            }
+
+            Vector3 topLeft = corners[0];
+            Vector3 topRight = corners[1];
+            Vector3 up = (topLeft - corners[3]).normalized * Vector3.Distance(topLeft, topRight) * 0.25f;
+            Vector3 middle = (topLeft + topRight) * 0.5f;
+            Vector3 half = (topRight - topLeft) * 0.2f;
+            guides.Add(middle - half, middle + up, CameraColor, false);
+            guides.Add(middle + up, middle + half, CameraColor, false);
+            guides.Add(middle + half, middle - half, CameraColor, false);
         }
 
         /// <summary>Puts this frame's guides in the meshes, to be drawn by <paramref name="camera"/> only.</summary>

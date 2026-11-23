@@ -102,6 +102,7 @@ public interface IStreamOutput
     VideoSize Size { get; }                       // 配信映像の大きさ（既定1920×1080）
     IStreamScreenLayer Screens { get; }
     int AvatarLayer { get; }                      // アバターに使うUnityの層（Avatar）。起動前は-1
+    StreamCameraPose? Camera { get; }             // Main Cameraの位置、向き、縦の画角、縦横の比。起動前はnull
 }
 
 public interface IAvatarCamera
@@ -126,6 +127,7 @@ public readonly struct VideoSize
 - `IStreamScreenLayer.Root`の子に置いた物は、Screen Cameraだけが描く。置く物の`layer`は`Layer`にする。
 - 平面の映像の層は、舞台の上、アバターの下に描く（7.2）。
 - Avatarは、アバターの全部の部分に`AvatarLayer`を設定する。Avatar Cameraだけが描くようにするため。CompositionがAvatarへ渡す（Avatar詳細設計3章）。
+- `Camera`は、ステージビューが配信のカメラの印を描くために読む（Stage詳細設計7.4.6）。読むだけで、Main Cameraを動かす窓口ではない。アバターの枠で写すときのAvatar Cameraの位置（7.6）は含まない。
 
 ---
 
