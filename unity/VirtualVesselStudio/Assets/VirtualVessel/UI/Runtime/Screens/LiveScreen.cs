@@ -91,7 +91,7 @@ namespace VirtualVessel.UI.Screens
                     effects = source.Role == AudioSourceRole.SoundEffect ? source : effects;
                 }
 
-                Players = new AudioPlayersPanel(services.AudioClips, services.Bgm, services.SoundEffects, music, effects);
+                Players = new AudioPlayersPanel(services.AudioClips, services.Bgm, services.SoundEffects, music, effects, services.Audio);
                 Add(Players);
             }
 

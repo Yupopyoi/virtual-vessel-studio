@@ -153,6 +153,28 @@
     margin-top: var(--vv-space-m);
 }
 
+/* How BGM is mixed, under the BGM list (setup.md 14.1): set apart from the list by a rule and space. */
+.vv-bgm-mix {
+    margin-top: var(--vv-space-l);
+    padding-top: var(--vv-space-m);
+    border-top-width: 1px;
+    border-top-color: var(--vv-color-border);
+}
+
+.vv-bgm-mix > .vv-slider {
+    margin-top: var(--vv-space-s);
+}
+
+.vv-bgm-mix__ducking {
+    flex-direction: row;
+    align-items: center;
+}
+
+.vv-bgm-mix__ducking > .vv-chip {
+    align-self: center;
+    margin-right: var(--vv-space-s);
+}
+
 /* The live screen's BGM and SE (live.md 2): a row for BGM, a row of sound effects' buttons that wraps. */
 .vv-players {
     margin-top: var(--vv-space-m);

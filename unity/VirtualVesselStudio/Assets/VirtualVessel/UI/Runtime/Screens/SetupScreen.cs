@@ -118,7 +118,14 @@ namespace VirtualVessel.UI.Screens
             AddOr(page, services.Audio != null, () => new AudioCard(services.Audio, services.SystemSettings, gameAudioOnVideo), AudioStrings.Unavailable);
             if (services.Audio != null && services.AudioClips != null)
             {
-                page.Add(new AudioClipCard(AudioClipKind.Bgm, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog));
+                var bgm = new AudioClipCard(AudioClipKind.Bgm, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog);
+                if (services.Audio != null)
+                {
+                    // How BGM is mixed, under its list (setup.md 14.1).
+                    bgm.Card.Add(new BgmMixRows(services.Audio));
+                }
+
+                page.Add(bgm);
                 page.Add(new AudioClipCard(AudioClipKind.SoundEffect, services.AudioClips, services.Bgm, services.SoundEffects, services.FileDialog, services.Shortcuts));
             }
 

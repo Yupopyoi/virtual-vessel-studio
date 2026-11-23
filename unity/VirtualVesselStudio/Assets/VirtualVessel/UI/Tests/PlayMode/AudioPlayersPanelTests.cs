@@ -76,7 +76,17 @@ namespace VirtualVessel.UI.Tests
             yield return null;
             Assert.That(panel.PlayButton.TextKey, Is.EqualTo(AudioPlayersStrings.Stop));
             Assert.That(panel.State.style.visibility.value, Is.EqualTo(Visibility.Visible), "Playing, by shape and text.");
-            Assert.That(panel.Tracks.enabledSelf, Is.False, "Not chosen again while it plays.");
+
+            // Another track can be chosen while one plays: the button switches to it (BGM and SE detailed design 8.5).
+            Assert.That(panel.Tracks.enabledSelf, Is.True);
+            panel.Tracks.value = "bgm-1";
+            yield return null;
+            Assert.That(panel.PlayButton.TextKey, Is.EqualTo(AudioPlayersStrings.Switch));
+            Submit(panel.PlayButton);
+            Assert.That(_bgm.Played, Is.EqualTo(("bgm-1", true)), "Switched, not stopped.");
+            _bgm.Set(new BgmStatus(BgmPlayState.Playing, "bgm-1"));
+            yield return null;
+            Assert.That(panel.PlayButton.TextKey, Is.EqualTo(AudioPlayersStrings.Stop));
 
             Submit(panel.PlayButton);
             Assert.That(_bgm.Stopped, Is.True);
@@ -145,6 +155,44 @@ namespace VirtualVessel.UI.Tests
             effects.SetOptions(effects.Options.Value.WithGain(-3f));
             Assert.That(panel.EffectsVolume.value, Is.EqualTo(-3f), "A change from the mixer shows here too.");
             Assert.That(new AudioPlayersPanel(_clips, _bgm, _effects, music).EffectsVolume, Is.Null, "Left out without the source.");
+        }
+
+        [UnityTest]
+        public IEnumerator ATrackStartedOnTheSetupScreen_IsShownAsChosen()
+        {
+            AudioPlayersPanel panel = _root.Content.Q<AudioPlayersPanel>();
+            yield return null;
+            Assert.That(panel.Tracks.value, Is.EqualTo("bgm-1"));
+
+            _bgm.Set(new BgmStatus(BgmPlayState.Playing, "bgm-2"));
+            yield return null;
+            Assert.That(panel.Tracks.value, Is.EqualTo("bgm-2"));
+            Assert.That(panel.PlayButton.TextKey, Is.EqualTo(AudioPlayersStrings.Stop));
+        }
+
+        [UnityTest]
+        public IEnumerator Ducking_IsTurnedOnAndOff_FromTheLiveScreen()
+        {
+            var audio = new AudioPanelTests.FakeAudio();
+            var panel = new AudioPlayersPanel(_clips, _bgm, _effects, null, null, audio);
+            _root.Content.Add(panel);
+            yield return null;
+            Assert.That(panel.DuckingToggle.value, Is.False, "Off by default (2026-11-23).");
+
+            panel.DuckingToggle.value = true;
+            Assert.That(audio.BgmMix.Value.Ducking, Is.True);
+            audio.SetBgmMix(audio.BgmMix.Value.WithDucking(false));
+            Assert.That(panel.DuckingToggle.value, Is.False, "A change on the setup screen shows here too.");
+            Assert.That(new AudioPlayersPanel(_clips, _bgm, _effects, null).DuckingToggle, Is.Null, "Left out without audio.");
+        }
+
+        [Test]
+        public void TheButton_Plays_Stops_OrSwitches()
+        {
+            Assert.That(AudioPlayersPanel.ActionFor(false, null, "a"), Is.EqualTo(BgmAction.Play));
+            Assert.That(AudioPlayersPanel.ActionFor(true, "a", "a"), Is.EqualTo(BgmAction.Stop));
+            Assert.That(AudioPlayersPanel.ActionFor(true, "a", "b"), Is.EqualTo(BgmAction.Switch));
+            Assert.That(AudioPlayersPanel.ActionFor(true, "a", null), Is.EqualTo(BgmAction.Stop));
         }
 
         [Test]

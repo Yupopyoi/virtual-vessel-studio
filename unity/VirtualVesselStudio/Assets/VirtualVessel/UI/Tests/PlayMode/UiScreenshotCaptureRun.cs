@@ -6,6 +6,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UIElements;
+using VirtualVessel.Audio.Clips;
 using VirtualVessel.Core.Time;
 using VirtualVessel.Diagnostics.Performance;
 using VirtualVessel.UI.Credits;
@@ -54,7 +55,7 @@ namespace VirtualVessel.UI.Tests
             RenderTexture target = null;
             try
             {
-                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null), Avatars = new AvatarCardPanelTests.FakeAvatars(), Lighting = new AvatarCardPanelTests.FakeLighting(), StageView = new AvatarCardPanelTests.FakeStageView() }));
+                root.Build(new UiRootContext(config, new StopwatchMonotonicClock(), new UtcSystemClock(), null, null, false, "0.1.0", metrics, screens: new ScreenServices { Captures = new ScreenshotCaptureSources(), Streaming = new StreamPanelTests.FakeStreaming(), Credits = CreditFiles.ForRepository(Path.GetFullPath(Path.Combine(projectPath, "..", "..")), null), Avatars = new AvatarCardPanelTests.FakeAvatars(), Lighting = new AvatarCardPanelTests.FakeLighting(), StageView = new AvatarCardPanelTests.FakeStageView(), Audio = new AudioPanelTests.FakeAudio(), AudioClips = SampleClips(), Bgm = new AudioClipCardTests.FakeBgm(), SoundEffects = new AudioClipCardTests.FakeEffects() }));
 
                 // 96 DPI whatever the machine, so images have the same size everywhere; the UI size still applies.
                 root.Panel.scaleMode = PanelScaleMode.ConstantPixelSize;
@@ -108,6 +109,16 @@ namespace VirtualVessel.UI.Tests
 
                 Directory.Delete(config, recursive: true);
             }
+        }
+
+        // A few BGM and SE, so the audio page and the live screen show their lists and controls.
+        private static AudioClipCardTests.FakeClips SampleClips()
+        {
+            var clips = new AudioClipCardTests.FakeClips();
+            clips.Add(AudioClipKind.Bgm, "bgm-1", "Fluffy afternoon", 47);
+            clips.Add(AudioClipKind.Bgm, "bgm-2", "Waltz", 72);
+            clips.Add(AudioClipKind.SoundEffect, "se-1", "Ding", 2);
+            return clips;
         }
 
         private static IEnumerator Settle()
