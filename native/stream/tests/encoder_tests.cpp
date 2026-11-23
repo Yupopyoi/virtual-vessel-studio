@@ -81,6 +81,8 @@ namespace
 
 int main()
 {
+    // Unbuffered, so a crash still leaves the lines printed before it in the CTest log.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     MFStartup(MF_VERSION);
     VideoComesOut(VideoCodec::H264, "H.264");

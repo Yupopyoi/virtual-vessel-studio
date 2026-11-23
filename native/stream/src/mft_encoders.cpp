@@ -24,17 +24,27 @@ namespace vv::stream
             return std::string(what) + " failed (" + code + ")";
         }
 
-        // The first transform of the category that turns input into output, with the flags given.
-        ComPtr<IMFTransform> FindTransform(const GUID& category, UINT32 flags, const MFT_REGISTER_TYPE_INFO& input, const MFT_REGISTER_TYPE_INFO& output)
+        struct Transform
+        {
+            ComPtr<IMFActivate> activate;
+            ComPtr<IMFTransform> transform;
+        };
+
+        // The first transform of the category that turns input into output, with the flags given, and the
+        // activation object that made it, which ShutDown needs.
+        Transform FindTransform(const GUID& category, UINT32 flags, const MFT_REGISTER_TYPE_INFO& input, const MFT_REGISTER_TYPE_INFO& output)
         {
             IMFActivate** activates = nullptr;
             UINT32 count = 0;
-            ComPtr<IMFTransform> transform;
+            Transform found;
             if (SUCCEEDED(MFTEnumEx(category, flags | MFT_ENUM_FLAG_SORTANDFILTER, &input, &output, &activates, &count)))
             {
-                for (UINT32 i = 0; i < count && !transform; i++)
+                for (UINT32 i = 0; i < count && !found.transform; i++)
                 {
-                    activates[i]->ActivateObject(IID_PPV_ARGS(&transform));
+                    if (SUCCEEDED(activates[i]->ActivateObject(IID_PPV_ARGS(&found.transform))))
+                    {
+                        found.activate = activates[i];
+                    }
                 }
 
                 for (UINT32 i = 0; i < count; i++)
@@ -45,7 +55,22 @@ namespace vv::stream
                 CoTaskMemFree(activates);
             }
 
-            return transform;
+            return found;
+        }
+
+        // A transform made by IMFActivate::ActivateObject must be ended by ShutdownObject (Media Foundation's
+        // IMFActivate documentation). Hardware encoders are asynchronous and run their own threads; released without
+        // it, they can outlive the encoder and still run during MFShutdown (the likely cause of a crash seen once in the
+        // encoder tests).
+        void ShutDown(ComPtr<IMFActivate>& activate, ComPtr<IMFMediaEventGenerator>& events, ComPtr<IMFTransform>& transform)
+        {
+            events.Reset();
+            transform.Reset();
+            if (activate)
+            {
+                activate->ShutdownObject();
+                activate.Reset();
+            }
         }
 
         void SetCodecValue(ICodecAPI* codec, const GUID& key, UINT32 value)
@@ -138,6 +163,8 @@ namespace vv::stream
         {
             _transform->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
         }
+
+        ShutDown(_activate, _events, _transform);
     }
 
     bool VideoEncoder::Open(const VideoEncoderConfig& config, std::string& error)
@@ -145,12 +172,15 @@ namespace vv::stream
         _config = config;
         MFT_REGISTER_TYPE_INFO input = { MFMediaType_Video, MFVideoFormat_NV12 };
         MFT_REGISTER_TYPE_INFO output = { MFMediaType_Video, config.codec == VideoCodec::Av1 ? MFVideoFormat_AV1 : MFVideoFormat_H264 };
-        _transform = FindTransform(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE, input, output);
-        _hardware = static_cast<bool>(_transform);
-        if (!_transform && config.codec == VideoCodec::H264)
+        Transform found = FindTransform(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_HARDWARE, input, output);
+        _hardware = static_cast<bool>(found.transform);
+        if (!found.transform && config.codec == VideoCodec::H264)
         {
-            _transform = FindTransform(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_SYNCMFT, input, output);
+            found = FindTransform(MFT_CATEGORY_VIDEO_ENCODER, MFT_ENUM_FLAG_SYNCMFT, input, output);
         }
+
+        _activate = found.activate;
+        _transform = found.transform;
 
         if (!_transform)
         {
@@ -467,13 +497,18 @@ namespace vv::stream
         {
             _transform->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
         }
+
+        ComPtr<IMFMediaEventGenerator> noEvents;
+        ShutDown(_activate, noEvents, _transform);
     }
 
     bool AacEncoder::Open(int bitrate, std::string& error)
     {
         MFT_REGISTER_TYPE_INFO input = { MFMediaType_Audio, MFAudioFormat_PCM };
         MFT_REGISTER_TYPE_INFO output = { MFMediaType_Audio, MFAudioFormat_AAC };
-        _transform = FindTransform(MFT_CATEGORY_AUDIO_ENCODER, MFT_ENUM_FLAG_SYNCMFT, input, output);
+        Transform found = FindTransform(MFT_CATEGORY_AUDIO_ENCODER, MFT_ENUM_FLAG_SYNCMFT, input, output);
+        _activate = found.activate;
+        _transform = found.transform;
         if (!_transform)
         {
             error = "no AAC encoder";
