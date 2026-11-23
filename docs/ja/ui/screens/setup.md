@@ -495,10 +495,10 @@ BGMのCardの一覧と「ファイルを追加…」の下に、区切りの線�
 
 | 行 | 内容 |
 |---|---|
-| 話している間はBGMを下げる | Setting Row。Toggle。既定はオフ（利用者の決定、2026-11-23）。オンの間はToggleの前にStatus Chipを出し、声に合わせて下げている間は「下げています」（成功の形）、それ以外は「下げていません」（待機の形）とする。反応する声の大きさを合わせる目安にする |
+| 話している間に自動でBGMの音量を下げる | Setting Row。Toggle。既定はオフ（利用者の決定、2026-11-23）。オンの間はToggleの前にStatus Chipを出し、声に合わせて下げている間は「下げています」（成功の形）、それ以外は「下げていません」（待機の形）とする。反応する声の大きさを合わせる目安にする |
 | 下げる量 | Slider（名前を上に置く形）、-24〜-3 dB、1 dBごと、既定-12。オフの間は無効で、ツールチップで理由を出す |
 | 反応する声の大きさ | Slider、-60〜-20 dB、1 dBごと、既定-40。オフの間は無効 |
-| 曲の切り替え | Slider、0〜5 s、0.5秒ごと、既定2。再生中に別の曲を再生したとき、前の曲を下げながら次の曲を上げる長さ。0は前の曲を止めてから次の曲を始める。停止には効かない |
+| 曲の切り替え | Slider、0〜5 s、0.5秒ごと、既定1。再生中に別の曲を再生したとき、前の曲を下げながら次の曲を上げる長さ。0は前の曲を止めてから次の曲を始める。停止には効かない |
 
 - ライブ画面のBGMの行にも、ダッキングのオン／オフを置く（`live.md` 2章）。同じ値を表示する。
 
@@ -506,7 +506,7 @@ BGMのCardの一覧と「ファイルを追加…」の下に、区切りの線�
 
 | Key | 日本語 | English |
 |---|---|---|
-| `setup.bgm.ducking` | 話している間はBGMを下げる | Lower BGM while I talk |
+| `setup.bgm.ducking` | 話している間に自動でBGMの音量を下げる | Automatically lower the BGM volume while I talk |
 | `setup.bgm.ducking.help` | マイクの声を検知している間だけ、BGMの音量を下げます。話し終えると、少し間を置いて元に戻ります。 | Lowers the BGM only while your microphone picks up your voice. It comes back shortly after you stop talking. |
 | `setup.bgm.ducking.now` | 下げています | Lowering |
 | `setup.bgm.ducking.not-now` | 下げていません | Not lowering |
@@ -514,7 +514,7 @@ BGMのCardの一覧と「ファイルを追加…」の下に、区切りの線�
 | `setup.bgm.duck-depth.help` | 話している間に、BGMの音量をどれだけ下げるかです。 | How much the BGM is lowered while you talk. |
 | `setup.bgm.duck-threshold` | 反応する声の大きさ | Voice level to react to |
 | `setup.bgm.duck-threshold.help` | この大きさより大きな声で、BGMを下げます。話してもBGMが下がらない場合は値を下げ、物音で下がる場合は値を上げてください。 | A voice louder than this lowers the BGM. If talking does not lower it, lower this value; if noises lower it, raise this value. |
-| `setup.bgm.ducking-only` | 「話している間はBGMを下げる」がオンのときに使います。 | Used when Lower BGM while I talk is on. |
+| `setup.bgm.ducking-only` | 「話している間に自動でBGMの音量を下げる」がオンのときに使います。 | Used when Automatically lower the BGM volume while I talk is on. |
 | `setup.bgm.crossfade` | 曲の切り替え | Switching tracks |
 | `setup.bgm.crossfade.help` | 再生中に別の曲を再生したとき、前の曲を下げながら次の曲を上げる長さです。0秒にすると、前の曲を止めてから次の曲を始めます。 | How long the previous track fades out while the next fades in when you play another track during playback. At 0 seconds, the previous track stops before the next starts. |
 

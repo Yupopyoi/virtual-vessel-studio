@@ -15,7 +15,7 @@ namespace VirtualVessel.Audio
         public const float MaxDuckThresholdDb = -20f;
         public const float DefaultDuckThresholdDb = -40f;
         public const float MaxCrossfadeSeconds = 5f;
-        public const float DefaultCrossfadeSeconds = 2f;
+        public const float DefaultCrossfadeSeconds = 1f;
 
         /// <summary>Lowered by more than this, BGM counts as ducked for the screens.</summary>
         public const float DuckingShownBelowDb = -1f;
@@ -28,7 +28,7 @@ namespace VirtualVessel.Audio
             CrossfadeSeconds = Clamp(crossfadeSeconds, 0f, MaxCrossfadeSeconds, DefaultCrossfadeSeconds);
         }
 
-        /// <summary>Ducking off (the user's decision, 2026-11-23), lowered 12 dB, a 2-second crossfade.</summary>
+        /// <summary>Ducking off, lowered 12 dB, and a 1-second crossfade (the user's decisions, 2026-11-23).</summary>
         public static BgmMixOptions Default => new BgmMixOptions(false, DefaultDuckDepthDb, DefaultDuckThresholdDb, DefaultCrossfadeSeconds);
 
         /// <summary>Whether BGM is lowered while the user talks.</summary>

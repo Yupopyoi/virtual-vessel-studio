@@ -55,7 +55,7 @@ namespace VirtualVessel.UI.Tests
             Assert.That(_rows.DuckDepth.enabledSelf, Is.False);
             Assert.That(_rows.DuckDepth.TooltipKey, Is.EqualTo(BgmMixStrings.DuckingOnly), "Why, when it cannot be used.");
             Assert.That(_rows.DuckingState.resolvedStyle.display, Is.EqualTo(DisplayStyle.None));
-            Assert.That(_rows.Crossfade.value, Is.EqualTo(2f));
+            Assert.That(_rows.Crossfade.value, Is.EqualTo(1f));
             Assert.That(_rows.Crossfade.enabledSelf, Is.True, "The crossfade does not depend on ducking.");
 
             _rows.DuckingToggle.value = true;

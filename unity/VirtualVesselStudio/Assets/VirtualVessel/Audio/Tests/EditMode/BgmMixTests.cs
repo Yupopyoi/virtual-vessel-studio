@@ -9,12 +9,12 @@ namespace VirtualVessel.Audio.Tests
     public sealed class BgmMixTests
     {
         [Test]
-        public void TheDefaults_AreDuckingOff_12dB_AndATwoSecondCrossfade()
+        public void TheDefaults_AreDuckingOff_12dB_AndAOneSecondCrossfade()
         {
             BgmMixOptions options = BgmMixOptions.Default;
 
             Assert.That(options.Ducking, Is.False, "The user's decision (2026-11-23).");
-            Assert.That((options.DuckDepthDb, options.DuckThresholdDb, options.CrossfadeSeconds), Is.EqualTo((-12f, -40f, 2f)));
+            Assert.That((options.DuckDepthDb, options.DuckThresholdDb, options.CrossfadeSeconds), Is.EqualTo((-12f, -40f, 1f)));
         }
 
         [Test]
@@ -27,7 +27,7 @@ namespace VirtualVessel.Audio.Tests
             Assert.That((tiny.DuckDepthDb, tiny.DuckThresholdDb, tiny.CrossfadeSeconds), Is.EqualTo((-3f, -60f, 0f)));
 
             var unknown = new BgmMixOptions(true, float.NaN, float.NaN, float.NaN);
-            Assert.That((unknown.DuckDepthDb, unknown.DuckThresholdDb, unknown.CrossfadeSeconds), Is.EqualTo((-12f, -40f, 2f)));
+            Assert.That((unknown.DuckDepthDb, unknown.DuckThresholdDb, unknown.CrossfadeSeconds), Is.EqualTo((-12f, -40f, 1f)));
         }
 
         [Test]
@@ -47,7 +47,7 @@ namespace VirtualVessel.Audio.Tests
             var engine = new AudioPlayersTests.FakePlayerEngine();
             using AudioService service = Start(engine, new AudioSettings());
             IAudioSource microphone = service.Sources[0];
-            Assert.That(engine.Crossfade, Is.EqualTo(TimeSpan.FromSeconds(2)));
+            Assert.That(engine.Crossfade, Is.EqualTo(TimeSpan.FromSeconds(1)));
             Assert.That(engine.Ducking.Enabled, Is.False);
 
             service.SetBgmMix(service.BgmMix.Value.WithDucking(true).WithDuckDepth(-18f));

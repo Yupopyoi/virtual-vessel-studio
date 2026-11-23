@@ -112,7 +112,7 @@ public readonly struct BgmMixOptions
     bool Ducking { get; }            // off by default (the user's decision, 2026-11-23)
     float DuckDepthDb { get; }       // how far: -24 to -3 dB, default -12
     float DuckThresholdDb { get; }   // how loud a voice it reacts to: -60 to -20 dBFS, default -40
-    float CrossfadeSeconds { get; }  // a switch's length: 0 to 5 s, default 2; 0 is the switch as before
+    float CrossfadeSeconds { get; }  // a switch's length: 0 to 5 s, default 1; 0 is the switch as before
 }
 ```
 
@@ -169,7 +169,7 @@ The Audio Profile's `sources` (audio detailed design chapter 10) gain one `music
 ```
 
 - Older files without them get them with defaults: BGM -6 dB, SE 0 dB, sent to both the stream and the monitor (the defaults of audio detailed design 5.2).
-- How BGM is mixed (`BgmMixOptions`, chapter 5) is in the Audio Profile's `bgm` (2026-11-23): `"bgm": { "ducking": false, "duckDepthDb": -12, "duckThresholdDb": -40, "crossfadeSeconds": 2 }`. Only fields were added, so schemaVersion stays 1. A file without it reads the defaults, and values out of range are brought into range.
+- How BGM is mixed (`BgmMixOptions`, chapter 5) is in the Audio Profile's `bgm` (2026-11-23): `"bgm": { "ducking": false, "duckDepthDb": -12, "duckThresholdDb": -40, "crossfadeSeconds": 1 }`. Only fields were added, so schemaVersion stays 1. A file without it reads the defaults, and values out of range are brought into range.
 - The last BGM played, and whether it was playing, are not saved, so BGM never starts by itself at start-up. When playlists are added, only the chosen playlist is saved.
 
 ### 6.3 Built-in BGM and SE
@@ -254,7 +254,7 @@ BGM is lowered only while the user talks and comes back after (the user's reques
 
 ### 8.5 A Crossfade When Switching Tracks
 
-Playing another track while one plays brings the old one down while the new one comes up from its start (the user's request, 2026-11-23). The length is 0 to 5 s, 2 by default. It applies to switching only; stopping still fades over about 0.3 s (the user's decision, 2026-11-23).
+Playing another track while one plays brings the old one down while the new one comes up from its start (the user's request, 2026-11-23). The length is 0 to 5 s, 1 by default (the user's decision after trying it, 2026-11-23; it was 2 at first). It applies to switching only; stopping still fades over about 0.3 s (the user's decision, 2026-11-23).
 
 1. The native `BgmCrossfader` holds two BGM decks (8.1). The mix thread adds their two blocks and reads them as one BGM source.
 2. `Play` while a track plays asks the current deck to come down over the length, and the other deck to bring the new track up over the same length. A deck that has come down drops what it read ahead and is free.

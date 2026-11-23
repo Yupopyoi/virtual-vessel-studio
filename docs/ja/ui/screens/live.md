@@ -31,7 +31,7 @@
 | 配信 | Status Chip（3.13）とButton（3.1）。`StreamControl` | 録画の操作の下。`IStreamingService`（Streaming）。状態ごとの表示、開始と終了の確認は配信詳細設計18.1。配信がないときは出さない |
 | 入っている音 | 音の元ごとのIconButton（3.2）、名前、Level Meter（3.5）。`AudioStrip` | 録画の操作の下。`IAudioService`（Audio）。マイク、ゲームの音声、BGM、効果音の順。ミュートのButtonは押すたびに切り替わり、ミュート中は斜線の入ったアイコン（形で示す。BGMは音符、効果音はスピーカー、ほかはマイク）。メーターは-60〜0dB。音声がないときは出さない |
 | 映っている部分 | 腕と手ごとのStatus Chip（3.13） | プレビューの下。トラッキングが動いている間、本人の腕と手のどれがカメラに映っているかを、本人の左右で、アバターが使うのと同じ判定で示す（`LimbStatusRow`、0.2秒ごとに更新）。腕は、肩、肘、手首が見えて画像の中にあれば「映っている」（チェック）、肘だけない場合も「映っている」、手首だけない場合は「手首が見えない」（警告）、それ以外は「映っていない」（輪郭）。手は、手のトラッキングが見つけていれば「映っている」。腕や手が休む理由が分かるようにしたいという利用者の要望（2026-10-25） |
-| BGM・効果音 | Card。BGMの行：曲のSelect（Dropdown 3.6）、「再生」／「停止」、再生中のStatus Chip（止まっているときも場所を残し、後ろの部品が動かないようにする）、経過と長さ（「0:12 / 0:47」、等幅）、BGMの音量のSlider（ミキサーのBGMの行と同じ値）。効果音の行：登録した効果音ごとのButton（押すたびに頭から鳴らし、重ねて鳴る。読み込みが済むまで無効）、効果音の音量のSlider（ミキサーの効果音の行と同じ値）、「効果音を停止」。`AudioPlayersPanel` | 映っている部分の下。`IBgmPlayer`、`ISoundEffectPlayer`、`IAudioClipLibrary`（Audio。BGM・SE詳細設計）。登録は設定画面で行い（`setup.md` 14章）、ないときは一文で案内する。再生中も別の曲を選べ、選ぶとボタンが「切り替え」になり、押すと前の曲を下げながら次の曲を上げる（`bgm-se.md` 8.5。2026-11-23）。設定画面で始めた曲は、その曲を選んだ状態で出す。BGMの行の後ろに、話している間はBGMを下げるToggle（「話すと下げる」。設定画面14.1と同じ値）を置く。ボタンの名前は利用者が付けた文字で、そのまま表示する（Rich Textとして解釈しない）。ショートカットのキーがある効果音は、ツールチップにそのキーを添える。曲の選択とボタンは、設定画面で並べた順に並ぶ |
+| BGM・効果音 | Card。BGMの行：曲のSelect（Dropdown 3.6）、「再生」／「停止」、再生中のStatus Chip（止まっているときも場所を残し、後ろの部品が動かないようにする）、経過と長さ（「0:12 / 0:47」、等幅）、BGMの音量のSlider（ミキサーのBGMの行と同じ値）。効果音の行：登録した効果音ごとのButton（押すたびに頭から鳴らし、重ねて鳴る。読み込みが済むまで無効）、効果音の音量のSlider（ミキサーの効果音の行と同じ値）、「効果音を停止」。`AudioPlayersPanel` | 映っている部分の下。`IBgmPlayer`、`ISoundEffectPlayer`、`IAudioClipLibrary`（Audio。BGM・SE詳細設計）。登録は設定画面で行い（`setup.md` 14章）、ないときは一文で案内する。再生中も別の曲を選べ、選ぶとボタンが「切り替え」になり、押すと前の曲を下げながら次の曲を上げる（`bgm-se.md` 8.5。2026-11-23）。設定画面で始めた曲は、その曲を選んだ状態で出す。BGMの行の後ろに、Toggle「話している間に自動でBGMの音量を下げる」（設定画面14.1と同じ名前と値。名前は1つにそろえる。利用者の指示、2026-11-23）を置く。ボタンの名前は利用者が付けた文字で、そのまま表示する（Rich Textとして解釈しない）。ショートカットのキーがある効果音は、ツールチップにそのキーを添える。曲の選択とボタンは、設定画面で並べた順に並ぶ |
 | 重なり順 | Layer List（3.20）をCardに入れる | プレビューの下。手前の映像が上 |
 | 操作の説明 | 説明文（Text 2） | 「映像はドラッグで移動、角のドラッグで大きさを変えられます。右クリックでメニューを開きます。」 |
 
@@ -123,7 +123,7 @@ Voice Labで声を作っている間に「配信を開始」か「録画を開�
 | `live.players.play` | 再生 | Play |
 | `live.players.stop` | 停止 | Stop |
 | `live.players.switch` | 切り替え | Switch |
-| `live.players.ducking` | 話すと下げる | Lower while talking |
+| `live.players.ducking` | 話している間に自動でBGMの音量を下げる | Automatically lower the BGM volume while I talk |
 | `live.players.ducking.help` | 話している間だけBGMを下げます。下げる量などは、設定画面の「音声」で変更します。 | Lowers the BGM only while you talk. Change how far on the Audio page of Settings. |
 | `live.players.volume` | BGMの音量です。配信と録画、自分に聞こえる音のすべてに効きます。 | The BGM volume, for the stream, recordings, and what you hear. |
 | `live.players.effects-volume` | 効果音の音量です。配信と録画、自分に聞こえる音のすべてに効きます。 | The sound effects volume, for the stream, recordings, and what you hear. |

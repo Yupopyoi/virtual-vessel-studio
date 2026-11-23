@@ -112,7 +112,7 @@ public readonly struct BgmMixOptions
     bool Ducking { get; }            // 既定はオフ（利用者の決定、2026-11-23）
     float DuckDepthDb { get; }       // 下げる量。-24〜-3 dB、既定-12
     float DuckThresholdDb { get; }   // 反応する声の大きさ。-60〜-20 dBFS、既定-40
-    float CrossfadeSeconds { get; }  // 曲の切り替えの長さ。0〜5秒、既定2。0は今までの切り替え
+    float CrossfadeSeconds { get; }  // 曲の切り替えの長さ。0〜5秒、既定1。0は今までの切り替え
 }
 ```
 
@@ -169,7 +169,7 @@ Audio Profile（Audio詳細設計10章）の`sources`に、`music`と`soundEffec
 ```
 
 - 古いファイルにないときは、既定の値で加える：BGMは-6 dB、SEは0 dB。送りは配信とモニターの両方（Audio詳細設計5.2の既定）。
-- BGMの混ぜ方（5章の`BgmMixOptions`）は、Audio Profileの`bgm`に持つ（2026-11-23）：`"bgm": { "ducking": false, "duckDepthDb": -12, "duckThresholdDb": -40, "crossfadeSeconds": 2 }`。項目を足しただけなのでschemaVersionは1のまま。ないファイルは既定の値で読み、範囲の外の値は範囲に収める。
+- BGMの混ぜ方（5章の`BgmMixOptions`）は、Audio Profileの`bgm`に持つ（2026-11-23）：`"bgm": { "ducking": false, "duckDepthDb": -12, "duckThresholdDb": -40, "crossfadeSeconds": 1 }`。項目を足しただけなのでschemaVersionは1のまま。ないファイルは既定の値で読み、範囲の外の値は範囲に収める。
 - 最後に流していたBGMと、それを流していたかは保存しない。起動していきなりBGMが流れないようにするためである。プレイリストを加えるときに、選んだプレイリストだけを保存する。
 
 ### 6.3 同梱のBGMとSE
@@ -254,7 +254,7 @@ StreamingAssets/Audio/BuiltIn/
 
 ### 8.5 曲の切り替えのクロスフェード
 
-曲を流している間に別の曲を流すと、前の曲を下げながら、新しい曲を頭から上げる（利用者の依頼、2026-11-23）。長さは0〜5秒で、既定は2秒。効くのは切り替えだけで、停止は今までどおり約0.3秒で下げる（利用者の決定、2026-11-23）。
+曲を流している間に別の曲を流すと、前の曲を下げながら、新しい曲を頭から上げる（利用者の依頼、2026-11-23）。長さは0〜5秒で、既定は1秒（利用者が試した後の決定、2026-11-23。初めは2秒）。効くのは切り替えだけで、停止は今までどおり約0.3秒で下げる（利用者の決定、2026-11-23）。
 
 1. ネイティブの`BgmCrossfader`が、BGMのデッキ（8.1）を2つ持つ。混ぜ合わせのスレッドは、2つのブロックを足して、1つのBGMの音の元として読む。
 2. 曲を流している間の`Play`は、今のデッキに長さの分で下げることを頼み、もう一方のデッキで新しい曲を同じ長さで上げる。下げ終えたデッキは先読みを捨てて空く。
