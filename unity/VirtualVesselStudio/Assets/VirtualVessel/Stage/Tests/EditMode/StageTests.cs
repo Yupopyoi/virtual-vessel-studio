@@ -525,6 +525,8 @@ namespace VirtualVessel.Stage.Tests
         public int Layer { get; }
 
         public int AvatarLayer => 0;
+
+        public StreamCameraPose? Camera { get; set; }
     }
 
     internal sealed class ManualClock : IMonotonicClock

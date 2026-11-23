@@ -102,6 +102,7 @@ public interface IStreamOutput
     VideoSize Size { get; }                       // Size of the stream video (default 1920×1080)
     IStreamScreenLayer Screens { get; }
     int AvatarLayer { get; }                      // The Unity layer avatars use (Avatar); -1 before start
+    StreamCameraPose? Camera { get; }             // The Main Camera's position, rotation, vertical view, and aspect; null before start
 }
 
 public interface IAvatarCamera
@@ -127,6 +128,7 @@ public readonly struct VideoSize
 - What is placed under `IStreamScreenLayer.Root` is drawn only by the Screen Camera. Its `layer` must be `Layer`.
 - The flat video layer is drawn above the stage and below the avatar (7.2).
 - Avatar sets `AvatarLayer` on every part of an avatar, so only the Avatar Camera draws it. The composition passes it to Avatar (Avatar detailed design 3).
+- The stage view reads `Camera` to draw the stream camera's marker (Stage detailed design 7.4.6). It only reads it: it is not a way to move the Main Camera. It does not include where the Avatar Camera shoots from with an avatar frame (7.6).
 
 ---
 

@@ -6,6 +6,7 @@ using VirtualVessel.Core.Lifecycle;
 using VirtualVessel.Core.State;
 using VirtualVessel.UI.Lighting;
 using VirtualVessel.UI.StageEditing;
+using VirtualVessel.Video;
 
 namespace VirtualVessel.Stage
 {
@@ -211,6 +212,7 @@ namespace VirtualVessel.Stage
         private readonly IStageLighting _lighting;
         private readonly IFrameLoop _frameLoop;
         private readonly Func<int> _hiddenLayer;
+        private readonly Func<StreamCameraPose?> _streamCamera;
         private readonly ObservableValue<Texture> _image = new ObservableValue<Texture>(null);
         private readonly ObservableValue<IReadOnlyList<StageViewMarker>> _markers = new ObservableValue<IReadOnlyList<StageViewMarker>>(Array.Empty<StageViewMarker>());
         private StageViewPose _pose = StageViewMath.Default;
@@ -226,11 +228,13 @@ namespace VirtualVessel.Stage
         /// The flat videos' layer (video detailed design 7.2), -1 for none: 2D over the stream, so not in a 3D view. Read
         /// when the view opens, since Video makes the layer at its start.
         /// </param>
-        public StageView(IStageLighting lighting, IFrameLoop frameLoop, Func<int> hiddenLayer)
+        /// <param name="streamCamera">Where the stream is shot from, read every frame for its guide; null draws none.</param>
+        public StageView(IStageLighting lighting, IFrameLoop frameLoop, Func<int> hiddenLayer, Func<StreamCameraPose?> streamCamera = null)
         {
             _lighting = lighting ?? throw new ArgumentNullException(nameof(lighting));
             _frameLoop = frameLoop ?? throw new ArgumentNullException(nameof(frameLoop));
             _hiddenLayer = hiddenLayer ?? (() => -1);
+            _streamCamera = streamCamera ?? (() => null);
         }
 
         public IReadOnlyObservable<Texture> Image => _image;
@@ -241,6 +245,9 @@ namespace VirtualVessel.Stage
 
         /// <summary>The camera while open; for tests.</summary>
         internal Camera Camera => _camera;
+
+        /// <summary>This frame's guides while open; for tests.</summary>
+        internal StageViewGuides Guides => _guides;
 
         /// <summary>The render target's size for a view of this size: its shape, within <see cref="MaxWidth"/> × <see cref="MaxHeight"/>. Pure.</summary>
         public static Vector2Int TargetSize(int width, int height)
@@ -394,6 +401,11 @@ namespace VirtualVessel.Stage
                 item.AddGuides(_guides, chosen);
                 (Vector2 uv, bool inFront) = StageViewMath.ToView(_pose, item.Position, Aspect);
                 markers.Add(new StageViewMarker(item.Id, item.Label, uv, inFront, item.Color));
+            }
+
+            if (_streamCamera() is StreamCameraPose stream)
+            {
+                StageViewGuides.AddCamera(_guides, stream);
             }
 
             _guides.Draw(_camera);

@@ -63,7 +63,7 @@ namespace VirtualVessel.Stage
             _log = log;
             _avatarCamera = avatarCamera;
             _avatarHeight = avatarHeight;
-            _view = new StageView(this, frameLoop, () => _output.Screens?.Layer ?? -1);
+            _view = new StageView(this, frameLoop, () => _output.Screens?.Layer ?? -1, () => _output.Camera);
             _saves = new ConfigSaveScheduler<StageSettings>(store, clock, s_saveDelay, failure => _log?.Warning($"Failed to save the stage settings to {store.FilePath}.", failure));
         }
 

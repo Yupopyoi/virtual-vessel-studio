@@ -230,7 +230,7 @@ Setupで舞台を見ながら組み立てる3Dの表示。UnityのScene Viewに�
 | ステージビューのカメラ | Stage（`StageView`） | 舞台とアバターを、配信とは別の描画先へ描く |
 | 視点 | Stage（`StageViewMath`、純粋関数） | 中心（Pivot）の周りを回る視点。回す、寄る・引く、中心を動かす、戻す |
 | 編集できる物 | Stage（`IStageViewItem`、internal） | 種類ごとに、印の位置、案内の線（Guide）、取っ手（Handle）の種類を持つ。今はライト（`LightViewItem`）だけ |
-| 案内の線 | Stage（`StageViewGuides`） | 光の向き、スポットの円錐等を、ステージビューのカメラにだけ描く線 |
+| 案内の線 | Stage（`StageViewGuides`） | 光の向き、スポットの円錐、配信のカメラの形等を、ステージビューのカメラにだけ描く線 |
 | 印 | UI（照明のCard） | 物の位置に置く番号の印。Stageが毎Frame出す画面上の位置に、UIの部品として置く |
 | 操作 | UI | ポインターとキーボードを、視点の操作、選択、ドラッグの命令へ変える |
 
@@ -299,7 +299,7 @@ public readonly struct StageViewMarker
 
 - 線のMeshを持つ物を置き、ステージビューのカメラが描く間だけ有効にする（`RenderPipelineManager.beginCameraRendering`で有効、`endCameraRendering`で無効）。そのカメラにだけ描かれ、Main Camera、Avatar Camera、Screen Cameraには描かれない。新しい層を足さずに済む。カメラを指定して描く方法（`Graphics.RenderMesh`の`RenderParams.camera`、`Graphics.DrawMesh`）は、URPのこのカメラでは描かれなかったため使わない（2026-11-22）。
 - ライト：スポットは顔への線と、光の円錐（顔の位置の輪と、ライトから輪への4本の線）。全体のライトは、半径2.4mの位置から顔の方向へ5本の平行な矢印。色は光の色。選んでいるライトは太く、ほかは薄く描く。
-- 配信のカメラの位置に、カメラの形の印を描く。見る方向の目安にするため。StageはMain Cameraの位置を知らないため、Videoから位置を受け取る窓口ができるまでは描かない（17章）。
+- 配信のカメラの位置に、カメラの形の印を描く。見る方向の目安にするため。位置と画角はVideoの`IStreamOutput.Camera`から毎フレーム読む（Video詳細設計5章）。カメラから0.6 m先に、配信の映像と同じ縦横の比の枠を描き、カメラから枠の四隅へ線を引く。枠の上辺には、上の向きがわかるよう三角を描く。色はライトの色と紛れない淡い灰色で、奥行きに従う。動かせる物ではないため、番号の印は付けない。Videoが起動する前は描かない。
 - 線は光を受けないShader（`StageGuide.shader`、Resources）で、奥行きの前後に従う。選んでいる物の線だけは、前に物があっても見えるよう、奥行きを比べずに描く。
 
 #### 7.4.7 3Dの舞台を扱うとき
@@ -428,7 +428,7 @@ Assets/VirtualVessel/Stage/
 | Stage Sceneの照明と利用者のライト | Stage Sceneの設計時。利用者のライト（7.3）を、Stage Sceneのライトに足すか、置き換えるかを決める |
 | ステージビューで動かした位置の保存先 | Stage Sceneの設計時。Projectの舞台の設定か、Stageの定義か（7.4.7） |
 | 移動、回転、大きさの取っ手 | Camera Point、Spawn Point、Screen Surfaceを編集するとき（7.4.5） |
-| ステージビューに配信のカメラの印を描く | Videoが配信のカメラの位置を出す窓口を足すとき（7.4.6） |
+| ステージビューに配信のカメラの印を描く | 完了（2026-11-23）：Videoの`IStreamOutput.Camera`から描く（7.4.6） |
 
 ---
 

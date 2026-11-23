@@ -88,6 +88,10 @@ namespace VirtualVessel.Video
 
         public int AvatarLayer => _avatarLayer;
 
+        public StreamCameraPose? Camera => _target != null && _mainCamera != null
+            ? new StreamCameraPose(_mainCamera.transform.position, _mainCamera.transform.rotation, _mainCamera.fieldOfView, Size.Aspect)
+            : (StreamCameraPose?)null;
+
         /// <summary>For the UI's stream preview: the same texture that is streamed (system design 10.6).</summary>
         public IStreamPreviewSource Preview { get; }
 
